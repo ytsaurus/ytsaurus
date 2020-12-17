@@ -271,21 +271,21 @@ public:
     TFuture<T> WithTimeout(TDuration timeout, IInvokerPtr invoker = nullptr) const;
     TFuture<T> WithTimeout(std::optional<TDuration> timeout, IInvokerPtr invoker = nullptr) const;
 
-    //! Chains the asynchronous computation with another synchronous function.
+    //! Chains the asynchronous computation with another one.
     template <class R>
     TFuture<R> Apply(TCallback<R(const TErrorOr<T>&)> callback) const;
-
-    //! Chains the asynchronous computation with another synchronous function.
     template <class R>
     TFuture<R> Apply(TCallback<TErrorOr<R>(const TErrorOr<T>&)> callback) const;
-
-    //! Chains the asynchronous computation with another asynchronous function.
     template <class R>
     TFuture<R> Apply(TCallback<TFuture<R>(const TErrorOr<T>&)> callback) const;
 
-    //! Chains the asynchronous computation with another asynchronous function.
+    //! Same as #Apply but assumes that this chaining will be the only subscriber.
     template <class R>
-    TFuture<R> Apply(TCallback<TErrorOr<TFuture<R>>(const TErrorOr<T>&)> callback) const;
+    TFuture<R> ApplyUnique(TCallback<R(TErrorOr<T>&&)> callback) const;
+    template <class R>
+    TFuture<R> ApplyUnique(TCallback<TErrorOr<R>(TErrorOr<T>&&)> callback) const;
+    template <class R>
+    TFuture<R> ApplyUnique(TCallback<TFuture<R>(TErrorOr<T>&&)> callback) const;
 
     //! Converts (successful) result to |U|; propagates errors as is.
     template <class U>
@@ -322,6 +322,7 @@ public:
     TFuture() = default;
     TFuture(std::nullopt_t);
 
+    //! Chains the asynchronous computation with another one.
     template <class R>
     TFuture<R> Apply(TCallback<R(const T&)> callback) const;
     template <class R>
@@ -330,7 +331,15 @@ public:
     TFuture<R> Apply(TCallback<TFuture<R>(const T&)> callback) const;
     template <class R>
     TFuture<R> Apply(TCallback<TFuture<R>(T)> callback) const;
+
+    //! Same as #Apply but assumes that this chaining will be the only subscriber.
+    template <class R>
+    TFuture<R> ApplyUnique(TCallback<R(T&&)> callback) const;
+    template <class R>
+    TFuture<R> ApplyUnique(TCallback<TFuture<R>(T&&)> callback) const;
+
     using TFutureBase<T>::Apply;
+    using TFutureBase<T>::ApplyUnique;
 
 private:
     explicit TFuture(TIntrusivePtr<NYT::NDetail::TFutureState<T>> impl);
@@ -358,10 +367,12 @@ public:
     TFuture() = default;
     TFuture(std::nullopt_t);
 
+    //! Chains the asynchronous computation with another one.
     template <class R>
     TFuture<R> Apply(TCallback<R()> callback) const;
     template <class R>
     TFuture<R> Apply(TCallback<TFuture<R>()> callback) const;
+
     using TFutureBase<void>::Apply;
 
 private:

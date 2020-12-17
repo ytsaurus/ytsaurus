@@ -21,7 +21,7 @@ class TFutureTest
     : public ::testing::Test
 { };
 
-TEST_F(TFutureTest, Noncopyable)
+TEST_F(TFutureTest, NoncopyableGet)
 {
     auto f = MakeFuture<std::unique_ptr<int>>(std::make_unique<int>(1));
     EXPECT_TRUE(f.IsSet());
@@ -30,6 +30,65 @@ TEST_F(TFutureTest, Noncopyable)
     auto result =  f.GetUnique();
     EXPECT_TRUE(result.IsOK());
     EXPECT_EQ(1, *result.Value());
+}
+
+TEST_F(TFutureTest, NoncopyableApply1)
+{
+    auto f = MakeFuture<std::unique_ptr<int>>(std::make_unique<int>(1));
+    auto g = f.ApplyUnique(BIND([] (TErrorOr<std::unique_ptr<int>>&& ptrOrError) {
+        EXPECT_TRUE(ptrOrError.IsOK());
+        EXPECT_EQ(1, *ptrOrError.Value());
+    }));
+    EXPECT_TRUE(g.IsSet());
+    EXPECT_TRUE(g.Get().IsOK());
+}
+
+TEST_F(TFutureTest, NoncopyableApply2)
+{
+    auto f = MakeFuture<std::unique_ptr<int>>(std::make_unique<int>(1));
+    auto g = f.ApplyUnique(BIND([] (TErrorOr<std::unique_ptr<int>>&& ptrOrError) -> TErrorOr<int> {
+        EXPECT_TRUE(ptrOrError.IsOK());
+        EXPECT_EQ(1, *ptrOrError.Value());
+        return 2;
+    }));
+    EXPECT_TRUE(g.IsSet());
+    EXPECT_TRUE(g.Get().IsOK());
+    EXPECT_EQ(2, g.Get().Value());
+}
+
+TEST_F(TFutureTest, NoncopyableApply3)
+{
+    auto f = MakeFuture<std::unique_ptr<int>>(std::make_unique<int>(1));
+    auto g = f.ApplyUnique(BIND([] (TErrorOr<std::unique_ptr<int>>&& ptrOrError) -> TFuture<int> {
+        EXPECT_TRUE(ptrOrError.IsOK());
+        EXPECT_EQ(1, *ptrOrError.Value());
+        return MakeFuture(2);
+    }));
+    EXPECT_TRUE(g.IsSet());
+    EXPECT_TRUE(g.Get().IsOK());
+    EXPECT_EQ(2, g.Get().Value());
+}
+
+TEST_F(TFutureTest, NoncopyableApply4)
+{
+    auto f = MakeFuture<std::unique_ptr<int>>(std::make_unique<int>(1));
+    auto g = f.ApplyUnique(BIND([] (std::unique_ptr<int>&& ptr) {
+        EXPECT_EQ(1, *ptr);
+    }));
+    EXPECT_TRUE(g.IsSet());
+    EXPECT_TRUE(g.Get().IsOK());
+}
+
+TEST_F(TFutureTest, NoncopyableApply5)
+{
+    auto f = MakeFuture<std::unique_ptr<int>>(std::make_unique<int>(1));
+    auto g = f.ApplyUnique(BIND([] (std::unique_ptr<int>&& ptr) -> TFuture<int> {
+        EXPECT_EQ(1, *ptr);
+        return MakeFuture(2);
+    }));
+    EXPECT_TRUE(g.IsSet());
+    EXPECT_TRUE(g.Get().IsOK());
+    EXPECT_EQ(2, g.Get().Value());
 }
 
 TEST_F(TFutureTest, Unsubscribe)
