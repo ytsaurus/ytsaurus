@@ -10,6 +10,7 @@ namespace NYT::NTableClient {
 
 DEFINE_ENUM(ESortOrder,
     ((Ascending)   (0))
+    ((Descending)  (1))
 )
 
 ////////////////////////////////////////////////////////////////////////////////

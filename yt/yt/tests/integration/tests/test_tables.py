@@ -1103,6 +1103,16 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/t/@sorted")
         assert get("//tmp/t/@key_columns") == ["a", "b"]
 
+    @authors("max42")
+    def test_unavailable_descending_sort_order(self):
+        # This test is temporary. It is to ensure that under no circumstances
+        # it is possible to create a table with descending sort order until
+        # we are completely ready for that.
+        with raises_yt_error(InvalidSchemaValue):
+            create("table", "//tmp/t", attributes={"schema": [{
+                "name": "k", "type": "int64", "sort_order": "descending"
+            }]})
+
     @authors("babenko", "ignat")
     def test_statistics1(self):
         table = "//tmp/t"
