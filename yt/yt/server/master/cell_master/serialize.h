@@ -117,11 +117,11 @@ DEFINE_ENUM(EMasterReign,
     ((TabletCellStatusGossipPeriod)                                 (1432))  // gritukan
     ((CorrectMergeBranchSemanticsForAttributes)                     (1433))  // shakurov
     ((IncrementalCellStatusGossip)                                  (1434))  // gritukan
+    ((RemoveTypeV2)                                                 (1435))  // ermolovd
+    ((EnableChangelogChunkPreallocationInBundleOptions)             (1436))  // babenko
     // Late 20.3 starts here.
     ((OrderedRemoteDynamicStoreReader)                              (1444))  // ifsmirnov
     ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
-    ((RemoveTypeV2)                                                 (1436))  // ermolovd
-    ((EnableChangelogChunkPreallocationInBundleOptions)             (1436))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
