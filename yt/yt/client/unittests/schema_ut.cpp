@@ -92,94 +92,6 @@ TEST(TTableSchemaTest, ColumnTypeV1Deserialization)
         "}"));
 }
 
-TEST(TTableSchemaTest, ColumnTypeV2Deserialization)
-{
-    {
-        auto column = ColumnFromYson(
-            "{"
-            "  name=x;"
-            "  type_v2={"
-            "    metatype=list;"
-            "    element=utf8"
-            "  }"
-            "}");
-        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8)));
-    }
-
-    {
-        auto column = ColumnFromYson(
-            "{"
-            "  name=x;"
-            "  type_v2={"
-            "    metatype=list;"
-            "    element=utf8"
-            "  };"
-            "  required=%true;"
-            "}");
-        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8)));
-    }
-
-    {
-        auto column = ColumnFromYson(
-            "{"
-            "  name=x;"
-            "  type_v2={"
-            "    metatype=list;"
-            "    element=utf8"
-            "  };"
-            "  type=any;"
-            "}");
-        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8)));
-    }
-
-    {
-        auto column = ColumnFromYson(
-            "{"
-            "  name=x;"
-            "  type_v2={"
-            "    metatype=optional;"
-            "    element={"
-            "      metatype=optional;"
-            "      element=utf8;"
-            "    }"
-            "  };"
-            "  type=any;"
-            "  required=%false;"
-            "}");
-        EXPECT_EQ(
-            *column.LogicalType(),
-            *OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8))));
-    }
-
-    EXPECT_ANY_THROW(
-        ColumnFromYson(
-            "{"
-            "  name=x;"
-            "  type_v2={"
-            "    metatype=optional;"
-            "    element={"
-            "      metatype=optional;"
-            "      element=utf8"
-            "    }"
-            "  };"
-            "  required=%true;"
-            "}"));
-
-    EXPECT_ANY_THROW(
-        ColumnFromYson(
-            "{"
-            "  name=x;"
-            "  type_v2={"
-            "    metatype=optional;"
-            "    element={"
-            "      metatype=optional;"
-            "      element=utf8"
-            "    }"
-            "  };"
-            "  type=utf8;"
-            "}"));
-}
-
 TEST(TTableSchemaTest, ColumnTypeV3Deserialization)
 {
     using namespace NLogicalTypeShortcuts;
@@ -284,26 +196,6 @@ TEST(TTableSchemaTest, ColumnTypeV3Deserialization)
             }
         )"),
         R"("type_v3" doesn't match "type")"
-    );
-
-    EXPECT_THROW_WITH_SUBSTRING(
-        ColumnFromYson(R"(
-            {
-              name=x;
-              type_v3={
-                type_name=optional;
-                item={
-                  type_name=optional;
-                  item=utf8;
-                }
-              };
-              type_v2={
-                metatype=optional;
-                element=utf8;
-              }
-            }
-        )"),
-        R"("type_v3" doesn't match "type_v2")"
     );
 }
 

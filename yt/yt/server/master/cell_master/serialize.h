@@ -120,6 +120,7 @@ DEFINE_ENUM(EMasterReign,
     // Late 20.3 starts here.
     ((OrderedRemoteDynamicStoreReader)                              (1444))  // ifsmirnov
     ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
+    ((RemoveTypeV2)                                                 (1436))  // ermolovd
 );
 
 ////////////////////////////////////////////////////////////////////////////////
