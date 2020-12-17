@@ -360,7 +360,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
 
     return environment
 
-def _is_stopped(id, path=None):
+def _is_stopped(id, path=None, verbose=False):
     sandbox_path = os.path.join(get_root_path(path), id)
 
     if not os.path.isdir(sandbox_path):
@@ -370,13 +370,14 @@ def _is_stopped(id, path=None):
 
     # Debug info for tests.
     if yatest_common is not None:
-        if not os.path.exists(lock_file_path):
+        if verbose and not os.path.exists(lock_file_path):
             logger.warning("File %s does not exist", lock_file_path)
 
     if is_file_locked(lock_file_path):
-        if yatest_common is not None:
-            logger.warning("Lock is not acquired on %s", lock_file_path)
         return False
+    else:
+        if verbose and yatest_common is not None:
+            logger.warning("Lock is not acquired on %s", lock_file_path)
 
     return True
 
@@ -387,8 +388,9 @@ def _is_exists(id, path=None):
 def stop(id, remove_working_dir=False, remove_runtime_data=False, path=None, ignore_lock=False):
     require(_is_exists(id, path),
             lambda: yt.YtError("Local YT with id {0} not found".format(id)))
-    require(ignore_lock or not _is_stopped(id, path),
-            lambda: yt.YtError("Local YT with id {0} is already stopped".format(id)))
+    if not ignore_lock:
+        require(not _is_stopped(id, path, verbose=True),
+                lambda: yt.YtError("Local YT with id {0} is already stopped".format(id)))
 
     sandbox_dir = os.path.join(get_root_path(path), id)
     pids_file_path = os.path.join(sandbox_dir, "pids.txt")
