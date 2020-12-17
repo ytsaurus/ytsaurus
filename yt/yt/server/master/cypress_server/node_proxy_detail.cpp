@@ -2646,6 +2646,11 @@ void TMapNodeProxy::ListSelf(
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
+    YT_LOG_ACCESS(
+        context,
+        GetPath(),
+        Transaction_);
+
     auto attributeKeys = request->has_attributes()
         ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
         : std::nullopt;
