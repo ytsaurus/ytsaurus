@@ -897,6 +897,9 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         case EInternedAttributeKey::EnableDynamicStoreRead: {
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
+            if (lockedTable->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Dynamic store read for replicated tables is not supported");
+            }
             if (lockedTable->IsDynamic()) {
                 lockedTable->ValidateAllTabletsUnmounted("Cannot change dynamic stores readability");
             }
@@ -1064,10 +1067,6 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto* lockedTable = LockThisImpl();
             if (lockedTable->IsDynamic()) {
                 lockedTable->ValidateAllTabletsUnmounted("Cannot change dynamic stores readability");
-            }
-
-            if (!lockedTable->IsPhysicallySorted()) {
-                THROW_ERROR_EXCEPTION("Readable dynamic stores for ordered tables are not implemented");
             }
 
             lockedTable->SetEnableDynamicStoreRead(ConvertTo<bool>(value));

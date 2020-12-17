@@ -56,6 +56,9 @@ static_assert(
     (1ull << 63) / (1ll << 40) / 20 >= MaxDynamicMemoryPoolWeight,
     "MaxDynamicMemoryPoolWeight is too large");
 
+//! $tablet_index and $row_index.
+constexpr int OrderedTabletSystemColumnCount = 2;
+
 //! Signatures enable checking tablet transaction integrity.
 /*!
  *  When a transaction is created, its signature is #InitialTransactionSignature.

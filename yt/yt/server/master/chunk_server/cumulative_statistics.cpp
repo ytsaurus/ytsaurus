@@ -323,14 +323,25 @@ TCumulativeStatisticsEntry TCumulativeStatistics::Back() const
     return this->operator[](Size() - 1);
 }
 
-void TCumulativeStatistics::TrimFront(int entriesCount)
+void TCumulativeStatistics::TrimFront(int entryCount)
 {
-    auto& statistics = AsTrimmable();
     // NB: At least one entry always remains.
-    YT_VERIFY(entriesCount <= Size());
+    YT_VERIFY(entryCount <= Size());
+
+    auto& statistics = AsTrimmable();
     statistics.erase(
         statistics.begin(),
-        statistics.begin() + entriesCount);
+        statistics.begin() + entryCount);
+}
+
+void TCumulativeStatistics::TrimBack(int entryCount)
+{
+    YT_VERIFY(entryCount <= Size());
+
+    auto& statistics = AsTrimmable();
+    statistics.erase(
+        statistics.end() - entryCount,
+        statistics.end());
 }
 
 size_t TCumulativeStatistics::GetImplementationIndex() const

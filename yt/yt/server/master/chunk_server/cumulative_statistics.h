@@ -49,7 +49,7 @@ void Serialize(const TCumulativeStatisticsEntry& entry, NYson::IYsonConsumer* co
 //! `Modifiable` structure stores a Fenwick tree and allows efficient aggregate modifications
 //! at any point at the cost of additional O(log |size|) factor.
 //!
-//! `Trimmable` structure is the same as `Modifiable` but allows removing entries from the front.
+//! `Trimmable` structure is the same as `Modifiable` but allows removing entries from both sides.
 class TCumulativeStatistics
 {
 public:
@@ -85,7 +85,8 @@ public:
     TCumulativeStatisticsEntry Back() const;
 
     // Interface for Trimmable.
-    void TrimFront(int entriesCount);
+    void TrimFront(int entryCount);
+    void TrimBack(int entryCount);
 
 private:
     using TAppendableCumulativeStatistics = std::vector<TCumulativeStatisticsEntry>;

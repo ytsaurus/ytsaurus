@@ -1,4 +1,5 @@
 #include "remote_dynamic_store_reader.h"
+#include "schemaless_chunk_reader.h"
 #include "private.h"
 
 #include <yt/ytlib/api/native/client.h>
@@ -14,9 +15,11 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/wire_protocol.h>
-#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/client/chunk_client/read_limit.h>
 
@@ -45,7 +48,12 @@ using TIdMapping = SmallVector<int, TypicalColumnCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::tuple<TTableSchemaPtr, TColumnFilter, TIdMapping> CreateReadParameters(
+struct TRemoteDynamicStoreReaderPoolTag
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::tuple<TTableSchemaPtr, TColumnFilter, TIdMapping> CreateSortedReadParameters(
     const TTableSchemaPtr& schema,
     const TColumnFilter& columnFilter)
 {
@@ -84,26 +92,62 @@ std::tuple<TTableSchemaPtr, TColumnFilter, TIdMapping> CreateReadParameters(
     }
 }
 
+std::tuple<TColumnFilter, TIdMapping> CreateOrderedReadParameters(
+    const TTableSchemaPtr& schema,
+    const std::optional<std::vector<TString>>& columns,
+    const TNameTablePtr& nameTable)
+{
+    // We don't request system columns (tablet_index and row_index) from the node.
+    // Instead all system columns are added in PostprocessRow().
+    TIdMapping idMapping(
+        static_cast<size_t>(schema->GetColumnCount() + OrderedTabletSystemColumnCount),
+        -1);
+
+    if (!columns) {
+        TColumnFilter::TIndexes columnFilterIndexes;
+
+        for (int index = 0; index < schema->GetColumnCount(); ++index) {
+            columnFilterIndexes.push_back(index + OrderedTabletSystemColumnCount);
+            const auto& columnName = schema->Columns()[index].Name();
+            idMapping[index + OrderedTabletSystemColumnCount] = nameTable->GetIdOrRegisterName(columnName);
+        }
+
+        TColumnFilter readColumnFilter(std::move(columnFilterIndexes));
+        return {readColumnFilter, idMapping};
+    } else {
+        TColumnFilter::TIndexes columnFilterIndexes;
+
+        for (const auto& columnName : *columns) {
+            auto* column = schema->FindColumn(columnName);
+            if (column) {
+                int columnIndex = schema->GetColumnIndex(*column);
+                columnFilterIndexes.push_back(columnIndex + OrderedTabletSystemColumnCount);
+                idMapping[columnIndex + OrderedTabletSystemColumnCount] = nameTable->GetIdOrRegisterName(columnName);
+            }
+        }
+
+        TColumnFilter readColumnFilter(std::move(columnFilterIndexes));
+        return {readColumnFilter, idMapping};
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteDynamicStoreReader
-    : public IVersionedReader
+template<typename TRow>
+class TRemoteDynamicStoreReaderBase
+    : public virtual IReaderBase
 {
 public:
-    TRemoteDynamicStoreReader(
+    TRemoteDynamicStoreReaderBase(
         TChunkSpec chunkSpec,
-        TTableSchemaPtr schema,
         TRemoteDynamicStoreReaderConfigPtr config,
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
-        const TClientBlockReadOptions& blockReadOptions,
-        const TColumnFilter& columnFilter,
-        TTimestamp timestamp)
+        const TClientBlockReadOptions& blockReadOptions)
         : ChunkSpec_(std::move(chunkSpec))
         , Config_(std::move(config))
         , Client_(std::move(client))
         , NodeDirectory_(std::move(nodeDirectory))
-        , Timestamp_(timestamp)
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , Logger(NLogging::TLogger(TableClientLogger)
             .AddTag("ReaderId: %v", TGuid::Create()))
@@ -117,23 +161,86 @@ public:
         Logger.AddTag("StoreId: %v", FromProto<TDynamicStoreId>(ChunkSpec_.chunk_id()));
         Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
 
-        std::tie(Schema_, ColumnFilter_, IdMapping_) = CreateReadParameters(schema, columnFilter);
+        if (ChunkSpec_.has_row_index_is_absolute() && !ChunkSpec_.row_index_is_absolute()) {
+            THROW_ERROR_EXCEPTION("Remote dynamic store reader expects absolute row indices in chunk spec");
+        }
 
-        YT_LOG_DEBUG("Remote dynamic store reader created");
+        YT_LOG_DEBUG("Created remote dynamic store reader");
     }
 
-    virtual ~TRemoteDynamicStoreReader() override
+    virtual TFuture<void> GetReadyEvent() const
     {
-        YT_LOG_DEBUG("Remote dynamic store reader destroyed");
-    }
-
-    virtual TFuture<void> Open()
-    {
-        DoOpen();
         return ReadyEvent_;
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows)
+    virtual TDataStatistics GetDataStatistics() const
+    {
+        TDataStatistics dataStatistics;
+
+        dataStatistics.set_chunk_count(1);
+        dataStatistics.set_uncompressed_data_size(UncompressedDataSize_);
+        dataStatistics.set_compressed_data_size(UncompressedDataSize_);
+
+        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_data_weight(DataWeight_);
+        return dataStatistics;
+    }
+
+    virtual TCodecStatistics GetDecompressionStatistics() const
+    {
+        // TODO(ifsmirnov): compression is done at the level of rpc streaming protocol, is it possible
+        // to extract statistics from there?
+        return {};
+    }
+
+    virtual bool IsFetchingCompleted() const
+    {
+        return false;
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const
+    {
+        return FailedChunkIds_;
+    }
+
+protected:
+    using TRows = TSharedRange<TRow>;
+
+    const TChunkSpec ChunkSpec_;
+    const TRemoteDynamicStoreReaderConfigPtr Config_;
+    const NNative::IClientPtr Client_;
+    const TNodeDirectoryPtr NodeDirectory_;
+    const TNetworkPreferenceList Networks_;
+
+    TTableSchemaPtr Schema_;
+    TColumnFilter ColumnFilter_;
+    TIdMapping IdMapping_;
+
+    TPromise<void> ReadyEvent_ = NewPromise<void>();
+    NConcurrency::IAsyncZeroCopyInputStreamPtr InputStream_;
+    TFuture<TRows> RowsFuture_;
+    int RowIndex_;
+
+    TRows StoredRowset_;
+
+    i64 RowCount_ = 0;
+    i64 DataWeight_ = 0;
+    std::atomic<i64> UncompressedDataSize_ = 0;
+    std::vector<TChunkId> FailedChunkIds_;
+
+    TReadSessionId ReadSessionId_;
+    NLogging::TLogger Logger;
+
+    virtual void FillRequestAndLog(TQueryServiceProxy::TReqReadDynamicStorePtr req) = 0;
+
+    virtual TRows DeserializeRows(const TSharedRef& data) = 0;
+
+    virtual TRow PostprocessRow(TRow row)
+    {
+        return row;
+    }
+
+    bool DoRead(std::vector<TRow>* rows)
     {
         rows->clear();
         YT_VERIFY(rows->capacity() > 0);
@@ -162,7 +269,8 @@ public:
                 loadedRows.size() - RowIndex_);
 
             for (int localRowIndex = 0; localRowIndex < readCount; ++localRowIndex) {
-                rows->push_back(loadedRows[RowIndex_++]);
+                auto postprocessedRow = PostprocessRow(loadedRows[RowIndex_++]);
+                rows->push_back(postprocessedRow);
                 ++RowCount_;
                 DataWeight_ += GetDataWeight(rows->back());
             }
@@ -175,70 +283,6 @@ public:
         ReadyEvent_.SetFrom(RowsFuture_);
         return true;
     }
-
-    virtual TFuture<void> GetReadyEvent() const
-    {
-        return ReadyEvent_;
-    }
-
-    virtual TDataStatistics GetDataStatistics() const
-    {
-        TDataStatistics dataStatistics;
-
-        dataStatistics.set_chunk_count(0);
-        dataStatistics.set_uncompressed_data_size(UncompressedDataSize_);
-        dataStatistics.set_compressed_data_size(0);
-        dataStatistics.set_row_count(RowCount_);
-        dataStatistics.set_data_weight(DataWeight_);
-
-        return dataStatistics;
-    }
-
-    virtual TCodecStatistics GetDecompressionStatistics() const
-    {
-        // TODO(ifsmirnov): compression is done at the level of rpc streaming protocol, is it possible
-        // to extract statistics from there?
-        return {};
-    }
-
-    virtual bool IsFetchingCompleted() const
-    {
-        return false;
-    }
-
-    virtual std::vector<TChunkId> GetFailedChunkIds() const
-    {
-        return FailedChunkIds_;
-    }
-
-private:
-    using TRows = TSharedRange<TVersionedRow>;
-
-    const TChunkSpec ChunkSpec_;
-    const TRemoteDynamicStoreReaderConfigPtr Config_;
-    const NNative::IClientPtr Client_;
-    const TNodeDirectoryPtr NodeDirectory_;
-    const TTimestamp Timestamp_;
-    const TNetworkPreferenceList Networks_;
-
-    TTableSchemaPtr Schema_;
-    TColumnFilter ColumnFilter_;
-    TIdMapping IdMapping_;
-
-    TPromise<void> ReadyEvent_ = NewPromise<void>();
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
-    NConcurrency::IAsyncZeroCopyInputStreamPtr InputStream_;
-    TFuture<TRows> RowsFuture_;
-    int RowIndex_ = -1;
-    TRows StoredRowset_;
-
-    i64 RowCount_ = 0;
-    i64 DataWeight_ = 0;
-    std::atomic<i64> UncompressedDataSize_ = 0;
-    std::vector<TChunkId> FailedChunkIds_;
-
-    TReadSessionId ReadSessionId_;
-    NLogging::TLogger Logger;
 
     void DoOpen()
     {
@@ -272,28 +316,13 @@ private:
             auto req = proxy.ReadDynamicStore();
             ToProto(req->mutable_tablet_id(), tabletId);
             ToProto(req->mutable_store_id(), storeId);
-            if (!ColumnFilter_.IsUniversal())  {
+            if (!ColumnFilter_.IsUniversal()) {
                 ToProto(req->mutable_column_filter()->mutable_indexes(), ColumnFilter_.GetIndexes());
             }
 
             ToProto(req->mutable_read_session_id(), ReadSessionId_);
 
-            auto lowerLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.lower_limit());
-            auto upperLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.upper_limit());
-            if (lowerLimit.HasLegacyKey()) {
-                ToProto(req->mutable_lower_bound(), lowerLimit.GetLegacyKey());
-            }
-            if (upperLimit.HasLegacyKey()) {
-                ToProto(req->mutable_upper_bound(), upperLimit.GetLegacyKey());
-            }
-
-            req->set_timestamp(Timestamp_);
-
-            YT_LOG_DEBUG("Collected remote dynamic store reader parameters (Range: <%v .. %v>, Timestamp: %v, ColumnFilter: %v)",
-                lowerLimit,
-                upperLimit,
-                Timestamp_,
-                ColumnFilter_);
+            FillRequestAndLog(req);
 
             req->ClientAttachmentsStreamingParameters().ReadTimeout = Config_->ClientReadTimeout;
             req->ServerAttachmentsStreamingParameters().ReadTimeout = Config_->ServerReadTimeout;
@@ -323,6 +352,7 @@ private:
         }
     }
 
+private:
     void RequestRows()
     {
         RowIndex_ = 0;
@@ -338,8 +368,70 @@ private:
                     : TRows{};
             }));
     }
+};
 
-    TRows DeserializeRows(const TSharedRef& data)
+class TRemoteSortedDynamicStoreReader
+    : public TRemoteDynamicStoreReaderBase<TVersionedRow>
+    , public IVersionedReader
+{
+public:
+    TRemoteSortedDynamicStoreReader(
+        TChunkSpec chunkSpec,
+        TTableSchemaPtr schema,
+        TRemoteDynamicStoreReaderConfigPtr config,
+        NNative::IClientPtr client,
+        TNodeDirectoryPtr nodeDirectory,
+        const TClientBlockReadOptions& blockReadOptions,
+        const TColumnFilter& columnFilter,
+        TTimestamp timestamp)
+        : TBase(
+            std::move(chunkSpec),
+            std::move(config),
+            std::move(client),
+            std::move(nodeDirectory),
+            blockReadOptions)
+        , Timestamp_(timestamp)
+    {
+        std::tie(Schema_, ColumnFilter_, IdMapping_) = CreateSortedReadParameters(schema, columnFilter);
+    }
+
+    virtual TFuture<void> Open()
+    {
+        DoOpen();
+        return ReadyEvent_;
+    }
+
+    virtual bool Read(std::vector<TVersionedRow>* rows)
+    {
+        return DoRead(rows);
+    }
+
+private:
+    using TBase = TRemoteDynamicStoreReaderBase<TVersionedRow>;
+
+    const TTimestamp Timestamp_;
+
+    virtual void FillRequestAndLog(TQueryServiceProxy::TReqReadDynamicStorePtr req) override
+    {
+        auto lowerLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.lower_limit());
+        auto upperLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.upper_limit());
+        if (lowerLimit.HasLegacyKey()) {
+            ToProto(req->mutable_lower_bound(), lowerLimit.GetLegacyKey());
+        }
+        if (upperLimit.HasLegacyKey()) {
+            ToProto(req->mutable_upper_bound(), upperLimit.GetLegacyKey());
+        }
+
+        req->set_timestamp(Timestamp_);
+
+        YT_LOG_DEBUG("Collected remote dynamic store reader parameters (Range: <%v .. %v>, Timestamp: %v, ColumnFilter: %v)",
+            lowerLimit,
+            upperLimit,
+            Timestamp_,
+            ColumnFilter_);
+    }
+
+    virtual TRows DeserializeRows(const TSharedRef& data) override
     {
         UncompressedDataSize_ += data.Size();
         // Default row buffer.
@@ -351,7 +443,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedReaderPtr CreateRemoteDynamicStoreReader(
+IVersionedReaderPtr CreateRemoteSortedDynamicStoreReader(
     TChunkSpec chunkSpec,
     TTableSchemaPtr schema,
     TRemoteDynamicStoreReaderConfigPtr config,
@@ -364,7 +456,7 @@ IVersionedReaderPtr CreateRemoteDynamicStoreReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
 {
-    return New<TRemoteDynamicStoreReader>(
+    return New<TRemoteSortedDynamicStoreReader>(
         std::move(chunkSpec),
         std::move(schema),
         std::move(config),
@@ -373,6 +465,229 @@ IVersionedReaderPtr CreateRemoteDynamicStoreReader(
         blockReadOptions,
         columnFilter,
         timestamp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemoteOrderedDynamicStoreReader
+    : public TRemoteDynamicStoreReaderBase<TUnversionedRow>
+    , public ISchemalessChunkReader
+{
+public:
+    TRemoteOrderedDynamicStoreReader(
+        TChunkSpec chunkSpec,
+        TTableSchemaPtr schema,
+        TRemoteDynamicStoreReaderConfigPtr config,
+        TChunkReaderOptionsPtr options,
+        NNative::IClientPtr client,
+        TNodeDirectoryPtr nodeDirectory,
+        const TClientBlockReadOptions& blockReadOptions,
+        TNameTablePtr nameTable,
+        const std::optional<std::vector<TString>>& columns)
+        : TBase(
+            std::move(chunkSpec),
+            std::move(config),
+            std::move(client),
+            std::move(nodeDirectory),
+            blockReadOptions)
+        , Options_(std::move(options))
+        , NameTable_(std::move(nameTable))
+        , ColumnPresenseBuffer_(schema->GetColumnCount())
+    {
+        std::tie(ColumnFilter_, IdMapping_) = CreateOrderedReadParameters(
+            schema,
+            columns,
+            NameTable_);
+
+        InitializeSystemColumnIds();
+
+        DoOpen();
+    }
+
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        RowBuffer_->Clear();
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
+        if (DoRead(&rows)) {
+            return rows.empty()
+                ? CreateEmptyUnversionedRowBatch()
+                : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows)));
+        } else {
+            return nullptr;
+        }
+    }
+
+    virtual const TNameTablePtr& GetNameTable() const override
+    {
+        return NameTable_;
+    }
+
+    virtual const TKeyColumns& GetKeyColumns() const override
+    {
+        YT_ABORT();
+    }
+
+    virtual i64 GetTableRowIndex() const override
+    {
+        // NB: Table row index is requested only for the first reader in the sequential
+        // group and only after ready event is set. Thus either this value is correctly
+        // initialized or the first dynamic store of the table is empty, so zero is correct.
+        return CurrentRowIndex_ == -1 ? 0 : CurrentRowIndex_;
+    }
+
+    //! Returns #unreadRows to reader and builds data slice descriptors for read and unread data.
+    virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
+        TRange<NTableClient::TUnversionedRow> /*unreadRows*/) const override
+    {
+        // XXX(ifsmirnov)
+        return {};
+    }
+
+    virtual const NChunkClient::TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    {
+        // XXX(ifsmirnov)
+        YT_ABORT();
+    }
+
+    virtual TTimingStatistics GetTimingStatistics() const override
+    {
+        // YT_ABORT();
+        return {};
+    }
+
+private:
+    using TBase = TRemoteDynamicStoreReaderBase<TUnversionedRow>;
+
+    std::optional<i64> StartRowIndex_;
+    i64 CurrentRowIndex_ = -1;
+    const TChunkReaderOptionsPtr Options_;
+    const TNameTablePtr NameTable_;
+
+    int TableIndexId_ = -1;
+    int RangeIndexId_ = -1;
+    int RowIndexId_ = -1;
+    int TabletIndexId_ = -1;
+    int SystemColumnCount_ = 0;
+
+    int TableIndex_ = -1;
+    int RangeIndex_ = -1;
+    int TabletIndex_ = -1;
+
+    std::vector<bool> ColumnPresenseBuffer_;
+
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TRemoteDynamicStoreReaderPoolTag());
+
+    virtual void FillRequestAndLog(TQueryServiceProxy::TReqReadDynamicStorePtr req) override
+    {
+        auto lowerLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.lower_limit());
+        auto upperLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.upper_limit());
+        if (lowerLimit.HasRowIndex()) {
+            req->set_start_row_index(lowerLimit.GetRowIndex());
+        }
+        if (upperLimit.HasRowIndex()) {
+            req->set_end_row_index(upperLimit.GetRowIndex());
+        }
+
+        YT_LOG_DEBUG("Collected remote dynamic store reader parameters (Range: <%v .. %v>, ColumnFilter: %v)",
+            lowerLimit,
+            upperLimit,
+            ColumnFilter_);
+    }
+
+    virtual TRows DeserializeRows(const TSharedRef& data) override
+    {
+        UncompressedDataSize_ += data.Size();
+
+        // Default row buffer.
+        TWireProtocolReader reader(data);
+
+        if (!StartRowIndex_.has_value()) {
+            StartRowIndex_ = reader.ReadInt64();
+            CurrentRowIndex_ = *StartRowIndex_;
+            YT_LOG_DEBUG("Received start row index (StartRowIndex: %v)", StartRowIndex_);
+        }
+
+        return reader.ReadUnversionedRowset(true /*deep*/, &IdMapping_);
+    }
+
+    virtual TUnversionedRow PostprocessRow(TUnversionedRow row) override
+    {
+        if (SystemColumnCount_ == 0) {
+            return row;
+        }
+
+        auto clonedRow = RowBuffer_->AllocateUnversioned(row.GetCount() + SystemColumnCount_);
+        ::memcpy(clonedRow.Begin(), row.Begin(), sizeof(TUnversionedValue) * row.GetCount());
+
+        auto* end = clonedRow.Begin() + row.GetCount();
+
+        if (Options_->EnableTableIndex) {
+            *end++ = MakeUnversionedInt64Value(TableIndex_, TableIndexId_);
+        }
+        if (Options_->EnableRangeIndex) {
+            *end++ = MakeUnversionedInt64Value(RangeIndex_, RangeIndexId_);
+        }
+        if (Options_->EnableRowIndex) {
+            *end++ = MakeUnversionedInt64Value(CurrentRowIndex_++, RowIndexId_);
+        }
+        if (Options_->EnableTabletIndex) {
+            *end++ = MakeUnversionedInt64Value(TabletIndex_, TabletIndexId_);
+        }
+
+        return clonedRow;
+    }
+
+    void InitializeSystemColumnIds()
+    {
+        if (Options_->EnableTableIndex) {
+            TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
+            ++SystemColumnCount_;
+            TableIndex_ = ChunkSpec_.table_index();
+        }
+        if (Options_->EnableRangeIndex) {
+            RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
+            ++SystemColumnCount_;
+            RangeIndex_ = ChunkSpec_.range_index();
+        }
+        if (Options_->EnableRowIndex) {
+            RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
+            ++SystemColumnCount_;
+        }
+        if (Options_->EnableTabletIndex) {
+            TabletIndexId_ = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
+            ++SystemColumnCount_;
+            TabletIndex_ = ChunkSpec_.tablet_index();
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessChunkReaderPtr CreateRemoteOrderedDynamicStoreReader(
+    TChunkSpec chunkSpec,
+    TTableSchemaPtr schema,
+    TRemoteDynamicStoreReaderConfigPtr config,
+    TChunkReaderOptionsPtr options,
+    TNameTablePtr nameTable,
+    NNative::IClientPtr client,
+    TNodeDirectoryPtr nodeDirectory,
+    TTrafficMeterPtr /*trafficMeter*/,
+    IThroughputThrottlerPtr /*bandwidthThrottler*/,
+    IThroughputThrottlerPtr /*rpsThrottler*/,
+    const TClientBlockReadOptions& blockReadOptions,
+    const std::optional<std::vector<TString>>& columns)
+{
+    return New<TRemoteOrderedDynamicStoreReader>(
+        std::move(chunkSpec),
+        std::move(schema),
+        std::move(config),
+        std::move(options),
+        std::move(client),
+        std::move(nodeDirectory),
+        blockReadOptions,
+        std::move(nameTable),
+        columns);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -733,7 +1048,7 @@ private:
     {
         TClientBlockReadOptions blockReadOptions;
         blockReadOptions.ReadSessionId = ReadSessionId_;
-        CurrentReader_ = CreateRemoteDynamicStoreReader(
+        CurrentReader_ = CreateRemoteSortedDynamicStoreReader(
             ChunkSpec_,
             Schema_,
             Config_,
@@ -750,7 +1065,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedReaderPtr CreateRetryingRemoteDynamicStoreReader(
+IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
     NChunkClient::NProto::TChunkSpec chunkSpec,
     TTableSchemaPtr schema,
     TRetryingRemoteDynamicStoreReaderConfigPtr config,

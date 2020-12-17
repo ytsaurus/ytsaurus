@@ -104,6 +104,8 @@ public:
 
     void WriteMessage(const ::google::protobuf::MessageLite& message);
 
+    void WriteInt64(i64 value);
+
     size_t WriteUnversionedRow(
         NTableClient::TUnversionedRow row,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
@@ -192,14 +194,20 @@ public:
 
     void ReadMessage(::google::protobuf::MessageLite* message);
 
-    NTableClient::TUnversionedRow ReadUnversionedRow(bool deep);
+    i64 ReadInt64();
+
+    NTableClient::TUnversionedRow ReadUnversionedRow(
+        bool deep,
+        const TIdMapping* idMapping = nullptr);
     NTableClient::TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool deep);
     NTableClient::TVersionedRow ReadVersionedRow(
         const TSchemaData& schemaData,
         bool deep,
         const TIdMapping* valueIdMapping = nullptr);
 
-    TSharedRange<NTableClient::TUnversionedRow> ReadUnversionedRowset(bool deep);
+    TSharedRange<NTableClient::TUnversionedRow> ReadUnversionedRowset(
+        bool deep,
+        const TIdMapping* idMapping = nullptr);
     TSharedRange<NTableClient::TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData, bool deep);
     TSharedRange<NTableClient::TVersionedRow> ReadVersionedRowset(
         const TSchemaData& schemaData,

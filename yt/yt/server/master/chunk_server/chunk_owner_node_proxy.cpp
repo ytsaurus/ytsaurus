@@ -254,6 +254,7 @@ void BuildChunkSpec(
 
 void BuildDynamicStoreSpec(
     const TDynamicStore* dynamicStore,
+    std::optional<int> tabletIndex,
     const TLegacyReadLimit& lowerLimit,
     const TLegacyReadLimit& upperLimit,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
@@ -265,10 +266,17 @@ void BuildDynamicStoreSpec(
 
     ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
     ToProto(chunkSpec->mutable_tablet_id(), GetObjectId(tablet));
+    if (tabletIndex) {
+        chunkSpec->set_tablet_index(*tabletIndex);
+    }
 
     // Something non-zero.
     chunkSpec->set_row_count_override(1);
     chunkSpec->set_data_weight_override(1);
+
+    // NB: table_row_index is not filled here since:
+    // 1) dynamic store reader receives it from the node;
+    // 2) we cannot determine it at master when there are multiple consecutive dynamic stores.
 
     if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
         auto replica = TNodePtrWithIndexes(node, GenericChunkReplicaIndex, DefaultStoreMediumIndex);
@@ -282,6 +290,7 @@ void BuildDynamicStoreSpec(
     if (!IsTrivial(upperLimit)) {
         ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
     }
+    chunkSpec->set_row_index_is_absolute(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,6 +435,7 @@ private:
 
     virtual bool OnDynamicStore(
         TDynamicStore* dynamicStore,
+        std::optional<int> tabletIndex,
         const TLegacyReadLimit& lowerLimit,
         const TLegacyReadLimit& upperLimit) override
     {
@@ -437,8 +447,8 @@ private:
             if (auto* chunk = dynamicStore->GetFlushedChunk()) {
                 return OnChunk(
                     chunk,
-                    /*rowIndex*/ -1,
-                    /*tabletIndex*/ std::nullopt,
+                    dynamicStore->GetTableRowIndex(),
+                    tabletIndex,
                     lowerLimit,
                     upperLimit,
                     /*timestampTransactionId*/ {});
@@ -447,6 +457,7 @@ private:
             auto* chunkSpec = RpcContext_->Response().add_chunks();
             BuildDynamicStoreSpec(
                 dynamicStore,
+                tabletIndex,
                 lowerLimit,
                 upperLimit,
                 &NodeDirectoryBuilder_,
