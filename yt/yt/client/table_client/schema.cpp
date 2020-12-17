@@ -151,8 +151,6 @@ struct TSerializableColumnSchema
             .Default(std::nullopt);
         RegisterParameter("required", RequiredV1_)
             .Default(std::nullopt);
-        RegisterParameter("type_v2", LogicalTypeV2_)
-            .Default();
         RegisterParameter("type_v3", LogicalTypeV3_)
             .Default();
         RegisterParameter("lock", Lock_)
@@ -177,15 +175,6 @@ struct TSerializableColumnSchema
                 if (LogicalTypeV3_ && LogicalTypeV3_->LogicalType) {
                     SetLogicalType(LogicalTypeV3_->LogicalType);
                     setTypeVersion = 3;
-                }
-
-                if (LogicalTypeV2_) {
-                    if (setTypeVersion == 0) {
-                        SetLogicalType(LogicalTypeV2_);
-                        setTypeVersion = 2;
-                    } else if (*LogicalType_ != *LogicalTypeV2_) {
-                        THROW_ERROR_EXCEPTION("\"type_v3\" doesn't match \"type_v2\"");
-                    }
                 }
 
                 if (LogicalTypeV1_) {
@@ -246,7 +235,6 @@ public:
         static_cast<TColumnSchema&>(*this) = columnSchema;
         LogicalTypeV1_ = columnSchema.CastToV1Type();
         RequiredV1_ = columnSchema.Required();
-        LogicalTypeV2_ = columnSchema.LogicalType();
         LogicalTypeV3_ = TTypeV3LogicalTypeWrapper{columnSchema.LogicalType()};
     }
 
@@ -258,8 +246,6 @@ public:
 private:
     std::optional<ESimpleLogicalValueType> LogicalTypeV1_;
     std::optional<bool> RequiredV1_;
-
-    TLogicalTypePtr LogicalTypeV2_;
 
     std::optional<TTypeV3LogicalTypeWrapper> LogicalTypeV3_;
 };
