@@ -807,6 +807,40 @@ TFuture<R> ApplyHelper(TFutureBase<T> this_, TCallback<S> callback)
     return promise;
 }
 
+template <class R, class T, class U>
+void ApplyHelperHandler(const TPromise<T>& promise, const TCallback<R(U&&)>& callback, TErrorOr<U>&& value)
+{
+    if (value.IsOK()) {
+        TPromiseSetter<T, R(U&&)>::Do(promise, callback, std::move(value.Value()));
+    } else {
+        promise.Set(TError(value));
+    }
+}
+
+template <class R, class T, class U>
+void ApplyHelperHandler(const TPromise<T>& promise, const TCallback<R(TErrorOr<U>&&)>& callback, TErrorOr<U>&& value)
+{
+    TPromiseSetter<T, R(TErrorOr<U>&&)>::Do(promise, callback, std::move(value));
+}
+
+template <class R, class T, class S>
+TFuture<R> ApplyUniqueHelper(TFutureBase<T> this_, TCallback<S> callback)
+{
+    YT_ASSERT(this_);
+
+    auto promise = NewPromise<R>();
+
+    this_.SubscribeUnique(BIND([=, callback = std::move(callback)] (TErrorOr<T>&& value) {
+        ApplyHelperHandler(promise, callback, std::move(value));
+    }));
+
+    promise.OnCanceled(BIND([cancelable = this_.AsCancelable()] (const TError& error) {
+        cancelable.Cancel(error);
+    }));
+
+    return promise;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
@@ -1128,9 +1162,23 @@ TFuture<R> TFutureBase<T>::Apply(TCallback<TFuture<R>(const TErrorOr<T>&)> callb
 
 template <class T>
 template <class R>
-TFuture<R> TFutureBase<T>::Apply(TCallback<TErrorOr<TFuture<R>>(const TErrorOr<T>&)> callback) const
+TFuture<R> TFutureBase<T>::ApplyUnique(TCallback<R(TErrorOr<T>&&)> callback) const
 {
-    return NYT::NDetail::ApplyHelper<R>(*this, std::move(callback));
+    return NYT::NDetail::ApplyUniqueHelper<R>(*this, std::move(callback));
+}
+
+template <class T>
+template <class R>
+TFuture<R> TFutureBase<T>::ApplyUnique(TCallback<TErrorOr<R>(TErrorOr<T>&&)> callback) const
+{
+    return NYT::NDetail::ApplyUniqueHelper<R>(*this, std::move(callback));
+}
+
+template <class T>
+template <class R>
+TFuture<R> TFutureBase<T>::ApplyUnique(TCallback<TFuture<R>(TErrorOr<T>&&)> callback) const
+{
+    return NYT::NDetail::ApplyUniqueHelper<R>(*this, std::move(callback));
 }
 
 template <class T>
@@ -1207,6 +1255,20 @@ template <class R>
 TFuture<R> TFuture<T>::Apply(TCallback<TFuture<R>(T)> callback) const
 {
     return this->Apply(TCallback<TFuture<R>(const T&)>(callback));
+}
+
+template <class T>
+template <class R>
+TFuture<R> TFuture<T>::ApplyUnique(TCallback<R(T&&)> callback) const
+{
+    return NYT::NDetail::ApplyUniqueHelper<R>(*this, callback);
+}
+
+template <class T>
+template <class R>
+TFuture<R> TFuture<T>::ApplyUnique(TCallback<TFuture<R>(T&&)> callback) const
+{
+    return NYT::NDetail::ApplyUniqueHelper<R>(*this, callback);
 }
 
 template <class T>
