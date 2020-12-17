@@ -146,7 +146,7 @@ public:
 
         WaitFor(Writer_->Write(BufferedRows_))
             .ThrowOnError();
-        
+
         BufferedRows_.clear();
         BufferedByteSize_ = 0;
     }
@@ -155,7 +155,7 @@ private:
     const IJournalWriterPtr Writer_;
 
     EJournalConsumerState State_ = EJournalConsumerState::Root;
-    
+
     std::vector<TSharedRef> BufferedRows_;
     i64 BufferedByteSize_ = 0;
     static constexpr i64 MaxBufferedSize = 64_KB;
@@ -273,6 +273,8 @@ TWriteJournalCommand::TWriteJournalCommand()
     RegisterParameter("path", Path);
     RegisterParameter("journal_writer", JournalWriter)
         .Default();
+    RegisterParameter("enable_chunk_preallocation", Options.EnableChunkPreallocation)
+        .Optional();
 }
 
 void TWriteJournalCommand::DoExecute(ICommandContextPtr context)

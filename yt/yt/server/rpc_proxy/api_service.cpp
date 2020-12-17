@@ -3231,6 +3231,7 @@ private:
             options.Config = ConvertTo<TJournalWriterConfigPtr>(TYsonString(request->config()));
         }
         options.EnableMultiplexing = request->enable_multiplexing();
+        options.EnableChunkPreallocation = request->enable_chunk_preallocation();
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
@@ -3240,9 +3241,10 @@ private:
         }
 
         context->SetRequestInfo(
-            "Path: %v, EnableMultiplexing: %v",
+            "Path: %v, EnableMultiplexing: %v, EnableChunkPreallocation: %v",
             path,
-            options.EnableMultiplexing);
+            options.EnableMultiplexing,
+            options.EnableChunkPreallocation);
 
         auto journalWriter = client->CreateJournalWriter(path, options);
         WaitFor(journalWriter->Open())

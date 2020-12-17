@@ -55,4 +55,6 @@ private:
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

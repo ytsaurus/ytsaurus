@@ -752,6 +752,8 @@ struct TJournalWriterOptions
 {
     TJournalWriterConfigPtr Config;
     bool EnableMultiplexing = true;
+    // TODO(babenko): enable by default
+    bool EnableChunkPreallocation = false;
 
     TJournalWriterPerformanceCounters Counters;
 };

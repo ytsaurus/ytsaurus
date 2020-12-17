@@ -635,6 +635,7 @@ IJournalWriterPtr TClientBase::CreateJournalWriter(
         req->set_config(ConvertToYsonString(*options.Config).GetData());
     }
     req->set_enable_multiplexing(options.EnableMultiplexing);
+    req->set_enable_chunk_preallocation(options.EnableChunkPreallocation);
     // TODO(kiselyovp) profiler is ignored
 
     ToProto(req->mutable_transactional_options(), options);
