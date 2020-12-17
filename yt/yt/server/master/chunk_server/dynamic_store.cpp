@@ -46,6 +46,7 @@ void TDynamicStore::Save(TSaveContext& context) const
     Save(context, FlushedChunk_);
     Save(context, Parents_);
     Save(context, Flushed_);
+    Save(context, TableRowIndex_);
 }
 
 void TDynamicStore::Load(TLoadContext& context)
@@ -58,6 +59,10 @@ void TDynamicStore::Load(TLoadContext& context)
     Load(context, FlushedChunk_);
     Load(context, Parents_);
     Load(context, Flushed_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::OrderedRemoteDynamicStoreReader) {
+        Load(context, TableRowIndex_);
+    }
 }
 
 void TDynamicStore::AddParent(TChunkList* parent)

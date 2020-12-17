@@ -64,6 +64,10 @@ message TChunkSpec
 
     // Tablet for reading from dynamic store.
     optional NYT.NProto.TGuid tablet_id = 20;
+
+    // True if row_index upper/lower_limit is absolute (table-wise or tablet-wise)
+    // rather than relative (chunk-wise).
+    optional bool row_index_is_absolute = 21 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -542,7 +542,7 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
     def _prologue(shard_count, optimize_for):
         sync_create_cells(1)
         schema = [{"name": "key", "type": "int64"}]
-        create_dynamic_table("//tmp/t", schema=schema, optimize_for=optimize_for)
+        create_dynamic_table("//tmp/t", schema=schema, optimize_for=optimize_for, enable_dynamic_store_read=False)
         sync_reshard_table("//tmp/t", shard_count)
         sync_mount_table("//tmp/t")
 
@@ -754,7 +754,8 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
                     data[tablet_index].append(x)
                     rows.append({"$tablet_index": tablet_index, "key": x})
             insert_rows("//tmp/t", rows)
-            sync_flush_table("//tmp/t")
+            if wave + 1 < chunk_count_per_tablet:
+                sync_flush_table("//tmp/t")
 
         def _validate(start_tablet_index, start_row_index, end_tablet_index, end_row_index):
             expected = []

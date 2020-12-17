@@ -18,7 +18,7 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedReaderPtr CreateRemoteDynamicStoreReader(
+IVersionedReaderPtr CreateRemoteSortedDynamicStoreReader(
     NChunkClient::NProto::TChunkSpec chunkSpec,
     TTableSchemaPtr schema,
     NTabletClient::TRemoteDynamicStoreReaderConfigPtr config,
@@ -33,7 +33,7 @@ IVersionedReaderPtr CreateRemoteDynamicStoreReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedReaderPtr CreateRetryingRemoteDynamicStoreReader(
+IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
     NChunkClient::NProto::TChunkSpec chunkSpec,
     TTableSchemaPtr schema,
     NTabletClient::TRetryingRemoteDynamicStoreReaderConfigPtr config,
@@ -46,6 +46,22 @@ IVersionedReaderPtr CreateRetryingRemoteDynamicStoreReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     TCallback<IVersionedReaderPtr(NChunkClient::NProto::TChunkSpec)> chunkReaderFactory);
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessChunkReaderPtr CreateRemoteOrderedDynamicStoreReader(
+    NChunkClient::NProto::TChunkSpec chunkSpec,
+    TTableSchemaPtr schema,
+    NTabletClient::TRemoteDynamicStoreReaderConfigPtr config,
+    NTableClient::TChunkReaderOptionsPtr options,
+    TNameTablePtr nameTable,
+    NApi::NNative::IClientPtr client,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NChunkClient::TTrafficMeterPtr trafficMeter,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const std::optional<std::vector<TString>>& columns);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -96,6 +96,11 @@ public:
         Current_ += AlignUp<size_t>(size, SerializationAlignment);
     }
 
+    void WriteInt64(i64 value)
+    {
+        WriteUint64(static_cast<ui64>(value));
+    }
+
     size_t WriteSchemafulRow(
         TUnversionedRow row,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
@@ -506,6 +511,11 @@ void TWireProtocolWriter::WriteMessage(const ::google::protobuf::MessageLite& me
     Impl_->WriteMessage(message);
 }
 
+void TWireProtocolWriter::WriteInt64(i64 value)
+{
+    Impl_->WriteInt64(value);
+}
+
 size_t TWireProtocolWriter::WriteSchemafulRow(
     TUnversionedRow row,
     const TNameTableToSchemaIdMapping* idMapping)
@@ -628,6 +638,11 @@ public:
         Current_ += AlignUp<size_t>(size, SerializationAlignment);
     }
 
+    i64 ReadInt64()
+    {
+        return static_cast<i64>(ReadUint64());
+    }
+
     TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool deep)
     {
         auto valueCount = ReadUint64();
@@ -640,7 +655,7 @@ public:
         return row;
     }
 
-    TUnversionedRow ReadUnversionedRow(bool deep)
+    TUnversionedRow ReadUnversionedRow(bool deep, const TIdMapping* idMapping)
     {
         auto valueCount = ReadUint64();
         if (valueCount == MinusOne) {
@@ -648,7 +663,7 @@ public:
         }
         ValidateRowValueCount(valueCount);
         auto row = RowBuffer_->AllocateUnversioned(valueCount);
-        DoReadUnversionedValueRange(deep, row.Begin(), valueCount);
+        DoReadUnversionedValueRange(deep, row.Begin(), valueCount, idMapping);
         return row;
     }
 
@@ -699,12 +714,12 @@ public:
         return deep ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
     }
 
-    TSharedRange<TUnversionedRow> ReadUnversionedRowset(bool deep)
+    TSharedRange<TUnversionedRow> ReadUnversionedRowset(bool deep, const TIdMapping* idMapping)
     {
         int rowCount = DoReadRowCount();
         auto* rows = RowBuffer_->GetPool()->AllocateUninitialized<TUnversionedRow>(rowCount);
         for (int index = 0; index < rowCount; ++index) {
-            rows[index] = ReadUnversionedRow(deep);
+            rows[index] = ReadUnversionedRow(deep, idMapping);
         }
         auto range = TRange<TUnversionedRow>(rows, rows + rowCount);
         return deep ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
@@ -780,13 +795,6 @@ private:
             THROW_ERROR_EXCEPTION("Value is out of range to fit into uint32");
         }
         return static_cast<ui32>(result);
-    }
-
-    i64 ReadInt64()
-    {
-        i64 value;
-        ReadPod(&value);
-        return value;
     }
 
     i32 ReadInt32()
@@ -891,10 +899,34 @@ private:
         }
     }
 
-    void DoReadUnversionedValueRange(bool deep, TUnversionedValue* values, ui32 valueCount)
+    void DoApplyIdMapping(ui16* id, int index, const TIdMapping* idMapping)
+    {
+        if (*id >= idMapping->size()) {
+            THROW_ERROR_EXCEPTION("Value with index %v has id %v which is out of range [0, %v)",
+                    index,
+                    *id,
+                    idMapping->size());
+        }
+        int mappedId = (*idMapping)[*id];
+        if (mappedId == -1) {
+            THROW_ERROR_EXCEPTION("Id mapping for value with index %v contains unexpected value %Qv",
+                    index,
+                    -1);
+        }
+        *id = mappedId;
+    }
+
+    void DoReadUnversionedValueRange(
+        bool deep,
+        TUnversionedValue* values,
+        ui32 valueCount,
+        const TIdMapping* idMapping)
     {
         for (size_t index = 0; index < valueCount; ++index) {
             DoReadUnversionedValue(deep, &values[index]);
+            if (idMapping) {
+                DoApplyIdMapping(&values[index].Id, index, idMapping);
+            }
         }
     }
 
@@ -907,20 +939,7 @@ private:
         for (size_t index = 0; index < valueCount; ++index) {
             DoReadVersionedValue(deep, &values[index]);
             if (valueIdMapping) {
-                auto valueId = values[index].Id;
-                if (valueId >= valueIdMapping->size()) {
-                    THROW_ERROR_EXCEPTION("Value with index %v has id %v which is out of range [0, %v)",
-                        index,
-                        valueId,
-                        valueIdMapping->size());
-                }
-                int mappedId = (*valueIdMapping)[valueId];
-                if (mappedId == -1) {
-                    THROW_ERROR_EXCEPTION("Id mapping for value with index %v contains unexpected value %Qv",
-                        index,
-                        -1);
-                }
-                values[index].Id = mappedId;
+                DoApplyIdMapping(&values[index].Id, index, valueIdMapping);
             }
         }
     }
@@ -991,9 +1010,14 @@ void TWireProtocolReader::ReadMessage(::google::protobuf::MessageLite* message)
     Impl_->ReadMessage(message);
 }
 
-TUnversionedRow TWireProtocolReader::ReadUnversionedRow(bool deep)
+i64 TWireProtocolReader::ReadInt64()
 {
-    return Impl_->ReadUnversionedRow(deep);
+    return Impl_->ReadInt64();
+}
+
+TUnversionedRow TWireProtocolReader::ReadUnversionedRow(bool deep, const TIdMapping* idMapping)
+{
+    return Impl_->ReadUnversionedRow(deep, idMapping);
 }
 
 TUnversionedRow TWireProtocolReader::ReadSchemafulRow(const TSchemaData& schemaData, bool deep)
@@ -1009,9 +1033,9 @@ TVersionedRow TWireProtocolReader::ReadVersionedRow(
     return Impl_->ReadVersionedRow(schemaData, deep, valueIdMapping);
 }
 
-TSharedRange<TUnversionedRow> TWireProtocolReader::ReadUnversionedRowset(bool deep)
+TSharedRange<TUnversionedRow> TWireProtocolReader::ReadUnversionedRowset(bool deep, const TIdMapping* idMapping)
 {
-    return Impl_->ReadUnversionedRowset(deep);
+    return Impl_->ReadUnversionedRowset(deep, idMapping);
 }
 
 TSharedRange<TUnversionedRow> TWireProtocolReader::ReadSchemafulRowset(const TSchemaData& schemaData, bool deep)

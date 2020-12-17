@@ -59,6 +59,7 @@ private:
 
     virtual bool OnDynamicStore(
         TDynamicStore* /*dynamicStore*/,
+        std::optional<int> /*tabletIndex*/,
         const NChunkClient::TLegacyReadLimit& /*startLimit*/,
         const NChunkClient::TLegacyReadLimit& /*endLimit*/) override;
 

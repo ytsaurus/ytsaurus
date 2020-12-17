@@ -3,7 +3,6 @@
 #include "chunk_view.h"
 #include "chunk_list.h"
 #include "dynamic_store.h"
-#include "helpers.h"
 
 #include <yt/ytlib/tablet_client/helpers.h>
 

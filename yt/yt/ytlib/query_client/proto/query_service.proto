@@ -69,11 +69,13 @@ message TReqReadDynamicStore
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid store_id = 2;
-    required uint64 timestamp = 3;
+    optional uint64 timestamp = 3;
     optional bytes lower_bound  = 4;
     optional bytes upper_bound = 5;
     required NYT.NProto.TGuid read_session_id = 6;
     optional NYT.NTableClient.NProto.TColumnFilter column_filter = 7;
+    optional int64 start_row_index = 8;
+    optional int64 end_row_index = 9;
 }
 
 message TRspReadDynamicStore

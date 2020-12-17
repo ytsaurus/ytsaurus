@@ -1486,6 +1486,29 @@ int TTablet::GetEdenStoreCount() const
     return Eden_->Stores().size();
 }
 
+int TTablet::ComputeDynamicStoreCount() const
+{
+    int dynamicStoreCount = 0;
+
+    if (IsPhysicallySorted()) {
+        for (const auto& store : Eden_->Stores()) {
+            if (store->IsDynamic()) {
+                ++dynamicStoreCount;
+            }
+        }
+    } else {
+        for (auto it = StoreRowIndexMap_.crbegin(); it != StoreRowIndexMap_.crend(); ++it) {
+            if (it->second->IsDynamic()) {
+                ++dynamicStoreCount;
+            } else {
+                break;
+            }
+        }
+    }
+
+    return dynamicStoreCount;
+}
+
 void TTablet::PushDynamicStoreIdToPool(TDynamicStoreId storeId)
 {
     DynamicStoreIdPool_.push_back(storeId);

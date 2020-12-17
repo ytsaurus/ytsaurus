@@ -38,6 +38,7 @@
 #include <yt/client/query_client/query_statistics.h>
 
 #include <yt/client/table_client/helpers.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/wire_protocol.h>
@@ -538,16 +539,17 @@ private:
 
         auto dynamicStore = tabletSnapshot->GetDynamicStoreOrThrow(storeId);
 
+        bool sorted = tabletSnapshot->PhysicalSchema->IsSorted();
+
         TColumnFilter columnFilter;
         if (request->has_column_filter()) {
             columnFilter = TColumnFilter(FromProto<TColumnFilter::TIndexes>(request->column_filter().indexes()));
-            ValidateColumnFilter(columnFilter, tabletSnapshot->PhysicalSchema->GetColumnCount());
+            // Two extra columns are tablet_index and row_index.
+            ValidateColumnFilter(columnFilter, tabletSnapshot->PhysicalSchema->GetColumnCount() + (sorted ? 0 : 2));
             ValidateColumnFilterContainsAllKeyColumns(columnFilter, *tabletSnapshot->PhysicalSchema);
         }
 
         auto bandwidthThrottler = Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::UserDynamicStoreRead);
-
-        bool sorted = tabletSnapshot->PhysicalSchema->IsSorted();
 
         if (sorted) {
             auto lowerBound = request->has_lower_bound()
@@ -572,9 +574,6 @@ private:
 
             std::vector<TVersionedRow> rows;
             rows.reserve(MaxRowsPerRemoteDynamicStoreRead);
-
-            TWireProtocolWriter writer;
-            writer.WriteVersionedRowset(rows);
 
             YT_LOG_DEBUG("Started serving remote dynamic store read request "
                 "(TabletId: %v, StoreId: %v, Timestamp: %v, ReadSessionId: %v, "
@@ -627,7 +626,67 @@ private:
             profilingCounters->SessionDataWeight.Record(sessionDataWeight);
             profilingCounters->SessionWallTime.Record(wallTimer.GetElapsedTime());
         } else {
-            THROW_ERROR_EXCEPTION("Remote reader for ordered dynamic stores is not implemented");
+            i64 startRowIndex = request->has_start_row_index()
+                ? request->start_row_index()
+                : 0;
+            i64 endRowIndex = request->has_end_row_index()
+                ? request->end_row_index()
+                : std::numeric_limits<i64>::max();
+
+            auto reader = dynamicStore->AsOrdered()->CreateReader(
+                tabletSnapshot,
+                -1, // tabletIndex, fake
+                startRowIndex,
+                endRowIndex,
+                columnFilter,
+                TClientBlockReadOptions(),
+                GetUnlimitedThrottler());
+
+            std::vector<TUnversionedRow> rows;
+            rows.reserve(MaxRowsPerRemoteDynamicStoreRead);
+
+            YT_LOG_DEBUG("Started serving remote dynamic store read request "
+                "(TabletId: %v, StoreId: %v, ReadSessionId: %v, "
+                "StartRowIndex: %v, EndRowIndex: %v, ColumnFilter: %v, RequestId: %v)",
+                tabletId,
+                storeId,
+                readSessionId,
+                startRowIndex,
+                endRowIndex,
+                columnFilter,
+                context->GetRequestId());
+
+            bool sendOffset = true;
+
+            TRowBatchReadOptions readOptions;
+            readOptions.MaxRowsPerRead = MaxRowsPerRemoteDynamicStoreRead;
+
+            return HandleInputStreamingRequest(context, [&] {
+                auto batch = reader->Read(readOptions);
+                if (!batch) {
+                    return TSharedRef{};
+                }
+
+                TWireProtocolWriter writer;
+
+                if (sendOffset) {
+                    sendOffset = false;
+
+                    i64 offset = std::max(
+                        dynamicStore->AsOrdered()->GetStartingRowIndex(),
+                        startRowIndex);
+                    writer.WriteInt64(offset);
+                }
+
+                writer.WriteUnversionedRowset(batch->MaterializeRows());
+                auto data = writer.Finish();
+
+                auto mergedRef = MergeRefsToRef<int>(data);
+                auto throttleResult = WaitFor(bandwidthThrottler->Throttle(mergedRef.size()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(throttleResult, "Failed to throttle out bandwidth in dynamic store reader");
+
+                return mergedRef;
+            });
         }
     }
 

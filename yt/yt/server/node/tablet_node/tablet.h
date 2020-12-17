@@ -494,6 +494,8 @@ public:
 
     int GetEdenStoreCount() const;
 
+    int ComputeDynamicStoreCount() const;
+
     void PushDynamicStoreIdToPool(TDynamicStoreId storeId);
     TDynamicStoreId PopDynamicStoreIdFromPool();
     void ClearDynamicStoreIdPool();

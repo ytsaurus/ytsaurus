@@ -154,6 +154,23 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 auto createReader = BIND([=] {
                     IChunkReaderPtr remoteReader;
                     try {
+                        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+                        if (TypeFromId(chunkId) == EObjectType::OrderedDynamicTabletStore) {
+                            return MakeFuture<IReaderBasePtr>(CreateRemoteOrderedDynamicStoreReader(
+                                chunkSpec,
+                                dataSource.Schema(),
+                                config->DynamicStoreReader,
+                                options,
+                                nameTable,
+                                client,
+                                nodeDirectory,
+                                trafficMeter,
+                                bandwidthThrottler,
+                                rpsThrottler,
+                                blockReadOptions,
+                                dataSource.Columns()));
+                        }
+
                         remoteReader = CreateRemoteReader(
                             chunkSpec,
                             config,
@@ -1188,7 +1205,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         auto type = TypeFromId(chunkId);
 
         if (type == EObjectType::SortedDynamicTabletStore) {
-            return CreateRetryingRemoteDynamicStoreReader(
+            return CreateRetryingRemoteSortedDynamicStoreReader(
                 chunkSpec,
                 tableSchema,
                 config->DynamicStoreReader,

@@ -1,6 +1,8 @@
 import pytest
 
+from test_dynamic_tables import DynamicTablesBase
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
+from test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 
 from yt_env_setup import wait, Restarter, NODES_SERVICE
 from yt_commands import *
@@ -9,6 +11,26 @@ from yt.yson import YsonEntity
 from time import sleep
 
 from yt.environment.helpers import assert_items_equal
+
+##################################################################
+
+
+def _validate_tablet_statistics(table):
+    cell_id = ls("//sys/tablet_cells")[0]
+
+    def check_statistics(statistics):
+        return (
+            statistics["tablet_count"] == get(table + "/@tablet_count")
+            and statistics["chunk_count"] == get(table + "/@chunk_count")
+            and statistics["uncompressed_data_size"] == get(table + "/@uncompressed_data_size")
+            and statistics["compressed_data_size"] == get(table + "/@compressed_data_size")
+            and statistics["disk_space"] == get(table + "/@resource_usage/disk_space")
+        )
+
+    tablet_statistics = get("//tmp/t/@tablet_statistics")
+    assert check_statistics(tablet_statistics)
+
+    wait(lambda: check_statistics(get("#{0}/@total_statistics".format(cell_id))))
 
 ##################################################################
 
@@ -27,23 +49,6 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows(path, self.simple_rows[::2])
         sync_flush_table(path)
         insert_rows(path, self.simple_rows[1::2])
-
-    def _validate_tablet_statistics(self, table):
-        cell_id = ls("//sys/tablet_cells")[0]
-
-        def check_statistics(statistics):
-            return (
-                statistics["tablet_count"] == get(table + "/@tablet_count")
-                and statistics["chunk_count"] == get(table + "/@chunk_count")
-                and statistics["uncompressed_data_size"] == get(table + "/@uncompressed_data_size")
-                and statistics["compressed_data_size"] == get(table + "/@compressed_data_size")
-                and statistics["disk_space"] == get(table + "/@resource_usage/disk_space")
-            )
-
-        tablet_statistics = get("//tmp/t/@tablet_statistics")
-        assert check_statistics(tablet_statistics)
-
-        wait(lambda: check_statistics(get("#{0}/@total_statistics".format(cell_id))))
 
     def _validate_cell_statistics(self, **kwargs):
         cell_id = ls("//sys/tablet_cells")[0]
@@ -91,7 +96,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t", tx=tx) == rows
         assert read_table(ypath_with_ts, tx=tx) == rows[:1500]
 
-        self._validate_tablet_statistics("//tmp/t")
+        _validate_tablet_statistics("//tmp/t")
 
     def test_basic_read2(self):
         sync_create_cells(1)
@@ -175,85 +180,6 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
         assert read_table("//tmp/t") == [{"key": 1, "value": "a"}]
 
-    def test_dynamic_store_id_pool(self):
-        sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        set("//tmp/t/@enable_dynamic_store_read", True)
-        set("//tmp/t/@replication_factor", 10)
-        set("//tmp/t/@chunk_writer", {"upload_replication_factor": 10})
-        set("//tmp/t/@max_dynamic_store_row_count", 5)
-        set("//tmp/t/@enable_compaction_and_partitioning", False)
-        set("//tmp/t/@dynamic_store_auto_flush_period", YsonEntity())
-        sync_mount_table("//tmp/t")
-        rows = []
-        for i in range(40):
-            row = {"key": i, "value": str(i)}
-            rows.append(row)
-            for retry in range(5):
-                try:
-                    insert_rows("//tmp/t", [row])
-                    break
-                except:
-                    sleep(0.5)
-                    pass
-            else:
-                raise Exception("Failed to insert rows")
-
-        # Wait till the active store is not overflown.
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-
-        def _wait_func():
-            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
-            for store in orchid["eden"]["stores"].itervalues():
-                if store["store_state"] == "active_dynamic":
-                    return store["row_count"] < 5
-            # Getting orchid is non-atomic, so we may miss the active store.
-            return False
-
-        wait(_wait_func)
-
-        self._validate_tablet_statistics("//tmp/t")
-
-        tx = start_transaction(timeout=60000)
-        lock("//tmp/t", mode="snapshot", tx=tx)
-
-        assert read_table("//tmp/t") == rows
-        expected_store_count = get("//tmp/t/@chunk_count")
-
-        def _store_count_by_type():
-            root_chunk_list_id = get("//tmp/t/@chunk_list_id")
-            tablet_chunk_list_id = get("#{}/@child_ids/0".format(root_chunk_list_id))
-            stores = get("#{}/@tree".format(tablet_chunk_list_id))
-            count = {"dynamic_store": 0, "chunk": 0}
-            for store in stores:
-                count[store.attributes.get("type", "chunk")] += 1
-            return count
-
-        assert _store_count_by_type()["chunk"] == 0
-        assert _store_count_by_type()["dynamic_store"] > 8
-
-        set("//tmp/t/@chunk_writer", {"upload_replication_factor": 2})
-        remount_table("//tmp/t")
-
-        # Wait till all stores are flushed.
-        def _wait_func():
-            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
-            for store in orchid["eden"]["stores"].itervalues():
-                if store["store_state"] == "passive_dynamic":
-                    return False
-            return True
-
-        wait(_wait_func)
-
-        # NB: Usually the last flush should request dynamic store id. However, in rare cases
-        # two flushes run concurrently and the id is not requested, thus only one dynamic store remains.
-        wait(lambda: expected_store_count <= get("//tmp/t/@chunk_count") <= expected_store_count + 1)
-        assert 1 <= _store_count_by_type()["dynamic_store"] <= 2
-
-        assert read_table("//tmp/t", tx=tx) == rows
-
-        self._validate_tablet_statistics("//tmp/t")
-
     @pytest.mark.parametrize("enable_dynamic_store_read", [True, False])
     def test_read_with_timestamp(self, enable_dynamic_store_read):
         sync_create_cells(1)
@@ -315,7 +241,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
                     table_reader={"dynamic_store_reader": {"retry_count": 1}},
                 )
 
-        self._validate_tablet_statistics("//tmp/t")
+        _validate_tablet_statistics("//tmp/t")
 
         if freeze:
             sync_unfreeze_table("//tmp/t")
@@ -500,3 +426,125 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
 class TestReadSortedDynamicTablesMulticell(TestReadSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+##################################################################
+
+
+@authors("ifsmirnov")
+class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
+    NUM_SCHEDULERS = 1
+
+    simple_rows = [{"a": i, "b": 1.0 * i, "c": str(i)} for i in range(10)]
+
+    def _prepare_simple_table(self, path, **attributes):
+        self._create_simple_table(path, **attributes)
+        set(path + "/@enable_dynamic_store_read", True)
+        sync_mount_table(path)
+        insert_rows(path, self.simple_rows[:5])
+        sync_flush_table(path)
+        insert_rows(path, self.simple_rows[5:])
+
+    def test_basic_read(self):
+        sync_create_cells(1)
+        self._prepare_simple_table("//tmp/t")
+
+        assert read_table("//tmp/t") == self.simple_rows
+
+        tx = start_transaction(timeout=60000)
+        lock("//tmp/t", mode="snapshot", tx=tx)
+
+        sync_freeze_table("//tmp/t")
+        assert read_table("//tmp/t") == self.simple_rows
+        assert read_table("//tmp/t", tx=tx) == self.simple_rows
+
+
+##################################################################
+
+
+@authors("ifsmirnov")
+class TestReadGenericDynamicTables(DynamicTablesBase):
+    @pytest.mark.parametrize("sorted", [True, False])
+    def test_dynamic_store_id_pool(self, sorted):
+        sync_create_cells(1)
+        if sorted:
+            self._create_sorted_table("//tmp/t")
+        else:
+            self._create_ordered_table("//tmp/t")
+        set("//tmp/t/@enable_dynamic_store_read", True)
+        set("//tmp/t/@replication_factor", 10)
+        set("//tmp/t/@chunk_writer", {"upload_replication_factor": 10})
+        set("//tmp/t/@max_dynamic_store_row_count", 5)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//tmp/t/@dynamic_store_auto_flush_period", YsonEntity())
+        sync_mount_table("//tmp/t")
+        rows = []
+        for i in range(40):
+            row = {"key": i, "value": str(i)}
+            rows.append(row)
+            for retry in range(5):
+                try:
+                    insert_rows("//tmp/t", [row])
+                    break
+                except:
+                    sleep(0.5)
+                    pass
+            else:
+                raise Exception("Failed to insert rows")
+
+        # Wait till the active store is not overflown.
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _wait_func():
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+            stores = orchid["eden"]["stores"] if sorted else orchid["stores"]
+            for store in stores.itervalues():
+                if store["store_state"] == "active_dynamic":
+                    return store["row_count"] < 5
+            # Getting orchid is non-atomic, so we may miss the active store.
+            return False
+
+        wait(_wait_func)
+
+        _validate_tablet_statistics("//tmp/t")
+
+        tx = start_transaction(timeout=60000)
+        lock("//tmp/t", mode="snapshot", tx=tx)
+
+        assert read_table("//tmp/t") == rows
+        expected_store_count = get("//tmp/t/@chunk_count")
+
+        def _store_count_by_type():
+            root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+            tablet_chunk_list_id = get("#{}/@child_ids/0".format(root_chunk_list_id))
+            stores = get("#{}/@tree".format(tablet_chunk_list_id))
+            count = {"dynamic_store": 0, "chunk": 0}
+            for store in stores:
+                count[store.attributes.get("type", "chunk")] += 1
+            return count
+
+        assert _store_count_by_type()["chunk"] == 0
+        assert _store_count_by_type()["dynamic_store"] > 8
+
+        set("//tmp/t/@chunk_writer", {"upload_replication_factor": 2})
+        remount_table("//tmp/t")
+
+        # Wait till all stores are flushed.
+        def _wait_func():
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+            stores = orchid["eden"]["stores"] if sorted else orchid["stores"]
+            for store in stores.itervalues():
+                if store["store_state"] == "passive_dynamic":
+                    return False
+            return True
+
+        wait(_wait_func)
+
+        # NB: Usually the last flush should request dynamic store id. However, in rare cases
+        # two flushes run concurrently and the id is not requested, thus only one dynamic store remains.
+        wait(lambda: expected_store_count <= get("//tmp/t/@chunk_count") <= expected_store_count + 1)
+        assert 1 <= _store_count_by_type()["dynamic_store"] <= 2
+
+        assert read_table("//tmp/t", tx=tx) == rows
+
+        _validate_tablet_statistics("//tmp/t")

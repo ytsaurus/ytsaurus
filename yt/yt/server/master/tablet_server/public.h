@@ -97,6 +97,8 @@ constexpr int TabletErrorCountViewLimit = 10;
 
 constexpr i64 EdenStoreIdsSizeLimit = 100;
 
+constexpr int MaxOrderedDynamicStoresInChunkList = 12;
+
 constexpr auto DefaultSyncTabletActionKeepalivePeriod = TDuration::Minutes(1);
 
 using TTabletCellSet = SmallVector<std::pair<const TTabletCell*, int>, NTabletClient::TypicalTabletSlotCount>;

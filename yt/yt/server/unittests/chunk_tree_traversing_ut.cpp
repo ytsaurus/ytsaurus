@@ -145,7 +145,11 @@ public:
         return false;
     }
 
-    virtual bool OnDynamicStore(TDynamicStore*, const TLegacyReadLimit&, const TLegacyReadLimit&) override
+    virtual bool OnDynamicStore(
+        TDynamicStore*,
+        std::optional<i32>,
+        const TLegacyReadLimit&,
+        const TLegacyReadLimit&) override
     {
         return true;
     }

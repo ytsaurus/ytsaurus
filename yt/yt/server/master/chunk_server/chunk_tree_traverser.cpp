@@ -625,7 +625,14 @@ protected:
                     }
                     YT_VERIFY(statistics.Sealed);
                     childLowerBound.SetRowIndex(childLimit);
-                    childUpperBound.SetRowIndex(cumulativeStatistics.GetCurrentSum(entry->ChildIndex).RowCount);
+
+                    // NB: Dynamic stores at the end of the chunk list may be arbitrarily large
+                    // but their size is not accounted in cumulative statistics.
+                    if (entry->ChunkList->Children()[entry->ChildIndex]->GetType() == EObjectType::OrderedDynamicTabletStore) {
+                        childUpperBound.SetRowIndex(std::numeric_limits<i64>::max());
+                    } else {
+                        childUpperBound.SetRowIndex(cumulativeStatistics.GetCurrentSum(entry->ChildIndex).RowCount);
+                    }
                 } else if (entry->LowerBound.HasRowIndex()) {
                     childLowerBound.SetRowIndex(childLimit);
                 }
@@ -709,9 +716,6 @@ protected:
                     childChunk = child->AsChunk();
                 }
 
-                // NB: For non-trivial subtreeStartLimit or subtreeEndLimit we set row_index
-                // which is different from rowIndex parameter.
-                // First one means rowIndex in chunk, but second one means rowIndex in tablet.
                 if (!Visitor_->OnChunk(
                     childChunk,
                     rowIndex,
@@ -731,7 +735,7 @@ protected:
             case EObjectType::SortedDynamicTabletStore:
             case EObjectType::OrderedDynamicTabletStore: {
                 auto* dynamicStore = child->AsDynamicStore();
-                if (!Visitor_->OnDynamicStore(dynamicStore, subtreeStartLimit, subtreeEndLimit)) {
+                if (!Visitor_->OnDynamicStore(dynamicStore, tabletIndex, subtreeStartLimit, subtreeEndLimit)) {
                     Shutdown();
                     return;
                 }
@@ -986,6 +990,13 @@ protected:
                         RowCountMember,
                         lowerBound.GetRowIndex(),
                         statistics.LogicalRowCount);
+
+                    while (chunkIndex > 0 &&
+                        chunkList->Children()[chunkIndex - 1]->GetType() ==
+                            EObjectType::OrderedDynamicTabletStore)
+                    {
+                        --chunkIndex;
+                    }
                 }
             }
 
@@ -1029,10 +1040,19 @@ protected:
     {
         YT_VERIFY(EnforceBounds_);
 
+        const auto* child = entry.ChunkList->Children()[entry.ChildIndex];
+
         // Row index.
+
+        // Ordered dynamic root is skipped since row index inside tablet is tablet-wise.
+        // Ordered dynamic stores are skipped since they should have absolute row index
+        // (0 is the beginning of the tablet) rather than relative (0 is the beginning of the store).
         if (entry.ChunkList->GetKind() != EChunkListKind::OrderedDynamicRoot) {
             if (entry.LowerBound.HasRowIndex()) {
-                i64 newLowerBound = entry.LowerBound.GetRowIndex() - childLowerBound.GetRowIndex();
+                i64 newLowerBound = entry.LowerBound.GetRowIndex();
+                if (child->GetType() != EObjectType::OrderedDynamicTabletStore) {
+                    newLowerBound -= childLowerBound.GetRowIndex();
+                }
                 if (newLowerBound > 0) {
                     startLimit->SetRowIndex(newLowerBound);
                 }
@@ -1040,14 +1060,16 @@ protected:
             if (entry.UpperBound.HasRowIndex() &&
                 entry.UpperBound.GetRowIndex() < childUpperBound.GetRowIndex())
             {
-                i64 newUpperBound = entry.UpperBound.GetRowIndex() - childLowerBound.GetRowIndex();
+                i64 newUpperBound = entry.UpperBound.GetRowIndex();
+                if (child->GetType() != EObjectType::OrderedDynamicTabletStore) {
+                    newUpperBound -= childLowerBound.GetRowIndex();
+                }
                 YT_ASSERT(newUpperBound > 0);
                 endLimit->SetRowIndex(newUpperBound);
             }
         }
 
         // Adjust for journal chunks.
-        const auto* child = entry.ChunkList->Children()[entry.ChildIndex];
         if (IsJournalChunkType(child->GetType())) {
             const auto* chunk = child->AsChunk();
             auto [startRowIndex, endRowIndex] = GetJournalChunkRowRange(chunk);
@@ -1399,6 +1421,7 @@ public:
 
     virtual bool OnDynamicStore(
         TDynamicStore* /*dynamicStore*/,
+        std::optional<int> /*tabletIndex*/,
         const NChunkClient::TLegacyReadLimit& /*startLimit*/,
         const NChunkClient::TLegacyReadLimit& /*endLimit*/) override
     {
@@ -1467,6 +1490,7 @@ void EnumerateStoresInChunkTree(
 
         virtual bool OnDynamicStore(
             TDynamicStore* dynamicStore,
+            std::optional<int> /*tabletIndex*/,
             const NChunkClient::TLegacyReadLimit& /*startLimit*/,
             const NChunkClient::TLegacyReadLimit& /*endLimit*/) override
         {

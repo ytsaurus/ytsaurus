@@ -26,6 +26,8 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/ytlib/tablet_client/helpers.h>
+
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/algorithm_helpers.h>
@@ -41,6 +43,7 @@ using namespace NCypressClient;
 using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
+using namespace NTabletClient;
 using namespace NSecurityServer;
 using namespace NObjectServer;
 using namespace NConcurrency;
@@ -49,6 +52,8 @@ using NYT::ToProto;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ChunkServerLogger;
 
 static const double ChunkListTombstoneRelativeThreshold = 0.5;
 static const double ChunkListTombstoneAbsoluteThreshold = 16;
@@ -320,32 +325,59 @@ void DetachFromChunkList(
     auto& children = chunkList->Children();
     switch (chunkList->GetKind()) {
         case EChunkListKind::OrderedDynamicTablet: {
-            // Can only handle a prefix of non-trimmed children.
-            // Used in ordered tablet trim.
-            int childIndex = chunkList->GetTrimmedChildCount();
-            for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt, ++childIndex) {
-                auto* child = *childIt;
-                YT_VERIFY(child == children[childIndex]);
-                children[childIndex] = nullptr;
-            }
-            int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + static_cast<int>(childrenEnd - childrenBegin);
-            if (newTrimmedChildCount > ChunkListTombstoneAbsoluteThreshold &&
-                newTrimmedChildCount > children.size() * ChunkListTombstoneRelativeThreshold)
-            {
-                children.erase(
-                    children.begin(),
-                    children.begin() + newTrimmedChildCount);
+            // Ordered tablets support two kinds of removals:
+            //  - detach a suffix of dynamic stores. All dynamic stores should be detached.
+            //    Used for flushing a dynamic store.
+            //  - detach a prefix of non-trimmed children. Used in ordered tablet trim.
 
-                chunkList->CumulativeStatistics().TrimFront(newTrimmedChildCount);
+            if (IsDynamicTabletStoreType((*childrenBegin)->GetType())) {
+                int childCount = childrenEnd - childrenBegin;
+                int firstDynamicStoreIndex = children.size() - childCount;
 
-                chunkList->SetTrimmedChildCount(0);
+                YT_VERIFY(firstDynamicStoreIndex >= chunkList->GetTrimmedChildCount());
+                for (int index = 0; index < childCount; ++index) {
+                    YT_VERIFY(childrenBegin[index]->GetType() == EObjectType::OrderedDynamicTabletStore);
+                    if (children[firstDynamicStoreIndex + index] != childrenBegin[index]) {
+                        YT_LOG_ALERT("Attempted to detach dynamic stores from ordered tablet out of order "
+                            "(ChunkListId: %v, RelativeStoreIndex: %v, DetachedStoreId: %v, ActualStoreId: %v)",
+                            chunkList->GetId(),
+                            index,
+                            childrenBegin[index]->GetId(),
+                            children[firstDynamicStoreIndex + index]->GetId());
+                    }
+                }
+
+                children.erase(children.begin() + firstDynamicStoreIndex, children.end());
+
+                // NB: Statistics for all dynamic stores are the same.
+                chunkList->CumulativeStatistics().TrimBack(childCount);
+
+                YT_VERIFY(statisticsDelta.LogicalRowCount == 0);
             } else {
-                chunkList->SetTrimmedChildCount(newTrimmedChildCount);
-            }
+                int childIndex = chunkList->GetTrimmedChildCount();
+                for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt, ++childIndex) {
+                    auto* child = *childIt;
+                    YT_VERIFY(child == children[childIndex]);
+                    children[childIndex] = nullptr;
+                }
+                int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + static_cast<int>(childrenEnd - childrenBegin);
+                if (newTrimmedChildCount > ChunkListTombstoneAbsoluteThreshold &&
+                    newTrimmedChildCount > children.size() * ChunkListTombstoneRelativeThreshold)
+                {
+                    children.erase(
+                        children.begin(),
+                        children.begin() + newTrimmedChildCount);
 
-            // NB: Do not change logical row and chunk count.
-            statisticsDelta.LogicalRowCount = 0;
-            statisticsDelta.LogicalChunkCount = 0;
+                    chunkList->CumulativeStatistics().TrimFront(newTrimmedChildCount);
+
+                    chunkList->SetTrimmedChildCount(0);
+                } else {
+                    chunkList->SetTrimmedChildCount(newTrimmedChildCount);
+                }
+                // NB: Do not change logical row and chunk count.
+                statisticsDelta.LogicalRowCount = 0;
+                statisticsDelta.LogicalChunkCount = 0;
+            }
             break;
         }
 

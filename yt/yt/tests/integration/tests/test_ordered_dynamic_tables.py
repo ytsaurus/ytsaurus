@@ -378,7 +378,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
     @authors("babenko")
     def test_trim_drops_chunks(self):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", dynamic=False)
+        self._create_simple_table("//tmp/t", dynamic=False, enable_dynamic_store_read=False)
 
         for i in xrange(10):
             write_table("<append=true>//tmp/t", [{"a": j} for j in xrange(100)])
@@ -956,7 +956,8 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         for i in xrange(5):
             trim_rows("//tmp/t", i, 1)
-        wait(lambda: get("//tmp/t/@chunk_count") == 5)
+        # There are 2 extra dynamic stores in each tablet.
+        wait(lambda: get("//tmp/t/@chunk_count") == 5 + 2 * 5)
         sync_unmount_table("//tmp/t")
         copy("//tmp/t", "//tmp/t2")
         sync_reshard_table("//tmp/t", 1)

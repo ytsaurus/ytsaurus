@@ -5169,6 +5169,22 @@ private:
         }
     }
 
+    static int GetFirstDynamicStoreIndex(const TChunkList* chunkList)
+    {
+        YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
+
+        const auto& children = chunkList->Children();
+        int firstDynamicStoreIndex = static_cast<int>(children.size()) - 1;
+        YT_VERIFY(IsDynamicTabletStoreType(children[firstDynamicStoreIndex]->GetType()));
+        while (firstDynamicStoreIndex > chunkList->GetTrimmedChildCount() &&
+            IsDynamicTabletStoreType(children[firstDynamicStoreIndex - 1]->GetType()))
+        {
+            --firstDynamicStoreIndex;
+        }
+
+        return firstDynamicStoreIndex;
+    }
+
     void HydraPrepareUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request, bool persistent)
     {
         YT_VERIFY(persistent);
@@ -5240,7 +5256,9 @@ private:
                 }
             }
 
-            if (request->stores_to_remove_size() > 0) {
+            auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
+
+            if (updateReason == ETabletStoresUpdateReason::Trim) {
                 int childIndex = tabletChunkList->GetTrimmedChildCount();
                 const auto& children = tabletChunkList->Children();
                 for (const auto& descriptor : request->stores_to_remove()) {
@@ -5261,6 +5279,20 @@ private:
                             storeId);
                     }
                     ++childIndex;
+                }
+            }
+
+            if (updateReason == ETabletStoresUpdateReason::Flush &&
+                IsDynamicStoreReadEnabled(table) &&
+                !request->stores_to_remove().empty())
+            {
+                auto storeId = FromProto<TStoreId>(request->stores_to_remove(0).store_id());
+                int firstDynamicStoreIndex = GetFirstDynamicStoreIndex(tabletChunkList);
+                const auto* firstDynamicStore = tabletChunkList->Children()[firstDynamicStoreIndex];
+                if (firstDynamicStore->GetId() != storeId) {
+                    THROW_ERROR_EXCEPTION("Attempted to flush ordered dynamic store out of order")
+                        << TErrorAttribute("first_dynamic_store_id", firstDynamicStore->GetId())
+                        << TErrorAttribute("flushed_store_id", storeId);
                 }
             }
         }
@@ -5454,6 +5486,12 @@ private:
                 if (dynamicStore) {
                     YT_VERIFY(updateReason == ETabletStoresUpdateReason::Flush);
                     dynamicStore->SetFlushedChunk(flushedChunk);
+                    if (!table->IsSorted()) {
+                        // NB: Dynamic stores at the end of the chunk list do not contribute to row count,
+                        // so the logical row count of the chunk list is exactly the number of rows
+                        // in all tablet chunks.
+                        dynamicStore->SetTableRowIndex(tablet->GetChunkList()->Statistics().LogicalRowCount);
+                    }
                     chunksToDetach.push_back(dynamicStore);
                 }
             } else {
@@ -5480,8 +5518,50 @@ private:
         // Apply all requested changes.
         auto* tabletChunkList = tablet->GetChunkList();
         auto* cell = tablet->GetCell();
-        chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
-        DetachChunksFromTablet(tabletChunkList, chunksToDetach);
+
+        if (!table->IsSorted() && IsDynamicStoreReadEnabled(table) && updateReason == ETabletStoresUpdateReason::Flush) {
+            // NB: Flushing ordered tablet requires putting a certain chunk in place of a certain dynamic store.
+
+            const auto& children = tabletChunkList->Children();
+            YT_VERIFY(!children.empty());
+
+            auto* dynamicStoreToRemove = chunksToDetach[0]->AsDynamicStore();
+            int firstDynamicStoreIndex = GetFirstDynamicStoreIndex(tabletChunkList);
+            YT_VERIFY(dynamicStoreToRemove == children[firstDynamicStoreIndex]);
+
+            std::vector<TChunkTree*> allDynamicStores(
+                children.begin() + firstDynamicStoreIndex,
+                children.end());
+
+            if (allDynamicStores.size() > MaxOrderedDynamicStoresInChunkList) {
+                YT_LOG_ALERT("Too many dynamic stores in ordered tablet chunk list "
+                    "(TableId: %v, TabletId: %v, ChunkListId: %v, DynamicStoreCount: %v, "
+                    "Limit: %v)",
+                    table->GetId(),
+                    tablet->GetId(),
+                    tabletChunkList->GetId(),
+                    allDynamicStores.size(),
+                    MaxOrderedDynamicStoresInChunkList);
+            }
+
+            chunkManager->DetachFromChunkList(tabletChunkList, allDynamicStores);
+
+            if (flushedChunk) {
+                chunkManager->AttachToChunkList(tabletChunkList, flushedChunk);
+            }
+
+            allDynamicStores.erase(allDynamicStores.begin());
+            chunkManager->AttachToChunkList(tabletChunkList, allDynamicStores);
+
+            if (request->request_dynamic_store_id()) {
+                auto* dynamicStoreToAdd = chunksToAttach.back()->AsDynamicStore();
+                chunkManager->AttachToChunkList(tabletChunkList, dynamicStoreToAdd);
+            }
+        } else {
+            chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
+            DetachChunksFromTablet(tabletChunkList, chunksToDetach);
+        }
+
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
         // Get new tablet resource usage.
@@ -6017,10 +6097,6 @@ private:
     bool IsDynamicStoreReadEnabled(const TTableNode* table)
     {
         if (table->IsReplicated()) {
-            return false;
-        }
-
-        if (!table->IsSorted()) {
             return false;
         }
 

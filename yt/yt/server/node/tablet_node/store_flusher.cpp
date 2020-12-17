@@ -467,12 +467,7 @@ private:
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Flush));
 
             if (tablet->GetConfig()->EnableDynamicStoreRead) {
-                int dynamicStoreCount = tablet->DynamicStoreIdPool().size();
-                for (const auto& store : tablet->GetEden()->Stores()) {
-                    if (store->IsDynamic()) {
-                        ++dynamicStoreCount;
-                    }
-                }
+                int potentialDynamicStoreCount = tablet->DynamicStoreIdPool().size() + tablet->ComputeDynamicStoreCount();
 
                 // NB: Race is possible here. Consider a tablet with an active store, two passive
                 // dynamic stores and empty pool. If both passive stores are flushed concurrently
@@ -482,10 +477,10 @@ private:
                 //
                 // However, this is safe because dynamic store id will be requested upon rotation
                 // and the tablet will have two dynamic stores as usual.
-                if (dynamicStoreCount <= DynamicStoreIdPoolSize) {
+                if (potentialDynamicStoreCount <= DynamicStoreIdPoolSize) {
                     actionRequest.set_request_dynamic_store_id(true);
-                    YT_LOG_DEBUG("Dynamic store id requested with flush (DynamicStoreCount: %v)",
-                        dynamicStoreCount);
+                    YT_LOG_DEBUG("Dynamic store id requested with flush (PotentialDynamicStoreCount: %v)",
+                        potentialDynamicStoreCount);
                 }
             }
 

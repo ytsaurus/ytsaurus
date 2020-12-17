@@ -24,6 +24,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(const NTabletServer::TTablet*, Tablet);
     DEFINE_BYVAL_RO_PROPERTY(TChunk*, FlushedChunk);
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
+    //! Used for flushed ordered dynamic stores. Denotes the (tablet-wise) row index
+    //! of the first row in the chunk.
+    DEFINE_BYVAL_RW_PROPERTY(i64, TableRowIndex);
 
 public:
     explicit TDynamicStore(TDynamicStoreId id);
