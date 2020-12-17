@@ -66,6 +66,8 @@ TRemoteChangelogStoreOptions::TRemoteChangelogStoreOptions()
         .Default(2);
     RegisterParameter("enable_changelog_multiplexing", EnableChangelogMultiplexing)
         .Default(true);
+    RegisterParameter("enable_changelog_chunk_preallocation", EnableChangelogChunkPreallocation)
+        .Default(false);
     RegisterParameter("changelog_account", ChangelogAccount)
         .NonEmpty();
     RegisterParameter("changelog_primary_medium", ChangelogPrimaryMedium)

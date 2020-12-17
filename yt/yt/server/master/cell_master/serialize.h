@@ -121,6 +121,7 @@ DEFINE_ENUM(EMasterReign,
     ((OrderedRemoteDynamicStoreReader)                              (1444))  // ifsmirnov
     ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
     ((RemoveTypeV2)                                                 (1436))  // ermolovd
+    ((EnableChangelogChunkPreallocationInBundleOptions)             (1436))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

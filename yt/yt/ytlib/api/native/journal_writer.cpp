@@ -633,7 +633,7 @@ private:
                 auto batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
                 batchReq->set_suppress_upstream_sync(true);
-                if (Config_->PreallocateChunks) {
+                if (Options_.EnableChunkPreallocation) {
                     batchReq->RequireServerFeature(EMasterFeature::OverlayedJournals);
                 }
 
@@ -648,7 +648,7 @@ private:
                 req->set_write_quorum(WriteQuorum_);
                 req->set_movable(true);
                 req->set_vital(true);
-                req->set_overlayed(Config_->PreallocateChunks);
+                req->set_overlayed(Options_.EnableChunkPreallocation);
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -883,7 +883,7 @@ private:
                 auto session = WaitFor(future)
                     .ValueOrThrow();
 
-                if (Config_->PreallocateChunks) {
+                if (Options_.EnableChunkPreallocation) {
                     ScheduleChunkSessionAllocation();
                 }
 
@@ -1060,7 +1060,7 @@ private:
                 }
             }
 
-            if (Config_->PreallocateChunks) {
+            if (Options_.EnableChunkPreallocation) {
                 ScheduleChunkSessionSeal(session);
             } else {
                 TEventTimerGuard timingGuard(Counters_.SealChunkTimer);
@@ -1340,8 +1340,8 @@ private:
             ToProto(req->mutable_session_id(), GetSessionIdForNode(CurrentChunkSession_, node));
             req->set_flush_blocks(true);
 
-            if (Config_->PreallocateChunks) {
-                if (node->FirstPendingBlockIndex == 0 && Config_->PreallocateChunks) {
+            if (Options_.EnableChunkPreallocation) {
+                if (node->FirstPendingBlockIndex == 0) {
                     req->set_first_block_index(0);
                     req->Attachments().push_back(CurrentChunkSession_->HeaderRow);
                 } else {
@@ -1498,7 +1498,7 @@ private:
 
         bool IsSafeToSwitchSessionOnDemand()
         {
-            if (!Config_->PreallocateChunks) {
+            if (!Options_.EnableChunkPreallocation) {
                 return true;
             }
 
@@ -1548,7 +1548,7 @@ private:
 
         void ScheduleChunkSessionSwitch(const TChunkSessionPtr& session)
         {
-            if (!Config_->PreallocateChunks && session->State != EChunkSessionState::Current) {
+            if (!Options_.EnableChunkPreallocation && session->State != EChunkSessionState::Current) {
                 YT_LOG_DEBUG("Non-current chunk session cannot be switched (SessionId: %v)",
                     session->Id);
                 return;
@@ -1577,7 +1577,7 @@ private:
                         YT_LOG_DEBUG("Resetting chunk session promise");
                         AllocatedChunkSessionIndex_ = -1;
                         AllocatedChunkSessionPromise_.Reset();
-                        if (Config_->PreallocateChunks) {
+                        if (Options_.EnableChunkPreallocation) {
                             ScheduleChunkSessionAllocation();
                         }
                     }

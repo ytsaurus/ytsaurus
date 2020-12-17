@@ -180,7 +180,7 @@ public:
     int MaxChunkRowCount;
     i64 MaxChunkDataSize;
     TDuration MaxChunkSessionDuration;
-    
+
     bool PreferLocalHost;
 
     TDuration NodeRpcTimeout;
@@ -192,8 +192,6 @@ public:
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
     TDuration PrerequisiteTransactionProbePeriod;
-
-    bool PreallocateChunks;
 
     // For testing purposes only.
     bool DontClose;
@@ -240,9 +238,6 @@ public:
 
         RegisterParameter("prerequisite_transaction_probe_period", PrerequisiteTransactionProbePeriod)
             .Default(TDuration::Seconds(60));
-
-        RegisterParameter("preallocate_chunks", PreallocateChunks)
-            .Default(false);
 
         RegisterParameter("dont_close", DontClose)
             .Default(false);

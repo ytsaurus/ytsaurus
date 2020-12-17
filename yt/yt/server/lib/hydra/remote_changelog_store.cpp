@@ -152,6 +152,7 @@ private:
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
                 options.Config = Config_->Writer;
                 options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
+                options.EnableChunkPreallocation = Options_->EnableChangelogChunkPreallocation;
                 options.Counters = Counters_;
                 writer = Client_->CreateJournalWriter(path, options);
                 WaitFor(writer->Open())

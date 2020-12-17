@@ -122,39 +122,41 @@ class TestJournals(YTEnvSetup):
                 create("journal", "//tmp/j", attributes=attributes)
 
     @authors("babenko")
-    @pytest.mark.parametrize("preallocate_chunks", [False, True])
-    def test_journal_quorum_row_count(self, preallocate_chunks):
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    def test_journal_quorum_row_count(self, enable_chunk_preallocation):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
             self.DATA,
+            enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={
                 "max_batch_row_count": 4,
                 "max_flush_row_count": 4,
                 "max_chunk_row_count": 4,
-                "preallocate_chunks": preallocate_chunks,
-            },
+            }
         )
         assert get("//tmp/j/@quorum_row_count") == 10
 
         write_journal(
-            "//tmp/j", self.DATA, journal_writer={"preallocate_chunks": preallocate_chunks, "dont_close": True}
+            "//tmp/j", self.DATA,
+            enable_chunk_preallocation=enable_chunk_preallocation,
+            journal_writer={"dont_close": True},
         )
         assert get("//tmp/j/@quorum_row_count") == 20
 
     @authors("babenko", "ignat")
-    @pytest.mark.parametrize("preallocate_chunks", [False, True])
-    def test_read_write(self, preallocate_chunks):
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    def test_read_write(self, enable_chunk_preallocation):
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
                 self.DATA,
+                enable_chunk_preallocation=enable_chunk_preallocation,
                 journal_writer={
                     "max_batch_row_count": 4,
                     "max_chunk_row_count": 4,
                     "max_flush_row_count": 4,
-                    "preallocate_chunks": preallocate_chunks,
                 },
             )
 
@@ -163,7 +165,7 @@ class TestJournals(YTEnvSetup):
 
         chunk_count = get("//tmp/j/@chunk_count")
         assert chunk_count >= 10 * 3
-        assert chunk_count <= 10 * (3 + (1 if preallocate_chunks else 0))
+        assert chunk_count <= 10 * (3 + (1 if enable_chunk_preallocation else 0))
 
         for i in xrange(0, 10):
             assert read_journal("//tmp/j[#" + str(i * 10) + ":]") == self.DATA * (10 - i)
@@ -174,15 +176,13 @@ class TestJournals(YTEnvSetup):
         assert read_journal("//tmp/j[#200:]") == []
 
     @authors("aleksandra-zh")
-    @pytest.mark.parametrize("preallocate_chunks", [False, True])
-    def test_truncate1(self, preallocate_chunks):
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    def test_truncate1(self, enable_chunk_preallocation):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
             self.DATA,
-            journal_writer={
-                "preallocate_chunks": preallocate_chunks,
-            },
+            enable_chunk_preallocation=enable_chunk_preallocation,
         )
 
         assert get("//tmp/j/@sealed")
@@ -192,16 +192,14 @@ class TestJournals(YTEnvSetup):
         self._truncate_and_check("//tmp/j", 10)
 
     @authors("aleksandra-zh")
-    @pytest.mark.parametrize("preallocate_chunks", [False, True])
-    def test_truncate2(self, preallocate_chunks):
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    def test_truncate2(self, enable_chunk_preallocation):
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
                 self.DATA,
-                journal_writer={
-                    "preallocate_chunks": preallocate_chunks,
-                },
+                enable_chunk_preallocation=enable_chunk_preallocation,
             )
 
         assert get("//tmp/j/@sealed")
@@ -215,9 +213,7 @@ class TestJournals(YTEnvSetup):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
                 self.DATA,
-                journal_writer={
-                    "preallocate_chunks": preallocate_chunks,
-                },
+                enable_chunk_preallocation=enable_chunk_preallocation,
             )
             self._truncate_and_check("//tmp/j", (i + 1) * 3)
 
@@ -225,13 +221,15 @@ class TestJournals(YTEnvSetup):
         assert get("//tmp/j/@quorum_row_count") == 30
 
     @authors("aleksandra-zh")
-    @pytest.mark.parametrize("preallocate_chunks", [False, True])
-    def test_cannot_truncate_unsealed(self, preallocate_chunks):
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    def test_cannot_truncate_unsealed(self, enable_chunk_preallocation):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
 
         create("journal", "//tmp/j")
         write_journal(
-            "//tmp/j", self.DATA, journal_writer={"preallocate_chunks": preallocate_chunks, "dont_close": True}
+            "//tmp/j", self.DATA,
+            enable_chunk_preallocation=enable_chunk_preallocation,
+            journal_writer={"dont_close": True}
         )
 
         with pytest.raises(YtError):
@@ -292,28 +290,28 @@ class TestJournals(YTEnvSetup):
             set("//tmp/j/@primary_medium", "default")
 
     @authors("babenko")
-    @pytest.mark.parametrize("preallocate_chunks", [False, True])
-    def test_read_write_unsealed(self, preallocate_chunks):
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    def test_read_write_unsealed(self, enable_chunk_preallocation):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
 
         create("journal", "//tmp/j")
         write_journal(
             "//tmp/j",
             self.DATA,
+            enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={
                 "dont_close": True,
                 "max_batch_row_count": 4,
                 "max_flush_row_count": 4,
                 "max_chunk_row_count": 4,
-                "preallocate_chunks": preallocate_chunks,
             },
         )
 
         assert read_journal("//tmp/j") == self.DATA
 
     @authors("babenko")
-    @pytest.mark.parametrize("preallocate_chunks", [False, True])
-    def test_simulated_failures(self, preallocate_chunks):
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
+    def test_simulated_failures(self, enable_chunk_preallocation):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
 
         create("journal", "//tmp/j")
@@ -343,12 +341,12 @@ class TestJournals(YTEnvSetup):
         write_journal(
             "//tmp/j",
             input_stream=SlowStream(yson_rows),
+            enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={
                 "dont_close": True,
                 "max_batch_row_count": 10,
                 "max_flush_row_count": 10,
                 "max_chunk_row_count": 50,
-                "preallocate_chunks": preallocate_chunks,
                 "replica_failure_probability": 0.1,
                 "open_session_backoff_time": 100,
             },
