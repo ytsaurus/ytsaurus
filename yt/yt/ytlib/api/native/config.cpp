@@ -195,6 +195,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("chunk_fetch_retries", ChunkFetchRetries)
         .DefaultNew();
 
+    RegisterParameter("enable_networking", EnableNetworking)
+        .Default(true);
+
     RegisterPreprocessor([&] {
         FunctionImplCache->Capacity = 100;
 

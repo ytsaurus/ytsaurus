@@ -537,9 +537,14 @@ public:
                 Bootstrap_);
 
             auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
-            // NB: Should not start synchronizer while validating snapshot.
+            std::vector<ITransactionParticipantProviderPtr> providers;
+
+            // NB: Should not start synchronizer and create tx providers while validating snapshot.
             if (GetCellId()) {
                 connection->GetClusterDirectorySynchronizer()->Start();
+                providers = {
+                    CreateTransactionParticipantProvider(connection),
+                    CreateTransactionParticipantProvider(connection->GetClusterDirectory())};
             }
             TransactionSupervisor_ = CreateTransactionSupervisor(
                 Config_->TransactionSupervisor,
@@ -551,10 +556,7 @@ public:
                 TransactionManager_,
                 GetCellId(),
                 connection->GetTimestampProvider(),
-                std::vector<ITransactionParticipantProviderPtr>{
-                    CreateTransactionParticipantProvider(connection),
-                    CreateTransactionParticipantProvider(connection->GetClusterDirectory())
-                });
+                std::move(providers));
 
             TabletService_ = CreateTabletService(
                 Owner_,
