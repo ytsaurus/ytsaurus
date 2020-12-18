@@ -93,6 +93,20 @@ std::optional<T> TVersionedBuiltinAttribute<T>::Set(T value)
 }
 
 template <class T>
+void TVersionedBuiltinAttribute<T>::SetOrReset(T value)
+{
+    if constexpr (std::is_pointer_v<T>) {
+        if (value) {
+            Set(std::move(value));
+        } else {
+            Reset();
+        }
+    } else {
+        Set(std::move(value));
+    }
+}
+
+template <class T>
 std::optional<T> TVersionedBuiltinAttribute<T>::Reset()
 {
     auto result = ToOptional();

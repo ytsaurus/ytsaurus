@@ -69,6 +69,9 @@ public:
     //! value (if any).
     std::optional<T> Remove();
 
+    // COMPAT(shakurov): remove this.
+    void SetOrReset(T value);
+
     template <class TOwner>
     static T Get(
         TVersionedBuiltinAttribute TOwner::*member,
