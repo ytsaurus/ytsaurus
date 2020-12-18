@@ -96,7 +96,9 @@ public:
             return IChunkPoolInput::NullCookie;
         }
 
-        bool isForeign = InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsForeign();
+        const auto& inputStreamDescriptor = InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex());
+        bool isForeign = inputStreamDescriptor.IsForeign();
+        int prefixLength = isForeign ? ForeignPrefixLength_ : PrimaryPrefixLength_;
 
         for (auto& dataSlice : stripe->DataSlices) {
             YT_VERIFY(!dataSlice->IsLegacy);
@@ -106,8 +108,20 @@ public:
             // all limit inference from chunk boundary keys should be done in task.
             YT_VERIFY(dataSlice->LowerLimit().KeyBound);
             YT_VERIFY(dataSlice->UpperLimit().KeyBound);
+            YT_VERIFY(dataSlice->LowerLimit().KeyBound.Prefix.GetCount() <= prefixLength);
+            YT_VERIFY(dataSlice->UpperLimit().KeyBound.Prefix.GetCount() <= prefixLength);
 
-            int prefixLength = isForeign ? ForeignPrefixLength_ : PrimaryPrefixLength_;
+            if (!inputStreamDescriptor.IsVersioned()) {
+                YT_VERIFY(!dataSlice->LowerLimit().KeyBound.IsUniversal());
+                YT_VERIFY(!dataSlice->UpperLimit().KeyBound.IsUniversal());
+            }
+
+            YT_LOG_TRACE_IF(
+                SortedJobOptions_.LogDetails,
+                "Data slice added (LowerLimit: %v, UpperLimit: %v, InputStreamIndex: %v)",
+                dataSlice->LowerLimit(),
+                dataSlice->UpperLimit(),
+                dataSlice->InputStreamIndex);
 
             dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, prefixLength, RowBuffer_);
             dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, prefixLength, RowBuffer_);
@@ -481,8 +495,7 @@ private:
                 auto lowerBound = dataSlice->LowerLimit().KeyBound;
                 auto upperBound = dataSlice->UpperLimit().KeyBound;
 
-                if (dataSlice->IsTeleportable && isPrimary && isTeleportable)
-                {
+                if (dataSlice->IsTeleportable && isPrimary && isTeleportable) {
                     teleportCandidates.emplace_back(TTeleportCandidate{
                         .DataSlice = dataSlice,
                         .LowerBound = lowerBound,
@@ -517,6 +530,8 @@ private:
         // Some chunks will be dropped due to sampling.
         int droppedTeleportChunkCount = 0;
 
+        std::vector<TLegacyDataSlicePtr> teleportDataSlices;
+
         for (const auto& teleportCandidate : teleportCandidates) {
             yielder.TryYield();
 
@@ -542,7 +557,7 @@ private:
             if (disjointSlices == dataSlicesCount - 1) {
                 Stripes_[teleportCandidate.InputCookie].SetTeleport(true);
                 if (TeleportChunkSampler_.Sample()) {
-                    TeleportChunks_.emplace_back(teleportCandidate.DataSlice->GetSingleUnversionedChunkOrThrow());
+                    teleportDataSlices.emplace_back(teleportCandidate.DataSlice);
                 } else {
                     // Teleport chunk to /dev/null. He did not make it.
                     ++droppedTeleportChunkCount;
@@ -554,23 +569,32 @@ private:
         // them while we build the jobs (they provide us with mandatory places where we have to
         // break the jobs).
         std::sort(
-            TeleportChunks_.begin(),
-            TeleportChunks_.end(),
-            [] (const TInputChunkPtr& lhs, const TInputChunkPtr& rhs) {
-                // TODO(max42): should we introduce key bounds instead of boundary keys for input chunk?
-                // Actually we should make pool unaware of input chunks hiding them behind TDataSlice.
-                int cmpMin = CompareRows(lhs->BoundaryKeys()->MinKey, rhs->BoundaryKeys()->MinKey);
-                if (cmpMin != 0) {
-                    return cmpMin < 0;
+            teleportDataSlices.begin(),
+            teleportDataSlices.end(),
+            [=] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
+                const auto& lhsLowerBound = lhs->LowerLimit().KeyBound;
+                const auto& lhsUpperBound = lhs->UpperLimit().KeyBound;
+                const auto& rhsLowerBound = rhs->LowerLimit().KeyBound;
+                const auto& rhsUpperBound = rhs->UpperLimit().KeyBound;
+
+                int cmpLower = PrimaryComparator_.CompareKeyBounds(lhsLowerBound, rhsLowerBound);
+                if (cmpLower != 0) {
+                    return cmpLower < 0;
                 }
-                int cmpMax = CompareRows(lhs->BoundaryKeys()->MaxKey, rhs->BoundaryKeys()->MaxKey);
-                if (cmpMax != 0) {
-                    return cmpMax < 0;
+                int cmpUpper = PrimaryComparator_.CompareKeyBounds(lhsUpperBound, rhsUpperBound);
+                if (cmpUpper != 0) {
+                    return cmpUpper < 0;
                 }
                 // This is possible only when both chunks contain the same only key or we comparing chunk with itself.
-                YT_VERIFY(&lhs == &rhs || lhs->BoundaryKeys()->MinKey == lhs->BoundaryKeys()->MaxKey);
+                YT_VERIFY(&lhs == &rhs || PrimaryComparator_.TryAsSingletonKey(lhsLowerBound, lhsUpperBound));
                 return false;
             });
+
+        TeleportChunks_.reserve(teleportDataSlices.size());
+
+        for (const auto& dataSlice : teleportDataSlices) {
+            TeleportChunks_.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+        }
 
         i64 totalTeleportChunkSize = 0;
         for (const auto& teleportChunk : TeleportChunks_) {
@@ -726,11 +750,22 @@ private:
         std::vector<TLegacyDataSlicePtr> foreignInputDataSlices,
         int splitJobCount)
     {
+        auto validateDataSlices = [&] (const std::vector<TLegacyDataSlicePtr>& dataSlices, int prefixLength) {
+             for (const auto& dataSlice : dataSlices) {
+                YT_VERIFY(!dataSlice->IsLegacy);
+                YT_VERIFY(dataSlice->LowerLimit().KeyBound);
+                YT_VERIFY(dataSlice->UpperLimit().KeyBound);
+                YT_VERIFY(dataSlice->LowerLimit().KeyBound.Prefix.GetCount() <= prefixLength);
+                YT_VERIFY(dataSlice->UpperLimit().KeyBound.Prefix.GetCount() <= prefixLength);
+            }
+        };
+
+        validateDataSlices(unreadInputDataSlices, PrimaryPrefixLength_);
+        validateDataSlices(foreignInputDataSlices, ForeignPrefixLength_);
+
         i64 dataWeight = 0;
         for (auto& dataSlice : unreadInputDataSlices) {
             YT_VERIFY(!dataSlice->IsLegacy);
-            YT_VERIFY(!dataSlice->LowerLimit().KeyBound.IsUniversal());
-            YT_VERIFY(!dataSlice->UpperLimit().KeyBound.IsUniversal());
             dataWeight += dataSlice->GetDataWeight();
         }
 

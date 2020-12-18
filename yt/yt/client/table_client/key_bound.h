@@ -52,6 +52,9 @@ public:
     //! Test if this key bound allows any key.
     bool IsUniversal() const;
 
+    //! Test if this key bound allows no keys.
+    bool IsEmpty() const;
+
     //! Return key bound which is complementary to current.
     TKeyBound Invert() const;
 

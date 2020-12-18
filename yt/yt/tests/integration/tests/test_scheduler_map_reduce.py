@@ -2296,3 +2296,31 @@ class TestSchedulerMapReduceCommandsPortal(TestSchedulerMapReduceCommandsMultice
 
 
 ##################################################################
+
+
+class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent" : {
+            "sort_operation_options" : {
+                "min_uncompressed_block_size" : 1
+            },
+            "map_reduce_operation_options" : {
+                "min_uncompressed_block_size" : 1,
+                "job_splitter": {
+                    "min_job_time": 3000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                    "job_logging_period": 0,
+                },
+            },
+            "enable_partition_map_job_size_adjustment": True,
+            "operation_options": {
+                "spec_template": {
+                    "use_new_sorted_pool": True,
+                    "nightly_options": {"log_details": True},
+                },
+            },
+        }
+    }

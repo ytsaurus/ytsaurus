@@ -182,21 +182,29 @@ TInputSliceLimit::TInputSliceLimit(bool isUpper)
     : KeyBound(TKeyBound::MakeUniversal(isUpper))
 { }
 
-void TInputSliceLimit::MergeLower(const TInputSliceLimit& other, const TComparator& comparator)
+void TInputSliceLimit::MergeLower(const TInputSliceLimit& other, const std::optional<TComparator>& comparator)
 {
     if (!RowIndex || (other.RowIndex && *other.RowIndex > *RowIndex)) {
         RowIndex = other.RowIndex;
     }
-    comparator.ReplaceIfStrongerKeyBound(KeyBound, other.KeyBound);
+    if (comparator) {
+        comparator->ReplaceIfStrongerKeyBound(KeyBound, other.KeyBound);
+    } else {
+        YT_VERIFY(!other.KeyBound);
+    }
     YT_VERIFY(!KeyBound || !KeyBound.IsUpper);
 }
 
-void TInputSliceLimit::MergeUpper(const TInputSliceLimit& other, const TComparator& comparator)
+void TInputSliceLimit::MergeUpper(const TInputSliceLimit& other, const std::optional<TComparator>& comparator)
 {
     if (!RowIndex || (other.RowIndex && *other.RowIndex < *RowIndex)) {
         RowIndex = other.RowIndex;
     }
-    comparator.ReplaceIfStrongerKeyBound(KeyBound, other.KeyBound);
+    if (comparator) {
+        comparator->ReplaceIfStrongerKeyBound(KeyBound, other.KeyBound);
+    } else {
+        YT_VERIFY(!other.KeyBound);
+    }
     YT_VERIFY(!KeyBound || KeyBound.IsUpper);
 }
 
@@ -518,7 +526,7 @@ std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr> TInputChunkSlice::SplitByRow
 
     i64 rowCount = upperRowIndex - lowerRowIndex;
 
-    YT_VERIFY(splitRow > 0 && splitRow < rowCount);
+    YT_VERIFY(splitRow >= 0 && splitRow <= rowCount);
 
     return std::make_pair(
         New<TInputChunkSlice>(

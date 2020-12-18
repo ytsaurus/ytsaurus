@@ -282,9 +282,14 @@ public:
     //! Promote upper bound for currently built job.
     void PromoteUpperBound(TKeyBound upperBound)
     {
-        YT_VERIFY(PrimaryComparator_.CompareKeyBounds(UpperBound_, upperBound) < 0);
-
         YT_LOG_DEBUG_IF(LogDetails_, "Upper bound promoted (UpperBound: %v)", upperBound);
+
+        // NB: The leftmost endpoint may be >=[] when dealing with sorted dynamic stores,
+        // and it is the only case when UpperBound_ may not be smaller than upperBound.
+        YT_VERIFY(
+            PrimaryComparator_.CompareKeyBounds(UpperBound_, upperBound) < 0 ||
+            (PrimaryComparator_.CompareKeyBounds(UpperBound_, upperBound) == 0 &&
+            upperBound.IsEmpty()));
 
         UpperBound_ = upperBound;
 
@@ -340,8 +345,9 @@ public:
 
         YT_LOG_DEBUG_IF(
             LogDetails_,
-            "Performing flush (Statistics: %v, IsOverflow: %v, Force: %v)",
+            "Performing flush (Statistics: %v, Limits: %v, IsOverflow: %v, Force: %v)",
             GetStatisticsDebugString(),
+            LimitStatistics_,
             IsOverflow(),
             force);
 

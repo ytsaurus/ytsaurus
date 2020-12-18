@@ -6606,8 +6606,8 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
         for (auto& dataSlice : dataSlices) {
             YT_LOG_TRACE("Added dynamic table slice (TablePath: %v, Range: %v..%v, ChunkIds: %v)",
                 InputTables_[dataSlice->GetTableIndex()]->GetPath(),
-                dataSlice->LegacyLowerLimit(),
-                dataSlice->LegacyUpperLimit(),
+                dataSlice->LowerLimit(),
+                dataSlice->UpperLimit(),
                 dataSlice->ChunkSlices);
 
             result.emplace_back(std::move(dataSlice));
@@ -6822,6 +6822,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
                 });
             YT_VERIFY(chunkIt != inputChunks.end());
             auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);
+            InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer);
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
         TLegacyDataSlicePtr dataSlice;
@@ -6831,6 +6832,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
             YT_VERIFY(chunkSliceList.size() == 1);
             dataSlice = CreateUnversionedInputDataSlice(chunkSliceList[0]);
         }
+        InferLimitsFromBoundaryKeys(dataSlice, RowBuffer);
         dataSlice->Tag = dataSliceDescriptor.GetTag();
         return dataSlice;
     };

@@ -313,6 +313,14 @@ protected:
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         dataSlice->TransformToNewKeyless();
 
+        const auto& chunkSlice = dataSlice->ChunkSlices[0];
+        if (!chunkSlice->LowerLimit().KeyBound) {
+            chunkSlice->LowerLimit().KeyBound = TKeyBound::MakeUniversal(/* isUpper */ false);
+        }
+        if (!chunkSlice->UpperLimit().KeyBound) {
+            chunkSlice->UpperLimit().KeyBound = TKeyBound::MakeUniversal(/* isUpper */ true);
+        }
+
         auto tableIndex = dataSlice->GetTableIndex();
         const auto& inputTable = InputTables_[tableIndex];
         if (!inputTable.IsVersioned()) {
@@ -326,14 +334,23 @@ protected:
         // NB: we assume that all chunks in our test suite have boundary keys of proper lengths.
         // In real life this is not true, but in not so distant future we are going to introduce
         // abstract data slice which will hopefully hide this fact from chunk pool.
-        dataSlice->LowerLimit().KeyBound = TKeyBound::FromRow(
-            chunk->BoundaryKeys()->MinKey,
-            /* isInclusive */ true,
-            /* isUpper */ false);
-        dataSlice->UpperLimit().KeyBound = TKeyBound::FromRow(
-            chunk->BoundaryKeys()->MaxKey,
-            /* isInclusive */ true,
-            /* isUpper */ true);
+
+        if (chunk->BoundaryKeys()->MinKey == MinKey()) {
+            dataSlice->LowerLimit().KeyBound = TKeyBound::MakeUniversal(/* isUpper */ false);
+        } else {
+            dataSlice->LowerLimit().KeyBound = TKeyBound::FromRow(
+                chunk->BoundaryKeys()->MinKey,
+                /* isInclusive */ true,
+                /* isUpper */ false);
+        }
+        if (chunk->BoundaryKeys()->MaxKey == MaxKey()) {
+            dataSlice->UpperLimit().KeyBound = TKeyBound::MakeUniversal(/* isUpper */ true);
+        } else {
+            dataSlice->UpperLimit().KeyBound = TKeyBound::FromRow(
+                chunk->BoundaryKeys()->MaxKey,
+                /* isInclusive */ true,
+                /* isUpper */ true);
+        }
         dataSlice->IsTeleportable = true;
 
         CreatedUnversionedDataSlices_.emplace_back(dataSlice);
@@ -376,12 +393,20 @@ protected:
 
         dataSlice->IsTeleportable = lowerBound.IsUniversal() && upperBound.IsUniversal();
 
-        dataSlice->LowerLimit().KeyBound = chunkSlice->LowerLimit().KeyBound = comparator.StrongerKeyBound(
-            lowerBound,
-            TKeyBound::FromRow(chunk->BoundaryKeys()->MinKey, /* isInclusive */ true, /* isUpper */ false));
-        dataSlice->UpperLimit().KeyBound = chunkSlice->UpperLimit().KeyBound = comparator.StrongerKeyBound(
-            upperBound,
-            TKeyBound::FromRow(chunk->BoundaryKeys()->MaxKey, /* isInclusive */ true, /* isUpper */ true));
+        if (chunk->BoundaryKeys()->MinKey != MinKey()) {
+            dataSlice->LowerLimit().KeyBound = chunkSlice->LowerLimit().KeyBound = comparator.StrongerKeyBound(
+                lowerBound,
+                TKeyBound::FromRow(chunk->BoundaryKeys()->MinKey, /* isInclusive */ true, /* isUpper */ false));
+        } else {
+            dataSlice->LowerLimit().KeyBound = lowerBound;
+        }
+        if (chunk->BoundaryKeys()->MaxKey != MaxKey()) {
+            dataSlice->UpperLimit().KeyBound = chunkSlice->UpperLimit().KeyBound = comparator.StrongerKeyBound(
+                upperBound,
+                TKeyBound::FromRow(chunk->BoundaryKeys()->MaxKey, /* isInclusive */ true, /* isUpper */ true));
+        } else {
+            dataSlice->UpperLimit().KeyBound = upperBound;
+        }
 
         return dataSlice;
     }
@@ -510,11 +535,18 @@ protected:
                 ASSERT_TRUE(!stripe->DataSlices.empty());
                 int tableIndex = stripe->DataSlices.front()->GetTableIndex();
 
+                const auto& comparator = InputTables_[tableIndex].IsPrimary()
+                    ? Options_.SortedJobOptions.PrimaryComparator
+                    : Options_.SortedJobOptions.ForeignComparator;
+
                 for (const auto& dataSlice : stripe->DataSlices) {
                     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                         const auto& inputChunk = chunkSlice->GetInputChunk();
                         EXPECT_EQ(tableIndex, inputChunk->GetTableIndex());
-                        chunkSlicesByInputChunk[inputChunk].emplace_back(chunkSlice);
+                        auto& chunkSliceCopy = chunkSlicesByInputChunk[inputChunk].emplace_back(
+                            CreateInputChunkSlice(*chunkSlice));
+                        chunkSliceCopy->LowerLimit().MergeLower(dataSlice->LowerLimit(), comparator);
+                        chunkSliceCopy->UpperLimit().MergeUpper(dataSlice->UpperLimit(), comparator);
                     }
                 }
             }
@@ -3108,6 +3140,37 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduceForeignChunkSlicing)
 
     CheckEverything(stripeLists);
     EXPECT_EQ(2, stripeLists[0]->Stripes[0]->DataSlices.size());
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, DynamicStores)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, false} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {true, true} /* isVersioned */
+    );
+    InitPrimaryComparator(1);
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(MinKey(), BuildRow({1}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), MaxKey(), 0);
+    auto chunkC = CreateChunk(MinKey(), MaxKey(), 1);
+
+    CreateChunkPool();
+
+    AddDataSlice(chunkA);
+    AddDataSlice(chunkB);
+    AddDataSlice(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_TRUE(TeleportChunks_.empty());
+
+    CheckEverything(stripeLists);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1212,3 +1212,34 @@ class TestMaxTotalSliceCount(YTEnvSetup):
 
 
 ##################################################################
+
+
+class TestSchedulerJoinReduceCommandsNewSortedPool(TestSchedulerJoinReduceCommands):
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+            "join_reduce_operation_options": {
+                "job_splitter": {
+                    "min_job_time": 3000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                },
+            },
+            "operation_options": {
+                "spec_template": {
+                    "use_new_sorted_pool": True,
+                    "nightly_options": {"log_details": True},
+                }
+            }
+        }
+    }
