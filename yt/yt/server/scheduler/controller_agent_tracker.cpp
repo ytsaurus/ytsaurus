@@ -27,6 +27,8 @@
 
 #include <yt/core/yson/public.h>
 
+#include <yt/build/build.h>
+
 #include <util/string/join.h>
 
 namespace NYT::NScheduler {
@@ -1255,6 +1257,7 @@ public:
                     agent->GetIncarnationId());
                 ToProto(response->mutable_incarnation_id(), agent->GetIncarnationId());
                 response->set_config(ConvertToYsonString(SchedulerConfig_).GetData());
+                response->set_scheduler_version(GetVersion());
                 context->Reply();
             })
             .Via(GetCancelableControlInvoker()));

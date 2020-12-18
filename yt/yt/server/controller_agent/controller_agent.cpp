@@ -49,6 +49,8 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/service_combiner.h>
 
+#include <yt/build/build.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
@@ -923,6 +925,7 @@ private:
     bool ConnectScheduled_ = false;
     std::atomic<TInstant> ConnectionTime_ = {TInstant::Zero()};
     TIncarnationId IncarnationId_;
+    TString SchedulerVersion_;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
@@ -1078,6 +1081,7 @@ private:
         YT_LOG_DEBUG("Handshake succeeded");
 
         IncarnationId_ = FromProto<TIncarnationId>(rsp->incarnation_id());
+        SchedulerVersion_ = rsp->scheduler_version();
     }
 
     void FetchOperationsEffectiveAcl()
@@ -1685,7 +1689,19 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
+
+                .Item("service").BeginMap()
+                    // This information used by scheduler_uptime odin check and we want
+                    // to receive all these fields by single request.
+                    .Item("connected").Value(IsConnected())
+                    .Item("last_connection_time").Value(ConnectionTime_)
+                    .Item("controller_agent_version").Value(GetVersion())
+                    .Item("scheduler_version").Value(SchedulerVersion_)
+                    .Item("hostname").Value(GetDefaultAddress(Bootstrap_->GetLocalAddresses()))
+                .EndMap()
+                // COMPAT(ignat)
                 .Item("connected").Value(Connected_)
+                // COMPAT(ignat)
                 .DoIf(Connected_, [&] (TFluentMap fluent) {
                     fluent
                         .Item("incarnation_id").Value(IncarnationId_);
