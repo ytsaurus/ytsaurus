@@ -77,13 +77,6 @@ protected:
 
         auto config = GetConfig();
 
-        // TODO(gritukan): Remove it after TC death.
-        if (NYTree::ConvertTo<NExecAgent::TJobEnvironmentConfigPtr>(config->JobEnvironment)->Type == NExecAgent::EJobEnvironmentType::Porto) {
-            if (!TrySetUid(0)) {
-                YT_LOG_WARNING("Failed to become root. Multiple problems with Porto environment might occur");
-            }
-        }
-
         ConfigureSingletons(config);
         StartDiagnosticDump(config);
 

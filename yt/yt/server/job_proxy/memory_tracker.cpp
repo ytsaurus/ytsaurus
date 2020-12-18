@@ -5,6 +5,9 @@
 #include <yt/server/lib/containers/instance.h>
 #endif
 
+#include <yt/ytlib/tools/proc.h>
+#include <yt/ytlib/tools/tools.h>
+
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/statistics.h>
 
@@ -13,6 +16,8 @@
 namespace NYT::NJobProxy {
 
 const static NLogging::TLogger Logger("MemoryTracker");
+
+using namespace NTools;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,7 +95,7 @@ TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
             for (auto pid : pids) {
                 TString smaps;
                 try {
-                    smaps = TFileInput{Format("/proc/%v/smaps", pid)}.ReadAll();
+                    smaps = RunTool<TReadProcessSmapsTool>(pid);
                 } catch (const std::exception& ex) {
                     YT_LOG_WARNING(ex, "Failed to read process smaps (Pid: %v)", pid);
                     continue;

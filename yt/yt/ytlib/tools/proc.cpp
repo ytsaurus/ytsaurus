@@ -194,4 +194,12 @@ void TCopyDirectoryContentTool::operator()(TCopyDirectoryContentConfigPtr config
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString TReadProcessSmapsTool::operator()(int pid) const
+{
+    SafeSetUid(0);
+    return TFileInput{Format("/proc/%v/smaps", pid)}.ReadAll(); 
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTools

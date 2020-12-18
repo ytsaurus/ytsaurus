@@ -22,6 +22,8 @@ DECLARE_REFCOUNTED_CLASS(TChownChmodConfig)
 
 DECLARE_REFCOUNTED_CLASS(TCopyDirectoryContentConfig)
 
+DECLARE_REFCOUNTED_CLASS(TSendSignalConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
