@@ -3,6 +3,7 @@ import yt.yson as yson
 
 from yt_env_setup import YTEnvSetup, parametrize_external
 from yt_commands import *
+from yt_helpers import filter_tests
 
 from yt.environment.helpers import assert_items_equal
 from time import sleep
@@ -417,9 +418,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/out") == [{"k": "a", "s": 0}, {"k": "b", "s": 1}]
 
-    # TODO(max42): eventually remove this test as it duplicates unittests TSortedChunkPoolTest/SortedMergeTeleport*.
     @authors("ignat")
-    def test_sorted_passthrough(self):
+    def test_sorted_teleport(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
@@ -448,6 +448,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert_items_equal(res, expected)
 
+        assert get("//tmp/t_out/@chunk_count") == 3
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["k"]
 
@@ -2201,3 +2202,35 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         merge(mode="ordered", in_=["//tmp/in"], out="//tmp/out")
 
         assert read_table("//tmp/out") == [{"value": i} for i in xrange(m, n)]
+
+
+@filter_tests(name_pred=lambda name: "sorted" in name)
+class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+            "max_chunks_per_fetch": 10,
+            "sorted_merge_operation_options": {
+                "job_splitter": {
+                    "min_job_time": 3000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                },
+            },
+            "operation_options": {
+                "spec_template": {
+                    "use_new_sorted_pool": True,
+                }
+            }
+        }
+    }

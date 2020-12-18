@@ -133,6 +133,12 @@ bool TKeyBoundImpl<TRow, TKeyBound>::IsUniversal() const
 }
 
 template <class TRow, class TKeyBound>
+bool TKeyBoundImpl<TRow, TKeyBound>::IsEmpty() const
+{
+    return !IsInclusive && Prefix && Prefix.GetCount() == 0;
+}
+
+template <class TRow, class TKeyBound>
 TKeyBound TKeyBoundImpl<TRow, TKeyBound>::Invert() const
 {
     YT_VERIFY(Prefix);

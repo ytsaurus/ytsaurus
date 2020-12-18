@@ -135,11 +135,13 @@ protected:
             Options_.Task = GetTitle();
 
             if (UseNewSortedPool_) {
+                YT_LOG_INFO("Operation uses new sorted pool");
                 ChunkPool_ = CreateNewSortedChunkPool(
                     Options_,
                     controller->CreateChunkSliceFetcherFactory(),
                     controller->GetInputStreamDirectory());
             } else {
+                YT_LOG_INFO("Operation uses legacy sorted pool");
                 ChunkPool_ = CreateLegacySortedChunkPool(
                     Options_,
                     controller->CreateChunkSliceFetcherFactory(),
@@ -207,14 +209,23 @@ protected:
 
             YT_VERIFY(!dataSlice->IsLegacy);
 
-            auto prefixLength = Controller_->GetInputStreamDirectory().GetDescriptor(dataSlice->InputStreamIndex).IsPrimary()
-                ? Options_.SortedJobOptions.PrimaryPrefixLength
-                : Options_.SortedJobOptions.ForeignPrefixLength;
+            auto inputStreamDescriptor = Controller_->GetInputStreamDirectory().GetDescriptor(dataSlice->InputStreamIndex);
+
+            auto prefixLength = inputStreamDescriptor.IsPrimary()
+                ? Controller_->PrimaryKeyColumns_.size()
+                : Controller_->ForeignKeyColumns_.size();
 
             dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, prefixLength, TaskHost_->GetRowBuffer());
             dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, prefixLength, TaskHost_->GetRowBuffer());
 
-            if (!UseNewSortedPool_) {
+            if (UseNewSortedPool_) {
+                dataSlice->IsTeleportable = !inputStreamDescriptor.IsVersioned() &&
+                    dataSlice->GetSingleUnversionedChunkOrThrow()->IsLargeCompleteChunk(Controller_->GetMinTeleportChunkSize());
+                if (!inputStreamDescriptor.IsVersioned()) {
+                    YT_VERIFY(dataSlice->LowerLimit().KeyBound && !dataSlice->LowerLimit().KeyBound.IsUniversal());
+                    YT_VERIFY(dataSlice->UpperLimit().KeyBound && !dataSlice->UpperLimit().KeyBound.IsUniversal());
+                }
+            } else {
                 dataSlice->TransformToLegacy(Controller_->GetRowBuffer());
             }
         }
@@ -323,6 +334,12 @@ protected:
     //! The (adjusted) key columns that define the sort order inside sorted chunk pool.
     std::vector<TString> PrimaryKeyColumns_;
     std::vector<TString> ForeignKeyColumns_;
+
+    // TODO(max42): YT-14081.
+    // New sorted pool performs unwanted cuts even for small tests. In order to overcome that,
+    // we consider total data slice weight instead of total chunk data weight.
+    i64 TotalPrimaryInputDataSliceWeight_ = 0;
+    i64 TotalForeignInputDataSliceWeight_ = 0;
 
     // XXX(max42): this field is effectively transient, do not persist it.
     IJobSizeConstraintsPtr JobSizeConstraints_;
@@ -463,18 +480,26 @@ protected:
 
                 dataSlice->TransformToNew(RowBuffer, inputTable->Comparator->GetLength());
 
+                TotalPrimaryInputDataSliceWeight_ += dataSlice->GetDataWeight();
+
                 SortedTask_->AddInput(CreateChunkStripe(dataSlice));
                 ++primaryUnversionedSlices;
                 yielder.TryYield();
             }
             for (const auto& slice : CollectPrimaryVersionedDataSlices(InputSliceDataWeight_)) {
                 SortedTask_->AddInput(CreateChunkStripe(slice));
+
+                TotalPrimaryInputDataSliceWeight_ += slice->GetDataWeight();
+
                 ++primaryVersionedSlices;
                 yielder.TryYield();
             }
             for (const auto& tableSlices : CollectForeignInputDataSlices(ForeignKeyColumns_.size())) {
                 for (const auto& slice : tableSlices) {
                     SortedTask_->AddInput(CreateChunkStripe(slice));
+
+                    TotalForeignInputDataSliceWeight_ += slice->GetDataWeight();
+
                     ++foreignSlices;
                     yielder.TryYield();
                 }
@@ -572,6 +597,12 @@ protected:
         RegisterTask(SortedTask_);
 
         ProcessInputs();
+
+        // YT-14081.
+        if (ParseOperationSpec<TSortedOperationSpec>(ConvertToNode(Spec_))->UseNewSortedPool) {
+            JobSizeConstraints_->UpdateInputDataWeight(TotalForeignInputDataSliceWeight_ + TotalPrimaryInputDataSliceWeight_);
+            JobSizeConstraints_->UpdatePrimaryInputDataWeight(TotalPrimaryInputDataSliceWeight_);
+        }
 
         FinishTaskInput(SortedTask_);
         if (AutoMergeTask_) {

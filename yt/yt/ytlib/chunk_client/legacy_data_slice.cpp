@@ -428,7 +428,10 @@ TLegacyDataSlicePtr CreateInputDataSlice(
 
     TLegacyDataSlice::TChunkSliceList chunkSlices;
     for (const auto& slice : dataSlice->ChunkSlices) {
-        chunkSlices.push_back(CreateInputChunkSlice(*slice, comparator, lowerKeyBound, upperKeyBound));
+        // NB: chunk slices are the part of physical data slice representation.
+        // We intentionally do not intersect them with provided lower and upper bounds
+        // because given comparator may be shorter than existing chunk slice key bounds.
+        chunkSlices.push_back(CreateInputChunkSlice(*slice));
     }
 
     auto lowerLimit = dataSlice->LowerLimit();

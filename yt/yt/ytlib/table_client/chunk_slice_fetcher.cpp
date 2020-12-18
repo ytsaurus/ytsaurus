@@ -219,7 +219,9 @@ private:
             {
                 YT_VERIFY(chunkIndex < SlicesByChunkIndex_.size());
                 auto chunkSlice = sliceRequest.DataSlice->ChunkSlices[0];
+
                 SlicesByChunkIndex_[chunkIndex].push_back(chunkSlice);
+                // NB: we cannot infer limits from boundary keys here since chunk may actually be a dynamic store.
                 SliceCount_++;
             } else {
                 requestedChunkIndexes.push_back(chunkIndex);
@@ -312,10 +314,30 @@ private:
                     chunkSlice = New<TInputChunkSlice>(*originalChunkSlice, RowBuffer_, protoChunkSlice, keys);
                 } else {
                     chunkSlice = New<TInputChunkSlice>(*originalChunkSlice, comparator, RowBuffer_, protoChunkSlice, keys);
+                    InferLimitsFromBoundaryKeys(chunkSlice);
                 }
                 SlicesByChunkIndex_[index].push_back(chunkSlice);
                 SliceCount_++;
             }
+        }
+    }
+
+    void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr chunkSlice) const
+    {
+        // New data slices infer their limits from chunk slice limits, so it is
+        // more convenient (though it is not necessary) to have chunk slices that
+        // always impose some non-trivial lower or upper key bound limit.
+        if (!chunkSlice->LowerLimit().KeyBound || chunkSlice->LowerLimit().KeyBound.IsUniversal()) {
+            chunkSlice->LowerLimit().KeyBound = TKeyBound::FromRowUnchecked(
+                chunkSlice->GetInputChunk()->BoundaryKeys()->MinKey,
+                /* isInclusive */ true,
+                /* isUpper */ false);
+        }
+        if (!chunkSlice->UpperLimit().KeyBound || chunkSlice->UpperLimit().KeyBound.IsUniversal()) {
+            chunkSlice->UpperLimit().KeyBound = TKeyBound::FromRowUnchecked(
+                chunkSlice->GetInputChunk()->BoundaryKeys()->MaxKey,
+                /* isInclusive */ true,
+                /* isUpper */ true);
         }
     }
 };

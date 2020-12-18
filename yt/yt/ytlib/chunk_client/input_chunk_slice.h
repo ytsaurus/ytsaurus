@@ -66,8 +66,9 @@ struct TInputSliceLimit
         int keyLength,
         bool isUpper);
 
-    void MergeLower(const TInputSliceLimit& other, const NTableClient::TComparator& comparator);
-    void MergeUpper(const TInputSliceLimit& other, const NTableClient::TComparator& comparator);
+    //! If comparator is not present, these methods verify that no key bound is present in #other.
+    void MergeLower(const TInputSliceLimit& other, const std::optional<NTableClient::TComparator>& comparator);
+    void MergeUpper(const TInputSliceLimit& other, const std::optional<NTableClient::TComparator>& comparator);
 
     bool IsTrivial() const;
 

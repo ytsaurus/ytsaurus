@@ -1821,3 +1821,21 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+class TestSchedulerSortCommandsNewSortedPool(TestSchedulerSortCommands):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "sort_operation_options": {
+                "min_uncompressed_block_size": 1,
+                "min_partition_size": 1,
+                "max_data_slices_per_job": 100,
+            },
+            "operation_options": {
+                "spec_template": {
+                    "use_new_sorted_pool": True,
+                    "nightly_options": {"log_details": True},
+                }
+            },
+        }
+    }

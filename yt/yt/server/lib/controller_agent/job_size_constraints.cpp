@@ -139,6 +139,11 @@ public:
         // Do nothing. Explicit job size constraints do not care about input data weight.
     }
 
+    virtual void UpdatePrimaryInputDataWeight(i64 inputDataWeight) override
+    {
+        // Do nothing. Explicit job size constraints do not care about primary input data weight.
+    }
+
     virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;

@@ -151,6 +151,14 @@ public:
         InputDataWeight_ = inputDataWeight;
     }
 
+    virtual void UpdatePrimaryInputDataWeight(i64 primaryInputDataWeight) override
+    {
+        YT_LOG_DEBUG("Job size constraints primary input data weight updated (OldPrimaryInputDataWeight: %v, NewPrimaryInputDataWeight: %v)",
+            PrimaryInputDataWeight_,
+            primaryInputDataWeight);
+        PrimaryInputDataWeight_ = primaryInputDataWeight;
+    }
+
     virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;

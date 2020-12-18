@@ -61,6 +61,7 @@ struct IJobSizeConstraints
     //! controller by the moment of operation start. For example, when sampling is enabled, controller
     //! knows only the expected input data weight after the sampling, and actual data weight may be different.
     virtual void UpdateInputDataWeight(i64 inputDataWeight) = 0;
+    virtual void UpdatePrimaryInputDataWeight(i64 primaryInputDataWeight) = 0;
 
     virtual void Persist(const TPersistenceContext& context) = 0;
 };

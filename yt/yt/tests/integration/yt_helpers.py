@@ -279,3 +279,15 @@ def create_custom_pool_tree_with_one_node(pool_tree):
     wait(lambda: tag in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(node)))
     wait(lambda: pool_tree in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
     return node
+
+
+def filter_tests(name_pred=None):
+    """Leave only tests with names satisfying name_pred"""
+
+    def decorate_class(cls):
+        for method_name in list(dir(cls)):
+            if method_name.startswith("test_") and not name_pred(method_name):
+                setattr(cls, method_name, None)
+        return cls
+
+    return decorate_class

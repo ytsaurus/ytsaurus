@@ -1121,6 +1121,8 @@ void TTask::AddChunksToInputSpec(
             if (IsInput_) {
                 const auto& inputTable = TaskHost_->GetInputTable(dataSlice->GetTableIndex());
                 comparator = inputTable->Comparator;
+                chunkSlice->LowerLimit().MergeLower(dataSlice->LowerLimit(), comparator);
+                chunkSlice->UpperLimit().MergeUpper(dataSlice->UpperLimit(), comparator);
             }
 
             ToProto(newChunkSpec, chunkSlice, comparator, dataSlice->Type);

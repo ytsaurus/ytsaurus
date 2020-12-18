@@ -67,8 +67,8 @@ void TNewJobStub::Finalize(bool sortByPosition, std::optional<TComparator> compa
 
             auto lessThan = [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
                 if (comparator) {
-                    YT_VERIFY(lhs->LowerLimit().KeyBound && !lhs->LowerLimit().KeyBound.IsUniversal());
-                    YT_VERIFY(rhs->UpperLimit().KeyBound && !rhs->UpperLimit().KeyBound.IsUniversal());
+                    YT_VERIFY(lhs->LowerLimit().KeyBound);
+                    YT_VERIFY(rhs->UpperLimit().KeyBound);
                     if (comparator->CompareKeyBounds(lhs->UpperLimit().KeyBound, rhs->LowerLimit().KeyBound) <= 0) {
                         return true;
                     }
