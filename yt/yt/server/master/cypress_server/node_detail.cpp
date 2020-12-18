@@ -462,9 +462,15 @@ void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceCon
     { \
         YT_VERIFY(context.IsLoad()); \
         std::optional<decltype(camelCaseName)::TValue> optionalAttribute; \
-        Persist(context, optionalAttribute); \
+        if (TString(#snakeCaseName) == "tablet_cell_bundle") { \
+            decltype(camelCaseName)::TValue bundle = {}; \
+            Persist(context, bundle); \
+            optionalAttribute = bundle; \
+        } else { \
+            Persist(context, optionalAttribute); \
+        } \
         if (optionalAttribute) { \
-            camelCaseName.Set(std::move(*optionalAttribute)); \
+            camelCaseName.SetOrReset(std::move(*optionalAttribute)); \
         } else { \
             camelCaseName.Reset(); \
         } \
