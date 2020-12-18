@@ -808,7 +808,10 @@ private:
                     signal,
                     pids);
 
-                SendSignal(pids, signal);
+                auto signalerConfig = New<TSignalerConfig>();
+                signalerConfig->Pids = pids;
+                signalerConfig->SignalName = signal;
+                RunTool<TSignalerTool>(signalerConfig);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to send interruption signal to user job");
             }
