@@ -381,6 +381,7 @@
     XX(TimestampProviderNodes, timestamp_provider_nodes) \
     XX(Title, title) \
     XX(TotalAccountStatistics, total_account_statistics) \
+    XX(TotalChildrenResourceLimits, total_children_resource_limits) \
     XX(TotalCommittedResourceUsage, total_committed_resource_usage) \
     XX(TotalResourceLimits, total_resource_limits) \
     XX(TotalResourceLimitsConsiderDelay, total_resource_limits_consider_delay) \

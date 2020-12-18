@@ -3920,6 +3920,56 @@ class TestAccountTree(AccountsTestSuiteBase):
         assert get("//sys/accounts/yt/@resource_limits") == limits_x5
         assert get("//sys/accounts/yt-front/@resource_limits") == limits_x2
 
+    @authors("shakurov")
+    def test_total_children_resource_limits(self):
+        limits_x1 = self._build_resource_limits(
+            node_count=10,
+            chunk_count=40,
+            disk_space=9001,
+            tablet_count=5,
+            tablet_static_memory=1000,
+            master_memory=50000,
+            include_disk_space=True,
+        )
+        limits_x2 = multiply_recursive(limits_x1, 2)
+        limits_x3 = multiply_recursive(limits_x1, 3)
+        limits_x5 = multiply_recursive(limits_x1, 5)
+
+        create_account(
+            "a",
+            attributes={"resource_limits": limits_x5},
+        )
+        create_account(
+            "b",
+            "a",
+            attributes={"resource_limits": limits_x2},
+        )
+        create_account(
+            "c",
+            "a",
+            attributes={"resource_limits": limits_x1},
+        )
+        create_account(
+            "d",
+            "b",
+            attributes={"resource_limits": limits_x1},
+        )
+
+        limits_x0 = self._build_resource_limits(include_disk_space=True)
+
+        assert cluster_resources_equal(
+            get("//sys/account_tree/a/@total_children_resource_limits"),
+            limits_x3)
+        assert cluster_resources_equal(
+            get("//sys/account_tree/a/b/@total_children_resource_limits"),
+            limits_x1)
+        assert cluster_resources_equal(
+            get("//sys/account_tree/a/c/@total_children_resource_limits"),
+            limits_x0)
+        assert cluster_resources_equal(
+            get("//sys/account_tree/a/b/d/@total_children_resource_limits"),
+            limits_x0)
+
 
 ##################################################################
 
