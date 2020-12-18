@@ -37,7 +37,8 @@ TQueryInput FetchInput(
     TStorageContext* storageContext,
     const TQueryAnalysisResult& queryAnalysisResult,
     const std::vector<TString>& realColumnNames,
-    const std::vector<TString>& virtualColumnNames);
+    const std::vector<TString>& virtualColumnNames,
+    const TClickHouseIndexBuilder& indexBuilder);
 
 std::vector<TSubquery> BuildSubqueries(
     const NChunkPools::TChunkStripeListPtr& inputStripeList,

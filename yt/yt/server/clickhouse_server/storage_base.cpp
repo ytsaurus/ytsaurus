@@ -1,7 +1,7 @@
 #include "storage_base.h"
 
-#include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypesNumber.h>
+#include "private.h"
+#include "virtual_column.h"
 
 #include <util/generic/string.h>
 
@@ -15,11 +15,7 @@ TYtStorageBase::TYtStorageBase(DB::StorageID storageId)
 
 DB::NamesAndTypesList TYtStorageBase::getVirtuals() const
 {
-    return DB::NamesAndTypesList{
-        DB::NameAndTypePair("$table_path", std::make_shared<DB::DataTypeString>()),
-        DB::NameAndTypePair("$table_key", std::make_shared<DB::DataTypeString>()),
-        DB::NameAndTypePair("$table_index", std::make_shared<DB::DataTypeInt64>()),
-    };
+    return VirtualColumnNamesAndTypes;
 }
 
 TYtStorageBase::TRealAndVirtualColumnNames TYtStorageBase::DecoupleColumns(

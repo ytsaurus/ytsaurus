@@ -1,14 +1,16 @@
 #include "subquery.h"
 
-#include "query_context.h"
 #include "config.h"
-#include "subquery_spec.h"
-#include "schema.h"
 #include "helpers.h"
-#include "table.h"
 #include "host.h"
-#include "query_analyzer.h"
+#include "index.h"
 #include "job_size_constraints.h"
+#include "query_analyzer.h"
+#include "query_context.h"
+#include "schema.h"
+#include "subquery_spec.h"
+#include "table.h"
+#include "virtual_column.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 #include <yt/server/lib/chunk_pools/helpers.h>
@@ -70,7 +72,6 @@
 #include <yt/core/ytree/convert.h>
 
 #include <Storages/MergeTree/KeyCondition.h>
-#include <DataTypes/IDataType.h>
 #include <DataTypes/DataTypeNullable.h>
 
 #include <cmath>
@@ -117,7 +118,8 @@ public:
         TStorageContext* storageContext,
         const TQueryAnalysisResult& queryAnalysisResult,
         const std::vector<TString>& realColumnNames,
-        const std::vector<TString>& virtualColumnNames)
+        const std::vector<TString>& virtualColumnNames,
+        const TClickHouseIndexBuilder& indexBuilder)
         : StorageContext_(storageContext)
         , QueryContext_(StorageContext_->QueryContext)
         , Client_(QueryContext_->Client())
@@ -126,6 +128,7 @@ public:
         , KeyConditions_(queryAnalysisResult.KeyConditions)
         , RealColumnNames_(realColumnNames)
         , VirtualColumnNames_(virtualColumnNames)
+        , IndexBuilder_(indexBuilder)
         , Config_(QueryContext_->Host->GetConfig()->Subquery)
         , RowBuffer_(QueryContext_->RowBuffer)
         , Logger(StorageContext_->Logger)
@@ -140,6 +143,8 @@ public:
             }
             KeyColumnDataTypes_.push_back(ToDataTypes(*TableSchemas_[operandIndex]->ToKeys(), StorageContext_->Settings->Composite));
         }
+
+        CanBeTrueOnTable_.assign(InputTables_.size(), true);
     }
 
     TFuture<void> Fetch()
@@ -164,6 +169,13 @@ private:
     std::vector<TString> RealColumnNames_;
     std::vector<TString> VirtualColumnNames_;
 
+    TClickHouseIndexBuilder IndexBuilder_;
+
+    //! Per-table flag indicating if table is not discarded by 'where' condition.
+    //! We do not delete such tables from InputTables_ since it can corrupt $table_index.
+    //! We do not need to fetch chunk specs for such 'useless' tables.
+    std::vector<bool> CanBeTrueOnTable_;
+
     std::vector<DB::DataTypes> KeyColumnDataTypes_;
 
     //! Number of operands to join. May be either 1 (if no JOIN present or joinee is not a YT table) or 2 (otherwise).
@@ -187,6 +199,8 @@ private:
     //! Fetch input tables. Result goes to ResultStripeList_.
     void DoFetch()
     {
+        FilterTablesByVirtualColumnIndex();
+
         FetchTables();
 
         if (Config_->UseColumnarStatistics) {
@@ -241,6 +255,90 @@ private:
             ResultStripeList_->TotalChunkCount,
             ResultStripeList_->TotalDataWeight,
             ResultStripeList_->TotalRowCount);
+    }
+
+    //! Create set index for present virtual columns.
+    TClickHouseIndexPtr CreateVirtualColumnIndex()
+    {
+        DB::NamesAndTypesList namesAndTypes;
+
+        for (const auto& column : VirtualColumnNames_) {
+            auto nameAndType = VirtualColumnNamesAndTypes.tryGetByName(column);
+            YT_VERIFY(nameAndType);
+            namesAndTypes.emplace_back(*nameAndType);
+        }
+
+        return IndexBuilder_.CreateIndex(namesAndTypes, "set");
+    }
+
+    //! Check if query condition can be true on tables. Fill CanBeTrueOnTable_.
+    void FilterTablesByVirtualColumnIndex()
+    {
+        if (VirtualColumnNames_.empty()) {
+            return;
+        }
+
+        auto index = CreateVirtualColumnIndex();
+        const auto& condition = index->Condition();
+
+        // For example if 'where' condition does not depend on virtual columns.
+        if (condition->alwaysUnknownOrTrue()) {
+            return;
+        }
+
+        int discardedByIndex = 0;
+
+        // Relative tableIndex for each operand.
+        std::vector<int> operandTableIndexes(2);
+
+        auto aggregator = index->CreateAggregator();
+
+        for (int tableIndex = 0; tableIndex < InputTables_.size(); ++tableIndex) {
+            const auto& table = InputTables_[tableIndex];
+            auto operandIndex = table->OperandIndex;
+
+            // TODO(dakovalkov): It looks like CreateVirtualValueDirectory(), generalize it?
+
+            DB::Block virtualValues;
+            const auto& sampleBlock = index->Description().sample_block;
+
+            for (const auto& [_, type, stdName] : sampleBlock.getColumnsWithTypeAndName()) {
+                auto name = TString(stdName);
+                auto column = type->createColumn();
+                
+                if (name == TableIndexColumnName) {
+                    column->insert(static_cast<Int64>(operandTableIndexes[operandIndex]));
+                } else if (name == TablePathColumnName) {
+                    const auto& path = InputTables_[tableIndex]->Path.GetPath();
+                    column->insert(std::string(path.data(), path.size()));
+                } else if (name == TableKeyColumnName) {
+                    auto [_, baseName] = DirNameAndBaseName(InputTables_[tableIndex]->Path.GetPath());
+                    column->insert(std::string(baseName.data(), baseName.size()));
+                } else {
+                    // Unreachable.
+                    YT_ABORT();
+                }
+                virtualValues.insert({std::move(column), type, stdName});
+            }
+
+            size_t position = 0;
+            aggregator->update(virtualValues, &position, /* limit */ 1);
+            // Aggregator should read rows and update position.
+            YT_VERIFY(position == 1);
+
+            auto granule = aggregator->getGranuleAndReset();
+
+            if (!condition->mayBeTrueOnGranule(granule)) {
+                CanBeTrueOnTable_[tableIndex] = false;
+                ++discardedByIndex;   
+            }
+
+            ++operandTableIndexes[operandIndex];
+        }
+
+        YT_LOG_DEBUG("Tables were filtered by virtual column index (TotalTableCount: %v, DiscardedByIndex: %v)",
+            InputTables_.size(),
+            discardedByIndex);
     }
 
     //! Fetch all tables and fill ResultStripes_.
@@ -327,7 +425,7 @@ private:
         YT_LOG_INFO("Data slices ready");
     }
 
-    // Store values for columns $table_index, $table_path, etc.
+    //! Store values for columns $table_index, $table_path, etc.
     TVirtualValueDirectoryPtr CreateVirtualValueDirectory(int tableIndex, int operandTableIndex)
     {
         if (InputTables_[tableIndex]->Dynamic) {
@@ -342,11 +440,11 @@ private:
         for (const auto& column : VirtualColumnNames_) {
             auto id = directory->NameTable->GetIdOrThrow(column);
 
-            if (column == "$table_index") {
+            if (column == TableIndexColumnName) {
                 rowBuilder.AddValue(MakeUnversionedInt64Value(operandTableIndex, id));
-            } else if (column == "$table_path") {
+            } else if (column == TablePathColumnName) {
                 rowBuilder.AddValue(MakeUnversionedStringValue(InputTables_[tableIndex]->Path.GetPath(), id));
-            } else if (column == "$table_key") {
+            } else if (column == TableKeyColumnName) {
                 auto [_, baseName] = DirNameAndBaseName(InputTables_[tableIndex]->Path.GetPath());
                 rowBuilder.AddValue(MakeUnversionedStringValue(baseName, id));
             } else {
@@ -499,12 +597,15 @@ private:
                     {});
             }
 
-            chunkSpecFetcher->Add(
-                table->ObjectId,
-                table->ExternalCellTag,
-                table->ChunkCount,
-                tableIndex,
-                table->Path.GetRanges());
+            // We do not need to fetch anything if table was filtered by index.
+            if (CanBeTrueOnTable_[tableIndex]) {
+                chunkSpecFetcher->Add(
+                    table->ObjectId,
+                    table->ExternalCellTag,
+                    table->ChunkCount,
+                    tableIndex,
+                    table->Path.GetRanges());
+            }
         }
 
         WaitFor(chunkSpecFetcher->Fetch())
@@ -711,13 +812,15 @@ TQueryInput FetchInput(
     TStorageContext* storageContext,
     const TQueryAnalysisResult& queryAnalysisResult,
     const std::vector<TString>& realColumnNames,
-    const std::vector<TString>& virtualColumnNames)
+    const std::vector<TString>& virtualColumnNames,
+    const TClickHouseIndexBuilder& indexBuilder)
 {
     auto inputFetcher = New<TInputFetcher>(
         storageContext,
         queryAnalysisResult,
         realColumnNames,
-        virtualColumnNames);
+        virtualColumnNames,
+        indexBuilder);
 
     WaitFor(inputFetcher->Fetch())
         .ThrowOnError();

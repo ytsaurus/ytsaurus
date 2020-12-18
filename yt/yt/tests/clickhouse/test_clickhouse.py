@@ -1768,7 +1768,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 return {
                     "$table_index": index,
                     "$table_path": "//tmp/t{}".format(index),
-                    "$table_key": "t{}".format(index),
+                    "$table_name": "t{}".format(index),
                 }
 
             def get_table_content(index):
@@ -1776,23 +1776,23 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 result["key"] = index
                 return result
 
-            query = "select *, $table_index, $table_path, $table_key from `//tmp/t0`"
+            query = "select *, $table_index, $table_path, $table_name from `//tmp/t0`"
             assert clique.make_query(query) == [get_table_content(0)]
             query = '''
-                select *, $table_index, $table_path, $table_key
+                select *, $table_index, $table_path, $table_name
                 from concatYtTables('//tmp/t0', '//tmp/t1', '//tmp/t2', '//tmp/t3')
             '''
             assert sorted(clique.make_query(query)) == [get_table_content(index) for index in range(4)]
 
             # Select only virtual values.
             query = '''
-                select $table_index, $table_path, $table_key
+                select $table_index, $table_path, $table_name
                 from concatYtTables('//tmp/t0', '//tmp/t1', '//tmp/t2', '//tmp/t3')
             '''
             assert sorted(clique.make_query(query)) == [get_table_virtual_values(index) for index in range(4)]
 
             # Join on virtual column.
-            # TODO(dakovalkov): this does not work.
+            # XXX(dakovalkov): this does not work (https://github.com/ClickHouse/ClickHouse/issues/17860).
             # query = '''
             #     select * from concatYtTables("//tmp/t0", "//tmp/t1") as a
             #     global join "//tmp/t2" as b
@@ -1849,7 +1849,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 return {
                     "$table_index": index,
                     "$table_path": "//tmp/dt{}".format(index),
-                    "$table_key": "dt{}".format(index),
+                    "$table_name": "dt{}".format(index),
                 }
 
             def get_table_content(index):
@@ -1860,20 +1860,68 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_query("select * from `//tmp/dt0`") == [{"key": 0, "value": 10}]
             
-            query = "select *, $table_index, $table_path, $table_key from `//tmp/dt0`"
+            query = "select *, $table_index, $table_path, $table_name from `//tmp/dt0`"
             assert clique.make_query(query) == [get_table_content(0)]
 
             query = '''
-                select *, $table_index, $table_path, $table_key
+                select *, $table_index, $table_path, $table_name
                 from concatYtTables("//tmp/dt0", "//tmp/dt1")
             '''
             assert sorted(clique.make_query(query)) == [get_table_content(index) for index in range(2)]
 
             query = '''
-                select $table_index, $table_path, $table_key
+                select $table_index, $table_path, $table_name
                 from concatYtTables("//tmp/dt0", "//tmp/dt1")
             '''
             assert sorted(clique.make_query(query)) == [get_table_virtual_values(index) for index in range(2)]
+
+    @authors("dakovalkov")
+    def test_virtual_column_index(self):
+        rows_per_table = 10
+        table_data = []
+
+        for i in range(4):
+            table_path = "//tmp/t{}".format(i)
+            create(
+                "table",
+                table_path,
+                attributes={
+                    "schema": [
+                        {"name": "key", "type": "int64"},
+                        {"name": "subkey", "type": "int64"},
+                    ],
+                },
+            )
+            rows = [{"key": i, "subkey": j} for j in range(0, rows_per_table)]
+            write_table(table_path, rows)
+            table_data.append(rows)
+
+        with Clique(1) as clique:
+            # Simple.
+            query = "select * from concatYtTablesRange('//tmp') where $table_index = 2"
+            assert sorted(clique.make_query_and_validate_row_count(query, exact=(1 * rows_per_table))) == \
+                table_data[2]
+
+            # Non-monotonic transformation.
+            query = "select * from concatYtTablesRange('//tmp') where $table_index % 2 = 0"
+            assert sorted(clique.make_query_and_validate_row_count(query, exact=(2 * rows_per_table))) == \
+                table_data[0] + table_data[2]
+
+            # Several expressions.
+            query = """
+            select * from concatYtTablesRange('//tmp')
+            where $table_index = 0 or $table_name = 't1' or $table_path = '//tmp/t2'
+            """
+            assert sorted(clique.make_query_and_validate_row_count(query, exact=(3 * rows_per_table))) == \
+                table_data[0] + table_data[1] + table_data[2]
+
+            # Non-monotonic transformation + $table_index check.
+            query = """
+            select *, $table_index from concatYtTablesRange('//tmp')
+            where endsWith($table_path, '1')
+            """
+            assert sorted(clique.make_query_and_validate_row_count(query, exact=(1 * rows_per_table))) == \
+                [{"key": 1, "$table_index": 1, "subkey": i} for i in range(0, rows_per_table)]
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):

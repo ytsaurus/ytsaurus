@@ -5,6 +5,7 @@
 #include "format.h"
 #include "helpers.h"
 #include "host.h"
+#include "index.h"
 #include "logging_transform.h"
 #include "query_analyzer.h"
 #include "query_context.h"
@@ -363,7 +364,8 @@ public:
             StorageContext_,
             queryAnalysisResult,
             RealColumnNames_,
-            VirtualColumnNames_);
+            VirtualColumnNames_,
+            TClickHouseIndexBuilder(&queryInfo, &context));
 
         YT_VERIFY(!SpecTemplate_.DataSourceDirectory);
         SpecTemplate_.DataSourceDirectory = std::move(input.DataSourceDirectory);
