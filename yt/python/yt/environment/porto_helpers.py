@@ -1,18 +1,16 @@
+from yt.packages.six import iteritems
+
+from yt.wrapper.common import generate_uuid
+
+import logging
+from pipes import quote
+
 disable_porto = False
 try:
     from porto import Connection, exceptions
 except ImportError:
     disable_porto = True
 
-from yt.packages.six import iteritems
-
-from yt.wrapper.common import generate_uuid
-
-import os
-import socket
-import time
-import logging
-from pipes import quote
 
 logger = logging.getLogger("Yt.local")
 
@@ -130,7 +128,7 @@ class PortoSubprocess(object):
 
     def _set_env(self, env):
         def _format_key(key, value):
-            return key + "=" + value.replace(';','\\;')
+            return key + "=" + value.replace(';', '\\;')
         if env is not None:
             environment = []
             for key, value in iteritems(env):
