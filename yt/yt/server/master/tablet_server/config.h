@@ -211,7 +211,7 @@ public:
     // Set this option at all clusters and drop optional.
     std::optional<TDuration> TabletCellStatusFullGossipPeriod;
 
-    //! Multicell tablet cell status full gossip period.
+    //! Multicell tablet cell status incremental gossip period.
     //! If not set, only full tablet cell status gossip is performed.
     std::optional<TDuration> TabletCellStatusIncrementalGossipPeriod;
 
