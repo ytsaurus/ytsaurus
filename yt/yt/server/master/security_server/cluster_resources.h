@@ -50,7 +50,14 @@ public:
     //! Completely empties disk space counts for all media.
     void ClearDiskSpace();
 
+    // TODO(shakurov): rename to 'IsViolatedBy' and move to a separate
+    // TClusterResourceLimits type?
     bool IsAtLeastOneResourceLessThan(const TClusterResources& rhs) const;
+
+    // TODO(shakurov): introduce a separate TViolatedResourceLimits type (and
+    // probably TClusterResourcesLimits also).
+    using TViolatedResourceLimits = TClusterResources;
+    TViolatedResourceLimits GetViolatedBy(const TClusterResources& usage) const;
 
 private:
     //! Space occupied on data nodes in bytes per medium.
@@ -146,6 +153,29 @@ bool operator != (const TClusterResources& lhs, const TClusterResources& rhs);
 
 void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources, TStringBuf /*format*/);
 TString ToString(const TClusterResources& resources);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A helper for serializing TClusterResources as violated resource limits.
+// TODO(shakurov): introduce an actual TViolatedClusterResourceLimits and use it here.
+class TSerializableViolatedClusterResourceLimits
+    : public NYTree::TYsonSerializable
+{
+public:
+    TSerializableViolatedClusterResourceLimits(
+        const NChunkServer::TChunkManagerPtr& chunkManager,
+        const TClusterResources& violatedResourceLimits);
+
+private:
+    bool NodeCount_ = 0;
+    bool ChunkCount_ = 0;
+    bool TabletCount_ = 0;
+    bool TabletStaticMemory_ = 0;
+    THashMap<TString, bool> DiskSpacePerMedium_;
+    bool MasterMemory_ = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSerializableViolatedClusterResourceLimits)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -557,15 +557,52 @@ public:
             });
     }
 
-    bool IsAccountOvercommited(TAccount* account, TClusterResources newResources)
+    template <class... TArgs>
+    void ThrowWithDetailedViolatedResources(
+        const TClusterResources& limits, const TClusterResources& usage, TArgs... args)
+    {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto violatedResources = limits.GetViolatedBy(usage);
+        auto serializer = New<TSerializableViolatedClusterResourceLimits>(
+            chunkManager,
+            violatedResources);
+
+        THROW_ERROR(TError(std::forward<TArgs>(args)...)
+            << TErrorAttribute("violated_resources", serializer));
+    }
+
+    TClusterResources ComputeAccountTotalChildrenLimits(TAccount* account)
     {
         auto totalChildrenLimits = account->ComputeTotalChildrenLimits();
         const auto& dynamicConfig = GetDynamicConfig();
         if (!dynamicConfig->EnableMasterMemoryUsageAccountOvercommitValidation) {
-            newResources.MasterMemory = 0;
             totalChildrenLimits.MasterMemory = 0;
         }
+        return totalChildrenLimits;
+    }
+
+    bool IsAccountOvercommitted(TAccount* account, TClusterResources newResources)
+    {
+        auto totalChildrenLimits = ComputeAccountTotalChildrenLimits(account);
+        const auto& dynamicConfig = GetDynamicConfig();
+        if (!dynamicConfig->EnableMasterMemoryUsageAccountOvercommitValidation) {
+            newResources.MasterMemory = 0;
+        }
         return newResources.IsAtLeastOneResourceLessThan(totalChildrenLimits);
+    }
+
+    template <class... TArgs>
+    void ThrowAccountOvercommitted(TAccount* account, TClusterResources newResources, TArgs... args)
+    {
+        auto totalChildrenLimits = ComputeAccountTotalChildrenLimits(account);
+        const auto& dynamicConfig = GetDynamicConfig();
+        if (!dynamicConfig->EnableMasterMemoryUsageAccountOvercommitValidation) {
+            newResources.MasterMemory = 0;
+        }
+        ThrowWithDetailedViolatedResources(
+            newResources,
+            totalChildrenLimits,
+            std::forward<TArgs>(args)...);
     }
 
     void ValidateResourceLimits(TAccount* account, const TClusterResources& resourceLimits)
@@ -575,7 +612,10 @@ public:
         }
 
         if (resourceLimits.IsAtLeastOneResourceLessThan(TClusterResources())) {
-            THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: limits cannot be negative",
+            ThrowWithDetailedViolatedResources(
+                resourceLimits,
+                TClusterResources(),
+                "Failed to change resource limits for account %Qv: limits cannot be negative",
                 account->GetName());
         }
 
@@ -583,15 +623,21 @@ public:
         if (resourceLimits.IsAtLeastOneResourceLessThan(currentResourceLimits)) {
             for (const auto& [key, child] : SortHashMapByKeys(account->KeyToChild())) {
                 if (resourceLimits.IsAtLeastOneResourceLessThan(child->ClusterResourceLimits())) {
-                    THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
+                    ThrowWithDetailedViolatedResources(
+                        resourceLimits,
+                        child->ClusterResourceLimits(),
+                        "Failed to change resource limits for account %Qv: "
                         "the limit cannot be below that of its child account %Qv",
                         account->GetName(),
                         child->GetName());
                 }
             }
 
-            if (!account->GetAllowChildrenLimitOvercommit() && IsAccountOvercommited(account, resourceLimits)) {
-                THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
+            if (!account->GetAllowChildrenLimitOvercommit() && IsAccountOvercommitted(account, resourceLimits)) {
+                ThrowAccountOvercommitted(
+                    account,
+                    resourceLimits,
+                    "Failed to change resource limits for account %Qv: "
                     "the limit cannot be below the sum of its children limits",
                     account->GetName());
             }
@@ -601,15 +647,21 @@ public:
             if (auto* parent = account->GetParent()) {
                 const auto& parentResourceLimits = parent->ClusterResourceLimits();
                 if (parentResourceLimits.IsAtLeastOneResourceLessThan(resourceLimits)) {
-                    THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
+                    ThrowWithDetailedViolatedResources(
+                        parentResourceLimits,
+                        resourceLimits,
+                        "Failed to change resource limits for account %Qv: "
                         "the limit cannot be above that of its parent",
                         account->GetName());
                 }
 
                 if (!parent->GetAllowChildrenLimitOvercommit() &&
-                    IsAccountOvercommited(parent, parent->ClusterResourceLimits() + currentResourceLimits - resourceLimits))
+                    IsAccountOvercommitted(parent, parentResourceLimits + currentResourceLimits - resourceLimits))
                 {
-                    THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
+                    ThrowAccountOvercommitted(
+                        account,
+                        parentResourceLimits + currentResourceLimits - resourceLimits,
+                        "Failed to change resource limits for account %Qv: "
                         "the change would overcommit its parent",
                         account->GetName());
                 }
@@ -1770,14 +1822,20 @@ public:
 
         const auto& parentLimits = parentAccount->ClusterResourceLimits();
         if (parentLimits.IsAtLeastOneResourceLessThan(childLimits)) {
-            THROW_ERROR_EXCEPTION("Failed to change account %Qv parent to %Qv: "
+            ThrowWithDetailedViolatedResources(
+                parentLimits,
+                childLimits,
+                "Failed to change account %Qv parent to %Qv: "
                 "child resource limit cannot be above that of its parent",
                 childAccount->GetName(),
                 parentAccount->GetName());
         }
 
-        if (!parentAccount->GetAllowChildrenLimitOvercommit() && IsAccountOvercommited(parentAccount, parentLimits - childLimits)) {
-            THROW_ERROR_EXCEPTION("Failed to change account %Qv parent to %Qv: "
+        if (!parentAccount->GetAllowChildrenLimitOvercommit() && IsAccountOvercommitted(parentAccount, parentLimits - childLimits)) {
+            ThrowAccountOvercommitted(
+                parentAccount,
+                parentLimits - childLimits,
+                "Failed to change account %Qv parent to %Qv: "
                 "the sum of children limits cannot be above parent limits",
                 childAccount->GetName(),
                 parentAccount->GetName());
@@ -1791,9 +1849,11 @@ public:
         bool overcommitAllowed)
     {
         if (!overcommitAllowed && account->GetAllowChildrenLimitOvercommit() &&
-            IsAccountOvercommited(account, account->ClusterResourceLimits()))
+            IsAccountOvercommitted(account, account->ClusterResourceLimits()))
         {
-            THROW_ERROR_EXCEPTION(
+            ThrowAccountOvercommitted(
+                account,
+                account->ClusterResourceLimits(),
                 "Failed to disable children limit overcommit for account %Qv because it is currently overcommitted",
                 account->GetName());
         }

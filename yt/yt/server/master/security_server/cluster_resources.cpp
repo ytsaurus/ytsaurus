@@ -222,6 +222,37 @@ bool TClusterResources::IsAtLeastOneResourceLessThan(const TClusterResources& rh
         MasterMemory < rhs.MasterMemory;
 }
 
+TClusterResources::TViolatedResourceLimits TClusterResources::GetViolatedBy(
+    const TClusterResources& usage) const
+{
+    if (this == &usage) {
+        return {};
+    }
+
+    auto result = TViolatedResourceLimits()
+        .SetNodeCount(NodeCount < usage.NodeCount)
+        .SetChunkCount(ChunkCount < usage.ChunkCount)
+        .SetTabletCount(TabletCount < usage.TabletCount)
+        .SetTabletStaticMemory(TabletStaticMemory < usage.TabletStaticMemory)
+        .SetMasterMemory(MasterMemory < usage.MasterMemory);
+
+    for (const auto& [mediumIndex, diskSpace] : DiskSpace()) {
+        auto usageDiskSpace = usage.DiskSpace().lookup(mediumIndex);
+        if (diskSpace < usageDiskSpace) {
+            result.SetMediumDiskSpace(mediumIndex, 1);
+        }
+    }
+
+    for (const auto& [mediumIndex, usageDiskSpace] : usage.DiskSpace()) {
+        auto diskSpace = DiskSpace().lookup(mediumIndex);
+        if (diskSpace < usageDiskSpace) {
+            result.SetMediumDiskSpace(mediumIndex, 1);
+        }
+    }
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TClusterResources* protoResources, const TClusterResources& resources)
@@ -473,6 +504,33 @@ void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources
 TString ToString(const TClusterResources& resources)
 {
     return ToStringViaBuilder(resources);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSerializableViolatedClusterResourceLimits::TSerializableViolatedClusterResourceLimits(
+    const NChunkServer::TChunkManagerPtr& chunkManager,
+    const TClusterResources& violatedResourceLimits)
+{
+    RegisterParameter("node_count", NodeCount_);
+    RegisterParameter("chunk_count", ChunkCount_);
+    RegisterParameter("tablet_count", TabletCount_);
+    RegisterParameter("tablet_static_memory", TabletStaticMemory_);
+    RegisterParameter("disk_space_per_medium", DiskSpacePerMedium_);
+    RegisterParameter("master_memory", MasterMemory_);
+
+    NodeCount_ = violatedResourceLimits.NodeCount;
+    ChunkCount_ = violatedResourceLimits.ChunkCount;
+    TabletCount_ = violatedResourceLimits.TabletCount;
+    TabletStaticMemory_ = violatedResourceLimits.TabletStaticMemory;
+    MasterMemory_ = violatedResourceLimits.MasterMemory;
+    for (const auto& [mediumIndex, mediumDiskSpace] : violatedResourceLimits.DiskSpace()) {
+        const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+        if (!medium || medium->GetCache()) {
+            continue;
+        }
+        YT_VERIFY(DiskSpacePerMedium_.emplace(medium->GetName(), mediumDiskSpace).second);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
