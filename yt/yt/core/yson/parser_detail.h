@@ -392,8 +392,7 @@ private:
                 value = FromString<double>(valueBuffer);
             } catch (const std::exception& ex) {
                 // This exception is wrapped in parser.
-                THROW_ERROR_EXCEPTION("Failed to parse double literal %Qv",
-                    valueBuffer)
+                THROW_ERROR CreateLiteralError(ETokenType::Double, valueBuffer.begin(), valueBuffer.size())
                     << *this
                     << ex;
             }
@@ -404,8 +403,7 @@ private:
                 value = FromString<i64>(valueBuffer);
             } catch (const std::exception& ex) {
                 // This exception is wrapped in parser.
-                THROW_ERROR_EXCEPTION("Failed to parse int64 literal %Qv",
-                    valueBuffer)
+                THROW_ERROR CreateLiteralError(ETokenType::Int64, valueBuffer.begin(), valueBuffer.size())
                     << *this
                     << ex;
             }
@@ -416,8 +414,7 @@ private:
                 value = FromString<ui64>(valueBuffer.SubStr(0, valueBuffer.size() - 1));
             } catch (const std::exception& ex) {
                 // This exception is wrapped in parser.
-                THROW_ERROR_EXCEPTION("Failed to parse uint64 literal %Qv",
-                    valueBuffer)
+                THROW_ERROR CreateLiteralError(ETokenType::Uint64, valueBuffer.begin(), valueBuffer.size())
                     << *this
                     << ex;
             }
