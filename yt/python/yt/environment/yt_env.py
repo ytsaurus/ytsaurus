@@ -845,7 +845,7 @@ class YTInstance(object):
 
             stdout = open(os.devnull, "w")
             stderr = None
-            if self._capture_stderr_to_file or isinstance(self._subprocess_module, PortoSubprocess):
+            if self._capture_stderr_to_file or self._use_porto_for_servers:
                 stderr = open(stderr_path, "w")
 
             if self._kill_child_processes:
@@ -868,7 +868,13 @@ class YTInstance(object):
             self._pid_to_process[p.pid] = (p, args)
             self._append_pid(p.pid)
 
-            logger.debug("Process %s started (pid: %d)", name, p.pid)
+            if self._use_porto_for_servers:
+                name_tag = "name: " + p._portoName
+            else:
+                name_tag = ""
+            pid_tag = "pid: %d".format(p.pid)
+
+            logger.debug("Process %s started (%s)", name, ", ".join([pid_tag, name_tag]))
 
             return p
 
