@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "token.h"
 
 #include <yt/core/concurrency/coroutine.h>
 
@@ -15,6 +16,23 @@
 #include <util/string/escape.h>
 
 namespace NYT::NYson {
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int MaxLiteralLengthInError = 100;
+
+inline TError CreateLiteralError(ETokenType tokenType, const char* bufferStart, size_t bufferSize)
+{
+    if (bufferSize < MaxLiteralLengthInError) {
+        return TError("Failed to parse %v literal %Qv",
+            tokenType,
+            TStringBuf(bufferStart, bufferSize));
+    } else {
+        return TError("Failed to parse %v literal \"%v...<literal truncated>\"",
+            tokenType,
+            TStringBuf(bufferStart, std::min<size_t>(bufferSize, MaxLiteralLengthInError)));
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -771,8 +789,7 @@ public:
         static const TStringBuf falseString = "false";
 
         auto throwIncorrectBoolean = [&] () {
-            THROW_ERROR_EXCEPTION("Incorrect boolean string %Qv",
-                TStringBuf(Buffer_.data(), Buffer_.size()));
+            THROW_ERROR CreateLiteralError(ETokenType::Boolean, Buffer_.begin(), Buffer_.size());
         };
 
         PushBack(TBaseStream::template GetChar<AllowFinish>());

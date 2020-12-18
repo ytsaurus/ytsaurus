@@ -244,8 +244,7 @@ public:
             try {
                 *token = TToken(FromString<double>(valueBuffer));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing double literal %Qv",
-                    valueBuffer)
+                THROW_ERROR CreateLiteralError(ETokenType::Double, valueBuffer.begin(), valueBuffer.size())
                     << *this
                     << ex;
             }
@@ -253,8 +252,7 @@ public:
             try {
                 *token = TToken(FromString<i64>(valueBuffer));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing int64 literal %Qv",
-                    valueBuffer)
+                THROW_ERROR CreateLiteralError(ETokenType::Int64, valueBuffer.begin(), valueBuffer.size())
                     << *this
                     << ex;
             }
@@ -262,8 +260,7 @@ public:
             try {
                 *token = TToken(FromString<ui64>(valueBuffer.SubStr(0, valueBuffer.size() - 1)));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing uint64 literal %Qv",
-                    valueBuffer)
+                THROW_ERROR CreateLiteralError(ETokenType::Int64, valueBuffer.begin(), valueBuffer.size())
                     << *this
                     << ex;
             }

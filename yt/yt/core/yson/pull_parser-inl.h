@@ -6,6 +6,8 @@
 #include "pull_parser.h"
 #endif
 
+#include "detail.h"
+
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/parser_helpers.h>
 
@@ -618,8 +620,7 @@ typename TVisitor::TResult TYsonPullParser::NextImpl(TVisitor visitor)
                         try {
                             value = FromString<double>(valueBuffer);
                         } catch (const std::exception& ex) {
-                            THROW_ERROR_EXCEPTION("Failed to parse double literal %Qv",
-                                valueBuffer)
+                            THROW_ERROR CreateLiteralError(ETokenType::Double, valueBuffer.begin(), valueBuffer.size())
                                 << ex;
                         }
                         SyntaxChecker_.OnSimpleNonstring(EYsonItemType::DoubleValue);
@@ -629,8 +630,7 @@ typename TVisitor::TResult TYsonPullParser::NextImpl(TVisitor visitor)
                         try {
                             value = FromString<i64>(valueBuffer);
                         } catch (const std::exception& ex) {
-                            THROW_ERROR_EXCEPTION("Failed to parse int64 literal %Qv",
-                                valueBuffer)
+                            THROW_ERROR CreateLiteralError(ETokenType::Int64, valueBuffer.begin(), valueBuffer.size())
                                 << ex;
                         }
                         SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Int64Value);
@@ -640,8 +640,7 @@ typename TVisitor::TResult TYsonPullParser::NextImpl(TVisitor visitor)
                         try {
                             value = FromString<ui64>(valueBuffer.SubStr(0, valueBuffer.size() - 1));
                         } catch (const std::exception& ex) {
-                            THROW_ERROR_EXCEPTION("Failed to parse uint64 literal %Qv",
-                                valueBuffer)
+                            THROW_ERROR CreateLiteralError(ETokenType::Uint64, valueBuffer.begin(), valueBuffer.size())
                                 << ex;
                         }
                         SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Uint64Value);
