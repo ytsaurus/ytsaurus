@@ -108,7 +108,9 @@ SOCKET CreateTcpServerSocket()
         SetReuseAddrFlag(serverSocket);
         // SO_REUSEPORT is necessary for Darwin build. 
         // More details here: https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ
+#ifdef _darwin_
         SetReusePortFlag(serverSocket);
+#endif
     } catch (...) {
         SafeClose(serverSocket, false);
         throw;
