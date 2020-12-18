@@ -150,6 +150,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveCommittedResourceUsage));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveViolatedResourceLimits)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TotalChildrenResourceLimits)
+            .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -243,6 +245,12 @@ private:
 
                 auto violatedLimits = securityManager->GetAccountRecursiveViolatedResourceLimits(account);
                 SerializeClusterResources(violatedLimits, nullptr, false, consumer);
+                return true;
+            }
+
+            case EInternedAttributeKey::TotalChildrenResourceLimits: {
+                auto resourceLimits = account->ComputeTotalChildrenLimits();
+                SerializeClusterResources(resourceLimits, account, true, consumer);
                 return true;
             }
 
