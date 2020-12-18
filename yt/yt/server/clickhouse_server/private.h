@@ -71,11 +71,13 @@ DECLARE_REFCOUNTED_CLASS(TMemoryConfig);
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog);
 DECLARE_REFCOUNTED_CLASS(TCompositeSettings);
 DECLARE_REFCOUNTED_CLASS(TDynamicTableSettings);
+DECLARE_REFCOUNTED_CLASS(TClickHouseIndex);
 
 struct TValue;
 class TSubquerySpec;
 struct TSubquery;
 struct TQueryAnalysisResult;
+class TClickHouseIndexBuilder;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,6 +167,7 @@ struct ProcessListForUserInfo;
 struct QueryStatusInfo;
 struct ASTTableExpression;
 class AccessControlManager;
+class NamesAndTypesList;
 
 class IDataType;
 using DataTypePtr = std::shared_ptr<const IDataType>;
