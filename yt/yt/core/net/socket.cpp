@@ -32,6 +32,20 @@ void SetReuseAddrFlag(SOCKET socket)
     }
 }
 
+void SetReusePortFlag(SOCKET socket)
+{
+#ifdef SO_REUSEPORT
+    int flag = 1;
+    if (setsockopt(socket, SOL_SOCKET, SO_REUSEPORT, (const char*) &flag, sizeof(flag)) != 0) {
+        auto lastError = LastSystemError();
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::TransportError,
+            "Failed to configure socket port reuse")
+            << TError::FromSystem(lastError);
+    }
+#endif
+}
+
 SOCKET CreateTcpServerSocket()
 {
     int type = SOCK_STREAM;
@@ -92,6 +106,9 @@ SOCKET CreateTcpServerSocket()
 
     try {
         SetReuseAddrFlag(serverSocket);
+        // SO_REUSEPORT is necessary for Darwin build. 
+        // More details here: https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ
+        SetReusePortFlag(serverSocket);
     } catch (...) {
         SafeClose(serverSocket, false);
         throw;
