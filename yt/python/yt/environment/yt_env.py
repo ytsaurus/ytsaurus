@@ -829,7 +829,7 @@ class YTInstance(object):
         if has_some_bind_failure:
             raise YtEnvRetriableError("Process failed to bind on some of ports")
 
-    def _run(self, args, name, env=None, number=None, timeout=0.1):
+    def _run(self, args, name, env=None, number=None):
         with self._lock:
             index = number if number is not None else 0
             name_with_number = name
@@ -862,7 +862,6 @@ class YTInstance(object):
                                               env=env,
                                               stdout=stdout, stderr=stderr)
 
-            time.sleep(timeout)
             self._validate_process_is_running(p, name, number)
 
             self._service_processes[name][index] = p
