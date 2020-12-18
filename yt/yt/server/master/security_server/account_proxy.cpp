@@ -222,6 +222,8 @@ private:
                 }
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
 
+                // TODO(shakurov): introduce TAccount::GetViolatedResourceLimits
+                // and make use of it here.
                 BuildYsonFluently(consumer)
                     .BeginMap()
                         .Item("disk_space").Value(account->IsDiskSpaceLimitViolated())

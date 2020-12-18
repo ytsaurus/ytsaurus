@@ -43,6 +43,7 @@ DECLARE_ENTITY_TYPE(TGroup, TGroupId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TNetworkProject, TNetworkProjectId, NObjectClient::TDirectObjectIdHash)
 
 DECLARE_REFCOUNTED_CLASS(TSerializableClusterResources)
+DECLARE_REFCOUNTED_CLASS(TSerializableViolatedClusterResourceLimits)
 DECLARE_REFCOUNTED_STRUCT(ISecurityManager)
 DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsConfig)
