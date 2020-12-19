@@ -539,6 +539,14 @@ private:
         Save(context, RegisterState_);
     }
 
+    virtual void OnRecoveryComplete() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnRecoveryComplete();
+
+        OnDynamicConfigChanged();
+    }
 
     virtual void OnLeaderActive() override
     {
@@ -558,8 +566,6 @@ private:
                 BIND(&TImpl::OnCellStatisticsGossip, MakeWeak(this)));
             CellStatisticsGossipExecutor_->Start();
         }
-
-        OnDynamicConfigChanged();
     }
 
     virtual void OnStartLeading() override
