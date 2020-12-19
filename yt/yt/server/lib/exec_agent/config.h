@@ -276,6 +276,44 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUserJobSensor
+    : public NYTree::TYsonSerializable
+{
+public:
+    NProfiling::EMetricType Type;
+
+    TUserJobSensor()
+    {
+        RegisterParameter("type", Type);
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TUserJobSensor)
+DEFINE_REFCOUNTED_TYPE(TUserJobSensor)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserJobMonitoringConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    THashMap<TString, TUserJobSensorPtr> Sensors;
+
+    TUserJobMonitoringConfig()
+    {
+        RegisterParameter("sensors", Sensors)
+            .Default(GetDefaultSensors());
+    }
+
+private:
+    static const THashMap<TString, TUserJobSensorPtr>& GetDefaultSensors();
+};
+
+DECLARE_REFCOUNTED_CLASS(TUserJobMonitoringConfig)
+DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TExecAgentConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -325,6 +363,8 @@ public:
 
     TDuration MemoryTrackerCachePeriod;
     TDuration SMapsMemoryTrackerCachePeriod;
+
+    TUserJobMonitoringConfigPtr UserJobMonitoring;
 
     TExecAgentConfig()
     {
@@ -388,6 +428,9 @@ public:
             .Default(TDuration::MilliSeconds(100));
         RegisterParameter("smaps_memory_tracker_cache_period", SMapsMemoryTrackerCachePeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("user_job_monitoring", UserJobMonitoring)
+            .DefaultNew();
     }
 };
 

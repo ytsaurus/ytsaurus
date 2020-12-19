@@ -328,6 +328,9 @@ public:
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) override;
 
+    virtual std::optional<TString> RegisterJobForMonitoring(TJobId jobId) override;
+    void UnregisterJobForMonitoring(const TJobletPtr& joblet);
+
     virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const override;
@@ -503,6 +506,10 @@ protected:
     // These values are transient.
     std::atomic<int> BuildingJobSpecCount_ = {0};
     std::atomic<i64> TotalBuildingJobSpecSliceCount_ = {0};
+
+    // These values are transient.
+    int MonitoredUserJobCount_ = 0;
+    int MonitoredUserJobAttemptCount_ = 0;
 
     virtual bool IsTransactionNeeded(ETransactionType type) const;
 

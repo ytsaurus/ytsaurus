@@ -84,6 +84,9 @@ public:
     virtual void FailJob(TJobId jobId) override;
     virtual void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& TJobToRelease) override;
 
+    virtual std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
+    virtual bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
+
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() override;
     virtual TFuture<void> RemoveSnapshot() override;
 

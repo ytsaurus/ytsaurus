@@ -91,6 +91,7 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     , ExecAttributes(nameTable->RegisterName("exec_attributes"))
     , TaskName(nameTable->RegisterName("task_name"))
     , PoolTree(nameTable->RegisterName("pool_tree"))
+    , MonitoringDescriptor(nameTable->RegisterName("monitoring_descriptor"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

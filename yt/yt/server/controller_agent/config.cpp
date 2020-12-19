@@ -350,6 +350,17 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
         .DefaultNew();
 }
 
+TUserJobMonitoringConfig::TUserJobMonitoringConfig()
+{
+    RegisterParameter("max_monitored_user_jobs_per_operation", MaxMonitoredUserJobsPerOperation)
+        .Default(20)
+        .GreaterThanOrEqual(0);
+
+    RegisterParameter("max_monitored_user_jobs_per_agent", MaxMonitoredUserJobsPerAgent)
+        .Default(1000)
+        .GreaterThanOrEqual(0);
+}
+
 TControllerAgentConfig::TControllerAgentConfig()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -769,6 +780,9 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("memory_usage_check_period", MemoryUsageCheckPeriod)
         .Default(TDuration::Seconds(5));
+
+    RegisterParameter("user_job_monitoring", UserJobMonitoring)
+        .DefaultNew();
 
     RegisterPreprocessor([&] {
         EventLog->MaxRowWeight = 128_MB;

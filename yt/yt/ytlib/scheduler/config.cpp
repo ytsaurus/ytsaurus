@@ -382,6 +382,35 @@ TJobShell::TJobShell()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUserJobMonitoringConfig::TUserJobMonitoringConfig()
+{
+    RegisterParameter("enable", Enable)
+        .Default(false);
+
+    RegisterParameter("sensor_names", SensorNames)
+        .Default(GetDefaultSensorNames());
+}
+
+const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
+{
+    static const std::vector<TString> DefaultSensorNames = {
+        "cpu/user",
+        "cpu/system",
+        "cpu/wait",
+        "cpu/throttled",
+        "cpu/context_switches",
+        "current_memory/rss",
+        "tmpfs_size",
+        "gpu/utilization_gpu",
+        "gpu/utilization_memory",
+        "gpu/utilization_power",
+        "gpu/utilization_clock_sm",
+    };
+    return DefaultSensorNames;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationSpecBase::TOperationSpecBase()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -717,6 +746,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(false);
     RegisterParameter("use_smaps_memory_tracker", UseSMapsMemoryTracker)
         .Default(false);
+    RegisterParameter("monitoring", Monitoring)
+        .DefaultNew();
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {

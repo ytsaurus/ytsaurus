@@ -62,6 +62,8 @@ public:
 
     const std::vector<TString>& GetTags() const;
 
+    void SetControllerAgentAlert(EControllerAgentAlertType alertType, const TError& alert);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

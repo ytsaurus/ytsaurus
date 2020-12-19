@@ -220,6 +220,16 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& job
         jobsToRelease.size());
 }
 
+std::optional<TString> TOperationControllerHost::RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+{
+    return Bootstrap_->GetControllerAgent()->RegisterJobForMonitoring(operationId, jobId);
+}
+
+bool TOperationControllerHost::UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+{
+    return Bootstrap_->GetControllerAgent()->UnregisterJobForMonitoring(operationId, jobId);
+}
+
 TFuture<TOperationSnapshot> TOperationControllerHost::DownloadSnapshot()
 {
     return BIND(&NControllerAgent::TMasterConnector::DownloadSnapshot, Bootstrap_->GetControllerAgent()->GetMasterConnector())

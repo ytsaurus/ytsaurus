@@ -52,6 +52,9 @@
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/statistics.h>
 
+#include <yt/library/profiling/sensor.h>
+#include <yt/library/profiling/producer.h>
+
 #include <yt/core/rpc/dispatcher.h>
 
 #include <util/system/env.h>
@@ -81,6 +84,7 @@ using namespace NConcurrency;
 using namespace NApi;
 using namespace NCoreDump;
 using namespace NNet;
+using namespace NProfiling;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
@@ -169,6 +173,8 @@ public:
         }
 
         GuardedAction([&] () {
+            StartUserJobMonitoring();
+
             SetJobState(EJobState::Running);
 
             auto now = TInstant::Now();
@@ -560,6 +566,13 @@ public:
             }
             ReportStatistics(MakeDefaultJobStatistics()
                 .Statistics(Statistics_));
+
+            if (UserJobSensorProducer_) {
+                TSensorBuffer userJobSensors;
+                CollectSensorsFromStatistics(&userJobSensors);
+                CollectSensorsFromGpuInfo(&userJobSensors);
+                UserJobSensorProducer_->Update(std::move(userJobSensors));
+            }
         }
     }
 
@@ -775,6 +788,8 @@ private:
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();
 
+    TBufferedProducerPtr UserJobSensorProducer_;
+
     TExecAttributes ExecAttributes_;
 
     std::optional<TJobResult> JobResult_;
@@ -874,6 +889,30 @@ private:
                 << TErrorAttribute("job_state", JobState_)
                 << TErrorAttribute("job_phase", JobPhase_);
         }
+    }
+
+    void StartUserJobMonitoring()
+    {
+        if (!UserJobSpec_) {
+            return;
+        }
+        const auto& monitoringConfig = UserJobSpec_->monitoring_config();
+        if (!monitoringConfig.enable()) {
+            return;
+        }
+        const auto& sensorsInConfig = Config_->UserJobMonitoring->Sensors;
+        for (const auto& sensorName : monitoringConfig.sensor_names()) {
+            if (!sensorsInConfig.contains(sensorName)) {
+                THROW_ERROR_EXCEPTION("Unknown user job sensor %Qv", sensorName);
+            }
+        }
+        UserJobSensorProducer_ = New<TBufferedProducer>();
+        TRegistry("/user_job")
+            .WithGlobal()
+            .WithRequiredTag("job_descriptor", monitoringConfig.job_descriptor())
+            .AddProducer("", UserJobSensorProducer_);
+        ReportStatistics(TNodeJobReport()
+            .MonitoringDescriptor(monitoringConfig.job_descriptor()));
     }
 
     void DoSetResult(const TError& error)
@@ -2049,6 +2088,118 @@ private:
     {
         return GetResourceUsage().gpu() > 0;
     }
+
+    bool IsSensorFromStatistics(const TString& sensorName)
+    {
+        return !sensorName.StartsWith("gpu/");
+    }
+
+    void CollectSensorsFromStatistics(ISensorWriter* writer)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        IMapNodePtr statisticsNode;
+        try {
+            statisticsNode = ConvertTo<IMapNodePtr>(Statistics_);
+        } catch (const TErrorException& ex) {
+            YT_LOG_WARNING(ex, "Failed to convert statistics to map node (JobId: %v, OperationId: %v)",
+                GetId(),
+                GetOperationId());
+            return;
+        }
+
+        const auto& sensors = Config_->UserJobMonitoring->Sensors;
+        const auto& monitoringConfig = UserJobSpec_->monitoring_config();
+        for (const auto& sensorName : monitoringConfig.sensor_names()) {
+            // sensor must be present in config, the check was performed in constructor.
+            const auto& sensor = GetOrCrash(sensors, sensorName);
+            if (!IsSensorFromStatistics(sensorName)) {
+                continue;
+            }
+            INodePtr node;
+            try {
+                node = FindNodeByYPath(statisticsNode, "/user_job/" + sensorName + "/sum");
+                if (!node) {
+                    YT_LOG_DEBUG("Statistics node not found (sensorName: %v)", sensorName);
+                    continue;
+                }
+            } catch (const TErrorException& ex) {
+                YT_LOG_DEBUG(ex, "Error looking for statistics node (sensorName: %v)",
+                    sensorName);
+                continue;
+            }
+            if (node->GetType() != ENodeType::Int64) {
+                YT_LOG_DEBUG("Wrong type of sensor (sensorName: %v, ExpectedType: %v, ActualType: %v)",
+                    sensorName,
+                    ENodeType::Int64,
+                    node->GetType());
+                continue;
+            }
+            [&] {
+                switch (sensor->Type) {
+                    case EMetricType::Counter:
+                        writer->AddCounter("/" + sensorName, node->GetValue<i64>());
+                        return;
+                    case EMetricType::Gauge:
+                        writer->AddGauge("/" + sensorName, node->GetValue<i64>());
+                        return;
+                }
+                YT_ABORT();
+            }();
+        }
+    }
+
+    void CollectSensorsFromGpuInfo(ISensorWriter* writer)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        if (GpuSlots_.empty()) {
+            return;
+        }
+
+        const auto& monitoringConfig = UserJobSpec_->monitoring_config();
+        auto sensorNames = THashSet<TString>(
+            std::begin(monitoringConfig.sensor_names()),
+            std::end(monitoringConfig.sensor_names()));
+
+        static const TString UtilizationGpuName = "gpu/utilization_gpu";
+        static const TString UtilizationMemoryName = "gpu/utilization_memory";
+        static const TString UtilizationPowerName = "gpu/utilization_power";
+        static const TString UtilizationClocksSmName = "gpu/utilization_clocks_sm";
+
+        auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
+        for (int index = 0; index < GpuSlots_.size(); ++index) {
+            const auto& slot = GpuSlots_[index];
+
+            auto it = gpuInfoMap.find(slot->GetDeviceNumber());
+            if (it == gpuInfoMap.end()) {
+                continue;
+            }
+            const TGpuInfo& gpuInfo = it->second;
+
+            writer->PushTag({"gpu_slot", ToString(index)});
+
+            if (sensorNames.contains(UtilizationGpuName)) {
+                writer->AddGauge("/" + UtilizationGpuName, gpuInfo.UtilizationGpuRate);
+            }
+            if (sensorNames.contains(UtilizationMemoryName)) {
+                writer->AddGauge("/" + UtilizationMemoryName, gpuInfo.UtilizationMemoryRate);
+            }
+            if (sensorNames.contains(UtilizationPowerName)) {
+                auto utilizationPower = gpuInfo.PowerLimit == 0
+                    ? 0
+                    : gpuInfo.PowerDraw / gpuInfo.PowerLimit;
+                writer->AddGauge("/" + UtilizationPowerName, utilizationPower);
+            }
+            if (sensorNames.contains(UtilizationClocksSmName)) {
+                auto value = static_cast<double>(gpuInfo.ClocksSm) / gpuInfo.ClocksMaxSm;
+                writer->AddGauge("/" + UtilizationClocksSmName, value);
+            }
+
+            writer->PopTag();
+        }
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -870,6 +870,47 @@ TRANSFORMS[38] = [
             })),
 ]
 
+TRANSFORMS[39] = [
+    Conversion(
+        "jobs",
+        table_info=TableInfo([
+                ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("has_spec", "boolean"),
+                ("has_fail_context", "boolean"),
+                ("fail_context_size", "uint64"),
+                ("events", "any"),
+                ("transient_state", "string"),
+                ("update_time", "int64"),
+                ("core_infos", "any"),
+                ("job_competition_id", "string"),
+                ("has_competitors", "boolean"),
+                ("exec_attributes", "any"),
+                ("task_name", "string"),
+                ("statistics_lz4", "string"),
+                ("brief_statistics", "any"),
+                ("pool_tree", "string"),
+                ("monitoring_descriptor", "string"),
+            ],
+            get_pivot_keys=get_job_table_pivots,
+            attributes={"atomicity": "none"})),
+]
+
 
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)

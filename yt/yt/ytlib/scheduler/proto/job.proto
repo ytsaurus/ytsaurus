@@ -78,6 +78,13 @@ message TTmpfsVolume
     required string path = 2;
 }
 
+message TUserJobMonitoringConfig
+{
+    optional bool enable = 1;
+    optional string job_descriptor = 2;
+    repeated string sensor_names = 3;
+}
+
 // Specification for starting user code during a job.
 message TUserJobSpec
 {
@@ -187,6 +194,8 @@ message TUserJobSpec
     optional bool cast_input_any_to_composite = 56 [default = false];
 
     optional bool use_smaps_memory_tracker = 57 [default = false];
+
+    optional TUserJobMonitoringConfig monitoring_config = 58;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

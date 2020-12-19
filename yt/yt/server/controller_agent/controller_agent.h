@@ -166,6 +166,28 @@ public:
         TOperationId operationId,
         NYTree::EPermission permission);
 
+    //! Registers job for monitoring.
+    /*!
+     *  \returns job descriptor for the corresponding monitoring tag
+     *           or nullopt if monitored job limit is reached.
+     *  \note Thread affinity: any
+     */
+    std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId);
+
+    //! Unregisters job monitoring.
+    /*!
+     *  \returns true iff the job was actually monitored.
+     *
+     *  \note Thread affinity: any
+     */
+    bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId);
+
+    //! Schedule job monitoring alert update.
+    /*!
+     *  \note Thread affinity: any
+     */
+    void EnqueueJobMonitoringAlertUpdate();
+
     //! Raised when connection prcoess starts.
     //! Subscribers may throw and yield.
     DECLARE_SIGNAL(void(), SchedulerConnecting);

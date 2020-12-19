@@ -278,7 +278,7 @@ bool TJobReport::IsEmpty() const
 {
     return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ ||
              Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ ||
-             CoreInfos_ || HasCompetitors_);
+             CoreInfos_ || HasCompetitors_ || MonitoringDescriptor_);
 }
 
 TControllerJobReport TControllerJobReport::OperationId(NJobTrackerClient::TOperationId operationId)
@@ -410,6 +410,12 @@ TNodeJobReport TNodeJobReport::ExecAttributes(const TYsonString& execAttributes)
 TNodeJobReport TNodeJobReport::TreeId(TString treeId)
 {
     TreeId_ = std::move(treeId);
+    return std::move(*this);
+}
+
+TNodeJobReport TNodeJobReport::MonitoringDescriptor(TString monitoringDescriptor)
+{
+    MonitoringDescriptor_ = std::move(monitoringDescriptor);
     return std::move(*this);
 }
 

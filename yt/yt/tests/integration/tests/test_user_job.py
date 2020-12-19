@@ -13,6 +13,7 @@ import pytest
 import time
 import datetime
 import os
+import re
 import shutil
 
 ##################################################################
@@ -1638,4 +1639,212 @@ class TestSecureVault(YTEnvSetup):
                 out="//tmp/t_out",
                 spec={"secure_vault": {"x" * (2 ** 16 + 1): 42}},
                 command="cat",
+            )
+
+
+##################################################################
+
+
+class TestUserJobMonitoring(YTEnvSetup):
+    USE_DYNAMIC_TABLES = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_PORTO = True
+
+    PROFILING_PERIOD = 5 * 1000
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_proxy_heartbeat_period": 100,
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 20,
+                    "cpu": 20,
+                },
+                "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
+            },
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
+            "alerts_update_period": 100,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "user_job_monitoring": {
+                "max_monitored_user_jobs_per_operation": 2,
+                "max_monitored_user_jobs_per_agent": 7,
+            },
+        },
+    }
+
+    def setup(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("default_sensor_names", [True, False])
+    def test_basic(self, default_sensor_names):
+        monitoring_config = {
+            "enable": True,
+        }
+        if not default_sensor_names:
+            monitoring_config["sensor_names"] = ["cpu/user", "gpu/utilization_power"]
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT; for (( c=1; c>0; c++ )); do : ; done"),
+            job_count=1,
+            task_patch={
+                "monitoring": monitoring_config,
+                "gpu_limit": 1,
+                "enable_gpu_layers": False,
+            },
+        )
+        job_id, = wait_breakpoint()
+        release_breakpoint()
+
+        expected_time = 10 * 1000  # 10 seconds.
+        job_info = get_job(op.id, job_id)
+        node = job_info["address"]
+
+        def get_sensors(name):
+            return retry(lambda: get("//sys/cluster_nodes/{}/orchid/profiling/user_job/{}".format(node, name)))
+
+        @wait_assert
+        def long_enough():
+            cpu_user = get_sensors("cpu/user")
+            assert max(sample["value"] for sample in cpu_user) >= expected_time
+
+        cpu_user = get_sensors("cpu/user")
+        assert max(sample["value"] for sample in cpu_user) >= expected_time
+
+        controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
+            controller_agent_address
+        )
+        incarnation_id = get("{}/incarnation_id".format(controller_agent_orchid))
+        expected_job_descriptor = "{}/0".format(incarnation_id)
+        for sample in cpu_user:
+            job_descriptor = sample["tags"].get("job_descriptor")
+            assert re.match(r"^{}/\d+$".format(incarnation_id), job_descriptor) is not None
+
+        gpu_power = retry(lambda: get_sensors("gpu/utilization_power"))
+        assert len(gpu_power) >= expected_time / self.PROFILING_PERIOD
+        assert all(sample["value"] == 0 for sample in gpu_power)
+        for sample in gpu_power:
+            assert sample["tags"].get("job_descriptor") == expected_job_descriptor
+            assert sample["tags"].get("gpu_slot") == "0"
+
+    @authors("levysotsky")
+    def test_limits(self):
+        controller_agents = ls("//sys/controller_agents/instances")
+        assert len(controller_agents) == 1
+        agent_alerts_path = "//sys/controller_agents/instances/{}/@alerts".format(
+            controller_agents[0]
+        )
+
+        def get_agent_alerts():
+            return get(agent_alerts_path)
+
+        def run_op(job_count):
+            breakpoint_name = make_random_string()
+            op = run_test_vanilla(
+                with_breakpoint("BREAKPOINT", breakpoint_name=breakpoint_name),
+                job_count=job_count,
+                task_patch={
+                    "monitoring": {
+                        "enable": True,
+                        "sensor_names": ["cpu/user"],
+                    },
+                },
+            )
+            wait_breakpoint(breakpoint_name=breakpoint_name, job_count=job_count)
+            op.breakpoint_name = breakpoint_name
+            return op
+
+        op = run_op(2)
+
+        # No alerts here as limit per operation is 2.
+        @wait_assert
+        def no_alerts():
+            assert len(ls(op.get_path() + "/@alerts")) == 0
+            assert len(get_agent_alerts()) == 0
+
+        release_breakpoint(breakpoint_name=op.breakpoint_name)
+        op.track()
+
+        op = run_op(3)
+
+        # Expect an alert here as limit per operation is 2.
+        @wait_assert
+        def op_alert():
+            assert ls(op.get_path() + "/@alerts") == ["user_job_monitoring_limited"]
+            assert len(get_agent_alerts()) == 0
+
+        release_breakpoint(breakpoint_name=op.breakpoint_name)
+        op.track()
+
+        ops = [run_op(2) for _ in range(3)]
+
+        @wait_assert
+        def no_alerts():
+            for op in ops:
+                # Expect no alerts here as limit per agent is 7.
+                assert len(ls(op.get_path() + "/@alerts")) == 0
+                assert len(get_agent_alerts()) == 0
+
+        next_op = run_op(2)
+
+        # Expect an alert here as limit per agent is 7.
+        @wait_assert
+        def agent_alert():
+            assert ls(next_op.get_path() + "/@alerts") == ["user_job_monitoring_limited"]
+            assert len(get_agent_alerts()) == 1
+            assert "Limit of monitored user jobs per controller agent reached" in get_agent_alerts()[0]["message"]
+
+        for op in ops:
+            release_breakpoint(breakpoint_name=op.breakpoint_name)
+            op.track()
+
+        for job in list_jobs(next_op.id)["jobs"]:
+            abort_job(job["id"])
+        wait_breakpoint(breakpoint_name=next_op.breakpoint_name, job_count=2)
+
+        @wait_assert
+        def no_alerts():
+            assert len(ls(op.get_path() + "/@alerts")) == 0
+            assert len(get_agent_alerts()) == 0
+
+        release_breakpoint(breakpoint_name=next_op.breakpoint_name)
+        next_op.track()
+
+    @authors("levysotsky")
+    def test_bad_spec(self):
+        with pytest.raises(YtError):
+            run_test_vanilla(
+                "echo",
+                track=True,
+                job_count=1,
+                task_patch={
+                    "monitoring": {
+                        "enable": True,
+                        "sensor_names": ["nonexistent_sensor"],
+                    },
+                },
             )

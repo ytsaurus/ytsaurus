@@ -1151,6 +1151,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         });
     }
 
+    // Monitoring tags are transient by design.
+    // So after revive we do reset the corresponding alert.
+    SetOperationAlert(EOperationAlertType::UserJobMonitoringLimited, TError());
+
     YT_LOG_INFO("Operation revived");
 
     State = EControllerState::Running;
@@ -7429,8 +7433,46 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
     return joblet;
 }
 
+std::optional<TString> TOperationControllerBase::RegisterJobForMonitoring(TJobId jobId)
+{
+    ++MonitoredUserJobAttemptCount_;
+    if (MonitoredUserJobCount_ >= Config->UserJobMonitoring->MaxMonitoredUserJobsPerOperation) {
+        SetOperationAlert(
+            EOperationAlertType::UserJobMonitoringLimited,
+            TError("Limit of monitored user jobs per operation reached, some jobs may be not monitored")
+                << TErrorAttribute("limit_per_operation", Config->UserJobMonitoring->MaxMonitoredUserJobsPerOperation));
+        return {};
+    }
+    auto jobDescriptor = Host->RegisterJobForMonitoring(OperationId, jobId);
+    if (!jobDescriptor) {
+        SetOperationAlert(
+            EOperationAlertType::UserJobMonitoringLimited,
+            TError("Limit of monitored user jobs per controller agent reached, some jobs may be not monitored")
+                << TErrorAttribute("limit_per_controller_agent", Config->UserJobMonitoring->MaxMonitoredUserJobsPerAgent));
+        return {};
+    }
+    ++MonitoredUserJobCount_;
+    return *jobDescriptor;
+}
+
+void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& joblet)
+{
+    const auto& userJobSpec = joblet->Task->GetUserJobSpec();
+    if (userJobSpec && userJobSpec->Monitoring->Enable) {
+        --MonitoredUserJobAttemptCount_;
+    }
+    if (joblet->UserJobMonitoringDescriptor) {
+        Host->UnregisterJobForMonitoring(OperationId, joblet->JobId);
+        --MonitoredUserJobCount_;
+    }
+    if (MonitoredUserJobCount_ <= MonitoredUserJobAttemptCount_) {
+        SetOperationAlert(EOperationAlertType::UserJobMonitoringLimited, TError());
+    }
+}
+
 void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 {
+    UnregisterJobForMonitoring(joblet);
     YT_VERIFY(JobletMap.erase(joblet->JobId) == 1);
 }
 
@@ -8191,6 +8233,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     BuildFileSpecs(jobSpec, files, config, Config->EnableBypassArtifactCache);
+
+    if (config->Monitoring->Enable) {
+        ToProto(jobSpec->mutable_monitoring_config()->mutable_sensor_names(), config->Monitoring->SensorNames);
+    }
 }
 
 const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const
@@ -8260,6 +8306,12 @@ void TOperationControllerBase::InitUserJobSpec(
     }
     if (joblet->CoreTableChunkListId) {
         AddCoreOutputSpecs(jobSpec, joblet);
+    }
+
+    if (joblet->UserJobMonitoringDescriptor) {
+        auto* monitoringConfig = jobSpec->mutable_monitoring_config();
+        monitoringConfig->set_enable(true);
+        monitoringConfig->set_job_descriptor(*joblet->UserJobMonitoringDescriptor);
     }
 }
 

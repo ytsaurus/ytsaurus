@@ -123,6 +123,9 @@ public:
 
     std::vector<TStreamDescriptor> StreamDescriptors;
 
+    // This field is used only to build job spec and thus transient.
+    std::optional<TString> UserJobMonitoringDescriptor;
+
     virtual void Persist(const TPersistenceContext& context) override;
 
     NScheduler::TJobMetrics UpdateJobMetrics(const TJobSummary& jobSummary);
