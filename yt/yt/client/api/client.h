@@ -1099,6 +1099,8 @@ struct TJob
     std::optional<TString> TaskName;
     std::optional<TString> PoolTree;
     std::optional<TString> Pool;
+    std::optional<TString> MonitoringDescriptor;
+
     std::optional<bool> IsStale;
 
     std::optional<NJobTrackerClient::EJobState> GetState() const;

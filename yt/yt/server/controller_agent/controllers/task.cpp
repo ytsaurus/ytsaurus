@@ -437,10 +437,9 @@ void TTask::ScheduleJob(
 
     joblet->EstimatedResourceUsage = estimatedResourceUsage;
     joblet->ResourceLimits = neededResources.ToJobResources();
-    if (auto userJobSpec = GetUserJobSpec()) {
-        if (userJobSpec->DiskRequest) {
-            neededResources.SetDiskQuota(CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory()));
-        }
+    auto userJobSpec = GetUserJobSpec();
+    if (userJobSpec && userJobSpec->DiskRequest) {
+        neededResources.SetDiskQuota(CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory()));
     }
 
     // Check the usage against the limits. This is the last chance to give up.
@@ -507,9 +506,13 @@ void TTask::ScheduleJob(
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
     joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryReserveFactor();
-    auto userJobSpec = GetUserJobSpec();
+
     if (userJobSpec) {
         joblet->UserJobMemoryReserveFactor = GetUserJobMemoryReserveFactor();
+    }
+
+    if (userJobSpec && userJobSpec->Monitoring->Enable) {
+        joblet->UserJobMonitoringDescriptor = TaskHost_->RegisterJobForMonitoring(joblet->JobId);
     }
 
     if (userJobSpec && userJobSpec->JobSpeculationTimeout) {

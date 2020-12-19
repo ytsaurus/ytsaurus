@@ -624,6 +624,23 @@ DEFINE_REFCOUNTED_TYPE(TJobShell)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUserJobMonitoringConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+    std::vector<TString> SensorNames;
+
+    TUserJobMonitoringConfig();
+
+private:
+    static const std::vector<TString>& GetDefaultSensorNames();
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationSpecBase
     : public TStrategyOperationSpec
 {
@@ -916,6 +933,9 @@ public:
     //! file in tmpfs. This allows not to account memory for mapped files
     //! from tmpfs twice.
     bool UseSMapsMemoryTracker;
+
+    //! Describes user job monitoring settings.
+    TUserJobMonitoringConfigPtr Monitoring;
 
     TUserJobSpec();
 

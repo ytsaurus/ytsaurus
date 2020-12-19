@@ -29,6 +29,7 @@ DEFINE_ENUM(EControllerAgentAlertType,
     (UpdateConfig)
     (UnrecognizedConfigOptions)
     (SnapshotLoadingDisabled)
+    (UserJobMonitoringLimited)
 );
 
 DEFINE_ENUM(EControllerState,

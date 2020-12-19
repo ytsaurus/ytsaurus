@@ -68,6 +68,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((InvalidatedJobsFound)                        (23))
     ((NoTablesWithEnabledDynamicStoreRead)         (24))
     ((UnusedMemory)                                (25))
+    ((UserJobMonitoringLimited)                    (26))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,

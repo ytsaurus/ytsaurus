@@ -105,6 +105,7 @@ struct TJobTableDescriptor
         const int ExecAttributes;
         const int TaskName;
         const int PoolTree;
+        const int MonitoringDescriptor;
     };
 
     const NTableClient::TNameTablePtr NameTable;

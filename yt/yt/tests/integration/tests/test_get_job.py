@@ -159,6 +159,12 @@ class _TestGetJobCommon(_TestGetJobBase):
                 "scheduling_options_per_pool_tree": {
                     "default": {"pool": "my_pool"},
                 },
+                "mapper": {
+                    "monitoring": {
+                        "enable": True,
+                        "sensor_names": ["cpu/user"],
+                    },
+                },
             },
             command=with_breakpoint(
                 """
@@ -354,6 +360,36 @@ class TestGetJobIsStale(_TestGetJobBase):
         assert job_info.get("controller_agent_state") is None
         assert job_info.get("archive_state") == "running"
         assert job_info.get("is_stale")
+
+
+class TestGetJobMonitoring(_TestGetJobBase):
+    USE_PORTO = True
+
+    @authors("levysotsky")
+    def test_get_job_monitoring(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+            task_patch={
+                "monitoring": {
+                    "enable": True,
+                    "sensor_names": ["cpu/user"],
+                },
+            },
+        )
+        job_id, = wait_breakpoint()
+
+        wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
+        job = get_job(op.id, job_id)
+        assert "monitoring_descriptor" in job
+        descriptor = job["monitoring_descriptor"]
+
+        def get_sensors():
+            path = "//sys/cluster_nodes/{}/orchid/profiling/user_job/cpu/user"
+            return retry(lambda: get(path.format(job["address"])))
+
+        wait(lambda: len(get_sensors()) > 0)
+        assert any(sample["tags"].get("job_descriptor") == descriptor for sample in get_sensors())
 
 
 ##################################################################

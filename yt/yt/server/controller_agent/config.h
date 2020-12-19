@@ -487,6 +487,20 @@ DEFINE_REFCOUNTED_TYPE(TZombieOperationOrchidsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUserJobMonitoringConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int MaxMonitoredUserJobsPerOperation;
+    int MaxMonitoredUserJobsPerAgent;
+
+    TUserJobMonitoringConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TControllerAgentConfig
     : public NChunkClient::TChunkTeleporterConfig
 {
@@ -851,6 +865,8 @@ public:
     i64 OperationControllerMemoryLimit;
 
     TDuration MemoryUsageCheckPeriod;
+
+    TUserJobMonitoringConfigPtr UserJobMonitoring;
 
     TControllerAgentConfig();
 

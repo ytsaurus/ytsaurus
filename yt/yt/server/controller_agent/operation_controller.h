@@ -162,6 +162,17 @@ struct IOperationControllerHost
     virtual void FailJob(TJobId jobId) = 0;
     virtual void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& jobsToRelease) = 0;
 
+    //! Registers job for monitoring.
+    //!
+    //! \returns job descriptor for the corresponding monitoring tag
+    //!          or nullopt if monitored jobs limit is reached.
+    virtual std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId) = 0;
+
+    //! Tries to unregister monitored job.
+    //!
+    //! \returns true iff the job was actually monitored.
+    virtual bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId) = 0;
+
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() = 0;
     virtual TFuture<void> RemoveSnapshot() = 0;
 

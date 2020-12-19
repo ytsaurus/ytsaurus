@@ -9,6 +9,7 @@
 #include "memory_tag_queue.h"
 #include "bootstrap.h"
 #include "helpers.h"
+#include "job_monitoring_index_manager.h"
 
 #include <yt/server/lib/job_agent/job_reporter.h>
 
@@ -584,6 +585,11 @@ public:
 
         MasterConnector_->UnregisterOperation(operationId);
 
+        {
+            auto guard = TGuard(JobMonitoringIndexManagerLock_);
+            JobMonitoringIndexManager_.TryRemoveOperationJobs(operationId);
+        }
+
         YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
 
@@ -903,6 +909,52 @@ public:
         ValidateConnected();
     }
 
+    std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+    {
+        TGuard guard(JobMonitoringIndexManagerLock_);
+
+        if (JobMonitoringIndexManager_.GetSize() == Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent) {
+            guard.Release();
+            EnqueueJobMonitoringAlertUpdate();
+            return std::nullopt;
+        }
+
+        auto index = JobMonitoringIndexManager_.AddJob(operationId, jobId);
+        return Format("%v/%v", IncarnationId_, index);
+    }
+
+    bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+    {
+        TGuard guard(JobMonitoringIndexManagerLock_);
+        auto result = JobMonitoringIndexManager_.TryRemoveJob(operationId, jobId);
+        if (JobMonitoringIndexManager_.GetSize() == Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent - 1) {
+            guard.Release();
+            EnqueueJobMonitoringAlertUpdate();
+        }
+        return result;
+    }
+
+    void EnqueueJobMonitoringAlertUpdate()
+    {
+        BIND([&] {
+            auto alert = TError();
+            TGuard guard(JobMonitoringIndexManagerLock_);
+            if (JobMonitoringIndexManager_.GetSize() == Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent) {
+                alert = TError(
+                    "Limit of monitored user jobs per controller agent reached, "
+                    "some jobs may be not monitored")
+                    << TErrorAttribute(
+                        "limit_per_controller_agent",
+                        Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent);
+            }
+            MasterConnector_->SetControllerAgentAlert(
+                EControllerAgentAlertType::UserJobMonitoringLimited,
+                std::move(alert));
+        })
+        .Via(CancelableControlInvoker_)
+        .Run();
+    }
+
     DEFINE_SIGNAL(void(), SchedulerConnecting);
     DEFINE_SIGNAL(void(), SchedulerConnected);
     DEFINE_SIGNAL(void(), SchedulerDisconnected);
@@ -968,6 +1020,9 @@ private:
     TMemoryTagQueuePtr MemoryTagQueue_;
 
     INodePtr OperationsEffectiveAcl_;
+
+    YT_DECLARE_SPINLOCK(TSpinLock, JobMonitoringIndexManagerLock_);
+    TJobMonitoringIndexManager JobMonitoringIndexManager_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -2051,6 +2106,15 @@ void TControllerAgent::ValidateOperationAccess(
     return Impl_->ValidateOperationAccess(user, operationId, permission);
 }
 
+std::optional<TString> TControllerAgent::RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+{
+    return Impl_->RegisterJobForMonitoring(operationId, jobId);
+}
+
+bool TControllerAgent::UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+{
+    return Impl_->UnregisterJobForMonitoring(operationId, jobId);
+}
 
 DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnecting, *Impl_);
 DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnected, *Impl_);

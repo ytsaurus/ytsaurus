@@ -89,6 +89,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "task_name",
     "pool",
     "pool_tree",
+    "monitoring_descriptor",
 };
 
 static const auto DefaultGetJobAttributes = [] {
@@ -1218,6 +1219,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     auto taskNameIndex = findColumnIndex("task_name");
     auto coreInfosIndex = findColumnIndex("core_infos");
     auto poolTreeIndex = findColumnIndex("pool_tree");
+    auto monitoringDescriptorIndex = findColumnIndex("monitoring_descriptor");
 
     std::vector<TJob> jobs;
     auto rows = rowset->GetRows();
@@ -1346,6 +1348,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.PoolTree = FromUnversionedValue<TString>(row[*poolTreeIndex]);
         }
 
+        if (monitoringDescriptorIndex && row[*monitoringDescriptorIndex].Type != EValueType::Null) {
+            job.MonitoringDescriptor = FromUnversionedValue<TString>(row[*monitoringDescriptorIndex]);
+        }
+
         // We intentionally mark stderr as missing if job has no spec since
         // it is impossible to check permissions without spec.
         if (job.GetState() && NJobTrackerClient::IsJobFinished(*job.GetState()) && !job.HasSpec) {
@@ -1382,6 +1388,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("exec_attributes");
     builder.AddSelectExpression("task_name");
     builder.AddSelectExpression("pool_tree");
+    builder.AddSelectExpression("monitoring_descriptor");
     if (constexpr int requiredVersion = 31; DoGetOperationsArchiveVersion() >= requiredVersion) {
         builder.AddSelectExpression("core_infos");
     }

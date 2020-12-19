@@ -256,6 +256,13 @@ public:
         return *Tags_;
     }
 
+    void SetControllerAgentAlert(EControllerAgentAlertType alertType, const TError& alert)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Alerts_[alertType] = alert;
+    }
+
 private:
     TControllerAgentConfigPtr Config_;
     INodePtr InitialConfigNode_;
@@ -1342,8 +1349,6 @@ private:
         }
     }
 
-
-
     void ValidateConfig()
     {
         // First reset the alerts.
@@ -1421,13 +1426,6 @@ private:
             SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, error);
             YT_LOG_WARNING(error, "Error updating controller agent configuration");
         }
-    }
-
-    void SetControllerAgentAlert(EControllerAgentAlertType alertType, const TError& alert)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        Alerts_[alertType] = alert;
     }
 
     void UpdateAlerts()
@@ -1540,6 +1538,11 @@ bool TMasterConnector::TagsLoaded() const
 const std::vector<TString>& TMasterConnector::GetTags() const
 {
     return Impl_->GetTags();
+}
+
+void TMasterConnector::SetControllerAgentAlert(EControllerAgentAlertType alertType, const TError& alert)
+{
+    Impl_->SetControllerAgentAlert(alertType, alert);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
