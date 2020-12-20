@@ -1,24 +1,31 @@
 from __future__ import print_function
 
-from yt.testlib import (YtTestEnvironment, set_testsuite_details, TEST_DIR, test_method_teardown)
-
-from yt.packages import requests
+from yt.test_helpers import get_tests_sandbox as get_tests_sandbox_impl
+from yt.testlib import (yatest_common, YtTestEnvironment, test_method_teardown)
 
 import yt.wrapper as yt
 
 import pytest
 
 import os
-import imp
 from copy import deepcopy
-import logging
 
-set_testsuite_details(os.path.abspath(__file__), "yt/python/yt/clickhouse/tests")
+def get_tests_location():
+    if yatest_common is None:
+        return os.path.dirname(os.path.abspath(__file__))
+    else:
+        return yatest_common.source_path("yt/python/yt/clickhouse/tests")
+
+def get_tests_sandbox():
+    return get_tests_sandbox_impl(
+        os.environ.get("TESTS_SANDBOX", os.path.dirname(os.path.abspath(__file__)) + ".sandbox")
+    )
 
 def init_environment_for_test_session(**kwargs):
     config = {"backend": "http", "api_version": "v4"}
 
     environment = YtTestEnvironment(
+        get_tests_sandbox(),
         "TestClickHouse",
         config,
         **kwargs)
@@ -47,7 +54,6 @@ def _yt_env(request, test_environment):
     """
     test_environment.check_liveness()
     test_environment.reload_global_configuration()
-    yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment
 

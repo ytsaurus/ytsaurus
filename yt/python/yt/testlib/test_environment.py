@@ -1,32 +1,25 @@
 from __future__ import print_function
 
-from .helpers import (TEST_DIR, get_tests_sandbox,
-                      get_port_locks_path,
-                      yatest_common, wait)
+from yt.test_helpers import wait
+from .helpers import yatest_common
 
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace, MB
-from yt.common import which, makedirp, format_error
-import yt.environment.init_operation_archive as init_operation_archive
-import yt.subprocess_wrapper as subprocess
+from yt.common import format_error
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
 
 from yt.packages.six import iteritems, itervalues
-
-from yt.packages import requests
 
 import yt.wrapper as yt
 
 import pytest
 
 import os
-import imp
 import sys
 import uuid
-from copy import deepcopy
 import shutil
 import logging
 import socket
@@ -46,6 +39,7 @@ def rmtree(path):
 
 class YtTestEnvironment(object):
     def __init__(self,
+                 sandbox_path,
                  test_name,
                  config=None,
                  env_options=None,
@@ -56,6 +50,8 @@ class YtTestEnvironment(object):
                  need_suid=False):
         # To use correct version of bindings we must reset it before start environment.
         yt.native_driver.driver_bindings = None
+
+        port_locks_path = os.path.join(sandbox_path, "ports")
 
         self.test_name = test_name
 
@@ -70,8 +66,8 @@ class YtTestEnvironment(object):
 
         run_id = uuid.uuid4().hex[:8]
         self.uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)
-        self.sandbox_dir = os.path.join(get_tests_sandbox(), self.uniq_dir_name)
-        self.core_path = os.path.join(get_tests_sandbox(), "_cores")
+        self.sandbox_dir = os.path.join(sandbox_path, self.uniq_dir_name)
+        self.core_path = os.path.join(sandbox_path, "_cores")
         if not os.path.exists(self.core_path):
             os.makedirs(self.core_path)
 
@@ -151,7 +147,7 @@ class YtTestEnvironment(object):
                 if delta_proxy_config:
                     update_inplace(config, delta_proxy_config)
 
-        local_temp_directory = os.path.join(get_tests_sandbox(), "tmp_" + run_id)
+        local_temp_directory = os.path.join(sandbox_path, "tmp_" + run_id)
         if not os.path.exists(local_temp_directory):
             os.mkdir(local_temp_directory)
 
@@ -161,7 +157,7 @@ class YtTestEnvironment(object):
                               scheduler_count=1,
                               http_proxy_count=1 if has_http_proxy else 0,
                               rpc_proxy_count=1,
-                              port_locks_path=get_port_locks_path(),
+                              port_locks_path=port_locks_path,
                               fqdn="localhost",
                               modify_configs_func=modify_configs,
                               kill_child_processes=True,
@@ -239,7 +235,7 @@ class YtTestEnvironment(object):
         if "YT_PROXY" in os.environ:
             del os.environ["YT_PROXY"]
 
-        os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = get_port_locks_path()
+        os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = port_locks_path
 
         # NB: temporary hack
         if arcadia_interop.yatest_common is not None:
@@ -338,6 +334,7 @@ def _remove_objects():
     for id in object_ids_to_check:
         wait(lambda: not yt.exists("#" + id))
 
+# TODO(ignat): fix copy/paste from integration tests.
 def test_method_teardown():
     if yt.config["backend"] == "proxy":
         assert yt.config["proxy"]["url"].startswith("localhost")
@@ -357,9 +354,7 @@ def test_method_teardown():
         except:
             pass
 
-    yt.remove(TEST_DIR, recursive=True, force=True)
     yt.remove("//tmp/*", recursive=True)
 
     _remove_operations()
     _remove_objects()
-

@@ -3,10 +3,10 @@ from __future__ import print_function
 from yt.packages.six import iteritems, integer_types, text_type, binary_type, b, PY3
 from yt.packages.six.moves import xrange
 
-from yt.test_helpers import wait
+from yt.test_helpers import wait, get_tests_sandbox as get_tests_sandbox_impl
 from yt.test_helpers.job_events import JobEvents
 
-from yt.testlib import (yatest_common, get_tests_location, get_tests_sandbox, TEST_DIR, 
+from yt.testlib import (yatest_common,
                         authors, check, set_config_option, set_config_options)
 
 import yt.yson as yson
@@ -28,6 +28,23 @@ import tempfile
 import threading
 from contextlib import contextmanager
 from copy import deepcopy
+
+
+TEST_DIR = "//home/wrapper_tests"
+
+def get_tests_location():
+    if yatest_common is None:
+        return os.path.dirname(os.path.abspath(__file__))
+    else:
+        return yatest_common.source_path("yt/python/yt/wrapper/tests")
+
+def get_tests_sandbox():
+    return get_tests_sandbox_impl(
+        os.environ.get("TESTS_SANDBOX", os.path.dirname(os.path.abspath(__file__)) + ".sandbox")
+    )
+
+def get_test_files_dir_path():
+    return os.path.join(get_tests_location(), "files")
 
 def get_test_file_path(name, use_files=True):
     if yatest_common is not None:

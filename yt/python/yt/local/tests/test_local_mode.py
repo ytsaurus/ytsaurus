@@ -39,14 +39,13 @@ logger = logging.getLogger("Yt.local")
 yt.http_helpers.RECEIVE_TOKEN_FROM_SSH_SESSION = False
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
-PYTHONPATH = os.path.abspath(os.path.join(TESTS_LOCATION, "../../../"))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 
 def _get_tests_location():
-    if yatest_common is not None:
-        _, python_root, _ = arcadia_interop.get_root_paths()
-        return yatest_common.source_path(python_root + "/yt/local/tests")
-    return os.path.dirname(os.path.abspath(__file__))
+    if yatest_common is None:
+        return os.path.dirname(os.path.abspath(__file__))
+    else:
+        return yatest_common.source_path("yt/python/yt/local/tests")
 
 def _get_tests_sandbox():
     return get_tests_sandbox(TESTS_SANDBOX)
