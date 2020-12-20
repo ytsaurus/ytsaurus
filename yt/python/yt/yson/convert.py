@@ -4,16 +4,24 @@ from .common import YsonError
 from yt.packages.six import text_type, binary_type, integer_types, iteritems, PY3
 from yt.packages.six.moves import map as imap
 
-def to_yson_type(value, attributes=None, always_create_attributes=True):
+import copy
+
+def to_yson_type(value, attributes=None, always_create_attributes=True, encoding="utf-8"):
     """Wraps value with YSON type."""
     if not always_create_attributes and attributes is None:
         if isinstance(value, text_type) and not PY3:
             return value.encode("utf-8")
         return value
 
+    if isinstance(value, YsonType):
+        if attributes is not None:
+            value = copy.deepcopy(value)
+            value.attributes = attributes
+        return value
+
     if isinstance(value, text_type):
         if PY3:
-            result = YsonUnicode(value)
+            result = YsonUnicode(value, encoding=encoding)
         else:  # COMPAT
             result = YsonString(value.encode("utf-8"))
     elif isinstance(value, binary_type):
@@ -55,7 +63,7 @@ def json_to_yson(json_tree, use_byte_strings=None):
             return string
 
     def decode_key(string):
-        # In yt wrapper we expect here correct keys, but other usages in arcadia could not give this guarantee. 
+        # In yt wrapper we expect here correct keys, but other usages in arcadia could not give this guarantee.
         # TODO(ignat): fix this usages.
         if use_byte_strings:
             if not isinstance(string, binary_type):

@@ -1431,6 +1431,49 @@ class TestPythonOperations(object):
         yt.run_map(mapper_table_index, [input, input2], output, format=yt.YsonFormat(control_attributes_mode="iterator"))
         check(yt.read_table(output), [{"table_index": 0}, {"table_index": 1}], ordered=False)
 
+    @authors("levysotsky")
+    @add_failed_operation_stderrs_to_error_message
+    def test_yson_string_proxy(self):
+        if not PY3:
+            return
+        def mapper(row):
+            row["is_unicode"] = row["string"].is_unicode()
+            row["bytes"] = row["string"].get_bytes()
+            key = next(iter(row["any"]))
+            assert key == b"key_\xFA"
+            row["any_key"] = key
+            row["any_value"] = row["any"][key]
+            yield row
+
+        input = TEST_DIR + "/input"
+        output = TEST_DIR + "/output"
+        any_field = {b"key_\xFA": b"value_\xFB"}
+        content = [
+            {"string": b"Good", "any": any_field},
+            {"string": b"Bad \xFF", "any": any_field},
+        ]
+        yt.write_table(input, content, format=yt.YsonFormat())
+        yt.run_map(mapper, input, output, format=yt.YsonFormat())
+
+        assert list(yt.read_table(output, format=yt.YsonFormat())) == [
+            {
+                "string": "Good",
+                "is_unicode": True,
+                "bytes": "Good",
+                "any_key": b"key_\xFA",
+                "any_value": b"value_\xFB",
+                "any": any_field,
+            },
+            {
+                "string": b"Bad \xFF",
+                "is_unicode": False,
+                "bytes": b"Bad \xFF",
+                "any_key": b"key_\xFA",
+                "any_value": b"value_\xFB",
+                "any": any_field,
+            },
+        ]
+
 
 @pytest.mark.usefixtures("yt_env_with_porto")
 class TestOperationsTmpfs(object):

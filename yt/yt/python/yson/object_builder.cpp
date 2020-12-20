@@ -17,6 +17,7 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const st
     , YsonString(GetYsonTypeClass("YsonString"), /* owned */ true)
 #if PY_MAJOR_VERSION >= 3
     , YsonUnicode(GetYsonTypeClass("YsonUnicode"), /* owned */ true)
+    , YsonStringProxy(GetYsonTypeClass("YsonStringProxy"), /* owned */ true)
 #endif
     , YsonInt64(GetYsonTypeClass("YsonInt64"), /* owned */ true)
     , YsonUint64(GetYsonTypeClass("YsonUint64"), /* owned */ true)
@@ -26,7 +27,11 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const st
     , AlwaysCreateAttributes_(alwaysCreateAttributes)
     , Encoding_(encoding)
     , KeyCache_(/* enable */ true, Encoding_)
-{ }
+{
+    if (Encoding_) {
+        EncodingObject_ = Py::String(Encoding_->data(), Encoding_->size());
+    }
+}
 
 void TPythonObjectBuilder::OnStringScalar(TStringBuf value)
 {
@@ -38,14 +43,28 @@ void TPythonObjectBuilder::OnStringScalar(TStringBuf value)
     if (Encoding_) {
         auto decodedString = PyObjectPtr(
             PyUnicode_FromEncodedObject(bytes.get(), Encoding_->data(), "strict"));
+#if PY_MAJOR_VERSION < 3
         if (!decodedString) {
             throw Py::Exception();
         }
-#if PY_MAJOR_VERSION < 3
         auto utf8String = PyObjectPtr(PyUnicode_AsUTF8String(decodedString.get()));
         AddObject(std::move(utf8String), YsonString);
 #else
-        AddObject(std::move(decodedString), YsonUnicode);
+        if (decodedString) {
+            auto obj = AddObject(
+                std::move(decodedString),
+                YsonUnicode,
+                EPythonObjectType::Other,
+                /* forceYsonTypeCreation */ true);
+            PyObject_SetAttrString(obj.get(), "_encoding", EncodingObject_.ptr());
+        } else {
+            PyErr_Clear();
+            AddObject(
+                std::move(bytes),
+                YsonStringProxy,
+                EPythonObjectType::Other,
+                /* forceYsonTypeCreation */ true);
+        } 
 #endif
     } else {
         AddObject(std::move(bytes), YsonString);
@@ -116,7 +135,7 @@ void TPythonObjectBuilder::OnEndAttributes()
     Attributes_ = Pop();
 }
 
-void TPythonObjectBuilder::AddObject(
+PyObjectPtr TPythonObjectBuilder::AddObject(
     PyObjectPtr obj,
     const Py::Callable& type,
     EPythonObjectType objType,
@@ -154,6 +173,7 @@ void TPythonObjectBuilder::AddObject(
     if (objType == EPythonObjectType::List || objType == EPythonObjectType::Map) {
         Push(std::move(obj), objType);
     }
+    return obj;
 }
 
 void TPythonObjectBuilder::Push(PyObjectPtr objPtr, EPythonObjectType objectType)

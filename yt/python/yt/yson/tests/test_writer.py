@@ -6,6 +6,7 @@ import pytest
 
 import yt.yson.writer
 from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap, YsonDouble, YsonError
+from yt.yson.yson_types import YsonStringProxy
 import yt.subprocess_wrapper as subprocess
 from yt.packages.six import b, PY3
 from yt.packages.six.moves import map as imap
@@ -16,6 +17,7 @@ except ImportError:
     yt_yson_bindings = None
 
 import os
+
 
 def get_debian_version(root):
     try:
@@ -230,6 +232,13 @@ class YsonWriterTestBase(object):
                 d.attributes = {"foo": "bar"}
                 return d
         assert b'<"foo"="bar";>234u' == self.dumps(A())
+
+    @pytest.mark.skipif("not PY3")
+    def test_string_proxy(self):
+        d = {YsonStringProxy(b"\xFA"): "a"}
+        assert self.dumps(d).lower() == b'{"\\xfa"="a";}'
+        d = {"b": YsonStringProxy(b"\xFB")}
+        assert self.dumps(d).lower() == b'{"b"="\\xfb";}'
 
 
 class TestWriterDefault(YsonWriterTestBase):
