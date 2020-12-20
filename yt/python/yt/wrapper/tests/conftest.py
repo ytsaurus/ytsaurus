@@ -1,24 +1,16 @@
-from __future__ import print_function
+from .helpers import (get_tests_location, get_tests_sandbox, get_test_file_path,
+                      wait, sync_create_cell, create_job_events, TEST_DIR)
 
-from .helpers import (get_tests_location,
-                      sync_create_cell, get_test_file_path, yatest_common,
-                      create_job_events, wait)
-
-from yt.environment import YTInstance, arcadia_interop
-from yt.environment.helpers import emergency_exit_within_tests
-from yt.wrapper.config import set_option
-from yt.wrapper.default_config import get_default_config
-from yt.wrapper.common import update, update_inplace, GB, MB
-from yt.common import which, makedirp, format_error
+from yt.environment import arcadia_interop
+from yt.common import which, makedirp
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
-from yt.testlib import (YtTestEnvironment, TEST_DIR, get_tests_sandbox, authors, test_method_teardown,
-                        set_testsuite_details, ASAN_USER_JOB_MEMORY_LIMIT)
-
-from yt.packages.six import iteritems, itervalues
+from yt.testlib import YtTestEnvironment, authors, test_method_teardown, ASAN_USER_JOB_MEMORY_LIMIT  # noqa
 
 from yt.packages import requests
+
+from yt.wrapper.common import GB
 
 import yt.wrapper as yt
 
@@ -27,14 +19,7 @@ import pytest
 import os
 import imp
 import sys
-import uuid
 from copy import deepcopy
-import shutil
-import logging
-import socket
-import warnings
-
-set_testsuite_details(os.path.abspath(__file__), "yt/python/yt/wrapper/tests")
 
 def pytest_ignore_collect(path, config):
     path = str(path)
@@ -57,6 +42,7 @@ def init_environment_for_test_session(mode, **kwargs):
         config["api_version"] = mode
 
     environment = YtTestEnvironment(
+        get_tests_sandbox(),
         "TestYtWrapper" + mode.capitalize(),
         config,
         **kwargs)
@@ -68,6 +54,13 @@ def init_environment_for_test_session(mode, **kwargs):
         yt.config.COMMANDS = None
 
     return environment
+
+def test_function_setup():
+    yt.mkdir(TEST_DIR, recursive=True)
+
+def register_test_function_finalizer(request):
+    request.addfinalizer(lambda: yt.remove(TEST_DIR, recursive=True, force=True))
+    request.addfinalizer(test_method_teardown)
 
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4"])
 def test_environment(request):
@@ -204,7 +197,7 @@ def test_environment_with_porto(request):
 def test_environment_with_increased_memory(request):
     environment = init_environment_for_test_session(
         request.param,
-        env_options=dict(jobs_memory_limit=8*GB),
+        env_options=dict(jobs_memory_limit=8 * GB),
     )
 
     request.addfinalizer(lambda: environment.cleanup())
@@ -217,8 +210,8 @@ def _yt_env(request, test_environment):
     """
     test_environment.check_liveness()
     test_environment.reload_global_configuration()
-    yt.mkdir(TEST_DIR, recursive=True)
-    request.addfinalizer(test_method_teardown)
+    test_function_setup()
+    register_test_function_finalizer(request)
     return test_environment
 
 @pytest.fixture(scope="function")
@@ -286,8 +279,8 @@ def yt_env_for_yamr(request, test_environment_for_yamr):
     yt.config["yamr_mode"]["treat_unexisting_as_empty"] = True
     yt.config["default_value_of_raw_option"] = True
 
-    yt.mkdir(TEST_DIR, recursive=True)
-    request.addfinalizer(test_method_teardown)
+    test_function_setup()
+    register_test_function_finalizer(request)
     return test_environment_for_yamr
 
 @pytest.fixture(scope="function")
@@ -296,8 +289,8 @@ def yt_env_multicell(request, test_environment_multicell):
     """
     test_environment_multicell.check_liveness()
     test_environment_multicell.reload_global_configuration()
-    yt.mkdir(TEST_DIR, recursive=True)
-    request.addfinalizer(test_method_teardown)
+    test_function_setup()
+    register_test_function_finalizer(request)
     return test_environment_multicell
 
 @pytest.fixture(scope="function")
@@ -306,8 +299,8 @@ def yt_env_job_archive(request, test_environment_job_archive):
     """
     test_environment_job_archive.check_liveness()
     test_environment_job_archive.reload_global_configuration()
-    yt.mkdir(TEST_DIR, recursive=True)
-    request.addfinalizer(test_method_teardown)
+    test_function_setup()
+    register_test_function_finalizer(request)
     return test_environment_job_archive
 
 @pytest.fixture(scope="function")
@@ -316,21 +309,18 @@ def yt_env_with_porto(request, test_environment_with_porto):
     """
     test_environment_with_porto.check_liveness()
     test_environment_with_porto.reload_global_configuration()
-    yt.mkdir(TEST_DIR, recursive=True)
-    request.addfinalizer(test_method_teardown)
+    test_function_setup()
+    register_test_function_finalizer(request)
     return test_environment_with_porto
 
 @pytest.fixture(scope="function")
 def yt_env_with_increased_memory(request, test_environment_with_increased_memory):
     test_environment_with_increased_memory.check_liveness()
     test_environment_with_increased_memory.reload_global_configuration()
-    yt.mkdir(TEST_DIR, recursive=True)
-    request.addfinalizer(test_method_teardown)
+    test_function_setup()
+    register_test_function_finalizer(request)
     return test_environment_with_increased_memory
 
 @pytest.fixture(scope="function")
 def job_events(request):
     return create_job_events()
-
-
-# TODO(ignat): fix copy/paste from integration tests.

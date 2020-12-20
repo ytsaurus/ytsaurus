@@ -1,3 +1,4 @@
+from .helpers import get_tests_sandbox
 from .conftest import YtTestEnvironment, authors
 
 import yt.wrapper as yt
@@ -9,6 +10,7 @@ def test_cypress_authentication_using_rpc_proxy():
     environment = None
     try:
         environment = YtTestEnvironment(
+            get_tests_sandbox(),
             "TestAuthenticationCypress",
             config,
             env_options={"use_native_client": True},
