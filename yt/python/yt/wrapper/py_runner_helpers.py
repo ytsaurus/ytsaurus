@@ -212,8 +212,8 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
             else:
                 yield row
 
-    yt.wrapper.config.config = \
-        Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK).load(open(config_dump_filename, "rb"))
+    with open(config_dump_filename, "rb") as f_config_dump:
+        yt.wrapper.config.config = Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK).load(f_config_dump)
 
     yt.wrapper.py_runner_helpers.check_job_environment_variables()
 
@@ -222,7 +222,8 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
     if unpickler_name == "dill" and yt.wrapper.config.config["pickling"]["load_additional_dill_types"]:
         unpickler.load_types()
 
-    operation, params = unpickler.load(open(operation_dump_filename, "rb"))
+    with open(operation_dump_filename, "rb") as f_operation_dump:
+        operation, params = unpickler.load(f_operation_dump)
 
     if yt.wrapper.config["pickling"]["enable_job_statistics"]:
         try:
