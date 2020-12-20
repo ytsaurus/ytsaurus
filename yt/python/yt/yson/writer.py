@@ -200,7 +200,7 @@ class Dumper(object):
                 else:
                     obj_str = str(obj)
                 result = obj_str.encode("ascii")
-        elif isinstance(obj, (text_type, binary_type)):
+        elif isinstance(obj, (text_type, binary_type, yson_types.YsonStringProxy)):
             result = self._dump_string(obj, context)
         elif isinstance(obj, Mapping):
             result = self._dump_map(obj, context)
@@ -224,6 +224,8 @@ class Dumper(object):
                                           'instead or specify encoding'.format(obj),
                                           context)
             result.append(_escape_bytes(obj.encode(self._encoding)))
+        elif isinstance(obj, yson_types.YsonStringProxy):
+            result.append(_escape_bytes(obj.get_bytes()))
         else:
             assert False
         result.append(b'"')
@@ -236,7 +238,7 @@ class Dumper(object):
             result += [b"{", self._format.nextline()]
 
         for k, v in self._format.mapping_iter(obj):
-            if not isinstance(k, (text_type, binary_type)):
+            if not isinstance(k, (text_type, binary_type, yson_types.YsonStringProxy)):
                 _raise_error_with_context("Only string can be Yson map key. Key: {0!r}".format(k), context)
 
             @self._circular_check(v)

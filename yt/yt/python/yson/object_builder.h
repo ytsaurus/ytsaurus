@@ -58,6 +58,7 @@ private:
     Py::Callable YsonString;
 #if PY_MAJOR_VERSION >= 3
     Py::Callable YsonUnicode;
+    Py::Callable YsonStringProxy;
 #endif
     Py::Callable YsonInt64;
     Py::Callable YsonUint64;
@@ -67,6 +68,7 @@ private:
 
     bool AlwaysCreateAttributes_;
     std::optional<TString> Encoding_;
+    Py::String EncodingObject_;
 
     std::queue<Py::Object> Objects_;
 
@@ -77,7 +79,7 @@ private:
 
     NPython::TPythonStringCache KeyCache_;
 
-    void AddObject(
+    PyObjectPtr AddObject(
         PyObjectPtr obj,
         const Py::Callable& type,
         EPythonObjectType objType = EPythonObjectType::Other,

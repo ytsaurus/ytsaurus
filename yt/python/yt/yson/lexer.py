@@ -231,7 +231,13 @@ class YsonLexer(object):
 
     def _decode_string(self, string):
         if self._encoding is not None:
-            return string.decode(self._encoding)
+            try:
+                return yson_types.YsonUnicode(
+                    string.decode(self._encoding),
+                    encoding=self._encoding
+                )
+            except UnicodeDecodeError:
+                return yson_types.YsonStringProxy(string)
         else:
             return string
 

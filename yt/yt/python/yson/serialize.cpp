@@ -37,6 +37,21 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static Py::Object GetMapKeyAsString(Py::Object key)
+{
+    thread_local PyObject* YsonStringProxyClass = NPython::GetYsonTypeClass("YsonStringProxy");
+
+    if (PyObject_IsInstance(key.ptr(), YsonStringProxyClass)) {
+        key = Py::Callable(key.getAttr("get_bytes")).apply(Py::Tuple(), Py::Dict());
+    }
+
+    if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
+        throw Py::RuntimeError(Format("Map key should be string, found %Qv", Py::Repr(key)));
+    }
+
+    return key;
+}
+
 void SerializeLazyMapFragment(
     const Py::Object& map,
     IYsonConsumer* consumer,
@@ -53,12 +68,8 @@ void SerializeLazyMapFragment(
 
     TLazyYsonMapBase* obj = reinterpret_cast<TLazyYsonMapBase*>(map.ptr());
     for (const auto& item: *obj->Dict->GetUnderlyingHashMap()) {
-        const auto& key = item.first;
+        const auto key = GetMapKeyAsString(item.first);
         const auto& value = item.second;
-
-        if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
-            throw Py::RuntimeError(Format("Map key should be string, found %Qv", Py::Repr(key)));
-        }
 
         auto encodedKey = EncodeStringObject(key, encoding, context);
         auto mapKey = ConvertToStringBuf(encodedKey);
@@ -89,19 +100,11 @@ void SerializeMapFragment(
         return;
     }
 
-    auto validateKeyType = [&] (const Py::Object& key) {
-        if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
-            throw CreateYsonError(Format("Map key should be string, found %Qv", Py::Repr(key)), context);
-        }
-    };
-
     auto onItem = [&] (PyObject* item) {
         auto itemGuard = Finally([item] () { Py::_XDECREF(item); });
 
-        auto key = Py::Object(PyTuple_GetItem(item, 0), false);
+        auto key = GetMapKeyAsString(Py::Object(PyTuple_GetItem(item, 0), false));
         auto value = Py::Object(PyTuple_GetItem(item, 1), false);
-
-        validateKeyType(key);
 
         auto encodedKey = EncodeStringObject(key, encoding, context);
         auto mapKey = ConvertToStringBuf(encodedKey);
@@ -118,8 +121,7 @@ void SerializeMapFragment(
         std::vector<std::pair<TString, PyObject*>> itemsSortedByKey;
 
         while (auto* item = PyIter_Next(*iterator)) {
-            auto key = Py::Object(PyTuple_GetItem(item, 0), false);
-            validateKeyType(key);
+            auto key = GetMapKeyAsString(Py::Object(PyTuple_GetItem(item, 0), false));
             auto encodedKey = EncodeStringObject(key, encoding, context);
             auto mapKey = ConvertToStringBuf(encodedKey);
             itemsSortedByKey.emplace_back(mapKey, item);
@@ -228,6 +230,7 @@ void Serialize(
     TContext* context)
 {
     thread_local PyObject* YsonEntityClass = GetYsonTypeClass("YsonEntity");
+    thread_local PyObject* YsonStringProxyClass = NPython::GetYsonTypeClass("YsonStringProxy");
 
     std::unique_ptr<TContext> contextHolder;
     if (!context) {
@@ -256,6 +259,9 @@ void Serialize(
     if (PyBytes_Check(obj.ptr()) || PyUnicode_Check(obj.ptr())) {
         auto encodedObj = EncodeStringObject(obj, encoding, context);
         consumer->OnStringScalar(ConvertToStringBuf(encodedObj));
+    } else if (PyObject_IsInstance(obj.ptr(), YsonStringProxyClass)) {
+        auto bytesObj = Py::Bytes(Py::Callable(obj.getAttr("get_bytes")).apply(Py::Tuple(), Py::Dict()));
+        consumer->OnStringScalar(ConvertToStringBuf(bytesObj));
 #if PY_MAJOR_VERSION < 3
     // Fast check for simple integers (python 3 has only long integers)
     } else if (PyInt_CheckExact(obj.ptr())) {

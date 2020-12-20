@@ -13,7 +13,7 @@ from .http_helpers import get_retriable_errors
 
 import yt.logger as logger
 
-from yt.packages.six import iteritems, binary_type
+from yt.packages.six import iteritems, binary_type, text_type
 from yt.packages.six.moves import builtins, map as imap, filter as ifilter
 
 import string
@@ -513,11 +513,13 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                 return string
             else:
                 return string.decode("ascii")
-        else:  # text_type
+        elif isinstance(string, text_type):
             if encoding is None:
                 return string.encode("ascii")
             else:
                 return string
+        else:
+            assert False, "Unexpected input <{}>{!r}".format(type(string), string)
 
     def to_native_string(string):
         if isinstance(string, binary_type):
@@ -658,7 +660,11 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             else:
                 items_iter = iteritems(node.content)
             for key, value in items_iter:
-                path = to_response_key_type("/").join([node.path, escape_ypath_literal(key, encoding=encoding)])
+                if isinstance(key, yson.yson_types.YsonStringProxy):
+                    actual_key = to_response_key_type(escape_ypath_literal(key.get_bytes()))
+                else:
+                    actual_key = escape_ypath_literal(key, encoding=encoding)
+                path = to_response_key_type("/").join([node.path, actual_key])
                 for yson_path in process_node(CompositeNode(path, node.depth + 1, value), nodes_to_request):
                     yield yson_path
 

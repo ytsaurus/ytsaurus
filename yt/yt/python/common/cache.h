@@ -22,8 +22,8 @@ using PyObjectPtr = std::unique_ptr<PyObject, TPyObjectDeleter>; // decltype(&Py
 class TPythonStringCache
 {
 public:
-    TPythonStringCache();
-    TPythonStringCache(bool enableCache, const std::optional<TString>& encoding);
+    TPythonStringCache(bool enableCache = false, const std::optional<TString>& encoding = {});
+    TPythonStringCache& operator=(const TPythonStringCache& other) = default;
     PyObjectPtr GetPythonString(TStringBuf string);
 
 private:
@@ -40,6 +40,9 @@ private:
     std::optional<TString> Encoding_;
     using TCache = TSimpleLruCache<TStringBuf, TItem>;
     TCache Cache_ = TCache(1_MB);
+    Py::String EncodingObject_;
+    Py::Callable YsonUnicode_;
+    Py::Callable YsonStringProxy_;
 
     PyObjectPtr BuildResult(const TItem& item);
 };

@@ -19,6 +19,7 @@ class YsonParser(object):
             raise TypeError("Only binary streams are supported by YSON parser")
         self._tokenizer = YsonTokenizer(stream, encoding)
         self._always_create_attributes = always_create_attributes
+        self._encoding = encoding
 
     def _has_attributes(self):
         try:
@@ -124,7 +125,7 @@ class YsonParser(object):
                                                              TOKEN_STRING, TOKEN_DOUBLE))
             result = self._tokenizer.get_current_token().get_value()
 
-        return convert.to_yson_type(result, attributes, self._always_create_attributes)
+        return convert.to_yson_type(result, attributes, self._always_create_attributes, encoding=self._encoding)
 
     def parse(self):
         result = self._parse_any()

@@ -5,7 +5,9 @@ from __future__ import absolute_import
 from io import BytesIO, StringIO
 
 import yt.yson
-from yt.yson.yson_types import YsonEntity, YsonMap, YsonList, YsonInt64, YsonString, YsonUnicode
+from yt.yson.yson_types import (YsonEntity, YsonMap, YsonList, YsonInt64,
+                                YsonString, YsonUnicode,
+                                YsonStringProxy, NotUnicodeError)
 from yt.yson import to_yson_type, YsonError
 from yt.packages.six import PY3
 from yt.packages.six.moves import xrange
@@ -196,7 +198,10 @@ class YsonParserTestBase(object):
         obj = self.loads(b"{a=[b;1]}", always_create_attributes=False)
         assert not isinstance(obj, YsonMap)
         assert not isinstance(obj["a"], YsonList)
-        assert not isinstance(obj["a"][0], (YsonUnicode, YsonString))
+        if PY3:
+            assert isinstance(obj["a"][0], YsonUnicode)
+        else:
+            assert not isinstance(obj["a"][0], YsonString)
         assert not isinstance(obj["a"][1], YsonInt64)
         assert isinstance(obj, dict)
         assert isinstance(obj["a"], list)
@@ -209,9 +214,46 @@ class YsonParserTestBase(object):
         obj = self.loads(b"{a=[b;<attr=#>1]}", always_create_attributes=False)
         assert not isinstance(obj, YsonMap)
         assert not isinstance(obj["a"], YsonList)
-        assert not isinstance(obj["a"][0], (YsonUnicode, YsonString))
+        if PY3:
+            assert isinstance(obj["a"][0], YsonUnicode)
+        else:
+            assert not isinstance(obj["a"][0], YsonString)
+
         assert isinstance(obj["a"][1], YsonInt64)
         assert obj["a"][1].attributes["attr"] is None
+
+    @pytest.mark.skipif("not PY3")
+    def test_string_proxy(self):
+        d = self.loads(b'{a=[b;1]; "\\xFA"=["\\xFB";2]}')
+        keys = list(d.keys())
+        if keys[0] != "a":
+            keys = keys[::-1]
+
+        assert "a" in d
+        assert b"\xFA" in d
+
+        good_key = keys[0]
+        assert isinstance(good_key, str)
+        good_elem = d[good_key][0]
+        assert isinstance(good_elem, YsonUnicode)
+        assert good_elem.is_unicode()
+        assert good_elem.get_bytes() == b"b"
+
+        bad_key = keys[1]
+        assert isinstance(bad_key, YsonStringProxy)
+        assert bad_key == b"\xFA"
+        assert not bad_key.is_unicode()
+        assert bad_key.get_bytes() == b"\xFA"
+        with pytest.raises(NotUnicodeError):
+            bad_key[0]
+
+        bad_elem = d[bad_key][0]
+        assert isinstance(bad_elem, YsonStringProxy)
+        assert bad_elem == b"\xFB"
+        assert not bad_elem.is_unicode()
+        assert bad_elem.get_bytes() == b"\xFB"
+        with pytest.raises(NotUnicodeError):
+            bad_elem[0]
 
 
 class TestParserDefault(YsonParserTestBase):
@@ -234,6 +276,7 @@ class TestParserPython(YsonParserTestBase):
         return yt.yson.parser.loads(*args, **kws)
 
 
+#TODO(levysotsky): Use pytest skipif.
 if yt_yson_bindings:
     class TestParserBindings(YsonParserTestBase):
         @staticmethod
