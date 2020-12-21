@@ -1,5 +1,5 @@
 from .conftest import authors
-from .helpers import TEST_DIR, check, yatest_common
+from .helpers import TEST_DIR, check_rows_equality
 
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 
@@ -21,5 +21,6 @@ class TestUserStatistics(object):
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         op = yt.run_map(write_statistics, table, table, format=None, sync=False)
         op.wait()
-        assert op.get_job_statistics()["custom"]["row_count"] == {"$": {"completed": {"map": {"count": 2, "max": 1, "sum": 2, "min": 1}}}}
-        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+        assert op.get_job_statistics()["custom"]["row_count"] == \
+            {"$": {"completed": {"map": {"count": 2, "max": 1, "sum": 2, "min": 1}}}}
+        check_rows_equality(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)

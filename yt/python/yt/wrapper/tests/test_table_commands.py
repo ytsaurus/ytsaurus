@@ -1,7 +1,7 @@
 from __future__ import with_statement, print_function
 
 from .conftest import authors
-from .helpers import (TEST_DIR, check, set_config_option, get_tests_sandbox, set_config_options,
+from .helpers import (TEST_DIR, check_rows_equality, set_config_option, get_tests_sandbox, set_config_options,
                       wait, failing_heavy_request, random_string)
 
 import yt.wrapper.format as yt_format
@@ -53,31 +53,31 @@ class TestTableCommands(object):
     def _test_read_write(self):
         table = TEST_DIR + "/table"
         yt.create("table", table)
-        check([], yt.read_table(table))
+        check_rows_equality([], yt.read_table(table))
 
         yt.write_table(table, [{"x": 1}])
-        check([{"x": 1}], yt.read_table(table))
+        check_rows_equality([{"x": 1}], yt.read_table(table))
 
         yt.write_table(table, [{"x": 1}])
-        check([{"x": 1}], yt.read_table(table))
+        check_rows_equality([{"x": 1}], yt.read_table(table))
 
         yt.write_table(table, [{"x": 1}], raw=False)
-        check([{"x": 1}], yt.read_table(table))
+        check_rows_equality([{"x": 1}], yt.read_table(table))
 
         yt.write_table(table, iter([{"x": 1}]))
-        check([{"x": 1}], yt.read_table(table))
+        check_rows_equality([{"x": 1}], yt.read_table(table))
 
         yt.write_table(yt.TablePath(table, append=True), [{"y": 1}])
-        check([{"x": 1}, {"y": 1}], yt.read_table(table))
+        check_rows_equality([{"x": 1}, {"y": 1}], yt.read_table(table))
 
         yt.write_table(yt.TablePath(table), [{"x": 1}, {"y": 1}])
-        check([{"x": 1}, {"y": 1}], yt.read_table(table))
+        check_rows_equality([{"x": 1}, {"y": 1}], yt.read_table(table))
 
         yt.write_table(table, [{"y": 1}])
-        check([{"y": 1}], yt.read_table(table))
+        check_rows_equality([{"y": 1}], yt.read_table(table))
 
         yt.write_table(table, BytesIO(b'{"y": 1}\n'), raw=True, format=yt.JsonFormat())
-        check([{"y": 1}], yt.read_table(table))
+        check_rows_equality([{"y": 1}], yt.read_table(table))
 
         response_parameters = {}
         list(yt.read_table(table, response_parameters=response_parameters))
@@ -92,7 +92,7 @@ class TestTableCommands(object):
 
         with set_config_option("read_retries/change_proxy_period", 1):
             yt.write_table(table, [{"y": i} for i in xrange(100)])
-            check([{"y": i} for i in xrange(100)], yt.read_table(table))
+            check_rows_equality([{"y": i} for i in xrange(100)], yt.read_table(table))
 
         file = TEST_DIR + "/test_file"
         yt.create("file", file)
@@ -130,38 +130,38 @@ class TestTableCommands(object):
                 "bar": typing.String,
             ])
         yt.create("table", table, attributes={"schema": schema})
-        check([], yt.read_table(table))
+        check_rows_equality([], yt.read_table(table))
 
         row = {"x": 1, "y": 0.125, "z": {"foo": ["a", yt.yson.YsonUint64(255)], "bar": "BAR"}}
         yt.write_table(table, [row])
-        check([row], yt.read_table(table))
+        check_rows_equality([row], yt.read_table(table))
 
         yt.write_table(table, [row])
-        check([row], yt.read_table(table))
+        check_rows_equality([row], yt.read_table(table))
 
         yt.write_table(table, [row], raw=False)
-        check([row], yt.read_table(table))
+        check_rows_equality([row], yt.read_table(table))
 
         yt.write_table(table, iter([row]))
-        check([row], yt.read_table(table))
+        check_rows_equality([row], yt.read_table(table))
 
         other_row = {"x": 2, "z": {"bar": "", "foo": ["b", "xxx"]}}
         other_row_with_y = {"x": 2, "y": None, "z": {"bar": "", "foo": ["b", "xxx"]}}
         yt.write_table(yt.TablePath(table, append=True), [other_row])
-        check([row, other_row_with_y], yt.read_table(table))
+        check_rows_equality([row, other_row_with_y], yt.read_table(table))
 
         yt.write_table(yt.TablePath(table), [row, other_row])
-        check([row, other_row_with_y], yt.read_table(table))
+        check_rows_equality([row, other_row_with_y], yt.read_table(table))
 
         yt.write_table(table, [other_row])
-        check([other_row_with_y], yt.read_table(table))
+        check_rows_equality([other_row_with_y], yt.read_table(table))
 
         yt.write_table(
             table,
             BytesIO(b'{"x": 3, "y": -3.25, "z": {"foo": ["b", "bbb"], "bar": "fff"}}\n'),
             raw=True,
             format=yt.JsonFormat())
-        check([{"x": 3, "y": -3.25, "z": {"foo": ["b", "bbb"], "bar": "fff"}}], yt.read_table(table))
+        check_rows_equality([{"x": 3, "y": -3.25, "z": {"foo": ["b", "bbb"], "bar": "fff"}}], yt.read_table(table))
 
     @authors("ignat")
     def test_table_path(self, yt_env_with_rpc):
@@ -259,7 +259,7 @@ class TestTableCommands(object):
 
         yt.create("table", table, recursive=True)
         assert yt.row_count(table) == 0
-        check([], yt.read_table(table, format=yt.DsvFormat()))
+        check_rows_equality([], yt.read_table(table, format=yt.DsvFormat()))
 
         yt.run_erase(table)
         assert yt.row_count(table) == 0
@@ -434,7 +434,7 @@ class TestTableCommands(object):
                         yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
                 else:
                     yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
-                    check([{"x": "1"}, {"x": "2"}, {"x": "3"}], yt.read_table(TEST_DIR + "/table"))
+                    check_rows_equality([{"x": "1"}, {"x": "2"}, {"x": "3"}], yt.read_table(TEST_DIR + "/table"))
 
 
     @authors("ignat")
@@ -520,7 +520,7 @@ class TestTableCommands(object):
                 yt.create("table", table_path)
                 yt.write_table(table_path, rows)
 
-                check(rows, yt.read_table(table_path))
+                check_rows_equality(rows, yt.read_table(table_path))
 
     @authors("ignat")
     def test_write_table_retries(self):
@@ -538,7 +538,7 @@ class TestTableCommands(object):
         with failing_heavy_request(heavy_commands, n_fails=2, assert_exhausted=True):
             yt.write_table(table_path, rows_generator)
 
-        check(rows, yt.read_table(table_path))
+        check_rows_equality(rows, yt.read_table(table_path))
 
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
@@ -790,10 +790,10 @@ class TestTableCommandsOperations(object):
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
         yt.transform(table)
-        check([{"x": 1}, {"x": 2}], yt.read_table(table))
+        check_rows_equality([{"x": 1}, {"x": 2}], yt.read_table(table))
 
         yt.transform(table, other_table)
-        check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
+        check_rows_equality([{"x": 1}, {"x": 2}], yt.read_table(other_table))
 
         yt.remove(other_table)
         assert yt.transform(table, other_table, compression_codec="zlib_6")
@@ -847,7 +847,7 @@ class TestTableCommandsHuge(object):
                     with failing_heavy_request(module, n_fails=2, assert_exhausted=True):
                         yt.write_table(table_path, rows_generator)
 
-                    check(rows, yt.read_table(table_path))
+                    check_rows_equality(rows, yt.read_table(table_path))
 
     @authors("ignat")
     def test_huge_table(self):
@@ -1003,7 +1003,7 @@ class TestTableCommandsFraming(object):
         with set_config_option("read_retries/use_locked_node_id", False):
             with set_config_option("proxy/heavy_request_timeout", self.REQUEST_TIMEOUT):
                 read_rows = yt.read_table(suspending_path)
-        check([{"column_1": 1, "column_2": "foo"}], read_rows)
+        check_rows_equality([{"column_1": 1, "column_2": "foo"}], read_rows)
         assert datetime.now() - start > timedelta(milliseconds=delay_before_command)
 
     @authors("levysotsky")

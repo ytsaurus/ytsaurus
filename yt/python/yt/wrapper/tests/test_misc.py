@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .conftest import authors
 from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait, get_default_resource_limits,
-                      check, set_config_options, set_config_option,
+                      check_rows_equality, set_config_options, set_config_option,
                       get_python, get_binary_path, get_environment_for_binary_test)
 
 from yt.subprocess_wrapper import Popen, PIPE
@@ -378,11 +378,11 @@ class TestRetries(object):
                 yt.read_table(table)
 
             yt.create("table", table)
-            check([], yt.read_table(table))
+            check_rows_equality([], yt.read_table(table))
             assert b"" == yt.read_table(table, format=yt.JsonFormat(), raw=True).read()
 
             yt.write_table(table, [{"x": 1}, {"y": 2}])
-            check([{"x": 1}, {"y": 2}], yt.read_table(table))
+            check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
 
             rsp = yt.read_table(table, format=yt.JsonFormat(), raw=True)
             assert json.loads(next(rsp)) == {"x": 1}

@@ -1,5 +1,5 @@
 from .conftest import authors
-from .helpers import TEST_DIR, set_config_option, check
+from .helpers import TEST_DIR, set_config_option, check_rows_equality
 
 from yt.wrapper.spec_builders import MapSpecBuilder
 
@@ -46,4 +46,4 @@ class TestTmpfs(object):
         with set_config_option("pickling/enable_tmpfs_archive", True):
             yt.run_map(mapper, input_table, output_table)
 
-        check([{"xyz": 1}], yt.read_table(output_table), ordered=False)
+        check_rows_equality([{"xyz": 1}], yt.read_table(output_table), ordered=False)

@@ -6,8 +6,7 @@ from yt.packages.six.moves import xrange
 from yt.test_helpers import wait, get_tests_sandbox as get_tests_sandbox_impl
 from yt.test_helpers.job_events import JobEvents
 
-from yt.testlib import (yatest_common,
-                        authors, check, set_config_option, set_config_options)
+from yt.testlib import (yatest_common, authors, check_rows_equality, set_config_option, set_config_options)  # noqa
 
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess

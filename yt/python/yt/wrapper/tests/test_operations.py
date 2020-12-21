@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .conftest import authors, ASAN_USER_JOB_MEMORY_LIMIT
-from .helpers import (TEST_DIR, get_test_file_path, check, set_config_option, get_tests_sandbox,
+from .helpers import (TEST_DIR, get_test_file_path, check_rows_equality, set_config_option, get_tests_sandbox,
                       dumps_yt_config, get_python, wait, get_operation_path, random_string,
                       yatest_common)
 
@@ -108,21 +108,21 @@ class TestOperations(object):
 
         yt.mkdir(dir)
         yt.run_merge([tableX, tableY], res_table)
-        check([{"x": 1}, {"y": 2}], yt.read_table(res_table), ordered=False)
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(res_table), ordered=False)
 
         yt.run_merge(tableX, res_table)
         assert not yt.get_attribute(res_table, "sorted")
-        check([{"x": 1}], yt.read_table(res_table))
+        check_rows_equality([{"x": 1}], yt.read_table(res_table))
 
         yt.run_sort(tableX, sort_by="x")
         yt.run_merge(tableX, res_table)
         assert yt.get_attribute(res_table, "sorted")
-        check([{"x": 1}], yt.read_table(res_table))
+        check_rows_equality([{"x": 1}], yt.read_table(res_table))
 
         # Test mode="auto"
         yt.run_sort(tableZ, sort_by="x")
         yt.run_merge([tableX, tableZ], res_table)
-        check([{"x": 0}, {"x": 1}, {"x": 2}], yt.read_table(res_table))
+        check_rows_equality([{"x": 0}, {"x": 1}, {"x": 2}], yt.read_table(res_table))
 
         # XXX(asaitgalin): Uncomment when st/YT-5770 is done.
         # yt.run_merge(yt.TablePath(tableX, columns=["y"]), res_table)
@@ -185,19 +185,19 @@ class TestOperations(object):
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
         yt.run_map("cat", table, table)
-        check([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
+        check_rows_equality([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
         yt.run_sort(table, sort_by=["x"])
         with pytest.raises(yt.YtError):
             yt.run_reduce("cat", table, [], reduce_by=["x"])
 
         yt.run_reduce("cat", table, table, reduce_by=["x"])
-        check([{"x": 1}, {"x": 2}], yt.read_table(table))
+        check_rows_equality([{"x": 1}, {"x": 2}], yt.read_table(table))
 
         with pytest.raises(yt.YtError):
             yt.run_map("cat", table, table, table_writer={"max_row_weight": 1})
 
         yt.run_map("grep 2", table, other_table)
-        check([{"x": 2}], yt.read_table(other_table))
+        check_rows_equality([{"x": 2}], yt.read_table(other_table))
 
         with pytest.raises(yt.YtError):
             yt.run_map("cat", [table, table + "xxx"], other_table)
@@ -247,7 +247,7 @@ class TestOperations(object):
         table = TEST_DIR + "/table"
 
         yt.run_join_reduce("cat", ["<primary=true>" + table1, table2], table, join_by=["x"])
-        check([{"x": 1}], yt.read_table(table))
+        check_rows_equality([{"x": 1}], yt.read_table(table))
 
         # Run join-reduce without join_by
         with pytest.raises(yt.YtError):
@@ -258,7 +258,7 @@ class TestOperations(object):
             yt.run_join_reduce("cat", ["<primary=true>" + unsorted_table, table2], table, join_by=["x"])
 
         yt.run_join_reduce("cat", [table1, "<foreign=true>" + table2], table, join_by=["x"])
-        check([{"x": 1}], yt.read_table(table))
+        check_rows_equality([{"x": 1}], yt.read_table(table))
 
         # Run join-reduce without join_by
         with pytest.raises(yt.YtError):
@@ -279,7 +279,7 @@ class TestOperations(object):
         yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
                       reduce_by=["x", "y"], join_by=["x"],
                       format=yt.YsonFormat())
-        check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
+        check_rows_equality([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
 
         # Reduce with join_by, but without foreign tables
         with pytest.raises(yt.YtError):
@@ -326,7 +326,8 @@ class TestOperations(object):
 
         for table in output_tables:
             assert yt.row_count(table) == 1
-        check([{"x": "1", "y": "1"}, {"x": "10", "y": "10"}], yt.read_table(append_table), ordered=False)
+        check_rows_equality([{"x": "1", "y": "1"}, {"x": "10", "y": "10"}],
+                            yt.read_table(append_table), ordered=False)
 
     @authors("ignat")
     def test_attached_mode_simple(self):
@@ -336,9 +337,9 @@ class TestOperations(object):
         try:
             yt.write_table(table, [{"x": 1}])
             yt.run_map("cat", table, table)
-            check(yt.read_table(table), [{"x": 1}])
+            check_rows_equality(yt.read_table(table), [{"x": 1}])
             yt.run_merge(table, table)
-            check(yt.read_table(table), [{"x": 1}])
+            check_rows_equality(yt.read_table(table), [{"x": 1}])
         finally:
             yt.config["detached"] = 1
 
@@ -381,7 +382,7 @@ print(op.id)
 
         yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
                           source_table=table, destination_table=output_table)
-        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+        check_rows_equality([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
     @authors("ignat")
     def test_reduce_differently_sorted_table(self):
@@ -636,10 +637,10 @@ print(op.id)
         spec = {"mapper": {"copy_files": True}, "reduce_combiner": {"copy_files": True}}
         yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
                           source_table=table, destination_table=output_table, spec=spec)
-        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+        check_rows_equality([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
         yt.run_map_reduce(mapper=None, reducer="cat", reduce_by=["x"],
                           source_table=table, destination_table=output_table, spec=spec)
-        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+        check_rows_equality([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
     @authors("ignat")
     def test_table_file(self):
@@ -753,7 +754,7 @@ class TestOperationCommands(object):
 
         with set_config_option("enable_operations_api", True):
             op = yt.run_map("cat; echo 'AAA' >&2", table, table)
-            check([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
+            check_rows_equality([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
 
             assert op.get_state() == "completed"
 
@@ -919,7 +920,7 @@ class TestOperationsFormat(object):
         yt.run_map(foo, table, table,
                    input_format=yt.create_format("<key_column_names=[\"y\"]>yamred_dsv"),
                    output_format=yt.YamrFormat(has_subkey=False, lenval=False))
-        check([{"key": "2", "value": "x=1"}], list(yt.read_table(table)))
+        check_rows_equality([{"key": "2", "value": "x=1"}], list(yt.read_table(table)))
 
     @authors("ignat")
     def test_schemaful_dsv(self):
@@ -928,11 +929,12 @@ class TestOperationsFormat(object):
 
         table = TEST_DIR + "/table"
         yt.write_table(table, [b"x=1\ty=2\n", b"x=\\n\tz=3\n"], raw=True, format=yt.DsvFormat())
-        check([b"1\n", b"\\n\n"],
-              sorted(list(yt.read_table(table, format=yt.SchemafulDsvFormat(columns=["x"]), raw=True))))
+        check_rows_equality([b"1\n", b"\\n\n"],
+                            sorted(list(yt.read_table(table, format=yt.SchemafulDsvFormat(columns=["x"]), raw=True))))
 
         yt.run_map(foo, table, table, format=yt.SchemafulDsvFormat(columns=["x"]))
-        check([b"x=1\n", b"x=\\n\n"], sorted(list(yt.read_table(table, format=yt.DsvFormat(), raw=True))))
+        check_rows_equality([b"x=1\n", b"x=\\n\n"],
+                            sorted(list(yt.read_table(table, format=yt.DsvFormat(), raw=True))))
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
@@ -1055,34 +1057,34 @@ class TestPythonOperations(object):
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         yt.run_map(change_x, table, table, format=None, spec={"enable_core_dump": True})
-        check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
+        check_rows_equality(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         yt.run_map(change_x, table, table)
-        check(yt.read_table(table), [{"x": 2}, {"y": 2}])
+        check_rows_equality(yt.read_table(table), [{"x": 2}, {"y": 2}])
 
         yt.write_table(table, [{"x": 2}, {"x": 2, "y": 2}])
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(sum_y, table, table, reduce_by=["x"])
-        check(yt.read_table(table), [{"y": 3, "x": 2}], ordered=False)
+        check_rows_equality(yt.read_table(table), [{"y": 3, "x": 2}], ordered=False)
 
         if PY3:
             yt.write_table(table, [{"x": 2}, {"x": 2, "y": 2}])
             yt.run_sort(table, sort_by=[b"x"])
             yt.run_reduce(sum_y_bytes, table, table, reduce_by=[b"x"], format=yt.YsonFormat(encoding=None))
-            check(yt.read_table(table), [{"y": 3, "x": 2}], ordered=False)
+            check_rows_equality(yt.read_table(table), [{"y": 3, "x": 2}], ordered=False)
 
         yt.write_table(table, [{"x": "1"}, {"y": "2"}])
         yt.run_map(change_field, table, table, format=yt.DsvFormat())
-        check(yt.read_table(table), [{"z": "8"}, {"z": "8"}])
+        check_rows_equality(yt.read_table(table), [{"z": "8"}, {"z": "8"}])
 
         yt.write_table(table, [{"x": 1}, {"x": 2}, {"x": 3}])
         yt.run_map(sum_x, table, table)
-        check(yt.read_table(table), [{"sum": 6}])
+        check_rows_equality(yt.read_table(table), [{"sum": 6}])
 
         yt.write_table(table, [{"x": "3"}] * 3)
         yt.run_map(sum_x_raw, table, table, format=yt.DsvFormat())
-        check(yt.read_table(table), [{"sum": "9"}])
+        check_rows_equality(yt.read_table(table), [{"sum": "9"}])
 
     # TODO(ignat): enable after adding system python tests to autobuild.
     @authors("ignat")
@@ -1099,7 +1101,7 @@ class TestPythonOperations(object):
             with set_config_option("pickling/python_binary", None):
                 yt.run_map(func, input, output)
 
-        check(yt.read_table(output), [{"x": 1}, {"y": 2}], ordered=False)
+        check_rows_equality(yt.read_table(output), [{"x": 1}, {"y": 2}], ordered=False)
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
@@ -1119,7 +1121,7 @@ class TestPythonOperations(object):
 
                     yt.write_table(table, [{"x": 1}, {"y": 2}])
                     yt.run_map(foo, table, table, format=None)
-                    check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+                    check_rows_equality(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
                 finally:
                     yt.config["local_temp_directory"] = old_tmp_dir
 
@@ -1245,7 +1247,7 @@ class TestPythonOperations(object):
         yt.write_table(table, [{"x": 1, "y": 2}, {"x": 0, "y": 3}, {"x": 1, "y": 4}])
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(AggregateReducer(), table, other_table, reduce_by=["x"])
-        check([{"sum": 1}, {"sum": 2}, {"sum": 9}], list(yt.read_table(other_table)))
+        check_rows_equality([{"sum": 1}, {"sum": 2}, {"sum": 9}], list(yt.read_table(other_table)))
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
@@ -1268,7 +1270,7 @@ class TestPythonOperations(object):
             yt.write_table(output_table, [])
             with set_config_option("pickling/stdout_fd_protection", protection_type):
                 yt.run_map(mapper, table, output_table)
-            check([{"x": 1}, {"x": 2}], list(yt.read_table(output_table)))
+            check_rows_equality([{"x": 1}, {"x": 2}], list(yt.read_table(output_table)))
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
@@ -1334,7 +1336,7 @@ class TestPythonOperations(object):
             yt.run_reduce(reducer, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
 
         yt.run_reduce(reducer_that_yields_key, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
-        check([{"x": 1}, {"x": 2}], yt.read_table(TEST_DIR + "/other"), ordered=False)
+        check_rows_equality([{"x": 1}, {"x": 2}], yt.read_table(TEST_DIR + "/other"), ordered=False)
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
@@ -1351,10 +1353,10 @@ class TestPythonOperations(object):
         yt.run_sort(table, table, sort_by=["x"])
 
         yt.run_reduce(reducer1, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
-        check([{"x": 10}, {"x": 10}], yt.read_table(TEST_DIR + "/other"), ordered=False)
+        check_rows_equality([{"x": 10}, {"x": 10}], yt.read_table(TEST_DIR + "/other"), ordered=False)
 
         yt.run_reduce(reducer2, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
-        check([{"x": 10}, {"x": 10}], yt.read_table(TEST_DIR + "/other"), ordered=False)
+        check_rows_equality([{"x": 10}, {"x": 10}], yt.read_table(TEST_DIR + "/other"), ordered=False)
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
@@ -1414,22 +1416,22 @@ class TestPythonOperations(object):
                    format=yt.YsonFormat(),
                    spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
 
-        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
+        check_rows_equality(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
 
         yt.run_sort(input, input, sort_by=["x"])
         yt.run_reduce(reducer, input, output,
                       reduce_by=["x"],
                       format=yt.YsonFormat(),
                       spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
-        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
+        check_rows_equality(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
 
         yt.write_table(input, [{"x": 1, "y": "a"}])
         yt.run_map(mapper_table_index, input, output, format=yt.YsonFormat(control_attributes_mode="iterator"))
-        check(yt.read_table(output), [{"table_index": 0}])
+        check_rows_equality(yt.read_table(output), [{"table_index": 0}])
 
         yt.write_table(input2, [{"x": 1, "y": "a"}])
         yt.run_map(mapper_table_index, [input, input2], output, format=yt.YsonFormat(control_attributes_mode="iterator"))
-        check(yt.read_table(output), [{"table_index": 0}, {"table_index": 1}], ordered=False)
+        check_rows_equality(yt.read_table(output), [{"table_index": 0}, {"table_index": 1}], ordered=False)
 
     @authors("levysotsky")
     @add_failed_operation_stderrs_to_error_message
@@ -1596,7 +1598,7 @@ class TestOperationsTmpfs(object):
             f.write("etwas")
 
         yt.run_map(mapper, table, table, local_files=['<file_name="cool_name.dat">' + f.name])
-        check(yt.read_table(table), [{"k": "etwas"}])
+        check_rows_equality(yt.read_table(table), [{"k": "etwas"}])
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperationsSeveralOutputTables(object):
@@ -1750,8 +1752,8 @@ class TestOperationsSeveralOutputTables(object):
             .output_table_paths([mapper_output_table, output_table])
 
         yt.run_operation(spec_builder)
-        check([{"c": "d"}], list(yt.read_table(mapper_output_table)))
-        check([{"a": "b"}], list(yt.read_table(output_table)))
+        check_rows_equality([{"c": "d"}], list(yt.read_table(mapper_output_table)))
+        check_rows_equality([{"a": "b"}], list(yt.read_table(output_table)))
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperationsSkiffFormat(object):

@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 
-from yt.testlib import authors, check, set_config_option
+from yt.testlib import authors, check_rows_equality, set_config_option
 
 import yt.wrapper as yt
 import yt.clickhouse as chyt
@@ -82,13 +82,13 @@ class TestClickhouseFromHost(ClickhouseTestBase):
         yt.create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         yt.write_table("//tmp/t", content)
         chyt.start_clique(1, alias="*c")
-        check(chyt.execute("select 1", "*c"),
-              [{"1": 1}])
-        check(chyt.execute("select * from `//tmp/t`", "*c"),
-              content,
-              ordered=False)
-        check(chyt.execute("select avg(a) from `//tmp/t`", "*c"),
-              [{"avg(a)": 1.5}])
+        check_rows_equality(chyt.execute("select 1", "*c"),
+                            [{"1": 1}])
+        check_rows_equality(chyt.execute("select * from `//tmp/t`", "*c"),
+                            content,
+                            ordered=False)
+        check_rows_equality(chyt.execute("select avg(a) from `//tmp/t`", "*c"),
+                            [{"avg(a)": 1.5}])
 
         def check_lines(lhs, rhs):
             def decode_as_utf8(smth):
@@ -119,27 +119,27 @@ class TestClickhouseFromHost(ClickhouseTestBase):
     def test_settings_in_execute(self):
         chyt.start_clique(1, alias="*d")
         # String ClickHouse setting.
-        check(chyt.execute("select getSetting('distributed_product_mode') as s", "*d",
-                                 settings={"distributed_product_mode": "global"}),
-                    [{"s": "global"}])
+        check_rows_equality(chyt.execute("select getSetting('distributed_product_mode') as s", "*d",
+                                         settings={"distributed_product_mode": "global"}),
+                            [{"s": "global"}])
         # Int ClickHouse setting.
-        check(chyt.execute("select getSetting('http_zlib_compression_level') as s", "*d",
-                                 settings={"http_zlib_compression_level": 8}),
-                    [{"s": 8}])
+        check_rows_equality(chyt.execute("select getSetting('http_zlib_compression_level') as s", "*d",
+                                         settings={"http_zlib_compression_level": 8}),
+                            [{"s": 8}])
         # String CHYT setting.
-        check(chyt.execute("select getSetting('chyt.random_string_setting') as s", "*d",
-                                 settings={"chyt.random_string_setting": "random_string"}),
-                    [{"s": "random_string"}])
+        check_rows_equality(chyt.execute("select getSetting('chyt.random_string_setting') as s", "*d",
+                                         settings={"chyt.random_string_setting": "random_string"}),
+                            [{"s": "random_string"}])
         # Int CHYT setting.
         # ClickHouse does not know the type of custom settings, so string is expected.
-        check(chyt.execute("select getSetting('chyt.random_int_setting') as s", "*d",
-                                 settings={"chyt.random_int_setting": 123}),
-                    [{"s": "123"}])
+        check_rows_equality(chyt.execute("select getSetting('chyt.random_int_setting') as s", "*d",
+                                         settings={"chyt.random_int_setting": 123}),
+                            [{"s": "123"}])
         # Binary string setting.
-        check(chyt.execute("select getSetting('chyt.binary_string_setting') as s", "*d",
-                                 settings={"chyt.binary_string_setting": "\x00\x01\x02\x03\x04"}),
-                    [{"s": "\x00\x01\x02\x03\x04"}])
-       
+        check_rows_equality(chyt.execute("select getSetting('chyt.binary_string_setting') as s", "*d",
+                                         settings={"chyt.binary_string_setting": "\x00\x01\x02\x03\x04"}),
+                            [{"s": "\x00\x01\x02\x03\x04"}])
+
     @authors("max42")
     def test_unicode_in_query(self):
         chyt.start_clique(1, alias="*f")
