@@ -4704,7 +4704,7 @@ private:
         SetTabletEdenStoreIds(tablet, FromProto<std::vector<TStoreId>>(response->mount_hint().eden_store_ids()));
 
         DiscardDynamicStores(tablet);
-        DoTabletUnmounted(tablet);
+        DoTabletUnmounted(tablet, /*force*/ false);
         OnTabletActionStateChanged(tablet->GetAction());
     }
 
@@ -4965,7 +4965,7 @@ private:
         }
     }
 
-    void DoTabletUnmounted(TTablet* tablet)
+    void DoTabletUnmounted(TTablet* tablet, bool force)
     {
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
@@ -4987,9 +4987,31 @@ private:
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
+        tablet->SetMountRevision(NullRevision);
 
         CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
         UpdateTabletState(table);
+
+        if (!table->IsPhysicallySorted()) {
+            const auto& chunkListStatistics = tablet->GetChunkList()->Statistics();
+            if (tablet->GetTrimmedRowCount() > chunkListStatistics.LogicalRowCount) {
+                auto message = Format(
+                    "Trimmed row count exceeds total row count of the tablet "
+                    "and will be rolled back (TableId: %v, TabletId: %v, CellId: %v, "
+                    "TrimmedRowCount: %v, LogicalRowCount: %v)",
+                    table->GetId(),
+                    tablet->GetId(),
+                    cell->GetId(),
+                    tablet->GetTrimmedRowCount(),
+                    chunkListStatistics.LogicalRowCount);
+                if (force) {
+                    YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), message);
+                    tablet->SetTrimmedRowCount(chunkListStatistics.LogicalRowCount);
+                } else {
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), message);
+                }
+            }
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         YT_VERIFY(cell->Tablets().erase(tablet) == 1);
@@ -5662,6 +5684,10 @@ private:
             return;
         }
 
+        if (tablet->GetState() == ETabletState::Unmounted) {
+            return;
+        }
+
         auto trimmedRowCount = request->trimmed_row_count();
 
         tablet->SetTrimmedRowCount(trimmedRowCount);
@@ -6046,7 +6072,7 @@ private:
             if (!onDestroy) {
                 DiscardDynamicStores(tablet);
             }
-            DoTabletUnmounted(tablet);
+            DoTabletUnmounted(tablet, /*force*/ true);
         }
     }
 

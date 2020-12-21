@@ -6,6 +6,7 @@ from yt_env_setup import wait, Restarter, NODES_SERVICE
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
+from yt.yson import YsonEntity
 
 from time import sleep
 from flaky import flaky
@@ -1096,6 +1097,45 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         except YtError as err:
             if "Table //tmp/t is not sorted" != err.inner_errors[0]["message"]:
                 raise
+
+    @authors("ifsmirnov")
+    def test_forced_unmount_after_trim(self):
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            dynamic_store_auto_flush_period=YsonEntity())
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 1}])
+        insert_rows("//tmp/t", [{"a": 2}])
+        trim_rows("//tmp/t", 0, 1)
+
+        def _select():
+            return sorted(row["a"] for row in select_rows("* from [//tmp/t]"))
+
+        assert _select() == [2]
+
+        # Forced unmount with trimmed dynamic store. Trimmed row count is rolled back.
+        wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 1)
+        sync_unmount_table("//tmp/t", force=True)
+        assert get("//tmp/t/@chunk_count") == 0
+        assert get("//tmp/t/@tablets/0/trimmed_row_count") == 0
+
+        sync_mount_table("//tmp/t")
+        assert _select() == []
+        insert_rows("//tmp/t", [{"a": 3}])
+        insert_rows("//tmp/t", [{"a": 4}])
+        assert _select() == [3, 4]
+        sync_flush_table("//tmp/t")
+        trim_rows("//tmp/t", 0, 1)
+        assert _select() == [4]
+
+        # Forced unmount with trimmed chunk. No rollback.
+        wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 1)
+        sync_unmount_table("//tmp/t", force=True)
+        assert get("//tmp/t/@chunk_count") == 1
+        assert get("//tmp/t/@tablets/0/trimmed_row_count") == 1
+        sync_mount_table("//tmp/t")
+        assert _select() == [4]
 
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
