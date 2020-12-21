@@ -2,7 +2,7 @@
 #include "connection.h"
 #include "config.h"
 
-#include <yt/core/concurrency/poller.h>
+#include <yt/core/concurrency/pollable_detail.h>
 
 #include <yt/core/misc/proc.h>
 #include <yt/core/net/socket.h>
@@ -156,7 +156,7 @@ public:
 
 private:
     class TPollable
-        : public IPollable
+        : public TPollableBase
     {
     public:
         TPollable(TAsyncDialerSession* owner, TGuid id, int socket)

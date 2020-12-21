@@ -5,6 +5,7 @@
 
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/ref_tracked.h>
 
 #include <yt/core/concurrency/notification_handle.h>
 #include <yt/core/concurrency/scheduler_thread.h>
@@ -27,6 +28,19 @@ static constexpr int MaxEventsPerPoll = 16;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+struct TPollableCookie
+    : public TRefCounted
+{
+    static TPollableCookie* FromPollable(const IPollablePtr& pollable)
+    {
+        return static_cast<TPollableCookie*>(pollable->GetCookie());
+    }
+
+    std::atomic<int> UnregisterSeenBy = 0;
+    std::atomic<bool> UnregisterLock = false;
+    const TPromise<void> UnregisterPromise = NewPromise<void>();
+};
 
 EContPoll ToImplControl(EPollControl control)
 {
@@ -100,7 +114,7 @@ public:
                 return;
             }
             ShutdownStarted_.store(true);
-            for (const auto& [pollable, entry]: Pollables_) {
+            for (const auto& pollable : Pollables_) {
                 pollables.push_back(pollable);
             }
         }
@@ -117,7 +131,7 @@ public:
             .Get();
 
         {
-            IPollable* pollable;
+            IPollablePtr pollable;
             while (RetryQueue_.Dequeue(&pollable)) {
             }
         }
@@ -142,13 +156,13 @@ public:
 
     virtual void Register(const IPollablePtr& pollable) override
     {
-        auto entry = New<TPollableEntry>(pollable);
+        pollable->SetCookie(New<TPollableCookie>());
         {
             auto guard = Guard(SpinLock_);
             if (ShutdownStarted_.load()) {
                 return;
             }
-            YT_VERIFY(Pollables_.emplace(pollable, std::move(entry)).second);
+            YT_VERIFY(Pollables_.insert(pollable).second);
         }
         YT_LOG_DEBUG("Pollable registered (%v)",
             pollable->GetLoggingId());
@@ -169,14 +183,15 @@ public:
                 return VoidFuture;
             }
 
-            const auto& entry = it->second;
-            future = entry->UnregisterPromise.ToFuture();
+            const auto& pollable = *it;
+            auto* cookie = TPollableCookie::FromPollable(pollable);
+            future = cookie->UnregisterPromise.ToFuture();
 
             YT_VERIFY(!ShutdownFinished_.load());
 
-            if (entry->TryLockUnregister()) {
+            if (!cookie->UnregisterLock.exchange(true)) {
                 for (const auto& thread : Threads_) {
-                    thread->ScheduleUnregister(entry);
+                    thread->ScheduleUnregister(pollable);
                 }
                 firstTime = true;
             }
@@ -209,8 +224,7 @@ public:
         YT_LOG_TRACE("Scheduling poller retry (%v, Wakeup: %v)",
             pollable->GetLoggingId(),
             wakeup);
-        // Pollable is registered - skip grabbing reference.
-        RetryQueue_.Enqueue(pollable.Get());
+        RetryQueue_.Enqueue(pollable);
         if (wakeup) {
             Invoker_->RaiseWakeupHandle();
         }
@@ -233,26 +247,6 @@ private:
     const TString ThreadNamePrefix_;
 
     const NLogging::TLogger Logger;
-
-    struct TPollableEntry
-        : public TRefCounted
-    {
-        explicit TPollableEntry(IPollablePtr pollable)
-            : Pollable(std::move(pollable))
-        { }
-
-        bool TryLockUnregister()
-        {
-            return !UnregisterLock.test_and_set();
-        }
-
-        const IPollablePtr Pollable;
-        std::atomic<int> UnregisterSeenBy = 0;
-        std::atomic_flag UnregisterLock = ATOMIC_FLAG_INIT;
-        TPromise<void> UnregisterPromise = NewPromise<void>();
-    };
-
-    using TPollableEntryPtr = TIntrusivePtr<TPollableEntry>;
 
     class TThread
         : public TSchedulerThread
@@ -278,9 +272,9 @@ private:
             }))
         { }
 
-        void ScheduleUnregister(TPollableEntryPtr entry)
+        void ScheduleUnregister(IPollablePtr pollable)
         {
-            UnregisterEntries_.Enqueue(std::move(entry));
+            UnregisterQueue_.Enqueue(std::move(pollable));
         }
 
     protected:
@@ -321,7 +315,7 @@ private:
         const TClosure ExecuteCallback_;
 
         bool ExecutingCallbacks_ = false;
-        TMultipleProducerSingleConsumerLockFreeStack<TPollableEntryPtr> UnregisterEntries_;
+        TMultipleProducerSingleConsumerLockFreeStack<IPollablePtr> UnregisterQueue_;
 
         void HandleEvents()
         {
@@ -359,42 +353,47 @@ private:
             }
 
             // Dequeue one by one to let other threads do their job.
-            IPollable* pollable;
+            IPollablePtr pollable;
             while (Poller_->RetryQueue_.Dequeue(&pollable)) {
-                pollable->OnEvent(EPollControl::Retry);
+                auto* cookie = TPollableCookie::FromPollable(pollable);
+                if (!cookie->UnregisterLock.load()) {
+                    pollable->OnEvent(EPollControl::Retry);
+                }
             }
         }
 
         void HandleUnregister()
         {
-            auto entries = UnregisterEntries_.DequeueAll();
+            auto pollables = UnregisterQueue_.DequeueAll();
 
-            std::vector<TPollableEntryPtr> deadEntries;
-            for (const auto& entry : entries) {
-                if (++entry->UnregisterSeenBy == Poller_->ThreadCount_) {
-                    deadEntries.push_back(entry);
+            std::vector<IPollablePtr> deadPollables;
+            for (const auto& pollable : pollables) {
+                auto* cookie = TPollableCookie::FromPollable(pollable);
+                if (++cookie->UnregisterSeenBy == Poller_->ThreadCount_) {
+                    deadPollables.push_back(pollable);
                 }
             }
 
-            if (deadEntries.empty()) {
+            if (deadPollables.empty()) {
                 return;
             }
 
-            for (const auto& entry : deadEntries) {
-                entry->Pollable->OnShutdown();
+            for (const auto& pollable : deadPollables) {
+                pollable->OnShutdown();
                 YT_LOG_DEBUG("Pollable unregistered (%v)",
-                    entry->Pollable->GetLoggingId());
+                    pollable->GetLoggingId());
             }
 
             {
                 auto guard = Guard(Poller_->SpinLock_);
-                for (const auto& entry : deadEntries) {
-                    YT_VERIFY(Poller_->Pollables_.erase(entry->Pollable) == 1);
+                for (const auto& pollable : deadPollables) {
+                    YT_VERIFY(Poller_->Pollables_.erase(pollable) == 1);
                 }
             }
 
-            for (const auto& entry : deadEntries) {
-                entry->UnregisterPromise.Set();
+            for (const auto& pollable : deadPollables) {
+                auto* cookie = TPollableCookie::FromPollable(pollable);
+                cookie->UnregisterPromise.Set();
             }
         }
     };
@@ -404,13 +403,13 @@ private:
     std::vector<TThreadPtr> Threads_;
 
     TCountDownLatch StartLatch_;
-    std::atomic<bool> ShutdownStarted_ = {false};
-    std::atomic<bool> ShutdownFinished_ = {false};
+    std::atomic<bool> ShutdownStarted_ = false;
+    std::atomic<bool> ShutdownFinished_ = false;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
-    THashMap<IPollablePtr, TPollableEntryPtr> Pollables_;
+    THashSet<IPollablePtr> Pollables_;
 
-    TLockFreeQueue<IPollable*> RetryQueue_;
+    TLockFreeQueue<IPollablePtr> RetryQueue_;
 
     class TInvoker
         : public IInvoker
