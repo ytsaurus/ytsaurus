@@ -583,7 +583,7 @@ class TestLocalMode(object):
                 time.sleep(1.0)
 
     def test_ytserver_all(self):
-        ytserver_all_paths = which("ytserver-all")
+        ytserver_all_paths = which("ytserver-all.trunk")
         assert ytserver_all_paths
         with local_yt(id=_get_id("ytserver_all"), ytserver_all_path=ytserver_all_paths[0]) as environment:
             client = environment.create_client()
