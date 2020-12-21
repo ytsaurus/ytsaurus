@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .conftest import authors
-from .helpers import TEST_DIR, check, get_tests_sandbox, dumps_yt_config
+from .helpers import TEST_DIR, check_rows_equality, get_tests_sandbox, dumps_yt_config
 
 from yt.wrapper.spec_builders import MapSpecBuilder
 
@@ -45,7 +45,7 @@ class TestOperationsTracker(object):
         op = yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
                            join_by=["x"], enable_key_guarantee=False)
         assert "enable_key_guarantee" in op.get_attributes()["spec"]
-        check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
+        check_rows_equality([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
 
     @authors("renadeen")
     def test_operations_tracker_multiple_instances(self):

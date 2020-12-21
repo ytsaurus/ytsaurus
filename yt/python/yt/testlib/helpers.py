@@ -15,9 +15,7 @@ except ImportError:
 def authors(*the_authors):
     return pytest.mark.authors(the_authors)
 
-# TODO(ignat): rename it
-# Check equality of records
-def check(rowsA, rowsB, ordered=True):
+def check_rows_equality(rowsA, rowsB, ordered=True):
     def prepare(rows):
         def fix_unicode(obj):
             if isinstance(obj, text_type):

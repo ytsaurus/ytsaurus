@@ -1,9 +1,9 @@
 from __future__ import with_statement
 
 from .conftest import authors
-from .helpers import TEST_DIR, set_config_option, get_tests_sandbox, wait, check
+from .helpers import TEST_DIR, set_config_option, get_tests_sandbox, wait, check_rows_equality
 
-from yt.wrapper.driver import get_command_list, get_api_version
+from yt.wrapper.driver import get_api_version
 
 from yt.packages.six.moves import xrange
 
@@ -361,7 +361,9 @@ class TestDynamicTableCommands(object):
             }
         )
 
-        check(yt.read_table(dump_table), [{"tablet_index": 0}, {"tablet_index": 1}], ordered=False)
+        check_rows_equality(yt.read_table(dump_table),
+                            [{"tablet_index": 0}, {"tablet_index": 1}],
+                            ordered=False)
 
     @authors("lukyan")
     def test_explain_query(self):

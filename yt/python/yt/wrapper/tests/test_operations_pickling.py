@@ -1,8 +1,9 @@
 from __future__ import print_function
 
 from .conftest import authors
-from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, check, get_test_file_path, get_test_files_dir_path,
-                      build_python_egg, get_python, dumps_yt_config, run_python_script_with_check, get_operation_path)
+from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, get_test_file_path, get_test_files_dir_path,
+                      build_python_egg, get_python, dumps_yt_config, run_python_script_with_check, get_operation_path,
+                      check_rows_equality)
 
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.spec_builders import VanillaSpecBuilder, MapSpecBuilder
@@ -89,15 +90,15 @@ class TestOperationsPickling(object):
         filter_string = 'lambda module: hasattr(module, "__file__") and not "test_module" in module.__file__'
 
         yt.run_map(mapper_test_module, table, table)
-        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+        check_rows_equality(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
         with set_config_option("pickling/module_filter", filter):
             yt.run_map(mapper_no_test_module, table, table)
-        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+        check_rows_equality(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
         with set_config_option("pickling/module_filter", filter_string):
             yt.run_map(mapper_no_test_module, table, table)
-        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+        check_rows_equality(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
     @authors("ignat")
     @pytest.mark.usefixtures("test_dynamic_library")
@@ -356,7 +357,7 @@ class Mapper(object):
         run_python_script_with_check(
             yt_env_with_increased_memory,
             _format_script(simple_pickling_test, source_table=table, destination_table=table))
-        check(yt.read_table(table), [{"x": 1}, {"x": 2}, {"x": 3}])
+        check_rows_equality(yt.read_table(table), [{"x": 1}, {"x": 2}, {"x": 3}])
 
         yt.write_table(table, [{"x": 1}, {"x": 2}, {"x": 3}])
         for decorator, self_ in [("", "self"), ("@staticmethod", ""), ("@classmethod", "cls")]:
@@ -366,13 +367,13 @@ class Mapper(object):
             run_python_script_with_check(
                 yt_env_with_increased_memory,
                 _format_script(script, source_table=table, destination_table=table))
-            check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+            check_rows_equality(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         run_python_script_with_check(
             yt_env_with_increased_memory,
             _format_script(metaclass_pickling_test, source_table=table, destination_table=table))
-        check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
+        check_rows_equality(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
 
         yt.write_table(table, [{"x": 1}, {"x": 2}, {"x": 3}])
         run_python_script_with_check(
@@ -390,14 +391,14 @@ class Mapper(object):
         op = yt.run_map(mapper, table, table, format=None, sync=False)
         op.wait()
         assert sorted(list(op.get_job_statistics()["custom"])) == ["python_job_preparation_time"]
-        check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
+        check_rows_equality(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
     @authors("ignat")
     def test_relative_imports_with_run_module(self, yt_env_with_increased_memory):
         yt.write_table("//tmp/input_table", [{"value": 0}])
         subprocess.check_call([sys.executable, "-m", "test_rel_import_module.run"],
                                cwd=get_test_files_dir_path(), env=self.env)
-        check(yt.read_table("//tmp/output_table"), [{"value": 0, "constant": 10}])
+        check_rows_equality(yt.read_table("//tmp/output_table"), [{"value": 0, "constant": 10}])
 
     @authors("ignat")
     @pytest.mark.skipif("PY3")
@@ -409,7 +410,7 @@ class Mapper(object):
         binary = get_test_file_path("standalone_binary.py")
 
         subprocess.check_call([get_python(), binary, table, other_table], env=self.env, stderr=sys.stderr)
-        check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
+        check_rows_equality([{"x": 1}, {"x": 2}], yt.read_table(other_table))
 
     @authors("ignat")
     def test_local_file_attributes(self):

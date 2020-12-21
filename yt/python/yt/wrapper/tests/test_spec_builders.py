@@ -1,5 +1,5 @@
 from .conftest import authors
-from .helpers import TEST_DIR, check, get_test_file_path, set_config_option, get_python
+from .helpers import TEST_DIR, check_rows_equality, get_test_file_path, set_config_option, get_python
 
 from yt.wrapper.common import update
 from yt.wrapper.spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
@@ -60,14 +60,14 @@ class TestSpecBuilders(object):
             .input_table_paths([tableX, tableY]) \
             .output_table_path(res_table)
         yt.run_operation(spec_builder)
-        check([{"x": 1}, {"y": 2}], yt.read_table(res_table), ordered=False)
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(res_table), ordered=False)
 
         spec_builder = MergeSpecBuilder() \
             .input_table_paths(tableX) \
             .output_table_path(res_table)
         yt.run_operation(spec_builder)
         assert not yt.get_attribute(res_table, "sorted")
-        check([{"x": 1}], yt.read_table(res_table))
+        check_rows_equality([{"x": 1}], yt.read_table(res_table))
 
         spec_builder = SortSpecBuilder() \
             .input_table_paths(tableX) \
@@ -80,7 +80,7 @@ class TestSpecBuilders(object):
             .mode("sorted")
         yt.run_operation(spec_builder)
         assert yt.get_attribute(res_table, "sorted")
-        check([{"x": 1}], yt.read_table(res_table))
+        check_rows_equality([{"x": 1}], yt.read_table(res_table))
 
     @authors("ignat")
     def test_run_operation(self):
@@ -97,7 +97,7 @@ class TestSpecBuilders(object):
             .output_table_paths(table) \
             .ordered(False)
         yt.run_operation(spec_builder)
-        check([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
+        check_rows_equality([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
         spec_builder = SortSpecBuilder() \
             .input_table_paths(table) \
             .sort_by(["x"]) \
@@ -124,7 +124,7 @@ class TestSpecBuilders(object):
             .output_table_paths(table) \
             .reduce_by(["x"])
         yt.run_operation(spec_builder)
-        check([{"x": 1}, {"x": 2}], yt.read_table(table))
+        check_rows_equality([{"x": 1}, {"x": 2}], yt.read_table(table))
 
         spec_builder = MapSpecBuilder() \
             .begin_mapper() \
@@ -134,7 +134,7 @@ class TestSpecBuilders(object):
             .input_table_paths(table) \
             .output_table_paths(other_table)
         yt.run_operation(spec_builder)
-        check([{"x": 2}], yt.read_table(other_table))
+        check_rows_equality([{"x": 2}], yt.read_table(other_table))
 
         with pytest.raises(yt.YtError):
             spec_builder = MapSpecBuilder() \
@@ -206,7 +206,7 @@ class TestSpecBuilders(object):
             .output_table_paths(output_table)
 
         yt.run_operation(spec_builder)
-        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+        check_rows_equality([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
     @authors("asaitgalin")
     def test_preserve_user_spec_between_invocations(self):
@@ -339,7 +339,8 @@ class TestSpecBuilders(object):
             .output_table_paths(output_table)
 
         yt.run_operation(spec_builder)
-        check([
+        check_rows_equality(
+            [
                 {"tag": "Paris", "total": 15},
                 {"tag": "London", "total": 22},
             ],
