@@ -124,6 +124,9 @@ class TestJournals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_journal_quorum_row_count(self, enable_chunk_preallocation):
+        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
+            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
@@ -147,6 +150,9 @@ class TestJournals(YTEnvSetup):
     @authors("babenko", "ignat")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_read_write(self, enable_chunk_preallocation):
+        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
+            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
             self._write_and_wait_until_sealed(
@@ -178,6 +184,9 @@ class TestJournals(YTEnvSetup):
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_truncate1(self, enable_chunk_preallocation):
+        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
+            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
@@ -194,6 +203,9 @@ class TestJournals(YTEnvSetup):
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_truncate2(self, enable_chunk_preallocation):
+        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
+            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
             self._write_and_wait_until_sealed(
@@ -223,6 +235,9 @@ class TestJournals(YTEnvSetup):
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_cannot_truncate_unsealed(self, enable_chunk_preallocation):
+        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
+            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
 
         create("journal", "//tmp/j")
@@ -292,6 +307,9 @@ class TestJournals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_read_write_unsealed(self, enable_chunk_preallocation):
+        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
+            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
 
         create("journal", "//tmp/j")
@@ -312,6 +330,9 @@ class TestJournals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     def test_simulated_failures(self, enable_chunk_preallocation):
+        if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
+            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
 
         create("journal", "//tmp/j")
@@ -552,8 +573,10 @@ class TestErasureJournals(TestJournals):
 
     @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @authors("babenko", "ignat")
-    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_read_with_repair(self, erasure_codec):
+        if is_asan_build():
+            pytest.skip()
+
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
         self._write_and_wait_until_sealed("//tmp/j", self.DATA)
 

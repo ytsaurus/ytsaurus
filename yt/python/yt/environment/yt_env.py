@@ -39,7 +39,7 @@ import shutil
 import sys
 import random
 import traceback
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, OrderedDict
 from threading import RLock
 from itertools import count
 
@@ -104,8 +104,10 @@ def _get_yt_binary_path(binary, custom_paths):
     return None
 
 def _get_yt_versions(custom_paths):
-    result = {}
-    binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler"]
+    result = OrderedDict()
+    binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler", "ytserver-controller-agent",
+                "ytserver-http-proxy", "ytserver-proxy", "ytserver-job-proxy", "ytserver-clock",
+                "ytserver-exec", "ytserver-tools"]
     for binary in binaries:
         binary_path = _get_yt_binary_path(binary, custom_paths=custom_paths)
         if binary_path is not None:
@@ -122,7 +124,6 @@ def _is_ya_package(proxy_binary_path):
 
 def _configure_logger():
     logger.propagate = False
-
     if not logger.handlers:
         logger.addHandler(logging.StreamHandler())
 
@@ -154,7 +155,7 @@ class YTInstance(object):
                  enable_rpc_driver_proxy_discovery=None,
                  use_native_client=False, run_watcher=True, capture_stderr_to_file=None,
                  ytserver_all_path=None, watcher_binary=None,
-                 stderrs_path=None):
+                 stderrs_path=None, validate_component_abi=True):
         _configure_logger()
 
         if use_porto_for_servers and not porto_avaliable():
@@ -203,12 +204,11 @@ class YTInstance(object):
             "ytserver-node" in self._binaries and
             "ytserver-scheduler" in self._binaries):
             logger.info("Using multiple YT binaries with the following versions:")
-            logger.info("  ytserver-master     %s", self._binaries["ytserver-master"].literal)
-            logger.info("  ytserver-node       %s", self._binaries["ytserver-node"].literal)
-            logger.info("  ytserver-scheduler  %s", self._binaries["ytserver-scheduler"].literal)
+            for component in self._binaries:
+                logger.info("   %-28s%s", component, self._binaries[component].literal)
 
             abi_versions = set(imap(lambda v: v.abi, self._binaries.values()))
-            if len(abi_versions) > 1:
+            if len(abi_versions) > 1 and validate_component_abi:
                 raise YtError("Mismatching YT versions. Make sure that all binaries are of compatible versions.")
             self.abi_version = abi_versions.pop()
         else:
@@ -740,6 +740,21 @@ class YTInstance(object):
                     callback_func(self, proc, args)
                     break
 
+    def get_component_version(self, component):
+        """
+        Return structure identifying component version.
+        Returned object has fields "abi" and "literal", e.g. "20.3" and "20.3.1234-...".
+
+        :param component: should be binary name, e.g. "ytserver-master", "ytserver-node", etc.
+        :type component str
+        :return: component version.
+        :rtype BinaryVersion
+        """
+        if component not in self._binaries:
+            raise YtError("Component {} not found; available components are {}".format(
+                component, self._binaries.keys()))
+        return self._binaries[component]
+
     def _configure_driver_logging(self):
         try:
             import yt_driver_bindings
@@ -858,6 +873,7 @@ class YTInstance(object):
                     del env["YT_LOG_LEVEL"]
             env = update(env, {"YT_ALLOC_CONFIG": "{enable_eager_memory_release=%true}"})
 
+            logger.debug("Invoking %s", args)
             p = self._subprocess_module.Popen(args, shell=False, close_fds=True, cwd=self.runtime_data_path,
                                               env=env,
                                               stdout=stdout, stderr=stderr)
@@ -896,7 +912,7 @@ class YTInstance(object):
                 raise YtError("Unsupported YT ABI version {0}".format(self.abi_version))
             args.extend([config_option, self.config_paths[name][index]])
             number = None if len(self.configs[name]) == 1 else index
-            self._run(args, name, number=number )
+            self._run(args, name, number=number)
 
     def _get_master_name(self, master_name, cell_index):
         if cell_index == 0:
@@ -1111,13 +1127,24 @@ class YTInstance(object):
         self._remove_scheduler_lock()
 
         client = self._create_cluster_client()
+
+        # COMPAT(max42): drop this when 20.2 is deprecated.
+        is_pool_tree_config_present = self.get_component_version("ytserver-master").abi >= (20, 3)
         if client.get("//sys/pool_trees/@type") == "map_node":
-            client.create("map_node", "//sys/pool_trees/default", attributes={"config": {}},
-                ignore_existing=True, recursive=True)
+            if is_pool_tree_config_present:
+                client.create("map_node", "//sys/pool_trees/default", attributes={"config": {}},
+                    ignore_existing=True, recursive=True)
+            else:
+                client.create("map_node", "//sys/pool_trees/default", ignore_existing=True, recursive=True)
         else:
             client.create("scheduler_pool_tree", attributes={"name": "default"}, ignore_existing=True)
         client.set("//sys/pool_trees/@default_tree", "default")
-        client.set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 5)
+
+        if is_pool_tree_config_present:
+            client.set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 5)
+        else:
+            client.set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 5)
+
         if not client.exists("//sys/pools"):
             client.link("//sys/pool_trees/default", "//sys/pools", ignore_existing=True)
 

@@ -41,8 +41,9 @@ SANDBOX_STORAGE_ROOTDIR = None
 ##################################################################
 
 
-def prepare_yatest_environment(need_suid):
+def prepare_yatest_environment(need_suid, artifact_components=None):
     yt.logger.LOGGER.setLevel(logging.DEBUG)
+    artifact_components = artifact_components or {}
 
     global SANDBOX_ROOTDIR
     global SANDBOX_STORAGE_ROOTDIR
@@ -64,6 +65,7 @@ def prepare_yatest_environment(need_suid):
             inside_arcadia=False,
             copy_ytserver_all=not ytrecipe,
             need_suid=need_suid and not ytrecipe,
+            artifact_components=artifact_components,
         )
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
@@ -182,6 +184,7 @@ class YTEnvSetup(object):
     DRIVER_BACKEND = "native"
     ENABLE_RPC_DRIVER_PROXY_DISCOVERY = None
     NODE_PORT_SET_SIZE = None
+    ARTIFACT_COMPONENTS = {}
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
@@ -293,6 +296,7 @@ class YTEnvSetup(object):
             enable_structured_scheduler_logging=True,
             capture_stderr_to_file=capture_stderr_to_file,
             stderrs_path=os.path.join(arcadia_interop.yatest_common.output_path("yt_stderrs"), cls.run_name, str(index)),
+            validate_component_abi=False,
         )
 
         instance._cluster_name = cls.get_cluster_name(index)
@@ -337,7 +341,8 @@ class YTEnvSetup(object):
         log_rotator.start()
         cls.liveness_checkers.append(log_rotator)
 
-        prepare_yatest_environment(need_suid=need_suid)  # It initializes SANDBOX_ROOTDIR
+        # The following line initializes SANDBOX_ROOTDIR.
+        prepare_yatest_environment(need_suid=need_suid, artifact_components=cls.ARTIFACT_COMPONENTS)
         cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         cls.run_id = None
@@ -953,11 +958,20 @@ class YTEnvSetup(object):
 
         restore_pool_trees_requests = []
         if yt_commands.exists(scheduler_pool_trees_root + "/default", driver=driver):
-            restore_pool_trees_requests.extend([
-                yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/default/*"),
-                # TODO(eshcherbin): Clear default tree's config when it is moved to a separate attribute.
-                yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/default/@config/nodes_filter", input=""),
-            ])
+
+            # COMPAT(max42): drop this when 20.2 is deprecated.
+            is_pool_tree_config_present = self.Env.get_component_version("ytserver-master").abi >= (20, 3)
+
+            restore_pool_trees_requests.append(
+                yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/default/*"))
+
+            # TODO(eshcherbin): Clear default tree's config when it is moved to a separate attribute.
+            if is_pool_tree_config_present:
+                restore_pool_trees_requests.append(
+                    yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/default/@config/nodes_filter", input=""))
+            else:
+                restore_pool_trees_requests.append(
+                    yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/default/@nodes_filter", input=""))
         else:
             # XXX(eshcherbin, renadeen): Remove when map_node pool trees are not a thing.
             if yt_commands.get(scheduler_pool_trees_root + "/@type") == "map_node":
@@ -997,7 +1011,19 @@ class YTEnvSetup(object):
         nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
 
         def check():
-            for response in yt_commands.execute_batch(
+            # COMPAT(max42): request only applied_config when 20.2 is no more.
+            results_old = yt_commands.execute_batch(
+                [
+                    yt_commands.make_batch_request(
+                        "get",
+                        path="//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(node),
+                        return_only_value=True,
+                    )
+                    for node in nodes
+                ],
+                driver=driver,
+            )
+            results_new = yt_commands.execute_batch(
                 [
                     yt_commands.make_batch_request(
                         "get",
@@ -1007,8 +1033,15 @@ class YTEnvSetup(object):
                     for node in nodes
                 ],
                 driver=driver,
-            ):
-                if yt_commands.get_batch_output(response) != dynamic_node_config["%true"]:
+            )
+
+            for result_old, result_new in zip(results_old, results_new):
+                if "error" in result_old and "error" in result_new:
+                    raise YtError("Both old and new paths for dynamic config manager returned errors:\n" +
+                                  str(result_old["error"]) + "\n" + str(result_new["error"]))
+                if "error" not in result_old and yt_commands.get_batch_output(result_old) != dynamic_node_config["%true"]:
+                    return False
+                if "error" not in result_new and yt_commands.get_batch_output(result_new) != dynamic_node_config["%true"]:
                     return False
             return True
 

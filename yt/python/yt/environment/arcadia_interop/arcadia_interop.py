@@ -49,12 +49,18 @@ def get_root_paths(source_prefix="", inside_arcadia=None):
     return yt_root, python_root, global_root
 
 
-def search_binary_path(binary_name):
+def search_binary_path(binary_name, package_suffix=None):
+    # TODO(max42): build_path seems to be a wrong path to search for artifacts.
+    # Actually they reside in CWD, which is located pretty deep inside build_path().
+    # In other words, this code is probably correct, but much slower than needed.
     binary_root = yatest_common.build_path()
+    if package_suffix is not None:
+        binary_root = os.path.abspath(package_suffix)
     for dirpath, _, filenames in os.walk(binary_root):
         for f in filenames:
             if f == binary_name:
-                return os.path.join(dirpath, binary_name)
+                result = os.path.join(dirpath, binary_name)
+                return result
     raise RuntimeError("binary {} is not found in {}".format(binary_name, binary_root))
 
 
@@ -76,58 +82,69 @@ def insert_sudo_wrapper(bin_dir):
             trampoline.write(SUDO_WRAPPER.format(sudofixup, os.getuid(), orig_path, binary))
             os.chmod(bin_path, 0o755)
 
+def get_binary_path(path, arcadia_root):
+    if arcadia_root is None:
+        return search_binary_path(path)
+    else:
+        return os.path.join(arcadia_root, path)
+
+PROGRAMS = [("master", "master/bin"),
+            ("clock", "clock_server/bin"),
+            ("node", "node/bin"),
+            ("job-proxy", "job_proxy/bin"),
+            ("exec", "exec/bin"),
+            ("proxy", "rpc_proxy/bin"),
+            ("http-proxy", "http_proxy/bin"),
+            ("tools", "tools/bin"),
+            ("scheduler", "scheduler/bin"),
+            ("controller-agent", "controller_agent/bin")]
 
 def prepare_yt_binaries(destination,
                         source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=True,
-                        use_from_package=False, copy_ytserver_all=False, need_suid=False):
-    def get_binary_path(path):
-        if arcadia_root is None:
-            return search_binary_path(path)
-        else:
-            return os.path.join(arcadia_root, path)
-
+                        use_from_package=False, package_suffix=None, copy_ytserver_all=False, ytserver_all_suffix=None,
+                        need_suid=False, component_whitelist=None):
     if use_ytserver_all:
         if use_from_package:
-            ytserver_all = search_binary_path("ytserver-all")
+            ytserver_all = search_binary_path("ytserver-all", package_suffix=package_suffix)
         else:
-            ytserver_all = get_binary_path("ytserver-all")
+            ytserver_all = get_binary_path("ytserver-all", arcadia_root)
         if copy_ytserver_all:
-            shutil.copy(ytserver_all, os.path.join(destination, "ytserver-all"))
-            ytserver_all = os.path.join(destination, "ytserver-all")
-
+            ytserver_all_destination = os.path.join(destination, "ytserver-all")
+            if ytserver_all_suffix is not None:
+                ytserver_all_destination += "." + ytserver_all_suffix
+            shutil.copy(ytserver_all, ytserver_all_destination)
+            ytserver_all = ytserver_all_destination
     else:
         assert not use_from_package
 
-    programs = [("master", "master/bin"),
-                ("clock", "clock_server/bin"),
-                ("node", "node/bin"),
-                ("job-proxy", "job_proxy/bin"),
-                ("exec", "exec/bin"),
-                ("proxy", "rpc_proxy/bin"),
-                ("http-proxy", "http_proxy/bin"),
-                ("tools", "tools/bin"),
-                ("scheduler", "scheduler/bin"),
-                ("controller-agent", "controller_agent/bin")]
+    programs = PROGRAMS
+
+    if component_whitelist is not None:
+        programs = [(component, path) for component, path in programs if component in component_whitelist]
+
     for binary, server_dir in programs:
         if use_ytserver_all:
+            dst_path = os.path.join(destination, "ytserver-" + binary)
             if copy_ytserver_all:
-                os.link(ytserver_all, os.path.join(destination, "ytserver-" + binary))
+                os.link(ytserver_all, dst_path)
             else:
-                os.symlink(ytserver_all, os.path.join(destination, "ytserver-" + binary))
+                os.symlink(ytserver_all, dst_path)
         else:
-            binary_path = get_binary_path("ytserver-{0}".format(binary))
+            binary_path = get_binary_path("ytserver-{0}".format(binary), arcadia_root)
             os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
 
     if need_suid:
         insert_sudo_wrapper(destination)
 
-    watcher_path = get_binary_path("yt_env_watcher")
+def copy_misc_binaries(destination, arcadia_root=None):
+    watcher_path = get_binary_path("yt_env_watcher", arcadia_root)
     shutil.copy(watcher_path, os.path.join(destination, "yt_env_watcher"))
 
-    logrotate_path = get_binary_path("logrotate")
+    logrotate_path = get_binary_path("logrotate", arcadia_root)
     shutil.copy(logrotate_path, os.path.join(destination, "logrotate"))
 
-def prepare_yt_environment(destination, **kwargs):
+def prepare_yt_environment(destination, artifact_components=None, **kwargs):
+    artifact_components = artifact_components or {}
     bin_dir = os.path.join(destination, "bin")
     lock_path = os.path.join(destination, "lock")
     prepared_path = os.path.join(destination, "prepared")
@@ -140,10 +157,32 @@ def prepare_yt_environment(destination, **kwargs):
             time.sleep(0.1)
         return bin_dir
 
+    # Compute which components should be taken from trunk and which from artifacts.
+
+    all_components = [program for program, _ in PROGRAMS]
+
+    trunk_components = set(program for program, _ in PROGRAMS)
+    for artifact_name, components in artifact_components.items():
+        for component in components:
+            if component not in all_components:
+                raise RuntimeError("Unknown artifact component {}; known components are {}".format(
+                                   component, all_components))
+            if component not in trunk_components:
+                raise RuntimeError("Artifact component {} is specified multiple times".format(component))
+            trunk_components.remove(component)
+
     if not os.path.exists(bin_dir):
         os.makedirs(bin_dir)
 
-        prepare_yt_binaries(bin_dir, **kwargs)
+        if trunk_components:
+            prepare_yt_binaries(bin_dir, component_whitelist=trunk_components, ytserver_all_suffix="trunk", **kwargs)
+
+        for artifact_name, components in artifact_components.items():
+            prepare_yt_binaries(bin_dir, component_whitelist=components, use_from_package=True,
+                                package_suffix=os.path.join("artifact_bin", artifact_name, "result"),
+                                ytserver_all_suffix=artifact_name, **kwargs)
+
+    copy_misc_binaries(bin_dir, arcadia_root=kwargs.get("arcadia_root"))
 
     with open(prepared_path, "w"):
         pass

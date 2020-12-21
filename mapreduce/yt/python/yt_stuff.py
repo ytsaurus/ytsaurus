@@ -1,5 +1,6 @@
 from yt.common import update
-from yt.environment.arcadia_interop import prepare_yt_binaries, collect_cores, search_binary_path, remove_runtime_data
+from yt.environment.arcadia_interop import (prepare_yt_binaries, collect_cores, search_binary_path,
+                                            remove_runtime_data, copy_misc_binaries)
 
 import yt.yson as yson
 
@@ -209,6 +210,7 @@ class YtStuff(object):
 
         source_prefix = ""
         prepare_yt_binaries(self.yt_bins_path, source_prefix, use_from_package=True)
+        copy_misc_binaries(self.yt_bins_path)
 
         self.yt_local_exec = [search_binary_path("yt_local")]
 
