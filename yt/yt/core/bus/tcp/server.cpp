@@ -20,6 +20,7 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/concurrency/spinlock.h>
+#include <yt/core/concurrency/pollable_detail.h>
 
 #include <cerrno>
 
@@ -32,7 +33,7 @@ using namespace NNet;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpBusServerBase
-    : public IPollable
+    : public TPollableBase
 {
 public:
     TTcpBusServerBase(

@@ -27,6 +27,15 @@ DEFINE_BIT_ENUM(EPollControl,
 struct IPollable
     : public virtual TRefCounted
 {
+    //! Cookie is a opaque ref-counted object that could be attached to a pollable by its poller.
+    using TCookiePtr = TIntrusivePtr<TRefCounted>;
+
+    //! Attaches a cookie.
+    virtual void SetCookie(TCookiePtr cookie) = 0;
+
+    //! Returns the attached (type-erased) cookie.
+    virtual void* GetCookie() const = 0;
+
     //! Returns a human-readable string used for diagnostic purposes.
     virtual const TString& GetLoggingId() const = 0;
 
@@ -81,7 +90,6 @@ struct IPoller
 
     //! Schedule call of #IPollable::OnEvent with EPollControl::Retry.
     //! From OnEvent could be called with wakeup = false to not wake new thread.
-    //! Pollable must be registered - retry queue does not grab own reference.
     virtual void Retry(const IPollablePtr& pollable, bool wakeup = true) = 0;
 
     //! Unarms the poller.

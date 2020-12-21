@@ -1,7 +1,7 @@
 #include "listener.h"
 #include "connection.h"
 
-#include <yt/core/concurrency/poller.h>
+#include <yt/core/concurrency/pollable_detail.h>
 
 #include <yt/core/net/socket.h>
 
@@ -14,7 +14,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListener
-    : public IPollable
+    : public TPollableBase
     , public IListener
 {
 public:

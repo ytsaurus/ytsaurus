@@ -17,7 +17,7 @@
 
 #include <yt/core/net/public.h>
 
-#include <yt/core/concurrency/poller.h>
+#include <yt/core/concurrency/pollable_detail.h>
 #include <yt/core/concurrency/spinlock.h>
 
 #include <util/network/init.h>
@@ -39,7 +39,7 @@ DEFINE_ENUM(ETcpConnectionState,
 
 class TTcpConnection
     : public IBus
-    , public NConcurrency::IPollable
+    , public NConcurrency::TPollableBase
 {
 public:
     TTcpConnection(
