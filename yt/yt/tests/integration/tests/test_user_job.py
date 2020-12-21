@@ -378,8 +378,12 @@ time.sleep(10)
         op.track()
         assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
 
+        statistics = get(op.get_path() + "/@progress/job_statistics")
+        assert get_statistics(statistics, "user_job.max_memory.$.completed.map.sum") > 200 * 1024 * 1024
+
         # Smaps memory tracker is disabled. Job should fail.
         with pytest.raises(YtError):
+            memory_limit = 430 * 1024 * 1024
             op = map(
                 command="fallocate -l 200M tmpfs/f; python3 mapper.py",
                 in_="//tmp/t_input",
@@ -388,16 +392,19 @@ time.sleep(10)
                 spec={
                     "mapper": {
                         "tmpfs_path": "tmpfs",
-                        "memory_limit": 430 * 1024 * 1024,
+                        "memory_limit": memory_limit,
                         "use_smaps_memory_tracker": False,
                     },
                     "max_failed_job_count": 1,
                 },
             )
+            statistics = get(op.get_path() + "/@progress/job_statistics")
+            assert get_statistics(statistics, "user_job.max_memory.$.failed.map.sum") > memory_limit
 
         # String is in memory twice: one copy is mmaped non-tmpfs file and one copy is a local variable s.
         # Both allocations should be counted.
         with pytest.raises(YtError):
+            memory_limit = 300 * 1024 * 1024
             op = map(
                 command="fallocate -l 200M tmpfs/f; python3 mapper.py",
                 in_="//tmp/t_input",
@@ -406,12 +413,14 @@ time.sleep(10)
                 spec={
                     "mapper": {
                         "tmpfs_path": "other_tmpfs",
-                        "memory_limit": 300 * 1024 * 1024,
+                        "memory_limit": memory_limit,
                         "use_smaps_memory_tracker": True,
                     },
                     "max_failed_job_count": 1,
                 },
             )
+            statistics = get(op.get_path() + "/@progress/job_statistics")
+            assert get_statistics(statistics, "user_job.max_memory.$.failed.map.sum") > memory_limit
 
     @authors("psushin")
     def test_inner_files(self):

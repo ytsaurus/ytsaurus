@@ -16,6 +16,7 @@ namespace NYT {
 
 namespace NTools {
 REGISTER_TOOL(TSignalerTool)
+REGISTER_TOOL(TReadProcessSmapsTool)
 REGISTER_TOOL(TKillAllByUidTool)
 REGISTER_TOOL(TRemoveDirAsRootTool)
 REGISTER_TOOL(TRemoveDirContentAsRootTool)
