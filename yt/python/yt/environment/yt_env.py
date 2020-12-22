@@ -873,7 +873,6 @@ class YTInstance(object):
                     del env["YT_LOG_LEVEL"]
             env = update(env, {"YT_ALLOC_CONFIG": "{enable_eager_memory_release=%true}"})
 
-            logger.debug("Invoking %s", args)
             p = self._subprocess_module.Popen(args, shell=False, close_fds=True, cwd=self.runtime_data_path,
                                               env=env,
                                               stdout=stdout, stderr=stderr)
@@ -888,7 +887,7 @@ class YTInstance(object):
                 name_tag = "name: " + p._portoName
             else:
                 name_tag = ""
-            pid_tag = "pid: %d".format(p.pid)
+            pid_tag = "pid: {}".format(p.pid)
 
             logger.debug("Process %s started (%s)", name, ", ".join([pid_tag, name_tag]))
 
