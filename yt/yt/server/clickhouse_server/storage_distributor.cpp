@@ -133,7 +133,6 @@ DB::Pipe CreateRemoteSource(
         query,
         header,
         context,
-        nullptr,
         throttler,
         context.getQueryContext().getScalars(),
         externalTables,
