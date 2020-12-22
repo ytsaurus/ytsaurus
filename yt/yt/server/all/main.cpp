@@ -10,6 +10,32 @@
 #include <yt/server/exec/program.h>
 #include <yt/server/log_tailer/program.h>
 
+#include <yt/ytlib/program/program.h>
+
+#include <library/cpp/getopt/small/last_getopt_parse_result.h>
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAllProgram
+    : public NYT::TProgram
+{
+public:
+    int Run(int argc, const char** argv)
+    {
+        NLastGetopt::TOptsParseResult result(&Opts_, argc, argv);
+
+        return 0;
+    }
+
+private:
+    virtual void DoRun(const NLastGetopt::TOptsParseResult&) override
+    {
+        YT_ABORT();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 int main(int argc, const char** argv)
 {
     std::vector<std::pair<TString, std::function<int()>>> programs = {
@@ -32,6 +58,11 @@ int main(int argc, const char** argv)
         }
     }
 
+    // Handles auxiliary flags like --version and --build.
+    TAllProgram().Run(argc, argv);
+
     Cerr << "Program " << argv[0] << " is not known" << Endl;
     return 1;
 }
+
+////////////////////////////////////////////////////////////////////////////////
