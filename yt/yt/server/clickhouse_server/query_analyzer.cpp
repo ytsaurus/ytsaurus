@@ -26,6 +26,7 @@
 #include <Interpreters/DatabaseCatalog.h>
 #include <Interpreters/IdentifierSemantic.h>
 #include <Interpreters/TableJoin.h>
+#include <Interpreters/TreeRewriter.h> 
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/TranslateQualifiedNamesVisitor.h>
 

@@ -43,7 +43,7 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
     {
     public:
         TTcpHandler(THost* host, DB::IServer& server, const Poco::Net::StreamSocket& socket)
-            : DB::TCPHandler(server, socket)
+            : DB::TCPHandler(server, socket, false)
             , Host_(host)
         { }
 
