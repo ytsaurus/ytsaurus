@@ -30,22 +30,13 @@ const (
 	CodeBalancerServiceUnavailable = 1000000
 )
 
-func isTransientNetError(err error) bool {
-	var netErr net.Error
-	if ok := xerrors.As(err, &netErr); ok {
-		return netErr.Temporary() || netErr.Timeout()
-	}
-
-	return false
-}
-
 func isNetError(err error) bool {
 	var netErr net.Error
 	return xerrors.As(err, &netErr)
 }
 
 func (r *Retrier) shouldRetry(isRead bool, err error) bool {
-	if isRead && isTransientNetError(err) {
+	if isRead && isNetError(err) {
 		return true
 	}
 
