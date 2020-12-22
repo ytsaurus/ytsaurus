@@ -60,6 +60,7 @@ import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateObject;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
+import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.GcCollect;
 import ru.yandex.yt.ytclient.proxy.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
@@ -71,11 +72,13 @@ import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
+import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.PingTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReadTableDirect;
+import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
@@ -85,6 +88,8 @@ import ru.yandex.yt.ytclient.proxy.request.TableReplicaMode;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
 import ru.yandex.yt.ytclient.proxy.request.TrimTable;
+import ru.yandex.yt.ytclient.proxy.request.UnfreezeTable;
+import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
@@ -528,6 +533,64 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<Void> gcCollect(GUID cellId) {
         return gcCollect(new GcCollect(cellId));
+    }
+
+    public CompletableFuture<Void> mountTable(MountTable req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.mountTable()),
+                response -> null);
+    }
+
+    public CompletableFuture<Void> unmountTable(UnmountTable req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.unmountTable()),
+                response -> null);
+    }
+
+    public CompletableFuture<Void> remountTable(String path) {
+        return remountTable(new RemountTable(path));
+    }
+
+    public CompletableFuture<Void> remountTable(RemountTable req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.remountTable()),
+                response -> null);
+    }
+
+    public CompletableFuture<Void> freezeTable(String path) {
+        return freezeTable(path, null);
+    }
+
+    public CompletableFuture<Void> freezeTable(String path, @Nullable Duration requestTimeout) {
+        return freezeTable(new FreezeTable(path).setTimeout(requestTimeout));
+    }
+
+    public CompletableFuture<Void> freezeTable(FreezeTable req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.freezeTable()),
+                response -> null);
+    }
+
+    public CompletableFuture<Void> unfreezeTable(String path) {
+        return unfreezeTable(path, null);
+    }
+
+    public CompletableFuture<Void> unfreezeTable(String path, @Nullable Duration requestTimeout) {
+        return unfreezeTable(new UnfreezeTable(path).setTimeout(requestTimeout));
+    }
+
+    public CompletableFuture<Void> unfreezeTable(FreezeTable req) {
+        UnfreezeTable unfreezeReq = new UnfreezeTable(req.getPath());
+        if (req.getTimeout().isPresent()) {
+            unfreezeReq.setTimeout(req.getTimeout().get());
+        }
+        return unfreezeTable(unfreezeReq);
+    }
+
+    public CompletableFuture<Void> unfreezeTable(UnfreezeTable req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.unfreezeTable()),
+                response -> null);
     }
 
     public CompletableFuture<List<GUID>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp) {

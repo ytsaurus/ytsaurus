@@ -105,16 +105,18 @@ public class YtClient extends CompoundClient implements Closeable {
             RpcOptions options)
     {
         this(
-                builder()
-                        .setSharedBusConnector(connector)
-                        .setClusters(clusters)
-                        .setPreferredClusterName(localDataCenterName)
-                        .setProxyRole(proxyRole)
-                        .setRpcCredentials(credentials)
-                        .setRpcCompression(compression)
-                        .setRpcOptions(options)
-                        // old constructors did not validate their arguments
-                        .disableValidation()
+                new BuilderWithDefaults(
+                    builder()
+                            .setSharedBusConnector(connector)
+                            .setClusters(clusters)
+                            .setPreferredClusterName(localDataCenterName)
+                            .setProxyRole(proxyRole)
+                            .setRpcCredentials(credentials)
+                            .setRpcCompression(compression)
+                            .setRpcOptions(options)
+                            // old constructors did not validate their arguments
+                            .disableValidation()
+                    )
         );
     }
 
@@ -201,44 +203,39 @@ public class YtClient extends CompoundClient implements Closeable {
         return builder.startStream(executor, poolProvider.getClientPool(), consumer);
     }
 
-    private YtClient(Builder builder) {
-        super(builder.options);
+    private YtClient(BuilderWithDefaults builder) {
+        super(builder.busConnector.executorService(), builder.builder.options);
 
-        builder.validate();
+        builder.builder.validate();
 
-        BusConnector busConnector = builder.busConnector;
-        if (busConnector == null) {
-            busConnector = new DefaultBusConnector();
-        }
-        this.busConnector = busConnector;
-        this.isBusConnectorOwner = builder.isBusConnectorOwner;
+        this.busConnector = builder.busConnector;
+        this.isBusConnectorOwner = builder.builder.isBusConnectorOwner;
         this.executor = busConnector.executorService();
 
-        RpcCredentials credentials = builder.credentials;
-        if (credentials == null) {
-            credentials = RpcCredentials.loadFromEnvironment();
-        }
-        final RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(busConnector, credentials, builder.compression);
+        final RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(
+                busConnector,
+                builder.builder.credentials,
+                builder.builder.compression);
 
-        if (builder.options.isNewDiscoveryServiceEnabled()) {
+        if (builder.builder.options.isNewDiscoveryServiceEnabled()) {
             poolProvider = new NewClientPoolProvider(
                     busConnector,
-                    builder.clusters,
-                    builder.preferredClusterName,
-                    builder.proxyRole,
+                    builder.builder.clusters,
+                    builder.builder.preferredClusterName,
+                    builder.builder.proxyRole,
                     rpcClientFactory,
-                    credentials,
-                    builder.options);
+                    builder.credentials,
+                    builder.builder.options);
         } else {
             poolProvider = new OldClientPoolProvider(
                     busConnector,
-                    builder.clusters,
-                    builder.preferredClusterName,
-                    builder.proxyRole,
+                    builder.builder.clusters,
+                    builder.builder.preferredClusterName,
+                    builder.builder.proxyRole,
                     rpcClientFactory,
-                    credentials,
-                    builder.compression,
-                    builder.options);
+                    builder.credentials,
+                    builder.builder.compression,
+                    builder.builder.options);
         }
     }
 
@@ -674,7 +671,7 @@ public class YtClient extends CompoundClient implements Closeable {
          * Set YT clusters to use.
          *
          * <p>
-         * Similar to {@link #setClusters(String, String...)}  } but allows finer configuration.
+         * Similar to {@link #setClusters(String, String...)} but allows finer configuration.
          */
         public Builder setClusters(List<YtCluster> clusters) {
             this.clusters = clusters;
@@ -744,7 +741,7 @@ public class YtClient extends CompoundClient implements Closeable {
          * Finally create a client.
          */
         public YtClient build() {
-            return new YtClient(this);
+            return new YtClient(new BuilderWithDefaults(this));
         }
 
         void validate() {
@@ -782,6 +779,36 @@ public class YtClient extends CompoundClient implements Closeable {
         Builder disableValidation() {
             enableValidation = false;
             return this;
+        }
+    }
+
+    // Class is able to initialize nonset fields of builder with reasonable defaults. Keep in mind that:
+    //   1. We cannot initialize this fields in YtClient constructor
+    //   because busConnector is required to initialize superclass.
+    //   2. We don't want to call initialization code if user specified explicitly values
+    //   (initialization code is looking at environment and can fail and it starts threads)
+    //   3. Its better not to touch and modify builder instance since it's theoretically can be used by
+    //   user to initialize another YtClient.
+    @NonNullFields
+    private static class BuilderWithDefaults {
+        final Builder builder;
+        final BusConnector busConnector;
+        final RpcCredentials credentials;
+
+        BuilderWithDefaults(Builder builder) {
+            this.builder = builder;
+
+            if (builder.busConnector != null) {
+                busConnector = builder.busConnector;
+            } else {
+                busConnector = new DefaultBusConnector();
+            }
+
+            if (builder.credentials != null) {
+                credentials = builder.credentials;
+            } else {
+                credentials = RpcCredentials.loadFromEnvironment();
+            }
         }
     }
 }

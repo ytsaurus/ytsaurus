@@ -1,24 +1,37 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import java.util.Optional;
+import javax.annotation.Nullable;
 
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TTabletRangeOptions;
 
+@NonNullApi
+@NonNullFields
 public class TabletRangeOptions {
-    private Optional<Integer> firstTabletIndex = Optional.empty();
-    private Optional<Integer> lastTabletIndex = Optional.empty();
+    private @Nullable Integer firstTabletIndex = null;
+    private @Nullable Integer lastTabletIndex = null;
 
-    TabletRangeOptions() {}
+    public TabletRangeOptions() {}
 
-    TabletRangeOptions(int firstTabletIndex, int lastTabletIndex) {
-        this.firstTabletIndex = Optional.of(firstTabletIndex);
-        this.lastTabletIndex = Optional.of(lastTabletIndex);
+    public TabletRangeOptions(int firstTabletIndex, int lastTabletIndex) {
+        this.firstTabletIndex = firstTabletIndex;
+        this.lastTabletIndex = lastTabletIndex;
     }
 
     TTabletRangeOptions toProto() {
         TTabletRangeOptions.Builder builder = TTabletRangeOptions.newBuilder();
-        firstTabletIndex.ifPresent(x -> builder.setFirstTabletIndex(x));
-        lastTabletIndex.ifPresent(x -> builder.setLastTabletIndex(x));
+        if (firstTabletIndex != null) {
+            builder.setFirstTabletIndex(firstTabletIndex);
+        }
+        if (lastTabletIndex != null) {
+            builder.setLastTabletIndex(firstTabletIndex);
+        }
         return builder.build();
+    }
+
+    @Override
+    public String toString() {
+        return super.toString();
     }
 }

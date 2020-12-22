@@ -1,13 +1,20 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import javax.annotation.Nonnull;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.yt.rpcproxy.TReqRemountTable;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class RemountTable extends TableReq<RemountTable> {
+@NonNullApi
+public class RemountTable extends TableReq<RemountTable> implements HighLevelRequest<TReqRemountTable.Builder> {
     public RemountTable(String path) {
         super(path);
     }
 
-    @Nonnull
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqRemountTable.Builder, ?> builder) {
+        super.writeTo(builder.body());
+    }
+
     @Override
     protected RemountTable self() {
         return this;
