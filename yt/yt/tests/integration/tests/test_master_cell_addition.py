@@ -87,7 +87,7 @@ class TestMasterCellAddition(YTEnvSetup):
                 abort_transaction(id)
 
     @classmethod
-    def modify_master_config(cls, config, index):
+    def modify_master_config(cls, config, tag, index):
         cls._disable_last_cell_and_stash_config(config)
 
     @classmethod
