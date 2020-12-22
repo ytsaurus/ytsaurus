@@ -1,11 +1,13 @@
 #include "table_replicator.h"
-#include "tablet.h"
+
+#include "hint_manager.h"
+#include "private.h"
 #include "slot_manager.h"
+#include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_reader.h"
 #include "tablet_manager.h"
 #include "transaction_manager.h"
-#include "private.h"
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -77,6 +79,7 @@ public:
         NNative::IConnectionPtr localConnection,
         TTabletSlotPtr slot,
         TSlotManagerPtr slotManager,
+        THintManagerPtr hintManager,
         IInvokerPtr workerInvoker,
         IThroughputThrottlerPtr nodeInThrottler,
         IThroughputThrottlerPtr nodeOutThrottler)
@@ -84,6 +87,7 @@ public:
         , LocalConnection_(std::move(localConnection))
         , Slot_(std::move(slot))
         , SlotManager_(std::move(slotManager))
+        , HintManager_(std::move(hintManager))
         , WorkerInvoker_(std::move(workerInvoker))
         , TabletId_(tablet->GetId())
         , MountRevision_(tablet->GetMountRevision())
@@ -130,6 +134,7 @@ private:
     const NNative::IConnectionPtr LocalConnection_;
     const TTabletSlotPtr Slot_;
     const TSlotManagerPtr SlotManager_;
+    const THintManagerPtr HintManager_;
     const IInvokerPtr WorkerInvoker_;
 
     const TTabletId TabletId_;
@@ -211,8 +216,6 @@ private:
                 return;
             }
 
-            auto isVersioned = TableSchema_->IsSorted() && replicaRuntimeData->PreserveTimestamps;
-
             auto updateCountersGuard = Finally([&] {
                 auto rowCount = std::max(
                     static_cast<i64>(0),
@@ -225,6 +228,14 @@ private:
                 counters.LagRowCount.Record(rowCount);
                 counters.LagTime.Update(time);
             });
+
+            if (HintManager_->IsReplicaClusterBanned(ClusterName_)) {
+                YT_LOG_DEBUG("Skipping table replication iteration due to ban of replica cluster (ClusterName: %v)",
+                    ClusterName_);
+                return;
+            }
+
+            auto isVersioned = TableSchema_->IsSorted() && replicaRuntimeData->PreserveTimestamps;
 
             if (totalRowCount <= lastReplicationRowIndex) {
                 // All committed rows are replicated.
@@ -908,6 +919,7 @@ TTableReplicator::TTableReplicator(
     NNative::IConnectionPtr localConnection,
     TTabletSlotPtr slot,
     TSlotManagerPtr slotManager,
+    THintManagerPtr hintManager,
     IInvokerPtr workerInvoker,
     IThroughputThrottlerPtr nodeInThrottler,
     IThroughputThrottlerPtr nodeOutThrottler)
@@ -918,6 +930,7 @@ TTableReplicator::TTableReplicator(
         std::move(localConnection),
         std::move(slot),
         std::move(slotManager),
+        std::move(hintManager),
         std::move(workerInvoker),
         std::move(nodeInThrottler),
         std::move(nodeOutThrottler)))

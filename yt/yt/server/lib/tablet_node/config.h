@@ -6,6 +6,8 @@
 
 #include <yt/server/lib/hydra/config.h>
 
+#include <yt/server/lib/dynamic_config/config.h>
+
 #include <yt/server/lib/election/config.h>
 
 #include <yt/ytlib/chunk_client/config.h>
@@ -749,6 +751,23 @@ DEFINE_REFCOUNTED_TYPE(TTabletNodeDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THintManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NDynamicConfig::TDynamicConfigManagerConfigPtr ReplicatorHintConfigFetcher;
+
+    THintManagerConfig()
+    {
+        RegisterParameter("replicator_hint_config_fetcher", ReplicatorHintConfigFetcher)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(THintManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -785,6 +804,8 @@ public:
     TInMemoryManagerConfigPtr InMemoryManager;
     TPartitionBalancerConfigPtr PartitionBalancer;
     TSecurityManagerConfigPtr SecurityManager;
+
+    THintManagerConfigPtr HintManager;
 
     //! Cache for versioned chunk metas.
     TSlruCacheConfigPtr VersionedChunkMetaCache;
@@ -845,6 +866,8 @@ public:
             .DefaultNew();
         RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
+        RegisterParameter("hint_manager", HintManager)
+            .DefaultNew();
 
         RegisterParameter("versioned_chunk_meta_cache", VersionedChunkMetaCache)
             .DefaultNew(10_GB);
@@ -896,6 +919,9 @@ public:
             if (InMemoryManager->PreloadThrottler) {
                 Throttlers[ETabletNodeThrottlerKind::StaticStorePreloadIn] = InMemoryManager->PreloadThrottler;
             }
+
+            // COMPAT(akozhikhov): set to false when masters are updated too.
+            HintManager->ReplicatorHintConfigFetcher->IgnoreConfigAbsence = true;
         });
     }
 };
@@ -903,5 +929,22 @@ public:
 DEFINE_REFCOUNTED_TYPE(TTabletNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TReplicatorHintConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+   THashSet<TString> BannedReplicaClusters;
+
+    TReplicatorHintConfig()
+    {
+        RegisterParameter("banned_replica_clusters", BannedReplicaClusters)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicatorHintConfig)
+
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

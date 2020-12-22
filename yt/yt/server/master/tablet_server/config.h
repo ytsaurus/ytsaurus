@@ -355,8 +355,11 @@ class TDynamicReplicatedTableTrackerConfig
 {
 public:
     bool EnableReplicatedTableTracker;
+
     TDuration CheckPeriod;
     TDuration UpdatePeriod;
+
+    NTabletNode::TReplicatorHintConfigPtr ReplicatorHint;
     TAsyncExpiringCacheConfigPtr BundleHealthCache;
     TAsyncExpiringCacheConfigPtr ClusterStateCache;
     NHiveServer::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
@@ -369,6 +372,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("update_period", UpdatePeriod)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("replicator_hint", ReplicatorHint)
+            .DefaultNew();
         RegisterParameter("bundle_health_cache", BundleHealthCache)
             .DefaultNew();
         RegisterParameter("cluster_state_cache", ClusterStateCache)

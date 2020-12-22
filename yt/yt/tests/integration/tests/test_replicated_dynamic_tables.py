@@ -87,6 +87,7 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
             },
         },
         "tablet_node": {"replicator_data_weight_throttling_granularity": 1},
+        "tablet_node_hint_manager": {"replicator_hint_config_fetcher": {"update_period": 100}}
     }
 
     def setup(self):
@@ -2289,6 +2290,42 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         with pytest.raises(YtError):
             reshard_table("//tmp/t", [[]])
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("remove_list", [True, False])
+    def test_banned_clusters_in_replicator(self, remove_list):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, min_replication_log_ttl=0)
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": 0, "value1": "0", "value2": 0}]
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver) == rows)
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [self.REPLICA_CLUSTER_NAME])
+
+        dummy = {"counter": 1}
+        def _check_replicator_failed():
+            rows[0]["value2"] = dummy["counter"]
+            dummy["counter"] += 1
+            insert_rows("//tmp/t", rows, require_sync_replica=False)
+            try:
+                wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver) == rows, iter=5, sleep_backoff=1)
+                return False
+            except WaitFailed:
+                return True
+        wait(_check_replicator_failed)
+
+        if remove_list:
+            remove("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters")
+        else:
+            set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [])
+
+        rows[0]["value2"] = dummy["counter"]
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver) == rows)
 
 
 ##################################################################

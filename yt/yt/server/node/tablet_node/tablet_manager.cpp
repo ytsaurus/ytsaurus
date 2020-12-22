@@ -3089,6 +3089,7 @@ private:
                 Bootstrap_->GetMasterClient()->GetNativeConnection(),
                 Slot_,
                 Bootstrap_->GetTabletSlotManager(),
+                Bootstrap_->GetTabletNodeHintManager(),
                 CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
                 Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletReplication),
                 Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletReplication));

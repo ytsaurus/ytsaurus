@@ -48,6 +48,7 @@
 #include <yt/server/node/query_agent/query_service.h>
 
 #include <yt/server/node/tablet_node/backing_store_cleaner.h>
+#include <yt/server/node/tablet_node/hint_manager.h>
 #include <yt/server/node/tablet_node/in_memory_manager.h>
 #include <yt/server/node/tablet_node/in_memory_service.h>
 #include <yt/server/node/tablet_node/partition_balancer.h>
@@ -377,6 +378,7 @@ void TBootstrap::DoInitialize()
     MasterConnector_->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
     MasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
 
+    TabletNodeHintManager_ = New<NTabletNode::THintManager>(Config_->TabletNode->HintManager, this);
     TabletSlotManager_ = New<NTabletNode::TSlotManager>(Config_->TabletNode, this);
     MasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::TSlotManager::PopulateAlerts, TabletSlotManager_));
 
@@ -663,6 +665,7 @@ void TBootstrap::DoRun()
         Config_->Tags);
 
     DynamicConfigManager_->Start();
+    TabletNodeHintManager_->Start();
 
     NodeResourceManager_->Start();
 #ifdef __linux__
@@ -887,6 +890,11 @@ const TJobControllerPtr& TBootstrap::GetJobController() const
 const TJobReporterPtr& TBootstrap::GetJobReporter() const
 {
     return JobReporter_;
+}
+
+const NTabletNode::THintManagerPtr& TBootstrap::GetTabletNodeHintManager() const
+{
+    return TabletNodeHintManager_;
 }
 
 const NTabletNode::TSlotManagerPtr& TBootstrap::GetTabletSlotManager() const

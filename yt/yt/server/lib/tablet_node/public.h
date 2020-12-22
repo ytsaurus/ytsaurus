@@ -191,6 +191,8 @@ DECLARE_REFCOUNTED_CLASS(TTabletChunkReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
+DECLARE_REFCOUNTED_CLASS(TReplicatorHintConfig)
+DECLARE_REFCOUNTED_CLASS(THintManagerConfig)
 
 using TTabletChunkWriterConfig = NTableClient::TTableWriterConfig;
 using TTabletChunkWriterConfigPtr = NTableClient::TTableWriterConfigPtr;
