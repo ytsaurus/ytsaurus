@@ -82,7 +82,7 @@ def main():
                 logger.error('logrotate process failed with exit code %d, '
                              'stderr: "%s", stdout: "%s"', p.returncode, stderr, stdout)
             else:
-                logger.info("Successful")
+                logger.info("Logrotate executed successfully")
             logger.info("Sleep %d seconds before next calling", options.logrotate_interval)
 
         time.sleep(options.logrotate_interval)

@@ -56,10 +56,11 @@ class ProcessWatcher(object):
         if self._binary_path is None:
             watcher_cmd = [sys.executable]
             env = {"Y_PYTHON_ENTRY_POINT": "__yt_env_watcher_entry_point__"}
-        elif yatest_common is None:
-            watcher_cmd = [sys.executable, self._binary_path]
-        else:
+        elif getattr(sys, "is_standalone_binary", False):
             watcher_cmd = [self._binary_path]
+        else:  # Use current binary python for yt_env_watcher execution.
+            watcher_cmd = [sys.executable, self._binary_path]
+
         watcher_cmd += [
             "--lock-file-path", self._lock_path,
             "--logrotate-config-path", self._config_path,
