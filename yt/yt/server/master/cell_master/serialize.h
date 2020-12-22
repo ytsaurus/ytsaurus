@@ -120,6 +120,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveTypeV2)                                                 (1435))  // ermolovd
     ((EnableChangelogChunkPreallocationInBundleOptions)             (1436))  // babenko
     ((CapTrimmedRowCount)                                           (1437))  // ifsmirnov
+    ((RevertRemoveTypeV2_20_3_Only)                                 (1438))  // ermolovd
     // Late 20.3 starts here.
     ((OrderedRemoteDynamicStoreReader)                              (1444))  // ifsmirnov
     ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
