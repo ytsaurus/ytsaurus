@@ -224,7 +224,7 @@ private:
                 // Global memory pressure.
                 auto adjustedGlobalMemoryUsed = tracker->GetUsed(EMemoryCategory::TabletDynamic);
                 adjustedGlobalMemoryUsed -= PassiveMemoryUsage_;
-                if (enableForcedRotationBackingMemoryAccounting) {
+                if (!enableForcedRotationBackingMemoryAccounting) {
                     adjustedGlobalMemoryUsed -= BackingMemoryUsage_;
                 }
                 return adjustedGlobalMemoryUsed > tracker->GetLimit(EMemoryCategory::TabletDynamic) * forcedRotationMemoryRatio;
@@ -317,7 +317,7 @@ private:
                     if (auto backingStore = store->AsChunk()->GetBackingStore()) {
                         auto guard = Guard(SpinLock_);
                         BackingMemoryUsage_ += backingStore->GetDynamicMemoryUsage();
-                        TabletCellBundleData_[bundleName].BackingMemoryUsage += store->GetDynamicMemoryUsage();
+                        TabletCellBundleData_[bundleName].BackingMemoryUsage += backingStore->GetDynamicMemoryUsage();
                     }
                     break;
                 }
