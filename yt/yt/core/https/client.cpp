@@ -50,6 +50,14 @@ public:
         return Underlying_->Post(url, body, headers);
     }
 
+    virtual TFuture<IResponsePtr> Patch(
+        const TString& url,
+        const TSharedRef& body,
+        const THeadersPtr& headers) override
+    {
+        return Underlying_->Patch(url, body, headers);
+    }
+
 private:
     const NRpc::NGrpc::TGrpcLibraryLockPtr LibraryLock_;
     const IClientPtr Underlying_;

@@ -137,4 +137,11 @@ TFuture<IResponsePtr> TMockClient::Post(
     return MakeFuture<IResponsePtr>(New<TMockResponseStream>(mockRsp));
 }
 
+TFuture<IResponsePtr> TMockClient::Patch(
+    const TString& url, const TSharedRef& body, const THeadersPtr& headers)
+{
+    auto mockRsp = Patch(url, ToString(body), headers->Dump());
+    return MakeFuture<IResponsePtr>(New<TMockResponseStream>(mockRsp));
+}
+
 } // namespace NYT::NHttp

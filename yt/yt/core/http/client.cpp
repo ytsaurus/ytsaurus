@@ -35,29 +35,7 @@ public:
         const TString& url,
         const THeadersPtr& headers) override
     {
-        return WrapError(url, BIND([=, this_ = MakeStrong(this)] {
-            THttpOutputPtr request;
-            THttpInputPtr response;
-
-            auto urlRef = ParseUrl(url);
-            auto address = GetAddress(urlRef);
-            std::tie(request, response) = OpenHttp(address);
-
-            request->SetHost(urlRef.Host, urlRef.PortStr);
-            if (headers) {
-                request->SetHeaders(headers);
-            }
-
-            auto requestPath = Format("%v?%v", urlRef.Path, urlRef.RawQuery);
-            request->WriteRequest(EMethod::Get, requestPath);
-            WaitFor(request->Close())
-                .ThrowOnError();
-
-            // Waits for response headers internally.
-            response->GetStatusCode();
-
-            return IResponsePtr(response);
-        }));
+        return Request(EMethod::Get, url, std::nullopt, headers);
     }
 
     virtual TFuture<IResponsePtr> Post(
@@ -65,32 +43,15 @@ public:
         const TSharedRef& body,
         const THeadersPtr& headers) override
     {
-        return WrapError(url, BIND([=, this_ = MakeStrong(this)] {
-            THttpOutputPtr request;
-            THttpInputPtr response;
+        return Request(EMethod::Post, url, TSharedRef{body}, headers);
+    }
 
-            auto urlRef = ParseUrl(url);
-            auto address = GetAddress(urlRef);
-            std::tie(request, response) = OpenHttp(address);
-
-            request->SetHost(urlRef.Host, urlRef.PortStr);
-            if (headers) {
-                request->SetHeaders(headers);
-            }
-
-            auto requestPath = Format("%v?%v", urlRef.Path, urlRef.RawQuery);
-            request->WriteRequest(EMethod::Post, requestPath);
-
-            WaitFor(request->Write(body))
-                .ThrowOnError();
-            WaitFor(request->Close())
-                .ThrowOnError();
-
-            // Waits for response headers internally.
-            response->GetStatusCode();
-
-            return IResponsePtr(response);
-        }));
+    virtual TFuture<IResponsePtr> Patch(
+        const TString& url,
+        const TSharedRef& body,
+        const THeadersPtr& headers) override
+    {
+        return Request(EMethod::Patch, url, TSharedRef{body}, headers);
     }
 
 private:
@@ -165,6 +126,42 @@ private:
         })
             .AsyncVia(Invoker_)
             .Run();
+    }
+
+    TFuture<IResponsePtr> Request(
+        EMethod method,
+        const TString& url,
+        const std::optional<TSharedRef>& body,
+        const THeadersPtr& headers)
+    {
+        return WrapError(url, BIND([=, this_ = MakeStrong(this)] {
+            THttpOutputPtr request;
+            THttpInputPtr response;
+
+            auto urlRef = ParseUrl(url);
+            auto address = GetAddress(urlRef);
+            std::tie(request, response) = OpenHttp(address);
+
+            request->SetHost(urlRef.Host, urlRef.PortStr);
+            if (headers) {
+                request->SetHeaders(headers);
+            }
+
+            auto requestPath = Format("%v?%v", urlRef.Path, urlRef.RawQuery);
+            request->WriteRequest(method, requestPath);
+
+            if (body) {
+                WaitFor(request->Write(*body))
+                    .ThrowOnError();
+            }
+            WaitFor(request->Close())
+                .ThrowOnError();
+
+            // Waits for response headers internally.
+            response->GetStatusCode();
+
+            return IResponsePtr(response);
+        }));
     }
 };
 
