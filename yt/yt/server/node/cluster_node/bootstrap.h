@@ -75,6 +75,7 @@ public:
     const NYTree::IMapNodePtr& GetOrchidRoot() const;
     const NJobAgent::TJobControllerPtr& GetJobController() const;
     const NJobAgent::TJobReporterPtr& GetJobReporter() const;
+    const NTabletNode::THintManagerPtr& GetTabletNodeHintManager() const;
     const NTabletNode::TSlotManagerPtr& GetTabletSlotManager() const;
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::IInMemoryManagerPtr& GetInMemoryManager() const;
@@ -188,6 +189,7 @@ private:
     TEnumIndexedVector<NTabletNode::ETabletNodeThrottlerKind, NConcurrency::IThroughputThrottlerPtr> TabletNodeThrottlers_;
     NConcurrency::IThroughputThrottlerPtr TabletNodePreloadInThrottler_;
 
+    NTabletNode::THintManagerPtr TabletNodeHintManager_;
     NTabletNode::TSlotManagerPtr TabletSlotManager_;
     NTabletNode::TSecurityManagerPtr SecurityManager_;
     NTabletNode::IInMemoryManagerPtr InMemoryManager_;
