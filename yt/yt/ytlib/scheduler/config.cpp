@@ -1527,6 +1527,10 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
         MaxDataWeightPerJob = std::numeric_limits<i64>::max();
     });
     RegisterPostprocessor([&] {
+        if (InputTablePaths.size() > 1) {
+            THROW_ERROR_EXCEPTION("Multiple tables in remote copy are not supported");
+        }
+
         InputTablePaths = NYPath::Normalize(InputTablePaths);
         OutputTablePath = OutputTablePath.Normalize();
 

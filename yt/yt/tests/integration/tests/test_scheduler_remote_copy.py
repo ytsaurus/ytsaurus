@@ -665,6 +665,22 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         check_everything()
         unban_all_nodes()
 
+    @authors("ignat")
+    def test_multiple_tables_are_not_supported(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write_table("//tmp/t2", {"a": "b"}, driver=self.remote_driver)
+
+        create("table", "//tmp/output")
+
+        with pytest.raises(YtError):
+            remote_copy(
+                in_=["//tmp/t1", "//tmp/t2"],
+                out="//tmp/output",
+                spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+            )
+
 
 ##################################################################
 
