@@ -1377,28 +1377,28 @@ Y_UNIT_TEST_SUITE(Operations)
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
 
-        auto urlRowRawTypeV2 = TNode()
-            ("metatype", "struct")
-            ("fields", TNode()
+        auto urlRowRawTypeV3 = TNode()
+            ("type_name", "struct")
+            ("members", TNode()
                 .Add(TNode()("name", "Host")("type", "string"))
                 .Add(TNode()("name", "Path")("type", "string"))
                 .Add(TNode()("name", "HttpCode")("type", "int32")));
 
         auto schema1 = TTableSchema()
-            .AddColumn(TColumnSchema().Name("UrlRow_1").RawTypeV2(urlRowRawTypeV2))
+            .AddColumn(TColumnSchema().Name("UrlRow_1").RawTypeV3(urlRowRawTypeV3))
             .AddColumn(TColumnSchema().Name("UrlRow_2").Type(VT_STRING));
 
         auto schema2 = TTableSchema()
             .AddColumn(TColumnSchema()
                 .Name("Ints")
-                .RawTypeV2(TNode()
-                    ("metatype", "list")
-                    ("element", "int64")))
+                .RawTypeV3(TNode()
+                    ("type_name", "list")
+                    ("item", "int64")))
             .AddColumn(TColumnSchema()
                 .Name("UrlRows")
-                .RawTypeV2(TNode()
-                    ("metatype", "list")
-                    ("element", urlRowRawTypeV2)));
+                .RawTypeV3(TNode()
+                    ("type_name", "list")
+                    ("item", urlRowRawTypeV3)));
 
         auto inputTable1 = TRichYPath(workingDir + "/input_1").Schema(schema1);
         auto inputTable2 = TRichYPath(workingDir + "/input_2").Schema(schema2);
@@ -1498,11 +1498,11 @@ Y_UNIT_TEST_SUITE(Operations)
             .AddColumn(TColumnSchema()
                 .Name("AnyField").Type(EValueType::VT_ANY))
             .AddColumn(TColumnSchema()
-                .Name("EmbeddedField").RawTypeV2(TNode()
-                    ("metatype", "optional")
-                    ("element", TNode()
-                        ("metatype", "struct")
-                        ("fields", TNode()
+                .Name("EmbeddedField").RawTypeV3(TNode()
+                    ("type_name", "optional")
+                    ("item", TNode()
+                        ("type_name", "struct")
+                        ("members", TNode()
                             .Add(TNode()
                                 ("name", "ColorIntField")
                                 ("type", "int64"))
@@ -1512,12 +1512,12 @@ Y_UNIT_TEST_SUITE(Operations)
                             .Add(TNode()
                                 ("name", "AnyField")
                                 ("type", TNode()
-                                    ("metatype", "optional")
-                                    ("element", "any")))))))
+                                    ("type_name", "optional")
+                                    ("item", "yson")))))))
             .AddColumn(TColumnSchema()
-                .Name("RepeatedEnumIntField").RawTypeV2(TNode()
-                    ("metatype", "list")
-                    ("element", "int64")))
+                .Name("RepeatedEnumIntField").RawTypeV3(TNode()
+                    ("type_name", "list")
+                    ("item", "int64")))
             .AddColumn(TColumnSchema()
                 .Name("UnknownSchematizedColumn").Type(EValueType::VT_BOOLEAN));
 
