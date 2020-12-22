@@ -714,9 +714,11 @@ public:
     std::optional<int> Slots;
 
     //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
+    // NB: Default value is given in the static config during migration period.
     std::optional<double> ForcedRotationMemoryRatio;
 
     // TODO(babenko): either drop or make always false.
+    // NB: Default value is given in the static config during migration period.
     std::optional<bool> EnableForcedRotationBackingMemoryAccounting;
 
     TTabletManagerDynamicConfigPtr TabletManager;
