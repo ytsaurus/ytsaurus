@@ -2171,40 +2171,69 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
         TChunkServiceProxy proxy(channel);
 
         // Split large outputs into separate requests.
+        // For static tables there is always exactly one subrequest. For dynamic tables
+        // there may be multiple subrequests, each corresponding to the whole tablet.
         TChunkServiceProxy::TReqExecuteBatch::TAttachChunkTreesSubrequest* req = nullptr;
         TChunkServiceProxy::TReqExecuteBatchPtr batchReq;
 
-        auto flushCurrentReq = [&] (bool requestStatistics) {
+        auto flushSubrequest = [&] (bool requestStatistics) {
             if (req) {
                 req->set_request_statistics(requestStatistics);
+                req = nullptr;
+            }
+        };
 
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunks to output table %v",
-                    path);
+        auto flushRequest = [&] (bool requestStatistics) {
+            if (!batchReq) {
+                return;
+            }
 
-                const auto& batchRsp = batchRspOrError.Value();
-                const auto& rsp = batchRsp->attach_chunk_trees_subresponses(0);
-                if (requestStatistics) {
+            if (!requestStatistics && table->Dynamic) {
+                YT_ASSERT(!req);
+            }
+            flushSubrequest(requestStatistics);
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunks to output table %v",
+                path);
+
+            const auto& batchRsp = batchRspOrError.Value();
+            const auto& subresponses = batchRsp->attach_chunk_trees_subresponses();
+            if (!table->Dynamic) {
+                YT_VERIFY(subresponses.size() == 1);
+            }
+            if (requestStatistics) {
+                for (const auto& rsp : subresponses) {
                     // NB: For a static table statistics are requested only once at the end.
                     // For a dynamic table statistics are requested for each tablet separately.
                     table->DataStatistics += rsp.statistics();
                 }
             }
 
-            req = nullptr;
             batchReq.Reset();
         };
 
+        i64 currentRequestSize = 0;
+
         auto addChunkTree = [&] (TChunkTreeId chunkTreeId) {
-            if (req && req->child_ids_size() >= Config->MaxChildrenPerAttachRequest) {
-                // NB: No need for a statistics for an intermediate request.
-                flushCurrentReq(false);
+            if (batchReq && currentRequestSize >= Config->MaxChildrenPerAttachRequest) {
+                // NB: Static tables do not need statistics for intermediate requests.
+                // Dynamic tables need them for each subrequest, so we ensure that
+                // the whole request is flushed only when there is no opened subrequest.
+                if (!table->Dynamic || !req) {
+                    flushRequest(false);
+                    currentRequestSize = 0;
+                }
             }
 
+            ++currentRequestSize;
+
             if (!req) {
-                batchReq = proxy.ExecuteBatch();
-                GenerateMutationId(batchReq);
-                batchReq->set_suppress_upstream_sync(true);
+                if (!batchReq) {
+                    batchReq = proxy.ExecuteBatch();
+                    GenerateMutationId(batchReq);
+                    batchReq->set_suppress_upstream_sync(true);
+                }
                 req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), table->OutputChunkListId);
                 if (table->Dynamic && OperationType != EOperationType::RemoteCopy) {
@@ -2260,7 +2289,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     for (auto& chunkTree : tabletChunks[index]) {
                         addChunkTree(chunkTree);
                     }
-                    flushCurrentReq(true);
+                    flushSubrequest(true);
                 }
             }
         } else if (auto outputOrder = GetOutputOrder()) {
@@ -2294,7 +2323,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
         }
 
         // NB: Don't forget to ask for the statistics in the last request.
-        flushCurrentReq(true);
+        flushRequest(true);
 
         YT_LOG_INFO("Output chunks attached (Path: %v, Statistics: %v)",
             path,
