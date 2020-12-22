@@ -25,6 +25,14 @@ class TestBulkInsert(DynamicTablesBase):
     USE_DYNAMIC_TABLES = True
     ENABLE_BULK_INSERT = True
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            # COMPAT(shakurov): change the default to false and remove
+            # this delta once masters are up to date.
+            "enable_prerequisites_for_starting_completion_transactions": False,
+        }
+    }
+
     def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
         if "schema" not in attributes:
             attributes.update(
@@ -1145,6 +1153,14 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
     WRITE_CHANGE_TYPE = yson.YsonUint64(0)
     DELETE_CHANGE_TYPE = yson.YsonUint64(1)
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            # COMPAT(shakurov): change the default to false and remove
+            # this delta once masters are up to date.
+            "enable_prerequisites_for_starting_completion_transactions": False,
+        }
+    }
+
     def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
         if "schema" not in attributes:
             attributes.update(
@@ -1797,6 +1813,31 @@ class TestBulkInsertMulticell(TestBulkInsert):
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
+class TestBulkInsertPortal(TestBulkInsertMulticell):
+    ENABLE_TMP_PORTAL = True
+
+
+class TestBulkInsertShardedTx(TestBulkInsertPortal):
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "1": ["cypress_node_host"],
+        "2": ["chunk_host"],
+        "3": ["transaction_coordinator"],
+    }
+
+
 class TestUnversionedUpdateFormatRpcProxy(TestUnversionedUpdateFormat):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+
+class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
+    ENABLE_TMP_PORTAL = True
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "1": ["cypress_node_host"],
+        "2": ["chunk_host"],
+        "3": ["transaction_coordinator"],
+    }
