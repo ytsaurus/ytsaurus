@@ -2310,6 +2310,16 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     context.FinishStage();
 }
 
+TEST_F(TFairShareTreeTest, TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate)
+{
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(0, TJobResourcesWithQuota()));
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    relaxedPool->AttachParent(rootElement.Get());
+    EXPECT_EQ(0.0, relaxedPool->GetAccumulatedResourceRatioVolume());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
