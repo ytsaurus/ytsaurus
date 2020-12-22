@@ -5,7 +5,7 @@ from .default_configs import get_dynamic_master_config
 from .helpers import (
     read_config, write_config, is_dead_or_zombie, OpenPortIterator,
     wait_for_removing_file_lock, get_value_from_config, WaitFailed,
-    is_port_opened)
+    is_port_opened, is_file_locked)
 from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
 try:
@@ -1542,3 +1542,7 @@ class YTInstance(object):
             config=self.watcher_config)
 
         self._watcher.start()
+
+        wait(lambda: is_file_locked(os.path.join(self.path, "lock_file")))
+
+        logger.info("Watcher started")
