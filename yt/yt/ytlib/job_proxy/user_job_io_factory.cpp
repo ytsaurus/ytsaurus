@@ -119,7 +119,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
         std::move(trafficMeter),
         std::move(bandwidthThrottler),
         std::move(rpsThrottler),
-        multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
+        multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 }
 
 ISchemalessMultiChunkReaderPtr CreateRegularReader(
@@ -363,7 +363,7 @@ public:
                 TrafficMeter_,
                 InBandwidthThrottler_,
                 OutRpsThrottler_,
-                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
             primaryReaders.emplace_back(reader);
         }
@@ -394,7 +394,7 @@ public:
                 TrafficMeter_,
                 InBandwidthThrottler_,
                 OutRpsThrottler_,
-                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
             foreignReaders.emplace_back(reader);
         }

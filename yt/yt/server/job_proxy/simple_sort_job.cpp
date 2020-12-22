@@ -81,7 +81,7 @@ public:
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler(),
-            MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
+            MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
         Reader_ = CreateSortingReader(reader, nameTable, keyColumns, outputSchema->ToComparator());
 
