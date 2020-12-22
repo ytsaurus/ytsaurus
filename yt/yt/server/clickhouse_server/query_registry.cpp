@@ -244,7 +244,7 @@ public:
             PhaseDurationTimer_[queryPhase] = QueryRegistryProfiler_.Timer("/phase_duration");
         }
 
-        ClickHouseNativeProfiler
+        QueryRegistryProfiler_
             .WithSparse()
             .AddProducer("", MakeStrong(this));
     }
