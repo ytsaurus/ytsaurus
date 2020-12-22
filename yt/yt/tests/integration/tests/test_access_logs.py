@@ -1,10 +1,9 @@
 import json
 import os.path
 
-from flaky import flaky
-
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+
 
 ##################################################################
 
@@ -16,32 +15,36 @@ class TestAccessLog(YTEnvSetup):
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
 
-    TEST_DIR = "//tmp/access_log"
+    CELL_TAG_TO_DIRECTORIES = {0: "//tmp/access_log"}
 
-    def _log_lines(self):
-        with open(self.LOG_PATH, "r") as fd:
+    def _log_lines(self, path, directory):
+        with open(path, "r") as fd:
             for line in fd:
                 try:
                     line_json = json.loads(line)
                 except ValueError:
                     continue
-                if line_json.get("path", "").startswith(self.TEST_DIR):
+                if line_json.get("path", "").startswith(directory):
                     yield line_json
 
-    def _is_node_in_logs(self, node):
-        if not os.path.exists(self.LOG_PATH):
+    def _is_node_in_logs(self, node, path, directory):
+        if not os.path.exists(path):
             return False
-        for line_json in self._log_lines():
-            if line_json.get("path", "") == self.TEST_DIR + "/" + node:
+        for line_json in self._log_lines(path, directory):
+            if line_json.get("path", "") == directory + "/" + node:
                 return True
         return False
 
-    def _validate_entries_are_in_log(self, entries):
-        self.LOG_PATH = os.path.join(self.path_to_run, "logs/master-0-1.access.json.log")
-        ts = str(generate_timestamp())
-        create("table", "//tmp/access_log/{}".format(ts))
-        wait(lambda: self._is_node_in_logs(ts), iter=120, sleep_backoff=1.0)
-        written_logs = [line_json for line_json in self._log_lines()]
+    def _validate_entries_against_log(self, present_entries, missing_entries=[], cell_tag_to_directory=None):
+        if cell_tag_to_directory is None:
+            cell_tag_to_directory = self.CELL_TAG_TO_DIRECTORIES
+        written_logs = []
+        for master_tag, directory in cell_tag_to_directory.items():
+            path = os.path.join(self.path_to_run, "logs/master-{}-1.access.json.log".format(master_tag))
+            barrier_record = "{}-{}".format(master_tag, generate_timestamp())
+            create("table", "{}/{}".format(directory, barrier_record))
+            wait(lambda: self._is_node_in_logs(barrier_record, path, directory), iter=120, sleep_backoff=1.0)
+            written_logs.extend([line_json for line_json in self._log_lines(path, directory)])
 
         def _check_entry_is_in_log(log, line_json):
             for key, value in log.iteritems():
@@ -52,12 +55,16 @@ class TestAccessLog(YTEnvSetup):
                     return False
             return True
 
-        for log in entries:
+        for log in present_entries:
             assert any(_check_entry_is_in_log(log, line_json) for line_json in
                        written_logs), "Entry {} is not present in access log".format(log)
 
+        for log in missing_entries:
+            assert not any(_check_entry_is_in_log(log, line_json) for line_json in
+                           written_logs), "Entry {} is present in access log".format(log)
+
     @classmethod
-    def modify_master_config(cls, config, index):
+    def modify_master_config(cls, config, tag, index):
         config["logging"]["flush_period"] = 100
         config["logging"]["rules"].append(
             {
@@ -67,10 +74,9 @@ class TestAccessLog(YTEnvSetup):
                 "message_format": "structured",
             }
         )
-
         config["logging"]["writers"]["access"] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, "logs/master-0-{}.access.json.log".format(index)),
+            "file_name": os.path.join(cls.path_to_run, "logs/master-{}-{}.access.json.log".format(tag, index)),
             "accepted_message_format": "structured",
         }
 
@@ -145,7 +151,7 @@ class TestAccessLog(YTEnvSetup):
         remove("//tmp/access_log/some_node", recursive=True)
         log_list.append({"path": "//tmp/access_log/some_node", "method": "Remove"})
 
-        self._validate_entries_are_in_log(log_list)
+        self._validate_entries_against_log(log_list)
 
     def test_transaction_logs(self):
         tx1 = start_transaction()
@@ -192,10 +198,11 @@ class TestAccessLog(YTEnvSetup):
             }
         )
 
-        self._validate_entries_are_in_log(log_list)
+        self._validate_entries_against_log(log_list)
 
     def test_log_dynamic_config(self):
         enabled_logs = []
+        disabled_logs = []
 
         create("map_node", "//tmp/access_log")
 
@@ -206,11 +213,11 @@ class TestAccessLog(YTEnvSetup):
 
         ts = str(generate_timestamp())
         create("table", "//tmp/access_log/{}".format(ts))
+        disabled_logs.append({"method": "Create", "path": "//tmp/access_log/{}".format(ts), "type": "table"})
 
         set("//sys/@config/security_manager/enable_access_log", True)
 
-        self._validate_entries_are_in_log(enabled_logs)
-        assert not self._is_node_in_logs(ts)
+        self._validate_entries_against_log(present_entries=enabled_logs, missing_entries=disabled_logs)
 
     def test_original_path(self):
         log_list = []
@@ -249,7 +256,7 @@ class TestAccessLog(YTEnvSetup):
             }
         )
 
-        self._validate_entries_are_in_log(log_list)
+        self._validate_entries_against_log(log_list)
 
     def test_table_logs(self):
         sync_create_cells(1)
@@ -282,7 +289,7 @@ class TestAccessLog(YTEnvSetup):
         log_list.append({"path": "//tmp/access_log/table", "method": "PrepareReshard"})
         log_list.append({"path": "//tmp/access_log/table", "method": "CommitReshard"})
 
-        self._validate_entries_are_in_log(log_list)
+        self._validate_entries_against_log(log_list)
 
 
 ##################################################################
@@ -292,8 +299,9 @@ class TestAccessLogPortal(TestAccessLog):
     NUM_SECONDARY_MASTER_CELLS = 3
     ENABLE_TMP_PORTAL = True
 
-    # TODO(shakurov): fix it in YT-12457.
-    @flaky(max_runs=3)
+    CELL_TAG_TO_DIRECTORIES = {1: "//tmp/access_log"}
+
+    @authors("shakurov", "s-v-m")
     def test_logs_portal(self):
         log_list = []
 
@@ -305,4 +313,6 @@ class TestAccessLogPortal(TestAccessLog):
         log_list.append({"path": "//tmp/access_log/doc", "method": "BeginCopy"})
         log_list.append({"path": "//tmp/access_log/p1/doc", "method": "EndCopy"})
 
-        self._validate_entries_are_in_log(log_list)
+        self._validate_entries_against_log(log_list, cell_tag_to_directory={
+            1: "//tmp/access_log",
+            2: "//tmp/access_log/p1"})
