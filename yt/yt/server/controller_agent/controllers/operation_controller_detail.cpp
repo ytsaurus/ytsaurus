@@ -2237,7 +2237,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), table->OutputChunkListId);
                 if (table->Dynamic && OperationType != EOperationType::RemoteCopy) {
-                    ToProto(req->mutable_transaction_id(), OutputTransaction->GetId());
+                    ToProto(req->mutable_transaction_id(), table->ExternalTransactionId);
                 }
             }
 
