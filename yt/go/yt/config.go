@@ -174,7 +174,7 @@ func (c *Config) GetTxPingPeriod() time.Duration {
 
 func (c *Config) GetClientCompressionCodec() ClientCompressionCodec {
 	if c.CompressionCodec == ClientCodecDefault {
-		return ClientCodecGZIP
+		return ClientCodecZSTDDefault
 	}
 
 	return c.CompressionCodec
