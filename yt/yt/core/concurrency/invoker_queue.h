@@ -59,9 +59,7 @@ class TInvokerQueue
 public:
     TInvokerQueue(
         std::shared_ptr<TEventCount> callbackEventCount,
-        const NProfiling::TTagSet& tagSet,
-        bool enableLogging,
-        bool enableProfiling);
+        const NProfiling::TTagSet& tagSet);
 
     void SetThreadId(TThreadId threadId);
 
@@ -85,7 +83,6 @@ public:
 
 private:
     const std::shared_ptr<TEventCount> CallbackEventCount_;
-    bool EnableLogging_;
 
     TQueueImpl QueueImpl_;
 

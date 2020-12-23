@@ -32,12 +32,10 @@ public:
 protected:
     const std::shared_ptr<TEventCount> CallbackEventCount_;
     const TString ThreadName_;
-    const bool EnableLogging_;
 
     TSchedulerThreadBase(
         std::shared_ptr<TEventCount> callbackEventCount,
-        const TString& threadName,
-        bool enableLogging);
+        const TString& threadName);
 
     virtual void OnStart();
     virtual void BeforeShutdown();
@@ -73,14 +71,11 @@ class TFiberReusingAdapter
 public:
     TFiberReusingAdapter(
         std::shared_ptr<TEventCount> callbackEventCount,
-        const TString& threadName,
-        bool enableLogging = true);
+        const TString& threadName);
     TFiberReusingAdapter(
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName,
-        const NProfiling::TTagSet& tags,
-        bool enableLogging = true,
-        bool enableProfiling = true);
+        const NProfiling::TTagSet& tags);
 
     void CancelWait();
     void PrepareWait();

@@ -139,15 +139,12 @@ class TTwoLevelFairShareQueue
 public:
     TTwoLevelFairShareQueue(
         std::shared_ptr<TEventCount> callbackEventCount,
-        const TString& threadNamePrefix,
-        bool enableProfiling)
+        const TString& threadNamePrefix)
         : CallbackEventCount_(std::move(callbackEventCount))
         , ThreadNamePrefix_(threadNamePrefix)
     {
-        if (enableProfiling) {
-            Profiler_ = TRegistry{"/fair_share_queue"}
-                .WithHot();
-        }
+        Profiler_ = TRegistry{"/fair_share_queue"}
+            .WithHot();
     }
 
     ~TTwoLevelFairShareQueue()
@@ -169,7 +166,7 @@ public:
             if (poolIt == NameToPoolId_.end()) {
                 auto newPoolId = GetLowestEmptyPoolId();
 
-                auto profiler = Profiler_.WithTags(GetBucketTags(true, ThreadNamePrefix_, poolName));
+                auto profiler = Profiler_.WithTags(GetBucketTags(ThreadNamePrefix_, poolName));
                 auto newPool = std::make_unique<TExecutionPool>(poolName, profiler);
                 if (newPoolId >= IdToPool_.size()) {
                     IdToPool_.emplace_back();
@@ -567,15 +564,11 @@ public:
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName,
         const TTagSet& tags,
-        bool enableLogging,
-        bool enableProfiling,
         int index)
         : TSchedulerThread(
             std::move(callbackEventCount),
             threadName,
-            tags,
-            enableLogging,
-            enableProfiling)
+            tags)
         , Queue_(std::move(queue))
         , Index_(index)
     { }
@@ -608,18 +601,13 @@ class TTwoLevelFairShareThreadPool
 public:
     TTwoLevelFairShareThreadPool(
         int threadCount,
-        const TString& threadNamePrefix,
-        bool enableLogging,
-        bool enableProfiling)
+        const TString& threadNamePrefix)
         : TThreadPoolBase(
             threadCount,
-            threadNamePrefix,
-            enableLogging,
-            enableProfiling)
+            threadNamePrefix)
         , Queue_(New<TTwoLevelFairShareQueue>(
             CallbackEventCount_,
-            ThreadNamePrefix_,
-            EnableProfiling_))
+            ThreadNamePrefix_))
     {
         Configure(threadCount);
     }
@@ -679,9 +667,7 @@ private:
             Queue_,
             CallbackEventCount_,
             MakeThreadName(index),
-            GetThreadTags(EnableProfiling_, ThreadNamePrefix_),
-            EnableLogging_,
-            EnableProfiling_,
+            GetThreadTags(ThreadNamePrefix_),
             index);
     }
 };
@@ -692,15 +678,11 @@ private:
 
 ITwoLevelFairShareThreadPoolPtr CreateTwoLevelFairShareThreadPool(
     int threadCount,
-    const TString& threadNamePrefix,
-    bool enableLogging,
-    bool enableProfiling)
+    const TString& threadNamePrefix)
 {
     return New<TTwoLevelFairShareThreadPool>(
         threadCount,
-        threadNamePrefix,
-        enableLogging,
-        enableProfiling);
+        threadNamePrefix);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,15 +10,11 @@ TSingleQueueSchedulerThread<TQueueImpl>::TSingleQueueSchedulerThread(
     TInvokerQueuePtr<TQueueImpl> queue,
     std::shared_ptr<TEventCount> callbackEventCount,
     const TString& threadName,
-    const NProfiling::TTagSet& tagIds,
-    bool enableLogging,
-    bool enableProfiling)
+    const NProfiling::TTagSet& tagIds)
     : TSchedulerThread(
         std::move(callbackEventCount),
         threadName,
-        tagIds,
-        enableLogging,
-        enableProfiling)
+        tagIds)
     , Queue_(std::move(queue))
 { }
 

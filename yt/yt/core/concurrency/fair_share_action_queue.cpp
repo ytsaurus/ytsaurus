@@ -22,20 +22,14 @@ class TFairShareActionQueue::TImpl
 public:
     TImpl(
         const TString& threadName,
-        const std::vector<TString>& bucketNames,
-        bool enableLogging,
-        bool enableProfiling)
+        const std::vector<TString>& bucketNames)
         : Queue_(New<TFairShareInvokerQueue>(
             CallbackEventCount_,
-            GetBucketsTags(enableProfiling, threadName, bucketNames),
-            enableLogging,
-            enableProfiling))
+            GetBucketsTags(threadName, bucketNames)))
         , Thread_(New<TFairShareQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
-            threadName,
-            enableLogging,
-            enableProfiling))
+            threadName))
     { }
 
     ~TImpl()
@@ -90,14 +84,10 @@ private:
 
 TFairShareActionQueue::TFairShareActionQueue(
     const TString& threadName,
-    const std::vector<TString>& bucketNames,
-    bool enableLogging,
-    bool enableProfiling)
+    const std::vector<TString>& bucketNames)
     : Impl_(New<TImpl>(
         threadName,
-        bucketNames,
-        enableLogging,
-        enableProfiling))
+        bucketNames))
 { }
 
 namespace {
@@ -115,14 +105,10 @@ std::vector<TString> ToVector(TRange<TStringBuf> range)
 
 TFairShareActionQueue::TFairShareActionQueue(
     const TString& threadName,
-    TRange<TStringBuf> bucketNames,
-    bool enableLogging,
-    bool enableProfiling)
+    TRange<TStringBuf> bucketNames)
     : TFairShareActionQueue(
         threadName,
-        ToVector(bucketNames),
-        enableLogging,
-        enableProfiling)
+        ToVector(bucketNames))
 { }
 
 TFairShareActionQueue::~TFairShareActionQueue() = default;

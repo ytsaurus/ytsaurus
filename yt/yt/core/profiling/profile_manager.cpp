@@ -3,6 +3,7 @@
 #include "resource_tracker.h"
 #include "timing.h"
 
+#include <yt/core/concurrency/profiling_helpers.h>
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler_thread.h>
@@ -49,9 +50,7 @@ public:
         , WasShutdown_(false)
         , EventQueue_(New<TMpscInvokerQueue>(
             EventCount_,
-            TTagSet{},
-            true,
-            false))
+            NConcurrency::GetThreadTags("Profiler")))
         , Thread_(New<TThread>(this))
         , Root_(GetEphemeralNodeFactory(true)->CreateMap())
     {
@@ -438,9 +437,7 @@ private:
             : TSchedulerThread(
                 owner->EventCount_,
                 "Profiling",
-                {},
-                true,
-                false)
+                NProfiling::GetThreadTags("Profiling"))
             , Owner(owner)
         { }
 

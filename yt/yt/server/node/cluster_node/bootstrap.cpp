@@ -308,9 +308,7 @@ void TBootstrap::DoInitialize()
         "Query");
     TabletLookupThreadPool_ = New<TThreadPool>(
         Config_->QueryAgent->LookupThreadPoolSize,
-        "TabletLookup",
-        true,
-        true);
+        "TabletLookup");
     TableReplicatorThreadPool_ = New<TThreadPool>(
         Config_->TabletNode->TabletManager->ReplicatorThreadPoolSize,
         "Replicator");

@@ -19,14 +19,10 @@ class TFairShareActionQueue
 public:
     TFairShareActionQueue(
         const TString& threadName,
-        const std::vector<TString>& bucketNames,
-        bool enableLogging = true,
-        bool enableProfiling = true);
+        const std::vector<TString>& bucketNames);
     TFairShareActionQueue(
         const TString& threadName,
-        TRange<TStringBuf> bucketNames,
-        bool enableLogging = true,
-        bool enableProfiling = true);
+        TRange<TStringBuf> bucketNames);
 
     virtual ~TFairShareActionQueue();
 

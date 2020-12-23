@@ -18,9 +18,7 @@ class TThreadPool
 public:
     TThreadPool(
         int threadCount,
-        const TString& threadNamePrefix,
-        bool enableLogging = true,
-        bool enableProfiling = true);
+        const TString& threadNamePrefix);
 
     virtual ~TThreadPool();
 

@@ -27,22 +27,16 @@ class TActionQueue::TImpl
 {
 public:
     TImpl(
-        const TString& threadName,
-        bool enableLogging,
-        bool enableProfiling)
+        const TString& threadName)
         : Queue_(New<TMpscInvokerQueue>(
             CallbackEventCount_,
-            GetThreadTags(enableProfiling, threadName),
-            enableLogging,
-            enableProfiling))
+            GetThreadTags(threadName)))
         , Invoker_(Queue_)
         , Thread_(New<TMpscSingleQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
             threadName,
-            GetThreadTags(enableProfiling, threadName),
-            enableLogging,
-            enableProfiling))
+            GetThreadTags(threadName)))
     { }
 
     ~TImpl()
@@ -97,10 +91,8 @@ private:
 };
 
 TActionQueue::TActionQueue(
-    const TString& threadName,
-    bool enableLogging,
-    bool enableProfiling)
-    : Impl_(New<TImpl>(threadName, enableLogging, enableProfiling))
+    const TString& threadName)
+    : Impl_(New<TImpl>(threadName))
 { }
 
 TActionQueue::~TActionQueue() = default;

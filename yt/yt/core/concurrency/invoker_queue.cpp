@@ -38,27 +38,20 @@ Y_FORCE_INLINE bool TMpscQueueImpl::TryDequeue(TEnqueuedAction* action)
 template <class TQueueImpl>
 TInvokerQueue<TQueueImpl>::TInvokerQueue(
     std::shared_ptr<TEventCount> callbackEventCount,
-    const TTagSet& tags,
-    bool enableLogging,
-    bool enableProfiling)
+    const TTagSet& tags)
     : CallbackEventCount_(std::move(callbackEventCount))
-    , EnableLogging_(enableLogging)
 {
-    if (enableProfiling) {
-        auto profiler = TRegistry("/action_queue").WithTags(tags);
+    auto profiler = TRegistry("/action_queue").WithTags(tags);
 
-        EnqueuedCounter_ = profiler.Counter("/enqueued");
-        DequeuedCounter_ = profiler.Counter("/dequeued");
-        profiler.AddFuncGauge("/size", MakeStrong(this), [this] {
-            return Size_.load();
-        });
-        WaitTimer_ = profiler.Timer("/time/wait");
-        ExecTimer_ = profiler.Timer("/time/exec");
-        CumulativeTimeCounter_ = profiler.TimeCounter("/time/cumulative");
-        TotalTimer_ = profiler.Timer("/time/total");
-    }
-
-    Y_UNUSED(EnableLogging_);
+    EnqueuedCounter_ = profiler.Counter("/enqueued");
+    DequeuedCounter_ = profiler.Counter("/dequeued");
+    profiler.AddFuncGauge("/size", MakeStrong(this), [this] {
+        return Size_.load();
+    });
+    WaitTimer_ = profiler.Timer("/time/wait");
+    ExecTimer_ = profiler.Timer("/time/exec");
+    CumulativeTimeCounter_ = profiler.TimeCounter("/time/cumulative");
+    TotalTimer_ = profiler.Timer("/time/total");
 }
 
 template <class TQueueImpl>
@@ -73,14 +66,13 @@ void TInvokerQueue<TQueueImpl>::Invoke(TClosure callback)
     YT_ASSERT(callback);
 
     if (!Running_.load(std::memory_order_relaxed)) {
-        YT_LOG_TRACE_IF(
-            EnableLogging_,
+        YT_LOG_TRACE(
             "Queue had been shut down, incoming action ignored (Callback: %v)",
             callback.GetHandle());
         return;
     }
 
-    YT_LOG_TRACE_IF(EnableLogging_, "Callback enqueued (Callback: %v)",
+    YT_LOG_TRACE("Callback enqueued (Callback: %v)",
         callback.GetHandle());
 
     auto tscp = TTscp::Get();

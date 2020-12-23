@@ -6,17 +6,13 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProfiling::TTagSet GetThreadTags(
-    bool enableProfiling,
-    const TString& threadName);
+NProfiling::TTagSet GetThreadTags(const TString& threadName);
 
 NProfiling::TTagSet GetBucketTags(
-    bool enableProfiling,
     const TString& threadName,
     const TString& bucketName);
 
 std::vector<NProfiling::TTagSet> GetBucketsTags(
-    bool enableProfiling,
     const TString& threadName,
     const std::vector<TString>& bucketNames);
 
