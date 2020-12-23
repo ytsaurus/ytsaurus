@@ -160,12 +160,13 @@ DB::Pipe CreateRemoteSource(
     bool addAggregationInfo = processedStage == DB::QueryProcessingStage::WithMergeableState;
     bool addTotals = false;
     bool addExtremes = false;
+    bool asyncRead = false;
     if (processedStage == DB::QueryProcessingStage::Complete) {
         addTotals = queryAst->as<DB::ASTSelectQuery &>().group_by_with_totals;
         addExtremes = context.getSettingsRef().extremes;
     }
 
-    auto pipe = createRemoteSourcePipe(remoteQueryExecutor, addAggregationInfo, addTotals, addExtremes);
+    auto pipe = createRemoteSourcePipe(remoteQueryExecutor, addAggregationInfo, addTotals, addExtremes, asyncRead);
 
     pipe.addSimpleTransform([&](const DB::Block & header) {
         return std::make_shared<TLoggingTransform>(header, TLogger(queryContext->Logger)
