@@ -150,7 +150,7 @@ void TNode::ComputeFillFactors()
 {
     TMediumMap<std::pair<i64, i64>> freeAndUsedSpace;
 
-    for (const auto& location : Statistics_.locations()) {
+    for (const auto& location : Statistics_.storage_locations()) {
         auto mediumIndex = location.medium_index();
         auto& space = freeAndUsedSpace[mediumIndex];
         auto& freeSpace = space.first;
@@ -173,7 +173,7 @@ void TNode::ComputeFillFactors()
 void TNode::ComputeSessionCount()
 {
     SessionCount_.clear();
-    for (const auto& location : Statistics_.locations()) {
+    for (const auto& location : Statistics_.storage_locations()) {
         auto mediumIndex = location.medium_index();
         if (location.enabled() && !location.full()) {
             SessionCount_[mediumIndex] = SessionCount_[mediumIndex].value_or(0) + location.session_count();
@@ -734,7 +734,7 @@ int TNode::GetTotalTabletSlots() const
 
 bool TNode::HasMedium(int mediumIndex) const
 {
-    const auto& locations = Statistics_.locations();
+    const auto& locations = Statistics_.storage_locations();
     auto it = std::find_if(
         locations.begin(),
         locations.end(),

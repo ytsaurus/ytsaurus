@@ -68,6 +68,10 @@ TSlotLocation::TSlotLocation(
         HeavyInvoker_,
         BIND(&TSlotLocation::UpdateDiskResources, MakeWeak(this)),
         Bootstrap_->GetConfig()->ExecAgent->SlotManager->DiskResourcesUpdatePeriod))
+    , SlotLocationStatisticsUpdateExecutor_(New<TPeriodicExecutor>(
+        HeavyLocationQueue_->GetInvoker(),
+        BIND(&TSlotLocation::UpdateSlotLocationStatistics, MakeWeak(this)),
+        Bootstrap_->GetConfig()->ExecAgent->SlotManager->SlotLocationStatisticsUpdatePeriod))
     , LocationPath_(NFS::GetRealPath(Config_->Path))
 { }
 
@@ -122,6 +126,7 @@ TFuture<void> TSlotLocation::Initialize()
         HealthChecker_->Start();
 
         DiskResourcesUpdateExecutor_->Start();
+        SlotLocationStatisticsUpdateExecutor_->Start();
     })
     .AsyncVia(HeavyInvoker_)
     .Run();
@@ -677,6 +682,8 @@ void TSlotLocation::Disable(const TError& error)
         return;
     }
 
+    Error_.Store(error);
+
     auto alert = TError(
         EErrorCode::SlotLocationDisabled,
         "Slot location at %v is disabled",
@@ -767,10 +774,62 @@ void TSlotLocation::UpdateDiskResources()
     YT_LOG_DEBUG("Disk resources updated");
 }
 
+
+void TSlotLocation::UpdateSlotLocationStatistics()
+{
+    YT_LOG_DEBUG("Started updating slot location statistics");
+
+    NNodeTrackerClient::NProto::TSlotLocationStatistics slotLocationStatistics;
+
+    {
+        auto error = Error_.Load();
+        if (!error.IsOK()) {
+            ToProto(slotLocationStatistics.mutable_error(), error);
+        }
+    }
+
+    if (IsEnabled()) {
+        try {
+            auto locationStatistics = NFS::GetDiskSpaceStatistics(Config_->Path);
+            slotLocationStatistics.set_available_space(locationStatistics.AvailableSpace);
+            slotLocationStatistics.set_used_space(locationStatistics.TotalSpace - locationStatistics.AvailableSpace);
+
+            for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+                auto slotPath = GetSlotPath(slotIndex);
+                auto slotSpaceUsage = Bootstrap_->IsSimpleEnvironment()
+                    ? NFS::GetDirectorySize(slotPath)
+                    : RunTool<TGetDirectorySizeAsRootTool>(slotPath); 
+                slotLocationStatistics.add_slot_space_usages(slotSpaceUsage);
+            }
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to get slot location statisitcs")
+                << ex;
+            YT_LOG_WARNING(error);
+            Disable(error);
+            return;
+        }
+    }
+
+    {
+        auto guard = WriterGuard(SlotLocationStatisticsLock_);
+        SlotLocationStatistics_ = slotLocationStatistics;
+    }
+
+    YT_LOG_DEBUG("Slot location statistics updated (UsedSpace: %v, AvailableSpace: %v)",
+        slotLocationStatistics.used_space(),
+        slotLocationStatistics.available_space());
+}
+
 NNodeTrackerClient::NProto::TDiskLocationResources TSlotLocation::GetDiskResources() const
 {
     auto guard = ReaderGuard(DiskResourcesLock_);
     return DiskResources_;
+}
+
+NNodeTrackerClient::NProto::TSlotLocationStatistics TSlotLocation::GetSlotLocationStatistics() const
+{
+    auto guard = ReaderGuard(SlotLocationStatisticsLock_);
+    return SlotLocationStatistics_;
 }
 
 void TSlotLocation::CreateSandboxDirectories(int slotIndex)

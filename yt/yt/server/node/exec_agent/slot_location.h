@@ -84,6 +84,8 @@ public:
 
     NNodeTrackerClient::NProto::TDiskLocationResources GetDiskResources() const;
 
+    NNodeTrackerClient::NProto::TSlotLocationStatistics GetSlotLocationStatistics() const;
+
     void Disable(const TError& error);
 
     void InvokeUpdateDiskResources();
@@ -111,6 +113,7 @@ private:
 
     const TDiskHealthCheckerPtr HealthChecker_;
     const NConcurrency::TPeriodicExecutorPtr DiskResourcesUpdateExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr SlotLocationStatisticsUpdateExecutor_;
     //! Absolute path to location.
     const TString LocationPath_;
 
@@ -125,6 +128,12 @@ private:
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, DiskResourcesLock_);
     NNodeTrackerClient::NProto::TDiskLocationResources DiskResources_;
 
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SlotLocationStatisticsLock_);
+    NNodeTrackerClient::NProto::TSlotLocationStatistics SlotLocationStatistics_;
+
+    //! If location is disabled, this error contains the reason.
+    TAtomicObject<TError> Error_;
+
     void ValidateEnabled() const;
 
     static void ValidateNotExists(const TString& path);
@@ -136,6 +145,8 @@ private:
     void ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const;
 
     void UpdateDiskResources();
+
+    void UpdateSlotLocationStatistics();
 
     TString GetConfigPath(int slotIndex) const;
 

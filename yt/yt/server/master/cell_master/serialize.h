@@ -126,6 +126,8 @@ DEFINE_ENUM(EMasterReign,
     // Late 20.3 starts here.
     ((OrderedRemoteDynamicStoreReader)                              (1444))  // ifsmirnov
     ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
+    // 21.1 starts here.
+    ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

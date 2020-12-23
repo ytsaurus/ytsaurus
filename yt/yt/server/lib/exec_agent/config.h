@@ -173,6 +173,8 @@ public:
 
     TDuration DiskResourcesUpdatePeriod;
 
+    TDuration SlotLocationStatisticsUpdatePeriod;
+
     int MaxConsecutiveAborts;
 
     TDuration DisableJobsTimeout;
@@ -198,6 +200,8 @@ public:
         RegisterParameter("disk_resources_update_period", DiskResourcesUpdatePeriod)
             .Alias("disk_info_update_period")
             .Default(TDuration::Seconds(5));
+        RegisterParameter("slot_location_statistics_update_period", SlotLocationStatisticsUpdatePeriod)
+            .Default(TDuration::Seconds(30));
 
         RegisterParameter("max_consecutive_aborts", MaxConsecutiveAborts)
             .Default(500);

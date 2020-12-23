@@ -9,8 +9,16 @@ from yt_commands import *
 class TestNodeTracker(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
+    NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {"tags": ["config_tag1", "config_tag2"]}
+    DELTA_NODE_CONFIG = {
+        "tags": ["config_tag1", "config_tag2"],
+        "exec_agent": {
+            "slot_manager": {
+                "slot_location_statistics_update_period": 100,
+            },
+        },
+    }
 
     @authors("babenko")
     def test_ban(self):
@@ -138,6 +146,34 @@ class TestNodeTracker(YTEnvSetup):
             wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
         wait(lambda: can_write())
 
+    @authors("gritukan")
+    def test_slot_location_statistics(self):
+        def get_max_slot_space_usage():
+            max_slot_space_usage = -1
+            for node in ls("//sys/cluster_nodes"):
+                slot_locations_path = "//sys/cluster_nodes/{}/@statistics/slot_locations".format(node)
+                statistics = get(slot_locations_path)
+                for index in range(len(statistics)):
+                    slot_space_usages = get(slot_locations_path + "/{}/slot_space_usages".format(index))
+                    for slot_space_usage in slot_space_usages:
+                        max_slot_space_usage = max(max_slot_space_usage, slot_space_usage)
+            return max_slot_space_usage
+
+        assert get_max_slot_space_usage() == 0
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "my_task": {
+                        "job_count": 1,
+                        "command": "fallocate -l 10M my_file; sleep 3600",
+                    }
+                }
+            }
+        )
+
+        wait(lambda: 10 * 1024 * 1024 <= get_max_slot_space_usage() <= 12 * 1024 * 1024)
+        op.abort()
 
 ##################################################################
 
