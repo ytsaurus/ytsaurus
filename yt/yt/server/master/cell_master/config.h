@@ -239,6 +239,7 @@ class TDynamicClusterConfig
 {
 public:
     bool EnableSafeMode;
+    bool EnableDescendingSortOrder;
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
     NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;
     NNodeTrackerServer::TDynamicNodeTrackerConfigPtr NodeTracker;
