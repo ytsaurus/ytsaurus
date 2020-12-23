@@ -26,9 +26,7 @@ DEFINE_REFCOUNTED_TYPE(ITwoLevelFairShareThreadPool)
 
 ITwoLevelFairShareThreadPoolPtr CreateTwoLevelFairShareThreadPool(
     int threadCount,
-    const TString& threadNamePrefix,
-    bool enableLogging = true,
-    bool enableProfiling = true);
+    const TString& threadNamePrefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 

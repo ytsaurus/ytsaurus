@@ -49,11 +49,9 @@ void CheckedAction(std::atomic<ui64>* atomicEpoch, ui64 mask, TAction&& action)
 
 TSchedulerThreadBase::TSchedulerThreadBase(
     std::shared_ptr<TEventCount> callbackEventCount,
-    const TString& threadName,
-    bool enableLogging)
+    const TString& threadName)
     : CallbackEventCount_(std::move(callbackEventCount))
     , ThreadName_(threadName)
-    , EnableLogging_(enableLogging)
     , Thread_(ThreadTrampoline, (void*) this)
 { }
 
@@ -102,8 +100,6 @@ void TSchedulerThreadBase::Start()
 {
     CheckedAction(&Epoch_, StartingEpochMask, [&] (ui64 epoch) {
         if (!(epoch & StoppingEpochMask)) {
-            YT_LOG_DEBUG_IF(EnableLogging_, "Starting thread (Name: %v)", ThreadName_);
-
             try {
                 Thread_.Start();
             } catch (const std::exception& ex) {
@@ -122,8 +118,6 @@ void TSchedulerThreadBase::Start()
             ThreadStartedEvent_.NotifyAll();
         }
     });
-
-    ThreadStartedEvent_.Wait();
 }
 
 void TSchedulerThreadBase::Shutdown()
@@ -133,8 +127,6 @@ void TSchedulerThreadBase::Shutdown()
             // There is a tiny chance that thread is not started yet, and call to TThread::Join may fail
             // in this case. Ensure proper event sequencing by synchronizing with thread startup.
             ThreadStartedEvent_.Wait();
-
-            YT_LOG_DEBUG_IF(EnableLogging_, "Stopping thread (Name: %v)", ThreadName_);
 
             CallbackEventCount_->NotifyAll();
 
@@ -167,7 +159,7 @@ void TSchedulerThreadBase::ThreadMain()
 
     try {
         OnThreadStart();
-        YT_LOG_DEBUG_IF(EnableLogging_, "Thread started (Name: %v)", ThreadName_);
+        YT_LOG_DEBUG("Thread started (Name: %v)", ThreadName_);
 
         ThreadStartedEvent_.NotifyAll();
 
@@ -186,7 +178,7 @@ void TSchedulerThreadBase::ThreadMain()
         }
 
         OnThreadShutdown();
-        YT_LOG_DEBUG_IF(EnableLogging_, "Thread stopped (Name: %v)", ThreadName_);
+        YT_LOG_DEBUG("Thread stopped (Name: %v)", ThreadName_);
     } catch (const std::exception& ex) {
         YT_LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %v)", ThreadName_);
     }
@@ -733,24 +725,19 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
 
 TFiberReusingAdapter::TFiberReusingAdapter(
     std::shared_ptr<TEventCount> callbackEventCount,
-    const TString& threadName,
-    bool enableLogging)
+    const TString& threadName)
     : TSchedulerThreadBase(
         callbackEventCount,
-        threadName,
-        enableLogging)
+        threadName)
 { }
 
 TFiberReusingAdapter::TFiberReusingAdapter(
     std::shared_ptr<TEventCount> callbackEventCount,
     const TString& threadName,
-    const NProfiling::TTagSet& /*tags*/,
-    bool enableLogging,
-    bool /*enableProfiling*/)
+    const NProfiling::TTagSet& /*tags*/)
     : TFiberReusingAdapter(
         std::move(callbackEventCount),
-        std::move(threadName),
-        enableLogging)
+        std::move(threadName))
 { }
 
 bool TFiberReusingAdapter::OnLoop(TEventCount::TCookie* cookie)

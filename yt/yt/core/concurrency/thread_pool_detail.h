@@ -16,17 +16,13 @@ public:
 
     TThreadPoolBase(
         int threadCount,
-        const TString& threadNamePrefix,
-        bool enableLogging,
-        bool enableProfiling);
+        const TString& threadNamePrefix);
 
     void Configure(int threadCount);
     void Shutdown();
 
 protected:
     const TString ThreadNamePrefix_;
-    const bool EnableLogging_;
-    const bool EnableProfiling_;
 
     std::atomic<bool> StartFlag_ = false;
     std::atomic<bool> ShutdownFlag_ = false;

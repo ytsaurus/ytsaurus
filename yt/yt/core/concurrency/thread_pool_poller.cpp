@@ -2,13 +2,13 @@
 #include "poller.h"
 #include "count_down_latch.h"
 #include "private.h"
+#include "profiling_helpers.h"
+#include "notification_handle.h"
+#include "scheduler_thread.h"
 
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/ref_tracked.h>
-
-#include <yt/core/concurrency/notification_handle.h>
-#include <yt/core/concurrency/scheduler_thread.h>
 
 #include <util/system/thread.h>
 
@@ -259,9 +259,7 @@ private:
             : TSchedulerThread(
                 std::move(callbackEventCount),
                 poller->GenerateThreadName(index),
-                {},
-                true,
-                false)
+                GetThreadTags("Poller"))
             , Poller_(poller)
             , Logger(NLogging::TLogger(Poller_->Logger)
                 .AddTag("ThreadIndex: %v", index))

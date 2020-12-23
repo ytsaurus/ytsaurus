@@ -17,9 +17,7 @@ class TFairShareInvokerQueue
 public:
     TFairShareInvokerQueue(
         std::shared_ptr<TEventCount> callbackEventCount,
-        const std::vector<NProfiling::TTagSet>& bucketsTags,
-        bool enableLogging,
-        bool enableProfiling);
+        const std::vector<NProfiling::TTagSet>& bucketsTags);
 
     ~TFairShareInvokerQueue();
 

@@ -4,6 +4,7 @@
 #include "log.h"
 #include "writer.h"
 
+#include <yt/core/concurrency/profiling_helpers.h>
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler_thread.h>
@@ -345,9 +346,7 @@ public:
     TImpl()
         : EventQueue_(New<TMpscInvokerQueue>(
             EventCount_,
-            NProfiling::TTagSet{},
-            false,
-            false))
+            NConcurrency::GetThreadTags("Profiling")))
         , LoggingThread_(New<TThread>(this))
         , SystemWriters_({New<TStderrLogWriter>()})
     {
@@ -389,7 +388,7 @@ public:
             return;
         }
 
-        EnsureStarted();
+        EnsureStarting();
 
         TConfigEvent event{
             .Instant = NProfiling::GetCpuInstant(),
@@ -516,7 +515,7 @@ public:
             return;
         }
 
-        EnsureStarted();
+        EnsureStarting();
 
         // Order matters here; inherent race may lead to negative backlog and integer overflow.
         ui64 writtenEvents = WrittenEvents_.load();
@@ -591,9 +590,7 @@ private:
             : TSchedulerThread(
                 owner->EventCount_,
                 "Logging",
-                {},
-                false,
-                false)
+                NConcurrency::GetThreadTags("Logging"))
             , Owner_(owner)
         { }
 
@@ -625,6 +622,16 @@ private:
         EventQueue_->EndExecute(&CurrentAction_);
     }
 
+    void EnsureStarting()
+    {
+        if (Starting_.load(std::memory_order_relaxed)) {
+            return;
+        }
+
+        if (!Starting_.exchange(true)) {
+            EnsureStarted();
+        }
+    }
 
     void EnsureStarted()
     {
@@ -715,7 +722,7 @@ private:
 
         AbortOnAlert_.store(event.Config->AbortOnAlert);
 
-        EnsureStarted();
+        EnsureStarting();
 
         FlushWriters();
 
@@ -1214,6 +1221,7 @@ private:
     int LowBacklogWatermark_ = -1;
 
     std::atomic<bool> Suspended_ = false;
+    std::atomic<bool> Starting_ = false;
     std::once_flag Started_;
     std::atomic<bool> ExecutorsInitialized_ = false;
     std::atomic_flag ScheduledOutOfBand_ = false;

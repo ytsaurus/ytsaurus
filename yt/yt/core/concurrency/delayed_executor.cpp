@@ -296,7 +296,7 @@ private:
 
         // Boot the Delayed Executor thread up.
         // Do it here to avoid weird crashes when execl is being used in another thread.
-        DelayedQueue_ = New<TActionQueue>("DelayedExecutor", false, false);
+        DelayedQueue_ = New<TActionQueue>("DelayedExecutor");
         DelayedInvoker_ = DelayedQueue_->GetInvoker();
 
         // Finally boot the Poller Thread up.

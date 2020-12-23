@@ -134,18 +134,15 @@ class TFairShareQueue
 public:
     TFairShareQueue(
         std::shared_ptr<TEventCount> callbackEventCount,
-        const TTagSet& tags,
-        bool enableProfiling)
+        const TTagSet& tags)
         : CallbackEventCount_(std::move(callbackEventCount))
     {
-        if (enableProfiling) {
-            auto profiler = TRegistry{"/fair_share_queue"}.WithHot().WithTags(tags);
-            BucketCounter_ = profiler.Gauge("/buckets");
-            SizeCounter_ = profiler.Summary("/size");
-            WaitTimeCounter_ = profiler.Timer("/time/wait");
-            ExecTimeCounter_ = profiler.Timer("/time/exec");
-            TotalTimeCounter_ = profiler.Timer("/time/total");
-        }
+        auto profiler = TRegistry{"/fair_share_queue"}.WithHot().WithTags(tags);
+        BucketCounter_ = profiler.Gauge("/buckets");
+        SizeCounter_ = profiler.Summary("/size");
+        WaitTimeCounter_ = profiler.Timer("/time/wait");
+        ExecTimeCounter_ = profiler.Timer("/time/exec");
+        TotalTimeCounter_ = profiler.Timer("/time/total");
     }
 
     ~TFairShareQueue()
@@ -446,15 +443,11 @@ public:
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName,
         const TTagSet& tags,
-        bool enableLogging,
-        bool enableProfiling,
         int index)
         : TSchedulerThread(
             std::move(callbackEventCount),
             threadName,
-            tags,
-            enableLogging,
-            enableProfiling)
+            tags)
         , Queue_(std::move(queue))
         , Index_(index)
     { }
@@ -487,18 +480,13 @@ class TFairShareThreadPool
 public:
     TFairShareThreadPool(
         int threadCount,
-        const TString& threadNamePrefix,
-        bool enableLogging,
-        bool enableProfiling)
+        const TString& threadNamePrefix)
         : TThreadPoolBase(
             threadCount,
-            threadNamePrefix,
-            enableLogging,
-            enableProfiling)
+            threadNamePrefix)
         , Queue_(New<TFairShareQueue>(
             CallbackEventCount_,
-            GetThreadTags(EnableProfiling_, ThreadNamePrefix_),
-            EnableProfiling_))
+            GetThreadTags(ThreadNamePrefix_)))
     {
         Configure(threadCount);
     }
@@ -555,9 +543,7 @@ private:
             Queue_,
             CallbackEventCount_,
             MakeThreadName(index),
-            GetThreadTags(EnableProfiling_, ThreadNamePrefix_),
-            EnableLogging_,
-            EnableProfiling_,
+            GetThreadTags(ThreadNamePrefix_),
             index);
     }
 };
@@ -568,15 +554,11 @@ private:
 
 IFairShareThreadPoolPtr CreateFairShareThreadPool(
     int threadCount,
-    const TString& threadNamePrefix,
-    bool enableLogging,
-    bool enableProfiling)
+    const TString& threadNamePrefix)
 {
     return New<TFairShareThreadPool>(
         threadCount,
-        threadNamePrefix,
-        enableLogging,
-        enableProfiling);
+        threadNamePrefix);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

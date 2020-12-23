@@ -11,17 +11,13 @@ using namespace NYTree;
 
 TFairShareInvokerQueue::TFairShareInvokerQueue(
     std::shared_ptr<TEventCount> callbackEventCount,
-    const std::vector<NProfiling::TTagSet>& bucketsTags,
-    bool enableLogging,
-    bool enableProfiling)
+    const std::vector<NProfiling::TTagSet>& bucketsTags)
     : Buckets_(bucketsTags.size())
 {
     for (size_t index = 0; index < bucketsTags.size(); ++index) {
         Buckets_[index].Queue = New<TMpscInvokerQueue>(
             callbackEventCount,
-            bucketsTags[index],
-            enableLogging,
-            enableProfiling);
+            bucketsTags[index]);
         Buckets_[index].Invoker = Buckets_[index].Queue;
     }
 }

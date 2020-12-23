@@ -23,19 +23,13 @@ class TThreadPool::TImpl
 public:
     TImpl(
         int threadCount,
-        const TString& threadNamePrefix,
-        bool enableLogging,
-        bool enableProfiling)
+        const TString& threadNamePrefix)
         : TThreadPoolBase(
             threadCount,
-            threadNamePrefix,
-            enableLogging,
-            enableProfiling)
+            threadNamePrefix)
         , Queue_(New<TMpmcInvokerQueue>(
             CallbackEventCount_,
-            GetThreadTags(EnableProfiling_, ThreadNamePrefix_),
-            EnableLogging_,
-            EnableProfiling_))
+            GetThreadTags(ThreadNamePrefix_)))
         , Invoker_(Queue_)
     {
         Configure(threadCount);
@@ -78,22 +72,16 @@ private:
             Queue_,
             CallbackEventCount_,
             MakeThreadName(index),
-            GetThreadTags(EnableProfiling_, ThreadNamePrefix_),
-            EnableLogging_,
-            EnableProfiling_);
+            GetThreadTags(ThreadNamePrefix_));
     }
 };
 
 TThreadPool::TThreadPool(
     int threadCount,
-    const TString& threadNamePrefix,
-    bool enableLogging,
-    bool enableProfiling)
+    const TString& threadNamePrefix)
     : Impl_(New<TImpl>(
         threadCount,
-        threadNamePrefix,
-        enableLogging,
-        enableProfiling))
+        threadNamePrefix))
 { }
 
 TThreadPool::~TThreadPool() = default;

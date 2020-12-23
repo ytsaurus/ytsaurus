@@ -8,12 +8,8 @@ namespace NYT::NConcurrency {
 
 TThreadPoolBase::TThreadPoolBase(
     int threadCount,
-    const TString& threadNamePrefix,
-    bool enableLogging,
-    bool enableProfiling)
+    const TString& threadNamePrefix)
     : ThreadNamePrefix_(threadNamePrefix)
-    , EnableLogging_(enableLogging)
-    , EnableProfiling_(enableProfiling)
 { }
 
 void TThreadPoolBase::Configure(int threadCount)

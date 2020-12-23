@@ -17,9 +17,7 @@ public:
         TInvokerQueuePtr<TQueueImpl> queue,
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName,
-        const NProfiling::TTagSet& tags,
-        bool enableLogging,
-        bool enableProfiling);
+        const NProfiling::TTagSet& tags);
 
 protected:
     const TInvokerQueuePtr<TQueueImpl> Queue_;

@@ -65,16 +65,12 @@ public:
         : ThreadName_("Finalizer")
         , Queue_(New<TMpscInvokerQueue>(
             CallbackEventCount_,
-            NProfiling::TTagSet{},
-            false,
-            false))
+            GetThreadTags("Finalizer")))
         , Thread_(New<TMpscSingleQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
             ThreadName_,
-            NProfiling::TTagSet{},
-            false,
-            false))
+            GetThreadTags("Finalizer")))
         , OwningPid_(getpid())
     { }
 

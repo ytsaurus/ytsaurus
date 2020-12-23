@@ -23,9 +23,7 @@ DEFINE_REFCOUNTED_TYPE(IFairShareThreadPool)
 
 IFairShareThreadPoolPtr CreateFairShareThreadPool(
     int threadCount,
-    const TString& threadNamePrefix,
-    bool enableLogging = true,
-    bool enableProfiling = true);
+    const TString& threadNamePrefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
