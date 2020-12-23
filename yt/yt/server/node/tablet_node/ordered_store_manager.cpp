@@ -135,6 +135,11 @@ i64 TOrderedStoreManager::ComputeStartingRowIndex() const
     return lastStore->GetStartingRowIndex() + lastStore->GetRowCount();
 }
 
+void TOrderedStoreManager::DiscardAllStores()
+{
+    YT_ABORT();
+}
+
 void TOrderedStoreManager::CreateActiveStore()
 {
     auto storeId = GenerateDynamicStoreId();

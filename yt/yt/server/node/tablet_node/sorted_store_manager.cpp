@@ -95,10 +95,9 @@ TSortedStoreManager::TSortedStoreManager(
             MaxTimestampToStore_.emplace(sortedStore->GetMaxTimestamp(), sortedStore);
         }
 
-        if (sortedStore->GetStoreState() == EStoreState::PassiveDynamic) {
+        if (sortedStore->IsDynamic()) {
             auto sortedDynamicStore = sortedStore->AsSortedDynamic();
             YT_VERIFY(sortedDynamicStore->GetFlushIndex() == 0);
-            StoreFlushIndexQueue_.push_back(sortedDynamicStore->GetFlushIndex());
         }
     }
 
@@ -551,6 +550,11 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
 
 void TSortedStoreManager::DiscardAllStores()
 {
+    // TODO(ifsmirnov): should flush because someone might want to read from this
+    // dynamic store having taken snapshot lock for the table.
+    Rotate(/*createNewStore*/ static_cast<bool>(GetActiveStore()));
+
+    StoreFlushIndexQueue_.clear();
     TStoreManagerBase::DiscardAllStores();
 
     // TODO(ifsmirnov): Reset initial partition. It's non-trivial because partition balancer tasks
@@ -571,9 +575,12 @@ void TSortedStoreManager::RemoveStore(IStorePtr store)
 
     if (sortedStore->IsDynamic()) {
         auto sortedDynamicStore = store->AsSortedDynamic();
-        YT_VERIFY(!StoreFlushIndexQueue_.empty());
-        YT_VERIFY(StoreFlushIndexQueue_.front() == sortedDynamicStore->GetFlushIndex());
-        StoreFlushIndexQueue_.pop_front();
+        auto flushIndex = sortedDynamicStore->GetFlushIndex();
+
+        YT_VERIFY(StoreFlushIndexQueue_.empty() || flushIndex <= StoreFlushIndexQueue_.front());
+        if (!StoreFlushIndexQueue_.empty() && flushIndex == StoreFlushIndexQueue_.front()) {
+            StoreFlushIndexQueue_.pop_front();
+        }
     }
 
     SchedulePartitionSampling(sortedStore->GetPartition());

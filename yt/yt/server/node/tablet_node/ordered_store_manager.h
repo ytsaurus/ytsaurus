@@ -40,6 +40,8 @@ public:
         TUnversionedRow row,
         TWriteContext* context);
 
+    virtual void DiscardAllStores() override;
+
     virtual bool IsFlushNeeded() const override;
     virtual bool IsStoreCompactable(IStorePtr store) const override;
     virtual bool IsStoreFlushable(IStorePtr store) const override;
