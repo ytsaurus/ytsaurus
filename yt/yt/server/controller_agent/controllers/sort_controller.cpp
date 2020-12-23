@@ -2177,6 +2177,7 @@ protected:
                 IntermediateInputStreamDirectory);
         } else {
             TUnorderedChunkPoolOptions options;
+            options.RowBuffer = RowBuffer;
             options.JobSizeConstraints = std::move(jobSizeConstraints);
             options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
             options.OperationId = OperationId;
@@ -2222,6 +2223,7 @@ protected:
     void InitSimpleSortPool(IJobSizeConstraintsPtr jobSizeConstraints)
     {
         TUnorderedChunkPoolOptions options;
+        options.RowBuffer = RowBuffer;
         options.JobSizeConstraints = std::move(jobSizeConstraints);
         options.OperationId = OperationId;
         options.Name = "SimpleSort";
@@ -2813,6 +2815,7 @@ protected:
         // NB: otherwise we could easily be persisted during preparing the jobs. Sorted chunk pool
         // can't handle this.
         jobOptions.EnablePeriodicYielder = false;
+        chunkPoolOptions.RowBuffer = RowBuffer;
         chunkPoolOptions.OperationId = OperationId;
         chunkPoolOptions.SortedJobOptions = jobOptions;
         chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(

@@ -337,6 +337,7 @@ protected:
     virtual TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const
     {
         TUnorderedChunkPoolOptions options;
+        options.RowBuffer = RowBuffer;
         options.MinTeleportChunkSize = GetMinTeleportChunkSize();
         options.MinTeleportChunkDataWeight = options.MinTeleportChunkSize;
         options.OperationId = OperationId;

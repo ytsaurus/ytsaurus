@@ -305,7 +305,7 @@ private:
             for (const auto& [_, type, stdName] : sampleBlock.getColumnsWithTypeAndName()) {
                 auto name = TString(stdName);
                 auto column = type->createColumn();
-                
+
                 if (name == TableIndexColumnName) {
                     column->insert(static_cast<Int64>(operandTableIndexes[operandIndex]));
                 } else if (name == TablePathColumnName) {
@@ -330,7 +330,7 @@ private:
 
             if (!condition->mayBeTrueOnGranule(granule)) {
                 CanBeTrueOnTable_[tableIndex] = false;
-                ++discardedByIndex;   
+                ++discardedByIndex;
             }
 
             ++operandTableIndexes[operandIndex];

@@ -49,6 +49,7 @@ protected:
     virtual void SetUp() override
     {
         Options_.MinTeleportChunkSize = Inf64;
+        Options_.RowBuffer = RowBuffer_;
         DataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataSize_ = Inf64;

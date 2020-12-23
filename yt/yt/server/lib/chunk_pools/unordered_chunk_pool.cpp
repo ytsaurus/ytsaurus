@@ -66,9 +66,8 @@ public:
         Logger.AddTag("OperationId: %v", OperationId_);
         Logger.AddTag("Name: %v", Name_);
 
-        if (!RowBuffer_) {
-            RowBuffer_ = New<TRowBuffer>();
-        }
+        // TODO(max42): why do we need row buffer in unordered pool at all?
+        YT_VERIFY(RowBuffer_);
 
         JobManager_->SetLogger(TLogger{Logger});
 
@@ -521,6 +520,7 @@ private:
 
             auto codecId = NErasure::ECodec(chunk->GetErasureCodec());
             if (hasNontrivialLimits || codecId == NErasure::ECodec::None || !SliceErasureChunksByParts_) {
+                // TODO(max42): rewrite slicing, SliceEvenly is a weird approach.
                 auto slices = dataSlice->ChunkSlices[0]->SliceEvenly(
                     JobSizeConstraints_->GetInputSliceDataWeight(),
                     JobSizeConstraints_->GetInputSliceRowCount(),

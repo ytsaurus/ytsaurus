@@ -676,6 +676,7 @@ protected:
             }
         }
 
+        chunkPoolOptions.RowBuffer = RowBuffer;
         chunkPoolOptions.SortedJobOptions = jobOptions;
         chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
