@@ -3,6 +3,7 @@
 #include <yt/core/logging/log.h>
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/writer.h>
+#include <yt/core/logging/random_access_gzip.h>
 
 #include <yt/core/json/json_parser.h>
 
@@ -315,6 +316,64 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
     NFs::Remove("test.log");
 }
 
+TEST(TRandomAccessGZipTest, Write)
+{
+    NFs::Remove("test.txt.gz");
+
+    {
+        TFile rawFile("test.txt.gz", OpenAlways|RdWr|CloseOnExec);
+        TRandomAccessGZipFile file(&rawFile);
+        file << "foo\n";
+        file.Flush();
+        file << "bar\n";
+        file.Finish();
+    }
+    {
+        TFile rawFile("test.txt.gz", OpenAlways|RdWr|CloseOnExec);
+        TRandomAccessGZipFile file(&rawFile);
+        file << "zog\n";
+        file.Finish();
+    }
+
+    auto input = TUnbufferedFileInput("test.txt.gz");
+    TZLibDecompress decompress(&input);
+    EXPECT_EQ("foo\nbar\nzog\n", decompress.ReadAll());
+
+    NFs::Remove("test.txt.gz");
+}
+
+TEST(TRandomAccessGZipTest, RepairIncompleteBlocks)
+{
+    NFs::Remove("test.txt.gz");
+    {
+        TFile rawFile("test.txt.gz", OpenAlways|RdWr|CloseOnExec);
+        TRandomAccessGZipFile file(&rawFile);
+        file << "foo\n";
+        file.Flush();
+        file << "bar\n";
+        file.Finish();
+    }
+
+    i64 fullSize;
+    {
+        TFile file("test.txt.gz", OpenAlways|RdWr);
+        fullSize = file.GetLength();
+        file.Resize(fullSize - 1);
+    }
+
+    {
+        TFile rawFile("test.txt.gz", OpenAlways | RdWr | CloseOnExec);
+        TRandomAccessGZipFile file(&rawFile);
+    }
+
+    {
+        TFile file("test.txt.gz", OpenAlways|RdWr);
+        EXPECT_LE(file.GetLength(), fullSize - 1);
+    }
+
+    NFs::Remove("test.txt.gz");
+}
+
 // This test is for manual check of YT_LOG_FATAL
 TEST_F(TLoggingTest, DISABLED_LogFatal)
 {
@@ -392,14 +451,14 @@ TEST_F(TLoggingTest, RequestSuppression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLongMessagesLoggingTest
+class TLongMessagesTest
     : public TLoggingTest
 {
 protected:
     static constexpr int N = 500;
     std::vector<TString> Chunks_;
 
-    TLongMessagesLoggingTest()
+    TLongMessagesTest()
     {
         for (int i = 0; i < N; ++i) {
             Chunks_.push_back(Format("PayloadPayloadPayloadPayloadPayload%v", i));
@@ -450,14 +509,14 @@ protected:
     }
 };
 
-TEST_F(TLongMessagesLoggingTest, WithPerThreadCache)
+TEST_F(TLongMessagesTest, WithPerThreadCache)
 {
     ConfigureForLongMessages();
     LogLongMessages();
     CheckLongMessages();
 }
 
-TEST_F(TLongMessagesLoggingTest, WithoutPerThreadCache)
+TEST_F(TLongMessagesTest, WithoutPerThreadCache)
 {
     ConfigureForLongMessages();
     using TThis = typename std::remove_reference<decltype(*this)>::type;
