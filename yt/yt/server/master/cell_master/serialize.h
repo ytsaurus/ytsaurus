@@ -122,6 +122,7 @@ DEFINE_ENUM(EMasterReign,
     ((CapTrimmedRowCount)                                           (1437))  // ifsmirnov
     ((RevertRemoveTypeV2_20_3_Only)                                 (1438))  // ermolovd
     ((BannedReplicaClusterList)                                     (1439))  // akozhikhov
+    ((ReplicationLagInRTT)                                          (1440))  // akozhikhov
     // Late 20.3 starts here.
     ((OrderedRemoteDynamicStoreReader)                              (1444))  // ifsmirnov
     ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
