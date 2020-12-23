@@ -2463,7 +2463,7 @@ private:
             .WithTag("table_type", table->IsPhysicallySorted() ? "sorted" : "ordered");
 
         if (reason) {
-            profiler = profiler.WithTag("operation_type", FormatEnum(*reason));
+            profiler = profiler.WithTag("update_reason", FormatEnum(*reason));
         }
 
         it = Counters_.emplace(
