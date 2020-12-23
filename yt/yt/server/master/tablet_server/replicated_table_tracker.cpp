@@ -271,6 +271,7 @@ private:
 
     TAtomicObject<TBundleHealthCachePtr> BundleHealthCache_;
     TAtomicObject<TClusterStateCachePtr> ClusterStateCache_;
+    TAtomicObject<NTabletNode::TReplicatorHintConfigPtr> ReplicatorHintConfig_;
 
     class TReplica
         : public TRefCounted
@@ -283,6 +284,7 @@ private:
             const TYPath& path,
             TBundleHealthCachePtr bundleHealthCache,
             TClusterStateCachePtr clusterStateCache,
+            NTabletNode::TReplicatorHintConfigPtr replicatorHintConfig,
             IClientPtr client,
             IInvokerPtr checkerInvoker,
             TDuration lag,
@@ -295,6 +297,7 @@ private:
             , Path_(path)
             , BundleHealthCache_(std::move(bundleHealthCache))
             , ClusterStateCache_(std::move(clusterStateCache))
+            , ReplicatorHintConfig_(std::move(replicatorHintConfig))
             , Client_(std::move(client))
             , CheckerInvoker_(std::move(checkerInvoker))
             , Lag_(lag)
@@ -405,6 +408,7 @@ private:
             TabletCellBundleNameTtl_ = other.TabletCellBundleNameTtl_;
             RetryOnFailureInterval_ = other.RetryOnFailureInterval_;
             SyncReplicaLagThreshold_ = other.SyncReplicaLagThreshold_;
+            ReplicatorHintConfig_ = other.ReplicatorHintConfig_;
             if (Client_ != other.Client_) {
                 Client_ = other.Client_;
             }
@@ -419,6 +423,7 @@ private:
 
         TBundleHealthCachePtr BundleHealthCache_;
         TClusterStateCachePtr ClusterStateCache_;
+        NTabletNode::TReplicatorHintConfigPtr ReplicatorHintConfig_;
         NApi::IClientPtr Client_;
         const IInvokerPtr CheckerInvoker_;
         TDuration Lag_;
@@ -438,6 +443,10 @@ private:
 
         TFuture<void> CheckReplicaState()
         {
+            if (ReplicatorHintConfig_->BannedReplicaClusters.contains(GetClusterName())) {
+                return MakeFuture<void>(TError("Replica cluster is banned"));
+            }
+
             auto replicaLagError = CheckReplicaLag();
             if (!replicaLagError.IsOK()) {
                 return MakeFuture<void>(std::move(replicaLagError));
@@ -1000,6 +1009,7 @@ private:
                 replica->GetReplicaPath(),
                 BundleHealthCache_.Load(),
                 ClusterStateCache_.Load(),
+                ReplicatorHintConfig_.Load(),
                 std::move(client),
                 CheckerThreadPool_->GetInvoker(),
                 replica->ComputeReplicationLagTime(lastestTimestamp),
@@ -1061,6 +1071,8 @@ private:
         if (ReconfigureYsonSerializable(ClusterStateCacheConfig_, dynamicConfig->ClusterStateCache)) {
             ClusterStateCache_.Store(New<TClusterStateCache>(ClusterStateCacheConfig_));
         }
+
+        ReplicatorHintConfig_.Store(dynamicConfig->ReplicatorHint);
 
         if (IsLeader() && (ReconfigureYsonSerializable(ClusterDirectorySynchronizerConfig_, dynamicConfig->ClusterDirectorySynchronizer) || !ClusterDirectorySynchronizer_)) {
             if (ClusterDirectorySynchronizer_) {
