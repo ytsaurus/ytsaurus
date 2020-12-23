@@ -2,10 +2,12 @@ package NYT.NNodeTrackerClient.NProto;
 
 option python_package = "yt_proto.yt.client.node_tracker_client.proto";
 
+import "yt/core/misc/proto/error.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Describes the current state of a storage location.
-message TLocationStatistics
+message TStorageLocationStatistics
 {
     required int32 medium_index = 7;
     required int64 available_space = 1;
@@ -19,6 +21,18 @@ message TLocationStatistics
     optional bool throttling_reads = 9 [default = false];
     optional bool throttling_writes = 10 [default = false];
     optional bool sick = 11 [default = false];
+}
+
+// Describes the current state of a slot location.
+message TSlotLocationStatistics
+{
+    required int32 medium_index = 1;
+    optional int64 available_space = 2;
+    optional int64 used_space = 3;
+    repeated int64 slot_space_usages = 4;
+
+    //! If slot location is disabled, this error contains the reason.
+    optional NYT.NProto.TError error = 5;
 }
 
 // Provides detailed information on memory consumption.
@@ -61,12 +75,13 @@ message TNodeStatistics
     required int32 total_repair_session_count = 8;
     required int64 total_low_watermark_space = 14;
     required bool full = 5;
-    repeated TLocationStatistics locations = 6;
+    repeated TStorageLocationStatistics storage_locations = 6;
     required int32 available_tablet_slots = 11;
     required int32 used_tablet_slots = 12;
     required TMemoryStatistics memory = 15;
     repeated TMediumStatistics media = 17;
     repeated TNetworkStatistics network = 18;
+    repeated TSlotLocationStatistics slot_locations = 19;
 }
 
 // Measures limits and utilization of various resources.

@@ -54,6 +54,12 @@ public:
      *  \note
      *  Thread affinity: any
      */
+    std::vector<TSlotLocationPtr> GetLocations() const;
+
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     void Disable(const TError& error);
 
     /*!
@@ -76,6 +82,7 @@ private:
 
     NDataNode::IVolumeManagerPtr RootVolumeManager_;
 
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, LocationsLock_);
     std::vector<TSlotLocationPtr> Locations_;
     std::vector<TSlotLocationPtr> AliveLocations_;
 

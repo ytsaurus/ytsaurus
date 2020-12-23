@@ -78,6 +78,7 @@ void TSlotManager::Initialize()
     std::vector<TFuture<void>> initLocationFutures;
     int locationIndex = 0;
     for (const auto& locationConfig : Config_->Locations) {
+        auto guard = WriterGuard(LocationsLock_);
         Locations_.push_back(New<TSlotLocation>(
             std::move(locationConfig),
             Bootstrap_,
@@ -220,6 +221,14 @@ void TSlotManager::OnJobsCpuLimitUpdated()
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Error updating job environment CPU limit");
     }
+}
+
+std::vector<TSlotLocationPtr> TSlotManager::GetLocations() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(LocationsLock_);
+    return Locations_;
 }
 
 void TSlotManager::Disable(const TError& error)

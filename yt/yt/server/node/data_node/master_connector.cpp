@@ -18,6 +18,7 @@
 
 #include <yt/server/node/job_agent/job_controller.h>
 
+#include <yt/server/node/exec_agent/slot_location.h>
 #include <yt/server/node/exec_agent/slot_manager.h>
 
 #include <yt/server/node/tablet_node/slot_manager.h>
@@ -472,7 +473,8 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
 
     TNodeStatistics result;
     ComputeTotalStatistics(&result);
-    ComputeLocationSpecificStatistics(&result);
+    ComputeSlotLocationSpecificStatistics(&result);
+    ComputeStorageLocationSpecificStatistics(&result);
     Bootstrap_->GetNetworkStatistics().UpdateStatistics(&result);
     return result;
 }
@@ -551,7 +553,21 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
     }
 }
 
-void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result)
+void TMasterConnector::ComputeSlotLocationSpecificStatistics(TNodeStatistics* result)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    const auto& slotManager = Bootstrap_->GetExecSlotManager();
+    for (const auto& location : slotManager->GetLocations()) {
+        auto* locationStatistics = result->add_slot_locations();       
+        *locationStatistics = location->GetSlotLocationStatistics();
+
+        // Slot location statistics might be not computed yet, so we set medium index separately.
+        locationStatistics->set_medium_index(location->GetMediumDescriptor().Index);
+    }
+}
+
+void TMasterConnector::ComputeStorageLocationSpecificStatistics(TNodeStatistics* result)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -565,7 +581,7 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
     THashMap<int, TMediumStatistics> mediaStatistics;
 
     for (const auto& location : chunkStore->Locations()) {
-        auto* locationStatistics = result->add_locations();
+        auto* locationStatistics = result->add_storage_locations();
 
         auto mediumIndex = location->GetMediumDescriptor().Index;
         locationStatistics->set_medium_index(mediumIndex);

@@ -1901,7 +1901,7 @@ private:
             TotalNodeStatistics_.OnlineNodeCount += 1;
 
             const auto& statistics = node->Statistics();
-            for (const auto& location : statistics.locations()) {
+            for (const auto& location : statistics.storage_locations()) {
                 int mediumIndex = location.medium_index();
                 if (!node->GetDecommissioned()) {
                     TotalNodeStatistics_.SpacePerMedium[mediumIndex].Available += location.available_space();

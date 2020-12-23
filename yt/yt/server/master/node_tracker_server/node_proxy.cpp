@@ -231,6 +231,29 @@ private:
 
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 const auto& statistics = node->Statistics();
+
+                auto serializeStorageLocationStatistics = [&] (TFluentList fluent, const TStorageLocationStatistics& storageLocationStatistics) {
+                    auto mediumIndex = storageLocationStatistics.medium_index();
+                    const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                    if (!IsObjectAlive(medium)) {
+                        return;
+                    }
+                    fluent
+                        .Item().BeginMap()
+                            .Item("medium_name").Value(medium->GetName())
+                            .Item("available_space").Value(storageLocationStatistics.available_space())
+                            .Item("used_space").Value(storageLocationStatistics.used_space())
+                            .Item("low_watermark_space").Value(storageLocationStatistics.low_watermark_space())
+                            .Item("chunk_count").Value(storageLocationStatistics.chunk_count())
+                            .Item("session_count").Value(storageLocationStatistics.session_count())
+                            .Item("full").Value(storageLocationStatistics.full())
+                            .Item("enabled").Value(storageLocationStatistics.enabled())
+                            .Item("throttling_reads").Value(storageLocationStatistics.throttling_reads())
+                            .Item("throttling_writes").Value(storageLocationStatistics.throttling_writes())
+                            .Item("sick").Value(storageLocationStatistics.sick())
+                        .EndMap();
+                };
+
                 BuildYsonFluently(consumer)
                     .BeginMap()
                         .Item("total_available_space").Value(statistics.total_available_space())
@@ -239,25 +262,32 @@ private:
                         .Item("total_cached_chunk_count").Value(statistics.total_cached_chunk_count())
                         .Item("total_session_count").Value(node->GetTotalSessionCount())
                         .Item("full").Value(statistics.full())
-                        .Item("locations").DoListFor(statistics.locations(), [&] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
-                            auto mediumIndex = locationStatistics.medium_index();
+                        // TODO(gritukan): Drop it in favour of `storage_locations'.
+                        .Item("locations").DoListFor(statistics.storage_locations(), serializeStorageLocationStatistics)
+                        .Item("storage_locations").DoListFor(statistics.storage_locations(), serializeStorageLocationStatistics)
+                        .Item("slot_locations").DoListFor(statistics.slot_locations(), [&] (TFluentList fluent, const TSlotLocationStatistics& slotLocationStatistics) {
+                            auto mediumIndex = slotLocationStatistics.medium_index();
                             const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
                             if (!IsObjectAlive(medium)) {
                                 return;
                             }
+
                             fluent
                                 .Item().BeginMap()
                                     .Item("medium_name").Value(medium->GetName())
-                                    .Item("available_space").Value(locationStatistics.available_space())
-                                    .Item("used_space").Value(locationStatistics.used_space())
-                                    .Item("low_watermark_space").Value(locationStatistics.low_watermark_space())
-                                    .Item("chunk_count").Value(locationStatistics.chunk_count())
-                                    .Item("session_count").Value(locationStatistics.session_count())
-                                    .Item("full").Value(locationStatistics.full())
-                                    .Item("enabled").Value(locationStatistics.enabled())
-                                    .Item("throttling_reads").Value(locationStatistics.throttling_reads())
-                                    .Item("throttling_writes").Value(locationStatistics.throttling_writes())
-                                    .Item("sick").Value(locationStatistics.sick())
+                                    .Item("available_space").Value(slotLocationStatistics.available_space())
+                                    .Item("used_space").Value(slotLocationStatistics.used_space())
+                                    .Item("slot_space_usages")
+                                        .BeginAttributes()
+                                            .Item("opaque").Value("true")
+                                        .EndAttributes()
+                                        .Value(slotLocationStatistics.slot_space_usages())
+                                    .DoIf(slotLocationStatistics.has_error(), [&] (TFluentMap fluent) {
+                                        TError error;
+                                        FromProto(&error, slotLocationStatistics.error());
+                                        fluent
+                                            .Item("error").Value(error);
+                                    })
                                 .EndMap();
                         })
                         .Item("media").DoMapFor(statistics.media(), [&] (TFluentMap fluent, const TMediumStatistics& mediumStatistics) {
