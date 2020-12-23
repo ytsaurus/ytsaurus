@@ -98,6 +98,8 @@ TDynamicClusterConfig::TDynamicClusterConfig()
 {
     RegisterParameter("enable_safe_mode", EnableSafeMode)
         .Default(false);
+    RegisterParameter("enable_descending_sort_order", EnableDescendingSortOrder)
+        .Default(false);
     RegisterParameter("chunk_manager", ChunkManager)
         .DefaultNew();
     RegisterParameter("tablet_manager", TabletManager)

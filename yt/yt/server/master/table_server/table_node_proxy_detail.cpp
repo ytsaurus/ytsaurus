@@ -1358,6 +1358,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             dynamic,
             table->IsEmpty() && !table->IsDynamic());
 
+        if (!Bootstrap_->GetConfigManager()->GetConfig()->EnableDescendingSortOrder) {
+            ValidateNoDescendingSortOrder(table->GetTableSchema());
+        }
+
         if (options.Dynamic) {
             if (*options.Dynamic) {
                 tabletManager->ValidateMakeTableDynamic(table);

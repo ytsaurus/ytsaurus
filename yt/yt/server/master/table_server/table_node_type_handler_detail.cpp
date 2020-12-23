@@ -67,7 +67,8 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     const TVersionedNodeId& id,
     const TCreateNodeContext& context)
 {
-    const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
+    const auto& dynamicConfig = this->Bootstrap_->GetConfigManager()->GetConfig();
+    const auto& cypressManagerConfig = this->Bootstrap_->GetConfig()->CypressManager;
     const auto& chunkManagerConfig = this->Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
 
     if (auto compressionCodecValue = context.ExplicitAttributes->FindYson("compression_codec")) {
@@ -80,7 +81,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
     auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<TString>("tablet_cell_bundle");
     auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
-    auto replicationFactor = combinedAttributes->GetAndRemove("replication_factor", config->DefaultTableReplicationFactor);
+    auto replicationFactor = combinedAttributes->GetAndRemove("replication_factor", cypressManagerConfig->DefaultTableReplicationFactor);
     auto compressionCodec = combinedAttributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::Lz4);
     auto erasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
 
@@ -116,6 +117,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
 
         ValidateTableSchemaUpdate(TTableSchema(), *schema, dynamic, true);
+
+        if (!dynamicConfig->EnableDescendingSortOrder) {
+            ValidateNoDescendingSortOrder(*schema);
+        }
     }
 
     auto optionalTabletCount = combinedAttributes->FindAndRemove<int>("tablet_count");

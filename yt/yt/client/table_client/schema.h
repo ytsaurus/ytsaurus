@@ -320,6 +320,8 @@ void ValidateTableSchema(
     bool isTableDynamic = false,
     bool allowUnversionedUpdateColumns = false);
 
+void ValidateNoDescendingSortOrder(const TTableSchema& schema);
+
 void ValidateColumnUniqueness(const TTableSchema& schema);
 
 ////////////////////////////////////////////////////////////////////////////////

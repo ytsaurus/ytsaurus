@@ -937,6 +937,8 @@ class YTEnvSetup(object):
     def _restore_globals(self, master_cell_roles, scheduler_count, scheduler_pool_trees_root, driver=None):
         dynamic_master_config = get_dynamic_master_config()
         dynamic_master_config["multicell_manager"]["cell_roles"] = master_cell_roles
+        if self.Env.get_component_version("ytserver-master").abi >= (20, 4):
+            dynamic_master_config["enable_descending_sort_order"] = True
 
         for response in yt_commands.execute_batch(
             [

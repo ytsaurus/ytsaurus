@@ -128,6 +128,7 @@ DEFINE_ENUM(EMasterReign,
     ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
+    ((EnableDescendingSortOrder)                                    (1501))  // max42
 );
 
 ////////////////////////////////////////////////////////////////////////////////
