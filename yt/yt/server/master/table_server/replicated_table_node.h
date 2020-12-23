@@ -13,8 +13,11 @@ class TReplicatedTableOptions
 {
 public:
     bool EnableReplicatedTableTracker;
+
     std::optional<int> MaxSyncReplicaCount_;
     std::optional<int> MinSyncReplicaCount_;
+
+    TDuration SyncReplicaLagThreshold;
 
     TDuration TabletCellBundleNameTtl;
     TDuration RetryOnFailureInterval;
@@ -23,11 +26,15 @@ public:
     {
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(false);
+
         RegisterParameter("max_sync_replica_count", MaxSyncReplicaCount_)
             .Alias("sync_replica_count")
             .Optional();
         RegisterParameter("min_sync_replica_count", MinSyncReplicaCount_)
             .Optional();
+
+        RegisterParameter("sync_replica_lag_threshold", SyncReplicaLagThreshold)
+            .Default(TDuration::Minutes(10));
 
         RegisterParameter("tablet_cell_bundle_name_ttl", TabletCellBundleNameTtl)
             .Default(TDuration::Seconds(300));

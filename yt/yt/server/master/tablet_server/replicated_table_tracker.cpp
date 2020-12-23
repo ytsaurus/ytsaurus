@@ -287,7 +287,8 @@ private:
             IInvokerPtr checkerInvoker,
             TDuration lag,
             TDuration tabletCellBundleNameTtl,
-            TDuration retryOnFailureInterval)
+            TDuration retryOnFailureInterval,
+            TDuration syncReplicaLagThreshold)
             : Id_(id)
             , Mode_(mode)
             , ClusterName_(clusterName)
@@ -299,6 +300,7 @@ private:
             , Lag_(lag)
             , TabletCellBundleNameTtl_(tabletCellBundleNameTtl)
             , RetryOnFailureInterval_(retryOnFailureInterval)
+            , SyncReplicaLagThreshold_(syncReplicaLagThreshold)
         { }
 
         TObjectId GetId()
@@ -336,10 +338,7 @@ private:
             return CheckClusterState()
                 .Apply(BIND([=, weakThis_ = MakeWeak(this)] {
                     if (auto this_ = weakThis_.Lock()) {
-                        return AllSucceeded(std::vector<TFuture<void>>{
-                            CheckTableExists(),
-                            CheckBundleHealth()
-                        });
+                        return CheckReplicaState();
                     } else {
                         return VoidFuture;
                     }
@@ -405,6 +404,7 @@ private:
             Mode_ = other.Mode_;
             TabletCellBundleNameTtl_ = other.TabletCellBundleNameTtl_;
             RetryOnFailureInterval_ = other.RetryOnFailureInterval_;
+            SyncReplicaLagThreshold_ = other.SyncReplicaLagThreshold_;
             if (Client_ != other.Client_) {
                 Client_ = other.Client_;
             }
@@ -426,6 +426,7 @@ private:
 
         TDuration TabletCellBundleNameTtl_;
         TDuration RetryOnFailureInterval_;
+        TDuration SyncReplicaLagThreshold_;
 
         TInstant LastUpdateTime_;
 
@@ -433,6 +434,19 @@ private:
         TFuture<void> CheckClusterState()
         {
             return ClusterStateCache_->Get({Client_, ClusterName_});
+        }
+
+        TFuture<void> CheckReplicaState()
+        {
+            auto replicaLagError = CheckReplicaLag();
+            if (!replicaLagError.IsOK()) {
+                return MakeFuture<void>(std::move(replicaLagError));
+            }
+
+            return AllSucceeded(std::vector<TFuture<void>>{
+                CheckTableExists(),
+                CheckBundleHealth()
+            });
         }
 
         TFuture<void> CheckBundleHealth()
@@ -462,6 +476,16 @@ private:
                         THROW_ERROR_EXCEPTION("Table does not exist");
                     }
                 }));
+        }
+
+        TError CheckReplicaLag()
+        {
+            auto lag = GetLag();
+            return lag < SyncReplicaLagThreshold_
+                ? TError()
+                : TError("Replica lag time is over the threshold ")
+                    << TErrorAttribute("replica_lag_time", lag)
+                    << TErrorAttribute("replica_lag_threshold", SyncReplicaLagThreshold_);
         }
 
         TFuture<TString> GetAsyncTabletCellBundleName()
@@ -536,12 +560,12 @@ private:
             if (!CheckFuture_ || CheckFuture_.IsSet()) {
                 std::vector<TReplicaPtr> syncReplicas;
                 std::vector<TReplicaPtr> asyncReplicas;
-                int maxSyncReplicas;
-                int minSyncReplicas;
+                int maxSyncReplicaCount;
+                int minSyncReplicaCount;
 
                 {
                     auto guard = Guard(Lock_);
-                    std::tie(minSyncReplicas, maxSyncReplicas) = Config_->GetEffectiveMinMaxReplicaCount(static_cast<int>(Replicas_.size()));
+                    std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Config_->GetEffectiveMinMaxReplicaCount(static_cast<int>(Replicas_.size()));
                     asyncReplicas.reserve(Replicas_.size());
                     syncReplicas.reserve(Replicas_.size());
                     for (auto& replica : Replicas_) {
@@ -568,8 +592,8 @@ private:
                         bootstrap,
                         syncReplicas,
                         asyncReplicas,
-                        maxSyncReplicas,
-                        minSyncReplicas,
+                        maxSyncReplicaCount,
+                        minSyncReplicaCount,
                         id = Id_
                     ] (const std::vector<TError>& results) mutable {
                         std::vector<TReplicaPtr> badSyncReplicas;
@@ -621,27 +645,19 @@ private:
                         futures.reserve(syncReplicas.size() + asyncReplicas.size());
 
                         int switchCount = 0;
-                        int totalSyncReplicas;
-                        {
-                            int index;
-                            for (index = static_cast<int>(goodSyncReplicas.size()); index < maxSyncReplicas && !goodAsyncReplicas.empty(); ++index) {
-                                futures.push_back(goodAsyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
-                                ++switchCount;
-                                goodAsyncReplicas.pop_back();
-                            }
-
-                            totalSyncReplicas = maxSyncReplicas < static_cast<int>(goodSyncReplicas.size())
-                                ? maxSyncReplicas
-                                : index;
+                        int currentSyncReplicaCount = std::min(maxSyncReplicaCount, static_cast<int>(goodSyncReplicas.size()));
+                        while (currentSyncReplicaCount < maxSyncReplicaCount && !goodAsyncReplicas.empty()) {
+                            futures.push_back(goodAsyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
+                            ++switchCount;
+                            goodAsyncReplicas.pop_back();
+                            ++currentSyncReplicaCount;
                         }
 
-                        YT_VERIFY(totalSyncReplicas <= maxSyncReplicas);
-
-                        for (int index = Max(0, minSyncReplicas - totalSyncReplicas); index < static_cast<int>(badSyncReplicas.size()); ++index) {
+                        for (int index = Max(0, minSyncReplicaCount - currentSyncReplicaCount); index < static_cast<int>(badSyncReplicas.size()); ++index) {
                             futures.push_back(badSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                             ++switchCount;
                         }
-                        for (int index = maxSyncReplicas; index < static_cast<int>(goodSyncReplicas.size()); ++index) {
+                        for (int index = maxSyncReplicaCount; index < static_cast<int>(goodSyncReplicas.size()); ++index) {
                             futures.push_back(goodSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                             ++switchCount;
                         }
@@ -988,20 +1004,21 @@ private:
                 CheckerThreadPool_->GetInvoker(),
                 replica->ComputeReplicationLagTime(lastestTimestamp),
                 config->TabletCellBundleNameTtl,
-                config->RetryOnFailureInterval));
+                config->RetryOnFailureInterval,
+                config->SyncReplicaLagThreshold));
         }
 
-        const auto [maxSyncReplicas,  minSyncReplicas] = config->GetEffectiveMinMaxReplicaCount(static_cast<int>(replicas.size()));
+        const auto [maxSyncReplicaCount,  minSyncReplicaCount] = config->GetEffectiveMinMaxReplicaCount(static_cast<int>(replicas.size()));
 
-        YT_LOG_DEBUG("Table %v (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredMaxSyncReplicas: %v, DesiredMinSyncReplicas: %v)",
+        YT_LOG_DEBUG("Table %v (TableId: %v, Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, DesiredMaxSyncReplicaCount: %v, DesiredMinSyncReplicaCount: %v)",
             newTable ? "added" : "updated",
             object->GetId(),
             object->Replicas().size(),
             syncReplicas,
             asyncReplicas,
             skippedReplicas,
-            maxSyncReplicas,
-            minSyncReplicas);
+            maxSyncReplicaCount,
+            minSyncReplicaCount);
 
         table->SetConfig(config);
         table->SetReplicas(replicas);
