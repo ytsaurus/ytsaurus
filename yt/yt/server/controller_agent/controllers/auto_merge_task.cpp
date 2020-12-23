@@ -97,6 +97,7 @@ TAutoMergeTask::TAutoMergeTask(
             std::nullopt /* samplingRate */);
 
         TUnorderedChunkPoolOptions options;
+        options.RowBuffer = TaskHost_->GetRowBuffer();
         options.Mode = EUnorderedChunkPoolMode::AutoMerge;
         options.JobSizeConstraints = std::move(autoMergeJobSizeConstraints);
         options.MinTeleportChunkDataWeight = 0.5 * maxDataWeightPerJob;

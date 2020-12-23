@@ -27,7 +27,6 @@ struct TSortedChunkPoolOptions
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NScheduler::TOperationId OperationId;
     TString Task;
-    //! External row buffer, if it is available.
     NTableClient::TRowBufferPtr RowBuffer;
 };
 

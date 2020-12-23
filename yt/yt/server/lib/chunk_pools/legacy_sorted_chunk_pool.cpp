@@ -73,9 +73,7 @@ public:
         Logger.AddTag("Task: %v", Task_);
         JobManager_->SetLogger(Logger);
 
-        if (!RowBuffer_) {
-            RowBuffer_ = New<TRowBuffer>();
-        }
+        YT_VERIFY(RowBuffer_);
 
         YT_LOG_DEBUG("Sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
             "ForeignPrefixLength: %v, DataWeightPerJob: %v, "

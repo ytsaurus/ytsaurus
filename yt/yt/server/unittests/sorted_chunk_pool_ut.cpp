@@ -52,6 +52,7 @@ class TSortedChunkPoolTest
 protected:
     virtual void SetUp() override
     {
+        Options_.RowBuffer = RowBuffer_;
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;

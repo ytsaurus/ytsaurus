@@ -59,6 +59,7 @@ protected:
         Options_.UseNewJobBuilder = true;
         Options_.Task = "TestTask";
         Options_.SortedJobOptions.LogDetails = true;
+        Options_.RowBuffer = RowBuffer_;
         DataSizePerJob_ = Inf64;
         MaxBuildRetryCount_ = 1;
         MaxDataSlicesPerJob_ = Inf32;
