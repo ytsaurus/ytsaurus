@@ -92,7 +92,7 @@ protected:
             auto defaultConfig = New<NHttpProxy::TProxyConfig>();
             defaultConfig->SetDefaults();
             defaultConfig->Port = 8080;
-            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYtServer("http_proxy" /* componentName */);
+            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYTServer("http_proxy" /* componentName */);
             // One may disable authentication at all via config, but by default it is better
             // to require authentication. Even YT developers may unintentionally do something
             // harmful, in which case we do not want to see requests under root in cluster logs.
