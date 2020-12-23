@@ -14,6 +14,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // 20.4 start here
     ((NewSlices)                            (300501))
     ((FixForeignSliceDataWeight)            (300502))
+    ((MemoryReserveFactorOverride)          (300503))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

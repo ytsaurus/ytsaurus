@@ -342,6 +342,11 @@ private:
 
     TReadRangeRegistry InputReadRangeRegistry_;
 
+    //! If job is aborted because of resource overdraft, its output cookie is put into this set.
+    //! Next incarnation of this job will be run with maximal possible memory reserve factor to
+    //! prevent repeated overdraft.
+    THashSet<NChunkPools::IChunkPoolOutput::TCookie> ResourceOverdraftedOutputCookies_;
+
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
     void UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics);
