@@ -511,6 +511,15 @@ void TTask::ScheduleJob(
         joblet->UserJobMemoryReserveFactor = GetUserJobMemoryReserveFactor();
     }
 
+    if (ResourceOverdraftedOutputCookies_.contains(joblet->OutputCookie)) {
+        joblet->JobProxyMemoryReserveFactor = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
+        if (userJobSpec) {
+            // TODO(gritukan): Currently fixed upper bound is used for used job memory digest.
+            // Use TLogDigestConfig in user job spec and get upper bound from it.
+            joblet->UserJobMemoryReserveFactor = 1.0;
+        }
+    }
+
     if (userJobSpec && userJobSpec->Monitoring->Enable) {
         joblet->UserJobMonitoringDescriptor = TaskHost_->RegisterJobForMonitoring(joblet->JobId);
     }
@@ -720,6 +729,8 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, InputReadRangeRegistry_);
 
     Persist(context, IsInput_);
+
+    Persist(context, ResourceOverdraftedOutputCookies_);
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
@@ -926,6 +937,10 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
     bool returnCookie = CompetitiveJobManager_.OnJobAborted(joblet, jobSummary.AbortReason);
     if (returnCookie) {
         ReinstallJob(BIND([=] { GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason); }));
+    }
+
+    if (jobSummary.AbortReason == EAbortReason::ResourceOverdraft) {
+        ResourceOverdraftedOutputCookies_.insert(joblet->OutputCookie);
     }
 
     JobSplitter_->OnJobAborted(jobSummary);
