@@ -1328,7 +1328,8 @@ void TTask::RegisterOutput(
     NJobTrackerClient::NProto::TJobResult* jobResult,
     const std::vector<NChunkClient::TChunkListId>& chunkListIds,
     TJobletPtr joblet,
-    const NChunkPools::TChunkStripeKey& key)
+    const NChunkPools::TChunkStripeKey& key,
+    bool processEmptyStripes)
 {
     auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
     auto outputStripes = BuildOutputChunkStripes(
@@ -1355,7 +1356,8 @@ void TTask::RegisterOutput(
                 std::move(outputStripes[tableIndex]),
                 streamDescriptor,
                 joblet,
-                key);
+                key,
+                processEmptyStripes);
         }
     }
 }
@@ -1386,9 +1388,14 @@ void TTask::RegisterStripe(
     TChunkStripePtr stripe,
     const TStreamDescriptor& streamDescriptor,
     TJobletPtr joblet,
-    TChunkStripeKey key)
+    TChunkStripeKey key,
+    bool processEmptyStripes)
 {
     if (stripe->DataSlices.empty() && !stripe->ChunkListId) {
+        return;
+    }
+
+    if (stripe->DataSlices.empty() && !processEmptyStripes) {
         return;
     }
 

@@ -2281,6 +2281,26 @@ done
         assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
         assert get(op.get_path() + "/controller_orchid/progress/tasks/0/speculative_job_counter/aborted/scheduled/speculative_run_won") == 1
 
+    @authors("gritukan")
+    def test_empty_mapper_output(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            mapper_command="true",
+            reducer_command="cat",
+            sort_by=["foo"],
+            spec={
+                "mapper": {"format": "dsv"},
+                "reducer": {"format": "dsv"},
+            })
+
+        assert get("//tmp/t_out/@chunk_count") == 0
+
 ##################################################################
 
 

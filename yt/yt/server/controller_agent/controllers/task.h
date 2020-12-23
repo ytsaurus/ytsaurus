@@ -246,7 +246,8 @@ protected:
         NChunkPools::TChunkStripePtr chunkStripe,
         const TStreamDescriptor& streamDescriptor,
         TJobletPtr joblet,
-        NChunkPools::TChunkStripeKey key = NChunkPools::TChunkStripeKey());
+        NChunkPools::TChunkStripeKey key = NChunkPools::TChunkStripeKey(),
+        bool processEmptyStripes = false);
 
     static std::vector<NChunkPools::TChunkStripePtr> BuildChunkStripes(
         google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs,
@@ -288,7 +289,8 @@ protected:
         NJobTrackerClient::NProto::TJobResult* jobResult,
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
         TJobletPtr joblet,
-        const NChunkPools::TChunkStripeKey& key = NChunkPools::TChunkStripeKey());
+        const NChunkPools::TChunkStripeKey& key = NChunkPools::TChunkStripeKey(),
+        bool processEmptyStripes = false);
 
     //! A convenience method for calling task->Finish() and
     //! task->SetInputVertex(this->GetJobType());
