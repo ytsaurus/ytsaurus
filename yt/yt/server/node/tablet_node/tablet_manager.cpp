@@ -3756,7 +3756,6 @@ private:
             ? TimestampToInstant(transaction->GetCommitTimestamp()).first - config->MinReplicationLogTtl
             : TInstant::Max();
         auto it = storeRowIndexMap.find(tablet->GetTrimmedRowCount());
-        YT_VERIFY(it != storeRowIndexMap.end());
         while (it != storeRowIndexMap.end()) {
             const auto& store = it->second;
             if (store->IsDynamic()) {
