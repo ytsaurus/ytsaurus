@@ -14,12 +14,11 @@ using namespace NProfiling;
 
 static const TLogger Logger(SystemLoggingCategoryName);
 static constexpr size_t BufferSize = 1 << 16;
-static constexpr auto RateUpdatePeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TRateLimitCounter::TRateLimitCounter(
-    std::optional<i64> limit,
+    std::optional<size_t> limit,
     NProfiling::TCounter bytesCounter,
     NProfiling::TCounter skippedEventsCounter)
     : LastUpdate_(TInstant::Now())
@@ -28,7 +27,7 @@ TRateLimitCounter::TRateLimitCounter(
     , SkippedEventsCounter_(std::move(skippedEventsCounter))
 { }
 
-void TRateLimitCounter::SetRateLimit(std::optional<i64> rateLimit)
+void TRateLimitCounter::SetRateLimit(std::optional<size_t> rateLimit)
 {
     RateLimit_ = rateLimit;
     LastUpdate_ = TInstant::Now();
@@ -53,7 +52,7 @@ bool TRateLimitCounter::IsLimitReached()
 bool TRateLimitCounter::IsIntervalPassed()
 {
     auto now = TInstant::Now();
-    if (now - LastUpdate_ >= RateUpdatePeriod) {
+    if (now - LastUpdate_ >= UpdatePeriod_) {
         LastUpdate_ = now;
         BytesWritten_ = 0;
         return true;
@@ -61,7 +60,7 @@ bool TRateLimitCounter::IsIntervalPassed()
     return false;
 }
 
-void TRateLimitCounter::UpdateCounter(i64 bytesWritten)
+void TRateLimitCounter::UpdateCounter(size_t bytesWritten)
 {
     BytesWritten_ += bytesWritten;
     BytesCounter_.Increment(bytesWritten);
@@ -152,12 +151,12 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
     YT_ABORT();
 }
 
-void TStreamLogWriterBase::SetRateLimit(std::optional<i64> limit)
+void TStreamLogWriterBase::SetRateLimit(std::optional<size_t> limit)
 {
     RateLimit_.SetRateLimit(limit);
 }
 
-void TStreamLogWriterBase::SetCategoryRateLimits(const THashMap<TString, i64>& categoryRateLimits)
+void TStreamLogWriterBase::SetCategoryRateLimits(const THashMap<TString, size_t>& categoryRateLimits)
 {
     CategoryToRateLimit_.clear();
     for (const auto& it : categoryRateLimits) {

@@ -95,7 +95,7 @@ protected:
         if (RemoteClusterProxy_) {
             // Form a default controller agent config.
             auto defaultConfig = New<NControllerAgent::TControllerAgentBootstrapConfig>();
-            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYTServer("controller_agent" /* componentName */);
+            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYtServer("controller_agent" /* componentName */);
             // Set controller agent tag.
             if (!Tag_) {
                 THROW_ERROR_EXCEPTION("Controller agent tag should be presented in local mode");
