@@ -8,6 +8,10 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(ILogWriter)
+
+////////////////////////////////////////////////////////////////////////////////
+
 constexpr TStringBuf SystemLoggingCategoryName = "Logging";
 constexpr TStringBuf DefaultStderrWriterName = "Stderr";
 constexpr ELogLevel DefaultStderrMinLevel = ELogLevel::Info;

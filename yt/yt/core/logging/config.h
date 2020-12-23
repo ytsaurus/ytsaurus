@@ -99,7 +99,6 @@ class TLogManagerConfig
 {
 public:
     std::optional<TDuration> FlushPeriod;
-    std::optional<TDuration> WatchPeriod;
     std::optional<TDuration> CheckSpacePeriod;
 
     i64 MinDiskSpace;
@@ -112,7 +111,7 @@ public:
     std::vector<TRuleConfigPtr> Rules;
     THashMap<TString, TWriterConfigPtr> WriterConfigs;
     std::vector<TString> SuppressedMessages;
-    THashMap<TString, size_t> CategoryRateLimits;
+    THashMap<TString, i64> CategoryRateLimits;
 
     TDuration RequestSuppressionTimeout;
 
@@ -121,8 +120,6 @@ public:
     TLogManagerConfig()
     {
         RegisterParameter("flush_period", FlushPeriod)
-            .Default();
-        RegisterParameter("watch_period", WatchPeriod)
             .Default();
         RegisterParameter("check_space_period", CheckSpacePeriod)
             .Default();
@@ -175,7 +172,7 @@ public:
     static TLogManagerConfigPtr CreateQuiet();
     static TLogManagerConfigPtr CreateSilent();
     //! Create logging config a-la YT server config: ./#componentName{,.debug,.error}.log.
-    static TLogManagerConfigPtr CreateYtServer(const TString& componentName);
+    static TLogManagerConfigPtr CreateYTServer(const TString& componentName);
     static TLogManagerConfigPtr CreateFromFile(const TString& file, const NYPath::TYPath& path = "");
     static TLogManagerConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
     static TLogManagerConfigPtr TryCreateFromEnv();

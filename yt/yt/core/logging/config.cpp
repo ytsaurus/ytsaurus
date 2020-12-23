@@ -86,11 +86,11 @@ TLogManagerConfigPtr TLogManagerConfig::CreateSilent()
     return config;
 }
 
-TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentName)
+TLogManagerConfigPtr TLogManagerConfig::CreateYTServer(const TString& componentName)
 {
     auto config = New<TLogManagerConfig>();
 
-    for (const auto& logLevel : {ELogLevel::Debug, ELogLevel::Info, ELogLevel::Error}) {
+    for (auto logLevel : {ELogLevel::Debug, ELogLevel::Info, ELogLevel::Error}) {
         auto rule = New<TRuleConfig>();
         rule->MinLevel = logLevel;
         rule->Writers.push_back(ToString(logLevel));
