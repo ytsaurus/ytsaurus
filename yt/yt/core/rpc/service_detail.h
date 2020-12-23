@@ -419,8 +419,9 @@ class TServiceBase
     : public virtual IService
 {
 public:
-    void Configure(TServiceCommonConfigPtr configDefaults, TServiceConfigPtr config);
-    virtual void Configure(TServiceCommonConfigPtr configDefaults, NYTree::INodePtr configNode) override;
+    virtual void Configure(
+        TServiceCommonConfigPtr configDefaults,
+        NYTree::INodePtr configNode) override;
     virtual TFuture<void> Stop() override;
 
     virtual const TServiceId& GetServiceId() const override;
@@ -603,6 +604,8 @@ protected:
         TMethodPerformanceCountersPtr GlobalPerformanceCounters;
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr LoggingSuppressionFailedRequestThrottler;
+
+        std::atomic<bool> ForceTracing = false;
     };
 
     using TRuntimeMethodInfoPtr = TIntrusivePtr<TRuntimeMethodInfo>;
@@ -649,6 +652,9 @@ protected:
     //! Similar to #FindMethodInfo but fails if no method is found.
     TRuntimeMethodInfoPtr GetMethodInfo(const TString& method);
 
+    //! Similar to #FindMethodInfo but throws if no method is found.
+    TRuntimeMethodInfoPtr GetMethodInfoOrThrow(const TString& method);
+
     //! Returns the default invoker passed during construction.
     const IInvokerPtr& GetDefaultInvoker() const;
 
@@ -670,6 +676,11 @@ protected:
      *  Thread affinity: any
      */
     virtual std::vector<TString> SuggestAddresses();
+
+    //! A typed implementation of #Configure.
+    void DoConfigure(
+        TServiceCommonConfigPtr configDefaults,
+        TServiceConfigPtr config);
 
 protected:
     const NLogging::TLogger Logger;
@@ -713,17 +724,17 @@ private:
     static constexpr size_t ReplyBusBucketCount = 64;
     std::array<TReplyBusBucket, ReplyBusBucketCount> ReplyBusBuckets_;
 
-    TDuration PendingPayloadsTimeout_ = TServiceConfig::DefaultPendingPayloadsTimeout;
+    std::atomic<TDuration> PendingPayloadsTimeout_ = TServiceConfig::DefaultPendingPayloadsTimeout;
 
     std::atomic<bool> Stopped_ = false;
-    TPromise<void> StopResult_ = NewPromise<void>();
+    const TPromise<void> StopResult_ = NewPromise<void>();
     std::atomic<int> ActiveRequestCount_ = 0;
 
     std::atomic<int> AuthenticationQueueSize_ = 0;
     NProfiling::TEventTimer AuthenticationTimer_;
-    int AuthenticationQueueSizeLimit_ = TServiceConfig::DefaultAuthenticationQueueSizeLimit;
+    std::atomic<int> AuthenticationQueueSizeLimit_ = TServiceConfig::DefaultAuthenticationQueueSizeLimit;
 
-    std::atomic<bool> EnablePerUserProfiling_{false};
+    std::atomic<bool> EnablePerUserProfiling_ = false;
 
     struct TAcceptedRequest
     {

@@ -17,12 +17,15 @@ class TServiceCommonConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    std::optional<bool> EnablePerUserProfiling;
+    bool EnablePerUserProfiling;
+    bool ForceTracing;
 
     TServiceCommonConfig()
     {
         RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
-            .Default();
+            .Default(false);
+        RegisterParameter("force_tracing", ForceTracing)
+            .Default(false);
     }
 };
 
@@ -48,9 +51,12 @@ DEFINE_REFCOUNTED_TYPE(TServerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServiceConfig
-    : public TServiceCommonConfig
+    : public NYTree::TYsonSerializable
 {
 public:
+    std::optional<bool> EnablePerUserProfiling;
+    std::optional<bool> ForceTracing;
+
     THashMap<TString, TMethodConfigPtr> Methods;
 
     static const int DefaultAuthenticationQueueSizeLimit;
@@ -61,8 +67,12 @@ public:
 
     TServiceConfig()
     {
+        RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
+            .Optional();
+        RegisterParameter("force_tracing", ForceTracing)
+            .Optional();
         RegisterParameter("methods", Methods)
-            .Default();
+            .Optional();
         RegisterParameter("authentication_queue_size_limit", AuthenticationQueueSizeLimit)
             .Alias("max_authentication_queue_size")
             .Default(DefaultAuthenticationQueueSizeLimit);
@@ -99,6 +109,8 @@ public:
     static const NConcurrency::TThroughputThrottlerConfigPtr DefaultLoggingSuppressionFailedRequestThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr LoggingSuppressionFailedRequestThrottler;
 
+    std::optional<bool> ForceTracing;
+
     TMethodConfig()
     {
         RegisterParameter("heavy", Heavy)
@@ -117,6 +129,8 @@ public:
             .Default(DefaultLoggingSuppressionTimeout);
         RegisterParameter("logging_suppression_failed_request_throttler", LoggingSuppressionFailedRequestThrottler)
             .Default(DefaultLoggingSuppressionFailedRequestThrottler);
+        RegisterParameter("force_tracing", ForceTracing)
+            .Optional();
     }
 };
 

@@ -73,7 +73,8 @@ IChannelPtr CreateFailureDetectingChannel(
     TCallback<bool(const TError&)> isError = BIND(IsChannelFailureError));
 
 NTracing::TTraceContextPtr GetOrCreateHandlerTraceContext(
-    const NProto::TRequestHeader& header);
+    const NProto::TRequestHeader& header,
+    bool forceTracing);
 NTracing::TTraceContextPtr CreateCallTraceContext(
     const TString& service,
     const TString& method);

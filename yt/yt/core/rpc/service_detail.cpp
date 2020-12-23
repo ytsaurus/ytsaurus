@@ -1096,8 +1096,9 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    auto traceContext = GetOrCreateHandlerTraceContext(*header);
-    if (traceContext->IsSampled()) {
+    auto forceTracing = runtimeInfo->ForceTracing.load(std::memory_order_relaxed);
+    auto traceContext = GetOrCreateHandlerTraceContext(*header, forceTracing);
+    if (traceContext && traceContext->IsSampled()) {
         traceContext->AddTag(EndpointAnnotation, replyBus->GetEndpointDescription());
     }
 
@@ -1119,8 +1120,9 @@ void TServiceBase::HandleRequest(
     }
 
     // Not actually atomic but should work fine as long as some small error is OK.
-    auto authenticationQueueSizeLimit = AuthenticationQueueSizeLimit_;
-    if (AuthenticationQueueSize_.load() > authenticationQueueSizeLimit) {
+    auto authenticationQueueSizeLimit = AuthenticationQueueSizeLimit_.load(std::memory_order_relaxed);
+    auto authenticationQueueSize = AuthenticationQueueSize_.load(std::memory_order_relaxed);
+    if (authenticationQueueSize > authenticationQueueSizeLimit) {
         auto error = TError(
             NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
             "Authentication request queue size limit exceeded")
@@ -1553,7 +1555,7 @@ TServiceBase::TPendingPayloadsEntry* TServiceBase::DoGetOrCreatePendingPayloadsE
     auto& entry = bucket->RequestIdToPendingPayloads[requestId];
     if (!entry.Lease) {
         entry.Lease = NConcurrency::TLeaseManager::CreateLease(
-            PendingPayloadsTimeout_,
+            PendingPayloadsTimeout_.load(std::memory_order_relaxed),
             BIND(&TServiceBase::OnPendingPayloadsLeaseExpired, MakeWeak(this), requestId));
     }
 
@@ -1663,36 +1665,30 @@ void TServiceBase::ValidateRequestFeatures(const IServiceContextPtr& context)
     }
 }
 
-void TServiceBase::Configure(TServiceCommonConfigPtr configDefaults, TServiceConfigPtr config)
+void TServiceBase::DoConfigure(TServiceCommonConfigPtr configDefaults, TServiceConfigPtr config)
 {
     try {
-        YT_LOG_DEBUG("Configuring RPC service %v",
+        YT_LOG_DEBUG("Configuring RPC service (Service: %v)",
             ServiceId_.ServiceName);
 
-        if (!config) {
-            if (configDefaults->EnablePerUserProfiling) {
-                EnablePerUserProfiling_ = *configDefaults->EnablePerUserProfiling;
-            }
-            return;
+        // Validate configuration.
+        for (const auto& [methodName, _] : config->Methods) {
+            GetMethodInfoOrThrow(methodName);
         }
 
-        if (config->EnablePerUserProfiling) {
-            EnablePerUserProfiling_ = *config->EnablePerUserProfiling;
-        } else if (configDefaults->EnablePerUserProfiling) {
-            EnablePerUserProfiling_ = *configDefaults->EnablePerUserProfiling;
-        }
+        EnablePerUserProfiling_.store(config->EnablePerUserProfiling.value_or(configDefaults->EnablePerUserProfiling));
+        AuthenticationQueueSizeLimit_.store(config->AuthenticationQueueSizeLimit);
+        PendingPayloadsTimeout_.store(config->PendingPayloadsTimeout);
 
-        AuthenticationQueueSizeLimit_ = config->AuthenticationQueueSizeLimit;
-        PendingPayloadsTimeout_ = config->PendingPayloadsTimeout;
-
-        for (const auto& [methodName, methodConfig] : config->Methods) {
-            auto runtimeInfo = FindMethodInfo(methodName);
-            if (!runtimeInfo) {
-                THROW_ERROR_EXCEPTION("Cannot find RPC method %v.%v to configure",
-                    ServiceId_.ServiceName,
-                    methodName);
+        for (const auto& [methodName, runtimeInfo] : MethodMap_) {
+            TMethodConfigPtr methodConfig;
+            if (auto it = config->Methods.find(methodName)) {
+                methodConfig = it->second;
+            } else {
+                methodConfig = New<TMethodConfig>();
             }
 
+            // TODO(babenko): fix races here
             auto& descriptor = runtimeInfo->Descriptor;
             descriptor.SetHeavy(methodConfig->Heavy);
             descriptor.SetQueueSizeLimit(methodConfig->QueueSizeLimit);
@@ -1700,17 +1696,19 @@ void TServiceBase::Configure(TServiceCommonConfigPtr configDefaults, TServiceCon
             descriptor.SetLogLevel(methodConfig->LogLevel);
             descriptor.SetLoggingSuppressionTimeout(methodConfig->LoggingSuppressionTimeout);
 
-            if (methodConfig->RequestBytesThrottler) {
-                runtimeInfo->RequestBytesThrottler->Reconfigure(
-                    methodConfig->RequestBytesThrottler);
-                runtimeInfo->RequestBytesThrottlerSpecified.store(true);
-            } else {
-                runtimeInfo->RequestBytesThrottlerSpecified.store(false);
-                runtimeInfo->RequestBytesThrottler->Reconfigure(
-                    New<NConcurrency::TThroughputThrottlerConfig>());
-            }
+            auto requestBytesThrottlerConfig = methodConfig->RequestBytesThrottler
+                ? methodConfig->RequestBytesThrottler
+                : New<TThroughputThrottlerConfig>();
+            runtimeInfo->RequestBytesThrottler->Reconfigure(requestBytesThrottlerConfig);
+            runtimeInfo->RequestBytesThrottlerSpecified.store(methodConfig->RequestBytesThrottler.operator bool());
+
             runtimeInfo->LoggingSuppressionFailedRequestThrottler->Reconfigure(
                 methodConfig->LoggingSuppressionFailedRequestThrottler);
+
+            runtimeInfo->ForceTracing.store(
+                methodConfig->ForceTracing.value_or(
+                    config->ForceTracing.value_or(
+                        configDefaults->ForceTracing)));
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %v",
@@ -1730,8 +1728,10 @@ void TServiceBase::Configure(TServiceCommonConfigPtr configDefaults, INodePtr co
                 ServiceId_.ServiceName)
                 << ex;
         }
+    } else {
+        config = New<TServiceConfig>();
     }
-    Configure(std::move(configDefaults), std::move(config));
+    DoConfigure(std::move(configDefaults), std::move(config));
 }
 
 TFuture<void> TServiceBase::Stop()
@@ -1755,6 +1755,15 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const TString& m
 {
     auto runtimeInfo = FindMethodInfo(method);
     YT_VERIFY(runtimeInfo);
+    return runtimeInfo;
+}
+
+TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfoOrThrow(const TString& method)
+{
+    auto runtimeInfo = FindMethodInfo(method);
+    if (!runtimeInfo) {
+        THROW_ERROR_EXCEPTION("Method %Qv is not registered");
+    }
     return runtimeInfo;
 }
 
