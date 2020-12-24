@@ -138,6 +138,9 @@ struct TRefCountedHelper
         std::is_final_v<T>,
         "Ref-counted objects must be derived from TRefCountedBase or to be final");
 
+    static constexpr size_t RefCounterSpace = (sizeof(TRefCounter) + alignof(T) - 1) & ~(alignof(T) - 1);
+    static constexpr size_t RefCounterOffset = RefCounterSpace - sizeof(TRefCounter);
+
     Y_FORCE_INLINE static const TRefCounter* GetRefCounter(const T* obj)
     {
         return reinterpret_cast<const TRefCounter*>(obj) - 1;
@@ -150,23 +153,23 @@ struct TRefCountedHelper
         // No virtual call when T is final.
         obj->~T();
 
-        void* ptr = const_cast<TRefCounter*>(refCounter);
+        char* ptr = reinterpret_cast<char*>(const_cast<TRefCounter*>(refCounter));
 
         // Fast path. Weak refs cannot appear if there are neither strong nor weak refs.
         if (refCounter->GetWeakRefCount() == 1) {
-            TMemoryReleaser<T>::Do(ptr, sizeof(TRefCounter));
+            TMemoryReleaser<T>::Do(ptr - RefCounterOffset, RefCounterSpace);
             return;
         }
 
         if (refCounter->WeakUnref()) {
-            TMemoryReleaser<T>::Do(ptr, sizeof(TRefCounter));
+            TMemoryReleaser<T>::Do(ptr - RefCounterOffset, RefCounterSpace);
         }
     }
 
     Y_FORCE_INLINE static void Deallocate(const T* obj)
     {
-        void* ptr = const_cast<TRefCounter*>(GetRefCounter(obj));
-        TMemoryReleaser<T>::Do(ptr, sizeof(TRefCounter));
+        char* ptr = reinterpret_cast<char*>(const_cast<TRefCounter*>(GetRefCounter(obj)));
+        TMemoryReleaser<T>::Do(ptr - RefCounterOffset, RefCounterSpace);
     }
 };
 
