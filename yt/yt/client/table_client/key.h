@@ -11,7 +11,13 @@ namespace NYT::NTableClient {
 class TKey
 {
 public:
+    //! A special null key, use it instead of enclosing TKey in std::optional.
+    TKey() = default;
+
     TKey(const TUnversionedValue* begin, int length);
+
+    //! Returns true if key is non-null and false otherwise.
+    operator bool() const;
 
     //! Construct from a given row and possibly key length and validate that row does not contain
     //! setntinels of types Min, Max and Bottom. If key length is not specified, row length will be used instead.
@@ -32,10 +38,12 @@ public:
     const TUnversionedValue* Begin() const;
     const TUnversionedValue* End() const;
 
-private:
-    const TUnversionedValue* Begin_;
+    void Persist(const TPersistenceContext& context);
 
-    int Length_;
+private:
+    const TUnversionedValue* Begin_ = nullptr;
+
+    int Length_ = 0;
 
     static void ValidateValueTypes(
         const TUnversionedValue* begin,

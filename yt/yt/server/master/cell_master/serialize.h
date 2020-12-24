@@ -129,6 +129,7 @@ DEFINE_ENUM(EMasterReign,
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42
+    ((RowBufferEmptyRowDeserialization)                             (1502))  // max42
 );
 
 ////////////////////////////////////////////////////////////////////////////////

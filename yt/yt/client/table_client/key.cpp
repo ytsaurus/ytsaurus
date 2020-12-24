@@ -1,5 +1,7 @@
 #include "key.h"
 
+#include "serialize.h"
+
 namespace NYT::NTableClient {
 
 using namespace NLogging;
@@ -18,6 +20,10 @@ TKey::TKey(const TUnversionedValue* begin, int length)
 
 TKey TKey::FromRow(const TUnversionedRow& row, std::optional<int> length)
 {
+    if (!row) {
+        return TKey();
+    }
+
     int keyLength = length.value_or(row.GetCount());
     YT_VERIFY(keyLength <= row.GetCount());
 
@@ -28,6 +34,10 @@ TKey TKey::FromRow(const TUnversionedRow& row, std::optional<int> length)
 
 TKey TKey::FromRowUnchecked(const TUnversionedRow& row, std::optional<int> length)
 {
+    if (!row) {
+        return TKey();
+    }
+
     int keyLength = length.value_or(row.GetCount());
     YT_VERIFY(keyLength <= row.GetCount());
 
@@ -42,13 +52,21 @@ TKey TKey::FromRowUnchecked(const TUnversionedRow& row, std::optional<int> lengt
     return TKey(row.Begin(), keyLength);
 }
 
+TKey::operator bool() const
+{
+    return Begin_ != nullptr;
+}
+
 TUnversionedOwningRow TKey::AsOwningRow() const
 {
+    YT_VERIFY(Begin_);
+
     return TUnversionedOwningRow(Begin_, Begin_ + Length_);
 }
 
 const TUnversionedValue& TKey::operator[](int index) const
 {
+    YT_VERIFY(Begin_);
     YT_VERIFY(index >= 0);
     YT_VERIFY(index < Length_);
 
@@ -57,6 +75,7 @@ const TUnversionedValue& TKey::operator[](int index) const
 
 int TKey::GetLength() const
 {
+    YT_VERIFY(Begin_);
     return Length_;
 }
 
@@ -79,10 +98,32 @@ void TKey::ValidateValueTypes(
     }
 }
 
+void TKey::Persist(const TPersistenceContext& context)
+{
+    if (context.IsSave()) {
+        auto representation = Begin_
+            ? SerializeToString(Begin_, Begin_ + Length_)
+            : SerializedNullRow;
+        NYT::Save(context.SaveContext(), representation);
+    } else {
+        TUnversionedRow row;
+        Load(context.LoadContext(), row);
+        if (row) {
+            // Row lifetime is ensured by row buffer in load context.
+            Begin_ = row.Begin();
+            Length_ = row.GetCount();
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool operator==(const TKey& lhs, const TKey& rhs)
 {
+    if (!lhs || !rhs) {
+        return static_cast<bool>(lhs) == static_cast<bool>(rhs);
+    }
+
     return CompareRows(lhs.Begin(), lhs.End(), rhs.Begin(), rhs.End()) == 0;
 }
 
@@ -98,7 +139,11 @@ void FormatValue(TStringBuilderBase* builder, const TKey& key, TStringBuf format
 
 TString ToString(const TKey& key)
 {
-    return Format("[%v]", JoinToString(key.Begin(), key.End()));
+    if (key) {
+        return Format("[%v]", JoinToString(key.Begin(), key.End()));
+    } else {
+        return "#";
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
