@@ -1302,6 +1302,36 @@ TEST_F(TFutureTest, PropagateErrorAsync)
     EXPECT_FALSE(f2.Get().IsOK());
 }
 
+TEST_F(TFutureTest, WithDeadlineSuccess)
+{
+    auto p = NewPromise<void>();
+    auto f1 = p.ToFuture();
+    auto f2 = f1.WithDeadline(TInstant::Now() + TDuration::MilliSeconds(100));
+    Sleep(TDuration::MilliSeconds(10));
+    p.Set();
+    EXPECT_TRUE(f2.Get().IsOK());
+}
+
+TEST_F(TFutureTest, WithDeadlineOnSet)
+{
+    auto p = NewPromise<void>();
+    p.Set();
+    auto f1 = p.ToFuture();
+    auto f2 = f1.WithDeadline(TInstant::Now());
+    EXPECT_TRUE(f1.Get().IsOK());
+    EXPECT_TRUE(f2.Get().IsOK());
+}
+
+TEST_F(TFutureTest, WithDeadlineFail)
+{
+    auto p = NewPromise<int>();
+    auto f1 = p.ToFuture();
+    auto deadline = TInstant::Now() + SleepQuantum;
+    auto f2 = f1.WithDeadline(deadline);
+    EXPECT_EQ(NYT::EErrorCode::Timeout, f2.Get().GetCode());
+    EXPECT_EQ(NYTree::ConvertToYsonString(deadline), f2.Get().Attributes().FindYson("deadline"));
+}
+
 TEST_F(TFutureTest, WithTimeoutSuccess)
 {
     auto p = NewPromise<void>();
@@ -1328,6 +1358,7 @@ TEST_F(TFutureTest, WithTimeoutFail)
     auto f1 = p.ToFuture();
     auto f2 = f1.WithTimeout(SleepQuantum);
     EXPECT_EQ(NYT::EErrorCode::Timeout, f2.Get().GetCode());
+    EXPECT_EQ(NYTree::ConvertToYsonString(SleepQuantum), f2.Get().Attributes().FindYson("timeout"));
 }
 
 TEST_W(TFutureTest, Holder)
