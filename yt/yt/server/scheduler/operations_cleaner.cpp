@@ -1303,6 +1303,8 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
 {
     using NYT::ToProto;
 
+    YT_LOG_INFO("Fetching operations attributes for cleaner (OperationCount: %v)", operationIds.size());
+
     std::vector<TArchiveOperationRequest> result;
 
     auto batchReq = createBatchRequest();
@@ -1336,6 +1338,8 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
                 << ex;
         }
     }
+
+    YT_LOG_INFO("Operations attributes for cleaner fetched");
 
     return result;
 }

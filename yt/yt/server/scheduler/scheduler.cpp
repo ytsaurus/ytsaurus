@@ -537,54 +537,57 @@ public:
             .Run();
     }
 
+    void DoValidateJobShellAccess(const TString& user, const TJobShellPtr& jobShell)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        TObjectServiceProxy proxy(Bootstrap_
+            ->GetMasterClient()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Cache, PrimaryMasterCellTag));
+        auto connectionConfig = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetConfig();
+        TMasterReadOptions readOptions;
+        readOptions.ReadFrom = EMasterChannelKind::Cache;
+
+        auto userClosure = GetSubjectClosure(
+            user,
+            proxy,
+            connectionConfig,
+            readOptions);
+
+        auto allowedSubjects = jobShell->Owners;
+        allowedSubjects.push_back(RootUserName);
+        allowedSubjects.push_back(SuperusersGroupName);
+
+        for (const auto& allowedSubject : allowedSubjects) {
+            if (allowedSubject == user || userClosure.contains(allowedSubject)) {
+                return;
+            }
+        }
+
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AuthorizationError,
+            "User %Qv is not allowed to run job shell %Qv",
+            user,
+            jobShell->Name);
+    }
+
     TFuture<void> ValidateJobShellAccess(
         const TString& user,
         const TJobShellPtr& jobShell)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto doValidateJobShellAccess = BIND([=, this_ = MakeStrong(this)] {
-            TObjectServiceProxy proxy(Bootstrap_
-                ->GetMasterClient()
-                ->GetMasterChannelOrThrow(EMasterChannelKind::Cache, PrimaryMasterCellTag));
-            auto connectionConfig = Bootstrap_
-                ->GetMasterClient()
-                ->GetNativeConnection()
-                ->GetConfig();
-            TMasterReadOptions readOptions;
-            readOptions.ReadFrom = EMasterChannelKind::Cache;
-
-            auto userClosure = GetSubjectClosure(
-                user,
-                proxy,
-                connectionConfig,
-                readOptions);
-
-            auto allowedSubjects = jobShell->Owners;
-            allowedSubjects.push_back(RootUserName);
-            allowedSubjects.push_back(SuperusersGroupName);
-
-            for (const auto& allowedSubject : allowedSubjects) {
-                if (allowedSubject == user || userClosure.contains(allowedSubject)) {
-                    return;
-                }
-            }
-
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AuthorizationError,
-                "User %Qv is not allowed to run job shell %Qv",
-                user,
-                jobShell->Name);
-        });
-
-        return doValidateJobShellAccess
+        return BIND(&TImpl::DoValidateJobShellAccess, MakeStrong(this))
             .AsyncVia(GetControlInvoker(EControlQueue::Operation))
-            .Run();
+            .Run(user, jobShell);
     }
 
     TFuture<TParseOperationSpecResult> ParseSpec(TYsonString specString) const
     {
-        return BIND(&TImpl::DoParseSpec, MakeStrong(this), Passed(std::move(specString)), SpecTemplate_)
+        return BIND(&NScheduler::ParseSpec, Passed(std::move(specString)), SpecTemplate_, /* operationId */ std::nullopt)
             .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
             .Run();
     }
@@ -629,6 +632,7 @@ public:
             mutationId,
             transactionId,
             spec,
+            std::move(parseSpecResult.CustomSpecPerTree),
             std::move(parseSpecResult.SpecString),
             secureVault,
             runtimeParameters,
@@ -1838,38 +1842,6 @@ private:
     TSchedulingSegmentManager SchedulingSegmentManager_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-
-    TParseOperationSpecResult DoParseSpec(TYsonString specString, INodePtr specTemplate) const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        IMapNodePtr specNode;
-        try {
-            specNode = ConvertToNode(specString)->AsMap();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing operation spec")
-                << ex;
-        }
-
-        if (specTemplate) {
-            specNode = PatchNode(specTemplate, specNode)->AsMap();
-        }
-
-        TParseOperationSpecResult result;
-        try {
-            result.Spec = ConvertTo<TOperationSpecBasePtr>(specNode);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing operation spec")
-                << ex;
-        }
-
-        specNode->RemoveChild("secure_vault");
-        result.SpecNode = specNode;
-        result.SpecString = ConvertToYsonString(specNode);
-
-        return result;
-    }
 
     void DoAttachJobContext(
         const NYTree::TYPath& path,

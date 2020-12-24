@@ -234,15 +234,9 @@ public:
 
         auto operationId = state->GetHost()->GetId();
 
-        auto clonedSpec = CloneYsonSerializable(spec);
-        auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(TreeId_);
-        if (optionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
-            clonedSpec = UpdateYsonSerializable(clonedSpec, ConvertToNode(optionsIt->second));
-        }
-
         auto operationElement = New<TOperationElement>(
             Config_,
-            clonedSpec,
+            spec,
             runtimeParameters,
             state->GetController(),
             ControllerConfig_,
@@ -252,7 +246,7 @@ public:
             TreeId_,
             Logger);
 
-        int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(clonedSpec->SchedulingTagFilter));
+        int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(spec->SchedulingTagFilter));
         operationElement->SetSchedulingTagFilterIndex(index);
 
         YT_VERIFY(OperationIdToElement_.emplace(operationId, operationElement).second);

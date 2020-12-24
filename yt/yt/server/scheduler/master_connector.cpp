@@ -2,6 +2,7 @@
 #include "helpers.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
+#include "operation.h"
 #include "operations_cleaner.h"
 #include "bootstrap.h"
 #include "persistent_scheduler_state.h"
@@ -387,7 +388,7 @@ public:
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
-            YT_LOG_ERROR(rspOrError, "Error storing persistent scheduling segments state");
+            YT_LOG_WARNING(rspOrError, "Error storing persistent scheduling segments state");
         } else {
             YT_LOG_INFO("Persistent scheduling segments state successfully stored");
         }
@@ -883,14 +884,14 @@ private:
                 "initial_aggregated_min_needed_resources",
             };
 
+            YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
+                OperationIds_.size());
+
             auto batchReq = Owner_->StartObjectBatchRequest(
                 EMasterChannelKind::Follower,
                 PrimaryMasterCellTag,
                 Owner_->Config_->FetchOperationAttributesSubbatchSize);
             {
-                YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
-                    OperationIds_.size());
-
                 for (auto operationId : OperationIds_) {
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
@@ -915,6 +916,8 @@ private:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
             const auto& batchRsp = batchRspOrError.Value();
+            
+            YT_LOG_INFO("Attributes for unfinished operations fetched");
 
             {
                 for (auto operationId : OperationIds_) {
@@ -936,7 +939,7 @@ private:
                         if (secureVaultNode->GetType() == ENodeType::Map) {
                             secureVault = secureVaultNode->AsMap();
                         } else {
-                            YT_LOG_ERROR("Invalid secure vault node type (OperationId: %v, ActualType: %v, ExpectedType: %v)",
+                            YT_LOG_WARNING("Invalid secure vault node type (OperationId: %v, ActualType: %v, ExpectedType: %v)",
                                 operationId,
                                 secureVaultNode->GetType(),
                                 ENodeType::Map);
@@ -967,6 +970,8 @@ private:
                     }
                 }
             }
+            
+            YT_LOG_INFO("Operation objects created from attributes");
         }
 
         TOperationPtr TryCreateOperationFromAttributes(
@@ -975,29 +980,10 @@ private:
             const IMapNodePtr& secureVault)
         {
             auto specString = attributes.GetYson("spec");
-
-            // COMPAT(levysotsky): Remove after commit with this comment is on all clusters.
-            auto specNode = ConvertTo<IMapNodePtr>(specString);
-            try {
-                if (auto aclNode = specNode->FindChild("acl")) {
-                    ConvertTo<TSerializableAccessControlList>(aclNode);
-                }
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to parse operation ACL from spec, removing it (OperationId: %v)",
-                    operationId);
-                specNode->RemoveChild("acl");
-            }
-
-            TOperationSpecBasePtr spec;
-            try {
-                spec = ConvertTo<TOperationSpecBasePtr>(specNode);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing operation spec")
-                    << ex;
-            }
+            auto parseSpecResult = ParseSpec(specString, /* specTemplate */ nullptr, /* operationId */ operationId);
+            const auto& spec = parseSpecResult.Spec;
 
             // NB: Keep stuff below in sync with #RequestOperationAttributes.
-
             auto user = attributes.Get<TString>("authenticated_user");
 
             YT_VERIFY(attributes.Contains("runtime_parameters"));
@@ -1026,7 +1012,8 @@ private:
                 attributes.Get<TMutationId>("mutation_id"),
                 attributes.Get<TTransactionId>("user_transaction_id"),
                 spec,
-                specString,
+                parseSpecResult.CustomSpecPerTree,
+                parseSpecResult.SpecString,
                 secureVault,
                 runtimeParameters,
                 scheduler->GetOperationBaseAcl(),
@@ -1119,6 +1106,8 @@ private:
             for (auto& operation : operations) {
                 operationsCleaner->SubmitForArchivation(std::move(operation));
             }
+            
+            YT_LOG_INFO("Operations submitted to cleaner");
         }
 
         void RequestSchedulingSegmentsState()
@@ -1610,7 +1599,7 @@ private:
         watcher.Requester.Run(batchReq);
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         if (!batchRspOrError.IsOK()) {
-            YT_LOG_ERROR(batchRspOrError, "Error updating custom watcher");
+            YT_LOG_WARNING(batchRspOrError, "Error updating custom watcher");
             return;
         }
         RunWatcherHandler(watcher, batchRspOrError.Value(), /* strictMode */ false);
@@ -1638,7 +1627,7 @@ private:
         YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
         if (!batchRspOrError.IsOK()) {
-            YT_LOG_ERROR(batchRspOrError, "Error updating common watchers");
+            YT_LOG_WARNING(batchRspOrError, "Error updating common watchers");
             return;
         }
 

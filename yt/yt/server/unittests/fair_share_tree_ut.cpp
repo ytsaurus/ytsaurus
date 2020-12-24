@@ -343,6 +343,11 @@ public:
     {
         YT_ABORT();
     }
+    
+    virtual TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const override
+    {
+        YT_ABORT();
+    }
 
     virtual const NYson::TYsonString& GetSpecString() const override
     {

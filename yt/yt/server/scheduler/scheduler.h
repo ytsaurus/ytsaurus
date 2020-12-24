@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "operation.h"
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/client/scheduler/operation_id_or_alias.h>
@@ -19,15 +21,6 @@
 #include <yt/core/ytree/public.h>
 
 namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TParseOperationSpecResult
-{
-    TOperationSpecBasePtr Spec;
-    NYTree::IMapNodePtr SpecNode;
-    NYson::TYsonString SpecString;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

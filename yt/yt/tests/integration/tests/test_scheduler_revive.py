@@ -365,8 +365,8 @@ class TestSchedulerRestart(YTEnvSetup):
             set(acl_path, bad_acl)
 
         release_breakpoint()
-        with pytest.raises(YtError):
-            op.track()
+
+        op.track()
 
 ##################################################################
 

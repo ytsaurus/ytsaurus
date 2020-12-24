@@ -133,6 +133,8 @@ struct IOperationStrategyHost
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 
     virtual TStrategyOperationSpecPtr GetStrategySpec() const = 0;
+    
+    virtual TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const = 0;
 
     virtual const NYson::TYsonString& GetSpecString() const = 0;
 
@@ -275,6 +277,9 @@ public:
 
     //! Returns strategy operation spec.
     TStrategyOperationSpecPtr GetStrategySpec() const override;
+    
+    //! Returns strategy operation spec patched for given tere.
+    TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const override;
 
     //! Returns operation spec as a yson string.
     const NYson::TYsonString& GetSpecString() const override;
@@ -357,6 +362,7 @@ public:
         NRpc::TMutationId mutationId,
         NTransactionClient::TTransactionId userTransactionId,
         TOperationSpecBasePtr spec,
+        THashMap<TString, TStrategyOperationSpecPtr> customSpecPerTree,
         NYson::TYsonString specString,
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParameters,
@@ -377,6 +383,7 @@ private:
     const TInstant StartTime_;
     const TString AuthenticatedUser_;
     const NYson::TYsonString SpecString_;
+    const THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree_;
     const TString CodicilData_;
     const IInvokerPtr ControlInvoker_;
 
@@ -432,6 +439,21 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationControllerData)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TParseOperationSpecResult
+{
+    TOperationSpecBasePtr Spec;
+    NYTree::IMapNodePtr SpecNode;
+    NYson::TYsonString SpecString;
+    THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree;
+};
+
+TParseOperationSpecResult ParseSpec(
+    NYson::TYsonString specString,
+    NYTree::INodePtr specTemplate,
+    std::optional<TOperationId> operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
