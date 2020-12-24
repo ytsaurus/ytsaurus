@@ -7359,7 +7359,7 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
     return result;
 }
 
-ssize_t TOperationControllerBase::GetMemoryUsage() const
+i64 TOperationControllerBase::GetMemoryUsage() const
 {
     return GetMemoryUsageForTag(MemoryTag_);
 }
@@ -7582,6 +7582,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         .Item("build_time").Value(TInstant::Now())
         .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").Value(JobStatistics)
+        .Item("peak_memory_usage").Value(PeakMemoryUsage_)
         .Item("estimated_input_statistics").BeginMap()
             .Item("chunk_count").Value(TotalEstimatedInputChunkCount)
             .Item("uncompressed_data_size").Value(TotalEstimatedInputUncompressedDataSize)
@@ -9178,6 +9179,7 @@ void TOperationControllerBase::CheckMemoryUsage()
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     auto memoryUsage = GetMemoryUsage();
+    PeakMemoryUsage_ = std::max(memoryUsage, PeakMemoryUsage_);
 
     YT_LOG_DEBUG("Checking operation controller memory usage (MemoryUsage: %v, MemoryLimit: %v)",
         memoryUsage,

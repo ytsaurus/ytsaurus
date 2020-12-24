@@ -153,10 +153,23 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         print_debug("large_usage =", usage)
         assert usage > 10 * 10 ** 6
-        wait(
-            lambda: get_operation(op_large.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"]
-            > 10 * 10 ** 6
-        )
+
+        # No nonlocal keyword in 2.x :(
+        nonlocal = {"peak_memory_usage": None}
+
+        def check_operation_attributes(usage_lower_bound):
+            info = get_operation(op_large.id, attributes=["memory_usage", "progress"], include_runtime=True)
+            current_peak_memory_usage = info["progress"].get("peak_memory_usage")
+            if current_peak_memory_usage is None:
+                return False
+
+            # Check that the attribute is monotonic.
+            assert nonlocal["peak_memory_usage"] is None or current_peak_memory_usage >= nonlocal["peak_memory_usage"]
+            nonlocal["peak_memory_usage"] = current_peak_memory_usage
+
+            return info["memory_usage"] > usage_lower_bound and current_peak_memory_usage > usage_lower_bound
+
+        wait(lambda: check_operation_attributes(10 * 10 ** 6))
 
         wait(lambda: check("1", op_large, 10 * 10 ** 6, 30 * 10 ** 6))
 
