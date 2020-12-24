@@ -145,16 +145,35 @@ inline TSharedRef BuildLogMessage(TStringBuf context, TSharedRef&& message)
     }
 }
 
+#ifndef __APPLE__
+
+extern thread_local bool CachedThreadNameInitialized;
+extern thread_local TLogEvent::TThreadName CachedThreadName;
+extern thread_local int CachedThreadNameLength;
+
+void CacheThreadName();
+
+#endif
+
 inline TLogEvent CreateLogEvent(const TLogger& logger, ELogLevel level)
 {
+#ifndef __APPLE__
+    if (!CachedThreadNameInitialized) {
+        CacheThreadName();
+    }
+#endif
     TLogEvent event;
     event.Instant = NProfiling::GetCpuInstant();
     event.Category = logger.GetCategory();
     event.Essential = logger.Essential();
     event.Level = level;
     event.ThreadId = TThread::CurrentThreadId();
+#ifndef __APPLE__
+    event.ThreadName = CachedThreadName;
+    event.ThreadNameLength = CachedThreadNameLength;
+#endif
     event.FiberId = NConcurrency::GetCurrentFiberId();
-    if (auto* traceContext = NTracing::GetCurrentTraceContext()) {
+    if (const auto* traceContext = NTracing::GetCurrentTraceContext()) {
         event.TraceId = traceContext->GetTraceId();
         event.RequestId = traceContext->GetRequestId();
     }

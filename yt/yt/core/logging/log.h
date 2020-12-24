@@ -44,12 +44,23 @@ struct TLogEvent
     ELogLevel Level = ELogLevel::Minimum;
     ELogMessageFormat MessageFormat = ELogMessageFormat::PlainText;
     bool Essential = false;
+
     TSharedRef Message;
     NYson::TYsonString StructuredMessage;
+
     NProfiling::TCpuInstant Instant = 0;
+
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
+
+    static constexpr int ThreadNameBufferSize = 16 ; // including zero terminator
+    using TThreadName = std::array<char, ThreadNameBufferSize>;
+    TThreadName ThreadName; // zero-terminated
+    int ThreadNameLength = 0; // not including zero terminator
+
     NConcurrency::TFiberId FiberId = NConcurrency::InvalidFiberId;
+
     NTracing::TTraceId TraceId = NTracing::InvalidTraceId;
+
     NTracing::TRequestId RequestId = NTracing::InvalidRequestId;
 };
 

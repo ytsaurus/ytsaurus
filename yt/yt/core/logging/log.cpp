@@ -3,6 +3,8 @@
 
 #include <yt/core/misc/serialize.h>
 
+#include <util/system/thread.h>
+
 namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,8 +78,23 @@ TMessageStringBuilder::TPerThreadCache::~TPerThreadCache()
 }
 
 #ifndef __APPLE__
+
 thread_local TMessageStringBuilder::TPerThreadCache* TMessageStringBuilder::Cache_;
 thread_local bool TMessageStringBuilder::CacheDestroyed_;
+
+thread_local bool CachedThreadNameInitialized;
+thread_local TLogEvent::TThreadName CachedThreadName;
+thread_local int CachedThreadNameLength;
+
+void CacheThreadName()
+{
+    if (auto name = TThread::CurrentThreadName()) {
+        CachedThreadNameLength = std::min(TLogEvent::ThreadNameBufferSize - 1, static_cast<int>(name.length()));
+        ::memcpy(CachedThreadName.data(), name.data(), CachedThreadNameLength);
+    }
+    CachedThreadNameInitialized = true;
+}
+
 #endif
 
 } // namespace NDetail
