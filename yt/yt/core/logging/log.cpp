@@ -141,7 +141,7 @@ bool TLogger::GetAbortOnAlert() const
     return LogManager_->GetAbortOnAlert();
 }
 
-bool TLogger::Essential() const
+bool TLogger::IsEssential() const
 {
     return Essential_;
 }

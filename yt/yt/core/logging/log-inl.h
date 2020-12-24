@@ -165,7 +165,7 @@ inline TLogEvent CreateLogEvent(const TLogger& logger, ELogLevel level)
     TLogEvent event;
     event.Instant = NProfiling::GetCpuInstant();
     event.Category = logger.GetCategory();
-    event.Essential = logger.Essential();
+    event.Essential = logger.IsEssential();
     event.Level = level;
     event.ThreadId = TThread::CurrentThreadId();
 #ifndef __APPLE__
