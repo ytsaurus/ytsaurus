@@ -65,6 +65,7 @@ import ru.yandex.yt.ytclient.proxy.request.GcCollect;
 import ru.yandex.yt.ytclient.proxy.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
+import ru.yandex.yt.ytclient.proxy.request.GetOperation;
 import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys;
 import ru.yandex.yt.ytclient.proxy.request.GetTabletInfos;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
@@ -723,6 +724,13 @@ public class ApiServiceClient extends TransactionalClient {
         return RpcUtil.apply(
                 sendRequest(req, service.startOperation()),
                 response -> RpcUtil.fromProto(response.body().getOperationId()));
+    }
+
+    public CompletableFuture<YTreeNode> getOperation(GetOperation req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.getOperation()),
+                response -> parseByteString(response.body().getMeta())
+        );
     }
 
     @Override
