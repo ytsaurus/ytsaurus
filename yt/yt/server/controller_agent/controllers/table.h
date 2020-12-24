@@ -88,7 +88,7 @@ struct TOutputTable
     NChunkClient::TChunkListId OutputChunkListId;
 
     // Last key of the table for checking sort order.
-    NTableClient::TLegacyOwningKey LastKey;
+    NTableClient::TKey LastKey;
 
     // Statistics returned by EndUpload call.
     NChunkClient::NProto::TDataStatistics DataStatistics;

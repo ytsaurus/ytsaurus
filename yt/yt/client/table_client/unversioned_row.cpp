@@ -39,7 +39,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString SerializedNullRow("");
+const TString SerializedNullRow("");
 struct TOwningRowTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1474,6 +1474,7 @@ void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRo
 {
     if (protoRow == SerializedNullRow) {
         *row = TUnversionedRow();
+        return;
     }
 
     const char* current = protoRow.data();

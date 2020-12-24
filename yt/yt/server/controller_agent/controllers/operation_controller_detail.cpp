@@ -2076,24 +2076,29 @@ void TOperationControllerBase::VerifySortedOutput(TOutputTablePtr table)
         table->OutputChunkTreeIds.size(),
         path);
 
+    YT_VERIFY(table->TableUploadOptions.TableSchema->IsSorted());
+    const auto& comparator = table->TableUploadOptions.TableSchema->ToComparator();
+
     std::stable_sort(
         table->OutputChunkTreeIds.begin(),
         table->OutputChunkTreeIds.end(),
         [&] (const auto& lhs, const auto& rhs) -> bool {
             auto lhsBoundaryKeys = lhs.first.AsBoundaryKeys();
             auto rhsBoundaryKeys = rhs.first.AsBoundaryKeys();
-            auto minKeyResult = CompareRows(lhsBoundaryKeys.MinKey, rhsBoundaryKeys.MinKey);
+            auto minKeyResult = comparator.CompareKeys(lhsBoundaryKeys.MinKey, rhsBoundaryKeys.MinKey);
             if (minKeyResult != 0) {
                 return minKeyResult < 0;
             }
-            return lhsBoundaryKeys.MaxKey < rhsBoundaryKeys.MaxKey;
+            return comparator.CompareKeys(lhsBoundaryKeys.MaxKey, rhsBoundaryKeys.MaxKey) < 0;
         });
 
-    if (!table->OutputChunkTreeIds.empty() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
-        int cmp = CompareRows(
+    if (!table->OutputChunkTreeIds.empty() &&
+        table->TableUploadOptions.UpdateMode == EUpdateMode::Append &&
+        table->LastKey)
+    {
+        int cmp = comparator.CompareKeys(
             table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey,
-            table->LastKey,
-            table->TableUploadOptions.TableSchema->GetKeyColumnCount());
+            table->LastKey);
 
         if (cmp < 0) {
             THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs overlap with original table",
@@ -2113,7 +2118,7 @@ void TOperationControllerBase::VerifySortedOutput(TOutputTablePtr table)
     for (auto current = table->OutputChunkTreeIds.begin(); current != table->OutputChunkTreeIds.end(); ++current) {
         auto next = current + 1;
         if (next != table->OutputChunkTreeIds.end()) {
-            int cmp = CompareRows(next->first.AsBoundaryKeys().MinKey, current->first.AsBoundaryKeys().MaxKey);
+            int cmp = comparator.CompareKeys(next->first.AsBoundaryKeys().MinKey, current->first.AsBoundaryKeys().MaxKey);
 
             if (cmp < 0) {
                 THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs have overlapping key ranges",
@@ -5923,7 +5928,9 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 } else {
                     table->OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
                     if (table->TableUploadOptions.TableSchema->IsSorted() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
-                        table->LastKey = FromProto<TLegacyOwningKey>(rsp->last_key());
+                        TUnversionedRow row;
+                        FromProto(&row, rsp->last_key(), RowBuffer);
+                        table->LastKey = TKey::FromRowUnchecked(row, table->TableUploadOptions.TableSchema->GetKeyColumnCount());
                     }
                 }
 

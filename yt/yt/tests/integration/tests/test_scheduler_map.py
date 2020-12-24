@@ -248,11 +248,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert encode_time > 0
 
     @authors("psushin")
-    def test_sorted_output(self):
+    @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
+    def test_sorted_output(self, sort_kind):
         create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
         for i in xrange(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
+
+        echoed_rows = ["{key=$k1; value=one}", "{key=$k2; value=two}"]
+        if sort_kind == "descending":
+            echoed_rows = echoed_rows[::-1]
 
         command = """cat >/dev/null;
            if [ "$YT_JOB_INDEX" = "0" ]; then
@@ -260,55 +264,95 @@ class TestSchedulerMapCommands(YTEnvSetup):
            else
                k1=0; k2=0;
            fi
-           echo "{key=$k1; value=one}; {key=$k2; value=two}"
-        """
+           echo "{}"
+        """.format("; ".join(echoed_rows))
+
+        attributes = {}
+        if sort_kind == "sorted_by":
+            out_table = "<sorted_by=[key];append=true>//tmp/t2"
+        else:
+            out_table = "<append=true>//tmp/t2"
+            attributes["schema"] = [{"name": "key", "sort_order": sort_kind, "type": "int64"},
+                                    {"name": "value", "type": "string"}]
+        create("table", "//tmp/t2", attributes=attributes)
 
         map(
             in_="//tmp/t1",
-            out="<sorted_by=[key];append=true>//tmp/t2",
+            out=out_table,
             command=command,
             spec={"job_count": 2},
         )
 
-        assert get("//tmp/t2/@sorted")
-        assert get("//tmp/t2/@sorted_by") == ["key"]
-        assert read_table("//tmp/t2") == [
+        expected_rows = [
             {"key": 0, "value": "one"},
             {"key": 0, "value": "two"},
             {"key": 0, "value": "one"},
             {"key": 1, "value": "two"},
         ]
 
+        if sort_kind == "descending":
+            expected_rows = expected_rows[::-1]
+
+        assert get("//tmp/t2/@sorted")
+        assert get("//tmp/t2/@sorted_by") == ["key"]
+        assert read_table("//tmp/t2") == expected_rows
+
     @authors("psushin")
-    def test_sorted_output_overlap(self):
+    @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
+    def test_sorted_output_overlap(self, sort_kind):
         create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
         for i in xrange(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
-        command = 'cat >/dev/null; echo "{key=1; value=one}; {key=2; value=two}"'
+        echoed_rows = ["{key=1; value=one}", "{key=2; value=two}"]
+        if sort_kind == "descending":
+            echoed_rows = echoed_rows[::-1]
+
+        command = 'cat >/dev/null; echo "{}"'.format("; ".join(echoed_rows))
+
+        attributes = {}
+        if sort_kind == "sorted_by":
+            out_table = "<sorted_by=[key];append=true>//tmp/t2"
+        else:
+            out_table = "<append=true>//tmp/t2"
+            attributes["schema"] = [{"name": "key", "sort_order": sort_kind, "type": "int64"},
+                                    {"name": "value", "type": "string"}]
+        create("table", "//tmp/t2", attributes=attributes)
 
         with pytest.raises(YtError):
             map(
                 in_="//tmp/t1",
-                out="<sorted_by=[key]>//tmp/t2",
+                out=out_table,
                 command=command,
                 spec={"job_count": 2},
             )
 
     @authors("psushin")
-    def test_sorted_output_job_failure(self):
+    @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
+    def test_sorted_output_job_failure(self, sort_kind):
         create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
         for i in xrange(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
-        command = 'cat >/dev/null; echo "{key=2; value=one}; {key=1; value=two}"'
+        echoed_rows = ["{key=2; value=one}", "{key=1; value=two}"]
+        if sort_kind == "descending":
+            echoed_rows = echoed_rows[::-1]
+
+        command = 'cat >/dev/null; echo "{}"'.format("; ".join(echoed_rows))
+
+        attributes = {}
+        if sort_kind == "sorted_by":
+            out_table = "<sorted_by=[key];append=true>//tmp/t2"
+        else:
+            out_table = "<append=true>//tmp/t2"
+            attributes["schema"] = [{"name": "key", "sort_order": sort_kind, "type": "int64"},
+                                    {"name": "value", "type": "string"}]
+        create("table", "//tmp/t2", attributes=attributes)
 
         with pytest.raises(YtError):
             map(
                 in_="//tmp/t1",
-                out="<sorted_by=[key]>//tmp/t2",
+                out=out_table,
                 command=command,
                 spec={"job_count": 2},
             )

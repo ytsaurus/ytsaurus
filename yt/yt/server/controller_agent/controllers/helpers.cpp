@@ -28,9 +28,9 @@ TBoundaryKeys BuildBoundaryKeysFromOutputResult(
         if (key.GetCount() > limit) {
             // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
             YT_VERIFY(!streamDescriptor.TableWriterOptions->ValidateUniqueKeys);
-            return rowBuffer->Capture(key.Begin(), limit);
+            return TKey::FromRowUnchecked(rowBuffer->Capture(key.Begin(), limit), limit);
         } else {
-            return rowBuffer->Capture(key.Begin(), key.GetCount());
+            return TKey::FromRowUnchecked(rowBuffer->Capture(key.Begin(), key.GetCount()), key.GetCount());
         }
     };
 
