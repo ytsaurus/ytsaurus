@@ -3,8 +3,7 @@
 #include "public.h"
 
 #include <yt/core/actions/future.h>
-
-#include <queue>
+#include <yt/core/misc/ring_queue.h>
 
 namespace NYT::NConcurrency {
 
@@ -24,8 +23,8 @@ public:
 private:
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
-    std::queue<TErrorOr<T>> ValueQueue_;
-    std::queue<TPromise<T>> PromiseQueue_;
+    TRingQueue<TErrorOr<T>> ValueQueue_;
+    TRingQueue<TPromise<T>> PromiseQueue_;
 
 };
 
