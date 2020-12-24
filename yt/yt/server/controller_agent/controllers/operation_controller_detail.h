@@ -999,6 +999,9 @@ private:
     //! Aggregates job statistics.
     TStatistics JobStatistics;
 
+    //! Records peak memory usage.
+    i64 PeakMemoryUsage_ = 0;
+
     YT_DECLARE_SPINLOCK(TAdaptiveLock, JobMetricsDeltaPerTreeLock_);
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
@@ -1151,7 +1154,7 @@ private:
 
     void InitializeOrchid();
 
-    ssize_t GetMemoryUsage() const;
+    i64 GetMemoryUsage() const;
 
     void BuildAndSaveProgress();
 
