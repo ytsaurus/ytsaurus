@@ -176,30 +176,6 @@ using std::placeholders::_1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static class TJobHelper
-{
-public:
-    TJobHelper()
-    {
-        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-                StatisticsSuffixes_[state][type] = Format("/$/%lv/%lv", state, type);
-            }
-        }
-    }
-
-    const TString& GetStatisticsSuffix(EJobState state, EJobType type) const
-    {
-        return StatisticsSuffixes_[state][type];
-    }
-
-private:
-    TEnumIndexedVector<EJobState, TEnumIndexedVector<EJobType, TString>> StatisticsSuffixes_;
-
-} JobHelper;
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TOperationControllerBase::TStripeDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -3598,7 +3574,7 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
             task->GetUserJobMemoryDigest()->GetQuantile(Config->UserJobMemoryReserveQuantile);
 
         for (const auto& jobState : { EJobState::Completed, EJobState::Failed }) {
-            auto statistic = "/user_job/max_memory" + JobHelper.GetStatisticsSuffix(jobState, task->GetJobType());
+            auto statistic = "/user_job/max_memory" + GetStatisticsSuffix(task.Get(), jobState);
             auto summary = FindSummary(JobStatistics, statistic);
             if (summary) {
                 if (!memoryInfo.MaxMemoryUsage) {
@@ -4799,6 +4775,11 @@ EJobState TOperationControllerBase::GetStatisticsJobState(const TJobletPtr& jobl
     return (joblet->Restarted && state == EJobState::Completed)
         ? EJobState::Lost
         : state;
+}
+
+TString TOperationControllerBase::GetStatisticsSuffix(const TTask* task, EJobState state)
+{
+    return Format("/$/%lv/%lv", state, task->GetVertexDescriptor());
 }
 
 void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool requestJobNodeCreation)
@@ -7980,7 +7961,7 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, con
         GetTotalOutputDataStatistics(statistics));
 
     auto statisticsState = GetStatisticsJobState(joblet, jobSummary.State);
-    auto statisticsSuffix = JobHelper.GetStatisticsSuffix(statisticsState, joblet->JobType);
+    auto statisticsSuffix = GetStatisticsSuffix(joblet->Task, statisticsState);
     statistics.AddSuffixToNames(statisticsSuffix);
     JobStatistics.Update(statistics);
 }
@@ -9063,24 +9044,20 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
         }
     }
 
-    THashMap<EJobType, TError> jobTypeToError;
+    std::vector<TError> errors;
     for (const auto& task : Tasks) {
-        auto jobType = task->GetJobType();
-        if (jobTypeToError.find(jobType) != jobTypeToError.end()) {
-            continue;
-        }
-
         const auto& userJobSpecPtr = task->GetUserJobSpec();
         if (!userJobSpecPtr) {
             continue;
         }
 
+        auto taskName = task->GetVertexDescriptor();
 
         i64 totalExecutionTime = 0;
         i64 jobCount = 0;
 
         for (const auto& jobState : jobStates) {
-            auto summary = FindSummary(JobStatistics, Format("/time/exec/$/%s/%s", jobState, FormatEnum(jobType)));
+            auto summary = FindSummary(JobStatistics, Format("/time/exec/$/%s/%s", jobState, taskName));
             if (summary) {
                 totalExecutionTime += summary->GetSum();
                 jobCount += summary->GetCount();
@@ -9094,7 +9071,7 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
 
         i64 usage = 0;
         for (const auto& stat : allStatistics) {
-            auto value = FindNumericValue(JobStatistics, stat + FormatEnum(jobType));
+            auto value = FindNumericValue(JobStatistics, stat + taskName);
             usage += value.value_or(0);
         }
 
@@ -9103,22 +9080,17 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
 
         if (needSetAlert(totalExecutionTime, jobCount, ratio))
         {
-            auto error = TError("Jobs of type %Qlv use %.2f%% of requested %s limit", jobType, 100 * ratio, name)
+            auto error = TError("Jobs of task %Qlv use %.2f%% of requested %s limit", taskName, 100 * ratio, name)
                 << TErrorAttribute(Format("%s_time", name), usage)
                 << TErrorAttribute("exec_time", totalExecutionDuration)
                 << TErrorAttribute(Format("%s_limit", name), limit);
-            YT_VERIFY(jobTypeToError.emplace(jobType, error).second);
+            errors.push_back(error);
         }
     }
 
     TError error;
-    if (!jobTypeToError.empty()) {
-        std::vector<TError> innerErrors;
-        innerErrors.reserve(jobTypeToError.size());
-        for (const auto& [jobType, error] : jobTypeToError) {
-            innerErrors.push_back(error);
-        }
-        error = TError(message) << innerErrors;
+    if (!errors.empty()) {
+        error = TError(message) << errors;
     }
 
     SetOperationAlert(alertType, error);

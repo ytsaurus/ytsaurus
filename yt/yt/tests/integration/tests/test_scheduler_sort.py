@@ -12,7 +12,9 @@ import __builtin__
 
 
 def get_operation_job_types(opid):
-    return get_operation(opid)["progress"]["job_statistics"]["time"]["total"]["$"]["completed"].keys()
+    progress = get_operation(opid)["progress"]
+    job_types = [task["job_type"] for task in progress["tasks"]]
+    return job_types
 
 
 def check_operation_tasks(op, expected):

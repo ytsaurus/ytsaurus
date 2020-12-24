@@ -1211,6 +1211,7 @@ private:
     void ProcessSafeException(const std::exception& ex);
 
     static EJobState GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state);
+    static TString GetStatisticsSuffix(const TTask* task, EJobState state);
 
     void BuildMemoryUsageYson(NYTree::TFluentAny fluent) const;
     void BuildStateYson(NYTree::TFluentAny fluent) const;
