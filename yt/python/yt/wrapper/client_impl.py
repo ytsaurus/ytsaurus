@@ -1145,14 +1145,14 @@ class YtClient(ClientState):
         """
         return client_api.read_blob_table(table, client=self, part_index_column_name=part_index_column_name, data_column_name=data_column_name, part_size=part_size, table_reader=table_reader)
 
-    def reshard_table(self, path, pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, sync=False):
+    def reshard_table(self, path, pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, uniform=None, sync=False):
         """
         Changes pivot keys separating tablets of a given table.
 
     TODO
     
         """
-        return client_api.reshard_table(path, client=self, pivot_keys=pivot_keys, tablet_count=tablet_count, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, sync=sync)
+        return client_api.reshard_table(path, client=self, pivot_keys=pivot_keys, tablet_count=tablet_count, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, uniform=uniform, sync=sync)
 
     def abort_operation(self, operation, reason=None):
         """

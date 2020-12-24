@@ -482,6 +482,8 @@ TReshardTableCommand::TReshardTableCommand()
     RegisterParameter("tablet_count", TabletCount)
         .Default()
         .GreaterThan(0);
+    RegisterParameter("uniform", Options.Uniform)
+        .Default();
 
     RegisterPostprocessor([&] () {
         if (PivotKeys && TabletCount) {
@@ -489,6 +491,9 @@ TReshardTableCommand::TReshardTableCommand()
         }
         if (!PivotKeys && !TabletCount) {
             THROW_ERROR_EXCEPTION("Must specify either \"pivot_keys\" or \"tablet_count\"");
+        }
+        if (Options.Uniform && PivotKeys) {
+            THROW_ERROR_EXCEPTION("\"uniform\" can be specified only with \"tablet_count\"");
         }
     });
 }

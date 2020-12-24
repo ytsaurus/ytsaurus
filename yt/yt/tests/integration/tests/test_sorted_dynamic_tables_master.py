@@ -583,6 +583,42 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
             {"key": i, "value": str(i)} for i in (0, 2)
         ]
 
+    @authors("ifsmirnov")
+    def test_reshard_uniform(self):
+        create_dynamic_table("//tmp/t1", schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ])
+        reshard_table("//tmp/t1", 2, uniform=True)
+        assert get("//tmp/t1/@pivot_keys") == [[], [0]]
+        reshard_table("//tmp/t1", 5, uniform=True)
+        assert get("//tmp/t1/@pivot_keys") == [
+            [], [-5534023222112865485], [-1844674407370955162], [1844674407370955161], [5534023222112865484]
+        ]
+
+        create_dynamic_table("//tmp/t2", schema=[
+            {"name": "hash", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(key)"},
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ])
+        reshard_table("//tmp/t2", 10, uniform=True)
+        pivots = [p[0] for p in get("//tmp/t2/@pivot_keys")[1:]]
+        assert pivots == [2**64 * i / 10 for i in range(1, 10)]
+
+        create_dynamic_table("//tmp/t3", schema=[
+            {"name": "key", "type": "double", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ])
+        with raises_yt_error():
+            reshard_table("//tmp/t3", 10, uniform=True)
+
+        create_dynamic_table("//tmp/t4", schema=[
+            {"name": "key", "type": "int16", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ])
+        reshard_table("//tmp/t4", 5, uniform=True)
+        assert get("//tmp/t4/@pivot_keys") == [[], [-19661], [-6554], [6553], [19660]]
+
     @authors("max42", "savrus")
     def test_alter_table_fails(self):
         sync_create_cells(1)

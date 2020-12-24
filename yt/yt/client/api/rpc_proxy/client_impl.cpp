@@ -332,6 +332,9 @@ TFuture<void> TClient::ReshardTable(
 
     req->set_path(path);
     req->set_tablet_count(tabletCount);
+    if (options.Uniform) {
+        req->set_uniform(*options.Uniform);
+    }
 
     ToProto(req->mutable_mutating_options(), options);
     ToProto(req->mutable_tablet_range_options(), options);

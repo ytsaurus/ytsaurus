@@ -175,7 +175,9 @@ struct TReshardTableOptions
     : public TTimeoutOptions
     , public TMutatingOptions
     , public TTabletRangeOptions
-{ };
+{
+    std::optional<bool> Uniform;
+};
 
 struct TReshardTableAutomaticOptions
     : public TTimeoutOptions

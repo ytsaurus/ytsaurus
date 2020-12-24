@@ -1207,6 +1207,8 @@ message TReqReshardTable
 
     optional int32 tablet_count = 3;
 
+    optional bool uniform = 4;
+
     optional TMutatingOptions mutating_options = 103;
     optional TTabletRangeOptions tablet_range_options = 104;
 

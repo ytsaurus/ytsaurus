@@ -47,6 +47,7 @@ DEFINE_ENUM(ETabletStoresUpdateReason,
 constexpr int TypicalTabletSlotCount = 10;
 constexpr int TypicalPeerCount = 5;
 constexpr int MaxPeerCount = 10;
+constexpr int MaxTabletCount = 10000;
 
 constexpr int MaxDynamicMemoryPoolWeight = 1000;
 // NB: The product of maximum node memory limit, pool weight and tablet slot count

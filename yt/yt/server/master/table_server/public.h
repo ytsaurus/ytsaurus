@@ -8,10 +8,6 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int MaxTabletCount = 10000;
-
-////////////////////////////////////////////////////////////////////////////////
-
 using TInternedTableSchema = TInternedObject<NTableClient::TTableSchema>;
 using TTableSchemaRegistry = TInternRegistry<NTableClient::TTableSchema>;
 using TTableSchemaRegistryPtr = TInternRegistryPtr<NTableClient::TTableSchema>;

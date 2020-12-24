@@ -663,6 +663,10 @@ private:
         const NYPath::TYPath& path,
         const TReshardTableOptions& options);
 
+    std::vector<NTableClient::TLegacyOwningKey> PickUniformPivotKeys(
+        const NYPath::TYPath& path,
+        int tabletCount);
+
     void DoReshardTableWithPivotKeys(
         const NYPath::TYPath& path,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotTKeys,
