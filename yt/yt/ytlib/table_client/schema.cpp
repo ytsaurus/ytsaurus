@@ -572,14 +572,27 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
         }
     }
 
-    auto inputKeyColumns = inputSchema.GetKeyColumns();
-    auto outputKeyColumns = outputSchema.GetKeyColumns();
+    auto inputKeySchema = inputSchema.ToKeys();
+    auto outputKeySchema = outputSchema.ToKeys();
 
-    for (int index = 0; index < outputKeyColumns.size(); ++index) {
-        if (inputKeyColumns[index] != outputKeyColumns[index]) {
+    for (int index = 0; index < outputKeySchema->Columns().size(); ++index) {
+        const auto& inputColumn = inputKeySchema->Columns()[index];
+        const auto& outputColumn = outputKeySchema->Columns()[index];
+        if (inputColumn.Name() != outputColumn.Name()) {
             return {
                 ESchemaCompatibility::Incompatible,
-                TError("Input sorting order is incompatible with the output"),
+                TError("Key columns do not match input column: %Qv; output column: %Qv",
+                    inputColumn.Name(),
+                    outputColumn.Name())
+            };
+        }
+        if (inputColumn.SortOrder() != outputColumn.SortOrder()) {
+            return {
+                ESchemaCompatibility::Incompatible,
+                TError("Sort order of column %Qv doesn't match; input sort order: %Qv; output sort order: %Qv",
+                    inputColumn.Name(),
+                    inputColumn.SortOrder(),
+                    outputColumn.SortOrder())
             };
         }
     }

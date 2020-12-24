@@ -300,6 +300,17 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
             })
         },
         {
+            // It is allowed to change sort order.
+            TTableSchema({
+                TColumnSchema("Name", EValueType::Int64)
+                    .SetSortOrder(ESortOrder::Ascending),
+                }),
+            TTableSchema({
+                TColumnSchema("Name", EValueType::Int64)
+                    .SetSortOrder(ESortOrder::Descending),
+            })
+        },
+        {
             // When making some key column unsorted by removing sort order, unique_keys can no longer be true.
             TTableSchema({
                 TColumnSchema("KeyName1", EValueType::String)
@@ -738,6 +749,53 @@ TEST_F(TTableSchemaTest,CheckTableSchemaCompatibilityTest)
         }),
         /*ignoreSortOrder*/ false).first
     );
+}
+
+TEST_F(TTableSchemaTest, TestCheckTableSchemaCompatibility)
+{
+    EXPECT_EQ(ESchemaCompatibility::Incompatible,
+        CheckTableSchemaCompatibility(
+        TTableSchema({
+            TColumnSchema("key1", ESimpleLogicalValueType::String, ESortOrder::Ascending),
+            TColumnSchema("key2", ESimpleLogicalValueType::String, ESortOrder::Ascending),
+            TColumnSchema("value", ESimpleLogicalValueType::String),
+        }),
+        TTableSchema({
+            TColumnSchema("key1", ESimpleLogicalValueType::String, ESortOrder::Ascending),
+            TColumnSchema("key2", ESimpleLogicalValueType::String, ESortOrder::Descending),
+            TColumnSchema("value", ESimpleLogicalValueType::String),
+        }),
+        false).first);
+
+    EXPECT_EQ(
+        ESchemaCompatibility::FullyCompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("key1", ESimpleLogicalValueType::String, ESortOrder::Descending),
+                TColumnSchema("key2", ESimpleLogicalValueType::String, ESortOrder::Descending),
+                TColumnSchema("value", ESimpleLogicalValueType::String),
+            }),
+            TTableSchema({
+                TColumnSchema("key1", ESimpleLogicalValueType::String, ESortOrder::Descending),
+                TColumnSchema("key2", ESimpleLogicalValueType::String),
+                TColumnSchema("value", ESimpleLogicalValueType::String),
+            }),
+            false).first);
+
+    EXPECT_EQ(
+        ESchemaCompatibility::Incompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("key1", ESimpleLogicalValueType::String, ESortOrder::Descending),
+                TColumnSchema("key2", ESimpleLogicalValueType::String),
+                TColumnSchema("value", ESimpleLogicalValueType::String),
+            }),
+            TTableSchema({
+                TColumnSchema("key1", ESimpleLogicalValueType::String, ESortOrder::Descending),
+                TColumnSchema("key2", ESimpleLogicalValueType::String, ESortOrder::Descending),
+                TColumnSchema("value", ESimpleLogicalValueType::String),
+            }),
+            false).first);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
