@@ -79,7 +79,7 @@ public:
     bool IsLevelEnabled(ELogLevel level) const;
     bool GetAbortOnAlert() const;
 
-    bool Essential() const;
+    bool IsEssential() const;
 
     bool IsPositionUpToDate(const TLoggingPosition& position) const;
     void UpdatePosition(TLoggingPosition* position, TStringBuf message) const;
