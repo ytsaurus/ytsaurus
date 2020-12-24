@@ -417,6 +417,26 @@ TEST(TIntrusivePtrTest, FullRCBehaviour)
     TestIntrusivePtrBehavior<TObjectWithFullRC>();
 }
 
+TEST(TIntrusivePtrTest, ObjectAlignment)
+{
+    struct TObject
+        : public TRefCounted
+    {
+        alignas(64) ui64 Data;
+    };
+
+    struct TPODObject final
+    {
+        alignas(64) ui64 Data; 
+    };
+
+    auto foo = New<TObject>();
+    auto bar = New<TPODObject>();
+
+    EXPECT_TRUE(reinterpret_cast<uintptr_t>(foo.Get()) % 64 == 0);
+    EXPECT_TRUE(reinterpret_cast<uintptr_t>(bar.Get()) % 64 == 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

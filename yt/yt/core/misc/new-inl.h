@@ -108,23 +108,27 @@ Y_FORCE_INLINE T* NewEpilogue(void* ptr, As&& ... args)
 }
 
 template <class T, bool = std::is_base_of_v<TRefCountedBase, T>>
-struct TRefCountedHelper
+struct TConstructHelper
 {
-    static constexpr size_t Size =  sizeof(TRefCounter) + sizeof(T);
+    static constexpr size_t RefCounterSpace = (sizeof(TRefCounter) + alignof(T) - 1) & ~(alignof(T) - 1);
+    static constexpr size_t RefCounterOffset = RefCounterSpace - sizeof(TRefCounter);
+    static constexpr size_t Size = RefCounterSpace + sizeof(T);
+    static constexpr size_t Alignment = alignof(T);
 
     template <class... As>
     Y_FORCE_INLINE static T* Construct(void* ptr, As&&... args)
     {
-        auto* refCounter = static_cast<TRefCounter*>(ptr);
+        auto* refCounter = reinterpret_cast<TRefCounter*>(static_cast<char*>(ptr) + RefCounterOffset);
         new (refCounter) TRefCounter();
         return new (reinterpret_cast<T*>(refCounter + 1)) T(std::forward<As>(args)...);
     }
 };
 
 template <class T>
-struct TRefCountedHelper<T, true>
+struct TConstructHelper<T, true>
 {
     static constexpr size_t Size = sizeof(TRefCountedWrapper<T>);
+    static constexpr size_t Alignment = alignof(TRefCountedWrapper<T>);
 
     template <class... As>
     Y_FORCE_INLINE static TRefCountedWrapper<T>* Construct(void* ptr, As&&... args)
@@ -138,12 +142,24 @@ template <class T, class... As>
 Y_FORCE_INLINE TIntrusivePtr<T> SafeConstruct(void* ptr, As&&... args)
 {
     try {
-        auto* instance = TRefCountedHelper<T>::Construct(ptr, std::forward<As>(args)...);
+        auto* instance = TConstructHelper<T>::Construct(ptr, std::forward<As>(args)...);
         return TIntrusivePtr<T>(instance, false);
     } catch (const std::exception& ex) {
         // Do not forget to free the memory.
         TFreeMemory<T>::Do(ptr);
         throw;
+    }
+}
+
+template <size_t Size, size_t Alignment>
+void* AllocateConstSizeAligned()
+{
+    if (Alignment <= 16) {
+        return NYTAlloc::AllocateConstSize<Size>();
+    } else {
+        void* ptr = nullptr;
+        ::posix_memalign(&ptr, Alignment, Size);
+        return ptr;
     }
 }
 
@@ -155,7 +171,10 @@ template <class T, class... As, class>
 Y_FORCE_INLINE TIntrusivePtr<T> New(
     As&&... args)
 {
-    auto* ptr = NYTAlloc::AllocateConstSize<NDetail::TRefCountedHelper<T>::Size>();
+    void* ptr = NDetail::AllocateConstSizeAligned<
+        NDetail::TConstructHelper<T>::Size,
+        NDetail::TConstructHelper<T>::Alignment>();
+
     return NDetail::SafeConstruct<T>(ptr, std::forward<As>(args)...);
 }
 
@@ -164,7 +183,7 @@ Y_FORCE_INLINE TIntrusivePtr<T> New(
     typename T::TAllocator* allocator,
     As&&... args)
 {
-    auto* ptr = allocator->Allocate(NDetail::TRefCountedHelper<T>::Size);
+    auto* ptr = allocator->Allocate(NDetail::TConstructHelper<T>::Size);
     return NDetail::SafeConstruct<T>(ptr, std::forward<As>(args)...);
 }
 
@@ -175,8 +194,15 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewWithExtraSpace(
     size_t extraSpaceSize,
     As&&... args)
 {
-    auto totalSize = NDetail::TRefCountedHelper<T>::Size + extraSpaceSize;
-    auto* ptr = NYTAlloc::Allocate(totalSize);
+    auto totalSize = NDetail::TConstructHelper<T>::Size + extraSpaceSize;
+    void* ptr = nullptr;
+
+    if (NDetail::TConstructHelper<T>::Alignment <= 16) {
+        ptr = NYTAlloc::Allocate(totalSize);
+    } else {
+        ::posix_memalign(&ptr, NDetail::TConstructHelper<T>::Alignment, totalSize);
+    }
+
     return NDetail::SafeConstruct<T>(ptr, std::forward<As>(args)...);
 }
 
@@ -186,7 +212,7 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewWithExtraSpace(
     size_t extraSpaceSize,
     As&&... args)
 {
-    auto totalSize = NDetail::TRefCountedHelper<T>::Size + extraSpaceSize;
+    auto totalSize = NDetail::TConstructHelper<T>::Size + extraSpaceSize;
     auto* ptr = allocator->Allocate(totalSize);
     return NDetail::SafeConstruct<T>(ptr, std::forward<As>(args)...);
 }
@@ -197,8 +223,10 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewWithExtraSpace(
 template <class T, class TDeleter, class... As>
 Y_FORCE_INLINE TIntrusivePtr<T> NewWithDelete(const TDeleter& deleter, As&&... args)
 {
-    auto* ptr = NYTAlloc::AllocateConstSize<sizeof(TRefCountedWrapperWithDeleter<T, TDeleter>)>();
-    auto* instance = NDetail::NewEpilogue<TRefCountedWrapperWithDeleter<T, TDeleter>>(
+    using TWrapper = TRefCountedWrapperWithDeleter<T, TDeleter>;
+    void* ptr = NDetail::AllocateConstSizeAligned<sizeof(TWrapper), alignof(TWrapper)>();
+
+    auto* instance = NDetail::NewEpilogue<TWrapper>(
         ptr,
         deleter,
         std::forward<As>(args)...);
@@ -213,8 +241,10 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewWithLocation(
     const TSourceLocation& location,
     As&&... args)
 {
-    auto* ptr = NYTAlloc::AllocateConstSize<sizeof(TRefCountedWrapperWithCookie<T>)>();
-    auto* instance = NDetail::NewEpilogue<TRefCountedWrapperWithCookie<T>>(ptr, std::forward<As>(args)...);
+    using TWrapper = TRefCountedWrapperWithCookie<T>;
+    void* ptr = NDetail::AllocateConstSizeAligned<sizeof(TWrapper), alignof(TWrapper)>();
+
+    auto* instance = NDetail::NewEpilogue<TWrapper>(ptr, std::forward<As>(args)...);
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     instance->InitializeTracking(GetRefCountedTypeCookieWithLocation<T, TTag, Counter>(location));
