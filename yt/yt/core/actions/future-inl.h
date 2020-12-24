@@ -840,6 +840,43 @@ TFuture<R> ApplyUniqueHelper(TFutureBase<T> this_, TCallback<S> callback)
     return promise;
 }
 
+template <class T, class D>
+TFuture<T> ApplyTimeoutHelper(TFutureBase<T> this_, D timeoutOrDeadline, IInvokerPtr invoker)
+{
+    auto promise = NewPromise<T>();
+
+    auto cookie = NConcurrency::TDelayedExecutor::Submit(
+        BIND([=, cancelable = this_.AsCancelable()] (bool aborted) {
+            TError error;
+            if (aborted) {
+                error = TError(NYT::EErrorCode::Canceled, "Operation aborted");
+            } else {
+                error = TError(NYT::EErrorCode::Timeout, "Operation timed out");
+                if constexpr (std::is_same_v<D, TDuration>) {
+                    error = error << TErrorAttribute("timeout", timeoutOrDeadline);
+                }
+                if constexpr (std::is_same_v<D, TInstant>) {
+                    error = error << TErrorAttribute("deadline", timeoutOrDeadline);
+                }
+            }
+            promise.TrySet(error);
+            cancelable.Cancel(error);
+        }),
+        timeoutOrDeadline,
+        std::move(invoker));
+
+    this_.Subscribe(BIND([=] (const TErrorOr<T>& value) {
+        NConcurrency::TDelayedExecutor::Cancel(cookie);
+        promise.TrySet(value);
+    }));
+
+    promise.OnCanceled(BIND([=, cancelable = this_.AsCancelable()] (const TError& error) {
+        NConcurrency::TDelayedExecutor::Cancel(cookie);
+        cancelable.Cancel(error);
+    }));
+
+    return promise;
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
@@ -1092,6 +1129,18 @@ TFuture<T> TFutureBase<T>::ToImmediatelyCancelable() const
 }
 
 template <class T>
+TFuture<T> TFutureBase<T>::WithDeadline(TInstant deadline, IInvokerPtr invoker) const
+{
+    YT_ASSERT(Impl_);
+
+    if (IsSet()) {
+        return TFuture<T>(Impl_);
+    }
+
+    return NYT::NDetail::ApplyTimeoutHelper(*this, deadline, std::move(invoker));
+}
+
+template <class T>
 TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout, IInvokerPtr invoker) const
 {
     YT_ASSERT(Impl_);
@@ -1100,34 +1149,7 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout, IInvokerPtr invoker) c
         return TFuture<T>(Impl_);
     }
 
-    auto promise = NewPromise<T>();
-
-    auto cookie = NConcurrency::TDelayedExecutor::Submit(
-        BIND([=, cancelable = AsCancelable()] (bool aborted) {
-            TError error;
-            if (aborted) {
-                error = TError(NYT::EErrorCode::Canceled, "Operation aborted");
-            } else {
-                error = TError(NYT::EErrorCode::Timeout, "Operation timed out")
-                    << TErrorAttribute("timeout", timeout);
-            }
-            promise.TrySet(error);
-            cancelable.Cancel(error);
-        }),
-        timeout,
-        std::move(invoker));
-
-    Subscribe(BIND([=] (const TErrorOr<T>& value) {
-        NConcurrency::TDelayedExecutor::Cancel(cookie);
-        promise.TrySet(value);
-    }));
-
-    promise.OnCanceled(BIND([=, cancelable = AsCancelable()] (const TError& error) {
-        NConcurrency::TDelayedExecutor::Cancel(cookie);
-        cancelable.Cancel(error);
-    }));
-
-    return promise;
+    return NYT::NDetail::ApplyTimeoutHelper(*this, timeout, std::move(invoker));
 }
 
 template <class T>

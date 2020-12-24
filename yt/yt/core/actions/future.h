@@ -266,6 +266,11 @@ public:
     TFuture<T> ToImmediatelyCancelable() const;
 
     //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
+    //! or to |EErrorCode::Timeout| (in case the deadline is reached).
+    //! The timeout event is handled in #invoker (DelayedExecutor is null).
+    TFuture<T> WithDeadline(TInstant deadline, IInvokerPtr invoker = nullptr) const;
+
+    //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
     //! or to |EErrorCode::Timeout| (in case of timeout).
     //! The timeout event is handled in #invoker (DelayedExecutor is null).
     TFuture<T> WithTimeout(TDuration timeout, IInvokerPtr invoker = nullptr) const;
