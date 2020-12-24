@@ -2,6 +2,8 @@
 
 #include <yt/core/test_framework/framework.h>
 
+#include <yt/core/actions/invoker_util.h>
+
 #include <yt/core/misc/sync_expiring_cache.h>
 
 namespace NYT {

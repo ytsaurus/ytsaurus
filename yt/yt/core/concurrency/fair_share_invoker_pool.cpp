@@ -2,6 +2,7 @@
 
 #include "scheduler.h"
 
+#include <yt/core/actions/invoker_util.h>
 #include <yt/core/actions/invoker_detail.h>
 
 #include <yt/core/concurrency/spinlock.h>

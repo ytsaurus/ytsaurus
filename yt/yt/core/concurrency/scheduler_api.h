@@ -1,9 +1,14 @@
 #pragma once
+#include "fiber_api.h"
 
 #include <yt/core/misc/common.h>
 
-#include <yt/core/actions/invoker_util.h>
 #include <yt/core/actions/future.h>
+
+namespace NYT {
+// Forward declaration
+IInvokerPtr GetCurrentInvoker();
+} //namespace NYT
 
 namespace NYT::NConcurrency {
 

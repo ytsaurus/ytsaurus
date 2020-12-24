@@ -1,5 +1,7 @@
 #include "thread_pool_detail.h"
 
+#include <yt/core/actions/invoker_util.h>
+
 #include <algorithm>
 
 namespace NYT::NConcurrency {
@@ -10,6 +12,7 @@ TThreadPoolBase::TThreadPoolBase(
     int threadCount,
     const TString& threadNamePrefix)
     : ThreadNamePrefix_(threadNamePrefix)
+    , FinalizerInvoker_(GetFinalizerInvoker())
 { }
 
 void TThreadPoolBase::Configure(int threadCount)

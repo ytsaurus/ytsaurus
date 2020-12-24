@@ -5,6 +5,8 @@
 #include "scheduler_thread.h"
 #include "thread_pool_detail.h"
 
+#include <yt/core/actions/invoker_util.h>
+
 #include <yt/core/misc/heap.h>
 #include <yt/core/misc/ring_queue.h>
 #include <yt/core/misc/weak_ptr.h>
