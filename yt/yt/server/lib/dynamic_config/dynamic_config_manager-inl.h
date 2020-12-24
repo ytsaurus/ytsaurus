@@ -182,6 +182,10 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         }
 
         if (!matchedConfigNode) {
+            if (Config_->IgnoreConfigAbsence) {
+                return false;
+            }
+
             THROW_ERROR_EXCEPTION(
                 EErrorCode::NoSuitableDynamicConfig,
                 "No suitable dynamic config was found")
