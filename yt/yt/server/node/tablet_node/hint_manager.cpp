@@ -8,8 +8,6 @@
 
 #include <yt/server/lib/tablet_node/config.h>
 
-#include <yt/core/misc/atomic_object.h>
-
 namespace NYT::NTabletNode {
 
 using namespace NClusterNode;
