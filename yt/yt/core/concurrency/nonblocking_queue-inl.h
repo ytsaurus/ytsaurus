@@ -34,7 +34,7 @@ TFuture<T> TNonblockingQueue<T>::Dequeue()
         PromiseQueue_.push(promise);
         return promise.ToFuture();
     } else {
-        auto future = MakeFuture(ValueQueue_.front());
+        auto future = MakeFuture(std::move(ValueQueue_.front()));
         ValueQueue_.pop();
         return future;
     }
