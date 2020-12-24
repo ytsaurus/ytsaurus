@@ -970,6 +970,14 @@ private:
                     }
                 }
             }
+
+            // NB: starting operations have no slot index and should be processed after all other operations.
+            std::sort(
+                Result_.Operations.begin(),
+                Result_.Operations.end(),
+                [] (const TOperationPtr& lhs, const TOperationPtr& rhs) {
+                    return static_cast<int>(lhs->GetState()) > static_cast<int>(rhs->GetState());
+                });
             
             YT_LOG_INFO("Operation objects created from attributes");
         }
