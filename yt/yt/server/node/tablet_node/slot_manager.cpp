@@ -656,7 +656,9 @@ private:
         return snapshot;
     }
 
-    void OnDynamicConfigUpdated(const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig)
+    void OnDynamicConfigUpdated(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldConfig */,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

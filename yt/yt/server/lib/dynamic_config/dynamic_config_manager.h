@@ -27,7 +27,7 @@ public:
 
 public:
     //! Raises when dynamic config changes.
-    DEFINE_SIGNAL(void(const TConfigPtr&), ConfigUpdated);
+    DEFINE_SIGNAL(void(const TConfigPtr& /* oldConfig */, const TConfigPtr& /* newConfig */), ConfigUpdated);
 
 public:
     // NB: Invoker must be serialized.
@@ -90,6 +90,7 @@ private:
     TInstant LastConfigUpdateTime_;
 
     NYTree::INodePtr AppliedConfigNode_;
+    TConfigPtr AppliedConfig_;
 
     std::vector<TString> InstanceTags_;
 
