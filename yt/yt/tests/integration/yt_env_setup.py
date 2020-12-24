@@ -48,7 +48,7 @@ def prepare_yatest_environment(need_suid, artifact_components=None):
     global SANDBOX_ROOTDIR
     global SANDBOX_STORAGE_ROOTDIR
 
-    ytrecipe = os.environ.get("YTRECIPE") is not None
+    ytrecipe = os.environ.get("YT_OUTPUT") is not None
 
     ram_drive_path = arcadia_interop.yatest_common.get_param("ram_drive_path")
     if ram_drive_path is None:
@@ -70,7 +70,7 @@ def prepare_yatest_environment(need_suid, artifact_components=None):
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
     if ytrecipe:
-        SANDBOX_ROOTDIR = arcadia_interop.yatest_common.work_path("ytrecipe_output")
+        SANDBOX_ROOTDIR = os.environ.get("YT_OUTPUT")
     elif ram_drive_path is None:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_path()
     else:
@@ -350,13 +350,13 @@ class YTEnvSetup(object):
 
         cls.run_name = os.path.basename(cls.path_to_run)
 
-        if os.environ.get("YTRECIPE") is None:
+        if os.environ.get("YT_OUTPUT") is None:
             if SANDBOX_STORAGE_ROOTDIR is not None:
                 disk_path = SANDBOX_STORAGE_ROOTDIR
             else:
                 disk_path = SANDBOX_ROOTDIR
         else:
-            disk_path = arcadia_interop.yatest_common.work_path("ytrecipe_hdd")
+            disk_path = os.environ.get("HDD_PATH")
 
         cls.default_disk_path = os.path.join(disk_path, cls.run_name, "disk_default")
         cls.ssd_disk_path = os.path.join(disk_path, cls.run_name, "disk_ssd")

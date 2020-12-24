@@ -26,7 +26,7 @@ def is_inside_distbuild():
     if yatest_common is None:
         return False
 
-    if os.environ.get("YTRECIPE"):
+    if os.environ.get("YT_OUTPUT"):
         return False
 
     if yatest_common.get_param("teamcity"):
