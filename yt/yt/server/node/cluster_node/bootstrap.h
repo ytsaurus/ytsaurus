@@ -213,7 +213,9 @@ private:
     void OnMasterConnected();
     void OnMasterDisconnected();
 
-    void OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newConfig);
+    void OnDynamicConfigUpdated(
+        const TClusterNodeDynamicConfigPtr& oldConfig,
+        const TClusterNodeDynamicConfigPtr& newConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

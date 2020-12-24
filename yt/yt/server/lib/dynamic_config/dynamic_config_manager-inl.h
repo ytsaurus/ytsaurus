@@ -217,8 +217,9 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         UnrecognizedOptionError_ = TError();
     }
 
+    ConfigUpdated_.Fire(AppliedConfig_, newConfig);
     AppliedConfigNode_ = matchedConfigNode;
-    ConfigUpdated_.Fire(newConfig);
+    AppliedConfig_ = newConfig;
     LastConfigUpdateTime_ = TInstant::Now();
     ConfigLoadedPromise_.TrySet();
 

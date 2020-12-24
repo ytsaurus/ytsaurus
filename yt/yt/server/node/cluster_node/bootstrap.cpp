@@ -1225,7 +1225,9 @@ void TBootstrap::OnMasterDisconnected()
     }
 }
 
-void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newConfig)
+void TBootstrap::OnDynamicConfigUpdated(
+    const TClusterNodeDynamicConfigPtr& /* oldConfig */,
+    const TClusterNodeDynamicConfigPtr& newConfig)
 {
     DynamicConfig_ = newConfig;
 

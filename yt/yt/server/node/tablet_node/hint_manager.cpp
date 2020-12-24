@@ -92,7 +92,9 @@ private:
     THashSet<TString> BannedReplicaClusters_;
     TReplicatorHintConfigFetcherPtr ReplicatorHintConfigFetcher_;
 
-    void OnDynamicConfigUpdated(const TReplicatorHintConfigPtr& newConfig)
+    void OnDynamicConfigUpdated(
+        const TReplicatorHintConfigPtr& /* oldConfig */,
+        const TReplicatorHintConfigPtr& newConfig)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
