@@ -297,7 +297,12 @@ void TSchedulerElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
     TotalResourceLimits_ = context->TotalResourceLimits;
     // NB: ResourceLimits must be computed after TotalResourceLimits.
     ResourceLimits_ = ComputeResourceLimits();
-    ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
+
+    auto specifiedResourceLimits = GetSpecifiedResourceLimits();
+    if (PersistentAttributes_.AppliedResourceLimits != specifiedResourceLimits) {
+        ResourceTreeElement_->SetResourceLimits(specifiedResourceLimits);
+        PersistentAttributes_.AppliedResourceLimits = specifiedResourceLimits;
+    }
 }
 
 void TSchedulerElement::UpdateCumulativeAttributes(TUpdateFairShareContext* /* context */)
@@ -3243,8 +3248,8 @@ void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
     UnschedulableReason_ = ComputeUnschedulableReason();
     SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
     ResourceUsageAtUpdate_ = GetInstantResourceUsage();
-    ResourceDemand_ = Max(ComputeResourceDemand(), ResourceUsageAtUpdate_);
-    ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
+    // Must be calculated after ResourceUsageAtUpdate_
+    ResourceDemand_ = ComputeResourceDemand();
     StartTime_ = Operation_->GetStartTime();
 
     TSchedulerElement::PreUpdateBottomUp(context);
@@ -4139,9 +4144,9 @@ TJobResources TOperationElement::ComputeResourceDemand() const
 {
     auto maybeUnschedulableReason = Operation_->CheckUnschedulable();
     if (maybeUnschedulableReason == EUnschedulableReason::IsNotRunning || maybeUnschedulableReason == EUnschedulableReason::Suspended) {
-        return {};
+        return ResourceUsageAtUpdate_;
     }
-    return GetInstantResourceUsage() + Controller_->GetNeededResources();
+    return ResourceUsageAtUpdate_ + Controller_->GetNeededResources();
 }
 
 TJobResources TOperationElement::GetSpecifiedResourceLimits() const

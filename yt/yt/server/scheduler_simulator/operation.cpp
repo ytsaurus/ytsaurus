@@ -84,6 +84,16 @@ NScheduler::TStrategyOperationSpecPtr TOperation::GetStrategySpec() const
     }
 }
 
+NScheduler::TStrategyOperationSpecPtr TOperation::GetStrategySpecForTree(const TString& treeId) const
+{
+    auto spec = GetStrategySpec();
+    auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(treeId);
+    if (optionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
+        spec = UpdateYsonSerializable(spec, ConvertToNode(optionsIt->second));
+    }
+    return spec;
+}
+
 const NYson::TYsonString& TOperation::GetSpecString() const
 {
     return SpecString_;

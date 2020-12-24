@@ -494,7 +494,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
     {
         isThrottlingActive = true;
-        YT_LOG_INFO("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v)",
+        YT_LOG_DEBUG("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v)",
             node->GetDefaultAddress(),
             Config_->SoftConcurrentHeartbeatLimit);
     }
@@ -1725,7 +1725,7 @@ void TNodeShard::ProcessHeartbeatJobs(
             // They are removed in two ways: by explicit unconfirmation of the node
             // or after revival confirmation timeout.
             if (!job->GetFoundOnNode()) {
-                YT_LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
+                YT_LOG_WARNING("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
                     node->GetDefaultAddress(),
                     job->GetId(),
                     job->GetOperationId());

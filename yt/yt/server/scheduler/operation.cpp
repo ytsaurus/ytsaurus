@@ -23,12 +23,17 @@ using namespace NApi;
 using namespace NTransactionClient;
 using namespace NJobTrackerClient;
 using namespace NObjectClient;
+using namespace NSecurityClient;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,6 +127,7 @@ TOperation::TOperation(
     TMutationId mutationId,
     TTransactionId userTransactionId,
     TOperationSpecBasePtr spec,
+    THashMap<TString, TStrategyOperationSpecPtr> customSpecPerTree,
     TYsonString specString,
     IMapNodePtr secureVault,
     TOperationRuntimeParametersPtr runtimeParameters,
@@ -151,6 +157,7 @@ TOperation::TOperation(
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)
     , SpecString_(specString)
+    , CustomSpecPerTree_(std::move(customSpecPerTree))
     , CodicilData_(MakeOperationCodicilString(Id_))
     , ControlInvoker_(std::move(controlInvoker))
     , State_(state)
@@ -198,6 +205,16 @@ TString TOperation::GetAuthenticatedUser() const
 TStrategyOperationSpecPtr TOperation::GetStrategySpec() const
 {
     return Spec_;
+}
+    
+TStrategyOperationSpecPtr TOperation::GetStrategySpecForTree(const TString& treeId) const
+{
+    auto it = CustomSpecPerTree_.find(treeId);
+    if (it != CustomSpecPerTree_.end()) {
+        return it->second;
+    } else {
+        return Spec_;
+    }
 }
 
 const TYsonString& TOperation::GetSpecString() const
@@ -514,6 +531,58 @@ void TOperationControllerData::SetMinNeededJobResources(const TJobResourcesWithQ
 {
     auto guard = WriterGuard(MinNeededResourcesJobLock_);
     MinNeededJobResources_ = value;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TParseOperationSpecResult ParseSpec(TYsonString specString, INodePtr specTemplate, std::optional<TOperationId> operationId)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    IMapNodePtr specNode;
+    try {
+        specNode = ConvertToNode(specString)->AsMap();
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing operation spec string")
+            << ex;
+    }
+
+    if (specTemplate) {
+        specNode = PatchNode(specTemplate, specNode)->AsMap();
+    }
+
+    if (operationId) { // Revive case
+        try {
+            if (auto aclNode = specNode->FindChild("acl")) {
+                ConvertTo<TSerializableAccessControlList>(aclNode);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to parse operation ACL from spec, removing it (OperationId: %v)",
+                *operationId);
+            specNode->RemoveChild("acl");
+        }
+    }
+
+    TParseOperationSpecResult result;
+    try {
+        result.Spec = ConvertTo<TOperationSpecBasePtr>(specNode);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing operation spec")
+            << ex;
+    }
+
+    specNode->RemoveChild("secure_vault");
+    result.SpecNode = specNode;
+    result.SpecString = ConvertToYsonString(specNode);
+    
+    auto strategySpec = static_cast<TStrategyOperationSpecPtr>(result.Spec);
+    for (const auto& [treeId, optionPerPoolTree] : strategySpec->SchedulingOptionsPerPoolTree) {
+        result.CustomSpecPerTree.emplace(
+            treeId,
+            UpdateYsonSerializable(strategySpec, ConvertToNode(optionPerPoolTree)));
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

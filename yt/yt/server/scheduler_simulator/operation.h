@@ -36,6 +36,7 @@ public:
     virtual NScheduler::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
     virtual NScheduler::TStrategyOperationSpecPtr GetStrategySpec() const override;
+    virtual NScheduler::TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const override;
 
     virtual const NYson::TYsonString& GetSpecString() const override;
 

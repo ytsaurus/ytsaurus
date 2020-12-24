@@ -79,7 +79,7 @@ public:
             Config->MinNeededResourcesUpdatePeriod);
 
         ResourceMeteringExecutor_ = New<TPeriodicExecutor>(
-            Host->GetControlInvoker(EControlQueue::FairShareStrategy),
+            Host->GetControlInvoker(EControlQueue::Metering),
             BIND(&TFairShareStrategy::OnBuildResourceMetering, MakeWeak(this)),
             Config->ResourceMeteringPeriod);
     }
@@ -170,8 +170,6 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        auto spec = operation->GetStrategySpec();
-
         YT_VERIFY(unknownTreeIds->empty());
 
         auto treeIdToPoolNameMap = GetOperationPools(operation->GetRuntimeParameters());
@@ -192,7 +190,7 @@ public:
         auto runtimeParameters = operation->GetRuntimeParameters();
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
-            GetTree(treeId)->RegisterOperation(state, spec, treeParams);
+            GetTree(treeId)->RegisterOperation(state, operation->GetStrategySpecForTree(treeId), treeParams);
         }
     }
 

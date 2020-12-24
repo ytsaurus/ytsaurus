@@ -118,6 +118,7 @@ DEFINE_ENUM(EControlQueue,
     (OperationsCleaner)
     (FairShareStrategy)
     (EventLog)
+    (Metering)
 );
 
 DEFINE_ENUM(EControllerAgentPickStrategy,

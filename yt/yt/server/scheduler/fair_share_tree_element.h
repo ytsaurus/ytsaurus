@@ -151,6 +151,7 @@ struct TPersistentAttributes
 
     TJobResources AccumulatedResourceVolume = {};
     double LastIntegralShareRatio = 0.0;
+    TJobResources AppliedResourceLimits = TJobResources::Infinite();
 
     // NB: we don't want to reset all attributes.
     void ResetOnElementEnabled()
