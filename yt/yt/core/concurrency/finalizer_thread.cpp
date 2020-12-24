@@ -1,6 +1,8 @@
 #include "single_queue_scheduler_thread.h"
 #include "profiling_helpers.h"
 
+#include <yt/core/actions/invoker_util.h>
+
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/shutdown.h>
 

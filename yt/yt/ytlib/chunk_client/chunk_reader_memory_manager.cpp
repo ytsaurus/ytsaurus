@@ -2,6 +2,8 @@
 #include "parallel_reader_memory_manager.h"
 #include "private.h"
 
+#include <yt/core/actions/invoker_util.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;

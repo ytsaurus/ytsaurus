@@ -27,7 +27,7 @@ protected:
     std::atomic<bool> StartFlag_ = false;
     std::atomic<bool> ShutdownFlag_ = false;
 
-    IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
+    IInvokerPtr FinalizerInvoker_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::vector<TSchedulerThreadPtr> Threads_;

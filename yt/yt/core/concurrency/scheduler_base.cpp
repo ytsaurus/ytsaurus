@@ -4,6 +4,8 @@
 #include "profiling_helpers.h"
 #include "fls.h"
 
+#include <yt/core/actions/invoker_util.h>
+
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/shutdown.h>
 

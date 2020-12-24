@@ -37,7 +37,6 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_pool.h>
-#include <yt/core/concurrency/fiber.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
