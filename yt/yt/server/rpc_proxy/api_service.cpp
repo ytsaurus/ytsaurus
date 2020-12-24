@@ -1685,6 +1685,9 @@ private:
         if (request->has_tablet_range_options()) {
             FromProto(&options, request->tablet_range_options());
         }
+        if (request->has_uniform()) {
+            options.Uniform = request->uniform();
+        }
 
         TFuture<void> result;
         if (request->has_tablet_count()) {

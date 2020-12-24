@@ -732,6 +732,7 @@ def add_reshard_table_parser(add_parser):
     parser.add_argument("pivot_keys", action=ParseStructuredArguments, nargs="*")
     parser.add_argument("--tablet-count", type=int)
     parser.add_argument("--sync", action="store_true")
+    parser.add_argument("--uniform", action="store_true")
 
 def add_reshard_table_automatic_parser(add_parser):
     parser = add_parser("reshard-table-automatic", yt.reshard_table_automatic)

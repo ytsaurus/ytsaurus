@@ -41,6 +41,8 @@
 
 #include <yt/ytlib/security_client/permission_cache.h>
 
+#include <library/cpp/int128/int128.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -1161,6 +1163,81 @@ TTableYPathProxy::TReqReshardPtr TClient::MakeYPathReshardRequest(
     return req;
 }
 
+std::vector<TLegacyOwningKey> TClient::PickUniformPivotKeys(
+    const TYPath& path,
+    int tabletCount)
+{
+    if (tabletCount > MaxTabletCount) {
+        THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %v",
+            MaxTabletCount);
+    }
+
+    auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+    auto req = TTableYPathProxy::Get(path + "/@schema");
+    auto rspOrError = WaitFor(proxy->Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching table schema");
+
+    auto schema = ConvertTo<TTableSchemaPtr>(TYsonString(rspOrError.Value()->value()));
+
+    if (schema->Columns().empty()) {
+        THROW_ERROR_EXCEPTION("Table schema is empty");
+    }
+
+    const auto& column = schema->Columns()[0];
+    if (column.SortOrder() != ESortOrder::Ascending) {
+        THROW_ERROR_EXCEPTION("Table is not sorted");
+    }
+    if (!column.IsOfV1Type()) {
+        THROW_ERROR_EXCEPTION("First key column type is too complex: %Qv",
+            *column.LogicalType());
+    }
+
+    auto buildPivotKeys = [tabletCount] (i128 lo, i128 hi, bool isSigned)
+    {
+        TUnversionedOwningRowBuilder builder;
+        std::vector<TLegacyOwningKey> pivots;
+        pivots.push_back(builder.FinishRow());
+
+        i128 span = hi - lo + 1;
+        for (int i = 1; i < tabletCount; ++i) {
+            i128 value = lo + (span * i) / tabletCount;
+            if (isSigned) {
+                builder.AddValue(MakeUnversionedInt64Value(static_cast<i64>(value)));
+            } else {
+                builder.AddValue(MakeUnversionedUint64Value(static_cast<ui64>(value)));
+            }
+            pivots.push_back(builder.FinishRow());
+        }
+
+        return pivots;
+    };
+
+    switch (column.CastToV1Type()) {
+        case ESimpleLogicalValueType::Uint8:
+            return buildPivotKeys(0, std::numeric_limits<ui8>::max(), false);
+        case ESimpleLogicalValueType::Uint16:
+            return buildPivotKeys(0, std::numeric_limits<ui16>::max(), false);
+        case ESimpleLogicalValueType::Uint32:
+            return buildPivotKeys(0, std::numeric_limits<ui32>::max(), false);
+        case ESimpleLogicalValueType::Uint64:
+            return buildPivotKeys(0, std::numeric_limits<ui64>::max(), false);
+
+        case ESimpleLogicalValueType::Int8:
+            return buildPivotKeys(std::numeric_limits<i8>::min(), std::numeric_limits<i8>::max(), true);
+        case ESimpleLogicalValueType::Int16:
+            return buildPivotKeys(std::numeric_limits<i16>::min(), std::numeric_limits<i16>::max(), true);
+        case ESimpleLogicalValueType::Int32:
+            return buildPivotKeys(std::numeric_limits<i32>::min(), std::numeric_limits<i32>::max(), true);
+        case ESimpleLogicalValueType::Int64:
+            return buildPivotKeys(std::numeric_limits<i64>::min(), std::numeric_limits<i64>::max(), true);
+
+        default:
+            THROW_ERROR_EXCEPTION("First key column has improper type: expected "
+                "integral, got %Qv",
+                *column.LogicalType());
+    }
+}
+
 void TClient::DoReshardTableWithPivotKeys(
     const TYPath& path,
     const std::vector<TLegacyOwningKey>& pivotKeys,
@@ -1178,6 +1255,16 @@ void TClient::DoReshardTableWithTabletCount(
     int tabletCount,
     const TReshardTableOptions& options)
 {
+    if (options.Uniform.value_or(false)) {
+        if (options.FirstTabletIndex || options.LastTabletIndex) {
+            THROW_ERROR_EXCEPTION("Tablet indices cannot be specified for uniform reshard");
+        }
+
+        auto pivots = PickUniformPivotKeys(path, tabletCount);
+        DoReshardTableWithPivotKeys(path, pivots, options);
+        return;
+    }
+
     auto req = MakeReshardRequest(options);
     req.set_tablet_count(tabletCount);
 

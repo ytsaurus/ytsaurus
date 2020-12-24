@@ -71,6 +71,18 @@ class TestDynamicTableCommands(object):
         assert yt.get("{}/@tablet_count".format(table)) == 1
 
     @authors("ifsmirnov")
+    def test_reshard_uniform(self, yt_env):
+        table = TEST_DIR + "/table_reshard_uniform"
+        self._create_dynamic_table(table, schema=[
+            {"type": "uint64", "name": "key", "sort_order": "ascending"},
+            {"type": "string", "name": "value"}
+        ])
+
+        yt.reshard_table(table, tablet_count=5, uniform=True, sync=True)
+        assert yt.get("{}/@tablet_state".format(table)) == "unmounted"
+        assert yt.get("{}/@tablet_count".format(table)) == 5
+
+    @authors("ifsmirnov")
     def test_insert_lookup_delete(self, yt_env):
         with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
@@ -282,7 +294,8 @@ class TestDynamicTableCommands(object):
             if instance is not None:
                 stop(instance.id, path=dir, remove_runtime_data=True)
 
-    def DISABLED_test_reshard_automatic(self):
+    @authors("ifsmirnov")
+    def test_reshard_automatic(self):
         self._sync_create_tablet_cell()
         table = TEST_DIR + "/table_reshard_auto"
         self._create_dynamic_table(table)
