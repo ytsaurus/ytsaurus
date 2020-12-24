@@ -278,7 +278,7 @@ func (fs *FS) Add(c Config) error {
 		fs.YTOutputs[path] = struct{}{}
 	}
 
-	fs.Ext4Dirs = c.Ext4Dirs
+	fs.Ext4Dirs = append([]string{c.CoredumpDir}, c.Ext4Dirs...)
 	fs.CoredumpDir = c.CoredumpDir
 	return nil
 }
