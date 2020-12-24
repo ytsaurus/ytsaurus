@@ -133,7 +133,9 @@ i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TL
     FormatMessage(buffer, TStringBuf(event.Message.Begin(), event.Message.End()));
     buffer->AppendChar('\t');
 
-    if (event.ThreadId != NConcurrency::InvalidThreadId) {
+    if (event.ThreadNameLength > 0) {
+        buffer->AppendString(TStringBuf(event.ThreadName.data(), event.ThreadNameLength));
+    } else if (event.ThreadId != NConcurrency::InvalidThreadId) {
         buffer->AppendNumber(event.ThreadId, 16);
     }
     buffer->AppendChar('\t');
