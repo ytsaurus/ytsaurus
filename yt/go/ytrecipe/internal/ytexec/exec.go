@@ -126,7 +126,7 @@ func (e *Exec) createOutputDir(ctx context.Context) (ypath.Path, error) {
 
 	_, err := e.yc.CreateNode(ctx, path, yt.NodeMap, opts)
 	if yterrors.ContainsErrorCode(err, yterrors.CodeAuthorizationError) && e.config.Operation.EnableResearchFallback {
-		path := tmpOutputPath.Child(id[:2]).Child(id)
+		path = tmpOutputPath.Child(id[:2]).Child(id)
 		_, err = e.yc.CreateNode(ctx, path, yt.NodeMap, opts)
 	}
 
