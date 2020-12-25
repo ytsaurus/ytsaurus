@@ -91,8 +91,8 @@ def get_tests_sandbox(non_arcadia_path):
     path = os.environ.get("TESTS_SANDBOX")
     if path is None:
         if yatest_common is not None:
-            if os.environ.get("YTRECIPE") is not None:
-                path = yatest_common.work_path("ytrecipe_output")
+            if os.environ.get("YT_OUTPUT") is not None:
+                path = os.environ.get("YT_OUTPUT")
             else:
                 tmpfs_path = get_tmpfs_path()
                 if tmpfs_path is None:

@@ -76,7 +76,7 @@ class YtTestEnvironment(object):
             if need_suid and arcadia_interop.is_inside_distbuild():
                 pytest.skip()
 
-            ytrecipe = os.environ.get("YTRECIPE") is not None
+            ytrecipe = os.environ.get("YT_OUTPUT") is not None
 
             suffix = "need_suid_" + str(int(need_suid))
             if yatest_common.get_param("ram_drive_path") is not None:
