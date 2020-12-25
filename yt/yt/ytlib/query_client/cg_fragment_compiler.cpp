@@ -2844,8 +2844,6 @@ size_t MakeCodegenGroupTotalsOp(
                         .StoreToValues(builder, groupValuesRef, keySize + index);
                 }
 
-                YT_VERIFY(!stateTypes.empty());
-
                 return builder->getFalse();
             };
 
