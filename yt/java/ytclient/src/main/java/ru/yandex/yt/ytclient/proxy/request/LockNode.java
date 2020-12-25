@@ -84,7 +84,7 @@ public class LockNode extends MutatePath<LockNode> implements HighLevelRequest<T
             sb.append("ChildKey: ").append(childKey).append("; ");
         }
         if (attributeKey != null) {
-            sb.append("ChildKey: ").append(attributeKey).append("; ");
+            sb.append("AttributeKey: ").append(attributeKey).append("; ");
         }
     }
 
