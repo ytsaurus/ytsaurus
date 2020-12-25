@@ -11,6 +11,29 @@ DEFINE_ENUM(EComplexTypeMode,
     (Named)
 );
 
+//! Type of data that can be read or written by a driver command.
+DEFINE_ENUM(EDataType,
+    (Null)
+    (Binary)
+    (Structured)
+    (Tabular)
+);
+
+DEFINE_ENUM(EFormatType,
+    (Null)
+    (Yson)
+    (Json)
+    (Dsv)
+    (Yamr)
+    (YamredDsv)
+    (SchemafulDsv)
+    (Protobuf)
+    (WebJson)
+    (Skiff)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TYsonFormatConfig)
 DECLARE_REFCOUNTED_CLASS(TTableFormatConfigBase)
 DECLARE_REFCOUNTED_CLASS(TYamrFormatConfig)

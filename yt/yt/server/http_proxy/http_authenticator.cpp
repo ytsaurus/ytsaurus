@@ -87,7 +87,11 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     bool disableCsrfTokenCheck)
 {
     if (!Config_->RequireAuthentication) {
-        return TAuthenticationResultAndToken{TAuthenticationResult{"root", "YT"}, TString()};
+        TString user = "root";
+        if (auto userNameHeader = request->GetHeaders()->Find("X-YT-Testing-User-Name")) {
+            user = *userNameHeader;
+        }
+        return TAuthenticationResultAndToken{TAuthenticationResult{user, "YT"}, TString()};
     }
 
     auto userIP = request->GetRemoteAddress();

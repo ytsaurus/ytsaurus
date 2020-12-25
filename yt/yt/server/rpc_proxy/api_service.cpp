@@ -6,6 +6,8 @@
 #include "config.h"
 #include "security_manager.h"
 
+#include <yt/server/lib/misc/format_manager.h>
+
 #include <yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/ytlib/auth/cookie_authenticator.h>
@@ -1868,7 +1870,16 @@ private:
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto type = NYT::NApi::NRpcProxy::NProto::ConvertOperationTypeFromProto(request->type());
-        auto spec = TYsonString(request->spec());
+        auto specYson = TYsonString(request->spec());
+
+        {
+            const auto& user = context->GetAuthenticationIdentity().User;
+            const auto& formatConfigs = Coordinator_->GetDynamicConfig()->Formats;
+            TFormatManager formatManager(formatConfigs, user);
+            auto specNode = ConvertToNode(specYson);
+            formatManager.ValidateAndPatchOperationSpec(specNode, type);
+            specYson = ConvertToYsonString(specNode);
+        }
 
         TStartOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -1880,12 +1891,12 @@ private:
 
         context->SetRequestInfo("OperationType: %v, Spec: %v",
             type,
-            spec);
+            specYson);
 
         CompleteCallWith(
             client,
             context,
-            client->StartOperation(type, spec, options),
+            client->StartOperation(type, specYson, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 context->SetResponseInfo("OperationId: %v", result);

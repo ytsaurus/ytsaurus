@@ -1,4 +1,5 @@
 from yt_env_setup import YTEnvSetup, wait
+from proxy_format_config import _TestProxyFormatConfigBase
 from yt_commands import *
 
 from yt.wrapper import JsonFormat
@@ -569,3 +570,42 @@ class TestModernCompressionRpcProxy(TestCompressionRpcProxy):
         "response_codec": "quick_lz",
         "enable_legacy_rpc_codecs": False,
     }
+
+
+##################################################################
+
+
+class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
+    def setup(self):
+        proxy_name = ls("//sys/rpc_proxies")[0]
+
+        set("//sys/rpc_proxies/@config", {"formats": self.FORMAT_CONFIG})
+
+        def config_updated():
+            config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/coordinator/dynamic_config")
+            return config \
+                .get("formats", {}) \
+                .get("yamred_dsv", {}) \
+                .get("user_overrides", {}) \
+                .get("good_user", False)
+
+        wait(config_updated)
+
+    def _do_run_operation(self, op_type, spec, user, use_start_op):
+        operation = Operation()
+        params = {
+            "operation_type": op_type,
+            "spec": spec,
+            "authenticated_user": user,
+        }
+        operation.id = yson.loads(execute_command("start_op", params))["operation_id"]
+        return operation
+
+    def _test_format_enable(self, format, user, enable):
+        self._test_format_enable_operations(format, user, enable)
+
+    def _test_format_defaults(self, format, user, content, expected_format):
+        assert str(expected_format) == "yson"
+        yson_format = expected_format.attributes.get("format", "text")
+        expected_content_operation = yson.dumps(content, yson_format=yson_format, yson_type="list_fragment")
+        self._test_format_defaults_operations(format, user, content, expected_content_operation)

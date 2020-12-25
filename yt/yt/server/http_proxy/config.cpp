@@ -170,6 +170,9 @@ TDynamicConfig::TDynamicConfig()
     RegisterParameter("clickhouse", ClickHouse)
         .DefaultNew();
 
+    RegisterParameter("formats", Formats)
+        .Default();
+
     RegisterParameter("framing", Framing)
         .DefaultNew();
 

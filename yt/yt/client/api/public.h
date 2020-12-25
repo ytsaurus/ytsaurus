@@ -37,6 +37,7 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchOperation)                                   (1915))
     ((NoSuchJob)                                         (1916))
     ((NoSuchAttribute)                                   (1920))
+    ((FormatDisabled)                                    (1925))
 );
 
 DEFINE_ENUM(ERowModificationType,

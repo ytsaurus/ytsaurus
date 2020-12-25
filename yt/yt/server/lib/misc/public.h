@@ -13,6 +13,10 @@ DECLARE_REFCOUNTED_CLASS(TDiskHealthCheckerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDiskLocationConfig)
 
+DECLARE_REFCOUNTED_CLASS(TFormatConfigBase)
+DECLARE_REFCOUNTED_CLASS(TFormatConfig)
+DECLARE_REFCOUNTED_CLASS(TFormatManager)
+
 class TServiceProfilerGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
