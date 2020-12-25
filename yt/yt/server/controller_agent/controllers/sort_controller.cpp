@@ -283,9 +283,9 @@ protected:
 
         std::vector<TIntrusivePtr<TPartition>> Children;
 
-        //! Starting key of this partition.
+        //! Lower key bound of this partition.
         //! Always null for map-reduce operation.
-        TLegacyKey Key;
+        TKeyBound LowerBound;
 
         //! Is partition completed?
         bool Completed = false;
@@ -409,7 +409,7 @@ protected:
 
             Persist(context, Children);
 
-            Persist(context, Key);
+            Persist(context, LowerBound);
 
             Persist(context, Completed);
 
@@ -525,22 +525,33 @@ protected:
             GetChunkPoolOutput()->GetJobCounter()->AddParent(Controller_->PartitionJobCounter);
 
             WirePartitionKeys_.reserve(GetInputPartitions().size());
+            WirePartitionLowerBoundPrefixes_.reserve(GetInputPartitions().size());
+            PartitionLowerBoundInclusivenesses_.reserve(GetInputPartitions().size());
             for (const auto& inputPartition : GetInputPartitions()) {
                 auto keySetWriter = New<TKeySetWriter>();
+                auto partitionLowerBoundPrefixesWriter = New<TKeySetWriter>();
+                std::vector<bool> partitionLowerBoundInclusivenesses;
+
                 int keysWritten = 0;
                 for (int childPartitionIndex = 1; childPartitionIndex < inputPartition->Children.size(); ++childPartitionIndex) {
                     const auto& childPartition = inputPartition->Children[childPartitionIndex];
-                    auto key = childPartition->Key;
-                    if (key && key != MinKey()) {
-                        keySetWriter->WriteKey(key);
+                    auto lowerBound = childPartition->LowerBound;
+                    if (lowerBound && !lowerBound.IsUniversal()) {
+                        keySetWriter->WriteKey(KeyBoundToLegacyRow(lowerBound));
+                        partitionLowerBoundPrefixesWriter->WriteKey(lowerBound.Prefix);
+                        partitionLowerBoundInclusivenesses.push_back(lowerBound.IsInclusive);
                         ++keysWritten;
                     }
                 }
                 YT_VERIFY(keysWritten == 0 || keysWritten + 1 == inputPartition->Children.size());
                 if (keysWritten == 0) {
                     WirePartitionKeys_.push_back(std::nullopt);
+                    WirePartitionLowerBoundPrefixes_.push_back(std::nullopt);
+                    PartitionLowerBoundInclusivenesses_.push_back({});
                 } else {
                     WirePartitionKeys_.push_back(ToString(keySetWriter->Finish()));
+                    WirePartitionLowerBoundPrefixes_.push_back(ToString(partitionLowerBoundPrefixesWriter->Finish()));
+                    PartitionLowerBoundInclusivenesses_.push_back(partitionLowerBoundInclusivenesses);
                 }
             }
         }
@@ -649,6 +660,8 @@ protected:
             Persist(context, Level_);
             Persist(context, ShuffleMultiChunkOutput_);
             Persist(context, WirePartitionKeys_);
+            Persist(context, WirePartitionLowerBoundPrefixes_);
+            Persist(context, PartitionLowerBoundInclusivenesses_);
 
             if (context.IsLoad() && DataBalancer_) {
                 DataBalancer_->OnExecNodesUpdated(Controller_->GetOnlineExecNodeDescriptors());
@@ -686,6 +699,12 @@ protected:
 
         //! Partition index -> wire partition keys.
         std::vector<std::optional<TString>> WirePartitionKeys_;
+
+        //! Partition index -> wire partition lower key bound prefixes.
+        std::vector<std::optional<TString>> WirePartitionLowerBoundPrefixes_;
+
+        //! Partition index -> partition lower bound inclusivenesses.
+        std::vector<std::vector<bool>> PartitionLowerBoundInclusivenesses_;
 
         bool IsFinal() const
         {
@@ -779,6 +798,8 @@ protected:
             partitionJobSpecExt->set_partition_count(partition->Children.size());
             if (auto wirePartitionKeys = WirePartitionKeys_[partitionIndex]) {
                 partitionJobSpecExt->set_wire_partition_keys(*wirePartitionKeys);
+                partitionJobSpecExt->set_wire_partition_lower_bound_prefixes(*WirePartitionLowerBoundPrefixes_[partitionIndex]);
+                ToProto(partitionJobSpecExt->mutable_partition_lower_bound_inclusivenesses(), PartitionLowerBoundInclusivenesses_[partitionIndex]);
             }
             partitionJobSpecExt->set_partition_task_level(Level_);
 
@@ -2888,7 +2909,8 @@ protected:
         partitionKeys.reserve(Spec->PivotKeys.size());
 
         for (const auto& key : Spec->PivotKeys) {
-            partitionKeys.emplace_back(RowBuffer->Capture(key));
+            auto upperBound = TKeyBound::FromRow(RowBuffer->Capture(key), /* isInclusive */true, /* isUpper */false);
+            partitionKeys.emplace_back(upperBound);
         }
 
         return partitionKeys;
@@ -2898,27 +2920,27 @@ protected:
     {
         const auto& finalPartitions = GetFinalPartitions();
         YT_VERIFY(finalPartitions.size() == partitionKeys.size() + 1);
-        finalPartitions[0]->Key = MinKey();
+        finalPartitions[0]->LowerBound = TKeyBound::MakeUniversal(/* isUpper */false);
         for (int finalPartitionIndex = 1; finalPartitionIndex < finalPartitions.size(); ++finalPartitionIndex) {
             const auto& partition = finalPartitions[finalPartitionIndex];
             const auto& partitionKey = partitionKeys[finalPartitionIndex - 1];
-            YT_LOG_DEBUG("Final partition %v has starting key %v",
+            YT_LOG_DEBUG("Assigned lower key bound to final partition (FinalPartitionIndex: %v, KeyBound: %v)",
                 finalPartitionIndex,
-                partitionKey.Key);
-            partition->Key = partitionKey.Key;
+                partitionKey.LowerBound);
+            partition->LowerBound = partitionKey.LowerBound;
             if (partitionKey.Maniac) {
-                YT_LOG_DEBUG("Final partition %v is a maniac", finalPartitionIndex);
+                YT_LOG_DEBUG("Final partition is a maniac (FinalPartitionIndex: %v)", finalPartitionIndex);
                 partition->Maniac = true;
             }
         }
 
         for (int level = PartitionTreeDepth - 1; level >= 0; --level) {
             for (const auto& partition : PartitionsByLevels[level]) {
-                partition->Key = partition->Children.front()->Key;
-                YT_LOG_DEBUG("Assigned key to partition (PartitionLevel: %v, PartitionIndex: %v, Key: %v",
+                partition->LowerBound = partition->Children.front()->LowerBound;
+                YT_LOG_DEBUG("Assigned lower key bound to partition (PartitionLevel: %v, PartitionIndex: %v, KeyBound: %v",
                     partition->Level,
                     partition->Index,
-                    partition->Key);
+                    partition->LowerBound);
             }
         }
     }
@@ -3103,11 +3125,12 @@ private:
 
             YT_PROFILE_TIMING("/operations/sort/samples_processing_time") {
                 if (!SimpleSort) {
+                    auto comparator = OutputTables_[0]->TableUploadOptions.GetUploadSchema()->ToComparator();
                     partitionKeys = BuildPartitionKeysBySamples(
                         samples,
                         PartitionCount,
                         partitionJobSizeConstraints,
-                        static_cast<int>(Spec->SortBy.size()),
+                        comparator,
                         RowBuffer);
                 }
             }

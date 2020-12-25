@@ -206,59 +206,60 @@ ELegacyLivePreviewMode ToLegacyLivePreviewMode(std::optional<bool> enableLegacyL
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<const TSample*> SortSamples(const std::vector<TSample>& samples)
-{
-    int sampleCount = static_cast<int>(samples.size());
-
-    std::vector<const TSample*> sortedSamples;
-    sortedSamples.reserve(sampleCount);
-    try {
-        for (const auto& sample : samples) {
-            ValidateClientKey(sample.Key);
-            sortedSamples.push_back(&sample);
-        }
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error validating table samples") << ex;
-    }
-
-    std::sort(
-        sortedSamples.begin(),
-        sortedSamples.end(),
-        [] (const TSample* lhs, const TSample* rhs) {
-            return *lhs < *rhs;
-        });
-
-    return sortedSamples;
-}
-
 std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     const std::vector<TSample>& samples,
     int partitionCount,
     const IJobSizeConstraintsPtr& partitionJobSizeConstraints,
-    int keyPrefixLength,
+    const NTableClient::TComparator& comparator,
     const TRowBufferPtr& rowBuffer)
 {
     YT_VERIFY(partitionCount > 0);
 
-    auto sortedSamples = SortSamples(samples);
+    struct TComparableSample
+    {
+        TKeyBound KeyBound;
+
+        bool Incomplete;
+
+        i64 Weight;
+    };
+
+    std::vector<TComparableSample> comparableSamples;
+    comparableSamples.reserve(samples.size());
+    for (const auto& sample : samples) {
+        comparableSamples.emplace_back(TComparableSample{
+            .KeyBound = TKeyBound::FromRow(sample.Key, /* isInclusive */true, /* isUpper */false),
+            .Incomplete = sample.Incomplete,
+            .Weight = sample.Weight
+        });
+    }
+
+    std::sort(comparableSamples.begin(), comparableSamples.end(), [&] (const auto& lhs, const auto& rhs) {
+        auto result = comparator.CompareKeyBounds(lhs.KeyBound, rhs.KeyBound);
+        if (result == 0) {
+            return lhs.Incomplete < rhs.Incomplete;
+        } else {
+            return result < 0;
+        }
+    });
 
     std::vector<TPartitionKey> partitionKeys;
 
     i64 totalSamplesWeight = 0;
-    for (const auto* sample : sortedSamples) {
-        totalSamplesWeight += sample->Weight;
+    for (const auto& sample : comparableSamples) {
+        totalSamplesWeight += sample.Weight;
     }
 
     // Select samples evenly wrt weights.
-    std::vector<const TSample*> selectedSamples;
+    std::vector<const TComparableSample*> selectedSamples;
     selectedSamples.reserve(partitionCount - 1);
 
-    double weightPerPartition = (double)totalSamplesWeight / partitionCount;
+    double weightPerPartition = static_cast<double>(totalSamplesWeight) / partitionCount;
     i64 processedWeight = 0;
-    for (const auto* sample : sortedSamples) {
-        processedWeight += sample->Weight;
+    for (const auto& sample : comparableSamples) {
+        processedWeight += sample.Weight;
         if (processedWeight / weightPerPartition > selectedSamples.size() + 1) {
-            selectedSamples.push_back(sample);
+            selectedSamples.push_back(&sample);
         }
         if (selectedSamples.size() == partitionCount - 1) {
             // We need exactly partitionCount - 1 partition keys.
@@ -266,29 +267,30 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
         }
     }
 
-    // Invariant:
-    //   lastKey = partitionsKeys.back().Key
-    //   lastKey corresponds to partition receiving keys in [lastKey, ...)
-    //
-    // Initially partitionKeys is empty so lastKey is assumed to be -inf.
+    // NB: Samples fetcher and controller use different row buffers.
+    auto cloneKeyBound = [&] (const TKeyBound& keyBound) {
+        auto capturedRow = rowBuffer->Capture(keyBound.Prefix);
+        return TKeyBound::FromRow(std::move(capturedRow), keyBound.IsInclusive, keyBound.IsUpper);
+    };
+
 
     int sampleIndex = 0;
     while (sampleIndex < selectedSamples.size()) {
-        TLegacyKey lastKey = MinKey();
+        auto lastLowerBound = TKeyBound::MakeUniversal(/* isUpper */ false);
         if (!partitionKeys.empty()) {
-            lastKey = partitionKeys.back().Key;
+            lastLowerBound = partitionKeys.back().LowerBound;
         }
 
         auto* sample = selectedSamples[sampleIndex];
         // Check for same keys.
-        if (CompareRows(sample->Key, lastKey) != 0) {
-            partitionKeys.emplace_back(rowBuffer->Capture(sample->Key));
+        if (comparator.CompareKeyBounds(sample->KeyBound, lastLowerBound) != 0) {
+            partitionKeys.emplace_back(cloneKeyBound(sample->KeyBound));
             ++sampleIndex;
         } else if (sampleIndex < selectedSamples.size()) {
             // Skip same keys.
             int skippedCount = 0;
             while (sampleIndex < selectedSamples.size() &&
-                CompareRows(selectedSamples[sampleIndex]->Key, lastKey) == 0)
+                comparator.CompareKeyBounds(selectedSamples[sampleIndex]->KeyBound, lastLowerBound) == 0)
             {
                 ++sampleIndex;
                 ++skippedCount;
@@ -296,22 +298,27 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
             auto* lastManiacSample = selectedSamples[sampleIndex - 1];
 
-            if (!lastManiacSample->Incomplete) {
+            if (lastManiacSample->Incomplete) {
+                // If sample keys are incomplete, we cannot use UnorderedMerge,
+                // because full keys may be different.
+                // Suppose we sort table by [a, b] and sampler returned trimmed keys [1], [1], [1] and [2].
+                // Partitions [1, 1] and (1, 2] will be created, however first partition is not maniac since
+                // might contain keys [1, "a"] and [1, "b"].
+                partitionKeys.emplace_back(cloneKeyBound(selectedSamples[sampleIndex]->KeyBound));
+                ++sampleIndex;
+            } else {
                 partitionKeys.back().Maniac = true;
                 YT_VERIFY(skippedCount >= 1);
 
-                // NB: in partitioner we compare keys with the whole rows,
-                // so key prefix successor in required here.
-                auto successorKey = GetKeyPrefixSuccessor(sample->Key, keyPrefixLength, rowBuffer);
-                partitionKeys.emplace_back(successorKey);
-            } else {
-                // If sample keys are incomplete, we cannot use UnorderedMerge,
-                // because full keys may be different.
-                partitionKeys.emplace_back(rowBuffer->Capture(selectedSamples[sampleIndex]->Key));
-                ++sampleIndex;
+                auto keyBound = cloneKeyBound(sample->KeyBound);
+                YT_VERIFY(keyBound.IsInclusive);
+                keyBound.IsInclusive = false;
+
+                partitionKeys.emplace_back(keyBound);
             }
         }
     }
+
     return partitionKeys;
 }
 

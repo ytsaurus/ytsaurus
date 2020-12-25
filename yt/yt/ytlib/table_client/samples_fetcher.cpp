@@ -5,11 +5,11 @@
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/key_set.h>
 
+#include <yt/ytlib/scheduler/config.h>
+
 #include <yt/client/table_client/row_buffer.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
-
-#include <yt/ytlib/scheduler/config.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -29,23 +29,6 @@ using namespace NRpc;
 
 using NYT::FromProto;
 using NYT::ToProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool operator==(const TSample& lhs, const TSample& rhs)
-{
-    return lhs.Key == rhs.Key;
-}
-
-bool operator<(const TSample& lhs, const TSample& rhs)
-{
-    auto result = CompareRows(lhs.Key, rhs.Key);
-    if (result == 0) {
-        return lhs.Incomplete < rhs.Incomplete;
-    }
-
-    return result < 0;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
