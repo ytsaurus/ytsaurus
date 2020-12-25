@@ -4020,6 +4020,8 @@ private:
         PrepareSortedMergeTask();
 
         InitJobSpecTemplates();
+
+        SetupPartitioningCompletedCallbacks();
     }
 
     void PreparePartitionTasks(const IJobSizeConstraintsPtr& partitionJobSizeConstraints)
