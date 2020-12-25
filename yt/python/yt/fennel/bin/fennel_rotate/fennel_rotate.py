@@ -216,7 +216,7 @@ def main():
         return 1
 
     if get_possible_size_to_archive() < args.min_portion_to_archive:
-        logger.info("There is now enough data to archive")
+        logger.info("There is not enough data to archive")
         return 0
 
     if erase_archived_prefix():
