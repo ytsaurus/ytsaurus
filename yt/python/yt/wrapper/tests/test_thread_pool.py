@@ -10,15 +10,15 @@ import time
 
 @authors("ostyakov")
 def test_thread_pool():
-    assert threading.active_count() == 1
+    n = threading.active_count()
 
     pool = ThreadPool(5)
     time.sleep(0.5)
-    assert threading.active_count() == 6
+    assert threading.active_count() == n + 5
     del pool
     
     time.sleep(0.5)
-    assert threading.active_count() == 1
+    assert threading.active_count() == n
 
     pool = ThreadPool(5)
 
@@ -41,7 +41,7 @@ def test_thread_pool():
     next(result)
     pool.close()
     time.sleep(0.5)
-    assert threading.active_count() == 1
+    assert threading.active_count() == n
 
     with pytest.raises(RuntimeError):
         next(result)
@@ -57,7 +57,7 @@ def test_thread_pool():
     assert list(result) == [2, 0, 1]
     pool.close()
     time.sleep(0.5)
-    assert threading.active_count() == 1
+    assert threading.active_count() == n
 
     pool = ThreadPool(5)
     result = pool.imap(lambda x: x, [2, 0, 1])
@@ -70,7 +70,7 @@ def test_thread_pool():
     del pool
 
     time.sleep(0.5)
-    assert threading.active_count() == 1
+    assert threading.active_count() == n
 
     with pytest.raises(ValueError):
         pool = ThreadPool(0)

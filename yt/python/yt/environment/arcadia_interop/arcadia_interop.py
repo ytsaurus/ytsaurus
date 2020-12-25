@@ -239,7 +239,7 @@ def save_sandbox(sandbox_path, output_subpath):
     if output_path == sandbox_path:
         return
 
-    if os.environ.get("YTRECIPE") is not None and sandbox_path.startswith(yatest_common.work_path("ytrecipe_output")):
+    if os.environ.get("YT_OUTPUT") is not None and sandbox_path.startswith(os.environ.get("YT_OUTPUT")):
         return
 
     # Do not copy sandbox if it stored in output ram drive and consistent with output_subpath.

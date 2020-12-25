@@ -23,7 +23,7 @@ import pytest
 import random
 import json
 
-@pytest.mark.skipif('os.environ.get("YTRECIPE") is not None')
+@pytest.mark.skipif('os.environ.get("YT_OUTPUT") is not None')
 @pytest.mark.usefixtures("yt_env")
 class TestCachedYtClient(object):
     @authors("acid")
@@ -73,7 +73,7 @@ class TestCachedYtClient(object):
         for name in sample_names:
             assert real_attributes[name] == cached_attributes[name]
 
-@pytest.mark.skipif('os.environ.get("YTRECIPE") is not None')
+@pytest.mark.skipif('os.environ.get("YT_OUTPUT") is not None')
 @pytest.mark.usefixtures("yt_env")
 class TestCypress(object):
     @authors("acid")
