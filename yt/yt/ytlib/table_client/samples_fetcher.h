@@ -25,7 +25,7 @@ DEFINE_ENUM(ESamplingPolicy,
 struct TSample
 {
     //! The key is stored in row buffer.
-    TLegacyKey Key;
+    TUnversionedRow Key;
 
     //! |true| if the sample is trimmed to obey max sample size limit.
     bool Incomplete;
@@ -33,9 +33,6 @@ struct TSample
     //! Proportional to the data size this sample represents.
     i64 Weight;
 };
-
-bool operator==(const TSample& lhs, const TSample& rhs);
-bool operator<(const TSample& lhs, const TSample& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

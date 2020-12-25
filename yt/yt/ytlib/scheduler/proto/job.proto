@@ -441,6 +441,10 @@ message TPartitionJobSpecExt
     // Level of the partition task job belongs to.
     // Refer to sort_controller.cpp for level description.
     optional int32 partition_task_level = 9;
+
+    optional bytes wire_partition_lower_bound_prefixes = 10;
+
+    repeated bool partition_lower_bound_inclusivenesses = 11;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

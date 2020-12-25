@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/ytlib/chunk_client/key_set.h>
+
 #include <yt/ytlib/query_client/evaluator.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/config.h>
@@ -13,6 +15,7 @@
 
 #include <yt/client/query_client/query_statistics.h>
 
+#include <yt/client/table_client/key_bound.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/unversioned_writer.h>
 
@@ -90,7 +93,28 @@ std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSp
 
 IPartitionerPtr CreatePartitioner(const TPartitionJobSpecExt& partitionJobSpecExt)
 {
-    if (partitionJobSpecExt.has_wire_partition_keys()) {
+    if (partitionJobSpecExt.has_wire_partition_lower_bound_prefixes()) {
+        TKeySetReader keySetReader(TSharedRef::FromString(partitionJobSpecExt.wire_partition_lower_bound_prefixes()));
+        auto keys = keySetReader.GetKeys();
+        YT_VERIFY(keys.size() == partitionJobSpecExt.partition_lower_bound_inclusivenesses_size());
+
+        std::vector<TOwningKeyBound> partitionLowerBounds;
+        partitionLowerBounds.reserve(keys.size() + 1);
+
+        partitionLowerBounds.push_back(TOwningKeyBound::MakeUniversal(/* isUpper */ false));
+
+        for (int index = 0; index < keys.size(); ++index) {
+            TUnversionedOwningRow owningKey(keys[index]);
+            bool isInclusive = partitionJobSpecExt.partition_lower_bound_inclusivenesses(index);
+            partitionLowerBounds.push_back(TOwningKeyBound::FromRow(owningKey, /* isInclusive */ isInclusive, /* isUpper */ false));
+        }
+
+        // TODO(gritukan): Use comparator from job spec.
+        int keyColumnCount = partitionJobSpecExt.reduce_key_column_count();
+        TComparator comparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
+
+        return CreateOrderedPartitioner(std::move(partitionLowerBounds), comparator);
+    } else if (partitionJobSpecExt.has_wire_partition_keys()) {
         auto wirePartitionKeys = TSharedRef::FromString(partitionJobSpecExt.wire_partition_keys());
         // TODO(gritukan): Use comparator from job spec.
         int keyColumnCount = partitionJobSpecExt.reduce_key_column_count();

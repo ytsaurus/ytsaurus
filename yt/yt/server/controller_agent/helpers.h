@@ -98,27 +98,25 @@ ELegacyLivePreviewMode ToLegacyLivePreviewMode(std::optional<bool> enableLegacyL
 
 struct TPartitionKey
 {
-    NTableClient::TLegacyKey Key;
+    NTableClient::TKeyBound LowerBound;
 
     //! Whether partition starting with this key is maniac.
     bool Maniac = false;
 
     TPartitionKey() = default;
 
-    explicit TPartitionKey(NTableClient::TLegacyKey key)
-        : Key(std::move(key))
+    explicit TPartitionKey(NTableClient::TKeyBound lowerBound)
+        : LowerBound(std::move(lowerBound))
     { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<const NTableClient::TSample*> SortSamples(const std::vector<NTableClient::TSample>& samples);
-
 std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     const std::vector<NTableClient::TSample>& samples,
     int partitionCount,
     const IJobSizeConstraintsPtr& partitionJobSizeConstraints,
-    int keyPrefixLength,
+    const NTableClient::TComparator& comparator,
     const NQueryClient::TRowBufferPtr& rowBuffer);
 
 ////////////////////////////////////////////////////////////////////////////////

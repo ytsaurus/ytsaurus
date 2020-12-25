@@ -30,60 +30,79 @@ public:
         : KeySetReader_(wirePivots)
         , Comparator_(comparator)
     {
-        for (const auto& key : KeySetReader_.GetKeys()) {
-            PartitionUpperBounds_.push_back(
+        PartitionLowerBounds_.push_back(TOwningKeyBound::MakeUniversal(/* isUpper */false));
+
+        for (const auto& key : KeySetReader_->GetKeys()) {
+            PartitionLowerBounds_.push_back(
                 KeyBoundFromLegacyRow(
                     /* key */key,
-                    /* isUpper */true,
+                    /* isUpper */false,
                     /* keyLength */Comparator_.GetLength()));
         }
-        PartitionUpperBounds_.push_back(TOwningKeyBound::MakeUniversal(/* isUpper */true));
 
-        for (int index = 0; index + 1 < PartitionUpperBounds_.size(); ++index) {
-            const auto& partition = PartitionUpperBounds_[index];
-            const auto& nextPartition = PartitionUpperBounds_[index + 1];
-            // TODO(gritukan): Check if pivots are not equal.
-            YT_LOG_FATAL_IF(
-                Comparator_.CompareKeyBounds(partition, nextPartition) > 0,
-                "Pivot keys order violation (Index: %v, PartitionUpperBound: %v, NextPartitionUpperBound: %v)",
-                index,
-                partition,
-                nextPartition);
-        }
+        ValidateKeyBounds();
+    }
+
+    TOrderedPartitioner(std::vector<TOwningKeyBound> partitionLowerBounds, TComparator comparator)
+        : PartitionLowerBounds_(std::move(partitionLowerBounds))
+        , Comparator_(comparator)
+    {
+        ValidateKeyBounds();
     }
 
     virtual int GetPartitionCount() override
     {
-        return PartitionUpperBounds_.size();
+        return PartitionLowerBounds_.size();
     }
 
     virtual int GetPartitionIndex(TUnversionedRow row) override
     {
         auto key = TKey::FromRow(row, Comparator_.GetLength());
 
+        // Find first partition that our key does not belong to.
         // Recall upper_bound returns first such iterator it that comp(key, *it).
         auto partitionsIt = std::upper_bound(
-            PartitionUpperBounds_.begin(),
-            PartitionUpperBounds_.end(),
+            PartitionLowerBounds_.begin(),
+            PartitionLowerBounds_.end(),
             key,
-            [=] (const TKey& key, const TKeyBound& partitionUpperBound) {
-                return Comparator_.TestKey(key, partitionUpperBound);
+            [=] (const TKey& key, const TKeyBound& partitionLowerBound) {
+                return !Comparator_.TestKey(key, partitionLowerBound);
             }
         );
 
-        YT_VERIFY(partitionsIt != PartitionUpperBounds_.end());
-        return partitionsIt - PartitionUpperBounds_.begin();
+        YT_VERIFY(partitionsIt != PartitionLowerBounds_.begin());
+        return partitionsIt - PartitionLowerBounds_.begin() - 1;
     }
 
 private:
-    const TKeySetReader KeySetReader_;
-    std::vector<TOwningKeyBound> PartitionUpperBounds_;
+    const std::optional<TKeySetReader> KeySetReader_;
+    std::vector<TOwningKeyBound> PartitionLowerBounds_;
     const TComparator Comparator_;
+
+    void ValidateKeyBounds()
+    {
+        for (int index = 0; index + 1 < PartitionLowerBounds_.size(); ++index) {
+            const auto& partition = PartitionLowerBounds_[index];
+            const auto& nextPartition = PartitionLowerBounds_[index + 1];
+            // TODO(gritukan): Check if pivots are not equal.
+            YT_LOG_FATAL_IF(
+                Comparator_.CompareKeyBounds(partition, nextPartition) > 0,
+                "Pivot keys order violation (Index: %v, PartitionLowerBound: %v, NextPartitionLowerBound: %v)",
+                index,
+                partition,
+                nextPartition);
+        }
+    }
 };
 
 IPartitionerPtr CreateOrderedPartitioner(const TSharedRef& wirePivots, TComparator comparator)
 {
     return New<TOrderedPartitioner>(wirePivots, comparator);
+}
+
+IPartitionerPtr CreateOrderedPartitioner(std::vector<TOwningKeyBound> partitionLowerBounds, TComparator comparator)
+{
+    return New<TOrderedPartitioner>(std::move(partitionLowerBounds), comparator);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
