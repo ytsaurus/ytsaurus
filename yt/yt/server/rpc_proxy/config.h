@@ -4,6 +4,8 @@
 
 #include <yt/client/api/config.h>
 
+#include <yt/client/formats/public.h>
+
 #include <yt/server/lib/misc/config.h>
 
 #include <yt/ytlib/auth/config.h>
@@ -29,11 +31,14 @@ class TDynamicProxyConfig
 {
 public:
     NTracing::TSamplingConfigPtr Tracing;
+    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
 
     TDynamicProxyConfig()
     {
         RegisterParameter("tracing", Tracing)
             .DefaultNew();
+        RegisterParameter("formats", Formats)
+            .Default();
     }
 };
 

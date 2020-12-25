@@ -20,6 +20,7 @@
 
 #include <yt/core/http/config.h>
 
+#include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -125,6 +126,41 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFormatConfigBase
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+    NYTree::IMapNodePtr DefaultAttributes;
+
+    TFormatConfigBase()
+    {
+        RegisterParameter("enable", Enable)
+            .Default(true);
+        RegisterParameter("default_attributes", DefaultAttributes)
+            .Default(NYTree::GetEphemeralNodeFactory()->CreateMap());
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TFormatConfigBase)
+
+class TFormatConfig
+    : public TFormatConfigBase
+{
+public:
+    THashMap<TString, TFormatConfigBasePtr> UserOverrides;
+
+    TFormatConfig()
+    {
+        RegisterParameter("user_overrides", UserOverrides)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

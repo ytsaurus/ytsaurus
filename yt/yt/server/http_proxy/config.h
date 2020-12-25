@@ -12,6 +12,8 @@
 
 #include <yt/client/driver/public.h>
 
+#include <yt/client/formats/public.h>
+
 #include <yt/client/api/public.h>
 
 #include <yt/core/https/public.h>
@@ -163,6 +165,8 @@ public:
     NClickHouse::TDynamicClickHouseConfigPtr ClickHouse;
 
     TFramingConfigPtr Framing;
+
+    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
 
     TDynamicConfig();
 };

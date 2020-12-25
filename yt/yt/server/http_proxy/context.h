@@ -5,6 +5,8 @@
 
 #include "api.h"
 
+#include <yt/server/lib/misc/format_manager.h>
+
 #include <yt/ytlib/auth/public.h>
 
 #include <yt/client/driver/driver.h>
@@ -36,6 +38,7 @@ public:
     bool TryParseRequest();
     bool TryParseCommandName();
     bool TryParseUser();
+    bool TryInitFormatManager();
     bool TryGetDescriptor();
     bool TryCheckMethod();
     bool TryCheckAvailability();
@@ -87,6 +90,7 @@ private:
 
     std::optional<int> ApiVersion_;
     std::optional<TAuthenticationResultAndToken> Auth_;
+    std::unique_ptr<TFormatManager> FormatManager_;
     std::optional<NFormats::TFormat> HeadersFormat_;
     std::optional<NFormats::TFormat> InputFormat_;
     std::optional<TContentEncoding> InputContentEncoding_;
@@ -121,6 +125,8 @@ private:
     void ReplyFakeError(const TString& message);
 
     void OnOutputParameters();
+
+    void ProcessFormatsInOperationSpec();
 
     TFramingConfigPtr GetFramingConfig() const;
 

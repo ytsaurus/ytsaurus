@@ -68,6 +68,7 @@ OperationProgressOutdated = 1911
 NoSuchOperation = 1915
 NoSuchJob = 1916
 NoSuchAttribute = 1920
+FormatDisabled = 1925
 UnrecognizedConfigOption = 2500
 FailedToFetchDynamicConfig = 2600
 DuplicateMatchingDynamicConfigs = 2601

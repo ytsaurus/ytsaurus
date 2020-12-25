@@ -1,4 +1,11 @@
+#include "config.h"
 #include "formats.h"
+
+#include <yt/server/lib/misc/format_manager.h>
+
+#include <yt/client/api/public.h>
+
+#include <yt/client/security_client/public.h>
 
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
@@ -11,19 +18,29 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const THashMap<TString, TString> MimeTypeToFormatTable = {
-    {"application/json", "json"},
-    {"application/x-yamr-delimited",        "<lenval=%false; has_subkey=%false>yamr"},
-    {"application/x-yamr-lenval",           "<lenval=%true; has_subkey=%false>yamr"},
-    {"application/x-yamr-subkey-delimited", "<lenval=%false; has_subkey=%true>yamr"},
-    {"application/x-yamr-subkey-lenval",    "<lenval=%true; has_subkey=%true>yamr"},
-    {"application/x-yt-yson-binary", "<format=binary>yson"},
-    {"application/x-yt-yson-pretty", "<format=pretty>yson"},
-    {"application/x-yt-yson-text",   "<format=text>yson"},
-    {"text/csv",                  "<record_separator=\",\"; key_value_separator=\":\">dsv"},
-    {"text/tab-separated-values", "dsv"},
-    {"text/x-tskv",               "<line_prefix=tskv>dsv"},
-};
+static INodePtr MimeTypeToFormatNode(const TString& mimeType)
+{
+    static const THashMap<TString, TString> MimeTypeToFormatTable = {
+        {"application/json", "json"},
+        {"application/x-yamr-delimited",        "<lenval=%false; has_subkey=%false>yamr"},
+        {"application/x-yamr-lenval",           "<lenval=%true; has_subkey=%false>yamr"},
+        {"application/x-yamr-subkey-delimited", "<lenval=%false; has_subkey=%true>yamr"},
+        {"application/x-yamr-subkey-lenval",    "<lenval=%true; has_subkey=%true>yamr"},
+        {"application/x-yt-yson-binary", "<format=binary>yson"},
+        {"application/x-yt-yson-pretty", "<format=pretty>yson"},
+        {"application/x-yt-yson-text",   "<format=text>yson"},
+        {"text/csv",                  "<record_separator=\",\"; key_value_separator=\":\">dsv"},
+        {"text/tab-separated-values", "dsv"},
+        {"text/x-tskv",               "<line_prefix=tskv>dsv"},
+    };
+
+    auto format = MimeTypeToFormatTable.find(mimeType);
+    if (format == MimeTypeToFormatTable.end()) {
+        return {};
+    }
+
+    return ConvertToNode(TYsonString(format->second));
+}
 
 static const std::vector<TString> OutputMimeTypePriorityForStructuredType = {
     "application/json",
@@ -48,14 +65,76 @@ static const std::vector<TString> OutputMimeTypePriorityForTabularType = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TFormat> MimeTypeToFormat(const TString& mimeType)
+static INodePtr GetDefaultFormatNodeForDataType(EDataType dataType)
 {
-    auto format = MimeTypeToFormatTable.find(mimeType);
-    if (format == MimeTypeToFormatTable.end()) {
-        return {};
+    if (dataType == EDataType::Structured) {
+        return ConvertToNode("json");
+    } else if (dataType == EDataType::Tabular) {
+        return ConvertToNode(TYsonString("<format=text>yson"));
+    } else {
+        return ConvertToNode("yson");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFormat InferFormat(
+    const TFormatManager& formatManager,
+    const TString& ytHeaderName,
+    const TFormat& ytHeaderFormat,
+    const std::optional<TString>& ytHeader,
+    const TString& mimeHeaderName,
+    const TString* mimeHeader,
+    bool isOutput,
+    EDataType dataType)
+{
+    if (isOutput && (
+        dataType == EDataType::Null ||
+        dataType == EDataType::Binary))
+    {
+        auto origin = Format("default format for %Qv and %Qv output data type", EDataType::Null, EDataType::Binary);
+        return formatManager.ConvertToFormat(ConvertToNode(EFormatType::Yson), origin);
     }
 
-    return ConvertTo<TFormat>(TYsonString(format->second));
+    if (ytHeader) {
+        INodePtr formatNode;
+        try {
+            formatNode = ConvertBytesToNode(*ytHeader, ytHeaderFormat);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Unable to parse %v header",
+                ytHeaderName)
+                << ex;
+        }
+        return formatManager.ConvertToFormat(formatNode, Format("format from %v header", ytHeaderName));
+    }
+    INodePtr formatNode;
+    if (mimeHeader) {
+        auto contentType = StripString(*mimeHeader);
+        formatNode = MimeTypeToFormatNode(contentType);
+        if (formatNode) {
+            return formatManager.ConvertToFormat(formatNode, Format("format inferred from %v header", mimeHeaderName));
+        }
+    }
+    formatNode = GetDefaultFormatNodeForDataType(dataType);
+    auto direction = isOutput ? "output" : "input";
+    return formatManager.ConvertToFormat(formatNode, Format("%v format inferred from data type %Qv", direction, dataType));
+}
+
+TFormat InferHeaderFormat(const TFormatManager& formatManager, const TString* ytHeader)
+{
+    if (!ytHeader) {
+        return formatManager.ConvertToFormat(ConvertToNode(EFormatType::Json), "default header format");
+    }
+
+    INodePtr formatNode;
+    try {
+        TYsonString header(StripString(*ytHeader));
+        formatNode = ConvertTo<INodePtr>(header);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Unable to parse X-YT-Header-Format header")
+            << ex;
+    }
+    return formatManager.ConvertToFormat(formatNode, "header format from X-YT-Header-Format header");
 }
 
 TString FormatToMime(const NFormats::TFormat& format)
@@ -116,19 +195,6 @@ TString FormatToMime(const NFormats::TFormat& format)
         default:
             THROW_ERROR_EXCEPTION("Cannot determine mime-type for format")
                 << TErrorAttribute("format", format);
-    }
-}
-
-NFormats::TFormat GetDefaultFormatForDataType(EDataType dataType)
-{
-    if (dataType == EDataType::Structured) {
-        return NFormats::TFormat(EFormatType::Json);
-    } else if (dataType == EDataType::Tabular) {
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("format", "text");
-        return NFormats::TFormat(EFormatType::Yson, attributes.Get());
-    } else {
-        return NFormats::TFormat(EFormatType::Yson);
     }
 }
 

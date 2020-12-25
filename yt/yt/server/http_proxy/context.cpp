@@ -45,6 +45,7 @@ using namespace NDriver;
 using namespace NFormats;
 using namespace NLogging;
 using namespace NObjectClient;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,6 +76,7 @@ bool TContext::TryPrepare()
         TryParseRequest() &&
         TryParseCommandName() &&
         TryParseUser() &&
+        TryInitFormatManager() &&
         TryGetDescriptor() &&
         TryCheckMethod() &&
         TryCheckAvailability() &&
@@ -210,6 +212,14 @@ bool TContext::TryParseUser()
     return true;
 }
 
+bool TContext::TryInitFormatManager()
+{
+    FormatManager_ = std::make_unique<TFormatManager>(
+        Api_->GetCoordinator()->GetDynamicConfig()->Formats,
+        DriverRequest_.AuthenticatedUser);
+    return true;
+}
+
 bool TContext::TryGetDescriptor()
 {
     if (*ApiVersion_ == 3) {
@@ -283,44 +293,30 @@ bool TContext::TryRedirectHeavyRequests()
 bool TContext::TryGetHeaderFormat()
 {
     auto headerFormat = Request_->GetHeaders()->Find("X-YT-Header-Format");
-    if (headerFormat) {
-        try {
-            TYsonString header(StripString(*headerFormat));
-            HeadersFormat_ = ConvertTo<TFormat>(header);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Unable to parse X-YT-Header-Format header")
-                << ex;
-        }
-    } else {
-        HeadersFormat_ = EFormatType::Json;
-    }
-
+    HeadersFormat_ = InferHeaderFormat(*FormatManager_, headerFormat);
     return true;
 }
 
 bool TContext::TryGetInputFormat()
 {
+    static const TString YtHeaderName = "X-YT-Input-Format";
+    std::optional<TString> ytHeader;
     try {
-        auto header = GatherHeader(Request_->GetHeaders(), "X-YT-Input-Format");
-        if (header) {
-            InputFormat_ = ConvertTo<TFormat>(ConvertBytesToNode(*header, *HeadersFormat_));
-            return true;
-        }
+        ytHeader = GatherHeader(Request_->GetHeaders(), YtHeaderName);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to parse X-YT-Input-Format header")
+        THROW_ERROR_EXCEPTION("Unable to parse %v header", YtHeaderName)
             << ex;
     }
-
     auto contentTypeHeader = Request_->GetHeaders()->Find("Content-Type");
-    if (contentTypeHeader) {
-        auto contentType = StripString(*contentTypeHeader);
-        InputFormat_ = MimeTypeToFormat(contentType);
-        if (InputFormat_) {
-            return true;
-        }
-    }
-
-    InputFormat_ = GetDefaultFormatForDataType(Descriptor_->InputType);
+    InputFormat_ = InferFormat(
+        *FormatManager_,
+        YtHeaderName,
+        *HeadersFormat_,
+        ytHeader,
+        "Content-Type",
+        contentTypeHeader,
+        /* isOutput */ false,
+        Descriptor_->InputType);
     return true;
 }
 
@@ -345,36 +341,24 @@ bool TContext::TryGetInputCompression()
 
 bool TContext::TryGetOutputFormat()
 {
-    if (Descriptor_->OutputType == NFormats::EDataType::Null ||
-        Descriptor_->OutputType == NFormats::EDataType::Binary)
-    {
-        OutputFormat_ = EFormatType::Yson;
-        return true;
-    }
-
+    static const TString YtHeaderName = "X-YT-Output-Format";
+    std::optional<TString> ytHeader;
     try {
-        auto header = GatherHeader(Request_->GetHeaders(), "X-YT-Output-Format");
-        if (header) {
-            OutputFormat_ = ConvertTo<TFormat>(ConvertBytesToNode(*header, *HeadersFormat_));
-            return true;
-        }
+        ytHeader = GatherHeader(Request_->GetHeaders(), YtHeaderName);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to parse X-YT-Output-Format header")
+        THROW_ERROR_EXCEPTION("Unable to parse %v header", YtHeaderName)
             << ex;
     }
-
     auto acceptHeader = Request_->GetHeaders()->Find("Accept");
-    if (acceptHeader) {
-        auto acceptedType = GetBestAcceptedType(Descriptor_->OutputType, StripString(*acceptHeader));
-        if (acceptedType) {
-            OutputFormat_ = MimeTypeToFormat(*acceptedType);
-        }
-    }
-
-    if (!OutputFormat_) {
-        OutputFormat_ = GetDefaultFormatForDataType(Descriptor_->OutputType);
-    }
-
+    OutputFormat_ = InferFormat(
+        *FormatManager_,
+        YtHeaderName,
+        *HeadersFormat_,
+        ytHeader,
+        "Accept",
+        acceptHeader,
+        /* isOutput */ true,
+        Descriptor_->OutputType);
     return true;
 }
 
@@ -738,9 +722,35 @@ void TContext::SetError(const TError& error)
     Error_ = error;
 }
 
+void TContext::ProcessFormatsInOperationSpec()
+{
+    auto specNode = DriverRequest_.Parameters->FindChild("spec");
+    auto commandName = DriverRequest_.CommandName;
+    auto operationTypeNode = DriverRequest_.Parameters->FindChild("operation_type");
+    TString operationTypeString;
+    if (commandName == "start_op" || commandName == "start_operation") {
+        if (!operationTypeNode || operationTypeNode->GetType() != ENodeType::String) {
+            return;
+        }
+        operationTypeString = operationTypeNode->GetValue<TString>();
+    } else {
+        operationTypeString = commandName;
+    }
+
+    EOperationType operationType;
+    try {
+        operationType = ParseEnum<EOperationType>(operationTypeString);
+    } catch (const TErrorException& error) {
+        return;
+    }
+
+    FormatManager_->ValidateAndPatchOperationSpec(specNode, operationType);
+}
+
 void TContext::FinishPrepare()
 {
     CaptureParameters();
+    ProcessFormatsInOperationSpec();
     SetContentDispositionAndMimeType();
     SetETagRevision();
     LogRequest();

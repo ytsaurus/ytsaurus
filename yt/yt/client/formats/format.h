@@ -18,29 +18,6 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Type of data that can be read or written by a driver command.
-DEFINE_ENUM(EDataType,
-    (Null)
-    (Binary)
-    (Structured)
-    (Tabular)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EFormatType,
-    (Null)
-    (Yson)
-    (Json)
-    (Dsv)
-    (Yamr)
-    (YamredDsv)
-    (SchemafulDsv)
-    (Protobuf)
-    (WebJson)
-    (Skiff)
-);
-
 class TFormat
 {
 public:

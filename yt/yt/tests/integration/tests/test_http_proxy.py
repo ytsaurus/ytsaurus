@@ -1,12 +1,22 @@
+from proxy_format_config import _TestProxyFormatConfigBase
+
 from yt_env_setup import YTEnvSetup, wait, Restarter, MASTERS_SERVICE
 from yt_commands import *
 from yt_helpers import Metric
+
+from yt.common import YtResponseError
 
 import yt.packages.requests as requests
 
 import json
 import struct
 from datetime import datetime, timedelta
+
+
+def try_parse_yt_error(rsp):
+    if "X-YT-Error" in rsp.headers:
+        raise YtResponseError(json.loads(rsp.headers.get("X-YT-Error")))
+    rsp.raise_for_status()
 
 ##################################################################
 
@@ -336,6 +346,115 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         statistics = yson.loads(response)
         assert len(statistics) == 1
         assert "column_data_weights" in statistics[0]
+
+
+class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
+    def setup(self):
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
+        set("//sys/proxies/@config", {"formats": self.FORMAT_CONFIG})
+
+        def config_updated():
+            config = requests.get(config_url).json()
+            return config \
+                .get("formats", {}) \
+                .get("yamred_dsv", {}) \
+                .get("user_overrides", {}) \
+                .get("good_user", False)
+
+        wait(config_updated)
+
+    def _execute_command(self, http_method, command_name, params, user="root", data=None,
+                         header_format="yson", input_format="yson", output_format="yson",
+                         api_version="v4"):
+        headers = {
+            "X-YT-Parameters": yson.dumps(params),
+            "X-YT-Header-Format": yson.dumps(header_format),
+            "X-YT-Output-Format": yson.dumps(output_format),
+            "X-YT-Input-Format": yson.dumps(input_format),
+            "X-YT-Testing-User-Name": user,
+        }
+        rsp = requests.request(
+            http_method,
+            "{address}/api/{api_version}/{command_name}".format(
+                address=self._get_proxy_address(),
+                api_version=api_version,
+                command_name=command_name,
+            ),
+            headers=headers,
+            data=data,
+        )
+        try_parse_yt_error(rsp)
+        return rsp
+
+    def _do_run_operation(self, op_type, spec, user, use_start_op):
+        params = {"spec": spec, "operation_type": op_type}
+        command = "start_operation" if use_start_op else op_type
+        api_version = "v4" if use_start_op else "v3"
+        rsp = self._execute_command(
+            "post",
+            command,
+            params,
+            user=user,
+            api_version=api_version,
+        )
+        result = yson.loads(rsp.content)
+        op = Operation()
+        op.id = result if api_version == "v3" else result["operation_id"]
+        return op
+
+    def _test_format_enable_general(self, format, user, enable):
+        create("table", "//tmp/t", force=True)
+        content = self.TABLE_CONTENT_TWO_COLUMNS
+        write_table("//tmp/t", content)
+
+        manager = self._get_context_manager(enable)
+
+        with manager():
+            rsp = self._execute_command(
+                "get",
+                "read_table",
+                {"path": "//tmp/t"},
+                user=user,
+                output_format=format,
+            )
+            assert self._parse_format(format, rsp.content) == content
+
+        with manager():
+            self._execute_command(
+                "put",
+                "write_table",
+                {"path": "//tmp/t"},
+                user=user,
+                input_format=format,
+                data=self._write_format(format, content),
+            )
+            assert read_table("//tmp/t") == content
+
+    def _test_format_enable(self, format, user, enable):
+        self._test_format_enable_general(format, user, enable)
+        self._test_format_enable_operations(format, user, enable)
+
+    def _test_format_defaults_cypress(self, format, user, content, expected_content):
+        set("//tmp/list_node", content)
+
+        rsp = self._execute_command(
+            "GET",
+            "get",
+            {"path": "//tmp/list_node"},
+            user=user,
+            output_format=format,
+        )
+        actual_content = rsp.content
+        assert actual_content == expected_content
+
+    def _test_format_defaults(self, format, user, content, expected_format):
+        assert str(expected_format) == "yson"
+        yson_format = expected_format.attributes.get("format", "text")
+        expected_content_cypress = yson.dumps({"value": content}, yson_format=yson_format)
+        expected_content_operation = yson.dumps(content, yson_format=yson_format, yson_type="list_fragment")
+        self._test_format_defaults_cypress(format, user, content, expected_content_cypress)
+        self._test_format_defaults_operations(format, user, content, expected_content_operation)
 
 
 class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
