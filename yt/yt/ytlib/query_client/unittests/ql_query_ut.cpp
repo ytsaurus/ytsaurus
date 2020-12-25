@@ -2188,6 +2188,19 @@ TEST_F(TQueryEvaluateTest, GroupWithTotals)
         "a=9;b=90"
     };
 
+    auto resultSplitNoAggregate = MakeSplit({
+        {"x", EValueType::Boolean}
+    });
+
+    auto resultWithTotalsNoAggregate = YsonToRows({
+        "x=%false",
+        "x=%true",
+        ""
+    }, resultSplitNoAggregate);
+
+    Evaluate("x FROM [//t] where a > 1 group by a % 2 = 1 as x with totals", split,
+        source, ResultMatcher(resultWithTotalsNoAggregate));
+
     auto resultSplit = MakeSplit({
         {"x", EValueType::Boolean},
         {"t", EValueType::Int64}
