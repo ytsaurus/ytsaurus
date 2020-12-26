@@ -193,7 +193,6 @@ static const NLogging::TLogger Logger("Bootstrap");
 TBootstrap::TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
-    , DynamicConfig_(New<TClusterNodeDynamicConfig>())
 { }
 
 TBootstrap::~TBootstrap() = default;
@@ -249,49 +248,6 @@ void TBootstrap::DoInitialize()
         GetValues(localRpcAddresses),
         Config_->ClusterConnection->PrimaryMaster->Addresses,
         Config_->Tags);
-
-    NodeResourceManager_ = New<TNodeResourceManager>(this);
-
-#ifdef __linux__
-    if (GetEnvironmentType() == EJobEnvironmentType::Porto) {
-        auto portoEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecAgent->SlotManager->JobEnvironment);
-        auto portoExecutor = CreatePortoExecutor(
-            portoEnvironmentConfig->PortoExecutor,
-            "limits_tracker");
-
-        portoExecutor->SubscribeFailed(BIND([=] (const TError& error) {
-            YT_LOG_ERROR(error, "Porto executor failed");
-            auto slotManager = GetExecSlotManager();
-            if (slotManager) {
-                slotManager->Disable(error);
-            }
-        }));
-
-        auto self = GetSelfPortoInstance(portoExecutor);
-        if (Config_->InstanceLimitsUpdatePeriod) {
-            auto instance = portoEnvironmentConfig->UseDaemonSubcontainer
-                ? GetPortoInstance(portoExecutor, self->GetParentName())
-                : self;
-
-            InstanceLimitsTracker_ = New<TInstanceLimitsTracker>(
-                instance,
-                GetControlInvoker(),
-                *Config_->InstanceLimitsUpdatePeriod);
-
-            InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, NodeResourceManager_)
-                .Via(GetControlInvoker()));
-        }
-
-        if (portoEnvironmentConfig->UseDaemonSubcontainer) {
-            self->SetCpuWeight(Config_->ResourceLimits->NodeCpuWeight);
-
-            NodeResourceManager_->SubscribeSelfMemoryGuaranteeUpdated(BIND([self] (i64 memoryGuarantee) {
-                YT_LOG_DEBUG("Self memory guarantee updated (MemoryGuarantee: %v)", memoryGuarantee);
-                self->SetMemoryGuarantee(memoryGuarantee);
-            }));
-        }
-    }
-#endif
 
     MemoryUsageTracker_ = New<TNodeMemoryTracker>(
         Config_->ResourceLimits->TotalMemory,
@@ -376,6 +332,11 @@ void TBootstrap::DoInitialize()
     MasterConnector_->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
     MasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
 
+    DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
+    DynamicConfigManager_->SubscribeConfigUpdated(BIND(&TBootstrap::OnDynamicConfigUpdated, this));
+
+    NodeResourceManager_ = New<TNodeResourceManager>(this);
+
     TabletNodeHintManager_ = New<NTabletNode::THintManager>(Config_->TabletNode->HintManager, this);
     TabletSlotManager_ = New<NTabletNode::TSlotManager>(Config_->TabletNode, this);
     MasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::TSlotManager::PopulateAlerts, TabletSlotManager_));
@@ -459,9 +420,6 @@ void TBootstrap::DoInitialize()
         }
         TabletNodeThrottlers_[kind] = throttler;
     }
-
-    DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
-    DynamicConfigManager_->SubscribeConfigUpdated(BIND(&TBootstrap::OnDynamicConfigUpdated, this));
 
     RpcServer_->RegisterService(CreateDataNodeService(Config_->DataNode, this));
 
@@ -651,6 +609,44 @@ void TBootstrap::DoInitialize()
     ChunkCache_->Initialize();
     ExecSlotManager_->Initialize();
     JobController_->Initialize();
+
+#ifdef __linux__
+    if (GetEnvironmentType() == EJobEnvironmentType::Porto) {
+        auto portoEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecAgent->SlotManager->JobEnvironment);
+        auto portoExecutor = CreatePortoExecutor(
+            portoEnvironmentConfig->PortoExecutor,
+            "limits_tracker");
+
+        portoExecutor->SubscribeFailed(BIND([=] (const TError& error) {
+            YT_LOG_ERROR(error, "Porto executor failed");
+            ExecSlotManager_->Disable(error);
+        }));
+
+        auto self = GetSelfPortoInstance(portoExecutor);
+        if (Config_->InstanceLimitsUpdatePeriod) {
+            auto instance = portoEnvironmentConfig->UseDaemonSubcontainer
+                ? GetPortoInstance(portoExecutor, self->GetParentName())
+                : self;
+
+            InstanceLimitsTracker_ = New<TInstanceLimitsTracker>(
+                instance,
+                GetControlInvoker(),
+                *Config_->InstanceLimitsUpdatePeriod);
+
+            InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, NodeResourceManager_)
+                .Via(GetControlInvoker()));
+        }
+
+        if (portoEnvironmentConfig->UseDaemonSubcontainer) {
+            self->SetCpuWeight(Config_->ResourceLimits->NodeCpuWeight);
+
+            NodeResourceManager_->SubscribeSelfMemoryGuaranteeUpdated(BIND([self] (i64 memoryGuarantee) {
+                YT_LOG_DEBUG("Self memory guarantee updated (MemoryGuarantee: %v)", memoryGuarantee);
+                self->SetMemoryGuarantee(memoryGuarantee);
+            }));
+        }
+    }
+#endif
 }
 
 void TBootstrap::DoRun()
@@ -804,11 +800,6 @@ void TBootstrap::DoValidateSnapshot(const TString& fileName)
 const TClusterNodeConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
-}
-
-const TClusterNodeDynamicConfigPtr& TBootstrap::GetDynamicConfig() const
-{
-    return DynamicConfig_;
 }
 
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
@@ -1229,8 +1220,6 @@ void TBootstrap::OnDynamicConfigUpdated(
     const TClusterNodeDynamicConfigPtr& /* oldConfig */,
     const TClusterNodeDynamicConfigPtr& newConfig)
 {
-    DynamicConfig_ = newConfig;
-
     // Reconfigure spinlock profiling.
     NConcurrency::SetSpinlockHiccupThresholdTicks(NProfiling::DurationToCpuDuration(
         newConfig->SpinlockHiccupThreshold.value_or(Config_->SpinlockHiccupThreshold)));

@@ -2,11 +2,13 @@
 
 #include "config.h"
 
-#include <yt/ytlib/api/native/public.h>
-
 #include <yt/core/actions/signal.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/core/concurrency/spinlock.h>
+
+#include <yt/core/misc/atomic_object.h>
+
+#include <yt/ytlib/api/native/public.h>
 
 namespace NYT::NDynamicConfig {
 
@@ -16,7 +18,7 @@ namespace NYT::NDynamicConfig {
 //! by pulling it periodically from masters.
 /*!
  *  \note
- *  Thread affinity: invoker (unless noted otherwise)
+ *  Thread affinity: any
  */
 template <typename TConfig>
 class TDynamicConfigManagerBase
@@ -48,18 +50,16 @@ public:
 
     //! Returns |true| if dynamic config was loaded successfully
     //! at least once.
-    /*!
-    *  \note
-    *  Thread affinity: any
-    */
     bool IsConfigLoaded() const;
+
+    //! Returns the current dynamic config as a node.
+    NYTree::IMapNodePtr GetConfigNode() const;
+
+    //! Returns the current dynamic config as a deserialized instance.
+    TConfigPtr GetConfig() const;
 
     //! Returns a future that becomes set when dynamic config
     //! is loaded for the first time.
-    /*!
-    *  \note
-    *  Thread affinity: any
-    */
     TFuture<void> GetConfigLoadedFuture() const;
 
 protected:
@@ -67,14 +67,6 @@ protected:
     virtual std::vector<TString> GetInstanceTags() const;
 
 private:
-    void DoUpdateConfig();
-
-    //! Returns |true| if config was actually updated.
-    //! Throws on error.
-    bool TryUpdateConfig();
-
-    void DoBuildOrchid(NYson::IYsonConsumer* consumer) const;
-
     const TDynamicConfigManagerOptions Options_;
     const TDynamicConfigManagerConfigPtr Config_;
 
@@ -83,27 +75,33 @@ private:
     const IInvokerPtr Invoker_;
     const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
 
-    //! Result of the last config update attempt.
-    TError Error_;
+    const NLogging::TLogger Logger;
+
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    TError UpdateError_;
     TError UnrecognizedOptionError_;
-
     TInstant LastConfigUpdateTime_;
-
-    NYTree::INodePtr AppliedConfigNode_;
-    TConfigPtr AppliedConfig_;
+    NYTree::IMapNodePtr AppliedConfigNode_ = NYTree::GetEphemeralNodeFactory()->CreateMap();
+    TConfigPtr AppliedConfig_ = New<TConfig>();
 
     std::vector<TString> InstanceTags_;
 
     //! This promise becomes set when dynamic config was loaded
     //! for the first time.
-    TPromise<void> ConfigLoadedPromise_ = NewPromise<void>();
+    const TPromise<void> ConfigLoadedPromise_ = NewPromise<void>();
 
-    const NLogging::TLogger Logger;
+    void DoUpdateConfig();
+
+    //! Returns |true| if config was actually updated.
+    //! Throws on error.
+    bool TryUpdateConfig();
+
+    void DoBuildOrchid(NYson::IYsonConsumer* consumer) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::DynamicConfig
+} // namespace NYT::NDynamicConfig
 
 #define DYNAMIC_CONFIG_MANAGER_INL_H
 #include "dynamic_config_manager-inl.h"

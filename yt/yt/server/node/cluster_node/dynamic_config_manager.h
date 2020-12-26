@@ -12,19 +12,19 @@ namespace NYT::NClusterNode {
 //! by pulling it periodically from masters.
 /*!
  *  \note
- *  Thread affinity: Control (unless noted otherwise)
+ *  Thread affinity: any
  */
 class TClusterNodeDynamicConfigManager
     : public NDynamicConfig::TDynamicConfigManagerBase<TClusterNodeDynamicConfig>
 {
 public:
-    TClusterNodeDynamicConfigManager(const TBootstrap* bootstrap);
+    explicit TClusterNodeDynamicConfigManager(TBootstrap* bootstrap);
 
 protected:
     virtual std::vector<TString> GetInstanceTags() const override;
 
 private:
-    const TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TClusterNodeDynamicConfigManager)

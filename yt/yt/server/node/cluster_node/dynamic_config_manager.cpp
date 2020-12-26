@@ -12,8 +12,8 @@ using namespace NDynamicConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(const TBootstrap* bootstrap)
-    : TDynamicConfigManagerBase<TClusterNodeDynamicConfig>(
+TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(TBootstrap* bootstrap)
+    : TDynamicConfigManagerBase(
         TDynamicConfigManagerOptions{
             .ConfigPath = "//sys/cluster_nodes/@config",
             .Name = "ClusterNode",
@@ -28,7 +28,7 @@ TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(const TBootst
         BIND([this, this_ = MakeStrong(this)] (std::vector<TError>* alerts) {
             auto errors = GetErrors();
             for (auto error : errors) {
-                alerts->push_back(error);
+                alerts->push_back(std::move(error));
             }
         }));
 }
