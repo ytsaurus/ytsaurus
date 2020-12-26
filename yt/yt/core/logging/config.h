@@ -21,6 +21,7 @@ public:
     size_t CompressionLevel;
     THashMap<TString, NYTree::INodePtr> CommonFields;
     bool EnableSystemMessages;
+    bool EnableSourceLocation;
 
     TWriterConfig()
     {
@@ -41,6 +42,8 @@ public:
         RegisterParameter("enable_system_messages", EnableSystemMessages)
             .Alias("enable_control_messages")
             .Default(true);
+        RegisterParameter("enable_source_location", EnableSourceLocation)
+            .Default(false);
 
         RegisterPostprocessor([&] () {
             if (Type == EWriterType::File && FileName.empty()) {
