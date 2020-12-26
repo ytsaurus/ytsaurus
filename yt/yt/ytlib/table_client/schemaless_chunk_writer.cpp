@@ -289,7 +289,7 @@ protected:
 
         block.Meta.set_block_index(BlockMetaExt_.blocks_size());
 
-        BlockMetaExtSize_ += block.Meta.ByteSize();
+        BlockMetaExtSize_ += block.Meta.ByteSizeLong();
         BlockMetaExt_.add_blocks()->Swap(&block.Meta);
 
         EncodingChunkWriter_->WriteBlock(std::move(block.Data), block.GroupIndex);

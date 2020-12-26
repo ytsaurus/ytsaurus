@@ -86,7 +86,7 @@ public:
 
     void WriteMessage(const ::google::protobuf::MessageLite& message)
     {
-        size_t size = static_cast<size_t>(message.ByteSize());
+        size_t size = static_cast<size_t>(message.ByteSizeLong());
         WriteUint64(size);
         EnsureAlignedUpCapacity(size);
         YT_VERIFY(message.SerializePartialToArray(Current_, size));

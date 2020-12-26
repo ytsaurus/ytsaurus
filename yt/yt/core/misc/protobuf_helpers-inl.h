@@ -170,7 +170,9 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
         extension = extensions->add_extensions();
     }
 
-    int size = value.ByteSize();
+    ui64 longSize = value.ByteSizeLong();
+    YT_VERIFY(longSize <= std::numeric_limits<ui32>::max());
+    ui32 size = static_cast<ui32>(longSize);
     TString str;
     str.resize(size);
     YT_VERIFY(value.SerializeToArray(str.begin(), size));

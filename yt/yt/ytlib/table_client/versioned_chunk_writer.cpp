@@ -397,7 +397,7 @@ private:
 
         YT_VERIFY(block.Meta.uncompressed_size() > 0);
 
-        BlockMetaExtSize_ += block.Meta.ByteSize();
+        BlockMetaExtSize_ += block.Meta.ByteSizeLong();
 
         BlockMetaExt_.add_blocks()->Swap(&block.Meta);
         EncodingChunkWriter_->WriteBlock(std::move(block.Data));
@@ -620,7 +620,7 @@ private:
         block.Meta.set_block_index(BlockMetaExt_.blocks_size());
         ToProto(block.Meta.mutable_last_key(), beginKey, endKey);
 
-        BlockMetaExtSize_ += block.Meta.ByteSize();
+        BlockMetaExtSize_ += block.Meta.ByteSizeLong();
 
         BlockMetaExt_.add_blocks()->Swap(&block.Meta);
         EncodingChunkWriter_->WriteBlock(std::move(block.Data));

@@ -111,7 +111,7 @@ TUnversionedOwningRow MakeRow(const std::initializer_list<TUnversionedValue>& ro
 TString LenvalBytes(const ::google::protobuf::Message& message)
 {
     TStringStream out;
-    ui32 messageSize = message.ByteSize();
+    ui32 messageSize = static_cast<ui32>(message.ByteSizeLong());
     out.Write(&messageSize, sizeof(messageSize));
     if (!message.SerializeToStream(&out)) {
         THROW_ERROR_EXCEPTION("Can not serialize message");
@@ -2686,7 +2686,7 @@ TEST(TProtobufFormat, ParseSeveralTables)
         TString lenvalBytes;
         {
             TStringOutput out(lenvalBytes);
-            auto messageSize = static_cast<ui32>(message.ByteSize());
+            auto messageSize = static_cast<ui32>(message.ByteSizeLong());
             out.Write(&messageSize, sizeof(messageSize));
             ASSERT_TRUE(message.SerializeToStream(&out));
         }
