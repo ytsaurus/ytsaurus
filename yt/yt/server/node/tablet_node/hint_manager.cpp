@@ -12,6 +12,7 @@ namespace NYT::NTabletNode {
 
 using namespace NClusterNode;
 using namespace NDynamicConfig;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +73,7 @@ public:
     bool IsReplicaClusterBanned(TStringBuf clusterName) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
-    
+
         if (!ReplicatorHintConfigFetcher_->IsConfigLoaded()) {
             return false;
         }

@@ -3,9 +3,11 @@
 #include "bootstrap.h"
 #include "config.h"
 
+#include <yt/server/lib/containers/instance_limits_tracker.h>
+
 #include <yt/server/node/tablet_node/slot_manager.h>
 
-#include <yt/server/lib/containers/instance_limits_tracker.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -81,8 +83,11 @@ double TNodeResourceManager::GetJobsCpuLimit() const
 
 TResourceLimitsConfigPtr TNodeResourceManager::GetResourceLimitsConfig() const
 {
-    auto dynamicConfig = Bootstrap_->GetDynamicConfig();
-    if (dynamicConfig && dynamicConfig->ResourceLimits) {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+    auto dynamicConfig = dynamicConfigManager->GetConfig();
+    if (dynamicConfig->ResourceLimits) {
         return dynamicConfig->ResourceLimits;
     }
 

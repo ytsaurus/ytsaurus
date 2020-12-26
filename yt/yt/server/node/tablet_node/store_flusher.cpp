@@ -14,6 +14,7 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/server/lib/hive/hive_manager.h>
 
@@ -181,12 +182,14 @@ private:
         DynamicMemoryUsageBackingCounter_.Update(BackingMemoryUsage_);
         DynamicMemoryUsageOtherCounter_.Update(otherUsage);
 
-        const auto& dynamicConfig = Bootstrap_->GetDynamicConfig()->TabletNode;
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode;
         bool enableForcedRotationBackingMemoryAccounting =
             dynamicConfig->EnableForcedRotationBackingMemoryAccounting.value_or(
                 Config_->EnableForcedRotationBackingMemoryAccounting);
         double forcedRotationMemoryRatio =
-            dynamicConfig->ForcedRotationMemoryRatio.value_or(Config_->ForcedRotationMemoryRatio);
+            dynamicConfig->ForcedRotationMemoryRatio.value_or(
+                Config_->ForcedRotationMemoryRatio);
 
         for (auto& pair : tabletCellBundles) {
             // NB: Cannot use structured bindings since 'isRotationForced' lambda modifies
