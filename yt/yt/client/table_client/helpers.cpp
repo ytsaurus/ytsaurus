@@ -529,7 +529,7 @@ void ProtobufToUnversionedValueImpl(
     const TRowBufferPtr& rowBuffer,
     int id)
 {
-    auto byteSize = value.ByteSize();
+    auto byteSize = value.ByteSizeLong();
     auto* pool = rowBuffer->GetPool();
     auto* wireBuffer = pool->AllocateUnaligned(byteSize);
     YT_VERIFY(value.SerializePartialToArray(wireBuffer, byteSize));

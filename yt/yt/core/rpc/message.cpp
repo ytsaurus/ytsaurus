@@ -41,7 +41,7 @@ size_t GetAllocationSpaceForProtoWithHeader(const google::protobuf::MessageLite&
 {
     return
         sizeof (TFixedMessageHeader) +
-        message.ByteSize();
+        message.ByteSizeLong();
 }
 
 void SerializeAndAddProtoWithHeader(
@@ -60,7 +60,7 @@ size_t GetAllocationSpaceForProtoWithEnvelope(const google::protobuf::MessageLit
 {
     return
         sizeof (TEnvelopeFixedHeader) +
-        message.ByteSize();
+        message.ByteSizeLong();
 }
 
 void SerializeAndAddProtoWithEnvelope(

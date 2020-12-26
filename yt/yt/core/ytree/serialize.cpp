@@ -137,7 +137,7 @@ void SerializeProtobufMessage(
     const TProtobufMessageType* type,
     NYson::IYsonConsumer* consumer)
 {
-    auto byteSize = message.ByteSize();
+    auto byteSize = message.ByteSizeLong();
     struct TProtobufToYsonTag { };
     TBlob wireBytes(GetRefCountedTypeCookie<TProtobufToYsonTag>(), byteSize, false);
     YT_VERIFY(message.SerializePartialToArray(wireBytes.Begin(), byteSize));
