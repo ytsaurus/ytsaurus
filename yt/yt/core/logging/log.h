@@ -13,6 +13,7 @@
 #include <yt/core/profiling/public.h>
 
 #include <util/system/thread.h>
+#include <util/system/src_location.h>
 
 #include <atomic>
 
@@ -62,6 +63,8 @@ struct TLogEvent
     NTracing::TTraceId TraceId = NTracing::InvalidTraceId;
 
     NTracing::TRequestId RequestId = NTracing::InvalidRequestId;
+    TStringBuf SourceFile;
+    int SourceLine = -1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,6 +187,7 @@ void LogStructuredEvent(const TLogger& logger,
             ::NYT::NLogging::NDetail::LogEventImpl( \
                 logger, \
                 level, \
+                __LOCATION__, \
                 std::move(message__##__LINE__)); \
         } \
     } while (false)

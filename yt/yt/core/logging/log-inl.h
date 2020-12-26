@@ -183,11 +183,14 @@ inline TLogEvent CreateLogEvent(const TLogger& logger, ELogLevel level)
 inline void LogEventImpl(
     const TLogger& logger,
     ELogLevel level,
+    ::TSourceLocation sourceLocation,
     TSharedRef message)
 {
     auto event = CreateLogEvent(logger, level);
     event.Message = std::move(message);
     event.MessageFormat = ELogMessageFormat::PlainText;
+    event.SourceFile = sourceLocation.File;
+    event.SourceLine = sourceLocation.Line;
     logger.Write(std::move(event));
 }
 

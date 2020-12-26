@@ -102,10 +102,13 @@ void TCachingDateFormatter::Update(TCpuInstant instant)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPlainTextLogFormatter::TPlainTextLogFormatter(bool enableControlMessages)
-    : Buffer_(new TMessageBuffer())
-    , CachingDateFormatter_(new TCachingDateFormatter())
+TPlainTextLogFormatter::TPlainTextLogFormatter(
+    bool enableControlMessages,
+    bool enableSourceLocation)
+    : Buffer_(std::make_unique<TMessageBuffer>())
+    , CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
     , EnableSystemMessages_(enableControlMessages)
+    , EnableSourceLocation_(enableSourceLocation)
 { }
 
 i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const
@@ -118,12 +121,15 @@ i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TL
     buffer->Reset();
 
     buffer->AppendString(CachingDateFormatter_->Format(event.Instant));
+
     buffer->AppendChar('\t');
 
     FormatLevel(buffer, event.Level);
+
     buffer->AppendChar('\t');
 
     buffer->AppendString(event.Category->Name);
+
     buffer->AppendChar('\t');
 
     // COMPAT(babenko)
@@ -131,6 +137,7 @@ i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TL
         buffer->AppendString(TStringBuf("Unexpected error: "));
     }
     FormatMessage(buffer, TStringBuf(event.Message.Begin(), event.Message.End()));
+
     buffer->AppendChar('\t');
 
     if (event.ThreadNameLength > 0) {
@@ -138,16 +145,30 @@ i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TL
     } else if (event.ThreadId != NConcurrency::InvalidThreadId) {
         buffer->AppendNumber(event.ThreadId, 16);
     }
+
     buffer->AppendChar('\t');
 
     if (event.FiberId != NConcurrency::InvalidFiberId) {
         buffer->AppendNumber(event.FiberId, 16);
     }
+
     buffer->AppendChar('\t');
 
     if (event.TraceId != NTracing::InvalidTraceId) {
         buffer->AppendGuid(event.TraceId);
     }
+
+    if (EnableSourceLocation_) {
+        if (event.SourceFile) {
+            auto sourceFile = event.SourceFile;
+            buffer->AppendString(sourceFile.RNextTok(LOCSLASH_C));
+            buffer->AppendChar(':');
+            buffer->AppendNumber(event.SourceLine);
+        }
+
+        buffer->AppendChar('\t');
+    }
+
     buffer->AppendChar('\n');
 
     outputStream->Write(buffer->GetData(), buffer->GetBytesWritten());

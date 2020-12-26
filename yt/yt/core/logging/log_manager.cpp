@@ -803,7 +803,8 @@ private:
             switch (config->AcceptedMessageFormat) {
                 case ELogMessageFormat::PlainText:
                     formatter = std::make_unique<TPlainTextLogFormatter>(
-                        config->EnableSystemMessages);
+                        config->EnableSystemMessages,
+                        config->EnableSourceLocation);
                     break;
                 case ELogMessageFormat::Structured:
                     formatter = std::make_unique<TJsonLogFormatter>(

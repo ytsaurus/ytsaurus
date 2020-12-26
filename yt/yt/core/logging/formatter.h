@@ -41,7 +41,9 @@ class TPlainTextLogFormatter
     : public ILogFormatter
 {
 public:
-    explicit TPlainTextLogFormatter(bool enableControlMessages = true);
+    explicit TPlainTextLogFormatter(
+        bool enableControlMessages = true,
+        bool enableSourceLocation = false);
 
     virtual i64  WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
     virtual void WriteLogReopenSeparator(IOutputStream* outputStream) const override;
@@ -52,6 +54,7 @@ private:
     const std::unique_ptr<TMessageBuffer> Buffer_;
     const std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
     const bool EnableSystemMessages_;
+    const bool EnableSourceLocation_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,7 +63,9 @@ class TJsonLogFormatter
     : public ILogFormatter
 {
 public:
-    TJsonLogFormatter(const THashMap<TString, NYTree::INodePtr>& commonFields, bool enableControlMessages = true);
+    TJsonLogFormatter(
+        const THashMap<TString, NYTree::INodePtr>& commonFields,
+        bool enableControlMessages = true);
 
     virtual i64 WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
     virtual void WriteLogReopenSeparator(IOutputStream* outputStream) const override;
