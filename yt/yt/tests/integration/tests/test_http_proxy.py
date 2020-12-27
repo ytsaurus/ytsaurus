@@ -1,6 +1,6 @@
 from proxy_format_config import _TestProxyFormatConfigBase
 
-from yt_env_setup import YTEnvSetup, wait, Restarter, MASTERS_SERVICE
+from yt_env_setup import YTEnvSetup, wait, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import *
 from yt_helpers import Metric
 
@@ -10,6 +10,7 @@ import yt.packages.requests as requests
 
 import json
 import struct
+import socket
 from datetime import datetime, timedelta
 
 
@@ -170,6 +171,17 @@ class TestHttpProxy(HttpProxyTestBase):
             return "prime" in config["tracing"]["user_sample_rate"]
 
         wait(config_updated)
+
+    @authors("prime")
+    def test_taken_port(self):
+        pytest.skip()
+
+        monitoring_port = self.Env.configs["node"][0]["monitoring_port"]
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        with Restarter(self.Env, NODES_SERVICE):
+            s.bind(("127.0.0.1", monitoring_port))
+            s.listen(1)
 
     @authors("greatkorn")
     def test_kill_nodes(self):

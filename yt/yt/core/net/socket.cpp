@@ -1,6 +1,9 @@
 #include "socket.h"
 #include "address.h"
 
+#include <util/system/env.h>
+#include <util/system/shellcommand.h>
+
 #include <yt/core/misc/proc.h>
 
 #ifdef _unix_
@@ -289,6 +292,20 @@ int ConnectSocket(SOCKET clientSocket, const TNetworkAddress& address)
 void BindSocket(SOCKET serverSocket, const TNetworkAddress& address)
 {
     if (bind(serverSocket, address.GetSockAddr(), address.GetLength()) != 0) {
+        if (GetEnv("YT_DEBUG_TAKEN_PORT")) {
+            try {
+                TShellCommand cmd("ss -tlpn");
+                cmd.Run();
+                Cerr << cmd.GetOutput() << Endl;
+
+                TShellCommand cmd2("ss -tpn");
+                cmd2.Run();
+                Cerr << cmd2.GetOutput() << Endl;
+            } catch (const std::exception& ex) {
+                Cerr << ex.what() << Endl;
+            }
+        }
+
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::TransportError,
             "Failed to bind a server socket to %v",
