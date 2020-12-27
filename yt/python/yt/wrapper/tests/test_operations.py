@@ -22,7 +22,7 @@ from yt.wrapper.skiff import convert_to_skiff_schema
 
 from yt.test_helpers import are_almost_equal
 
-from yt.yson import YsonMap, YsonList
+from yt.yson import YsonMap, YsonList, is_unicode, get_bytes
 from yt.skiff import SkiffTableSwitch
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
@@ -1439,8 +1439,8 @@ class TestPythonOperations(object):
         if not PY3:
             return
         def mapper(row):
-            row["is_unicode"] = row["string"].is_unicode()
-            row["bytes"] = row["string"].get_bytes()
+            row["is_unicode"] = is_unicode(row["string"])
+            row["bytes"] = get_bytes(row["string"])
             key = next(iter(row["any"]))
             assert key == b"key_\xFA"
             row["any_key"] = key

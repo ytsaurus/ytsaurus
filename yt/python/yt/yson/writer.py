@@ -225,7 +225,7 @@ class Dumper(object):
                                           context)
             result.append(_escape_bytes(obj.encode(self._encoding)))
         elif isinstance(obj, yson_types.YsonStringProxy):
-            result.append(_escape_bytes(obj.get_bytes()))
+            result.append(_escape_bytes(obj._bytes))
         else:
             assert False
         result.append(b'"')

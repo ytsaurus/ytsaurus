@@ -2,7 +2,8 @@
 
 from __future__ import absolute_import
 
-from yt.yson.yson_types import YsonEntity, YsonBoolean, YsonUnicode, YsonString
+from yt.yson.yson_types import (YsonEntity, YsonBoolean, YsonUnicode, YsonString,
+                                is_unicode, get_bytes)
 
 from yt.packages.six import PY3 # noqa
 
@@ -33,26 +34,27 @@ def test_boolean():
 def test_string():
     if PY3:
         a = YsonUnicode("Кириллица")
-        assert a.is_unicode()
-        assert a.get_bytes() == "Кириллица".encode("utf-8")
-        b = YsonUnicode("Мефодица", encoding="cp1251")
-        assert b.is_unicode()
-        assert b.get_bytes() == "Мефодица".encode("cp1251")
+        assert is_unicode(a)
+        assert get_bytes(a) == "Кириллица".encode("utf-8")
+        b = YsonUnicode("Мефодица")
+        assert is_unicode(b)
+        assert get_bytes(b, "cp1251") == "Мефодица".encode("cp1251")
     c = YsonString(b"Some bytes \xFF")
-    assert not c.is_unicode()
-    assert c.get_bytes() == b"Some bytes \xFF"
+    assert not is_unicode(c)
+    assert get_bytes(c) == b"Some bytes \xFF"
 
 
 @pytest.mark.skipif("not PY3")
 def test_string_proxy():
-    a = YsonStringProxy(b"aba")
-    assert not a.is_unicode()
-    assert a.get_bytes() == b"aba"
-    assert isinstance(a, YsonStringProxy)
+    a = YsonStringProxy()
+    a._bytes = b"aba"
+    assert not is_unicode(a)
+    assert get_bytes(a) == b"aba"
 
-    b = YsonStringProxy(b"\xFB")
-    assert not b.is_unicode()
-    assert b.get_bytes() == b"\xFB"
+    b = YsonStringProxy()
+    b._bytes = b"\xFB"
+    assert not is_unicode(b)
+    assert get_bytes(b) == b"\xFB"
 
     assert a == b"aba"
     assert b == b"\xFB"

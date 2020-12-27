@@ -62,10 +62,12 @@ PyObjectPtr TPythonStringCache::GetPythonString(TStringBuf string)
         item.EncodedKey = PyObjectPtr(PyUnicode_FromEncodedObject(item.OriginalKey.get(), Encoding_->data(), "strict"));
         if (!item.EncodedKey) {
             PyErr_Clear();
-            auto tuplePtr = PyObjectPtr(PyTuple_New(1));
-            PyTuple_SetItem(tuplePtr.get(), 0, Py::new_reference_to(item.OriginalKey.get()));
+            auto tuplePtr = PyObjectPtr(PyTuple_New(0));
             item.EncodedKey = PyObjectPtr(PyObject_CallObject(YsonStringProxy_.ptr(), tuplePtr.get()));
-            PyObject_SetAttrString(item.EncodedKey.get(), "_encoding", EncodingObject_.ptr());
+            if (!item.EncodedKey) {
+                throw Py::Exception();
+            }
+            PyObject_SetAttrString(item.EncodedKey.get(), "_bytes", item.OriginalKey.get());
         }
         weight += sizeof(PyObject) + Py_SIZE(item.EncodedKey.get());
     }

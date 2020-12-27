@@ -29,6 +29,7 @@ Py::Object CreateYsonObject(const std::string& className, const Py::Object& obje
     result.setAttr("attributes", attributes);
     return result;
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
@@ -37,19 +38,20 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static Py::Object GetMapKeyAsString(Py::Object key)
+static void ValidateKeyType(const Py::Object& key, TContext* context = nullptr)
 {
-    thread_local PyObject* YsonStringProxyClass = NPython::GetYsonTypeClass("YsonStringProxy");
+    thread_local auto* YsonStringProxyClass = NPython::GetYsonTypeClass("YsonStringProxy");
 
-    if (PyObject_IsInstance(key.ptr(), YsonStringProxyClass)) {
-        key = Py::Callable(key.getAttr("get_bytes")).apply(Py::Tuple(), Py::Dict());
+    if (!PyBytes_Check(key.ptr()) &&
+        !PyUnicode_Check(key.ptr()) &&
+        !PyObject_IsInstance(key.ptr(), YsonStringProxyClass))
+    {
+        if (context) {
+            throw CreateYsonError(Format("Map key should be string, found %Qv", Py::Repr(key)), context);
+        } else {
+            throw Py::RuntimeError(Format("Map key should be string, found %Qv", Py::Repr(key)));
+        }
     }
-
-    if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
-        throw Py::RuntimeError(Format("Map key should be string, found %Qv", Py::Repr(key)));
-    }
-
-    return key;
 }
 
 void SerializeLazyMapFragment(
@@ -68,8 +70,9 @@ void SerializeLazyMapFragment(
 
     TLazyYsonMapBase* obj = reinterpret_cast<TLazyYsonMapBase*>(map.ptr());
     for (const auto& item: *obj->Dict->GetUnderlyingHashMap()) {
-        const auto key = GetMapKeyAsString(item.first);
+        const auto& key = item.first;
         const auto& value = item.second;
+        ValidateKeyType(key);
 
         auto encodedKey = EncodeStringObject(key, encoding, context);
         auto mapKey = ConvertToStringBuf(encodedKey);
@@ -103,8 +106,9 @@ void SerializeMapFragment(
     auto onItem = [&] (PyObject* item) {
         auto itemGuard = Finally([item] () { Py::_XDECREF(item); });
 
-        auto key = GetMapKeyAsString(Py::Object(PyTuple_GetItem(item, 0), false));
+        auto key = Py::Object(PyTuple_GetItem(item, 0), false);
         auto value = Py::Object(PyTuple_GetItem(item, 1), false);
+        ValidateKeyType(key, context);
 
         auto encodedKey = EncodeStringObject(key, encoding, context);
         auto mapKey = ConvertToStringBuf(encodedKey);
@@ -121,7 +125,8 @@ void SerializeMapFragment(
         std::vector<std::pair<TString, PyObject*>> itemsSortedByKey;
 
         while (auto* item = PyIter_Next(*iterator)) {
-            auto key = GetMapKeyAsString(Py::Object(PyTuple_GetItem(item, 0), false));
+            auto key = Py::Object(PyTuple_GetItem(item, 0), false);
+            ValidateKeyType(key, context);
             auto encodedKey = EncodeStringObject(key, encoding, context);
             auto mapKey = ConvertToStringBuf(encodedKey);
             itemsSortedByKey.emplace_back(mapKey, item);
@@ -259,9 +264,6 @@ void Serialize(
     if (PyBytes_Check(obj.ptr()) || PyUnicode_Check(obj.ptr())) {
         auto encodedObj = EncodeStringObject(obj, encoding, context);
         consumer->OnStringScalar(ConvertToStringBuf(encodedObj));
-    } else if (PyObject_IsInstance(obj.ptr(), YsonStringProxyClass)) {
-        auto bytesObj = Py::Bytes(Py::Callable(obj.getAttr("get_bytes")).apply(Py::Tuple(), Py::Dict()));
-        consumer->OnStringScalar(ConvertToStringBuf(bytesObj));
 #if PY_MAJOR_VERSION < 3
     // Fast check for simple integers (python 3 has only long integers)
     } else if (PyInt_CheckExact(obj.ptr())) {
@@ -271,6 +273,11 @@ void Serialize(
         consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (Py::IsInteger(obj)) {
         SerializePythonInteger(obj, consumer, context);
+    } else if (PyObject_IsInstance(obj.ptr(), YsonStringProxyClass)) {
+        consumer->OnStringScalar(ConvertToStringBuf(obj.getAttr("_bytes")));
+    } else if (obj.hasAttr("to_yson_type") && obj.getAttr("to_yson_type").isCallable()) {
+        auto repr = obj.callMemberFunction("to_yson_type");
+        Serialize(repr, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth, context);
     } else if (obj.isMapping() && obj.hasAttr("items") || IsYsonLazyMap(obj.ptr())) {
         bool allowBeginEnd =  depth > 0 || ysonType != NYson::EYsonType::MapFragment;
         if (allowBeginEnd) {
@@ -296,9 +303,6 @@ void Serialize(
         consumer->OnDoubleScalar(Py::Float(obj));
     } else if (obj.isNone() || PyObject_IsInstance(obj.ptr(), YsonEntityClass)) {
         consumer->OnEntity();
-    } else if (obj.hasAttr("to_yson_type") && obj.getAttr("to_yson_type").isCallable()) {
-        auto repr = obj.callMemberFunction("to_yson_type");
-        Serialize(repr, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth, context);
     } else {
         throw CreateYsonError(
             Format(

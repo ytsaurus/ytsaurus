@@ -21,7 +21,7 @@ def to_yson_type(value, attributes=None, always_create_attributes=True, encoding
 
     if isinstance(value, text_type):
         if PY3:
-            result = YsonUnicode(value, encoding=encoding)
+            result = YsonUnicode(value)
         else:  # COMPAT
             result = YsonString(value.encode("utf-8"))
     elif isinstance(value, binary_type):
