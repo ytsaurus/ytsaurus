@@ -51,20 +51,12 @@ void TPythonObjectBuilder::OnStringScalar(TStringBuf value)
         AddObject(std::move(utf8String), YsonString);
 #else
         if (decodedString) {
-            auto obj = AddObject(
-                std::move(decodedString),
-                YsonUnicode,
-                EPythonObjectType::Other,
-                /* forceYsonTypeCreation */ true);
-            PyObject_SetAttrString(obj.get(), "_encoding", EncodingObject_.ptr());
+            auto obj = AddObject(std::move(decodedString), YsonUnicode);
         } else {
             PyErr_Clear();
-            AddObject(
-                std::move(bytes),
-                YsonStringProxy,
-                EPythonObjectType::Other,
-                /* forceYsonTypeCreation */ true);
-        } 
+            auto obj = AddObject(nullptr, YsonStringProxy);
+            PyObject_SetAttrString(obj.get(), "_bytes", bytes.get());
+        }
 #endif
     } else {
         AddObject(std::move(bytes), YsonString);
@@ -143,17 +135,21 @@ PyObjectPtr TPythonObjectBuilder::AddObject(
 {
     static const char* attributesStr = "attributes";
 
-    if (!obj) {
+    if (PyErr_Occurred()) {
         throw Py::Exception();
     }
 
-    if (Attributes_ || forceYsonTypeCreation || AlwaysCreateAttributes_) {
+    if (!obj) {
+        auto tuplePtr = PyObjectPtr(PyTuple_New(0));
+        obj = PyObjectPtr(PyObject_CallObject(type.ptr(), tuplePtr.get()));
+    } else if (Attributes_ || forceYsonTypeCreation || AlwaysCreateAttributes_) {
         auto tuplePtr = PyObjectPtr(PyTuple_New(1));
         PyTuple_SetItem(tuplePtr.get(), 0, Py::new_reference_to(obj.get()));
         obj = PyObjectPtr(PyObject_CallObject(type.ptr(), tuplePtr.get()));
-        if (!obj.get()) {
-            throw Py::Exception();
-        }
+    }
+
+    if (!obj) {
+        throw Py::Exception();
     }
 
     if (Attributes_) {

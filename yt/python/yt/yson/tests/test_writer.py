@@ -235,9 +235,13 @@ class YsonWriterTestBase(object):
 
     @pytest.mark.skipif("not PY3")
     def test_string_proxy(self):
-        d = {YsonStringProxy(b"\xFA"): "a"}
+        key = YsonStringProxy()
+        key._bytes = b"\xFA"
+        value = YsonStringProxy()
+        value._bytes = b"\xFB"
+        d = {key: "a"}
         assert self.dumps(d).lower() == b'{"\\xfa"="a";}'
-        d = {"b": YsonStringProxy(b"\xFB")}
+        d = {"b": value}
         assert self.dumps(d).lower() == b'{"b"="\\xfb";}'
 
 

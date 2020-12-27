@@ -52,9 +52,15 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>
             }
         }
         return Py::Bytes(PyUnicode_AsEncodedString(obj.ptr(), encoding->data(), "strict"), true);
-    } else {
+    } else if (PyBytes_Check(obj.ptr())) {
         return Py::Bytes(PyObject_Bytes(*obj), true);
+    } else {
+        thread_local auto* YsonStringProxyClass = NPython::GetYsonTypeClass("YsonStringProxy");
+        if (PyObject_IsInstance(obj.ptr(), YsonStringProxyClass)) {
+            return Py::Bytes(obj.getAttr("_bytes"));
+        }
     }
+    Y_FAIL();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

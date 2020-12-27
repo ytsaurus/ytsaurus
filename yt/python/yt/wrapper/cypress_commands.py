@@ -661,7 +661,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                 items_iter = iteritems(node.content)
             for key, value in items_iter:
                 if isinstance(key, yson.yson_types.YsonStringProxy):
-                    actual_key = to_response_key_type(escape_ypath_literal(key.get_bytes()))
+                    actual_key = to_response_key_type(escape_ypath_literal(yson.get_bytes(key)))
                 else:
                     actual_key = escape_ypath_literal(key, encoding=encoding)
                 path = to_response_key_type("/").join([node.path, actual_key])

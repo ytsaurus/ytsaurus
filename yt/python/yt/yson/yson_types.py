@@ -1,6 +1,7 @@
 from yt.packages.six import PY3, integer_types, binary_type, text_type
 from yt.common import YtError
 
+
 class YsonType(object):
     def __getattr__(self, attribute):
         if attribute == "attributes":
@@ -36,6 +37,7 @@ class YsonType(object):
             raise TypeError("unhashable type: YSON has non-trivial attributes")
         return hash(type_(self))
 
+
 class YsonString(binary_type, YsonType):
     def __eq__(self, other):
         # COMPAT: With implicit promotion of str to unicode it can make sense
@@ -53,18 +55,8 @@ class YsonString(binary_type, YsonType):
     def __repr__(self):
         return self.to_str(binary_type, repr)
 
-    def is_unicode(self):
-        return False
-
-    def get_bytes(self):
-        return self
 
 class YsonUnicode(text_type, YsonType):
-    def __new__(cls, s, encoding="utf-8"):
-        obj = text_type.__new__(cls, s)
-        obj._encoding = encoding
-        return obj
-
     def __eq__(self, other):
         if not isinstance(other, text_type):
             return NotImplemented
@@ -78,12 +70,6 @@ class YsonUnicode(text_type, YsonType):
 
     def __repr__(self):
         return self.to_str(text_type, repr)
-
-    def is_unicode(self):
-        return True
-
-    def get_bytes(self):
-        return self.encode(self._encoding)
 
 
 class NotUnicodeError(YtError):
@@ -101,7 +87,7 @@ def make_raise_not_unicode_error(name):
     def fun(self, *args, **kwargs):
         raise NotUnicodeError('Method "{}" is not allowed: YSON string "{}" '
                               "could not be decoded to Unicode, "
-                              "see THE DOC".format(name, truncate(self._b)))
+                              "see THE DOC".format(name, truncate(self._bytes)))
     return fun
 
 
@@ -138,33 +124,24 @@ def proxy(cls):
 
 
 # NB: This class is never returned by library in Python2.
+# NB: Don't create this class by hand, it should only be returned
+# from the library.
 @proxy
 class YsonStringProxy(YsonType):
-    def __init__(self, b):
-        assert PY3, "YsonStringProxy should not be used in Python 2"
-        assert isinstance(b, bytes)
-        self._b = b
-
-    def is_unicode(self):
-        return False
-
-    def get_bytes(self):
-        return self._b
-
     def __repr__(self):
-        value = "<YsonStringProxy>{!r}".format(self._b)
+        value = "<YsonStringProxy>{!r}".format(self._bytes)
         if self.has_attributes():
             return repr({"attributes": self.attributes, "value": value})
         return value
 
     def __hash__(self):
-        return hash(self._b)
+        return hash(self._bytes)
 
     def __eq__(self, other):
         if isinstance(other, bytes):
-            return self._b == bytes(other) and YsonType.__eq__(self, other)
+            return self._bytes == bytes(other) and YsonType.__eq__(self, other)
         elif isinstance(other, YsonStringProxy):
-            return self._b == other._b and YsonType.__eq__(self, other)
+            return self._bytes == other._bytes and YsonType.__eq__(self, other)
         else:
             return NotImplemented
 
@@ -172,10 +149,27 @@ class YsonStringProxy(YsonType):
         return not (self == other)
 
 
+def is_unicode(x):
+    return isinstance(x, text_type)
+
+
+def get_bytes(x, encoding="utf8"):
+    if isinstance(x, text_type):
+        return x.encode(encoding)
+    elif isinstance(x, YsonStringProxy):
+        return x._bytes
+    elif isinstance(x, binary_type):
+        return x
+    else:
+        raise TypeError("get_bytes() expected str, bytes or YsonStringProxy, got <{}>{!r}"
+                        .format(type(x), x))
+
+
 if PY3:
     _YsonIntegerBase = int
 else:
     _YsonIntegerBase = long
+
 
 class YsonIntegerBase(_YsonIntegerBase, YsonType):
     def __eq__(self, other):
@@ -195,11 +189,14 @@ class YsonIntegerBase(_YsonIntegerBase, YsonType):
     def __str__(self):
         return self.to_str(_YsonIntegerBase, str)
 
+
 class YsonInt64(YsonIntegerBase):
     pass
 
+
 class YsonUint64(YsonIntegerBase):
     pass
+
 
 class YsonDouble(float, YsonType):
     def __eq__(self, other):
@@ -218,6 +215,7 @@ class YsonDouble(float, YsonType):
 
     def __str__(self):
         return self.to_str(float, str)
+
 
 class YsonBoolean(int, YsonType):
     def __eq__(self, other):
@@ -240,6 +238,7 @@ class YsonBoolean(int, YsonType):
     def __str__(self):
         return self.__repr__()
 
+
 class YsonList(list, YsonType):
     def __eq__(self, other):
         if not isinstance(other, list):
@@ -258,6 +257,7 @@ class YsonList(list, YsonType):
     def __str__(self):
         return self.to_str(list, str)
 
+
 class YsonMap(dict, YsonType):
     def __eq__(self, other):
         if not isinstance(other, dict):
@@ -275,6 +275,7 @@ class YsonMap(dict, YsonType):
 
     def __str__(self):
         return self.to_str(dict, str)
+
 
 class YsonEntity(YsonType):
     def __init__(self, value=None):
