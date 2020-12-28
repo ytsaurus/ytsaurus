@@ -423,7 +423,6 @@ public:
 
     //! Additional number of bytes per tablet to charge each cell
     //! for balancing purposes.
-    //! NB: Changing this value will invalidate all changelogs!
     i64 TabletDataSizeFootprint;
 
     //! Chunk reader config for all dynamic tables.
