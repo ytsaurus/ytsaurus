@@ -2277,6 +2277,7 @@ done
                     "buffer_row_count": 1,
                 }
             })
+        op.track()
 
         assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
         assert get(op.get_path() + "/controller_orchid/progress/tasks/0/speculative_job_counter/aborted/scheduled/speculative_run_won") == 1
