@@ -2398,6 +2398,56 @@ for line in sys.stdin:
 
         assert sorted(list(read_table("//tmp/output"))) == sorted(expected)
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_tricky_read_limits(self, optimize_for):
+        # YT-14023.
+        create(
+            "table",
+            "//tmp/in",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string", "sort_order": "ascending"},
+                    {"name": "b", "type": "string", "sort_order": "ascending"},
+                ],
+                "optimize_for": optimize_for,
+            },
+        )
+
+        write_table(
+            "//tmp/in",
+            [
+                {"a": "1", "b": "1"},
+                {"a": "2", "b": "2"},
+                {"a": "2", "b": "3"},
+                {"a": "2", "b": "4"},
+                {"a": "5", "b": "2"},
+                {"a": "5", "b": "3"},
+                {"a": "5", "b": "4"},
+                {"a": "6", "b": "10"},
+            ],
+            sorted_by=["a", "b"],
+        )
+
+        create("table", "//tmp/out")
+
+        reduce(
+            in_='<ranges=[{lower_limit={key=["2";"3"]};upper_limit={key=["5";"4"]}}]>//tmp/in',
+            out="//tmp/out",
+            command="cat",
+            reduce_by=["a"],
+            spec={
+                "reducer": {"format": "dsv"},
+            },
+        )
+
+        assert read_table("//tmp/out") == [
+            {"a": "2", "b": "3"},
+            {"a": "2", "b": "4"},
+            {"a": "5", "b": "2"},
+            {"a": "5", "b": "3"},
+        ]
+
 ##################################################################
 
 

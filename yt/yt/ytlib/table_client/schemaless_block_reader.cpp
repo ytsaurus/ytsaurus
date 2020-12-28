@@ -22,14 +22,11 @@ THorizontalBlockReader::THorizontalBlockReader(
     , Meta_(meta)
     , IdMapping_(idMapping)
     , ChunkKeyColumnCount_(chunkKeyColumnCount)
-    , KeyColumnCount_(keyColumnCount)
+    , KeyColumnCount_(std::max(keyColumnCount, ChunkKeyColumnCount_))
     , ExtraColumnCount_(extraColumnCount)
 {
     YT_VERIFY(Meta_.row_count() > 0);
 
-    // TODO(max42): YT-14023. This line is clearly wrong.
-    // Fix it with a separate commit.
-    keyColumnCount = std::max(KeyColumnCount_, ChunkKeyColumnCount_);
     auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
     KeyBuffer_.reserve(keyDataSize);
     Key_ = TLegacyMutableKey::Create(KeyBuffer_.data(), KeyColumnCount_);
