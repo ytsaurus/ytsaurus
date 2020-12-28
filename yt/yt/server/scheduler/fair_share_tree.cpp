@@ -845,6 +845,7 @@ private:
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, NodeIdToLastPreemptiveSchedulingTimeLock_);
     THashMap<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
 
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, RegisteredSchedulingTagFiltersLock_);
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters_;
     std::vector<int> FreeSchedulingTagFilterIndexes_;
     struct TSchedulingTagFilterEntry
@@ -865,6 +866,7 @@ private:
         TRawPoolMap PoolNameToElement;
         THashMap<TString, int> ElementIndexes;
         TFairShareStrategyTreeConfigPtr Config;
+        TFairShareStrategyOperationControllerConfigPtr ControllerConfig;
         bool CoreProfilingCompatibilityEnabled;
 
         TOperationElement* FindOperationElement(TOperationId operationId) const
@@ -1038,7 +1040,7 @@ private:
     TEventTimer FairShareTextLogTimer_;
     TGauge PoolCountGauge_;
 
-    TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
+    std::atomic<TCpuInstant> LastSchedulingInformationLoggedTime_ = 0;
 
     std::pair<IFairShareTreeSnapshotPtr, TError> DoFairShareUpdateAt(TInstant now)
     {
@@ -1116,6 +1118,7 @@ private:
 
         rootElementSnapshot->RootElement = rootElement;
         rootElementSnapshot->Config = Config_;
+        rootElementSnapshot->ControllerConfig = ControllerConfig_;
         rootElementSnapshot->CoreProfilingCompatibilityEnabled = StrategyHost_->IsCoreProfilingCompatibilityEnabled();
 
         RootElementSnapshotPrecommit_ = rootElementSnapshot;
@@ -1142,10 +1145,16 @@ private:
             LastSchedulingInformationLoggedTime_ = now;
         }
 
+        std::vector<TSchedulingTagFilter> registeredSchedulingTagFilters;
+        {
+            auto guard = ReaderGuard(RegisteredSchedulingTagFiltersLock_);
+            registeredSchedulingTagFilters = RegisteredSchedulingTagFilters_;
+        }
+
         TFairShareContext context(
             schedulingContext,
             rootElementSnapshot->RootElement->GetTreeSize(),
-            RegisteredSchedulingTagFilters_,
+            std::move(registeredSchedulingTagFilters),
             enableSchedulingInfoLogging,
             Logger);
 
@@ -1266,7 +1275,7 @@ private:
                     YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v)",
                         jobInfo.Job->GetId(),
                         jobInfo.OperationElement->GetId());
-                    PreemptJob(jobInfo.Job, jobInfo.OperationElement, schedulingContext);
+                    PreemptJob(jobInfo.Job, jobInfo.OperationElement, rootElementSnapshot, schedulingContext);
                 } else {
                     currentResources += jobInfo.Job->ResourceUsage();
                 }
@@ -1315,10 +1324,11 @@ private:
         bool oneJobOnly)
     {
         auto& rootElement = rootElementSnapshot->RootElement;
+        const auto& controllerConfig = rootElementSnapshot->ControllerConfig;
 
         {
             bool prescheduleExecuted = false;
-            TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(ControllerConfig_->ScheduleJobsTimeout);
+            TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(controllerConfig->ScheduleJobsTimeout);
 
             TWallTimer scheduleTimer;
             while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
@@ -1376,7 +1386,8 @@ private:
         bool isAggressive)
     {
         auto& rootElement = rootElementSnapshot->RootElement;
-        auto& config = rootElementSnapshot->Config;
+        const auto& config = rootElementSnapshot->Config;
+        const auto& controllerConfig = rootElementSnapshot->ControllerConfig;
 
         // TODO(ignat): move this logic inside TFairShareContext.
         if (!context->GetHasAggressivelyStarvingElements()) {
@@ -1459,7 +1470,7 @@ private:
                 isAggressive);
 
             bool prescheduleExecuted = false;
-            TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(ControllerConfig_->ScheduleJobsTimeout);
+            TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(controllerConfig->ScheduleJobsTimeout);
 
             TWallTimer timer;
             while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
@@ -1563,7 +1574,7 @@ private:
             } else {
                 job->SetPreemptionReason(Format("Node resource limits violated"));
             }
-            PreemptJob(job, operationElement, context->SchedulingContext());
+            PreemptJob(job, operationElement, rootElementSnapshot, context->SchedulingContext());
         }
 
         for (; currentJobIndex < preemptableJobs.size(); ++currentJobIndex) {
@@ -1577,7 +1588,7 @@ private:
             if (!Dominates(operationElement->ResourceLimits(), operationElement->GetInstantResourceUsage())) {
                 job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
                     operationElement->GetId()));
-                PreemptJob(job, operationElement, context->SchedulingContext());
+                PreemptJob(job, operationElement, rootElementSnapshot, context->SchedulingContext());
                 continue;
             }
 
@@ -1585,7 +1596,7 @@ private:
             if (violatedPool) {
                 job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
                     violatedPool->GetId()));
-                PreemptJob(job, operationElement, context->SchedulingContext());
+                PreemptJob(job, operationElement, rootElementSnapshot, context->SchedulingContext());
             }
         }
 
@@ -1602,6 +1613,8 @@ private:
         const ISchedulingContextPtr& schedulingContext,
         const TRootElementSnapshotPtr& rootElementSnapshot)
     {
+        const auto& config = rootElementSnapshot->Config;
+
         YT_LOG_TRACE("Looking for gracefully preemptable jobs");
         for (const auto& job : schedulingContext->RunningJobs()) {
             if (job->GetPreemptionMode() != EPreemptionMode::Graceful || job->GetPreempted()) {
@@ -1618,7 +1631,7 @@ private:
             }
 
             if (operationElement->IsJobPreemptable(job->GetId(), /* aggressivePreemptionEnabled */ false)) {
-                schedulingContext->PreemptJob(job, Config_->JobGracefulInterruptTimeout);
+                schedulingContext->PreemptJob(job, config->JobGracefulInterruptTimeout);
             }
         }
     }
@@ -1626,13 +1639,16 @@ private:
     void PreemptJob(
         const TJobPtr& job,
         const TOperationElementPtr& operationElement,
+        const TRootElementSnapshotPtr& rootElementSnapshot,
         const ISchedulingContextPtr& schedulingContext) const
     {
+        const auto& config = rootElementSnapshot->Config;
+
         schedulingContext->ResourceUsage() -= job->ResourceUsage();
         operationElement->SetJobResourceUsage(job->GetId(), TJobResources());
         job->ResourceUsage() = {};
 
-        schedulingContext->PreemptJob(job, Config_->JobInterruptTimeout);
+        schedulingContext->PreemptJob(job, config->JobInterruptTimeout);
     }
 
     void DoRegisterPool(const TPoolPtr& pool)
@@ -1842,12 +1858,18 @@ private:
         if (it == SchedulingTagFilterToIndexAndCount_.end()) {
             int index;
             if (FreeSchedulingTagFilterIndexes_.empty()) {
+                auto guard = WriterGuard(RegisteredSchedulingTagFiltersLock_);
+
                 index = RegisteredSchedulingTagFilters_.size();
                 RegisteredSchedulingTagFilters_.push_back(filter);
             } else {
                 index = FreeSchedulingTagFilterIndexes_.back();
-                RegisteredSchedulingTagFilters_[index] = filter;
                 FreeSchedulingTagFilterIndexes_.pop_back();
+
+                {
+                    auto guard = WriterGuard(RegisteredSchedulingTagFiltersLock_);
+                    RegisteredSchedulingTagFilters_[index] = filter;
+                }
             }
             SchedulingTagFilterToIndexAndCount_.emplace(filter, TSchedulingTagFilterEntry({index, 1}));
             return index;
@@ -1862,7 +1884,14 @@ private:
         if (index == EmptySchedulingTagFilterIndex) {
             return;
         }
-        UnregisterSchedulingTagFilter(RegisteredSchedulingTagFilters_[index]);
+
+        TSchedulingTagFilter filter;
+        {
+            auto guard = ReaderGuard(RegisteredSchedulingTagFiltersLock_);
+            filter = RegisteredSchedulingTagFilters_[index];
+        }
+
+        UnregisterSchedulingTagFilter(filter);
     }
 
     void UnregisterSchedulingTagFilter(const TSchedulingTagFilter& filter)
@@ -1874,7 +1903,11 @@ private:
         YT_VERIFY(it != SchedulingTagFilterToIndexAndCount_.end());
         --it->second.Count;
         if (it->second.Count == 0) {
-            RegisteredSchedulingTagFilters_[it->second.Index] = EmptySchedulingTagFilter;
+            {
+                auto guard = WriterGuard(RegisteredSchedulingTagFiltersLock_);
+                RegisteredSchedulingTagFilters_[it->second.Index] = EmptySchedulingTagFilter;
+            }
+
             FreeSchedulingTagFilterIndexes_.push_back(it->second.Index);
             SchedulingTagFilterToIndexAndCount_.erase(it);
         }
