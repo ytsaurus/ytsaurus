@@ -1969,7 +1969,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
+ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     const TChunkStatePtr& chunkState,
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
@@ -2031,7 +2031,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
+ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     const TChunkStatePtr& chunkState,
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,

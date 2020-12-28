@@ -143,7 +143,7 @@ public:
             nullptr,
             nullptr);
 
-        auto schemalessReader = CreateSchemalessChunkReader(
+        auto schemalessReader = CreateSchemalessRangeChunkReader(
             chunkState,
             New<TColumnarChunkMeta>(*chunkMeta),
             New<TChunkReaderConfig>(),
