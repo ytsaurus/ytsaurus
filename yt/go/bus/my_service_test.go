@@ -2,7 +2,6 @@ package bus
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -15,18 +14,20 @@ import (
 
 	"a.yandex-team.ru/library/go/test/yatest"
 	myservice "a.yandex-team.ru/yt/go/proto/core/rpc/unittests"
+	"a.yandex-team.ru/yt/internal/go/tcptest"
 )
 
-func StartMyService(t *testing.T) (port string, stop func()) {
+func StartMyService(t *testing.T) (addr string, stop func()) {
 	t.Helper()
 
 	binary, err := yatest.BinaryPath("yt/yt/core/rpc/unittests/bin/bin")
 	require.NoError(t, err)
 
-	port, err = GetFreePort()
+	port, err := tcptest.GetFreePort()
 	require.NoError(t, err, "unable to get free port")
+	addr = net.JoinHostPort("localhost", strconv.Itoa(port))
 
-	cmd := exec.Command(binary, port)
+	cmd := exec.Command(binary, strconv.Itoa(port))
 	cmd.Stdout = nil
 	cmd.Stderr = os.Stderr
 
@@ -42,66 +43,14 @@ func StartMyService(t *testing.T) (port string, stop func()) {
 		<-done
 	}
 
-	if err = WaitForPort(t, time.Second*30, port); err != nil {
+	if err = tcptest.WaitForPort(port, time.Second*30); err != nil {
 		stop()
 	}
 
 	require.NoError(t, err)
-	t.Logf("started service on port %s", port)
+	t.Logf("started service on port %d", port)
 
 	return
-}
-
-// GetFreePort returns free local tcp port.
-func GetFreePort() (string, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return "", err
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = l.Close() }()
-
-	p := l.Addr().(*net.TCPAddr).Port
-
-	return strconv.Itoa(p), nil
-}
-
-// WaitForPort tries to connect to given local port with constant backoff.
-//
-// Returns error if port is not ready after timeout.
-func WaitForPort(t *testing.T, timeout time.Duration, port string) error {
-	t.Helper()
-
-	stopTimer := time.NewTimer(timeout)
-	defer stopTimer.Stop()
-
-	ticker := time.NewTicker(time.Millisecond * 100)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-stopTimer.C:
-			return fmt.Errorf("no server started listening on port %s after timeout %s", port, timeout)
-		case <-ticker.C:
-			if err := portIsReady(port); err != nil {
-				t.Logf("waiting for port: %s\n", err)
-				break
-			}
-			return nil
-		}
-	}
-}
-
-func portIsReady(port string) error {
-	conn, err := net.Dial("tcp", net.JoinHostPort("localhost", port))
-	if err != nil {
-		return err
-	}
-	return conn.Close()
 }
 
 type MyServiceClient interface {

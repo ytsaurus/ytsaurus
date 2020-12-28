@@ -15,6 +15,7 @@ import (
 	"a.yandex-team.ru/yt/go/proto/core/misc"
 	myservice "a.yandex-team.ru/yt/go/proto/core/rpc/unittests"
 	"a.yandex-team.ru/yt/go/yterrors"
+	"a.yandex-team.ru/yt/internal/go/tcptest"
 )
 
 type MyFeature int32
@@ -37,10 +38,8 @@ func (f MyFeature) String() string {
 func TestClient_Stop(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	port, stop := StartMyService(t)
+	addr, stop := StartMyService(t)
 	defer stop()
-
-	addr := "localhost:" + port
 
 	t.Run("StopWithoutActiveRequests", func(t *testing.T) {
 		conn, err := NewClient(context.Background(), addr)
@@ -89,10 +88,10 @@ func TestClient_Stop(t *testing.T) {
 func TestClient_errors(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	port, stop := StartMyService(t)
+	addr, stop := StartMyService(t)
 	defer stop()
 
-	c, err := NewMyServiceClient("localhost:" + port)
+	c, err := NewMyServiceClient(addr)
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -134,10 +133,10 @@ func TestClient_errors(t *testing.T) {
 	})
 
 	t.Run("DialError", func(t *testing.T) {
-		port, err := GetFreePort()
+		addr, err := tcptest.GetFreeAddr()
 		require.NoError(t, err)
 
-		_, err = NewMyServiceClient("localhost:" + port)
+		_, err = NewMyServiceClient(addr)
 		require.Error(t, err)
 	})
 
@@ -248,10 +247,8 @@ func TestClient_errors(t *testing.T) {
 func TestClient_features(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	port, stop := StartMyService(t)
+	addr, stop := StartMyService(t)
 	defer stop()
-
-	addr := "localhost:" + port
 
 	t.Run("RequiredServerFeatureSupported", func(t *testing.T) {
 		c, err := NewMyServiceClient(addr)
@@ -318,10 +315,10 @@ func TestClient_features(t *testing.T) {
 func TestMyService(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	port, stop := StartMyService(t)
+	addr, stop := StartMyService(t)
 	defer stop()
 
-	c, err := NewMyServiceClient("localhost:" + port)
+	c, err := NewMyServiceClient(addr)
 	require.NoError(t, err)
 	defer c.Close()
 

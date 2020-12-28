@@ -66,12 +66,12 @@ func dumpStderr(yc yt.Client, id yt.OperationID) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	result, err := yc.ListJobs(ctx, id, nil)
+	jobs, err := yt.ListAllJobs(ctx, yc, id, nil)
 	if err != nil {
 		return xerrors.Errorf("unable to list operation jobs: %w", err)
 	}
 
-	for _, job := range result.Jobs {
+	for _, job := range jobs {
 		data, err := yc.GetJobStderr(ctx, id, job.ID, nil)
 		if err != nil {
 			return xerrors.Errorf("unable to get stderr of job %s: %w", job.ID, err)

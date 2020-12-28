@@ -617,6 +617,7 @@ type OperationStatus struct {
 	Result            *OperationResult       `yson:"result"`
 	Type              OperationType          `yson:"type"`
 	BriefSpec         map[string]interface{} `yson:"brief_spec"`
+	FullSpec          yson.RawValue          `yson:"full_spec"`
 	StartTime         yson.Time              `yson:"start_time"`
 	Suspend           bool                   `yson:"suspend"`
 	AuthenticatedUsed string                 `yson:"authenticated_used"`

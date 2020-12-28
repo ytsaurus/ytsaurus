@@ -186,6 +186,19 @@ func (s *Spec) AddSecureVaultVar(name, value string) *Spec {
 	return s
 }
 
+func (s *Spec) AddAnnotations(annotations map[string]interface{}) *Spec {
+	if s.Annotations == nil {
+		s.Annotations = annotations
+		return s
+	}
+
+	for k, v := range annotations {
+		s.Annotations[k] = v
+	}
+
+	return s
+}
+
 func (s *Spec) Clone() *Spec {
 	return copystructure.Must(copystructure.Copy(s)).(*Spec)
 }
