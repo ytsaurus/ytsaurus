@@ -39,6 +39,35 @@ public:
     //! Same as previous but for rvalue refs.
     static TKeyBound FromRowUnchecked(TRow&& row, bool isInclusive, bool isUpper);
 
+    // In order to reduce amount of repetitive constructions like
+    //
+    //   TKeyBound::FromRow(row, /* isInclusive */ true, /* isUpper */ false)
+    //
+    // with two flags known in compile-time, we introduce a helper class
+    // allowing you to build key bounds as follows:
+    //
+    //   TKeyBound::FromRow() >= row
+    //
+    // These helpers also support unchecked variant of static constructors above.
+    // They work both for owning and non-owning kinds of key bound.
+    #define XX(suffix) \
+        struct TBuilder ## suffix { \
+            TKeyBound operator > (const TRow& row) { return TKeyBound::FromRow ## suffix(row, false, false); } \
+            TKeyBound operator >=(const TRow& row) { return TKeyBound::FromRow ## suffix(row, true , false); } \
+            TKeyBound operator < (const TRow& row) { return TKeyBound::FromRow ## suffix(row, false, true ); } \
+            TKeyBound operator <=(const TRow& row) { return TKeyBound::FromRow ## suffix(row, true , true ); } \
+            TKeyBound operator > (TRow&& row) { return TKeyBound::FromRow ## suffix(row, false, false); } \
+            TKeyBound operator >=(TRow&& row) { return TKeyBound::FromRow ## suffix(row, true , false); } \
+            TKeyBound operator < (TRow&& row) { return TKeyBound::FromRow ## suffix(row, false, true ); } \
+            TKeyBound operator <=(TRow&& row) { return TKeyBound::FromRow ## suffix(row, true , true ); } \
+        }; \
+        TBuilder ## suffix static FromRow ## suffix() { return TBuilder##suffix(); }
+
+    XX()
+    XX(Unchecked)
+
+    #undef XX
+
     //! Return a key bound that allows any key.
     static TKeyBound MakeUniversal(bool isUpper);
 

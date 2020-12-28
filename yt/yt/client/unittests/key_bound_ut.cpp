@@ -50,6 +50,42 @@ TEST(TKeyBoundTest, Simple)
     }
 }
 
+TEST(TKeyBound, Helper)
+{
+    TUnversionedOwningRowBuilder builder;
+    builder.AddValue(MakeUnversionedDoubleValue(3.14, 0));
+    builder.AddValue(MakeUnversionedInt64Value(-42, 1));
+    builder.AddValue(MakeUnversionedUint64Value(27, 2));
+    TString str = "Foo";
+    builder.AddValue(MakeUnversionedStringValue(str, 3));
+
+    auto owningRow = builder.FinishRow();
+
+    auto explicitGT = TOwningKeyBound::FromRow(owningRow, /* isInclusive */ false, /* isUpper */ false);
+    auto helperGT = TOwningKeyBound::FromRow() > owningRow;
+    auto helperGTUnchecked = TOwningKeyBound::FromRowUnchecked() > owningRow;
+    EXPECT_EQ(explicitGT, helperGT);
+    EXPECT_EQ(explicitGT, helperGTUnchecked);
+
+    auto explicitGE = TOwningKeyBound::FromRow(owningRow, /* isInclusive */ true, /* isUpper */ false);
+    auto helperGE = TOwningKeyBound::FromRow() >= owningRow;
+    auto helperGEUnchecked = TOwningKeyBound::FromRowUnchecked() >= owningRow;
+    EXPECT_EQ(explicitGE, helperGE);
+    EXPECT_EQ(explicitGE, helperGEUnchecked);
+
+    auto explicitLT = TOwningKeyBound::FromRow(owningRow, /* isInclusive */ false, /* isUpper */ true);
+    auto helperLT = TOwningKeyBound::FromRow() < owningRow;
+    auto helperLTUnchecked = TOwningKeyBound::FromRowUnchecked() < owningRow;
+    EXPECT_EQ(explicitLT, helperLT);
+    EXPECT_EQ(explicitLT, helperLTUnchecked);
+
+    auto explicitLE = TOwningKeyBound::FromRow(owningRow, /* isInclusive */ true, /* isUpper */ true);
+    auto helperLE = TOwningKeyBound::FromRow() <= owningRow;
+    auto helperLEUnchecked = TOwningKeyBound::FromRowUnchecked() <= owningRow;
+    EXPECT_EQ(explicitLE, helperLE);
+    EXPECT_EQ(explicitLE, helperLEUnchecked);
+}
+
 TEST(TKeyBoundTest, KeyBoundToLegacyRow)
 {
     auto intValue = MakeUnversionedInt64Value(42);
