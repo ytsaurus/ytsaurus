@@ -123,10 +123,10 @@ DEFINE_ENUM(EMasterReign,
     ((RevertRemoveTypeV2_20_3_Only)                                 (1438))  // ermolovd
     ((BannedReplicaClusterList)                                     (1439))  // akozhikhov
     ((ReplicationLagInRTT)                                          (1440))  // akozhikhov
+    ((ClearSetBeforeDeserialization)                                (1441))  // eshcherbin
     // Late 20.3 starts here.
     ((OrderedRemoteDynamicStoreReader)                              (1444))  // ifsmirnov
     ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
-    ((ClearSetBeforeDeserialization)                                (1446))  // eshcherbin
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42
