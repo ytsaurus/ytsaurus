@@ -58,9 +58,9 @@ def init_environment_for_test_session(mode, **kwargs):
 def test_function_setup():
     yt.mkdir(TEST_DIR, recursive=True)
 
-def register_test_function_finalizer(request):
+def register_test_function_finalizer(request, remove_operations_archive=True):
     request.addfinalizer(lambda: yt.remove(TEST_DIR, recursive=True, force=True))
-    request.addfinalizer(test_method_teardown)
+    request.addfinalizer(lambda: test_method_teardown(remove_operations_archive=remove_operations_archive))
 
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4"])
 def test_environment(request):
@@ -300,7 +300,7 @@ def yt_env_job_archive(request, test_environment_job_archive):
     test_environment_job_archive.check_liveness()
     test_environment_job_archive.reload_global_configuration()
     test_function_setup()
-    register_test_function_finalizer(request)
+    register_test_function_finalizer(request, remove_operations_archive=False)
     return test_environment_job_archive
 
 @pytest.fixture(scope="function")
