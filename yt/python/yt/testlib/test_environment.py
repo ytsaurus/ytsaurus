@@ -1,13 +1,15 @@
 from __future__ import print_function
 
-from yt.test_helpers import wait
 from .helpers import yatest_common
+
+from yt.test_helpers import wait
+import yt.test_helpers.cleanup as test_cleanup
 
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
-from yt.wrapper.common import update, update_inplace, MB
+from yt.wrapper.common import update, update_inplace, MB, YtError
 from yt.common import format_error
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
 
@@ -247,7 +249,7 @@ class YtTestEnvironment(object):
         for module in list(itervalues(sys.modules)):
             hasattr(module, "__file__")
 
-    def cleanup(self):
+    def cleanup(self, remove_operations_archive=True):
         self.reload_global_configuration()
         self.env.stop()
         self.env.remove_runtime_data()
@@ -270,91 +272,52 @@ class YtTestEnvironment(object):
         yt._cleanup_http_session()
         yt.config.config = self.config
 
-# TODO(ignat): fix this copypaste from yt_env_setup
-def _remove_operations():
+def _cleanup_transactions():
+    test_cleanup.abort_transactions(
+        list_action=yt.list,
+        abort_action=yt.abort_transaction)
+
+def _cleanup_operations(remove_operations_archive):
     if yt.get("//sys/scheduler/instances/@count") == 0:
         return
 
-    operation_from_orchid = []
-    try:
-        operation_from_orchid = [op_id for op_id in yt.list("//sys/scheduler/orchid/scheduler/operations")
-                                 if not op_id.startswith("*")]
-    except yt.YtError as err:
-        print(format_error(err), file=sys.stderr)
+    test_cleanup.cleanup_operations(
+        list_action=yt.list,
+        abort_action=yt.abort_operation,
+        remove_action=yt.remove,
+        remove_operations_archive=remove_operations_archive)
 
-    for operation_id in operation_from_orchid:
-        try:
-            yt.abort_operation(operation_id)
-        except yt.YtError as err:
-            print(format_error(err), file=sys.stderr)
+def _cleanup_objects(object_ids_to_ignore):
+    def remove_multiple_action(remove_kwargs):
+        for kwargs in remove_kwargs:
+            try:
+                yt.remove(**kwargs)
+            except YtError:
+                pass
 
-    yt.remove("//sys/operations/*")
+    test_cleanup.cleanup_objects(
+        list_multiple_action=lambda list_kwargs: [yt.list(**kwargs) for kwargs in list_kwargs],
+        remove_multiple_action=remove_multiple_action,
+        exists_multiple_action=lambda object_ids: [yt.exists(object_id) for object_id in object_ids],
+        object_ids_to_ignore=object_ids_to_ignore)
 
-def _remove_objects():
-    TYPES = [
-        "accounts",
-        "users",
-        "groups",
-        "racks",
-        "data_centers",
-        "tablet_cells",
-        "tablet_cell_bundles",
-    ]
-
-    object_ids_to_remove = []
-    object_ids_to_check = []
-    for type in TYPES:
-
-        objects = yt.list("//sys/" + ("account_tree" if type == "accounts" else type),
-                          attributes=["id", "builtin", "life_stage"])
-        for object in objects:
-            if object.attributes["builtin"]:
-                continue
-            if type == "users" and str(object) == "application_operations":
-                continue
-            if type == "accounts" and str(object) == "operations_archive":
-                continue
-
-            id = object.attributes["id"]
-            if type == "tablet_cells":
-                try:
-                    if any([yt.get("#" + tablet_id + "/@table_path").startswith("//sys/operations_archive")
-                           for tablet_id in yt.get("#" + id + "/@tablet_ids")]):
-                        continue
-                except yt.YtError:
-                    pass
-
-            object_ids_to_check.append(id)
-            if object.attributes["life_stage"] == "creation_committed":
-                object_ids_to_remove.append(id)
-
-    for id in object_ids_to_remove:
-        yt.remove("#" + id, force=True, recursive=True)
-
-    for id in object_ids_to_check:
-        wait(lambda: not yt.exists("#" + id))
-
-# TODO(ignat): fix copy/paste from integration tests.
-def test_method_teardown():
+def test_method_teardown(remove_operations_archive=True):
     if yt.config["backend"] == "proxy":
         assert yt.config["proxy"]["url"].startswith("localhost")
 
-    for tx in yt.list("//sys/transactions", attributes=["title"]):
-        title = tx.attributes.get("title", "")
-        if "Scheduler lock" in title:
-            continue
-        if "Controller agent incarnation" in title:
-            continue
-        if "Lease for" in title:
-            continue
-        if "Prerequisite for" in title:
-            continue
-        try:
-            yt.abort_transaction(tx)
-        except:
-            pass
+    object_ids_to_ignore = set()
+    if not remove_operations_archive:
+        for table in yt.list("//sys/operations_archive"):
+            for tablet in yt.get("//sys/operations_archive/{}/@tablets".format(table)):
+                object_ids_to_ignore.add(tablet["cell_id"])
+        object_ids_to_ignore.add(yt.get("//sys/accounts/operations_archive/@id"))
 
+    _cleanup_transactions()
+    _cleanup_operations(remove_operations_archive=remove_operations_archive)
+
+    # This should be done before remove of other objects
+    # (since account cannot be removed, if some objects belong to account).
     yt.remove("//tmp/*", recursive=True)
 
-    _remove_operations()
-    _remove_objects()
+    _cleanup_objects(object_ids_to_ignore=object_ids_to_ignore)
+

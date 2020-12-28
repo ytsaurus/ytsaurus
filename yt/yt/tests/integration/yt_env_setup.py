@@ -18,6 +18,7 @@ from yt.environment.helpers import (  # noqa
 )
 
 from yt.test_helpers import wait, WaitFailed
+import yt.test_helpers.cleanup as test_cleanup
 from yt.common import makedirp, YtError, YtResponseError, format_error, update_inplace
 import yt.logger
 
@@ -770,21 +771,15 @@ class YTEnvSetup(object):
         yt_commands.reset_events_on_fs()
 
     def _abort_transactions(self, driver=None):
-        command_name = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
+        abort_command = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
         requests = []
-        for tx in yt_commands.ls("//sys/transactions", attributes=["title"], driver=driver):
-            title = tx.attributes.get("title", "")
-            id = str(tx)
-            if "Scheduler lock" in title:
-                continue
-            if "Controller agent incarnation" in title:
-                continue
-            if "Lease for node" in title:
-                continue
-            if "World initialization" in title:
-                continue
-            requests.append(yt_commands.make_batch_request(command_name, transaction_id=id))
-        yt_commands.execute_batch(requests, driver=driver)
+
+        test_cleanup.abort_transactions(
+            list_action=lambda *args, **kwargs: yt_commands.ls(*args, driver=driver, **kwargs),
+            abort_action=lambda transaction_id: requests.append(
+                yt_commands.make_batch_request(abort_command, transaction_id=transaction_id)))
+
+        yt_commands.execute_batch(requests)
 
     def _reset_nodes(self, driver=None):
         boolean_attributes = [
@@ -833,66 +828,39 @@ class YTEnvSetup(object):
             assert not yt_commands.get_batch_error(response)
 
     def _remove_objects(self, enable_secondary_cells_cleanup, driver=None):
-        TYPES = [
-            "accounts",
-            "users",
-            "groups",
-            "racks",
-            "data_centers",
-            "tablet_cells",
-            "tablet_cell_bundles",
-            "network_projects",
-        ]
-
-        if enable_secondary_cells_cleanup:
-            TYPES = TYPES + ["tablet_actions"]
-
-        list_objects_results = yt_commands.execute_batch(
-            [
-                yt_commands.make_batch_request(
-                    "list",
-                    return_only_value=True,
-                    path="//sys/" + ("account_tree" if type == "accounts" else type),
-                    attributes=["id", "builtin", "life_stage"],
-                )
-                for type in TYPES
-            ],
-            driver=driver,
-        )
-
-        object_ids_to_remove = []
-        object_ids_to_check = []
-        for index, type in enumerate(TYPES):
-            objects = yt_commands.get_batch_output(list_objects_results[index])
-            for object in objects:
-                if object.attributes["builtin"]:
-                    continue
-                if type == "users" and str(object) == "application_operations":
-                    continue
-                id = object.attributes["id"]
-                object_ids_to_check.append(id)
-                life_stage = object.attributes["life_stage"]
-                if life_stage == "creation_committed" or life_stage == "creation_pre_committed":
-                    object_ids_to_remove.append(id)
-
-        def do():
-            yt_commands.gc_collect(driver=driver)
-
-            yt_commands.execute_batch(
-                [yt_commands.make_batch_request("remove", path="#" + id, force=True) for id in object_ids_to_remove],
-                driver=driver,
-            )
-
-            results = yt_commands.execute_batch(
+        def list_multiple_action(list_kwargs):
+            responses = yt_commands.execute_batch(
                 [
-                    yt_commands.make_batch_request("exists", path="#" + id, return_only_value=True)
-                    for id in object_ids_to_check
+                    yt_commands.make_batch_request("list", return_only_value=True, **kwargs)
+                    for kwargs in list_kwargs
                 ],
-                driver=driver,
-            )
-            return all(not yt_commands.get_batch_output(result)["value"] for result in results)
+                driver=driver)
+            return [yt_commands.get_batch_output(response) for response in responses]
 
-        wait(do)
+        def remove_multiple_action(remove_kwargs):
+            yt_commands.gc_collect(driver=driver)
+            yt_commands.execute_batch(
+                [
+                    yt_commands.make_batch_request("remove", **kwargs)
+                    for kwargs in remove_kwargs
+                ],
+                driver=driver)
+
+        def exists_multiple_action(object_ids):
+            responses = yt_commands.execute_batch(
+                [
+                    yt_commands.make_batch_request("exists", path=object_id, return_only_value=True)
+                    for object_id in object_ids
+                ],
+                driver=driver)
+            return [yt_commands.get_batch_output(response)["value"] for response in responses]
+
+        test_cleanup.cleanup_objects(
+            list_multiple_action=list_multiple_action,
+            remove_multiple_action=remove_multiple_action,
+            exists_multiple_action=exists_multiple_action,
+            enable_secondary_cells_cleanup=enable_secondary_cells_cleanup,
+        )
 
     def _wait_for_scheduler_state_restored(self, driver=None):
         node_count = len(yt_commands.ls("//sys/cluster_nodes", driver=driver))
@@ -1114,37 +1082,31 @@ class YTEnvSetup(object):
         _retry_with_gc_collect(do, driver=driver)
 
     def _remove_operations(self, driver=None):
-        command_name = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"
+        abort_command = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"
 
         if yt_commands.get("//sys/scheduler/instances/@count", driver=driver) == 0:
             return
 
-        operations_from_orchid = []
-        try:
-            operations_from_orchid = yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver)
-        except YtError as err:
-            print(format_error(err), file=sys.stderr)
+        abort_requests = []
+        remove_requests = []
 
-        requests = []
-        for operation_id in operations_from_orchid:
-            if not operation_id.startswith("*"):
-                requests.append(yt_commands.make_batch_request(command_name, operation_id=operation_id))
+        test_cleanup.cleanup_operations(
+            list_action=lambda *args, **kwargs: yt_commands.ls(*args, driver=driver, **kwargs),
+            abort_action=lambda operation_id: abort_requests.append(
+                yt_commands.make_batch_request(abort_command, operation_id=operation_id)),
+            remove_action=lambda *args, **kwargs: remove_requests.append(
+                yt_commands.make_batch_request("remove", *args, **kwargs)),
+        )
 
-        responses = yt_commands.execute_batch(requests, driver=driver)
-        for response in responses:
+        for response in yt_commands.execute_batch(abort_requests, driver=driver):
             err = yt_commands.get_batch_error(response)
             if err is not None:
                 print(format_error(err), file=sys.stderr)
 
+        # TODO(ignat): is it actually need to be called here?
         self._abort_transactions(driver=driver)
 
-        for response in yt_commands.execute_batch(
-            [
-                yt_commands.make_batch_request("remove", path="//sys/operations/*"),
-                yt_commands.make_batch_request("remove", path="//sys/operations_archive", force=True),
-            ],
-            driver=driver,
-        ):
+        for response in yt_commands.execute_batch(remove_requests, driver=driver):
             assert not yt_commands.get_batch_error(response)
 
     def _wait_for_jobs_to_vanish(self, driver=None):
