@@ -1739,7 +1739,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     TLegacyReadLimit(TLegacyOwningKey(cappedBounds.Front().first)),
                     TLegacyReadLimit(TLegacyOwningKey(cappedBounds.Front().second)));
 
-                return CreateSchemalessChunkReader(
+                return CreateSchemalessRangeChunkReader(
                     chunkState,
                     chunkMeta,
                     config,
@@ -1896,7 +1896,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
 
-                return CreateSchemalessChunkReader(
+                return CreateSchemalessLookupChunkReader(
                     chunkState,
                     chunkMeta,
                     config,

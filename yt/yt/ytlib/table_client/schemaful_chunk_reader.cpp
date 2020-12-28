@@ -59,7 +59,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
         case ETableChunkFormat::UnversionedColumnar:
         case ETableChunkFormat::SchemalessHorizontal: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
-                return CreateSchemalessChunkReader(
+                return CreateSchemalessRangeChunkReader(
                     chunkState,
                     chunkMeta,
                     std::move(config),

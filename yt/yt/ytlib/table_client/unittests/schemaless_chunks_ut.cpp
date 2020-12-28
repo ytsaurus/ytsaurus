@@ -320,7 +320,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
     TClientBlockReadOptions blockReadOptions;
     blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
-    auto chunkReader = CreateSchemalessChunkReader(
+    auto chunkReader = CreateSchemalessRangeChunkReader(
         std::move(chunkState),
         ChunkMeta_,
         New<TChunkReaderConfig>(),
@@ -468,7 +468,7 @@ protected:
         TClientBlockReadOptions blockReadOptions;
         blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
-        return CreateSchemalessChunkReader(
+        return CreateSchemalessRangeChunkReader(
             ChunkState_,
             ChunkMeta_,
             New<TChunkReaderConfig>(),
@@ -716,7 +716,7 @@ protected:
             nullptr,
             nullptr);
 
-        return CreateSchemalessChunkReader(
+        return CreateSchemalessLookupChunkReader(
             std::move(chunkState),
             chunkMeta,
             New<TChunkReaderConfig>(),

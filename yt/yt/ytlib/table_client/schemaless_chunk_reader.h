@@ -43,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
+ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     const TChunkStatePtr& chunkState,
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
@@ -60,7 +60,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     int virtualKeyPrefixLength = 0,
     std::optional<i64> virtualRowIndex = std::nullopt);
 
-ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
+ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     const TChunkStatePtr& chunkState,
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,

@@ -209,7 +209,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
                         auto chunkReaderMemoryManager = multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate);
 
-                        return CreateSchemalessChunkReader(
+                        return CreateSchemalessRangeChunkReader(
                             std::move(chunkState),
                             std::move(chunkMeta),
                             PatchConfig(config, memoryEstimate),
