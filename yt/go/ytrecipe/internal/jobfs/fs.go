@@ -77,14 +77,18 @@ func (h MD5) String() string {
 }
 
 type TarDir struct {
-	LocalPath   string
 	CypressPath ypath.Path
+	LocalPath   []string
+}
+
+type FilePath struct {
+	Path       string
+	Executable bool
 }
 
 type File struct {
-	LocalPath   string
-	Executable  bool
 	CypressPath ypath.Path
+	LocalPath   []FilePath
 }
 
 // FS describes local file system that should be efficiently transferred to and from YT.
@@ -138,7 +142,12 @@ func (fs *FS) AddHashedTarDir(ref PathRef) error {
 	}
 
 	fs.TotalSize += size
-	fs.TarDirs[ref.MD5] = &TarDir{LocalPath: ref.Path}
+	if d, ok := fs.TarDirs[ref.MD5]; ok {
+		d.LocalPath = append(d.LocalPath, ref.Path)
+	} else {
+		fs.TarDirs[ref.MD5] = &TarDir{LocalPath: []string{ref.Path}}
+	}
+
 	return nil
 }
 
@@ -172,9 +181,16 @@ func (fs *FS) AddHashedFile(ref PathRef) error {
 	}
 
 	fs.TotalSize += st.Size()
-	fs.Files[ref.MD5] = &File{
-		LocalPath:  ref.Path,
+
+	localPath := FilePath{
+		Path:       ref.Path,
 		Executable: st.Mode()&0100 != 0,
+	}
+
+	if f, ok := fs.Files[ref.MD5]; ok {
+		f.LocalPath = append(f.LocalPath, localPath)
+	} else {
+		fs.Files[ref.MD5] = &File{LocalPath: []FilePath{localPath}}
 	}
 	return nil
 }
@@ -221,7 +237,7 @@ func (fs *FS) AddStructure(dir string) error {
 	})
 }
 
-func copyFile(src, dst string) (int64, error) {
+func copyFile(src, dst string, destroySrc bool) (int64, error) {
 	in, err := os.OpenFile(src, os.O_RDWR, 0)
 	if err != nil {
 		return 0, err
@@ -234,7 +250,14 @@ func copyFile(src, dst string) (int64, error) {
 	}
 	defer out.Close()
 
-	n, err := io.CopyBuffer(out, &punchholeReader{f: in}, make([]byte, bufferSize))
+	var r io.Reader
+	if destroySrc {
+		r = &punchholeReader{f: in}
+	} else {
+		r = in
+	}
+
+	n, err := io.CopyBuffer(out, r, make([]byte, bufferSize))
 	if err != nil {
 		return n, err
 	}
@@ -342,13 +365,17 @@ func (fs *FS) LocateBindPoints() ([]string, error) {
 	}
 
 	for _, d := range fs.TarDirs {
-		visit(d.LocalPath, true)
+		for _, p := range d.LocalPath {
+			visit(p, true)
+		}
 	}
 	for d := range fs.Dirs {
 		visit(d, true)
 	}
 	for _, f := range fs.Files {
-		visit(f.LocalPath, false)
+		for _, p := range f.LocalPath {
+			visit(p.Path, false)
+		}
 	}
 	for s := range fs.Symlinks {
 		visit(s, false)
@@ -382,11 +409,15 @@ func (fs *FS) Recreate(l log.Structured) (err error) {
 	}
 
 	for _, tar := range fs.TarDirs {
-		mkdirAll(tar.LocalPath)
+		for _, p := range tar.LocalPath {
+			mkdirAll(p)
+		}
 	}
 
 	for _, f := range fs.Files {
-		mkdirAll(filepath.Dir(f.LocalPath))
+		for _, p := range f.LocalPath {
+			mkdirAll(filepath.Dir(p.Path))
+		}
 	}
 
 	mkdirAll(fs.CoredumpDir)
@@ -407,25 +438,29 @@ func (fs *FS) Recreate(l log.Structured) (err error) {
 		f := f
 
 		eg.Go(func() error {
-			var fileSize int64
-			var err error
+			for i, p := range f.LocalPath {
+				var fileSize int64
+				var err error
 
-			l.Debug("started copying file",
-				log.String("path", f.LocalPath))
+				l.Debug("started copying file",
+					log.String("path", p.Path))
 
-			if fileSize, err = copyFile(filepath.Join(BlobDir, md5Hash.String()), f.LocalPath); err != nil {
-				return err
-			}
-
-			if f.Executable {
-				if err := os.Chmod(f.LocalPath, 0777); err != nil {
+				last := i == len(f.LocalPath)-1
+				if fileSize, err = copyFile(filepath.Join(BlobDir, md5Hash.String()), p.Path, last); err != nil {
 					return err
 				}
+
+				if p.Executable {
+					if err := os.Chmod(p.Path, 0777); err != nil {
+						return err
+					}
+				}
+
+				l.Debug("finished copying file",
+					log.String("path", p.Path),
+					log.Int64("size", fileSize))
 			}
 
-			l.Debug("finished copying file",
-				log.String("path", f.LocalPath),
-				log.Int64("size", fileSize))
 			return nil
 		})
 	}
@@ -435,28 +470,39 @@ func (fs *FS) Recreate(l log.Structured) (err error) {
 		tar := tar
 
 		eg.Go(func() error {
-			tarFile, err := os.OpenFile(filepath.Join(BlobDir, md5Hash.String()), os.O_RDWR, 0)
-			if err != nil {
-				return err
+			for i, p := range tar.LocalPath {
+				last := i == len(tar.LocalPath)-1
+
+				tarFile, err := os.OpenFile(filepath.Join(BlobDir, md5Hash.String()), os.O_RDWR, 0)
+				if err != nil {
+					return err
+				}
+				defer tarFile.Close()
+
+				l.Debug("started unpacking directory",
+					log.String("path", p))
+
+				var r io.Reader
+				if last {
+					r = &punchholeReader{f: tarFile}
+				} else {
+					r = tarFile
+				}
+
+				br := bufio.NewReaderSize(r, bufferSize)
+				if err := tarstream.Receive(p, br); err != nil {
+					return err
+				}
+
+				stat, err := tarFile.Stat()
+				if err != nil {
+					return err
+				}
+
+				l.Debug("finished unpacking directory",
+					log.String("path", p),
+					log.Int64("size", stat.Size()))
 			}
-			defer tarFile.Close()
-
-			l.Debug("started unpacking directory",
-				log.String("path", tar.LocalPath))
-
-			br := bufio.NewReaderSize(&punchholeReader{f: tarFile}, bufferSize)
-			if err := tarstream.Receive(tar.LocalPath, br); err != nil {
-				return err
-			}
-
-			stat, err := tarFile.Stat()
-			if err != nil {
-				return err
-			}
-
-			l.Debug("finished unpacking directory",
-				log.String("path", tar.LocalPath),
-				log.Int64("size", stat.Size()))
 
 			return nil
 		})
