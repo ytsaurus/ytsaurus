@@ -457,6 +457,10 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(16)
         .GreaterThan(0);
 
+    RegisterParameter("job_spec_build_thread_count", JobSpecBuildThreadCount)
+        .Default(16)
+        .GreaterThan(0);
+
     RegisterParameter("controller_static_orchid_update_period", ControllerStaticOrchidUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
@@ -711,9 +715,6 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default();
 
     RegisterParameter("schedule_job_controller_queue", ScheduleJobControllerQueue)
-        .Default(EOperationControllerQueue::Default);
-
-    RegisterParameter("build_job_spec_controller_queue", BuildJobSpecControllerQueue)
         .Default(EOperationControllerQueue::Default);
 
     RegisterParameter("job_events_controller_queue", JobEventsControllerQueue)
