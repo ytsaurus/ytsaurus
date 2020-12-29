@@ -604,11 +604,8 @@ public:
     //! Period for pushing suspicious jobs from agent to scheduler.
     TDuration SuspiciousJobsPushPeriod;
 
-    //! Number of threads for hosting controllers' invokers.
+    //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
-
-    //! Number of threads for running job spec build callbacks.
-    int JobSpecBuildThreadCount;
 
     //! Period of controller static orchid part update.
     TDuration ControllerStaticOrchidUpdatePeriod;
@@ -817,6 +814,7 @@ public:
     std::optional<i64> TotalControllerMemoryLimit;
 
     EOperationControllerQueue ScheduleJobControllerQueue;
+    EOperationControllerQueue BuildJobSpecControllerQueue;
     EOperationControllerQueue JobEventsControllerQueue;
 
     TDuration ScheduleJobWaitTimeThreshold;

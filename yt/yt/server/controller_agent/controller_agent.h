@@ -62,11 +62,6 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    const IInvokerPtr& GetJobSpecBuildPoolInvoker();
-
-    /*!
-     *  \note Thread affinity: any
-     */
     const IInvokerPtr& GetSnapshotIOInvoker();
 
     /*!
