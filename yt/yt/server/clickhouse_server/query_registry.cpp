@@ -244,7 +244,7 @@ public:
             PhaseDurationTimer_[queryPhase] = QueryRegistryProfiler_.Timer("/phase_duration");
         }
 
-        QueryRegistryProfiler_
+        ClickHouseProfiler
             .WithSparse()
             .AddProducer("", MakeStrong(this));
     }
@@ -379,11 +379,11 @@ public:
         for (const auto& [user, processListForUserInfo] : snapshot.GetUserToProcessListForUserInfo()) {
             writer->PushTag({"user", user});
 
-            writer->AddGauge("/memory_usage", processListForUserInfo.memory_usage);
-            writer->AddGauge("/peak_memory_usage", processListForUserInfo.peak_memory_usage);
+            writer->AddGauge("/yt/query_registry/memory_usage", processListForUserInfo.memory_usage);
+            writer->AddGauge("/yt/query_registry/peak_memory_usage", processListForUserInfo.peak_memory_usage);
 
             for (const auto& [name, value] : GetBriefProfileCounters(*processListForUserInfo.profile_counters)) {
-                writer->AddCounter("/user_profile_events/" + name, value);
+                writer->AddCounter("/native/user_profile_events/" + name, value);
             }
 
             writer->PopTag();
