@@ -194,12 +194,14 @@ private: \
         (cookie),
         false)
 
-    //! Called by task's ScheduleJob to wrap the job spec proto building routine with safe environment.
-    IMPLEMENT_SAFE_METHOD(TSharedRef, BuildJobSpecProto, (const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec), (joblet, scheduleJobSpec), true)
-
 #undef IMPLEMENT_SAFE_METHOD
 
 public:
+    /*!
+     *  \note Thread affinity: JobSpecBuildPool
+     */
+    virtual TSharedRef BuildJobSpecProto(const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec) override final;
+
     // These are "pure" interface methods, i. e. those that do not involve YT_VERIFYs.
     // If some of these methods still fails due to unnoticed YT_VERIFY, consider
     // moving it to the section above.
@@ -267,6 +269,7 @@ public:
     // ITaskHost implementation.
 
     virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
+    virtual IInvokerPtr GetJobSpecBuildInvoker() const override;
     virtual IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
         EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
