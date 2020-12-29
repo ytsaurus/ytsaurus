@@ -19,6 +19,8 @@ namespace NYT::NClickHouseServer {
 extern const NLogging::TLogger ClickHouseYtLogger;
 //! Logger which is used by ClickHouse native code.
 extern const NLogging::TLogger ClickHouseNativeLogger;
+//! Root profiler for all metrics.
+extern const NProfiling::TRegistry ClickHouseProfiler;
 //! Profiler for our own metrics.
 extern const NProfiling::TRegistry ClickHouseYtProfiler;
 //! Profiler exporting raw ClickHouse metrics.
