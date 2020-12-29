@@ -49,10 +49,10 @@ ya make -r yt/go/ytrecipe/cmd/ytrecipe-tool/ --install $GOPATH/bin
 
 Test was using following files:
 
-{{range .Files}}
-{{.LocalPath}}
-yt --proxy {{$cluster}} download {{.CypressPath}} > {{filepathBase .LocalPath}}
-{{end}}
+{{range .Files}} {{$cypressPath := .CypressPath}} {{range .LocalPath}}
+{{.Path}}
+yt --proxy {{$cluster}} download {{$cypressPath}} > {{filepathBase .Path}}
+{{end}} {{end}}
 `[1:]))
 
 var downloadTmpl = template.Must(template.New("").Parse(`

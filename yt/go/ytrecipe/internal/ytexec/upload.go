@@ -125,10 +125,10 @@ func (e *Exec) uploadFS(ctx context.Context, fs *jobfs.FS) error {
 	for md5Hash, f := range fs.Files {
 		f := f
 
-		e.l.Debug("uploading file", log.String("path", f.LocalPath), log.String("md5", md5Hash.String()))
+		e.l.Debug("uploading file", log.String("path", f.LocalPath[0].Path), log.String("md5", md5Hash.String()))
 		uploadBlob(md5Hash,
 			func() (io.ReadCloser, error) {
-				return os.Open(f.LocalPath)
+				return os.Open(f.LocalPath[0].Path)
 			},
 			func(path ypath.Path) {
 				f.CypressPath = path
@@ -138,13 +138,13 @@ func (e *Exec) uploadFS(ctx context.Context, fs *jobfs.FS) error {
 	for md5Hash, dir := range fs.TarDirs {
 		dir := dir
 
-		e.l.Debug("uploading dir", log.String("path", dir.LocalPath), log.String("md5", md5Hash.String()))
+		e.l.Debug("uploading dir", log.Strings("paths", dir.LocalPath), log.String("md5", md5Hash.String()))
 		uploadBlob(md5Hash,
 			func() (io.ReadCloser, error) {
 				pr, pw := io.Pipe()
 
 				go func() {
-					err := tarstream.Send(dir.LocalPath, pw)
+					err := tarstream.Send(dir.LocalPath[0], pw)
 					_ = pw.CloseWithError(err)
 				}()
 
