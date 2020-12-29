@@ -13,6 +13,8 @@
 #include "tablet_slot.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/server/node/data_node/master_connector.h>
 
@@ -98,40 +100,41 @@ static const size_t FinishedQueueSize = 100;
  * replacing a set of Eden stores with a set of partition-bound stores.
  */
 class TStoreCompactor
-    : public TRefCounted
+    : public IStoreCompactor
 {
 public:
-    TStoreCompactor(
-        TTabletNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
-        : Config_(config)
-        , Bootstrap_(bootstrap)
-        , ThreadPool_(New<TThreadPool>(Config_->StoreCompactor->ThreadPoolSize, "StoreCompact"))
+    explicit TStoreCompactor(NClusterNode::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+        , Config_(bootstrap->GetConfig()->TabletNode->StoreCompactor)
+        , ThreadPool_(New<TThreadPool>(Config_->ThreadPoolSize, "StoreCompact"))
         , PartitioningSemaphore_(New<TProfiledAsyncSemaphore>(
-            Config_->StoreCompactor->MaxConcurrentPartitionings,
+            Config_->MaxConcurrentPartitionings,
             Profiler_.Gauge("/running_partitionings")))
         , CompactionSemaphore_(New<TProfiledAsyncSemaphore>(
-            Config_->StoreCompactor->MaxConcurrentCompactions,
+            Config_->MaxConcurrentCompactions,
             Profiler_.Gauge("/running_compactions")))
         , OrchidService_(CreateOrchidService())
     { }
 
-    void Start()
+    virtual void Start() override
     {
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->SubscribeBeginSlotScan(BIND(&TStoreCompactor::OnBeginSlotScan, MakeStrong(this)));
-        slotManager->SubscribeScanSlot(BIND(&TStoreCompactor::OnScanSlot, MakeStrong(this)));
-        slotManager->SubscribeEndSlotScan(BIND(&TStoreCompactor::OnEndSlotScan, MakeStrong(this)));
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigUpdated(BIND(&TStoreCompactor::OnDynamicConfigUpdated, MakeWeak(this)));
+
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->SubscribeBeginSlotScan(BIND(&TStoreCompactor::OnBeginSlotScan, MakeWeak(this)));
+        slotManager->SubscribeScanSlot(BIND(&TStoreCompactor::OnScanSlot, MakeWeak(this)));
+        slotManager->SubscribeEndSlotScan(BIND(&TStoreCompactor::OnEndSlotScan, MakeWeak(this)));
     }
 
-    IYPathServicePtr GetOrchidService()
+    virtual IYPathServicePtr GetOrchidService() override
     {
         return OrchidService_;
     }
 
 private:
-    const TTabletNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
+    const TStoreCompactorConfigPtr Config_;
 
     const TRegistry Profiler_ = TabletNodeProfiler.WithPrefix("/store_compactor");
     const TGauge FeasiblePartitioningsCounter_ = Profiler_.Gauge("/feasible_partitionings");
@@ -396,6 +399,17 @@ private:
     const TOrchidServiceManagerPtr PartitioningOrchidServiceManager_ = New<TOrchidServiceManager>();
     IYPathServicePtr OrchidService_;
 
+
+    void OnDynamicConfigUpdated(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldConfig */,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+    {
+        const auto& config = newNodeConfig->TabletNode->StoreCompactor;
+        ThreadPool_->Configure(config->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
+        PartitioningSemaphore_->SetTotal(config->MaxConcurrentPartitionings.value_or(Config_->MaxConcurrentPartitionings));
+        CompactionSemaphore_->SetTotal(config->MaxConcurrentPartitionings.value_or(Config_->MaxConcurrentCompactions));
+    }
+
     void OnBeginSlotScan()
     {
         // NB: Strictly speaking, redundant.
@@ -411,6 +425,13 @@ private:
     void OnScanSlot(const TTabletSlotPtr& slot)
     {
         TEventTimer timerGuard(ScanTimer_);
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreCompactor;
+        if (!dynamicConfig->Enable) {
+            return;
+        }
+
         if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
         }
@@ -1913,23 +1934,9 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactor)
 
-////////////////////////////////////////////////////////////////////////////////
-
-TStoreCompactorPtr CreateStoreCompactor(
-    TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+IStoreCompactorPtr CreateStoreCompactor(NClusterNode::TBootstrap* bootstrap)
 {
-    return New<TStoreCompactor>(config, bootstrap);
-}
-
-void StartStoreCompactor(TStoreCompactorPtr storeCompactor)
-{
-    storeCompactor->Start();
-}
-
-IYPathServicePtr GetOrchidService(TStoreCompactorPtr storeCompactor)
-{
-    return storeCompactor->GetOrchidService();
+    return New<TStoreCompactor>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

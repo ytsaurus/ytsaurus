@@ -8,9 +8,15 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void StartPartitionBalancer(
-    TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+struct IPartitionBalancer
+    : public virtual TRefCounted
+{
+    virtual void Start() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IPartitionBalancer)
+
+IPartitionBalancerPtr CreatePartitionBalancer(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

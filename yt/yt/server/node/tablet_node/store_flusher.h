@@ -8,9 +8,15 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void StartStoreFlusher(
-    TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+struct IStoreFlusher
+    : public virtual TRefCounted
+{
+    virtual void Start() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IStoreFlusher)
+
+IStoreFlusherPtr CreateStoreFlusher(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

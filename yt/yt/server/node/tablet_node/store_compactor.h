@@ -4,18 +4,22 @@
 
 #include <yt/server/node/cluster_node/public.h>
 
+#include <yt/core/ytree/public.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreCompactorPtr CreateStoreCompactor(
-    TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+struct IStoreCompactor
+    : public virtual TRefCounted
+{
+    virtual void Start() = 0;
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
+};
 
-void StartStoreCompactor(
-    TStoreCompactorPtr storeCompactor);
+DEFINE_REFCOUNTED_TYPE(IStoreCompactor)
 
-NYTree::IYPathServicePtr GetOrchidService(TStoreCompactorPtr storeCompactor);
+IStoreCompactorPtr CreateStoreCompactor(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

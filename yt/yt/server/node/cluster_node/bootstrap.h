@@ -201,6 +201,12 @@ private:
 
     TNodeResourceManagerPtr NodeResourceManager_;
 
+    NTabletNode::IStoreCompactorPtr StoreCompactor_;
+    NTabletNode::IStoreFlusherPtr StoreFlusher_;
+    NTabletNode::IStoreTrimmerPtr StoreTrimmer_;
+    NTabletNode::IPartitionBalancerPtr PartitionBalancer_;
+    NTabletNode::IBackingStoreCleanerPtr BackingStoreCleaner_;
+
     void DoInitialize();
     void DoRun();
     void DoValidateConfig();

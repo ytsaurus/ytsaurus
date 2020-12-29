@@ -10,6 +10,7 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
@@ -45,29 +46,35 @@ using namespace NTabletClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreTrimmer
-    : public TRefCounted
+    : public IStoreTrimmer
 {
 public:
-    TStoreTrimmer(
-        TTabletNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
-        : Config_(config)
-        , Bootstrap_(bootstrap)
+    explicit TStoreTrimmer(NClusterNode::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    { }
+
+    virtual void Start() override
     {
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TStoreTrimmer::OnScanSlot, MakeStrong(this)));
     }
 
 private:
-    const TTabletNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
 
     void OnScanSlot(const TTabletSlotPtr& slot)
     {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreTrimmer;
+        if (!dynamicConfig->Enable) {
+            return;
+        }
+
         if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
         }
+
         const auto& tabletManager = slot->GetTabletManager();
         for (auto [tabletId, tablet] : tabletManager->Tablets()) {
             ScanTablet(slot, tablet);
@@ -254,15 +261,9 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-void StartStoreTrimmer(
-    TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+IStoreTrimmerPtr CreateStoreTrimmer(NClusterNode::TBootstrap* bootstrap)
 {
-    if (config->EnableStoreTrimmer) {
-        New<TStoreTrimmer>(config, bootstrap);
-    }
+    return New<TStoreTrimmer>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

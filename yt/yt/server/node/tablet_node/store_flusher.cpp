@@ -67,36 +67,40 @@ static const auto& Logger = TabletNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreFlusher
-    : public TRefCounted
+    : public IStoreFlusher
 {
 public:
-    TStoreFlusher(
-        TTabletNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
-        : Config_(config)
-        , Bootstrap_(bootstrap)
+    explicit TStoreFlusher(NClusterNode::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+        , Config_(Bootstrap_->GetConfig()->TabletNode)
         , ThreadPool_(New<TThreadPool>(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
         , Semaphore_(New<TProfiledAsyncSemaphore>(
             Config_->StoreFlusher->MaxConcurrentFlushes,
             Profiler.Gauge("/running_store_flushes")))
+        , MinForcedFlushDataSize_(Config_->StoreFlusher->MinForcedFlushDataSize)
     { }
 
-    void Start()
+    virtual void Start() override
     {
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigUpdated(BIND(&TStoreFlusher::OnDynamicConfigUpdated, MakeWeak(this)));
+
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
         slotManager->SubscribeScanSlot(BIND(&TStoreFlusher::OnScanSlot, MakeStrong(this)));
         slotManager->SubscribeEndSlotScan(BIND(&TStoreFlusher::OnEndSlotScan, MakeStrong(this)));
     }
 
 private:
-    const TTabletNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
+    const TTabletNodeConfigPtr Config_;
 
     const NProfiling::TRegistry Profiler = TabletNodeProfiler.WithPrefix("/store_flusher");
 
     const TThreadPoolPtr ThreadPool_;
     const TProfiledAsyncSemaphorePtr Semaphore_;
+
+    std::atomic<i64> MinForcedFlushDataSize_;
 
     NProfiling::TGauge DynamicMemoryUsageActiveCounter_ = Profiler.WithTag("memory_type", "active").Gauge("/dynamic_memory_usage");
     NProfiling::TGauge DynamicMemoryUsagePassiveCounter_ = Profiler.WithTag("memory_type", "passive").Gauge("/dynamic_memory_usage");
@@ -129,6 +133,16 @@ private:
 
     THashMap<TString, TTabletCellBundleData> TabletCellBundleData_;
 
+    void OnDynamicConfigUpdated(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldConfig */,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+    {
+        const auto& config = newNodeConfig->TabletNode->StoreFlusher;
+        ThreadPool_->Configure(config->ThreadPoolSize.value_or(Config_->StoreFlusher->ThreadPoolSize));
+        Semaphore_->SetTotal(config->MaxConcurrentFlushes.value_or(Config_->StoreFlusher->MaxConcurrentFlushes));
+        MinForcedFlushDataSize_.store(config->MinForcedFlushDataSize.value_or(Config_->StoreFlusher->MinForcedFlushDataSize));
+    }
+
     void OnBeginSlotScan()
     {
         // NB: Strictly speaking, this locking is redundant.
@@ -141,6 +155,12 @@ private:
 
     void OnScanSlot(const TTabletSlotPtr& slot)
     {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreFlusher;
+        if (!dynamicConfig->Enable) {
+            return;
+        }
+
         if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
         }
@@ -153,8 +173,7 @@ private:
                     .ForcedRotationMemoryRatio = slot->GetDynamicOptions()->ForcedRotationMemoryRatio,
                     .EnableForcedRotationBackingMemoryAccounting = slot->GetDynamicOptions()->EnableForcedRotationBackingMemoryAccounting,
                     .EnablePerBundleMemoryLimit = slot->GetDynamicOptions()->EnableTabletDynamicMemoryLimit,
-                }
-            );
+                });
         }
 
         const auto& tabletManager = slot->GetTabletManager();
@@ -183,7 +202,7 @@ private:
         DynamicMemoryUsageOtherCounter_.Update(otherUsage);
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode;
+        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreFlusher;
         bool enableForcedRotationBackingMemoryAccounting =
             dynamicConfig->EnableForcedRotationBackingMemoryAccounting.value_or(
                 Config_->EnableForcedRotationBackingMemoryAccounting);
@@ -338,7 +357,7 @@ private:
                 if (storeManager->IsRotationScheduled()) {
                     PassiveMemoryUsage_ += memoryUsage;
                     TabletCellBundleData_[bundleName].PassiveMemoryUsage += memoryUsage;
-                } else if (store->GetCompressedDataSize() >= Config_->StoreFlusher->MinForcedFlushDataSize) {
+                } else if (store->GetCompressedDataSize() >= MinForcedFlushDataSize_.load()) {
                     TabletCellBundleData_[bundleName].ForcedRotationCandidates.push_back({
                         memoryUsage,
                         tablet->GetId(),
@@ -521,16 +540,9 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-void StartStoreFlusher(
-    TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+IStoreFlusherPtr CreateStoreFlusher(NClusterNode::TBootstrap* bootstrap)
 {
-    if (config->EnableStoreFlusher) {
-        New<TStoreFlusher>(config, bootstrap)
-            ->Start();
-    }
+    return New<TStoreFlusher>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

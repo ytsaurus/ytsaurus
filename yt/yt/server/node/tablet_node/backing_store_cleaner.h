@@ -8,9 +8,15 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void StartBackingStoreCleaner(
-    TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+struct IBackingStoreCleaner
+    : public virtual TRefCounted
+{
+    virtual void Start() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IBackingStoreCleaner)
+
+IBackingStoreCleanerPtr CreateBackingStoreCleaner(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
