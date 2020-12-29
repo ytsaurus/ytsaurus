@@ -31,6 +31,7 @@ import uuid
 import gzip
 from io import BytesIO
 from copy import deepcopy
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 
 class FakeFileManager(object):
@@ -989,48 +990,61 @@ class TestTableCommandsJsonFormatUjson(TestTableCommandsJsonFormat):
         cls._enable_ujson = True
 
 
+# NB: Use _check_delay to validate that framing actually works.
+# heavy_request_timeout and delay_before_command are tweaked so that
+# without framing we get read timeout.
+@contextmanager
+def _check_delay(yt_env_with_framing):
+    delay_before_command = yt_env_with_framing.framing_options["delay_before_command"]
+    start = datetime.now()
+    yield
+    assert datetime.now() - start > timedelta(milliseconds=delay_before_command)
+
+
 @pytest.mark.usefixtures("yt_env_with_framing")
 class TestTableCommandsFraming(object):
-    REQUEST_TIMEOUT = 2 * 1000
+    OVERRIDE_OPTIONS = {
+        "read_retries/use_locked_node_id": False,
+        "proxy/heavy_request_timeout": 2 * 1000,
+        "proxy/commands_with_framing": ["read_table", "get_table_columnar_statistics"],
+    }
 
     @authors("levysotsky")
-    def test_read(self, yt_env_with_framing):
+    @pytest.mark.parametrize("use_compression", [True, False])
+    def test_read(self, use_compression, yt_env_with_framing):
         suspending_path = yt_env_with_framing.framing_options["suspending_path"]
-        delay_before_command = yt_env_with_framing.framing_options["delay_before_command"]
         yt.create("table", suspending_path)
-        yt.write_table(suspending_path, [{"column_1": 1, "column_2": "foo"}])
-        start = datetime.now()
-        with set_config_option("read_retries/use_locked_node_id", False):
-            with set_config_option("proxy/heavy_request_timeout", self.REQUEST_TIMEOUT):
-                read_rows = yt.read_table(suspending_path)
-        check_rows_equality([{"column_1": 1, "column_2": "foo"}], read_rows)
-        assert datetime.now() - start > timedelta(milliseconds=delay_before_command)
+        chunk_size = 100
+        rows_chunk = [{"column_1": 1, "column_2": "foo"}] * chunk_size
+        chunk_count = 100
+        for i in xrange(chunk_count):
+            yt.write_table(yt.TablePath(suspending_path, append=True), rows_chunk)
+        override_options = deepcopy(self.OVERRIDE_OPTIONS)
+        if not use_compression:
+            override_options["proxy/accept_encoding"] = "identity"
+        with _check_delay(yt_env_with_framing), set_config_options(override_options):
+            read_rows = yt.read_table(suspending_path)
+        check_rows_equality(read_rows, rows_chunk * chunk_count)
 
     @authors("levysotsky")
     def test_error_in_read(self, yt_env_with_framing):
         suspending_path = yt_env_with_framing.framing_options["suspending_path"]
-        delay_before_command = yt_env_with_framing.framing_options["delay_before_command"]
         row_count = 10000
         rows = [{"a": random_string(100)} for _ in xrange(row_count)]
         rows.append({"b": 12})
         yt.write_table(suspending_path, rows)
-        start = datetime.now()
-        with set_config_option("read_retries/use_locked_node_id", False):
-            with set_config_option("proxy/heavy_request_timeout", self.REQUEST_TIMEOUT):
-                with pytest.raises(yt.YtResponseError):
-                    for _ in yt.read_table(suspending_path, format=yt.SchemafulDsvFormat(columns=["a"])):
-                        pass
-        assert datetime.now() - start > timedelta(milliseconds=delay_before_command)
+        with _check_delay(yt_env_with_framing), \
+                set_config_options(self.OVERRIDE_OPTIONS), \
+                pytest.raises(yt.YtResponseError):
+            for _ in yt.read_table(suspending_path, format=yt.SchemafulDsvFormat(columns=["a"])):
+                pass
 
     @authors("levysotsky")
     def test_get_table_columnar_statistics(self, yt_env_with_framing):
         suspending_path = yt_env_with_framing.framing_options["suspending_path"]
-        delay_before_command = yt_env_with_framing.framing_options["delay_before_command"]
         yt.create("table", suspending_path)
         yt.write_table(suspending_path, [{"column_1": 1, "column_2": "foo"}])
-        start = datetime.now()
-        with set_config_option("proxy/request_timeout", self.REQUEST_TIMEOUT):
+        with _check_delay(yt_env_with_framing), set_config_options(self.OVERRIDE_OPTIONS):
             statistics = yt.get_table_columnar_statistics(suspending_path + "{column_1}")
         assert len(statistics) == 1
         assert "column_data_weights" in statistics[0]
-        assert datetime.now() - start > timedelta(milliseconds=delay_before_command)

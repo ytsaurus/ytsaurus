@@ -38,7 +38,7 @@ private:
     TFuture<void> DoWriteFrame(TString header, const std::optional<TSharedRef>& frame);
 
     // SpinLock_ must be taken on entry.
-    void AddAction(TCallback<void()> action);
+    void AddAction(TCallback<TFuture<void>()> action);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFramingAsyncOutputStream);

@@ -296,13 +296,14 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         )
         wait(lambda: requests.get(config_url).json()["framing"]["keep_alive_period"] == self.KEEP_ALIVE_PERIOD)
 
-    def _execute_command(self, http_method, command_name, params):
+    def _execute_command(self, http_method, command_name, params, extra_headers={}):
         headers = {
             "X-YT-Accept-Framing": "1",
             "X-YT-Parameters": yson.dumps(params),
             "X-YT-Header-Format": "<format=text>yson",
             "X-YT-Output-Format": "<format=text>yson",
         }
+        headers.update(extra_headers)
         start = datetime.now()
         rsp = requests.request(
             http_method,
@@ -335,17 +336,23 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         assert {"value": attribute_value} == response_yson
 
     @authors("levysotsky")
-    def test_read_table(self):
+    @pytest.mark.parametrize("use_compression", [True, False])
+    def test_read_table(self, use_compression):
         create("table", self.SUSPENDING_TABLE)
-        rows = [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}]
-        write_table(self.SUSPENDING_TABLE, rows)
+        rows_chunk = [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}] * 100
+        chunk_count = 100
+        for _ in range(chunk_count):
+            write_table("<append=%true>" + self.SUSPENDING_TABLE, rows_chunk)
         params = {
             "path": self.SUSPENDING_TABLE,
             "output_format": "yson",
         }
-        response = self._execute_command("GET", "read_table", params)
+        headers = {}
+        if not use_compression:
+            headers["Accept-Encoding"] = "identity"
+        response = self._execute_command("GET", "read_table", params, extra_headers=headers)
         response_yson = list(yson.loads(response, yson_type="list_fragment"))
-        assert rows == response_yson
+        assert rows_chunk * chunk_count == response_yson
 
     @authors("levysotsky")
     def test_get_table_columnar_statistics(self):
