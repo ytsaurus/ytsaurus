@@ -192,7 +192,6 @@ struct IOperationControllerHost
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() = 0;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() = 0;
-    virtual const IInvokerPtr& GetJobSpecBuildPoolInvoker() = 0;
     virtual const NEventLog::IEventLogWriterPtr& GetEventLogWriter() = 0;
     virtual const ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;

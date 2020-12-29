@@ -42,7 +42,6 @@ using namespace NYTree;
 
 using NYT::FromProto;
 using NYT::ToProto;
-using NProfiling::TWallTimer;
 using NScheduler::NProto::TSchedulerJobSpecExt;
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NScheduler::NProto::TTableInputSpec;
@@ -472,6 +471,29 @@ void TTask::ScheduleJob(
     });
 
     joblet->Account = TaskHost_->GetSpec()->JobNodeAccount;
+    joblet->JobSpecProtoFuture = BIND([
+        weakTaskHost = MakeWeak(TaskHost_),
+        joblet,
+        scheduleJobSpec = context->GetScheduleJobSpec(),
+        discountBuildingJobSpecGuard = std::move(discountBuildingJobSpecGuard),
+        Logger = Logger
+    ] {
+        if (auto taskHost = weakTaskHost.Lock()) {
+            YT_LOG_DEBUG("Started building job spec (JobId: %v)",
+                joblet->JobId);
+            auto startTime = TInstant::Now();
+            auto jobSpecProto = taskHost->BuildJobSpecProto(joblet, scheduleJobSpec);
+            auto endTime = TInstant::Now();
+            YT_LOG_DEBUG("Job spec built (JobId: %v, TimeElapsed: %v)",
+                joblet->JobId,
+                endTime - startTime);
+            return jobSpecProto;
+        } else {
+            THROW_ERROR_EXCEPTION("Operation controller was destroyed");
+        }
+    })
+        .AsyncVia(TaskHost_->GetCancelableInvoker(TaskHost_->GetConfig()->BuildJobSpecControllerQueue))
+        .Run();
 
     auto jobType = GetJobType();
     scheduleJobResult->StartDescriptor.emplace(
@@ -562,29 +584,6 @@ void TTask::ScheduleJob(
     OnJobStarted(joblet);
 
     JobSplitter_->OnJobStarted(joblet->JobId, joblet->InputStripeList, IsJobInterruptible());
-
-    joblet->JobSpecProtoFuture = BIND([
-        weakTaskHost = MakeWeak(TaskHost_),
-        joblet,
-        scheduleJobSpec = context->GetScheduleJobSpec(),
-        discountBuildingJobSpecGuard = std::move(discountBuildingJobSpecGuard),
-        Logger = Logger
-    ] {
-        if (auto taskHost = weakTaskHost.Lock()) {
-            YT_LOG_DEBUG("Started building job spec (JobId: %v)",
-                joblet->JobId);
-            TWallTimer timer;
-            auto jobSpecProto = taskHost->BuildJobSpecProto(joblet, scheduleJobSpec);
-            YT_LOG_DEBUG("Job spec built (JobId: %v, TimeElapsed: %v)",
-                joblet->JobId,
-                timer.GetElapsedTime());
-            return jobSpecProto;
-        } else {
-            THROW_ERROR_EXCEPTION("Operation controller was destroyed");
-        }
-    })
-        .AsyncVia(TaskHost_->GetJobSpecBuildInvoker())
-        .Run();
 
     if (!StartTime_) {
         StartTime_ = TInstant::Now();
@@ -1076,8 +1075,6 @@ IDigest* TTask::GetJobProxyMemoryDigest() const
 std::unique_ptr<TNodeDirectoryBuilder> TTask::MakeNodeDirectoryBuilder(
     TSchedulerJobSpecExt* schedulerJobSpec)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
-
     return TaskHost_->GetOperationType() == EOperationType::RemoteCopy
         ? std::make_unique<TNodeDirectoryBuilder>(
             TaskHost_->InputNodeDirectory(),
@@ -1089,8 +1086,6 @@ void TTask::AddSequentialInputSpec(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
-
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     auto directoryBuilder = MakeNodeDirectoryBuilder(schedulerJobSpecExt);
     auto* inputSpec = schedulerJobSpecExt->add_input_table_specs();
@@ -1105,8 +1100,6 @@ void TTask::AddParallelInputSpec(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
-
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     auto directoryBuilder = MakeNodeDirectoryBuilder(schedulerJobSpecExt);
     const auto& list = joblet->InputStripeList;
@@ -1124,8 +1117,6 @@ void TTask::AddChunksToInputSpec(
     TTableInputSpec* inputSpec,
     TChunkStripePtr stripe)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
-
     for (const auto& dataSlice : stripe->DataSlices) {
         YT_VERIFY(!dataSlice->IsLegacy);
         AdjustOutputKeyBounds(dataSlice);
@@ -1181,25 +1172,13 @@ void TTask::UpdateInputSpecTotals(
 
 TString TTask::GetOrCacheSerializedSchema(const TTableSchemaPtr& schema)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
-
-    {
-        auto guard = ReaderGuard(TableSchemaToProtobufTableSchemaLock_);
-        auto it = TableSchemaToProtobufTableSchema_.find(schema);
-        if (it != TableSchemaToProtobufTableSchema_.end()) {
-            return it->second;
-        }
-    }
-    auto serializedSchema = SerializeToWireProto(schema);
-    {
-        auto guard = WriterGuard(TableSchemaToProtobufTableSchemaLock_);
-        auto it = TableSchemaToProtobufTableSchema_.find(schema);
-        if (it == TableSchemaToProtobufTableSchema_.end()) {
-            YT_VERIFY(TableSchemaToProtobufTableSchema_.emplace(schema, serializedSchema).second);
-            return serializedSchema;
-        } else {
-            return it->second;
-        }
+    auto it = TableSchemaToProtobufTableSchema_.find(schema);
+    if (it == TableSchemaToProtobufTableSchema_.end()) {
+        auto serializedSchema = SerializeToWireProto(schema);
+        YT_VERIFY(TableSchemaToProtobufTableSchema_.emplace(schema, serializedSchema).second);
+        return serializedSchema;
+    } else {
+        return it->second;
     }
 }
 
@@ -1207,8 +1186,6 @@ void TTask::AddOutputTableSpecs(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
-
     const auto& streamDescriptors = joblet->StreamDescriptors;
     YT_VERIFY(joblet->ChunkListIds.size() == streamDescriptors.size());
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -1304,8 +1281,6 @@ bool TTask::IsInputDataWeightHistogramSupported() const
 
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
-
     auto jobSpec = ObjectPool<NJobTrackerClient::NProto::TJobSpec>().Allocate();
 
     BuildJobSpec(joblet, jobSpec.get());

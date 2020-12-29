@@ -9,7 +9,9 @@ namespace NYT::NControllerAgent {
 DEFINE_ENUM(EOperationControllerQueue,
     (Default)
     (GetJobSpec)
+    (BuildJobSpec)
     (ScheduleJob)
+    (ScheduleJobAndBuildJobSpec)
     (JobEvents)
 );
 

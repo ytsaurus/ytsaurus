@@ -4147,13 +4147,17 @@ bool TOperationControllerBase::IsThrottling() const noexcept
     bool waitTimeThrottling = false;
     {
         auto scheduleJobInvokerStatistics = GetInvokerStatistics(Config->ScheduleJobControllerQueue);
+        auto buildJobSpecInvokerStatistics = GetInvokerStatistics(Config->BuildJobSpecControllerQueue);
         auto scheduleJobWaitTime = scheduleJobInvokerStatistics.AverageWaitTime;
-        waitTimeThrottling = scheduleJobWaitTime > Config->ScheduleJobWaitTimeThreshold;
+        auto buildJobSpecWaitTime = buildJobSpecInvokerStatistics.AverageWaitTime;
+        waitTimeThrottling = scheduleJobWaitTime + buildJobSpecWaitTime > Config->ScheduleJobWaitTimeThreshold;
 
         if (waitTimeThrottling || forceLogging) {
             YT_LOG_DEBUG("Throttling statistics for wait time "
-                "(ScheduleJobWaitTime: %v, Threshold: %v, WaitTimeThrottling: %v)",
+                "(ScheduleJobWaitTime: %v, BuildJobSpecTime: %v, TotalWaitTime: %v, Threshold: %v, WaitTimeThrottling: %v)",
                 scheduleJobWaitTime,
+                buildJobSpecWaitTime,
+                scheduleJobWaitTime + buildJobSpecWaitTime,
                 Config->ScheduleJobWaitTimeThreshold,
                 waitTimeThrottling);
         }
@@ -4439,13 +4443,6 @@ IInvokerPtr TOperationControllerBase::GetCancelableInvoker(EOperationControllerQ
     VERIFY_THREAD_AFFINITY_ANY();
 
     return CancelableInvokerPool->GetInvoker(queue);
-}
-
-IInvokerPtr TOperationControllerBase::GetJobSpecBuildInvoker() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Host->GetJobSpecBuildPoolInvoker();
 }
 
 IDiagnosableInvokerPool::TInvokerStatistics TOperationControllerBase::GetInvokerStatistics(EOperationControllerQueue queue) const
@@ -7807,10 +7804,8 @@ void TOperationControllerBase::CheckTentativeTreeEligibility()
     }
 }
 
-TSharedRef TOperationControllerBase::BuildJobSpecProto(const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
+TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
 {
-    VERIFY_INVOKER_AFFINITY(Host->GetJobSpecBuildPoolInvoker());
-
     if (auto buildJobSpecProtoDelay = Spec_->TestingOperationOptions->BuildJobSpecProtoDelay) {
         Sleep(*buildJobSpecProtoDelay);
     }
