@@ -159,14 +159,13 @@ i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TL
     }
 
     if (EnableSourceLocation_) {
+        buffer->AppendChar('\t');
         if (event.SourceFile) {
             auto sourceFile = event.SourceFile;
             buffer->AppendString(sourceFile.RNextTok(LOCSLASH_C));
             buffer->AppendChar(':');
             buffer->AppendNumber(event.SourceLine);
         }
-
-        buffer->AppendChar('\t');
     }
 
     buffer->AppendChar('\n');
@@ -249,4 +248,3 @@ void TJsonLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 co
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLogging
-
