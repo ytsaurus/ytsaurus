@@ -33,17 +33,14 @@ static const auto& Profiler = TabletNodeProfiler;
  * Stores of each bundle are released in ascending order by creation time.
  */
 class TBackingStoreCleaner
-    : public TRefCounted
+    : public IBackingStoreCleaner
 {
 public:
-    TBackingStoreCleaner(
-        TTabletNodeConfigPtr config,
-        TBootstrap* bootstrap)
-        : Config_(std::move(config))
-        , Bootstrap_(bootstrap)
+    explicit TBackingStoreCleaner(TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
     { }
 
-    void Start()
+    virtual void Start() override
     {
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TBackingStoreCleaner::OnBeginSlotScan, MakeStrong(this)));
@@ -52,7 +49,6 @@ public:
     }
 
 private:
-    const TTabletNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
@@ -237,14 +233,9 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-void StartBackingStoreCleaner(
-    TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+IBackingStoreCleanerPtr CreateBackingStoreCleaner(NClusterNode::TBootstrap* bootstrap)
 {
-    New<TBackingStoreCleaner>(config, bootstrap)
-        ->Start();
+    return New<TBackingStoreCleaner>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

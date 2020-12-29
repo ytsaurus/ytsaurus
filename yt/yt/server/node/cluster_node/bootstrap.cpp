@@ -686,7 +686,11 @@ void TBootstrap::DoRun()
 
     NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_, Config_->SolomonExporter);
 
-    auto storeCompactor = CreateStoreCompactor(Config_->TabletNode, this);
+    StoreCompactor_ = CreateStoreCompactor(this);
+    StoreFlusher_ = CreateStoreFlusher(this);
+    StoreTrimmer_ = CreateStoreTrimmer(this);
+    PartitionBalancer_ = CreatePartitionBalancer(this);
+    BackingStoreCleaner_ = CreateBackingStoreCleaner(this);
 
     SetNodeByYPath(
         OrchidRoot_,
@@ -718,7 +722,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         OrchidRoot_,
         "/store_compactor",
-        CreateVirtualNode(GetOrchidService(storeCompactor)));
+        CreateVirtualNode(StoreCompactor_->GetOrchidService()));
     SetNodeByYPath(
         OrchidRoot_,
         "/dynamic_config_manager",
@@ -749,13 +753,11 @@ void TBootstrap::DoRun()
     PeerBlockDistributor_->Start();
     MasterConnector_->Start();
     SchedulerConnector_->Start();
-
-    StartStoreFlusher(Config_->TabletNode, this);
-    StartStoreCompactor(storeCompactor);
-    StartStoreTrimmer(Config_->TabletNode, this);
-    StartPartitionBalancer(Config_->TabletNode, this);
-    StartBackingStoreCleaner(Config_->TabletNode, this);
-
+    StoreCompactor_->Start();
+    StoreFlusher_->Start();
+    StoreTrimmer_->Start();
+    PartitionBalancer_->Start();
+    BackingStoreCleaner_->Start();
     RpcServer_->Start();
     HttpServer_->Start();
     SkynetHttpServer_->Start();

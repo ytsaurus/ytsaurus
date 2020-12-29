@@ -531,6 +531,47 @@ DEFINE_REFCOUNTED_TYPE(TStoreFlusherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStoreFlusherDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+
+    //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
+    std::optional<double> ForcedRotationMemoryRatio;
+
+    // TODO(babenko): either drop or make always false.
+    std::optional<bool> EnableForcedRotationBackingMemoryAccounting;
+
+    std::optional<int> ThreadPoolSize;
+    std::optional<int> MaxConcurrentFlushes;
+    std::optional<i64> MinForcedFlushDataSize;
+
+    TStoreFlusherDynamicConfig()
+    {
+        RegisterParameter("enable", Enable)
+            .Default(true);
+        RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
+            .InRange(0.0, 1.0)
+            .Optional();
+        RegisterParameter("enable_forced_rotation_backing_memory_accounting", EnableForcedRotationBackingMemoryAccounting)
+            .Optional();
+        RegisterParameter("thread_pool_size", ThreadPoolSize)
+            .GreaterThan(0)
+            .Optional();
+        RegisterParameter("max_concurrent_flushes", MaxConcurrentFlushes)
+            .GreaterThan(0)
+            .Optional();
+        RegisterParameter("min_forced_flush_data_size", MinForcedFlushDataSize)
+            .GreaterThan(0)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TStoreFlusherDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreCompactorConfig
     : public NYTree::TYsonSerializable
 {
@@ -538,7 +579,6 @@ public:
     int ThreadPoolSize;
     int MaxConcurrentCompactions;
     int MaxConcurrentPartitionings;
-    int PartitioningWriterPoolSize;
 
     TStoreCompactorConfig()
     {
@@ -551,13 +591,56 @@ public:
         RegisterParameter("max_concurrent_partitionings", MaxConcurrentPartitionings)
             .GreaterThan(0)
             .Default(1);
-        RegisterParameter("partitioning_writer_pool_size", PartitioningWriterPoolSize)
-            .GreaterThan(0)
-            .Default(10);
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStoreCompactorDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+    std::optional<int> ThreadPoolSize;
+    std::optional<int> MaxConcurrentCompactions;
+    std::optional<int> MaxConcurrentPartitionings;
+
+    TStoreCompactorDynamicConfig()
+    {
+        RegisterParameter("enable", Enable)
+            .Default(true);
+        RegisterParameter("thread_pool_size", ThreadPoolSize)
+            .GreaterThan(0)
+            .Optional();
+        RegisterParameter("max_concurrent_compactions", MaxConcurrentCompactions)
+            .GreaterThan(0)
+            .Optional();
+        RegisterParameter("max_concurrent_partitionings", MaxConcurrentPartitionings)
+            .GreaterThan(0)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TStoreCompactorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStoreTrimmerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+
+    TStoreTrimmerDynamicConfig()
+    {
+        RegisterParameter("enable", Enable)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TStoreTrimmerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -629,7 +712,6 @@ public:
     //! Retry delay after unsuccessful partition balancing.
     TDuration SplitRetryDelay;
 
-
     TPartitionBalancerConfig()
     {
         RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
@@ -655,6 +737,23 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TPartitionBalancerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPartitionBalancerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+
+    TPartitionBalancerDynamicConfig()
+    {
+        RegisterParameter("enable", Enable)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPartitionBalancerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -715,28 +814,18 @@ public:
     // COMPAT(gritukan): Drop optional.
     std::optional<int> Slots;
 
-    //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
-    // NB: Default value is given in the static config during migration period.
-    std::optional<double> ForcedRotationMemoryRatio;
-
-    // TODO(babenko): either drop or make always false.
-    // NB: Default value is given in the static config during migration period.
-    std::optional<bool> EnableForcedRotationBackingMemoryAccounting;
-
     TTabletManagerDynamicConfigPtr TabletManager;
 
     TEnumIndexedVector<ETabletNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
+    TStoreCompactorDynamicConfigPtr StoreCompactor;
+    TStoreFlusherDynamicConfigPtr StoreFlusher;
+    TStoreTrimmerDynamicConfigPtr StoreTrimmer;
+    TPartitionBalancerDynamicConfigPtr PartitionBalancer;
+
     TTabletNodeDynamicConfig()
     {
         RegisterParameter("slots", Slots)
-            .Optional();
-
-        RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
-            .InRange(0.0, 1.0)
-            .Optional();
-
-        RegisterParameter("enable_forced_rotation_backing_memory_accounting", EnableForcedRotationBackingMemoryAccounting)
             .Optional();
 
         RegisterParameter("tablet_manager", TabletManager)
@@ -744,6 +833,15 @@ public:
 
         RegisterParameter("throttlers", Throttlers)
             .Optional();
+
+        RegisterParameter("store_compactor", StoreCompactor)
+            .DefaultNew();
+        RegisterParameter("store_flusher", StoreFlusher)
+            .DefaultNew();
+        RegisterParameter("store_trimmer", StoreTrimmer)
+            .DefaultNew();
+        RegisterParameter("partition_balancer", PartitionBalancer)
+            .DefaultNew();
     }
 };
 
@@ -816,12 +914,6 @@ public:
     //! Interval between slots examination.
     TDuration SlotScanPeriod;
 
-    //! Toggles background Eden flushing (disabling is useful for debugging purposes).
-    bool EnableStoreFlusher;
-
-    //! Toggles background store trimming (disabling is useful for debugging purposes).
-    bool EnableStoreTrimmer;
-
     //! Toggles background partition balancing (disabling is useful for debugging purposes).
     bool EnablePartitionBalancer;
 
@@ -892,10 +984,6 @@ public:
         RegisterParameter("slot_scan_period", SlotScanPeriod)
             .Default(TDuration::Seconds(1));
 
-        RegisterParameter("enable_store_flusher", EnableStoreFlusher)
-            .Default(true);
-        RegisterParameter("enable_store_trimmer", EnableStoreTrimmer)
-            .Default(true);
         RegisterParameter("enable_partition_balancer", EnablePartitionBalancer)
             .Default(true);
 

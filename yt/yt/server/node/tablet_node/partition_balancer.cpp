@@ -10,6 +10,8 @@
 #include "yt/library/profiling/sensor.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/server/lib/hydra/hydra_manager.h>
 #include <yt/server/lib/hydra/mutation.h>
@@ -62,29 +64,27 @@ static const auto& Logger = TabletNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPartitionBalancer
-    : public TRefCounted
+    : public IPartitionBalancer
 {
 public:
-    TPartitionBalancer(
-        TPartitionBalancerConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
-        : Config_(config)
-        , Bootstrap_(bootstrap)
+    explicit TPartitionBalancer(NClusterNode::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+        , Config_(Bootstrap_->GetConfig()->TabletNode->PartitionBalancer)
         , Semaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSamplings))
         , ThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
             Logger))
     { }
 
-    void Start()
+    virtual void Start() override
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
     }
 
 private:
-    const TPartitionBalancerConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
+    const TPartitionBalancerConfigPtr Config_;
 
     const TAsyncSemaphorePtr Semaphore_;
     const TThrottlerManagerPtr ThrottlerManager_;
@@ -98,9 +98,16 @@ private:
     {
         TEventTimerGuard guard(ScanTime_);
 
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->PartitionBalancer;
+        if (!dynamicConfig->Enable) {
+            return;
+        }
+
         if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
         }
+
         const auto& tabletManager = slot->GetTabletManager();
         for (auto [tabletId, tablet] : tabletManager->Tablets()) {
             ScanTablet(slot, tablet);
@@ -753,14 +760,9 @@ private:
     }
 };
 
-void StartPartitionBalancer(
-    TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+IPartitionBalancerPtr CreatePartitionBalancer(NClusterNode::TBootstrap* bootstrap)
 {
-    if (config->EnablePartitionBalancer) {
-        New<TPartitionBalancer>(config->PartitionBalancer, bootstrap)
-            ->Start();
-    }
+    return New<TPartitionBalancer>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1893,13 +1893,13 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
             set("//sys/tablet_cell_bundles/b/@dynamic_options/forced_rotation_memory_ratio", ratio)
         else:
             set("//sys/cluster_nodes/@config", {"%true": {
-                "tablet_node": {"forced_rotation_memory_ratio": ratio}
+                "tablet_node": {"store_flusher": {"forced_rotation_memory_ratio": ratio}}
             }})
             node = ls("//sys/cluster_nodes")[0]
             config_manager = "//sys/cluster_nodes/{}/orchid/dynamic_config_manager".format(node)
             def _wait_func():
                 config = get(config_manager + "/applied_config")
-                return config.get("tablet_node", {}).get("forced_rotation_memory_ratio", None) == ratio
+                return config.get("tablet_node", {}).get("store_flusher", {}).get("forced_rotation_memory_ratio", None) == ratio
             wait(_wait_func)
 
         cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]

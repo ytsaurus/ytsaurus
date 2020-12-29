@@ -8,9 +8,15 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void StartStoreTrimmer(
-    TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+struct IStoreTrimmer
+    : public virtual TRefCounted
+{
+    virtual void Start() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IStoreTrimmer)
+
+IStoreTrimmerPtr CreateStoreTrimmer(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
