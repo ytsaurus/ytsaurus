@@ -88,7 +88,7 @@ TFuture<void> TFramingAsyncOutputStream::DoWriteFrame(TString header, const std:
     return PendingOperationFuture_;
 }
 
-void TFramingAsyncOutputStream::AddAction(TCallback<void()> action)
+void TFramingAsyncOutputStream::AddAction(TCallback<TFuture<void>()> action)
 {
     auto asyncAction = BIND(action).AsyncVia(Invoker_);
     PendingOperationFuture_ = PendingOperationFuture_.Apply(std::move(asyncAction));
