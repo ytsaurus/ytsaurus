@@ -939,7 +939,15 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("evgenstf")
     def test_discovery_nodes_self_cleaning(self):
-        with Clique(5) as clique:
+        patch = {
+            "yt": {
+                "discovery": {
+                    # Allow node cleaning 1s after creation (default is 5m).
+                    "lock_node_timeout": 1000,
+                }
+            }
+        }
+        with Clique(5, config_patch=patch) as clique:
             clique_path = "//sys/clickhouse/cliques/{0}".format(clique.op.id)
 
             nodes_before_resizing = ls(clique_path, verbose=False)

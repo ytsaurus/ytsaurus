@@ -126,11 +126,6 @@ TEST(TDiscoveryTest, Enter)
     EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
         .Times(1);
 
-    EXPECT_CALL(*MockClient, SetNode(path + "/test_node/@expiration_time", _, _))
-        .WillOnce(InvokeWithoutArgs([&] {
-              return VoidFuture;
-        }));
-
     TDiscoveryConfigPtr config = New<TDiscoveryConfig>(path);
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
@@ -157,6 +152,10 @@ THashMap<TString, TString> TransformAttributes(TCreateNodeOptions options)
         for (const auto& [name, value] : options.Attributes->ToMap()->GetChildren()) {
             result[name] = value->AsString()->GetValue();
         }
+        // Expiration time depends on Now(). To make tests solid we replace it with constant.
+        if (auto it = result.find("expiration_time"); it != result.end()) {
+            it->second = "expiration_time_value";
+        }
     }
     return result;
 }
@@ -172,6 +171,8 @@ TEST(TDiscoveryTest, Leave) {
     attrs->Set("host", BuildYsonNodeFluently().Value("something.ru"));
     THashMap<TString, TString> comparableAttrs;
     comparableAttrs["host"] = "something.ru";
+    // See TransformAttributes.
+    comparableAttrs["expiration_time"] = "expiration_time_value";
 
     bool locked = false;
     bool created = false;
@@ -196,11 +197,6 @@ TEST(TDiscoveryTest, Leave) {
                 locked = true;
                 return MakeFuture(TLockNodeResult());
             }));
-
-    EXPECT_CALL(*MockClient, SetNode(path + "/test_node/@expiration_time", _, _))
-        .WillOnce(InvokeWithoutArgs([&] {
-              return VoidFuture;
-        }));
 
     EXPECT_CALL(*MockTransaction, Abort(_))
         .WillOnce(InvokeWithoutArgs([&] {
@@ -370,12 +366,6 @@ TEST(TDiscoveryTest, CreationRace)
                 locked = true;
                 return MakeFuture(TLockNodeResult());
             }));
-
-    EXPECT_CALL(*MockClient, SetNode(path + "/test_node/@expiration_time", _, _))
-        .WillOnce(InvokeWithoutArgs([&] {
-              return VoidFuture;
-        }));
-
 
     EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
         .Times(1);
