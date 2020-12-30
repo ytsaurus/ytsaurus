@@ -53,6 +53,9 @@ struct TProducerBuffer
 
     TCube<i64> CountersCube;
     TCube<double> GaugesCube;
+
+    TGauge CubeSize;
+    TGauge SensorEmitted;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,7 +87,7 @@ public:
     std::vector<TSensorInfo> ListSensors() const;
     void LegacyReadSensors();
 
-    void Profile(const TRegistry& registry);
+    void Profile(const TRegistry& profiler);
 
 private:
     TTagRegistry* const TagRegistry_;
@@ -93,6 +96,7 @@ private:
     THashSet<TProducerStatePtr> Producers_;
     THashMap<TString, TProducerBuffer> Buffers_;
 
+    TRegistry SelfProfiler_;
     TEventTimer ProducerCollectDuration_;
 
     TProducerBuffer* Find(const TString& name, const TSensorOptions& options);

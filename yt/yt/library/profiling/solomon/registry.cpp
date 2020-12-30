@@ -334,7 +334,7 @@ TSensorSet* TSolomonRegistry::FindSet(const TString& name, const TSensorOptions&
         return &it->second;
     } else {
         it = Sensors_.emplace(name, TSensorSet{options, Iteration_, GetWindowSize()}).first;
-
+        it->second.Profile(SelfProfiler_.WithTag("metric_name", name));
         SensorCount_.Update(Sensors_.size());
         return &it->second;
     }

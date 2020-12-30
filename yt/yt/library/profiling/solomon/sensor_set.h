@@ -169,6 +169,7 @@ public:
 
     bool IsEmpty() const;
 
+    void Profile(const TRegistry& profiler);
     void ValidateOptions(TSensorOptions options);
 
     void AddCounter(TCounterStatePtr counter);
@@ -216,6 +217,8 @@ private:
     TCube<THistogramSnapshot> HistogramsCube_;
 
     std::optional<int> Type_;
+    TGauge CubeSize_;
+    TGauge SensorsEmitted_;
 
     void OnError(TError error);
 

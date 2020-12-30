@@ -164,6 +164,7 @@ int TProducerSet::Collect()
     for (auto& [name, buffer] : Buffers_) {
         buffer.CountersCube.FinishIteration();
         buffer.GaugesCube.FinishIteration();
+        buffer.CubeSize.Update(buffer.CountersCube.GetSize() + buffer.GaugesCube.GetSize());
     }
 
     for (const auto& producer : toRemove) {
@@ -226,8 +227,10 @@ void TProducerSet::ReadSensors(
         readOptions.Sparse = buffer.Options.Sparse;
         readOptions.Global = buffer.Options.Global;
 
-        buffer.CountersCube.ReadSensors(name, readOptions, *TagRegistry_, consumer);
-        buffer.GaugesCube.ReadSensors(name, readOptions, *TagRegistry_, consumer);
+        int sensorsEmitted = 0;
+        sensorsEmitted += buffer.CountersCube.ReadSensors(name, readOptions, *TagRegistry_, consumer);
+        sensorsEmitted += buffer.GaugesCube.ReadSensors(name, readOptions, *TagRegistry_, consumer);
+        buffer.SensorEmitted.Update(sensorsEmitted);
     }
 }
 
@@ -302,9 +305,10 @@ std::vector<TSensorInfo> TProducerSet::ListSensors() const
     return list;
 }
 
-void TProducerSet::Profile(const TRegistry& registry)
+void TProducerSet::Profile(const TRegistry& profiler)
 {
-    ProducerCollectDuration_ = registry.Timer("/producer_collect_duration");
+    SelfProfiler_ = profiler;
+    ProducerCollectDuration_ = profiler.Timer("/producer_collect_duration");
 }
 
 TProducerBuffer* TProducerSet::Find(const TString& name, const TSensorOptions& options)
@@ -318,6 +322,10 @@ TProducerBuffer* TProducerSet::Find(const TString& name, const TSensorOptions& o
     it = Buffers_.emplace(name, TProducerBuffer{options, Iteration_, *WindowSize_}).first;
     it->second.CountersCube.StartIteration();
     it->second.GaugesCube.StartIteration();
+
+    auto profiler = SelfProfiler_.WithTag("metric_name", name);
+    it->second.CubeSize = profiler.Gauge("/cube_size");
+    it->second.SensorEmitted = profiler.Gauge("/sensors_emitted");
     return &it->second;
 }
 
