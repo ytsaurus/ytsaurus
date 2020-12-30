@@ -38,8 +38,12 @@ public:
     TDuration TransactionPingPeriod;
     bool SkipUnlockedParticipants;
 
+    //! How long a clique node can live without a transaction lock after creation.
+    //! Mostly for test configurations.
+    TDuration LockNodeTimeout;
+
     NApi::EMasterChannelKind ReadFrom;
-    // Used only for ReadFrom == Cache.
+    //! Used only for ReadFrom == Cache.
     TDuration MasterCacheExpireTime;
 
     TDiscoveryConfig() = default;
@@ -60,6 +64,10 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("skip_unlocked_participants", SkipUnlockedParticipants)
             .Default(true);
+
+        RegisterParameter("lock_node_timeout", LockNodeTimeout)
+            .Default(TDuration::Minutes(5));
+
         RegisterParameter("read_from", ReadFrom)
             .Default(NApi::EMasterChannelKind::Follower);
         RegisterParameter("master_cache_expire_time", MasterCacheExpireTime)

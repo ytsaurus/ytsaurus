@@ -213,11 +213,17 @@ void TDiscovery::DoCreateNode(int epoch)
         return;
     }
 
-    const auto& [name, attributes] = *NameAndAttributes_;
+    const auto& [name, userAttributes] = *NameAndAttributes_;
+
+    auto attributes = ConvertToAttributes(userAttributes);
+    // Set expiration time to remove old instances from the clique directory.
+    // Regardless of the expiration time, the node will be alive until transaction is aborted.
+    // But there is a gap between creation and locking the node, so set a few minutes from now to avoid deleting the node before locking it.
+    attributes->SetYson("expiration_time", ConvertToYsonString(TInstant::Now() + Config_->LockNodeTimeout));
 
     TCreateNodeOptions createOptions;
     createOptions.IgnoreExisting = true;
-    createOptions.Attributes = ConvertToAttributes(attributes);
+    createOptions.Attributes = std::move(attributes);
 
     WaitFor(Client_->CreateNode(Config_->Directory + "/" + name, NObjectClient::EObjectType::MapNode, createOptions))
         .ThrowOnError();
@@ -260,10 +266,6 @@ void TDiscovery::DoLockNode(int epoch)
     // Set it here to avoid restoring transaction without lock.
     Transaction_->SubscribeAborted(TransactionRestorer_);
 
-    // After transaction is aborted the node will be unlocked and removed.
-    WaitFor(Client_->SetNode(nodePath + "/@expiration_time", ConvertToYsonString(TInstant::Now())))
-        .ThrowOnError();
-
     YT_LOG_DEBUG("Lock completed (TransactionId: %v, LockId: %v)",
         Transaction_->GetId(),
         lock.LockId);
@@ -274,6 +276,7 @@ void TDiscovery::DoRestoreTransaction(int epoch)
     YT_LOG_WARNING("Lock transaction aborted (Epoch: %v)", epoch);
     while (Epoch_ == epoch) {
         try {
+            Transaction_.Reset();
             DoCreateNode(epoch);
             DoLockNode(epoch);
             break;
