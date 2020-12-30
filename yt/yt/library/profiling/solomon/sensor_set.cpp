@@ -34,6 +34,12 @@ bool TSensorSet::IsEmpty() const
         Histograms_.empty();
 }
 
+void TSensorSet::Profile(const TRegistry &profiler)
+{
+    CubeSize_ = profiler.Gauge("/cube_size");
+    SensorsEmitted_ = profiler.Gauge("/sensors_emitted");
+}
+
 void TSensorSet::ValidateOptions(TSensorOptions options)
 {
     if (Options_ != options) {
@@ -48,6 +54,7 @@ void TSensorSet::AddCounter(TCounterStatePtr counter)
     InitializeType(0);
     CountersCube_.AddAll(counter->TagIds, counter->Projections);
     Counters_.emplace(std::move(counter));
+    CubeSize_.Update(GetCubeSize());
 }
 
 void TSensorSet::AddGauge(TGaugeStatePtr gauge)
@@ -55,6 +62,7 @@ void TSensorSet::AddGauge(TGaugeStatePtr gauge)
     InitializeType(1);
     GaugesCube_.AddAll(gauge->TagIds, gauge->Projections);
     Gauges_.emplace(std::move(gauge));
+    CubeSize_.Update(GetCubeSize());
 }
 
 void TSensorSet::AddSummary(TSummaryStatePtr summary)
@@ -62,6 +70,7 @@ void TSensorSet::AddSummary(TSummaryStatePtr summary)
     InitializeType(2);
     SummariesCube_.AddAll(summary->TagIds, summary->Projections);
     Summaries_.emplace(std::move(summary));
+    CubeSize_.Update(GetCubeSize());
 }
 
 void TSensorSet::AddTimerSummary(TTimerSummaryStatePtr timer)
@@ -69,6 +78,7 @@ void TSensorSet::AddTimerSummary(TTimerSummaryStatePtr timer)
     InitializeType(3);
     TimersCube_.AddAll(timer->TagIds, timer->Projections);
     Timers_.emplace(std::move(timer));
+    CubeSize_.Update(GetCubeSize());
 }
 
 void TSensorSet::AddTimeCounter(TTimeCounterStatePtr counter)
@@ -76,6 +86,7 @@ void TSensorSet::AddTimeCounter(TTimeCounterStatePtr counter)
     InitializeType(4);
     TimeCountersCube_.AddAll(counter->TagIds, counter->Projections);
     TimeCounters_.emplace(std::move(counter));
+    CubeSize_.Update(GetCubeSize());
 }
 
 void TSensorSet::AddHistogram(THistogramStatePtr counter)
@@ -83,6 +94,7 @@ void TSensorSet::AddHistogram(THistogramStatePtr counter)
     InitializeType(5);
     HistogramsCube_.AddAll(counter->TagIds, counter->Projections);
     Histograms_.emplace(std::move(counter));
+    CubeSize_.Update(GetCubeSize());
 }
 
 int TSensorSet::Collect()
@@ -211,12 +223,16 @@ void TSensorSet::ReadSensors(
     readOptions.Global = Options_.Global;
     readOptions.BucketBound = THistogram::BucketBoundsSeconds(Options_);
 
-    CountersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
-    TimeCountersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
-    GaugesCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
-    SummariesCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
-    TimersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
-    HistogramsCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
+    int sensorsEmitted = 0;
+
+    sensorsEmitted += CountersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
+    sensorsEmitted += TimeCountersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
+    sensorsEmitted += GaugesCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
+    sensorsEmitted += SummariesCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
+    sensorsEmitted += TimersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
+    sensorsEmitted += HistogramsCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
+
+    SensorsEmitted_.Update(sensorsEmitted);
 }
 
 void TSensorSet::LegacyReadSensors(const TString& name, TTagRegistry* tagRegistry)

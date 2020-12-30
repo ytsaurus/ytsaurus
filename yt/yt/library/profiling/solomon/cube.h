@@ -76,7 +76,7 @@ public:
     i64 GetIteration(int index) const;
     T Rollup(const TProjection& window, int index) const;
 
-    void ReadSensors(
+    int ReadSensors(
         const TString& name,
         const TReadOptions& options,
         const TTagRegistry& tagsRegistry,

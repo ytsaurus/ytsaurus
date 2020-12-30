@@ -155,12 +155,14 @@ T TCube<T>::Rollup(const TProjection& window, int index) const
 }
 
 template <class T>
-void TCube<T>::ReadSensors(
+int TCube<T>::ReadSensors(
     const TString& name,
     const TReadOptions& options,
     const TTagRegistry& tagsRegistry,
     NMonitoring::IMetricConsumer* consumer) const
 {
+    int sensorsEmitted = 0;
+
     auto writeLabels = [&] (const auto& tagIds, bool rate, bool max, bool allowAggregate) {
         consumer->OnLabelsBegin();
 
@@ -246,6 +248,7 @@ void TCube<T>::ReadSensors(
             continue;
         }
 
+        int sensorCount = 0;
         for (const auto& [indices, time] : options.Times) {
             if (!options.EnableSolomonAggregationWorkaround && skipSparse(window, indices)) {
                 continue;
@@ -271,6 +274,7 @@ void TCube<T>::ReadSensors(
 
                 writeLabels(tagIds, options.ConvertCountersToRateGauge, false, true);
 
+                sensorCount = 1;
                 if (options.ConvertCountersToRateGauge) {
                     if (options.RateDenominator < 0.1) {
                         THROW_ERROR_EXCEPTION("Invalid rate denominator");
@@ -285,6 +289,7 @@ void TCube<T>::ReadSensors(
 
                 writeLabels(tagIds, false, false, true);
 
+                sensorCount = 1;
                 consumer->OnDouble(time, window.Values[indices.back()]);
             } else if constexpr (std::is_same_v<T, TSummarySnapshot<double>>) {
                 if (options.ExportSummaryAsMax) {
@@ -303,8 +308,10 @@ void TCube<T>::ReadSensors(
                     static_cast<ui64>(value.Count())
                 );
                 if (options.ExportSummaryAsMax) {
+                    sensorCount = 1;
                     consumer->OnDouble(time, snapshot->GetMax());
                 } else {
+                    sensorCount = 5;
                     consumer->OnSummaryDouble(time, snapshot);
                 }
             } else if constexpr (std::is_same_v<T, TSummarySnapshot<TDuration>>) {
@@ -325,8 +332,10 @@ void TCube<T>::ReadSensors(
                 );
 
                 if (options.ExportSummaryAsMax) {
+                    sensorCount = 1;
                     consumer->OnDouble(time, snapshot->GetMax());
                 } else {
+                    sensorCount = 5;
                     consumer->OnSummaryDouble(time, snapshot);
                 }
             } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
@@ -340,6 +349,7 @@ void TCube<T>::ReadSensors(
                     (*hist)[i] = {options.BucketBound[i], bucketValue};
                 }
 
+                sensorCount = value.Values.size();
                 consumer->OnHistogram(time, hist);
             } else {
                 THROW_ERROR_EXCEPTION("Unexpected cube type");
@@ -347,7 +357,11 @@ void TCube<T>::ReadSensors(
 
             consumer->OnMetricEnd();
         }
+
+        sensorsEmitted += sensorCount;
     }
+
+    return sensorsEmitted;
 }
 
 template class TCube<double>;

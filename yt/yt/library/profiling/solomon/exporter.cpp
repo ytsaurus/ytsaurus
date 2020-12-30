@@ -13,6 +13,7 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/fiber_api.h>
 
 #include <library/cpp/monlib/encode/format.h>
 #include <library/cpp/monlib/encode/json/json.h>
@@ -178,7 +179,10 @@ void TSolomonExporter::DoCollect()
         Registry_->ProcessRegistrations();
 
         auto i = Registry_->IndexOf(Registry_->GetNextIteration());
-        Registry_->Collect();
+        {
+            TForbidContextSwitchGuard guard;
+            Registry_->Collect();
+        }
 
         Window_.emplace_back(i, nextGridTime);
         if (Window_.size() > static_cast<size_t>(Registry_->GetWindowSize())) {
@@ -542,6 +546,7 @@ void TSolomonExporter::ValidatePeriodAndGrid(std::optional<TDuration> period, st
 void TSolomonExporter::DoPushCoreProfiling()
 {
     try {
+        TForbidContextSwitchGuard guard;
         Registry_->ProcessRegistrations();
         Registry_->LegacyReadSensors();
     } catch (const std::exception& ex) {
