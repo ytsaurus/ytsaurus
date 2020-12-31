@@ -225,6 +225,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
+        , JobSpecBuildPool_(New<TThreadPool>(Config_->JobSpecBuildThreadCount, "JobSpec"))
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
@@ -342,6 +343,13 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ControllerThreadPool_->GetInvoker();
+    }
+
+    const IInvokerPtr& GetJobSpecBuildPoolInvoker()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return JobSpecBuildPool_->GetInvoker();
     }
 
     TMemoryTagQueue* GetMemoryTagQueue()
@@ -964,6 +972,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     const TThreadPoolPtr ControllerThreadPool_;
+    const TThreadPoolPtr JobSpecBuildPool_;
     const TActionQueuePtr SnapshotIOQueue_;
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
@@ -1909,6 +1918,11 @@ IYPathServicePtr TControllerAgent::CreateOrchidService()
 const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
 {
     return Impl_->GetControllerThreadPoolInvoker();
+}
+
+const IInvokerPtr& TControllerAgent::GetJobSpecBuildPoolInvoker()
+{
+    return Impl_->GetJobSpecBuildPoolInvoker();
 }
 
 const IInvokerPtr& TControllerAgent::GetSnapshotIOInvoker()

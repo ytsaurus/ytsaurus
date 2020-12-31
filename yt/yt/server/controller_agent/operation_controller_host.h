@@ -106,6 +106,7 @@ public:
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() override;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() override;
+    virtual const IInvokerPtr& GetJobSpecBuildPoolInvoker() override;
     virtual const NEventLog::IEventLogWriterPtr& GetEventLogWriter() override;
     virtual const ICoreDumperPtr& GetCoreDumper() override;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() override;
