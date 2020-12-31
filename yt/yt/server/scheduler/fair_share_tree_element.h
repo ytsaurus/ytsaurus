@@ -323,6 +323,7 @@ protected:
     TCompositeSchedulerElement* Parent_ = nullptr;
 
     TJobResources TotalResourceLimits_;
+    bool HasSpecifiedResourceLimits_ = false;
 
     int PendingJobCount_ = 0;
     TInstant StartTime_;
@@ -434,7 +435,7 @@ public:
     TInstant GetStartTime() const;
     int GetPendingJobCount() const;
 
-    virtual ESchedulableStatus GetStatus(bool atUpdate = false) const;
+    virtual ESchedulableStatus GetStatus(bool atUpdate = true) const;
 
     bool GetStarving() const;
     virtual void SetStarving(bool starving);
@@ -443,7 +444,6 @@ public:
     TJobResources GetInstantResourceUsage() const;
     TJobMetrics GetJobMetrics() const;
     TResourceVector GetResourceUsageShare() const;
-    TResourceVector GetResourceUsageShareWithPrecommit() const;
 
     // Used for diagnostics.
     double GetResourceDominantUsageShareAtUpdate() const;
@@ -524,7 +524,6 @@ protected:
 
     TString GetLoggingAttributesString() const;
 
-    TJobResources GetLocalAvailableResourceDemand(const TFairShareContext& context) const;
     TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
 
     bool CheckDemand(const TJobResources& delta, const TFairShareContext& context);
@@ -778,7 +777,7 @@ public:
     virtual TResourceVector GetMaxShare() const override;
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const override;
 
-    virtual ESchedulableStatus GetStatus(bool atUpdate = false) const override;
+    virtual ESchedulableStatus GetStatus(bool atUpdate = true) const override;
 
     virtual double GetFairShareStarvationTolerance() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
@@ -1060,7 +1059,7 @@ public:
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
-    virtual ESchedulableStatus GetStatus(bool atUpdate = false) const override;
+    virtual ESchedulableStatus GetStatus(bool atUpdate = true) const override;
 
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
@@ -1172,6 +1171,7 @@ private:
     bool CheckPacking(const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
 
     TJobResources GetHierarchicalAvailableResources(const TFairShareContext& context) const;
+    TJobResources GetLocalAvailableResourceDemand(const TFairShareContext& context) const;
 
     std::optional<EDeactivationReason> TryStartScheduleJob(
         const TFairShareContext& context,
