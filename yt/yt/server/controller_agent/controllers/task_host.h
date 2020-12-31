@@ -31,6 +31,7 @@ struct ITaskHost
     , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
     virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
+    virtual IInvokerPtr GetJobSpecBuildInvoker() const = 0;
 
     //! Called to extract stderr table path from the spec.
     virtual std::optional<NYPath::TRichYPath> GetStderrTablePath() const = 0;
