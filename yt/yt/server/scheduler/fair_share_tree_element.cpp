@@ -297,6 +297,7 @@ void TSchedulerElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
     TotalResourceLimits_ = context->TotalResourceLimits;
     // NB: ResourceLimits must be computed after TotalResourceLimits.
     ResourceLimits_ = ComputeResourceLimits();
+    HasSpecifiedResourceLimits_ = GetSpecifiedResourceLimits() != TJobResources::Infinite();
 
     auto specifiedResourceLimits = GetSpecifiedResourceLimits();
     if (PersistentAttributes_.AppliedResourceLimits != specifiedResourceLimits) {
@@ -404,7 +405,7 @@ TString TSchedulerElement::GetLoggingAttributesString() const
         "Starving: %v, "
         "Weight: %v, "
         "Volume: %v",
-        GetStatus(/* atUpdate */ true),
+        GetStatus(),
         Attributes_.DominantResource,
         Attributes_.DemandShare,
         Attributes_.UsageShare,
@@ -543,18 +544,12 @@ double TSchedulerElement::GetMaxShareRatio() const
 TResourceVector TSchedulerElement::GetResourceUsageShare() const
 {
     return TResourceVector::FromJobResources(
-        ResourceTreeElement_->GetResourceUsage(), TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
+        ResourceUsageAtUpdate_, TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
 }
 
 double TSchedulerElement::GetResourceDominantUsageShareAtUpdate() const
 {
     return MaxComponent(Attributes_.UsageShare);
-}
-
-TResourceVector TSchedulerElement::GetResourceUsageShareWithPrecommit() const
-{
-    return TResourceVector::FromJobResources(
-        ResourceTreeElement_->GetResourceUsageWithPrecommit(), TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
 }
 
 TString TSchedulerElement::GetTreeId() const
@@ -567,20 +562,15 @@ bool TSchedulerElement::CheckDemand(const TJobResources& delta, const TFairShare
     return ResourceTreeElement_->CheckDemand(delta, ResourceDemand(), context.DynamicAttributesFor(this).ResourceUsageDiscount);
 }
 
-TJobResources TSchedulerElement::GetLocalAvailableResourceDemand(const TFairShareContext& context) const
-{
-    return ComputeAvailableResources(
-        ResourceDemand(),
-        ResourceTreeElement_->GetResourceUsageWithPrecommit(),
-        context.DynamicAttributesFor(this).ResourceUsageDiscount);
-}
-
 TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShareContext& context) const
 {
-    return ComputeAvailableResources(
-        ResourceLimits_,
-        ResourceTreeElement_->GetResourceUsageWithPrecommit(),
-        context.DynamicAttributesFor(this).ResourceUsageDiscount);
+    if (HasSpecifiedResourceLimits_) {
+        return ComputeAvailableResources(
+            ResourceLimits_,
+            ResourceTreeElement_->GetResourceUsageWithPrecommit(),
+            context.DynamicAttributesFor(this).ResourceUsageDiscount);
+    }
+    return TJobResources::Infinite();
 }
 
 void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& delta)
@@ -730,7 +720,7 @@ void TSchedulerElement::CheckForStarvationImpl(TDuration fairSharePreemptionTime
 {
     YT_VERIFY(Mutable_);
 
-    auto status = GetStatus(/* atUpdate */ true);
+    auto status = GetStatus();
     switch (status) {
         case ESchedulableStatus::BelowFairShare:
             if (!PersistentAttributes_.BelowFairShareSince) {
@@ -2412,7 +2402,7 @@ void TPool::SetStarving(bool starving)
 
     if (starving && !GetStarving()) {
         TSchedulerElement::SetStarving(true);
-        YT_LOG_INFO("Pool is now starving (Status: %v)", GetStatus(/* atUpdate */ true));
+        YT_LOG_INFO("Pool is now starving (Status: %v)", GetStatus());
     } else if (!starving && GetStarving()) {
         TSchedulerElement::SetStarving(false);
         YT_LOG_INFO("Pool is no longer starving");
@@ -3437,7 +3427,9 @@ void TOperationElement::PrescheduleJob(
         return;
     }
 
-    if (Spec_->PreemptionMode == EPreemptionMode::Graceful && GetStatus() == ESchedulableStatus::Normal) {
+    if (Spec_->PreemptionMode == EPreemptionMode::Graceful &&
+        GetStatus(/* atUpdate */ false) == ESchedulableStatus::Normal)
+    {
         onOperationDeactivated(EDeactivationReason::FairShareExceeded);
         return;
     }
@@ -4073,6 +4065,15 @@ TJobResources TOperationElement::GetHierarchicalAvailableResources(const TFairSh
 
     return availableResources;
 }
+
+TJobResources TOperationElement::GetLocalAvailableResourceDemand(const TFairShareContext& context) const
+{
+    return ComputeAvailableResources(
+        ResourceDemand(),
+        ResourceTreeElement_->GetResourceUsageWithPrecommit(),
+        context.DynamicAttributesFor(this).ResourceUsageDiscount);
+}
+
 
 TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
     TFairShareContext* context,

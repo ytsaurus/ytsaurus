@@ -2463,7 +2463,7 @@ private:
         // TODO(eshcherbin): Rethink which fields should be here and which should in in |TSchedulerElement::BuildYson|.
         // Also rethink which scalar fields should be exported to Orchid.
         fluent
-            .Item("scheduling_status").Value(element->GetStatus(/* atUpdate */ true))
+            .Item("scheduling_status").Value(element->GetStatus())
             .Item("starving").Value(element->GetStarving())
             .Item("fair_share_starvation_tolerance").Value(element->GetFairShareStarvationTolerance())
             .Item("fair_share_preemption_timeout").Value(element->GetFairSharePreemptionTimeout())
