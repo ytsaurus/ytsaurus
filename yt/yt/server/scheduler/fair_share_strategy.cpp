@@ -954,7 +954,7 @@ public:
             // TODO(eshcherbin): This is rather verbose. Consider removing when well tested in production.
             YT_LOG_DEBUG(
                 "Considering candidate single tree for operation ("
-                "OperationId: %v, Tree: %v, TotalResourceLimits: %v, "
+                "OperationId: %v, TreeId: %v, TotalResourceLimits: %v, "
                 "NewDemandShare: %.6g, CurrentDemandShare: %.6g, ModelDemandShare: %.6g, "
                 "PromisedFairShare: %.6g, ReserveShare: %.6g, CurrentReserveRatio: %v)",
                 operationId,

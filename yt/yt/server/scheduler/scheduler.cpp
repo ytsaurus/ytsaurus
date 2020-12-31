@@ -916,7 +916,7 @@ public:
 
         LogEventFluently(ELogEventType::OperationBannedInTree)
             .Item("operation_id").Value(operation->GetId())
-            .Item("tree_id").Value(treeId);
+            .Item(EventLogPoolTreeKey).Value(treeId);
 
         GetControlInvoker(EControlQueue::Operation)->Invoke(
             BIND(&TImpl::UnregisterOperationFromTreeForBannedTree, MakeStrong(this), operation, treeId));
@@ -1515,8 +1515,8 @@ public:
 
         currentDescriptor.CancelableContext->Cancel(
             TError("Node has changed fair share tree")
-                << TErrorAttribute("old_tree", currentDescriptor.TreeId)
-                << TErrorAttribute("new_tree", treeId));
+                << TErrorAttribute("old_pool_tree", currentDescriptor.TreeId)
+                << TErrorAttribute("new_pool_tree", treeId));
 
         currentDescriptor.CancelableContext = New<TCancelableContext>();
         currentDescriptor.TreeId = treeId;
@@ -1545,7 +1545,7 @@ public:
             treeId = treeIds[0];
         } else {
             THROW_ERROR_EXCEPTION("Node belongs to more than one fair-share tree")
-                << TErrorAttribute("matched_trees", treeIds);
+                << TErrorAttribute("matched_pool_trees", treeIds);
         }
 
         auto it = NodeIdToDescriptor_.find(nodeId);
@@ -1565,8 +1565,8 @@ public:
                 OnNodeChangedFairShareTree(nodeId, treeId);
                 currentDescriptor.CancelableContext->Cancel(
                     TError("Node has changed fair share tree")
-                        << TErrorAttribute("old_tree", currentDescriptor.TreeId)
-                        << TErrorAttribute("new_tree", treeId));
+                        << TErrorAttribute("old_pool_tree", currentDescriptor.TreeId)
+                        << TErrorAttribute("new_pool_tree", treeId));
             }
             currentDescriptor.Tags = tags;
             currentDescriptor.Address = nodeAddress;

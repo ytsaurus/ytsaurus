@@ -2435,12 +2435,12 @@ def get_job_count_profiling():
 
     profiling_response = []
     try:
-        profiling_response = get("//sys/scheduler/orchid/profiling/scheduler/node_shard/running_job_count", verbose=False)
+        profiling_response = get("//sys/scheduler/orchid/profiling/scheduler/jobs/running_job_count", verbose=False)
     except YtError:
         pass
 
     try:
-        completed_job_count = get("//sys/scheduler/orchid/profiling/scheduler/node_shard/completed_job_count", verbose=False)
+        completed_job_count = get("//sys/scheduler/orchid/profiling/scheduler/jobs/completed_job_count", verbose=False)
         for job in completed_job_count:
             job["tags"]["state"] = "completed"
         profiling_response += completed_job_count
@@ -2448,7 +2448,7 @@ def get_job_count_profiling():
         pass
 
     try:
-        aborted_job_count = get("//sys/scheduler/orchid/profiling/scheduler/node_shard/aborted_job_count", verbose=False)
+        aborted_job_count = get("//sys/scheduler/orchid/profiling/scheduler/jobs/aborted_job_count", verbose=False)
         for job in aborted_job_count:
             job["tags"]["state"] = "aborted"
         profiling_response += aborted_job_count

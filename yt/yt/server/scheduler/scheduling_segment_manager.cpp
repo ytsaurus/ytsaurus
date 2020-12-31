@@ -191,7 +191,7 @@ void TSchedulingSegmentManager::LogAndProfileSegmentsInTree(
     const TSegmentToResourceAmount& currentResourceAmountPerSegment,
     ISensorWriter* sensorWriter) const
 {
-    sensorWriter->PushTag(TTag{"tree", treeId});
+    sensorWriter->PushTag(TTag{ProfilingPoolTreeKey, treeId});
     auto finally = Finally([&] { sensorWriter->PopTag(); });
 
     const auto& segmentsInfo = context->SegmentsInfoPerTree[treeId];

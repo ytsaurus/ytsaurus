@@ -649,15 +649,13 @@ public:
                 if (poolIt->second->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
                     poolIt->second->InitAccumulatedResourceVolume(poolState->AccumulatedResourceVolume);
                 } else {
-                    YT_LOG_INFO("Pool is not integral and cannot accept integral resource volume (Pool: %v, PoolTree: %v, Volume: %v)",
+                    YT_LOG_INFO("Pool is not integral and cannot accept integral resource volume (Pool: %v, Volume: %v)",
                         poolName,
-                        TreeId_,
                         poolState->AccumulatedResourceVolume);
                 }
             } else {
-                YT_LOG_INFO("Unknown pool in tree; dropping its integral resource volume (Pool: %v, PoolTree: %v, Volume: %v)",
+                YT_LOG_INFO("Unknown pool in tree; dropping its integral resource volume (Pool: %v, Volume: %v)",
                     poolName,
-                    TreeId_,
                     poolState->AccumulatedResourceVolume);
             }
         }
@@ -1981,7 +1979,7 @@ private:
             TError("Max running operation count violated")
                 << TErrorAttribute("pool", violatedPool->GetId())
                 << TErrorAttribute("limit", violatedPool->GetMaxRunningOperationCount())
-                << TErrorAttribute("tree", TreeId_)
+                << TErrorAttribute("pool_tree", TreeId_)
         );
 
         return false;
@@ -2301,7 +2299,7 @@ private:
         {
             TEventTimer timer(FairShareFluentLogTimer_);
             fluent
-                .Item("tree_id").Value(TreeId_)
+                .Item(EventLogPoolTreeKey).Value(TreeId_)
                 .Do(BIND(&TFairShareTree::DoBuildFairShareInfo, Unretained(this), rootElementSnapshot));
         }
 
@@ -2317,7 +2315,7 @@ private:
         {
             TEventTimer timer(FairShareFluentLogTimer_);
             fluent
-                .Item("tree_id").Value(TreeId_)
+                .Item(EventLogPoolTreeKey).Value(TreeId_)
                 .Do(BIND(&TFairShareTree::DoBuildEssentialFairShareInfo, Unretained(this), rootElementSnapshot));
         }
 

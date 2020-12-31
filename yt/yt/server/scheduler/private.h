@@ -67,6 +67,9 @@ extern const NProfiling::TRegistry SchedulerProfiler;
 
 static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;
 
+extern const TString EventLogPoolTreeKey;
+extern const TString ProfilingPoolTreeKey;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
