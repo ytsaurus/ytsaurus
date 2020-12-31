@@ -68,10 +68,10 @@ TCounter* GetJobErrorCounter(const TString& treeId, const TString& jobError)
     static TSyncMap<std::tuple<TString, TString>, TCounter> counters;
     return counters.FindOrInsert(std::make_tuple(treeId, jobError), [&] {
         return SchedulerProfiler
-            .WithTag("tree", treeId)
+            .WithTag(ProfilingPoolTreeKey, treeId)
             .WithTag("job_error", jobError)
             .WithHot()
-            .Counter("/aborted_job_errors");
+            .Counter("/jobs/aborted_job_count_by_error");
     }).first;
 }
 
@@ -89,10 +89,6 @@ void ProfileAbortedJobErrors(const TJobPtr& job, const TError& error)
 }
 
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-static TRegistry NodeShardProfiler{"/scheduler/node_shard"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,19 +117,19 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::SubmitJobsToStrategy, MakeWeak(this)),
         Config_->NodeShardSubmitJobsToStrategyPeriod))
 {
-    NodeShardProfiler.AddFuncCounter("/active_job_count", MakeStrong(this), [this] {
+    SchedulerProfiler.AddFuncCounter("/jobs/registered_job_count", MakeStrong(this), [this] {
         return ActiveJobCount_.load();
     });
-    NodeShardProfiler.AddFuncCounter("/exec_node_count", MakeStrong(this), [this] {
+    SchedulerProfiler.AddFuncCounter("/exec_node_count", MakeStrong(this), [this] {
         return ExecNodeCount_.load();
     });
-    NodeShardProfiler.AddFuncCounter("/total_job_count", MakeStrong(this), [this] {
+    SchedulerProfiler.AddFuncCounter("/total_node_count", MakeStrong(this), [this] {
         return TotalNodeCount_.load();
     });
 
-    TotalCompletedJobTime_ = NodeShardProfiler.TimeCounter("/total_completed_job_time");
-    TotalFailedJobTime_ = NodeShardProfiler.TimeCounter("/total_failed_job_time");
-    TotalAbortedJobTime_ = NodeShardProfiler.TimeCounter("/total_aborted_job_time");
+    TotalCompletedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_completed_wall_time");
+    TotalFailedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_failed_wall_time");
+    TotalAbortedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_aborted_wall_time");
 }
 
 int TNodeShard::GetId() const
@@ -2327,10 +2323,11 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
         if (it == AbortedJobCounter_.end()) {
             it = AbortedJobCounter_.emplace(
                 key,
-                NodeShardProfiler
+                SchedulerProfiler
                     .WithTag("job_type", FormatEnum(job->GetType()))
                     .WithTag("abort_reason", FormatEnum(job->GetAbortReason()))
-                    .Counter("/aborted_job_count")).first;
+                    .WithTag(ProfilingPoolTreeKey, job->GetTreeId())
+                    .Counter("/jobs/aborted_job_count")).first;
         }
         it->second.Increment(value);
     } else if (job->GetState() == EJobState::Completed) {
@@ -2339,10 +2336,11 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
         if (it == CompletedJobCounter_.end()) {
             it = CompletedJobCounter_.emplace(
                 key,
-                NodeShardProfiler
+                SchedulerProfiler
                     .WithTag("job_type", FormatEnum(job->GetType()))
                     .WithTag("interrupt_reason", FormatEnum(job->GetInterruptReason()))
-                    .Counter("/completed_job_count")).first;
+                    .WithTag(ProfilingPoolTreeKey, job->GetTreeId())
+                    .Counter("/jobs/completed_job_count")).first;
         }
         it->second.Increment(value);
     } else {
@@ -2353,10 +2351,11 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
                 key,
                 std::make_pair(
                     0,
-                    NodeShardProfiler
+                    SchedulerProfiler
                         .WithTag("job_type", FormatEnum(job->GetType()))
                         .WithTag("state", FormatEnum(job->GetState()))
-                        .Gauge("/running_job_count"))).first;
+                        .WithTag(ProfilingPoolTreeKey, job->GetTreeId())
+                        .Gauge("/jobs/running_job_count"))).first;
         }
 
         auto& [count, gauge] = it->second;

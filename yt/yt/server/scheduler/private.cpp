@@ -9,6 +9,9 @@ const NLogging::TLogger SchedulerResourceMeteringLogger("SchedulerResourceMeteri
 
 const NProfiling::TRegistry SchedulerProfiler{"/scheduler"};
 
+const TString EventLogPoolTreeKey{"tree_id"};
+const TString ProfilingPoolTreeKey{"tree"};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
