@@ -659,6 +659,16 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
         assert get("#" + tx + "/@replicated_to_cell_tags") == [0]
 
+    @authors("shakurov")
+    def test_boomerang_mutation_portal_forwarding(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 3})
+
+        assert not get("//tmp/p/@resolve_cached")
+
+        tx = start_transaction()
+        # Must succeed.
+        create("map_node", "//tmp/p/d", tx=tx)
+
 
 class TestMasterTransactionsShardedTxNoBoomerangs(TestMasterTransactionsShardedTx):
     def setup_method(self, method):

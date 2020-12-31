@@ -1697,9 +1697,7 @@ void TObjectManager::TImpl::HydraExecuteFollower(NProto::TReqExecute* request)
 
     TSharedRefArrayBuilder requestMessageBuilder(request->request_parts_size());
     for (const auto& part : request->request_parts()) {
-        // NB: This is a mutating request and these are always synchronous;
-        // non-owning shared ref should be OK.
-        requestMessageBuilder.Add(TSharedRef(TRef::FromString(part), nullptr));
+        requestMessageBuilder.Add(TSharedRef::FromString(part));
     }
 
     auto requestMessage = requestMessageBuilder.Finish();
