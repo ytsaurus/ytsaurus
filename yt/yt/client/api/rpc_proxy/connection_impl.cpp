@@ -97,7 +97,7 @@ std::vector<TString> GetRpcProxiesFromHttp(
     return ConvertTo<std::vector<TString>>(node);
 }
 
-TString MakeConnectionLoggingId(const TConnectionConfigPtr& config, TGuid connectionId)
+TString MakeConnectionLoggingTag(const TConnectionConfigPtr& config, TGuid connectionId)
 {
     TStringBuilder builder;
     TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
@@ -113,7 +113,7 @@ TString MakeConnectionLoggingId(const TConnectionConfigPtr& config, TGuid connec
 
 TString MakeEndpointDescription(const TConnectionConfigPtr& config, TGuid connectionId)
 {
-    return Format("Rpc{%v}", MakeConnectionLoggingId(config, connectionId));
+    return Format("Rpc{%v}", MakeConnectionLoggingTag(config, connectionId));
 }
 
 IAttributeDictionaryPtr MakeEndpointAttributes(const TConnectionConfigPtr& config, TGuid connectionId)
@@ -207,10 +207,9 @@ private:
 TConnection::TConnection(TConnectionConfigPtr config)
     : Config_(std::move(config))
     , ConnectionId_(TGuid::Create())
-    , LoggingId_(MakeConnectionLoggingId(Config_, ConnectionId_))
+    , LoggingTag_(MakeConnectionLoggingTag(Config_, ConnectionId_))
     , ClusterId_(MakeConnectionClusterId(Config_))
-    , Logger(NLogging::TLogger(RpcProxyClientLogger)
-        .AddRawTag(LoggingId_))
+    , Logger(RpcProxyClientLogger.WithRawTag(LoggingTag_))
     , ActionQueue_(New<TActionQueue>("RpcProxyConn"))
     , ChannelFactory_(CreateCachingChannelFactory(
         NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
@@ -258,9 +257,9 @@ NObjectClient::TCellTag TConnection::GetCellTag()
     YT_ABORT();
 }
 
-const TString& TConnection::GetLoggingId()
+const TString& TConnection::GetLoggingTag()
 {
-    return LoggingId_;
+    return LoggingTag_;
 }
 
 const TString& TConnection::GetClusterId()

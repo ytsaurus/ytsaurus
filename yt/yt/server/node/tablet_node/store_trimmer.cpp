@@ -178,7 +178,7 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("%v", tablet->GetLoggingId());
+        Logger.AddTag("%v", tablet->GetLoggingTag());
 
         try {
             YT_LOG_INFO("Trimming tablet stores (StoreIds: %v)",

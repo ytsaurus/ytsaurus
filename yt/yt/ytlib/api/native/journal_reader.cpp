@@ -59,10 +59,9 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TJournalReaderConfig>())
-        , Logger(NLogging::TLogger(ApiLogger)
-            .AddTag("Path: %v, TransactionId: %v",
-                Path_,
-                Options_.TransactionId))
+        , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v",
+            Path_,
+            Options_.TransactionId))
         , ReaderInvoker_(CreateSerializedInvoker(NChunkClient::TDispatcher::Get()->GetReaderInvoker()))
     {
         if (Options_.TransactionId) {

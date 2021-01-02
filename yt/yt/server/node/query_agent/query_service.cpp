@@ -159,8 +159,7 @@ public:
         IInvokerPtr invoker)
         : TAsyncExpiringCache(
             std::move(config),
-            NLogging::TLogger(QueryAgentLogger)
-                .AddTag("Cache: PoolWeight"))
+            QueryAgentLogger.WithTag("Cache: PoolWeight"))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
     { }

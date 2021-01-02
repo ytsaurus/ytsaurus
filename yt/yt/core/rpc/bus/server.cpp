@@ -31,8 +31,7 @@ class TBusServer
 {
 public:
     explicit TBusServer(IBusServerPtr busServer)
-        : TServerBase(NLogging::TLogger(RpcServerLogger)
-             .AddTag("BusServerId: %v", TGuid::Create()))
+        : TServerBase(RpcServerLogger.WithTag("BusServerId: %v", TGuid::Create()))
         , BusServer_(std::move(busServer))
     { }
 

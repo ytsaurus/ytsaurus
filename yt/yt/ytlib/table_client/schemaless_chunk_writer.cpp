@@ -137,8 +137,7 @@ public:
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
         const TChunkTimestamps& chunkTimestamps)
-        : Logger(NLogging::TLogger(TableClientLogger)
-            .AddTag("ChunkWriterId: %v", TGuid::Create()))
+        : Logger(TableClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
         , Schema_(std::move(schema))
         , ChunkTimestamps_(chunkTimestamps)
         , ChunkNameTable_(TNameTable::FromSchema(*Schema_))
@@ -1991,10 +1990,9 @@ public:
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
         , Throttler_(std::move(throttler))
         , BlockCache_(std::move(blockCache))
-        , Logger(NLogging::TLogger(TableClientLogger)
-            .AddTag("Path: %v, TransactionId: %v",
-                richPath.GetPath(),
-                TransactionId_))
+        , Logger(TableClientLogger.WithTag("Path: %v, TransactionId: %v",
+            richPath.GetPath(),
+            TransactionId_))
     {
         if (Transaction_) {
             StartListenTransaction(Transaction_);

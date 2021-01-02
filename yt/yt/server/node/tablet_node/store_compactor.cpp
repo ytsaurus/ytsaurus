@@ -179,7 +179,7 @@ private:
 
         TTabletId TabletId;
         TRevision MountRevision;
-        TString TabletLoggingId;
+        TString TabletLoggingTag;
         TPartitionId PartitionId;
         std::vector<TStoreId> StoreIds;
 
@@ -219,7 +219,7 @@ private:
             , Invoker(tablet->GetEpochAutomatonInvoker())
             , TabletId(tablet->GetId())
             , MountRevision(tablet->GetMountRevision())
-            , TabletLoggingId(tablet->GetLoggingId())
+            , TabletLoggingTag(tablet->GetLoggingTag())
             , PartitionId(partition->GetId())
             , StoreIds(std::move(stores))
         { }
@@ -566,7 +566,7 @@ private:
         const auto& Logger = TabletNodeLogger;
         YT_LOG_DEBUG("Found partition with expired stores (%v, PartitionId: %v, PartitionIndex: %v, "
             "PartitionMaxTimestamp: %v, MajorTimestamp: %v, StoreCount: %v)",
-            tablet->GetLoggingId(),
+            tablet->GetLoggingTag(),
             partition->GetId(),
             partition->GetIndex(),
             partitionMaxTimestamp,
@@ -718,7 +718,7 @@ private:
 
         auto Logger = TabletNodeLogger;
         Logger.AddTag("%v, PartitionId: %v",
-            tablet->GetLoggingId(),
+            tablet->GetLoggingTag(),
             partition->GetId());
 
         YT_LOG_DEBUG_IF(config->EnableLsmVerboseLogging,
@@ -1088,7 +1088,7 @@ private:
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("%v, ReadSessionId: %v",
-            task->TabletLoggingId,
+            task->TabletLoggingTag,
             blockReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
@@ -1564,7 +1564,7 @@ private:
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("%v, ReadSessionId: %v",
-            task->TabletLoggingId,
+            task->TabletLoggingTag,
             blockReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {

@@ -56,8 +56,7 @@ TContext::TContext(
     : Api_(std::move(api))
     , Request_(std::move(request))
     , Response_(std::move(response))
-    , Logger(TLogger(HttpProxyLogger)
-        .AddTag("RequestId: %v", Request_->GetRequestId()))
+    , Logger(HttpProxyLogger.WithTag("RequestId: %v", Request_->GetRequestId()))
 {
     DriverRequest_.Id = RandomNumber<ui64>();
 }

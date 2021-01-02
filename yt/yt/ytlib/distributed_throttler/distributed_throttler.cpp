@@ -726,10 +726,10 @@ public:
             BIND(&TImpl::UpdateLeader, MakeWeak(this)),
             config->LeaderUpdatePeriod))
         , RealmId_(TGuid::Create())
-        , Logger(NLogging::TLogger(logger)
-            .AddTag("SelfMemberId: %v", MemberId_)
-            .AddTag("GroupId: %v", GroupId_)
-            .AddTag("RealmId: %v", RealmId_))
+        , Logger(logger.WithTag("SelfMemberId: %v, GroupId: %v, RealmId: %v",
+            MemberId_,
+            GroupId_,
+            RealmId_))
         , Config_(std::move(config))
         , DistributedThrottlerService_(New<TDistributedThrottlerService>(
             std::move(rpcServer),

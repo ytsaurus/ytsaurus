@@ -326,8 +326,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
     bool fetchHeavyColumnStatisticsExt,
     const TLogger& logger)
 {
-    auto Logger = NLogging::TLogger(logger)
-        .AddTag("Path: %v", path.GetPath());
+    auto Logger = logger.WithTag("Path: %v", path.GetPath());
 
     TUserObject userObject(path);
 

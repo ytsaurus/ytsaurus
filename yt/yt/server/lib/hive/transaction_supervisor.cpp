@@ -94,8 +94,7 @@ public:
         , SelfCellId_(selfCellId)
         , TimestampProvider_(std::move(timestampProvider))
         , ParticipantProviders_(std::move(participantProviders))
-        , Logger(NLogging::TLogger(HiveServerLogger)
-            .AddTag("CellId: %v", SelfCellId_))
+        , Logger(HiveServerLogger.WithTag("CellId: %v", SelfCellId_))
         , TransactionSupervisorService_(New<TTransactionSupervisorService>(this))
         , TransactionParticipantService_(New<TTransactionParticipantService>(this))
     {
@@ -218,8 +217,7 @@ private:
                 NRpc::TDispatcher::Get()->GetLightInvoker(),
                 BIND(&TWrappedParticipant::OnProbation, MakeWeak(this)),
                 Config_->ParticipantProbationPeriod))
-            , Logger(NLogging::TLogger(logger)
-                .AddTag("ParticipantCellId: %v", CellId_))
+            , Logger(logger.WithTag("ParticipantCellId: %v", CellId_))
         {
             ProbationExecutor_->Start();
         }

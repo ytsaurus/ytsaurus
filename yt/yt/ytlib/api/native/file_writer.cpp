@@ -72,10 +72,9 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
-        , Logger(NLogging::TLogger(ApiLogger)
-            .AddTag("Path: %v, TransactionId: %v",
-                Path_.GetPath(),
-                Options_.TransactionId))
+        , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v",
+            Path_.GetPath(),
+            Options_.TransactionId))
     { }
 
     virtual TFuture<void> Open() override

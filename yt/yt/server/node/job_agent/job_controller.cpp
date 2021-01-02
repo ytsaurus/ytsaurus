@@ -630,8 +630,7 @@ void TJobController::TImpl::StartWaitingJobs()
             continue;
         }
 
-        auto jobLogger = NLogging::TLogger(JobAgentServerLogger)
-            .AddTag("JobId: %v", job->GetId());
+        auto jobLogger = JobAgentServerLogger.WithTag("JobId: %v", job->GetId());
 
         const auto& Logger = jobLogger;
 

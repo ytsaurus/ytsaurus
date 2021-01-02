@@ -41,8 +41,7 @@ private:
             NProfiling::TRegistry profiler)
             : TAsyncExpiringCache(
                 std::move(config),
-                NLogging::TLogger(AuthLogger)
-                    .AddTag("Cache: TvmTicket"),
+                AuthLogger.WithTag("Cache: TvmTicket"),
                 std::move(profiler))
             , Underlying_(std::move(underlying))
         { }

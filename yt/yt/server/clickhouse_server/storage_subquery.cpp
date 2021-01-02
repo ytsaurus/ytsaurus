@@ -73,9 +73,9 @@ public:
         TTraceContextFinishGuard finishTraceContextGuard(preparePipesTraceContext);
 
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
-        
+
         auto [realColumnNames, virtualColumnNames] = DecoupleColumns(columnNames, metadataSnapshot);
-        
+
         StorageContext_ = QueryContext_->GetOrRegisterStorageContext(this, context);
 
         if (StorageContext_->Settings->ThrowTestingExceptionInSubquery) {
@@ -105,8 +105,7 @@ public:
             }
         }
         Logger = StorageContext_->Logger;
-        Logger.AddTag(
-            "SubqueryIndex: %v, SubqueryTableIndex: %v",
+        Logger.AddTag("SubqueryIndex: %v, SubqueryTableIndex: %v",
             SubquerySpec_.SubqueryIndex,
             SubquerySpec_.TableIndex);
 

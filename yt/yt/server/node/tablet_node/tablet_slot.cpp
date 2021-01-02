@@ -762,10 +762,9 @@ private:
 
     NLogging::TLogger GetLogger() const
     {
-        return NLogging::TLogger(TabletNodeLogger)
-            .AddTag("CellId: %v, PeerId: %v",
-                CellDescriptor_.CellId,
-                PeerId_);
+        return TabletNodeLogger.WithTag("CellId: %v, PeerId: %v",
+            CellDescriptor_.CellId,
+            PeerId_);
     }
 
     void ResetEpochInvokers()

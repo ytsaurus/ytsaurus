@@ -375,8 +375,7 @@ public:
         IInvokerPtr invoker)
         : TAsyncExpiringCache(
             config,
-            NLogging::TLogger(QueryClientLogger)
-                .AddTag("Cache: CypressFunctionRegistry"))
+            QueryClientLogger.WithTag("Cache: CypressFunctionRegistry"))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
     { }

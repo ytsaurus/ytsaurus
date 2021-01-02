@@ -27,9 +27,9 @@ TDiscovery::TDiscovery(
         invoker,
         BIND(&TDiscovery::DoUpdateList, MakeWeak(this)),
         Config_->UpdatePeriod))
-    , Logger(logger
-        .AddTag("Group: %v", Config_->Directory)
-        .AddTag("DiscoveryId: %v", TGuid::Create()))
+    , Logger(logger.WithTag("Group: %v, DiscoveryId: %v",
+        Config_->Directory,
+        TGuid::Create()))
     , Epoch_(0)
 {
     if (std::find(extraAttributes.begin(), extraAttributes.end(), "locks") == extraAttributes.end()) {

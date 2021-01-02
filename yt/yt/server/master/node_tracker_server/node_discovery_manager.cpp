@@ -75,8 +75,7 @@ TNodeDiscoveryManager::TNodeDiscoveryManager(
     ENodeRole nodeRole)
     : Bootstrap_(bootstrap)
     , NodeRole_(nodeRole)
-    , Logger(NYT::NLogging::TLogger(NodeTrackerServerLogger)
-        .AddTag("NodeRole: %v", NodeRole_))
+    , Logger(NodeTrackerServerLogger.WithTag("NodeRole: %v", NodeRole_))
 {
     Bootstrap_->GetConfigManager()->SubscribeConfigChanged(
         BIND(&TNodeDiscoveryManager::OnDynamicConfigChanged, MakeWeak(this)));

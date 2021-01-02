@@ -394,10 +394,10 @@ public:
         TYPath srcPath,
         TYPath dstPath,
         const TOptions& options,
-        NLogging::TLogger logger)
+        const NLogging::TLogger& logger)
         : TCrossCellExecutor(
             std::move(client),
-            logger.AddTag("SrcPath: %v, DstPath: %v",
+            logger.WithTag("SrcPath: %v, DstPath: %v",
                 srcPath,
                 dstPath))
         , SrcPath_(std::move(srcPath))
@@ -449,10 +449,10 @@ public:
         TYPath path,
         TCellTag cellTag,
         const TExternalizeNodeOptions& options,
-        NLogging::TLogger logger)
+        const NLogging::TLogger& logger)
         : TCrossCellExecutor(
             std::move(client),
-            logger.AddTag("Path: %v, CellTag: %v",
+            logger.WithTag("Path: %v, CellTag: %v",
                 path,
                 cellTag))
         , Path_(std::move(path))
@@ -557,11 +557,10 @@ public:
         TClientPtr client,
         TYPath path,
         const TInternalizeNodeOptions& options,
-        NLogging::TLogger logger)
+        const NLogging::TLogger& logger)
         : TCrossCellExecutor(
             std::move(client),
-            logger.AddTag("Path: %v",
-                path))
+            logger.WithTag("Path: %v", path))
         , Path_(std::move(path))
         , Options_(options)
     { }

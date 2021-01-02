@@ -112,8 +112,7 @@ TTableMountCacheBase::TTableMountCacheBase(
     NLogging::TLogger logger)
     : TAsyncExpiringCache(
         config,
-        NLogging::TLogger(logger)
-            .AddTag("Cache: TableMount"))
+        logger.WithTag("Cache: TableMount"))
     , Config_(std::move(config))
     , Logger(std::move(logger))
 { }

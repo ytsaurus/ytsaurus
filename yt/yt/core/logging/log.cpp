@@ -161,13 +161,19 @@ void TLogger::Write(TLogEvent&& event) const
     LogManager_->Enqueue(std::move(event));
 }
 
-TLogger& TLogger::AddRawTag(const TString& tag)
+void TLogger::AddRawTag(const TString& tag)
 {
     if (!Context_.empty()) {
         Context_ += ", ";
     }
     Context_ += tag;
-    return *this;
+}
+
+TLogger TLogger::WithRawTag(const TString& tag) const
+{
+    auto result = *this;
+    result.AddRawTag(tag);
+    return result;
 }
 
 const TString& TLogger::GetContext() const

@@ -48,8 +48,7 @@ TFileChunkOutput::TFileChunkOutput(
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     i64 sizeLimit)
-    : Logger(NLogging::TLogger(FileClientLogger)
-        .AddTag("TransactionId: %v", transactionId))
+    : Logger(FileClientLogger.WithTag("TransactionId: %v", transactionId))
     , Config_(std::move(config))
     , Options_(std::move(options))
     , Client_(std::move(client))

@@ -169,8 +169,9 @@ DB::Pipe CreateRemoteSource(
     auto pipe = createRemoteSourcePipe(remoteQueryExecutor, addAggregationInfo, addTotals, addExtremes, asyncRead);
 
     pipe.addSimpleTransform([&](const DB::Block & header) {
-        return std::make_shared<TLoggingTransform>(header, TLogger(queryContext->Logger)
-            .AddTag("RemoteQueryId: %v, RemoteNode: %v",
+        return std::make_shared<TLoggingTransform>(
+            header,
+            queryContext->Logger.WithTag("RemoteQueryId: %v, RemoteNode: %v",
                 remoteQueryId,
                 remoteNode->GetName().ToString()));
     });

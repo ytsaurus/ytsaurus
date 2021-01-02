@@ -72,8 +72,7 @@ TSimulatorNodeShard::TSimulatorNodeShard(
     , EarliestTime_(earliestTime)
     , ShardId_(shardId)
     , Invoker_(CreateSerializedInvoker(commonNodeShardInvoker))
-    , Logger(TLogger(NSchedulerSimulator::Logger)
-        .AddTag("ShardId: %v", shardId))
+    , Logger(NSchedulerSimulator::Logger.WithTag("ShardId: %v", shardId))
     , MediumDirectory_(CreateDefaultMediumDirectory())
 {
     if (Config_->RemoteEventLog) {

@@ -25,8 +25,7 @@ TDiskLocation::TDiskLocation(
     const TString& id,
     const NLogging::TLogger& logger)
     : Id_(id)
-    , Logger(NLogging::TLogger(logger)
-         .AddTag("LocationId: %v", id))
+    , Logger(logger.WithTag("LocationId: %v", id))
     , Config_(config)
 { }
 

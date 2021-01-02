@@ -1166,24 +1166,24 @@ private:
             IncarnationId_);
 
         OperationEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
-            NLogging::TLogger(ControllerAgentLogger)
-                .AddTag("Kind: AgentToSchedulerOperations, IncarnationId: %v", IncarnationId_));
+            ControllerAgentLogger.WithTag("Kind: AgentToSchedulerOperations, IncarnationId: %v",
+                IncarnationId_));
         JobEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerJobEvent>>(
-            NLogging::TLogger(ControllerAgentLogger)
-                .AddTag("Kind: AgentToSchedulerJobs, IncarnationId: %v", IncarnationId_));
+           ControllerAgentLogger.WithTag("Kind: AgentToSchedulerJobs, IncarnationId: %v",
+               IncarnationId_));
         ScheduleJobResposesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>(
-            NLogging::TLogger(ControllerAgentLogger)
-                .AddTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v", IncarnationId_));
+            ControllerAgentLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v",
+                IncarnationId_));
 
         JobEventsInbox_ = std::make_unique<TMessageQueueInbox>(
-            NLogging::TLogger(ControllerAgentLogger)
-                .AddTag("Kind: SchedulerToAgentJobs, IncarnationId: %v", IncarnationId_));
+            ControllerAgentLogger.WithTag("Kind: SchedulerToAgentJobs, IncarnationId: %v",
+                IncarnationId_));
         OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
-            NLogging::TLogger(ControllerAgentLogger)
-                .AddTag("Kind: SchedulerToAgentOperations, IncarnationId: %v", IncarnationId_));
+            ControllerAgentLogger.WithTag("Kind: SchedulerToAgentOperations, IncarnationId: %v",
+                IncarnationId_));
         ScheduleJobRequestsInbox_ = std::make_unique<TMessageQueueInbox>(
-            NLogging::TLogger(ControllerAgentLogger)
-                .AddTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v", IncarnationId_));
+            ControllerAgentLogger.WithTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v",
+                IncarnationId_));
 
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,

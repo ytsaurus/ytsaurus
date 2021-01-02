@@ -71,8 +71,7 @@ public:
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TNodeAddressesProvider::OnSync, MakeWeak(this)),
             syncPeriod))
-        , Logger(NYT::NLogging::TLogger(NodeTrackerClientLogger)
-            .AddTag("NodeRole: %v", NodeRole_))
+        , Logger(NodeTrackerClientLogger.WithTag("NodeRole: %v", NodeRole_))
         , NullChannel_(ChannelBuilder_({}))
     { }
 

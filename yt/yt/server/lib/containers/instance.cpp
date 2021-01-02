@@ -706,8 +706,7 @@ private:
         , AbsoluteName_(std::move(absoluteName))
         , Executor_(executor)
         , AutoDestroy_(autoDestroy)
-        , Logger(NLogging::TLogger(ContainersLogger)
-            .AddTag("Container: %v", Name_))
+        , Logger(ContainersLogger.WithTag("Container: %v", Name_))
     { }
 
     void SetProperty(const TString& key, const TString& value)

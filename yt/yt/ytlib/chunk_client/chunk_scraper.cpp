@@ -49,9 +49,9 @@ public:
     , OnChunkLocated_(onChunkLocated)
     , Invoker_(invoker)
     , ChunkIds_(std::move(chunkIds))
-    , Logger(NLogging::TLogger(logger)
-        .AddTag("ScraperTaskId: %v", TGuid::Create())
-        .AddTag("CellTag: %v", CellTag_))
+    , Logger(logger.WithTag("ScraperTaskId: %v, CellTag: %v",
+        TGuid::Create(),
+        CellTag_))
     , Proxy_(masterChannel)
     {
         Shuffle(ChunkIds_.begin(), ChunkIds_.end());

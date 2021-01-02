@@ -1223,8 +1223,7 @@ public:
         , Visitor_(std::move(visitor))
         , EnforceBounds_(enforceBounds)
         , KeyColumnCount_(keyColumnCount)
-        , Logger(NLogging::TLogger(ChunkServerLogger)
-            .AddTag("RootId: %v", chunkList->GetId()))
+        , Logger(ChunkServerLogger.WithTag("RootId: %v", chunkList->GetId()))
     {
         YT_LOG_DEBUG("Chunk tree traversal started (LowerBound: %v, UpperBound: %v, EnforceBounds: %v)",
             lowerBound,

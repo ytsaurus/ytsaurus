@@ -455,8 +455,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         blockInputStreamTraceContext,
         queryContext->Host,
         storageContext->Settings,
-        TLogger(queryContext->Logger)
-            .AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId),
+        queryContext->Logger.WithTag("ReadSessionId: %v", blockReadOptions.ReadSessionId),
         prewhereInfo);
 }
 

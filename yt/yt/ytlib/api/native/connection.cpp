@@ -93,14 +93,13 @@ public:
         const TConnectionOptions& options)
         : Config_(std::move(config))
         , Options_(options)
-        , LoggingId_(Format("PrimaryCellTag: %v, ConnectionId: %v, ConnectionName: %v",
+        , LoggingTag_(Format("PrimaryCellTag: %v, ConnectionId: %v, ConnectionName: %v",
             CellTagFromId(Config_->PrimaryMaster->CellId),
             TGuid::Create(),
             Config_->Name))
         , ClusterId_(Format("Native(PrimaryCellTag=%v)",
             CellTagFromId(Config_->PrimaryMaster->CellId)))
-        , Logger(NLogging::TLogger(ApiLogger)
-            .AddRawTag(LoggingId_))
+        , Logger(ApiLogger.WithRawTag(LoggingTag_))
         , ChannelFactory_(CreateCachingChannelFactory(
             NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
             Config_->IdleChannelTtl))
@@ -200,9 +199,9 @@ public:
         return GetPrimaryMasterCellTag();
     }
 
-    virtual const TString& GetLoggingId() override
+    virtual const TString& GetLoggingTag() override
     {
-        return LoggingId_;
+        return LoggingTag_;
     }
 
     virtual const TString& GetClusterId() override
@@ -461,7 +460,7 @@ private:
     const TConnectionConfigPtr Config_;
     const TConnectionOptions Options_;
 
-    const TString LoggingId_;
+    const TString LoggingTag_;
     const TString ClusterId_;
 
     const NLogging::TLogger Logger;

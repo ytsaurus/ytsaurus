@@ -2261,9 +2261,9 @@ TPool::TPool(
         profilingTag,
         treeId,
         id,
-        NLogging::TLogger(logger)
-            .AddTag("PoolId: %v", id)
-            .AddTag("SchedulingMode: %v", config->Mode))
+        logger.WithTag("PoolId: %v, SchedulingMode: %v",
+            id,
+            config->Mode))
     , TPoolFixedState(id)
 {
     DoSetConfig(std::move(config));
@@ -3193,7 +3193,7 @@ TOperationElement::TOperationElement(
         std::move(treeConfig),
         treeId,
         ToString(operation->GetId()),
-        NLogging::TLogger(logger).AddTag("OperationId: %v", operation->GetId()))
+        logger.WithTag("OperationId: %v", operation->GetId()))
     , TOperationElementFixedState(operation, std::move(controllerConfig))
     , RuntimeParameters_(std::move(runtimeParameters))
     , Spec_(std::move(spec))
@@ -4321,9 +4321,9 @@ TRootElement::TRootElement(
         profilingTag,
         treeId,
         RootPoolName,
-        NLogging::TLogger(logger)
-            .AddTag("PoolId: %v", RootPoolName)
-            .AddTag("SchedulingMode: %v", ESchedulingMode::FairShare))
+        logger.WithTag("PoolId: %v, SchedulingMode: %v",
+            RootPoolName,
+            ESchedulingMode::FairShare))
 {
 
     Mode_ = ESchedulingMode::FairShare;

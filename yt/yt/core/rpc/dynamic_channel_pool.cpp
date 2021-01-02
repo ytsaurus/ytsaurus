@@ -49,11 +49,11 @@ public:
             .EndMap()))
         , ServiceName_(std::move(serviceName))
         , DiscoverRequestHook_(std::move(discoverRequestHook))
-        , Logger(NLogging::TLogger(RpcClientLogger)
-            .AddTag("ChannelId: %v, Endpoint: %v, Service: %v",
-                TGuid::Create(),
-                EndpointDescription_,
-                ServiceName_))
+        , Logger(RpcClientLogger.WithTag(
+            "ChannelId: %v, Endpoint: %v, Service: %v",
+            TGuid::Create(),
+            EndpointDescription_,
+            ServiceName_))
     { }
 
     TFuture<IChannelPtr> GetRandomChannel()

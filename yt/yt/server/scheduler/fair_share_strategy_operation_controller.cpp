@@ -17,8 +17,7 @@ TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     const TFairShareStrategyOperationControllerConfigPtr& config)
     : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
-    , Logger(NLogging::TLogger(SchedulerLogger)
-        .AddTag("OperationId: %v", OperationId_))
+    , Logger(SchedulerLogger.WithTag("OperationId: %v", OperationId_))
     , Config_(config)
     , ScheduleJobControllerThrottlingBackoff_(
         DurationToCpuDuration(config->ControllerThrottling->ScheduleJobStartBackoffTime))
@@ -98,7 +97,7 @@ TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJ
     const ISchedulingContextPtr& context,
     const TJobResources& availableResources,
     TDuration timeLimit,
-    const TString& treeId, 
+    const TString& treeId,
     const TFairShareStrategyTreeConfigPtr& treeConfig)
 {
     auto scheduleJobResultFuture = Controller_->ScheduleJob(context, availableResources, treeId, treeConfig);

@@ -49,10 +49,9 @@ TTransaction::TTransaction(
     , Timeout_(timeout)
     , PingAncestors_(pingAncestors)
     , PingPeriod_(pingPeriod)
-    , Logger(NLogging::TLogger(RpcProxyClientLogger)
-        .AddTag("TransactionId: %v, %v",
-            GetId(),
-            Connection_->GetLoggingId()))
+    , Logger(RpcProxyClientLogger.WithTag("TransactionId: %v, %v",
+        Id_,
+        Connection_->GetLoggingTag()))
     , Proxy_(Channel_)
 {
     const auto& config = Connection_->GetConfig();
@@ -151,7 +150,7 @@ void TTransaction::RegisterAlienTransaction(const ITransactionPtr& transaction)
     }
 
     YT_LOG_DEBUG("Alien transaction registered (AlienConnection: {%v})",
-        transaction->GetConnection()->GetLoggingId());
+        transaction->GetConnection()->GetLoggingTag());
 }
 
 TFuture<void> TTransaction::Ping(const NApi::TTransactionPingOptions& /*options*/)
@@ -298,7 +297,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
                     YT_LOG_DEBUG("Alien transaction flushed (ParticipantCellIds: %v, AlienConnection: {%v})",
                         result.ParticipantCellIds,
-                        transaction->GetConnection()->GetLoggingId());
+                        transaction->GetConnection()->GetLoggingTag());
 
                     for (auto cellId : result.ParticipantCellIds) {
                         AdditionalParticipantCellIds_.insert(cellId);

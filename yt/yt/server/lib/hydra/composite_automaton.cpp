@@ -219,8 +219,7 @@ void TCompositeAutomatonPart::LogHandlerError(const TError& error)
 TCompositeAutomaton::TCompositeAutomaton(
     IInvokerPtr asyncSnapshotInvoker,
     TCellId cellId)
-    : Logger(NLogging::TLogger(HydraLogger)
-        .AddTag("CellId: %v", cellId))
+    : Logger(HydraLogger.WithTag("CellId: %v", cellId))
     , Profiler_(HydraProfiler.WithTag("cell_id", ToString(cellId)))
     , AsyncSnapshotInvoker_(asyncSnapshotInvoker)
     , MutationCounter_(Profiler_.Counter("/mutation_count"))

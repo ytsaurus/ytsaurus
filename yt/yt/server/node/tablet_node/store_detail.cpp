@@ -81,10 +81,9 @@ TStoreBase::TStoreBase(
     , ColumnLockCount_(Tablet_->GetColumnLockCount())
     , LockIndexToName_(Tablet_->LockIndexToName())
     , ColumnIndexToLockIndex_(Tablet_->ColumnIndexToLockIndex())
-    , Logger(NLogging::TLogger(TabletNodeLogger)
-        .AddTag("StoreId: %v, TabletId: %v",
-            StoreId_,
-            TabletId_))
+    , Logger(TabletNodeLogger.WithTag("StoreId: %v, TabletId: %v",
+        StoreId_,
+        TabletId_))
 {
     UpdateTabletDynamicMemoryUsage(+1);
 }

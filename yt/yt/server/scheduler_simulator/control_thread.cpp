@@ -88,7 +88,7 @@ TSimulatorControlThread::TSimulatorControlThread(
     , NodeShardThreadPool_(New<TThreadPool>(config->ThreadCount, "NodeShardPool"))
     , OperationStatistics_(operations)
     , JobAndOperationCounter_(operations.size())
-    , Logger(TLogger(NSchedulerSimulator::Logger).AddTag("ControlThread"))
+    , Logger(NSchedulerSimulator::Logger.WithTag("ControlThread"))
 {
     for (const auto& operation : operations) {
         InsertControlThreadEvent(TControlThreadEvent::OperationStarted(operation.StartTime, operation.Id));

@@ -78,8 +78,7 @@ public:
     TThreadPoolPoller(int threadCount, const TString& threadNamePrefix)
         : ThreadCount_(threadCount)
         , ThreadNamePrefix_(threadNamePrefix)
-        , Logger(NLogging::TLogger(ConcurrencyLogger)
-            .AddTag("ThreadNamePrefix: %v", ThreadNamePrefix_))
+        , Logger(ConcurrencyLogger.WithTag("ThreadNamePrefix: %v", ThreadNamePrefix_))
         , Threads_(ThreadCount_)
         , StartLatch_(ThreadCount_)
         , Invoker_(New<TInvoker>(this))
@@ -165,7 +164,7 @@ public:
             YT_VERIFY(Pollables_.insert(pollable).second);
         }
         YT_LOG_DEBUG("Pollable registered (%v)",
-            pollable->GetLoggingId());
+            pollable->GetLoggingTag());
     }
 
     virtual TFuture<void> Unregister(const IPollablePtr& pollable) override
@@ -179,7 +178,7 @@ public:
             if (it == Pollables_.end()) {
                 guard.Release();
                 YT_LOG_DEBUG("Pollable is already unregistered (%v)",
-                    pollable->GetLoggingId());
+                    pollable->GetLoggingTag());
                 return VoidFuture;
             }
 
@@ -198,7 +197,7 @@ public:
         }
 
         YT_LOG_DEBUG("Requesting pollable unregistration (%v, FirstTime: %v)",
-            pollable->GetLoggingId(),
+            pollable->GetLoggingTag(),
             firstTime);
         return future;
     }
@@ -208,7 +207,7 @@ public:
         YT_LOG_TRACE("Arming poller (FD: %v, Control: %v, %v)",
             fd,
             control,
-            pollable->GetLoggingId());
+            pollable->GetLoggingTag());
         Impl_.Set(pollable.Get(), fd, ToImplControl(control));
     }
 
@@ -222,7 +221,7 @@ public:
     virtual void Retry(const IPollablePtr& pollable, bool wakeup) override
     {
         YT_LOG_TRACE("Scheduling poller retry (%v, Wakeup: %v)",
-            pollable->GetLoggingId(),
+            pollable->GetLoggingTag(),
             wakeup);
         RetryQueue_.Enqueue(pollable);
         if (wakeup) {
@@ -261,8 +260,7 @@ private:
                 poller->GenerateThreadName(index),
                 GetThreadTags("Poller"))
             , Poller_(poller)
-            , Logger(NLogging::TLogger(Poller_->Logger)
-                .AddTag("ThreadIndex: %v", index))
+            , Logger(Poller_->Logger.WithTag("ThreadIndex: %v", index))
             , ExecuteCallback_(BIND([this] {
                 HandleEvents();
                 HandleRetry();
@@ -333,7 +331,7 @@ private:
                 auto* pollable = static_cast<IPollable*>(Poller_->Impl_.ExtractEvent(&event));
                 if (pollable) {
                     YT_LOG_TRACE("Got pollable event (Pollable: %v, Control: %v)",
-                        pollable->GetLoggingId(),
+                        pollable->GetLoggingTag(),
                         control);
                     pollable->OnEvent(control);
                 } else {
@@ -379,7 +377,7 @@ private:
             for (const auto& pollable : deadPollables) {
                 pollable->OnShutdown();
                 YT_LOG_DEBUG("Pollable unregistered (%v)",
-                    pollable->GetLoggingId());
+                    pollable->GetLoggingTag());
             }
 
             {

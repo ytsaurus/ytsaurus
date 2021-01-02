@@ -559,7 +559,7 @@ void TMasterConnector::ComputeSlotLocationSpecificStatistics(TNodeStatistics* re
 
     const auto& slotManager = Bootstrap_->GetExecSlotManager();
     for (const auto& location : slotManager->GetLocations()) {
-        auto* locationStatistics = result->add_slot_locations();       
+        auto* locationStatistics = result->add_slot_locations();
         *locationStatistics = location->GetSlotLocationStatistics();
 
         // Slot location statistics might be not computed yet, so we set medium index separately.
@@ -803,8 +803,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     WaitFor(IncrementalHeartbeatThrottler_[cellTag]->Throttle(1))
         .ThrowOnError();
 
-    auto Logger = NLogging::TLogger(DataNodeLogger)
-        .AddTag("CellTag: %v", cellTag);
+    auto Logger = DataNodeLogger.WithTag("CellTag: %v", cellTag);
 
     auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
 
@@ -1170,8 +1169,7 @@ void TMasterConnector::ReportJobHeartbeat()
     YT_VERIFY(IsConnected());
 
     auto cellTag = MasterCellTags_[JobHeartbeatCellIndex_];
-    auto Logger = NLogging::TLogger(DataNodeLogger)
-        .AddTag("CellTag: %v", cellTag);
+    auto Logger = DataNodeLogger.WithTag("CellTag: %v", cellTag);
 
     auto* delta = GetChunksDelta(cellTag);
     if (delta->State == EState::Online) {

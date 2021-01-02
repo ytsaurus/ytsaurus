@@ -76,8 +76,7 @@ public:
         NClusterNode::TBootstrap* bootstrap)
         : TAsyncExpiringCache(
             std::move(config),
-            NLogging::TLogger(TabletNodeLogger)
-                .AddTag("Cache: ResourceLimits"))
+            TabletNodeLogger.WithTag("Cache: ResourceLimits"))
         , Bootstrap_(bootstrap)
     { }
 

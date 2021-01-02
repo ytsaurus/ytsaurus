@@ -112,7 +112,7 @@ private:
         i64 MemoryUsage;
         TTabletId TabletId;
         TRevision MountRevision;
-        TString TabletLoggingId;
+        TString TabletLoggingTag;
         TTabletSlotPtr Slot;
     };
 
@@ -269,7 +269,7 @@ private:
                     "Bundle: %v, "
                     "BundleMemory: {TotalUsage: %v, PassiveUsage: %v, BackingUsage: %v, Limit: %v}, "
                     "TabletMemoryUsage: %v, ForcedRotationMemoryRatio: %v)",
-                    candidate.TabletLoggingId,
+                    candidate.TabletLoggingTag,
                     tracker->GetUsed(EMemoryCategory::TabletDynamic),
                     PassiveMemoryUsage_,
                     BackingMemoryUsage_,
@@ -309,13 +309,13 @@ private:
 
         if (storeManager->IsOverflowRotationNeeded()) {
             YT_LOG_DEBUG("Scheduling store rotation due to overflow (%v)",
-                tablet->GetLoggingId());
+                tablet->GetLoggingTag());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
         if (storeManager->IsPeriodicRotationNeeded()) {
             YT_LOG_INFO("Scheduling periodic store rotation (%v)",
-                tablet->GetLoggingId());
+                tablet->GetLoggingTag());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
@@ -362,7 +362,7 @@ private:
                         memoryUsage,
                         tablet->GetId(),
                         tablet->GetMountRevision(),
-                        tablet->GetLoggingId(),
+                        tablet->GetLoggingTag(),
                         slot
                     });
                 }
@@ -422,7 +422,7 @@ private:
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("%v, StoreId: %v",
-            tablet->GetLoggingId(),
+            tablet->GetLoggingTag(),
             store->GetId());
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();

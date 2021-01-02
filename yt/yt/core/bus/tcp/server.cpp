@@ -81,7 +81,7 @@ public:
     }
 
     // IPollable implementation.
-    virtual const TString& GetLoggingId() const override
+    virtual const TString& GetLoggingTag() const override
     {
         return Logger.GetContext();
     }

@@ -74,11 +74,10 @@ TTcpConnection::TTcpConnection(
     , UnixDomainSocketPath_(unixDomainSocketPath)
     , Handler_(std::move(handler))
     , Poller_(std::move(poller))
-    , Logger(NLogging::TLogger(BusLogger)
-        .AddTag("ConnectionId: %v, RemoteAddress: %v",
-            Id_,
-            EndpointDescription_))
-    , LoggingId_(Format("ConnectionId: %v", Id_))
+    , Logger(BusLogger.WithTag("ConnectionId: %v, RemoteAddress: %v",
+        Id_,
+        EndpointDescription_))
+    , LoggingTag_(Format("ConnectionId: %v", Id_))
     , NetworkName_(networkName)
     , GenerateChecksums_(Config_->GenerateChecksums)
     , Socket_(socket)
@@ -193,9 +192,9 @@ void TTcpConnection::CheckLiveness()
     }
 }
 
-const TString& TTcpConnection::GetLoggingId() const
+const TString& TTcpConnection::GetLoggingTag() const
 {
-    return LoggingId_;
+    return LoggingTag_;
 }
 
 void TTcpConnection::UpdateConnectionCount(int delta)

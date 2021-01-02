@@ -353,9 +353,7 @@ TChangeNodeSegmentPenaltyFunction TSchedulingSegmentManager::CreatePenaltyFuncti
 
 TLogger TSchedulingSegmentManager::CreateTreeLogger(const TString &treeId)
 {
-    auto logger = Logger;
-    logger.AddTag("TreeId: %v", treeId);
-    return logger;
+    return Logger.WithTag("TreeId: %v", treeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

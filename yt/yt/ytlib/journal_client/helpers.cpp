@@ -373,8 +373,7 @@ public:
         , Timeout_(timeout)
         , Quorum_(quorum)
         , ChannelFactory_(std::move(channelFactory))
-        , Logger(NLogging::TLogger(JournalClientLogger)
-            .AddTag("ChunkId: %v", ChunkId_))
+        , Logger(JournalClientLogger.WithTag("ChunkId: %v", ChunkId_))
     { }
 
 protected:

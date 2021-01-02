@@ -137,7 +137,7 @@ struct TTabletSnapshot
     NHydra::TCellId CellId;
     NHydra::IHydraManagerPtr HydraManager;
     NTabletClient::TTabletId TabletId;
-    TString LoggingId;
+    TString LoggingTag;
     NYPath::TYPath TablePath;
     TTableMountConfigPtr Config;
     TTabletChunkWriterConfigPtr WriterConfig;
@@ -488,7 +488,7 @@ public:
 
     void ReconfigureThrottlers();
 
-    const TString& GetLoggingId() const;
+    const TString& GetLoggingTag() const;
 
     std::optional<TString> GetPoolTagByMemoryCategory(NNodeTrackerClient::EMemoryCategory category) const;
 
@@ -512,7 +512,7 @@ private:
     TTabletChunkWriterConfigPtr WriterConfig_;
     TTabletWriterOptionsPtr WriterOptions_;
 
-    TString LoggingId_;
+    TString LoggingTag_;
 
     IStoreManagerPtr StoreManager_;
 

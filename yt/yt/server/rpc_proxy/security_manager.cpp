@@ -37,8 +37,7 @@ public:
         TBootstrap* bootstrap)
         : TAsyncExpiringCache(
             std::move(config),
-            NLogging::TLogger(RpcProxyLogger)
-                .AddTag("Cache: User"))
+            RpcProxyLogger.WithTag("Cache: User"))
         , Bootstrap_(bootstrap)
     { }
 

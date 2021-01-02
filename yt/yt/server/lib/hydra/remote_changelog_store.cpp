@@ -68,8 +68,7 @@ public:
         , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
         , ReachableVersion_(reachableVersion)
         , Counters_(counters)
-        , Logger(NLogging::TLogger(HydraLogger)
-            .AddTag("Path: %v", Path_))
+        , Logger(HydraLogger.WithTag("Path: %v", Path_))
     { }
 
     virtual bool IsReadOnly() const override
@@ -359,8 +358,7 @@ public:
         , ResourceLimitsManager_(resourceLimitsManager)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
         , Counters_(counters)
-        , Logger(NLogging::TLogger(HydraLogger)
-            .AddTag("Path: %v", Path_))
+        , Logger(HydraLogger.WithTag("Path: %v", Path_))
     { }
 
     virtual TFuture<IChangelogStorePtr> Lock() override

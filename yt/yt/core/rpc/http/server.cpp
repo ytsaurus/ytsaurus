@@ -344,8 +344,7 @@ class TServer
 {
 public:
     explicit TServer(NYT::NHttp::IServerPtr httpServer)
-        : TServerBase(NLogging::TLogger(HttpLogger)
-            .AddTag("ServerId: %v", TGuid::Create()))
+        : TServerBase(HttpLogger.WithTag("ServerId: %v", TGuid::Create()))
         , HttpServer_(std::move(httpServer))
     { }
 

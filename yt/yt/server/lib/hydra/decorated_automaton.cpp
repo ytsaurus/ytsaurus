@@ -219,8 +219,7 @@ public:
         , StateHash_(Owner_->StateHash_)
         , EpochContext_(Owner_->EpochContext_)
     {
-        Logger = NLogging::TLogger(Owner_->Logger)
-            .AddTag("SnapshotId: %v", SnapshotId_);
+        Logger = Owner_->Logger.WithTag("SnapshotId: %v", SnapshotId_);
     }
 
     ~TSnapshotBuilderBase()

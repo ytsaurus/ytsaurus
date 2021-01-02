@@ -210,11 +210,8 @@ TOperationControllerBase::TOperationControllerBase(
     , AuthenticatedUser(operation->GetAuthenticatedUser())
     , SecureVault(operation->GetSecureVault())
     , UserTransactionId(operation->GetUserTransactionId())
-    , Logger(TLogger(ControllerLogger)
-        .AddTag("OperationId: %v", OperationId))
-    , CoreNotes_({
-        Format("OperationId: %v", OperationId)
-    })
+    , Logger(ControllerLogger.WithTag("OperationId: %v", OperationId))
+    , CoreNotes_({Format("OperationId: %v", OperationId)})
     , Acl(operation->GetAcl())
     , CancelableContext(New<TCancelableContext>())
     , DiagnosableInvokerPool(CreateFairShareInvokerPool(
@@ -222,7 +219,10 @@ TOperationControllerBase::TOperationControllerBase(
             CreateMemoryTaggingInvoker(
                 CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()),
                 operation->GetMemoryTag()),
-            Format("OperationId: %v\nAuthenticatedUser: %v", OperationId, AuthenticatedUser)),
+            Format(
+                "OperationId: %v\nAuthenticatedUser: %v",
+                OperationId,
+                AuthenticatedUser)),
         TEnumTraits<EOperationControllerQueue>::DomainSize))
     , InvokerPool(DiagnosableInvokerPool)
     , SuspendableInvokerPool(TransformInvokerPool(InvokerPool, CreateSuspendableInvoker))
@@ -6152,8 +6152,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             Client,
             MakeUserObjectList(files),
             InputTransaction->GetId(),
-            TLogger(Logger)
-                .AddTag("TaskTitle: %v", userJobSpec->TaskTitle),
+            Logger.WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
                 .PopulateSecurityTags = true

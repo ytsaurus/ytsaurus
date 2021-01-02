@@ -276,7 +276,7 @@ private:
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-            tablet->GetLoggingId(),
+            tablet->GetLoggingTag(),
             store->GetId(),
             mode,
             readSessionId);
@@ -520,7 +520,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     NLogging::TLogger Logger(TabletNodeLogger);
     Logger.AddTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-        tabletSnapshot->LoggingId,
+        tabletSnapshot->LoggingTag,
         store->GetId(),
         mode,
         readSessionId);

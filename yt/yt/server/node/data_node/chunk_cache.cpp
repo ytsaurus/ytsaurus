@@ -352,10 +352,9 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto blockReadOptions = MakeClientBlockReadOptions();
-        auto Logger = NLogging::TLogger(DataNodeLogger)
-            .AddTag("Key: %v, ReadSessionId: %v",
-                key,
-                blockReadOptions.ReadSessionId);
+        auto Logger = DataNodeLogger.WithTag("Key: %v, ReadSessionId: %v",
+            key,
+            blockReadOptions.ReadSessionId);
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
@@ -543,8 +542,7 @@ private:
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
 
-        Logger = NLogging::TLogger(Logger)
-            .AddTag("ChunkId: %v", chunkId);
+        Logger = Logger.WithTag("ChunkId: %v", chunkId);
 
         if (!CanPrepareSingleChunk(key)) {
             YT_LOG_INFO("Skipping validation for multi-chunk artifact");
@@ -870,11 +868,10 @@ private:
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
-        auto Logger = NLogging::TLogger(DataNodeLogger)
-            .AddTag("ChunkId: %v, ReadSessionId: %v, Location: %v",
-                chunkId,
-                blockReadOptions.ReadSessionId,
-                location->GetId());
+        auto Logger = DataNodeLogger.WithTag("ChunkId: %v, ReadSessionId: %v, Location: %v",
+            chunkId,
+            blockReadOptions.ReadSessionId,
+            location->GetId());
 
         try {
             auto artifactDownloadOptions = New<TRemoteReaderOptions>();

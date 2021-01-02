@@ -131,8 +131,7 @@ public:
         , Address_(address)
         , OnFinished_(std::move(onFinished))
         , Id_(TGuid::Create())
-        , Logger(NLogging::TLogger(logger)
-            .AddTag("AsyncDialerSession: %v", Id_))
+        , Logger(logger.WithTag("AsyncDialerSession: %v", Id_))
         , Timeout_(Config_->MinRto * GetRandomVariation())
     { }
 
@@ -161,12 +160,12 @@ private:
     public:
         TPollable(TAsyncDialerSession* owner, TGuid id, int socket)
             : Owner_(MakeWeak(owner))
-            , LoggingId_(Format("AsyncDialerSession{%v:%v}", id, socket))
+            , LoggingTag_(Format("AsyncDialerSession{%v:%v}", id, socket))
         { }
 
-        virtual const TString& GetLoggingId() const override
+        virtual const TString& GetLoggingTag() const override
         {
-            return LoggingId_;
+            return LoggingTag_;
         }
 
         virtual void OnEvent(EPollControl control) override
@@ -181,7 +180,7 @@ private:
 
     private:
         const TWeakPtr<TAsyncDialerSession> Owner_;
-        const TString LoggingId_;
+        const TString LoggingTag_;
     };
 
     const TDialerConfigPtr Config_;

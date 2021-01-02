@@ -77,8 +77,7 @@ public:
         , MasterChannel_(CreateThrottlingChannel(
             config,
             masterChannel))
-        , Logger(NLogging::TLogger(logger)
-            .AddTag("RealmId: %v", masterCellId))
+        , Logger(logger.WithTag("RealmId: %v", masterCellId))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10000)

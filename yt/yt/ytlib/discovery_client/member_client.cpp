@@ -85,10 +85,9 @@ public:
             BIND(&TImpl::OnHeartbeat, MakeWeak(this)),
             config->HeartbeatPeriod))
         , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
-        , Logger(NLogging::TLogger(DiscoveryClientLogger)
-            .AddTag("GroupId: %v, MemberId: %v",
-                GroupId_,
-                Id_))
+        , Logger(DiscoveryClientLogger.WithTag("GroupId: %v, MemberId: %v",
+            GroupId_,
+            Id_))
         , AddressPool_(New<TServerAddressPool>(
             config->ServerBanTimeout,
             Logger,
