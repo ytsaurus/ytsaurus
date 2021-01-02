@@ -124,8 +124,7 @@ public:
         , SchedulerJobSpecExt_(&JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
         , UserJobSpec_(SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_user_job_spec() ? &SchedulerJobSpecExt_->user_job_spec() : nullptr)
         , AbortJobIfAccountLimitExceeded_(SchedulerJobSpecExt_->abort_job_if_account_limit_exceeded())
-        , Logger(NLogging::TLogger(ExecAgentLogger)
-            .AddTag("JobId: %v, OperationId: %v, JobType: %v",
+        , Logger(ExecAgentLogger.WithTag("JobId: %v, OperationId: %v, JobType: %v",
             Id_,
             OperationId_,
             GetType()))

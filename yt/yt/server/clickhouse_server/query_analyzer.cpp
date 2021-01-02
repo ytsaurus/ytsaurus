@@ -26,7 +26,7 @@
 #include <Interpreters/DatabaseCatalog.h>
 #include <Interpreters/IdentifierSemantic.h>
 #include <Interpreters/TableJoin.h>
-#include <Interpreters/TreeRewriter.h> 
+#include <Interpreters/TreeRewriter.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/TranslateQualifiedNamesVisitor.h>
 
@@ -386,8 +386,7 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
     int subqueryIndex,
     bool isLastSubquery)
 {
-    auto Logger = this->Logger;
-    Logger.AddTag("SubqueryIndex: %v", subqueryIndex);
+    auto Logger = this->Logger.WithTag("SubqueryIndex: %v", subqueryIndex);
 
     i64 totalRowCount = 0;
     i64 totalDataWeight = 0;

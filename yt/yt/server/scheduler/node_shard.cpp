@@ -110,8 +110,7 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::CalculateResourceStatistics, MakeStrong(this)),
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
-    , Logger(NLogging::TLogger(SchedulerLogger)
-        .AddTag("NodeShardId: %v", Id_))
+    , Logger(SchedulerLogger.WithTag("NodeShardId: %v", Id_))
     , SubmitJobsToStrategyExecutor_(New<TPeriodicExecutor>(
         GetInvoker(),
         BIND(&TNodeShard::SubmitJobsToStrategy, MakeWeak(this)),
@@ -1758,13 +1757,11 @@ NLogging::TLogger TNodeShard::CreateJobLogger(
     EJobState state,
     const TString& address)
 {
-    auto logger = Logger;
-    logger.AddTag("Address: %v, JobId: %v, OperationId: %v, State: %v",
+    return Logger.WithTag("Address: %v, JobId: %v, OperationId: %v, State: %v",
         address,
         jobId,
         operationId,
         state);
-    return logger;
 }
 
 TJobPtr TNodeShard::ProcessJobHeartbeat(
@@ -2158,7 +2155,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
                 job->ResourceUsage()
             };
     }
-    
+
     YT_VERIFY(Dominates(job->ResourceUsage(), TJobResources()));
 
     auto* operationState = FindOperationState(job->GetOperationId());

@@ -368,8 +368,7 @@ TTablet::TTablet(
     , WriterOptions_(New<TTabletWriterOptions>())
     , Context_(context)
     , LockManager_(New<TLockManager>())
-    , Logger(NLogging::TLogger(TabletNodeLogger)
-        .AddTag("TabletId: %v", Id_))
+    , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
 { }
 
 TTablet::TTablet(
@@ -415,8 +414,7 @@ TTablet::TTablet(
         NextPivotKey_))
     , Context_(context)
     , LockManager_(New<TLockManager>())
-    , Logger(NLogging::TLogger(TabletNodeLogger)
-        .AddTag("TabletId: %v", Id_))
+    , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
 {
     Initialize();
 }
@@ -1163,7 +1161,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     }
 
     snapshot->TabletId = Id_;
-    snapshot->LoggingId = LoggingId_;
+    snapshot->LoggingTag = LoggingTag_;
     snapshot->MountRevision = MountRevision_;
     snapshot->TablePath = TablePath_;
     snapshot->TableId = TableId_;
@@ -1302,7 +1300,7 @@ void TTablet::Initialize()
         Config_->PartitioningThrottler,
         Logger);
 
-    LoggingId_ = Format("TabletId: %v, TableId: %v, TablePath: %v",
+    LoggingTag_ = Format("TabletId: %v, TableId: %v, TablePath: %v",
         Id_,
         TableId_,
         TablePath_);
@@ -1334,9 +1332,9 @@ void TTablet::ReconfigureThrottlers()
     PartitioningThrottler_->Reconfigure(Config_->PartitioningThrottler);
 }
 
-const TString& TTablet::GetLoggingId() const
+const TString& TTablet::GetLoggingTag() const
 {
-    return LoggingId_;
+    return LoggingTag_;
 }
 
 std::optional<TString> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const

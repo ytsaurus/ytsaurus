@@ -65,8 +65,7 @@ public:
         TTableSchemaPtr schema,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache)
-        : Logger(NLogging::TLogger(TableClientLogger)
-            .AddTag("ChunkWriterId: %v", TGuid::Create()))
+        : Logger(TableClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
         , Config_(config)
         , Schema_(schema)
         , EncodingChunkWriter_(New<TEncodingChunkWriter>(

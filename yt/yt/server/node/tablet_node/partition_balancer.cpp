@@ -137,7 +137,7 @@ private:
 
         YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
             "Partition balancer started tablet scan for splits (%v, CurrentMosc: %v)",
-            tablet->GetLoggingId(),
+            tablet->GetLoggingTag(),
             currentMaxOverlappingStoreCount);
 
         int largestPartitionStoreCount = 0;
@@ -166,7 +166,7 @@ private:
         YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
             "Partition balancer started tablet scan for merges (%v, "
             "EstimatedMosc: %v, MaxAllowedOsc: %v)",
-            tablet->GetLoggingId(),
+            tablet->GetLoggingTag(),
             estimatedMaxOverlappingStoreCount,
             maxAllowedOverlappingStoreCount);
 
@@ -486,7 +486,7 @@ private:
                 YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
                     "Aborting partition split due to improper partition state "
                     "(%v, InitialPartitionId: %v, PartitionId: %v, PartitionIndex: %v, PartitionState: %v)",
-                    tablet->GetLoggingId(),
+                    tablet->GetLoggingTag(),
                     partition->GetId(),
                     tablet->PartitionList()[index]->GetId(),
                     index,
@@ -502,7 +502,7 @@ private:
 
         auto Logger = TabletNodeLogger;
         Logger.AddTag("%v, CellId: %v, PartitionIds: %v",
-            partition->GetTablet()->GetLoggingId(),
+            partition->GetTablet()->GetLoggingTag(),
             slot->GetCellId(),
             MakeFormattableView(
                 MakeRange(
@@ -751,12 +751,10 @@ private:
         const TTabletSlotPtr& slot,
         TPartition* partition)
     {
-        auto logger = TabletNodeLogger;
-        logger.AddTag("%v, CellId: %v, PartitionId: %v",
-            partition->GetTablet()->GetLoggingId(),
+        return TabletNodeLogger.WithTag("%v, CellId: %v, PartitionId: %v",
+            partition->GetTablet()->GetLoggingTag(),
             slot->GetCellId(),
             partition->GetId());
-        return logger;
     }
 };
 

@@ -149,8 +149,7 @@ public:
     explicit TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
         : TAsyncExpiringCache(
             std::move(config),
-            NLogging::TLogger(TabletServerLogger)
-                .AddTag("Cache: BundleHealth"))
+            TabletServerLogger.WithTag("Cache: BundleHealth"))
     { }
 
 protected:
@@ -178,8 +177,7 @@ public:
     explicit TClusterStateCache(TAsyncExpiringCacheConfigPtr config)
         : TAsyncExpiringCache(
             std::move(config),
-            NLogging::TLogger(TabletServerLogger)
-                .AddTag("Cache: ClusterLivenessCheck"))
+            TabletServerLogger.WithTag("Cache: ClusterLivenessCheck"))
     { }
 
 protected:

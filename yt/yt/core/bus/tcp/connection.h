@@ -64,7 +64,7 @@ public:
     TConnectionId GetId() const;
 
     // IPollable implementation.
-    virtual const TString& GetLoggingId() const override;
+    virtual const TString& GetLoggingTag() const override;
     virtual void OnEvent(NConcurrency::EPollControl control) override;
     virtual void OnShutdown() override;
 
@@ -155,7 +155,7 @@ private:
     const NConcurrency::IPollerPtr Poller_;
 
     const NLogging::TLogger Logger;
-    const TString LoggingId_;
+    const TString LoggingTag_;
 
     TString NetworkName_;
     TTcpDispatcherCountersPtr Counters_;

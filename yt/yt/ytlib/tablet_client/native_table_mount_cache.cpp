@@ -106,10 +106,9 @@ private:
             : Owner_(std::move(owner))
             , Connection_(std::move(connection))
             , Key_(key)
-            , Logger(NLogging::TLogger(logger)
-                .AddTag("Path: %v, CacheSessionId: %v",
-                    Key_.Path,
-                    TGuid::Create()))
+            , Logger(logger.WithTag("Path: %v, CacheSessionId: %v",
+                Key_.Path,
+                TGuid::Create()))
         { }
 
         TTableMountInfoPtr Run()

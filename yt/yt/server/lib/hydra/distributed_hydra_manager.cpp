@@ -163,8 +163,7 @@ public:
         : THydraServiceBase(
             controlInvoker,
             THydraServiceProxy::GetDescriptor(),
-            NLogging::TLogger(HydraLogger)
-                .AddTag("CellId: %v", cellId),
+            HydraLogger.WithTag("CellId: %v", cellId),
             cellId)
         , Config_(config)
         , RpcServer_(rpcServer)

@@ -34,10 +34,9 @@ TSessionBase::TSessionBase(
     , Location_(location)
     , Lease_(std::move(lease))
     , SessionInvoker_(CreateBoundedConcurrencyInvoker(Location_->GetWritePoolInvoker(), 1))
-    , Logger(NLogging::TLogger(DataNodeLogger)
-        .AddTag("LocationId: %v, ChunkId: %v",
-            Location_->GetId(),
-            SessionId_))
+    , Logger(DataNodeLogger.WithTag("LocationId: %v, ChunkId: %v",
+        Location_->GetId(),
+        SessionId_))
 {
     YT_VERIFY(Bootstrap_);
     YT_VERIFY(Location_);
@@ -225,7 +224,7 @@ TFuture<void> TSessionBase::FlushBlocks(int blockIndex)
     return
         BIND([=, this_ = MakeStrong(this)] {
             VERIFY_INVOKER_AFFINITY(SessionInvoker_);
-            
+
             ValidateActive();
             Ping();
 

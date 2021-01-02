@@ -62,8 +62,7 @@ public:
 
         int index = Index_++;
 
-        auto Logger = TLogger(CoreDumpLogger)
-            .AddTag("Index: %v", index);
+        auto Logger = CoreDumpLogger.WithTag("Index: %v", index);
 
         YT_LOG_INFO("Writing core dump (Notes: %v, Reason: %v)",
             notes,

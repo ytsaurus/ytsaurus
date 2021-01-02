@@ -83,8 +83,7 @@ TTabletAutomatonPart::TTabletAutomatonPart(
     YT_VERIFY(Slot_);
     YT_VERIFY(Bootstrap_);
 
-    Logger = NLogging::TLogger(TabletNodeLogger)
-        .AddTag("CellId: %v", Slot_->GetCellId());
+    Logger = TabletNodeLogger.WithTag("CellId: %v", Slot_->GetCellId());
 }
 
 bool TTabletAutomatonPart::ValidateSnapshotVersion(int version)

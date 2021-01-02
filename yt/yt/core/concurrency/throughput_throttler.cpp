@@ -366,9 +366,10 @@ IReconfigurableThroughputThrottlerPtr CreateNamedReconfigurableThroughputThrottl
     NLogging::TLogger logger,
     NProfiling::TRegistry profiler)
 {
-    logger.AddTag("Throttler: %v", name);
-    profiler = profiler.WithPrefix("/" + CamelCaseToUnderscoreCase(name));
-    return CreateReconfigurableThroughputThrottler(config, logger, profiler);
+    return CreateReconfigurableThroughputThrottler(
+        std::move(config),
+        logger.WithTag("Throttler: %v", name),
+        profiler.WithPrefix("/" + CamelCaseToUnderscoreCase(name)));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

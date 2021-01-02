@@ -34,10 +34,9 @@ TReplicatedStoreManager::TReplicatedStoreManager(
     , HydraManager_(std::move(hydraManager))
     , InMemoryManager_(std::move(inMemoryManager))
     , Client_(std::move(client))
-    , Logger(NLogging::TLogger(TabletNodeLogger)
-        .AddTag("%v, CellId: %v",
-            Tablet_->GetLoggingId(),
-            TabletContext_->GetCellId()))
+    , Logger(TabletNodeLogger.WithTag("%v, CellId: %v",
+        Tablet_->GetLoggingTag(),
+        TabletContext_->GetCellId()))
     , LogStoreManager_(New<TOrderedStoreManager>(
         Config_,
         Tablet_,

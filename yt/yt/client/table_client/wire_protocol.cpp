@@ -1098,9 +1098,7 @@ public:
         , Codec_(NCompression::GetCodec(codecId))
         , Schema_(std::move(schema))
         , Schemaful_(schemaful)
-        , Logger(
-            NLogging::TLogger(logger)
-                .AddTag("ReaderId: %v", TGuid::Create()))
+        , Logger(logger.WithTag("ReaderId: %v", TGuid::Create()))
     {
         YT_LOG_DEBUG("Wire protocol rowset reader created (BlockCount: %v, TotalCompressedSize: %v)",
             CompressedBlocks_.size(),
@@ -1230,8 +1228,7 @@ public:
         , DesiredUncompressedBlockSize_(desiredUncompressedBlockSize)
         , Schema_(std::move(schema))
         , Schemaful_(schemaful)
-        , Logger(NLogging::TLogger(logger)
-            .AddTag("WriterId: %v", TGuid::Create()))
+        , Logger(logger.WithTag("WriterId: %v", TGuid::Create()))
     {
         YT_LOG_DEBUG("Wire protocol rowset writer created (Codec: %v, DesiredUncompressedBlockSize: %v)",
             codecId,

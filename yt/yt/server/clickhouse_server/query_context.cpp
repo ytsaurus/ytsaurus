@@ -33,8 +33,7 @@ TLogger QueryLogger("Query");
 TStorageContext::TStorageContext(int index, const DB::Context& context, TQueryContext* queryContext)
     : Index(index)
     , QueryContext(queryContext)
-    , Logger(TLogger(queryContext->Logger)
-        .AddTag("StorageIndex: %v", Index))
+    , Logger(queryContext->Logger.WithTag("StorageIndex: %v", Index))
 {
     YT_LOG_INFO("Storage context created");
 
@@ -67,6 +66,7 @@ TQueryContext::TQueryContext(
     if (DataLensRequestId) {
         Logger.AddTag("DataLensRequestId: %v", DataLensRequestId);
     }
+
     YT_LOG_INFO("Query context created (User: %v, QueryKind: %v)", User, QueryKind);
     LastPhaseTime_ = StartTime_ = TInstant::Now();
 

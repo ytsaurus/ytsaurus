@@ -1237,8 +1237,7 @@ private:
         const auto& client = Bootstrap_->GetMasterClient();
 
         auto tag = TGuid::Create();
-        auto Logger = NLogging::TLogger(DataNodeLogger)
-            .AddTag("Tag: %v", tag);
+        auto Logger = DataNodeLogger.WithTag("Tag: %v", tag);
 
         YT_LOG_INFO("Started updating tmpfs layers");
 

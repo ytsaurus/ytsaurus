@@ -17,9 +17,9 @@ TChunkScanner::TChunkScanner(
     : ObjectManager_(std::move(objectManager))
     , Kind_(kind)
     , Journal_(journal)
-    , Logger(NLogging::TLogger(ChunkServerLogger)
-        .AddTag("Kind: %", Kind_)
-        .AddTag("Journal: %", Journal_))
+    , Logger(ChunkServerLogger.WithTag("Kind: %, Journal: %v",
+        Kind_,
+        Journal_))
 { }
 
 void TChunkScanner::Start(TChunk* frontChunk, int chunkCount)

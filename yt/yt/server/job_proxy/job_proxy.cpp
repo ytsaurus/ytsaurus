@@ -102,10 +102,9 @@ TJobProxy::TJobProxy(
     , JobId_(jobId)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
-    , Logger(NLogging::TLogger(JobProxyLogger)
-        .AddTag("OperationId: %v, JobId: %v",
-            OperationId_,
-            JobId_))
+    , Logger(JobProxyLogger.WithTag("OperationId: %v, JobId: %v",
+        OperationId_,
+        JobId_))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
         AbortOnUnrecognizedOptions(Logger, Config_);
@@ -607,7 +606,7 @@ TJobResult TJobProxy::DoRun()
         }
 
         const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
-        
+
         if (schedulerJobSpecExt.has_yt_alloc_min_large_unreclaimable_bytes()) {
             NYTAlloc::SetMinLargeUnreclaimableBytes(schedulerJobSpecExt.yt_alloc_min_large_unreclaimable_bytes());
         }

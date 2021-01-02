@@ -32,8 +32,7 @@ TChunkReaderMemoryManager::TChunkReaderMemoryManager(
     , HostMemoryManager_(std::move(hostMemoryManager))
     , ProfilingTagList_(std::move(options.ProfilingTagList))
     , Id_(TGuid::Create())
-    , Logger(TLogger{ReaderMemoryManagerLogger}
-        .AddTag("Id: %v", Id_))
+    , Logger(ReaderMemoryManagerLogger.WithTag("Id: %v", Id_))
 {
     TGuid parentId;
     if (auto parent = HostMemoryManager_.Lock()) {

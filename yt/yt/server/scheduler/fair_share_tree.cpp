@@ -119,8 +119,7 @@ public:
         , FeasibleInvokers_(std::move(feasibleInvokers))
         , TreeId_(std::move(treeId))
         , TreeProfiler_(SchedulerProfiler.WithRequiredTag("tree", TreeId_))
-        , Logger(NLogging::TLogger(SchedulerLogger)
-            .AddTag("TreeId: %v", TreeId_))
+        , Logger(SchedulerLogger.WithTag("TreeId: %v", TreeId_))
         , NonPreemptiveSchedulingStage_(
             /* nameInLogs */ "Non preemptive",
             TreeProfiler_.WithPrefix("/non_preemptive"))

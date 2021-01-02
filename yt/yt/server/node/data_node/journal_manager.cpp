@@ -855,8 +855,7 @@ public:
         , LowLatencySplitChangelogConfig_(UpdateYsonSerializable(config->LowLatencySplitChangelog, location->GetConfig()->LowLatencySplitChangelog))
         , Location_(location)
         , Bootstrap_(bootstrap)
-        , Logger(NLogging::TLogger(DataNodeLogger)
-            .AddTag("LocationId: %v", Location_->GetId()))
+        , Logger(DataNodeLogger.WithTag("LocationId: %v", Location_->GetId()))
     {
         MultiplexedChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Location_->GetIOEngine(),

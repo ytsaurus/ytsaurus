@@ -95,10 +95,9 @@ public:
         , Config_(config)
         , StartTime_(TInstant::Now())
         , Bootstrap_(bootstrap)
-        , Logger(NLogging::TLogger(DataNodeLogger)
-            .AddTag("JobId: %v, JobType: %v",
-                JobId_,
-                GetType()))
+        , Logger(DataNodeLogger.WithTag("JobId: %v, JobType: %v",
+            JobId_,
+            GetType()))
         , ResourceLimits_(resourceLimits)
     {
         VERIFY_THREAD_AFFINITY(JobThread);

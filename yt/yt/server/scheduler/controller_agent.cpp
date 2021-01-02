@@ -7,7 +7,7 @@
 
 namespace NYT::NScheduler {
 
-using NYT::ToProto; 
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,35 +85,29 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
     IncarnationTransaction_ = std::move(transaction);
 
     OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
-        NLogging::TLogger(SchedulerLogger)
-            .AddTag("Kind: AgentToSchedulerOperations, AgentId: %v, IncarnationId: %v",
-                Id_,
-                GetIncarnationId()));
+        SchedulerLogger.WithTag("Kind: AgentToSchedulerOperations, AgentId: %v, IncarnationId: %v",
+            Id_,
+            GetIncarnationId()));
     JobEventsInbox_ = std::make_unique<TMessageQueueInbox>(
-        NLogging::TLogger(SchedulerLogger)
-            .AddTag("Kind: AgentToSchedulerJobs, AgentId: %v, IncarnationId: %v",
-                Id_,
-                GetIncarnationId()));
+        SchedulerLogger.WithTag("Kind: AgentToSchedulerJobs, AgentId: %v, IncarnationId: %v",
+            Id_,
+            GetIncarnationId()));
     ScheduleJobResponsesInbox_ = std::make_unique<TMessageQueueInbox>(
-        NLogging::TLogger(SchedulerLogger)
-            .AddTag("Kind: AgentToSchedulerScheduleJobResponses, AgentId: %v, IncarnationId: %v",
-                Id_,
-                GetIncarnationId()));
+        SchedulerLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, AgentId: %v, IncarnationId: %v",
+            Id_,
+            GetIncarnationId()));
     JobEventsOutbox_ = New<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>(
-        NLogging::TLogger(SchedulerLogger)
-            .AddTag("Kind: SchedulerToAgentJobs, AgentId: %v, IncarnationId: %v",
-                Id_,
-                GetIncarnationId()));
+        SchedulerLogger.WithTag("Kind: SchedulerToAgentJobs, AgentId: %v, IncarnationId: %v",
+            Id_,
+            GetIncarnationId()));
     OperationEventsOutbox_ = New<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>(
-        NLogging::TLogger(SchedulerLogger)
-            .AddTag("Kind: SchedulerToAgentOperations, AgentId: %v, IncarnationId: %v",
-                Id_,
-                GetIncarnationId()));
+        SchedulerLogger.WithTag("Kind: SchedulerToAgentOperations, AgentId: %v, IncarnationId: %v",
+            Id_,
+            GetIncarnationId()));
     ScheduleJobRequestsOutbox_ = New<TMessageQueueOutbox<TScheduleJobRequestPtr>>(
-        NLogging::TLogger(SchedulerLogger)
-            .AddTag("Kind: SchedulerToAgentScheduleJobRequests, AgentId: %v, IncarnationId: %v",
-                Id_,
-                GetIncarnationId()));
+        SchedulerLogger.WithTag("Kind: SchedulerToAgentScheduleJobRequests, AgentId: %v, IncarnationId: %v",
+            Id_,
+            GetIncarnationId()));
 }
 
 TMessageQueueInbox* TControllerAgent::GetOperationEventsInbox()

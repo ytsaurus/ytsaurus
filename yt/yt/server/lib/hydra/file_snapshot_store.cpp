@@ -50,8 +50,7 @@ public:
         , Raw_(raw)
         , Offset_(offset)
         , SkipHeader_(skipHeader)
-        , Logger(NLogging::TLogger(HydraLogger)
-            .AddTag("Path: %v", FileName_))
+        , Logger(HydraLogger.WithTag("Path: %v", FileName_))
     { }
 
     int GetSnapshotId() const

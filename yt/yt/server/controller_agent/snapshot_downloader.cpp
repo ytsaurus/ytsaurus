@@ -24,8 +24,7 @@ TSnapshotDownloader::TSnapshotDownloader(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , OperationId_(operationId)
-    , Logger(NLogging::TLogger(ControllerAgentLogger)
-        .AddTag("OperationId: %v", operationId))
+    , Logger(ControllerAgentLogger.WithTag("OperationId: %v", operationId))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);

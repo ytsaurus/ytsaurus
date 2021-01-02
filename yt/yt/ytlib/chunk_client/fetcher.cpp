@@ -49,8 +49,7 @@ public:
         , ThrottlerManager_(throttlerManager)
         , Client_(client)
         , NodeDirectory_(nodeDirectory)
-        , Logger(NLogging::TLogger(logger)
-            .AddTag("FetcherChunkScraperId: %v", TGuid::Create()))
+        , Logger(logger.WithTag("FetcherChunkScraperId: %v", TGuid::Create()))
     { }
 
     virtual TFuture<void> ScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs) override

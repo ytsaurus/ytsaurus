@@ -39,8 +39,7 @@ public:
         , CanLaunchSpeculativeJobs_(config->EnableJobSpeculation)
         , JobTimeTracker_(std::move(config))
         , OperationId_(operationId)
-        , Logger(NLogging::TLogger("JobSplitter")
-            .AddTag("OperationId: %v", OperationId_))
+        , Logger(ControllerLogger.WithTag("OperationId: %v", OperationId_))
     {
         YT_VERIFY(Config_);
     }
@@ -244,8 +243,7 @@ public:
         Persist(context, SuccessJobCount_);
 
         if (context.IsLoad()) {
-            Logger = NLogging::TLogger(ControllerLogger)
-                .AddTag("OperationId: %v", OperationId_);
+            Logger = ControllerLogger.WithTag("OperationId: %v", OperationId_);
         }
     }
 

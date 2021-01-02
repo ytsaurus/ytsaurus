@@ -89,9 +89,14 @@ public:
 
     void Write(TLogEvent&& event) const;
 
-    TLogger& AddRawTag(const TString& tag);
+    void AddRawTag(const TString& tag);
     template <class... TArgs>
-    TLogger& AddTag(const char* format, TArgs&&... args);
+    void AddTag(const char* format, TArgs&&... args);
+
+    TLogger WithRawTag(const TString& tag) const;
+    template <class... TArgs>
+    TLogger WithTag(const char* format, TArgs&&... args) const;
+
     const TString& GetContext() const;
 
     void Save(TStreamSaveContext& context) const;

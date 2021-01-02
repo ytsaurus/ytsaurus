@@ -247,15 +247,12 @@ TPutFileToCacheResult TClient::DoPutFileToCache(
     const TString& expectedMD5,
     const TPutFileToCacheOptions& options)
 {
-    NLogging::TLogger logger = Logger;
-    auto Logger = logger
-        .AddTag("Path: %v", path)
-        .AddTag("Command: PutFileToCache");
+    auto Logger = this->Logger.WithTag("Path: %v, Command: PutFileToCache", path);
 
     int retryAttempts = 0;
     while (true) {
         try {
-            return DoAttemptPutFileToCache(path, expectedMD5, options, logger);
+            return DoAttemptPutFileToCache(path, expectedMD5, options, Logger);
         } catch (const TErrorException& ex) {
             auto error = ex.Error();
             ++retryAttempts;

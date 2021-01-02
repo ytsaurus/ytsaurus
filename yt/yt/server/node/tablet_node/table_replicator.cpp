@@ -99,10 +99,9 @@ public:
         , MountConfig_(tablet->GetConfig())
         , PreserveTabletIndex_(MountConfig_->PreserveTabletIndex)
         , TabletIndexColumnId_(TableSchema_->ToReplicationLog()->GetColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
-        , Logger(NLogging::TLogger(TabletNodeLogger)
-            .AddTag("%v, ReplicaId: %v",
-                tablet->GetLoggingId(),
-                ReplicaId_))
+        , Logger(TabletNodeLogger.WithTag("%v, ReplicaId: %v",
+            tablet->GetLoggingTag(),
+            ReplicaId_))
         , NodeInThrottler_(std::move(nodeInThrottler))
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeOutThrottler),

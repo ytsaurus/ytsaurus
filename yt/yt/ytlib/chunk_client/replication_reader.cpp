@@ -165,8 +165,7 @@ public:
         , RpsThrottler_(std::move(rpsThrottler))
         , Networks_(client->GetNativeConnection()->GetNetworks())
         , TrafficMeter_(trafficMeter)
-        , Logger(NLogging::TLogger(ChunkClientLogger)
-            .AddTag("ChunkId: %v", ChunkId_))
+        , Logger(ChunkClientLogger.WithTag("ChunkId: %v", ChunkId_))
         , ChunkReplicaLocator_(New<TChunkReplicaLocator>(
             Client_,
             NodeDirectory_,
@@ -471,11 +470,10 @@ protected:
         , WorkloadDescriptor_(ReaderConfig_->EnableWorkloadFifoScheduling ? options.WorkloadDescriptor.SetCurrentInstant() : options.WorkloadDescriptor)
         , NodeDirectory_(reader->NodeDirectory_)
         , Networks_(reader->Networks_)
-        , Logger(NLogging::TLogger(ChunkClientLogger)
-            .AddTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
-                TGuid::Create(),
-                options.ReadSessionId,
-                reader->ChunkId_))
+        , Logger(ChunkClientLogger.WithTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
+            TGuid::Create(),
+            options.ReadSessionId,
+            reader->ChunkId_))
     {
         SessionInvoker_ = GetCompressionInvoker(WorkloadDescriptor_);
         if (WorkloadDescriptor_.CompressionFairShareTag) {

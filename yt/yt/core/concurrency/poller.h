@@ -37,7 +37,7 @@ struct IPollable
     virtual void* GetCookie() const = 0;
 
     //! Returns a human-readable string used for diagnostic purposes.
-    virtual const TString& GetLoggingId() const = 0;
+    virtual const TString& GetLoggingTag() const = 0;
 
     //! Called by the poller when the appropriate event is trigged for the FD.
     virtual void OnEvent(EPollControl control) = 0;

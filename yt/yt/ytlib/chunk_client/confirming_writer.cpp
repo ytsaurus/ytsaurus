@@ -67,8 +67,7 @@ public:
         , BlockCache_(blockCache)
         , Throttler_(throttler)
         , TrafficMeter_(trafficMeter)
-        , Logger(NLogging::TLogger(ChunkClientLogger)
-            .AddTag("TransactionId: %v", TransactionId_))
+        , Logger(ChunkClientLogger.WithTag("TransactionId: %v", TransactionId_))
     {
         Config_->UploadReplicationFactor = std::min(
             Config_->UploadReplicationFactor,

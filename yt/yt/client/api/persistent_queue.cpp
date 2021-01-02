@@ -82,8 +82,7 @@ public:
         , StateTablePath_(stateTablePath)
         , TabletIndexes_(PrepareTabletIndexes(tabletIndexes))
         , PollerId_(TGuid::Create())
-        , Logger(NLogging::TLogger(ApiLogger)
-            .AddTag("PollerId: %v", PollerId_))
+        , Logger(ApiLogger.WithTag("PollerId: %v", PollerId_))
         , Invoker_(Client_->GetConnection()->GetInvoker())
     {
         YT_VERIFY(Config_);

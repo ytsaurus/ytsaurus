@@ -69,11 +69,10 @@ public:
             .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
             .ReadSessionId = TReadSessionId::Create()
         }
-        , Logger(NLogging::TLogger(ApiLogger)
-            .AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
-                Path_,
-                Options_.TransactionId,
-                BlockReadOptions_.ReadSessionId))
+        , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
+            Path_,
+            Options_.TransactionId,
+            BlockReadOptions_.ReadSessionId))
     {
         if (Options_.TransactionId) {
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);

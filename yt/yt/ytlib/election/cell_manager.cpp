@@ -29,10 +29,9 @@ TCellManager::TCellManager(
     , VotingPeerCount_(Config_->CountVotingPeers())
     , QuorumPeerCount_(VotingPeerCount_ / 2 + 1)
     , TotalPeerCount_(Config_->Peers.size())
-    , Logger(NLogging::TLogger(ElectionLogger)
-        .AddTag("CellId: %v, SelfPeerId: %v",
-            Config_->CellId,
-            selfId))
+    , Logger(ElectionLogger.WithTag("CellId: %v, SelfPeerId: %v",
+        Config_->CellId,
+        selfId))
 {
     PeerChannels_.resize(TotalPeerCount_);
     for (TPeerId id = 0; id < TotalPeerCount_; ++id) {

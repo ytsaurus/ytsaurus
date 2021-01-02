@@ -47,8 +47,7 @@ public:
         : IOEngine_(ioEngine)
         , FileName_(fileName)
         , Config_(config)
-        , Logger(NLogging::TLogger(HydraLogger)
-            .AddTag("Path: %v", FileName_))
+        , Logger(HydraLogger.WithTag("Path: %v", FileName_))
         , IndexFile_(IOEngine_, fileName + "." + ChangelogIndexExtension, Alignment, Config_->IndexBlockSize)
         , AppendOutput_(Alignment, Alignment)
     { }

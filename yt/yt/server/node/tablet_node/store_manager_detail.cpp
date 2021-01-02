@@ -46,7 +46,7 @@ TStoreManagerBase::TStoreManagerBase(
     , Logger(TabletNodeLogger)
 {
     Logger.AddTag("%v, CellId: %v",
-        Tablet_->GetLoggingId(),
+        Tablet_->GetLoggingTag(),
         TabletContext_->GetCellId());
 }
 

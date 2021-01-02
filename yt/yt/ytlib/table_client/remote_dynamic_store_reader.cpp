@@ -149,8 +149,7 @@ public:
         , Client_(std::move(client))
         , NodeDirectory_(std::move(nodeDirectory))
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
-        , Logger(NLogging::TLogger(TableClientLogger)
-            .AddTag("ReaderId: %v", TGuid::Create()))
+        , Logger(TableClientLogger.WithTag("ReaderId: %v", TGuid::Create()))
     {
         if (blockReadOptions.ReadSessionId) {
             ReadSessionId_ = blockReadOptions.ReadSessionId;
@@ -716,8 +715,7 @@ public:
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , BlockReadOptions_(blockReadOptions)
         , ChunkReaderFactory_(chunkReaderFactory)
-        , Logger(NLogging::TLogger(TableClientLogger)
-            .AddTag("ReaderId: %v", TGuid::Create()))
+        , Logger(TableClientLogger.WithTag("ReaderId: %v", TGuid::Create()))
     {
         if (BlockReadOptions_.ReadSessionId) {
             ReadSessionId_ = BlockReadOptions_.ReadSessionId;

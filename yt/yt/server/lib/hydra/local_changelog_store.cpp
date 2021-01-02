@@ -231,8 +231,7 @@ public:
             Config_,
             threadName,
             profiler))
-        , Logger(NLogging::TLogger(HydraLogger)
-            .AddTag("Path: %v", Config_->Path))
+        , Logger(HydraLogger.WithTag("Path: %v", Config_->Path))
     { }
 
     void Start()

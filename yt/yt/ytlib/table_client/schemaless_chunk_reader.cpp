@@ -109,9 +109,9 @@ public:
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
         , OmittedInaccessibleColumnSet_(OmittedInaccessibleColumns_.begin(), OmittedInaccessibleColumns_.end())
         , Sampler_(Config_->SamplingRate, std::random_device()())
-        , Logger(NLogging::TLogger(TableClientLogger)
-            .AddTag("ChunkReaderId: %v", TGuid::Create())
-            .AddTag("ChunkId: %v", chunkId))
+        , Logger(TableClientLogger.WithTag("ChunkReaderId: %v, ChunkId: %v",
+            TGuid::Create(),
+            chunkId))
         , ReaderInvoker_(CreateSerializedInvoker(NChunkClient::TDispatcher::Get()->GetReaderInvoker()))
     {
         if (blockReadOptions.ReadSessionId) {

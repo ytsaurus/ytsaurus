@@ -80,7 +80,7 @@ public:
         NLogging::TLogger logger)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
-        , Logger(logger.AddTag("TransactionId: %v, ConnectionCellTag: %v",
+        , Logger(logger.WithTag("TransactionId: %v, ConnectionCellTag: %v",
             GetId(),
             Client_->GetConnection()->GetCellTag()))
         , OrderedRequestsSlidingWindow_(
@@ -280,7 +280,7 @@ public:
         }
 
         YT_LOG_DEBUG("Alien transaction registered (AlienConnectionId: %v)",
-            transaction->GetConnection()->GetLoggingId());
+            transaction->GetConnection()->GetLoggingTag());
     }
 
 
@@ -831,8 +831,7 @@ private:
             : Transaction_(transaction)
             , TableInfo_(std::move(tableInfo))
             , UpstreamReplicaId_(upstreamReplicaId)
-            , Logger(NLogging::TLogger(transaction->Logger)
-                .AddTag("Path: %v", TableInfo_->Path))
+            , Logger(transaction->Logger.WithTag("Path: %v", TableInfo_->Path))
         { }
 
         const TTableMountInfoPtr& GetInfo() const
@@ -904,8 +903,7 @@ private:
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary]->Columns().size())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount())
             , EnforceRowCountLimit_(transaction->Client_->GetOptions().GetAuthenticatedUser() != NSecurityClient::ReplicatorUserName)
-            , Logger(NLogging::TLogger(transaction->Logger)
-                .AddTag("TabletId: %v", TabletInfo_->TabletId))
+            , Logger(transaction->Logger.WithTag("TabletId: %v", TabletInfo_->TabletId))
         { }
 
         void SubmitRow(
@@ -1241,8 +1239,7 @@ private:
         TCellCommitSession(const TTransactionPtr& transaction, TCellId cellId)
             : Transaction_(transaction)
             , CellId_(cellId)
-            , Logger(NLogging::TLogger(transaction->Logger)
-                .AddTag("CellId: %v", CellId_))
+            , Logger(transaction->Logger.WithTag("CellId: %v", CellId_))
         { }
 
         void RegisterRequests(int count)
@@ -1765,7 +1762,7 @@ private:
         }
 
         YT_LOG_DEBUG("Alien transaction registered (AlienConnectionId: %v)",
-            transaction->GetConnection()->GetLoggingId());
+            transaction->GetConnection()->GetLoggingTag());
     }
 
     std::vector<NApi::ITransactionPtr> GetAlienTransactions()

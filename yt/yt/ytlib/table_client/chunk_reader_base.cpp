@@ -32,8 +32,7 @@ TChunkReaderBase::TChunkReaderBase(
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
     , BlockReadOptions_(blockReadOptions)
-    , Logger(NLogging::TLogger(TableClientLogger)
-        .AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
+    , Logger(TableClientLogger.WithTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
 {
     if (memoryManager) {
         MemoryManager_ = memoryManager;

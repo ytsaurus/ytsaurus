@@ -48,8 +48,7 @@ public:
         , Path_(std::move(path))
         , NamesAndTypesList_(std::move(namesAndTypesList))
         , RevisionTracker_(path.GetPath(), host->GetRootClient())
-        , Logger(TLogger(ClickHouseYtLogger)
-            .AddTag("Path: %v", Path_))
+        , Logger(ClickHouseYtLogger.WithTag("Path: %v", Path_))
     { }
 
     virtual DB::BlockInputStreamPtr loadAll() override

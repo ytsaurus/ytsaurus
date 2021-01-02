@@ -152,8 +152,7 @@ void TAutoMergeDirector::Persist(const TPersistenceContext& context)
     Persist(context, RunningTaskJobCount_);
 
     if (context.IsLoad()) {
-        Logger = AutoMergeLogger;
-        Logger.AddTag("OperationId: %v", OperationId_);
+        Logger = AutoMergeLogger.WithTag("OperationId: %v", OperationId_);
     }
 }
 

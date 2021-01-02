@@ -137,10 +137,9 @@ private:
             , Options_(options)
             , Config_(options.Config ? options.Config : New<TJournalWriterConfig>())
             , Counters_(options.Counters)
-            , Logger(NLogging::TLogger(ApiLogger)
-                .AddTag("Path: %v, TransactionId: %v",
-                    Path_,
-                    Options_.TransactionId))
+            , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v",
+                Path_,
+                Options_.TransactionId))
         {
             if (Options_.TransactionId) {
                 TTransactionAttachOptions attachOptions{

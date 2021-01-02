@@ -358,9 +358,9 @@ public:
         return impl;
     }
 
-    virtual const TString& GetLoggingId() const override
+    virtual const TString& GetLoggingTag() const override
     {
-        return LoggingId_;
+        return LoggingTag_;
     }
 
     virtual void OnEvent(EPollControl control) override
@@ -578,7 +578,7 @@ public:
 
 private:
     const TString Name_;
-    const TString LoggingId_;
+    const TString LoggingTag_;
     const TNetworkAddress LocalAddress_;
     const TNetworkAddress RemoteAddress_;
     int FD_ = -1;
@@ -600,7 +600,7 @@ private:
         const TNetworkAddress& remoteAddress,
         const IPollerPtr& poller)
         : Name_(Format("FD{%v<->%v}", localAddress, remoteAddress))
-        , LoggingId_(Format("ConnectionId: %v", Name_))
+        , LoggingTag_(Format("ConnectionId: %v", Name_))
         , LocalAddress_(localAddress)
         , RemoteAddress_(remoteAddress)
         , FD_(fd)

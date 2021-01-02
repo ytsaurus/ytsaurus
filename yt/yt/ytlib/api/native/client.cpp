@@ -84,8 +84,7 @@ TClient::TClient(
     : Connection_(std::move(connection))
     , Options_(options)
     , ConcurrentRequestsSemaphore_(New<TAsyncSemaphore>(Connection_->GetConfig()->MaxConcurrentRequests))
-    , Logger(NLogging::TLogger(ApiLogger)
-        .AddTag("ClientId: %v", TGuid::Create()))
+    , Logger(ApiLogger.WithTag("ClientId: %v", TGuid::Create()))
 {
     if (!Options_.User) {
         THROW_ERROR_EXCEPTION("Native connection requires non-null \"user\" parameter");

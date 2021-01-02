@@ -25,8 +25,7 @@ public:
         NProfiling::TRegistry profiler)
         : TAsyncExpiringCache(
             config->Cache,
-            NLogging::TLogger(AuthLogger)
-                .AddTag("Cache: SecretVault"),
+            AuthLogger.WithTag("Cache: SecretVault"),
             std::move(profiler))
         , Underlying_(std::move(underlying))
     { }

@@ -137,7 +137,7 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
-{    
+{
     Profiler_ = LocationProfiler
         .WithTag("location_type", ToString(Type_))
         .WithTag("medium", GetMediumName(), -1)
@@ -150,7 +150,7 @@ TLocation::TLocation(
         Config_->IOConfig,
         id,
         Profiler_,
-        NLogging::TLogger(DataNodeLogger).AddTag("LocationId: %v", id));
+        DataNodeLogger.WithTag("LocationId: %v", id));
 
     auto createThrottler = [&] (const auto& config, const auto& name) {
         return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, Profiler_);

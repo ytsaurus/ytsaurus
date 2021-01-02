@@ -763,8 +763,7 @@ void TClickHouseHandler::HandleRequest(
     const IRequestPtr& request,
     const IResponseWriterPtr& response)
 {
-    auto Logger = ClickHouseLogger;
-    Logger.AddTag("RequestId: %v", request->GetRequestId());
+    auto Logger = ClickHouseLogger.WithTag("RequestId: %v", request->GetRequestId());
 
     if (!Coordinator_->CanHandleHeavyRequests()) {
         // We intentionally read the body of the request and drop it to make sure

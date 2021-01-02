@@ -164,11 +164,10 @@ TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& 
 {
     const auto& path = options.RichPath.GetPath();
 
-    auto Logger = NLogging::TLogger(TableClientLogger)
-        .AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
-            path,
-            options.TransactionId,
-            options.ReadSessionId);
+    auto Logger = TableClientLogger.WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
+        path,
+        options.TransactionId,
+        options.ReadSessionId);
 
     YT_LOG_INFO("Opening table reader");
 

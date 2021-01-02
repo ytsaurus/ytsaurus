@@ -13,9 +13,17 @@ namespace NYT::NLogging {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class... TArgs>
-TLogger& TLogger::AddTag(const char* format, TArgs&&... args)
+void TLogger::AddTag(const char* format, TArgs&&... args)
 {
-    return AddRawTag(Format(format, std::forward<TArgs>(args)...));
+    AddRawTag(Format(format, std::forward<TArgs>(args)...));
+}
+
+template <class... TArgs>
+TLogger TLogger::WithTag(const char* format, TArgs&&... args) const
+{
+    auto result = *this;
+    result.AddTag(format, std::forward<TArgs>(args)...);
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

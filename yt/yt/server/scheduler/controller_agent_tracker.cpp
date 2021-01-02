@@ -204,8 +204,7 @@ public:
         , OperationId_(operation->GetId())
         , ControllerData_(operation->GetControllerData())
         , PreemptionMode_(operation->Spec()->PreemptionMode)
-        , Logger(NLogging::TLogger(SchedulerLogger)
-            .AddTag("OperationId: %v", OperationId_))
+        , Logger(SchedulerLogger.WithTag("OperationId: %v", OperationId_))
     { }
 
 

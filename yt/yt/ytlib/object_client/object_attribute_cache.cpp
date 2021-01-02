@@ -23,12 +23,11 @@ TObjectAttributeCache::TObjectAttributeCache(
     NProfiling::TRegistry profiler)
     : TAsyncExpiringCache(
         config,
-        NLogging::TLogger(ObjectClientLogger)
-            .AddTag("Cache: ObjectAttribute"),
+        ObjectClientLogger.WithTag("Cache: ObjectAttribute"),
         std::move(profiler))
     , AttributeNames_(std::move(attributeNames))
     , Config_(std::move(config))
-    , Logger(TLogger(logger).AddTag("ObjectAttributeCacheId: %v", TGuid::Create()))
+    , Logger(logger.WithTag("ObjectAttributeCacheId: %v", TGuid::Create()))
     , Client_(std::move(client))
     , Invoker_(std::move(invoker))
 { }

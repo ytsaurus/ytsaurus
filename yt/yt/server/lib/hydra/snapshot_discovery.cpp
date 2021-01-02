@@ -28,8 +28,7 @@ public:
         , CellManager_(std::move(cellManager))
         , MaxSnapshotId_(maxSnapshotId)
         , ExactId_(exactId)
-        , Logger(NLogging::TLogger(HydraLogger)
-            .AddTag("CellId: %v", CellManager_->GetCellId()))
+        , Logger(HydraLogger.WithTag("CellId: %v", CellManager_->GetCellId()))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(CellManager_);

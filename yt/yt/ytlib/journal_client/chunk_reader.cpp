@@ -138,8 +138,7 @@ public:
         , TrafficMeter_(std::move(trafficMeter))
         , BandwidthThrottler_(std::move(bandwidthThrottler))
         , RpsThrottler_(std::move(rpsThrottler))
-        , Logger(NLogging::TLogger(JournalClientLogger)
-            .AddTag("ChunkId: %v", ChunkId_))
+        , Logger(JournalClientLogger.WithTag("ChunkId: %v", ChunkId_))
         , ChunkReplicaLocator_(New<TChunkReplicaLocator>(
             Client_,
             NodeDirectory_,
@@ -175,8 +174,7 @@ public:
             , Options_(options)
             , FirstBlockIndex_(firstBlockIndex)
             , BlockCount_(blockCount)
-            , Logger(NLogging::TLogger(Reader_->Logger)
-                .AddTag("SessionId: %v", TGuid::Create()))
+            , Logger(Reader_->Logger.WithTag("SessionId: %v", TGuid::Create()))
         {
             DoRetry();
         }

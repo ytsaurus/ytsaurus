@@ -647,8 +647,7 @@ IChunkReaderPtr CreateRemoteReader(
     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
-    auto Logger = TLogger(ChunkClientLogger)
-        .AddTag("ChunkId: %v", chunkId);
+    auto Logger = ChunkClientLogger.WithTag("ChunkId: %v", chunkId);
 
     if (IsErasureChunkId(chunkId)) {
         auto erasureCodecId = ECodec(chunkSpec.erasure_codec());

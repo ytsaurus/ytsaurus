@@ -211,8 +211,7 @@ public:
         , SelfAddress_(std::move(selfAddress))
         , Config_(std::move(config))
         , ChannelFactory_(CreateCachingChannelFactory(channelFactory))
-        , Logger(NLogging::TLogger(DiscoveryServerLogger)
-            .AddTag("SelfAddress: %v", SelfAddress_))
+        , Logger(DiscoveryServerLogger.WithTag("SelfAddress: %v", SelfAddress_))
         , GroupManager_(New<TGroupManager>(Logger))
         , GossipPeriodicExecutor_(New<TPeriodicExecutor>(
             std::move(gossipInvoker),
