@@ -118,7 +118,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
         ValidateTableSchemaUpdate(TTableSchema(), *schema, dynamic, true);
 
-        if (!dynamicConfig->EnableDescendingSortOrder) {
+        if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
             ValidateNoDescendingSortOrder(*schema);
         }
     }
