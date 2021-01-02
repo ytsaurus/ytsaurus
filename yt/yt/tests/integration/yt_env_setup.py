@@ -907,6 +907,7 @@ class YTEnvSetup(object):
         dynamic_master_config["multicell_manager"]["cell_roles"] = master_cell_roles
         if self.Env.get_component_version("ytserver-master").abi >= (20, 4):
             dynamic_master_config["enable_descending_sort_order"] = True
+            dynamic_master_config["enable_descending_sort_order_dynamic"] = True
 
         for response in yt_commands.execute_batch(
             [

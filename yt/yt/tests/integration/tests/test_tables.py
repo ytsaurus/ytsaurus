@@ -1105,15 +1105,71 @@ class TestTables(YTEnvSetup):
 
     @authors("max42")
     def test_unavailable_descending_sort_order(self):
-        attributes = {"schema": [{
-            "name": "k", "type": "int64", "sort_order": "descending"
-        }]}
+        set("//sys/accounts/tmp/@resource_limits/tablet_count", 10)
 
-        create("table", "//tmp/t1", attributes=attributes)
+        schema_regular = to_yson_type(
+            [{"name": "k1", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "int64"}],
+            attributes={"unique_keys": True}
+        )
+        schema_descending = to_yson_type(
+            schema_regular[:1] + [{"name": "k2", "type": "int64", "sort_order": "descending"}] + schema_regular[1:],
+            attributes={"unique_keys": True},
+        )
 
+        def create_static_descending(suffix):
+            create("table", "//tmp/st_descending_" + suffix, attributes={"schema": schema_descending})
+
+        def create_dynamic_descending(suffix):
+            create("table", "//tmp/dt_descending_" + suffix, attributes={"schema": schema_descending, "dynamic": True})
+
+        def alter_static_descending_to_dynamic_descending(suffix):
+            path = "//tmp/st_descending2_" + suffix
+            create("table", path, attributes={"schema": schema_descending})
+            alter_table(path, dynamic=True)
+
+        def alter_static_regular_to_static_descending(suffix):
+            path = "//tmp/st_regular_" + suffix
+            create("table", path, attributes={"schema": schema_regular})
+            alter_table(path, schema=schema_descending)
+
+        def alter_dynamic_regular_to_dynamic_descending(suffix):
+            path = "//tmp/dt_regular_" + suffix
+            create("table", path, attributes={"schema": schema_regular, "dynamic": True})
+            alter_table(path, schema=schema_descending)
+
+        # Both static and dynamic tables with descending sort order are allowed.
+        suffix = "allow_all"
+        create_static_descending(suffix)
+        alter_static_regular_to_static_descending(suffix)
+        alter_static_descending_to_dynamic_descending(suffix)
+        create_dynamic_descending(suffix)
+        alter_dynamic_regular_to_dynamic_descending(suffix)
+
+        # Only static tables are allowed to have descending sort order.
+        set("//sys/@config/enable_descending_sort_order_dynamic", False)
+        suffix = "allow_static"
+        create_static_descending(suffix)
+        alter_static_regular_to_static_descending(suffix)
+        with raises_yt_error(InvalidSchemaValue):
+            alter_static_descending_to_dynamic_descending(suffix)
+        with raises_yt_error(InvalidSchemaValue):
+            create_dynamic_descending(suffix)
+        with raises_yt_error(InvalidSchemaValue):
+            alter_dynamic_regular_to_dynamic_descending(suffix)
+
+        # No tables are allowed to have descending sort order.
+        suffix = "deny_all"
         set("//sys/@config/enable_descending_sort_order", False)
         with raises_yt_error(InvalidSchemaValue):
-            create("table", "//tmp/t2", attributes=attributes)
+            create_static_descending(suffix)
+        with raises_yt_error(InvalidSchemaValue):
+            alter_static_regular_to_static_descending(suffix)
+        with raises_yt_error(InvalidSchemaValue):
+            alter_static_descending_to_dynamic_descending(suffix)
+        with raises_yt_error(InvalidSchemaValue):
+            create_dynamic_descending(suffix)
+        with raises_yt_error(InvalidSchemaValue):
+            alter_dynamic_regular_to_dynamic_descending(suffix)
 
     @authors("babenko", "ignat")
     def test_statistics1(self):

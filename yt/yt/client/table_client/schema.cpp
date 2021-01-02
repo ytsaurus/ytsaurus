@@ -1380,7 +1380,9 @@ void ValidateNoDescendingSortOrder(const TTableSchema& schema)
 {
     for (const auto& column : schema.Columns()) {
         if (column.SortOrder() == ESortOrder::Descending) {
-            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::InvalidSchemaValue, "Descending sort order is not available yet")
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::InvalidSchemaValue,
+                "Descending sort order is not available in this context yet")
                 << TErrorAttribute("column_name", column.Name());
         }
     }

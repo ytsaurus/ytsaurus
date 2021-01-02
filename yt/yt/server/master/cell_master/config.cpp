@@ -100,6 +100,8 @@ TDynamicClusterConfig::TDynamicClusterConfig()
         .Default(false);
     RegisterParameter("enable_descending_sort_order", EnableDescendingSortOrder)
         .Default(false);
+    RegisterParameter("enable_descending_sort_order_dynamic", EnableDescendingSortOrderDynamic)
+        .Default(false);
     RegisterParameter("chunk_manager", ChunkManager)
         .DefaultNew();
     RegisterParameter("tablet_manager", TabletManager)
@@ -122,6 +124,14 @@ TDynamicClusterConfig::TDynamicClusterConfig()
         .DefaultNew();
     RegisterParameter("chunk_service", ChunkService)
         .DefaultNew();
+
+    RegisterPostprocessor([&] {
+        if (EnableDescendingSortOrderDynamic && !EnableDescendingSortOrder) {
+            THROW_ERROR_EXCEPTION(
+                "Setting enable_descending_sort_order_dynamic requires "
+                "enable_descending_sort_order to be set");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
