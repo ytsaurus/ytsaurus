@@ -36,9 +36,6 @@ struct ITableReader
     //! Returns the name table used for constructing rows.
     virtual const NTableClient::TNameTablePtr& GetNameTable() const = 0;
 
-    //! Returns the names of key columns.
-    virtual const NTableClient::TKeyColumns& GetKeyColumns() const = 0;
-
     //! Returns schema of the table.
     virtual const NTableClient::TTableSchemaPtr& GetTableSchema() const = 0;
 

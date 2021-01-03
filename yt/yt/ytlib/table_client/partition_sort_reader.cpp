@@ -195,11 +195,6 @@ public:
         return NameTable_;
     }
 
-    virtual const TKeyColumns& GetKeyColumns() const override
-    {
-        return KeyColumns_;
-    }
-
     virtual bool IsFetchingCompleted() const override
     {
         YT_VERIFY(UnderlyingReader_);

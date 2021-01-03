@@ -1795,7 +1795,7 @@ message TReqReadTable
 message TRspReadTableMeta
 {
     required int64 start_row_index = 1;
-    repeated string key_columns = 2;
+    reserved 2;
     repeated string omitted_inaccessible_columns = 3;
     required TTableSchema schema = 5;
     required TRowsetStatistics statistics = 4;

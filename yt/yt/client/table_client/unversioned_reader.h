@@ -45,7 +45,6 @@ struct ISchemalessUnversionedReader
     : public IUnversionedReaderBase
 {
     virtual const TNameTablePtr& GetNameTable() const = 0;
-    virtual const TKeyColumns& GetKeyColumns() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessUnversionedReader)

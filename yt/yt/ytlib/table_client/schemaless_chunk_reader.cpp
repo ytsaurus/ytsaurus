@@ -142,11 +142,6 @@ public:
         return NameTable_;
     }
 
-    virtual const TKeyColumns& GetKeyColumns() const override
-    {
-        return ExtendedKeyColumns_;
-    }
-
     virtual i64 GetTableRowIndex() const override
     {
         return ChunkSpec_.table_row_index() + RowIndex_;

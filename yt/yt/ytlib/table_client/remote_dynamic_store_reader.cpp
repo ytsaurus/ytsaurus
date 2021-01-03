@@ -522,11 +522,6 @@ public:
         return NameTable_;
     }
 
-    virtual const TKeyColumns& GetKeyColumns() const override
-    {
-        YT_ABORT();
-    }
-
     virtual i64 GetTableRowIndex() const override
     {
         // NB: Table row index is requested only for the first reader in the sequential

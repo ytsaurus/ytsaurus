@@ -3349,7 +3349,6 @@ private:
         auto outputStream = context->GetResponseAttachmentsStream();
         NApi::NRpcProxy::NProto::TRspReadTableMeta meta;
         meta.set_start_row_index(tableReader->GetStartRowIndex());
-        ToProto(meta.mutable_key_columns(), tableReader->GetKeyColumns());
         ToProto(meta.mutable_omitted_inaccessible_columns(), tableReader->GetOmittedInaccessibleColumns());
         ToProto(meta.mutable_schema(), tableReader->GetTableSchema());
         meta.mutable_statistics()->set_total_row_count(tableReader->GetTotalRowCount());
