@@ -208,6 +208,15 @@ TString ToString(const TOwningKeyBound& keyBound)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOwningKeyBound TKeyBound::ToOwning() const
+{
+    TOwningKeyBound result;
+    result.Prefix = TUnversionedOwningRow(Prefix);
+    result.IsInclusive = IsInclusive;
+    result.IsUpper = IsUpper;
+    return result;
+}
+
 void FormatValue(TStringBuilderBase* builder, const TKeyBound& keyBound, TStringBuf /*format*/)
 {
     return keyBound.FormatValue(builder);

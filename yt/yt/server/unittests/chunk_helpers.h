@@ -8,6 +8,7 @@
 
 #include <yt/client/table_client/public.h>
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/comparator.h>
 
 namespace NYT::NChunkServer::NTesting {
 
@@ -60,6 +61,10 @@ public:
 private:
     std::vector<std::unique_ptr<TChunkTree>> CreatedObjects_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::TComparator MakeComparator(int keyLength);
 
 ////////////////////////////////////////////////////////////////////////////////
 

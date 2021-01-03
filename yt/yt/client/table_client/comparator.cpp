@@ -75,11 +75,46 @@ TKeyBound TComparator::StrongerKeyBound(const TKeyBound& lhs, const TKeyBound& r
 
 void TComparator::ReplaceIfStrongerKeyBound(TKeyBound& lhs, const TKeyBound& rhs) const
 {
+    if (!lhs) {
+        lhs = rhs;
+        return;
+    }
+
     if (!rhs) {
         return;
     }
 
-    lhs = lhs ? StrongerKeyBound(lhs, rhs) : rhs;
+    YT_VERIFY(lhs.IsUpper == rhs.IsUpper);
+    auto comparisonResult = CompareKeyBounds(lhs, rhs);
+    if (lhs.IsUpper) {
+        comparisonResult = -comparisonResult;
+    }
+
+    if (comparisonResult < 0) {
+        lhs = rhs;
+    }
+}
+
+void TComparator::ReplaceIfStrongerKeyBound(TOwningKeyBound& lhs, const TOwningKeyBound& rhs) const
+{
+    if (!lhs) {
+        lhs = rhs;
+        return;
+    }
+
+    if (!rhs) {
+        return;
+    }
+
+    YT_VERIFY(lhs.IsUpper == rhs.IsUpper);
+    auto comparisonResult = CompareKeyBounds(lhs, rhs);
+    if (lhs.IsUpper) {
+        comparisonResult = -comparisonResult;
+    }
+
+    if (comparisonResult < 0) {
+        lhs = rhs;
+    }
 }
 
 TKeyBound TComparator::WeakerKeyBound(const TKeyBound& lhs, const TKeyBound& rhs) const
@@ -241,6 +276,11 @@ TComparator TComparator::Trim(int keyColumnCount) const
     auto sortOrders = SortOrders_;
     sortOrders.resize(keyColumnCount);
     return TComparator(std::move(sortOrders));
+}
+
+bool TComparator::HasDescendingSortOrder() const
+{
+    return std::find(SortOrders_.begin(), SortOrders_.end(), ESortOrder::Descending) != SortOrders_.end();
 }
 
 void FormatValue(TStringBuilderBase* builder, const TComparator& comparator, TStringBuf /* spec */)

@@ -1121,34 +1121,35 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
     TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
 }
 
-void TTableNodeProxy::ValidateFetch(TFetchContext* context)
+void TTableNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& readLimit) const
 {
-    TChunkOwnerNodeProxy::ValidateFetch(context);
-
     auto* table = GetThisImpl();
-    for (const auto& range : context->Ranges) {
-        const auto& lowerLimit = range.LowerLimit();
-        const auto& upperLimit = range.UpperLimit();
-        if ((upperLimit.HasLegacyKey() || lowerLimit.HasLegacyKey()) && !table->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Key selectors are not supported for unsorted tables");
-        }
-        if (upperLimit.HasTabletIndex() || lowerLimit.HasTabletIndex()) {
-            if (!table->IsDynamic() || table->IsSorted()) {
-                THROW_ERROR_EXCEPTION("Tablet index selectors are only supported for ordered dynamic tables");
-            }
-        }
-        if (table->IsDynamic() && !table->IsSorted()) {
-            if ((upperLimit.HasRowIndex() && !upperLimit.HasTabletIndex()) || (lowerLimit.HasRowIndex() && !lowerLimit.HasTabletIndex())) {
-                THROW_ERROR_EXCEPTION("In ordered dynamic tables row index selector can only be specified when tablet index selector is");
-            }
-        }
-        if ((upperLimit.HasRowIndex() || lowerLimit.HasRowIndex()) && table->IsDynamic() && table->IsSorted()) {
-            THROW_ERROR_EXCEPTION("Row index selectors are not supported for sorted dynamic tables");
-        }
-        if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
-            THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
+    if ((readLimit.has_key_bound_prefix() || readLimit.has_legacy_key()) && !table->IsSorted()) {
+        THROW_ERROR_EXCEPTION("Key selectors are not supported for unsorted tables");
+    }
+    if (readLimit.has_tablet_index()) {
+        if (!table->IsDynamic() || table->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Tablet index selectors are only supported for ordered dynamic tables");
         }
     }
+    if (table->IsDynamic() && !table->IsSorted()) {
+        if (readLimit.has_row_index() && !readLimit.has_tablet_index()) {
+            THROW_ERROR_EXCEPTION("In ordered dynamic tables row index selector can only be specified when tablet index selector is also specified");
+        }
+    }
+    if (readLimit.has_row_index() && table->IsDynamic() && table->IsSorted()) {
+        THROW_ERROR_EXCEPTION("Row index selectors are not supported for sorted dynamic tables");
+    }
+    if (readLimit.has_offset()) {
+        THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
+    }
+}
+
+std::optional<TComparator> TTableNodeProxy::GetComparator() const
+{
+    const auto& schema = GetThisImpl()->GetTableSchema();
+    auto comparator = schema.IsSorted() ? std::make_optional(schema.ToComparator()) : std::nullopt;
+    return comparator;
 }
 
 bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)

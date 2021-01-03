@@ -1,5 +1,7 @@
 #include "read_limit.h"
 
+#include <yt/client/table_client/unversioned_row.h>
+
 #include <yt/core/misc/format.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -528,6 +530,14 @@ void TLegacyReadRange::Persist(const TStreamPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReadLimit::TReadLimit(const TKeyBound& keyBound)
+    : KeyBound_(keyBound.ToOwning())
+{ }
+
+TReadLimit::TReadLimit(TOwningKeyBound keyBound)
+    : KeyBound_(std::move(keyBound))
+{ }
+
 TReadLimit::TReadLimit(
     const NProto::TReadLimit& readLimit,
     bool isUpper,
@@ -561,7 +571,7 @@ TReadLimit::TReadLimit(
 bool TReadLimit::IsTrivial() const
 {
     return
-        !KeyBound_ &&
+        (!KeyBound_ || KeyBound_.IsUniversal()) &&
         !RowIndex_ &&
         !Offset_ &&
         !ChunkIndex_ &&
@@ -634,6 +644,54 @@ void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit)
     }
 }
 
+void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit, bool isUpper, std::optional<int> keyLength)
+{
+    // Formally speaking two exceptions in this method could be YT_VERIFY, but let's
+    // try to be more tolerant to possible bugs. After all, this code is used in
+    // master a lot.
+
+    auto validateKeyLengthIsPresent = [=] {
+        if (!keyLength) {
+            THROW_ERROR_EXCEPTION(
+                "Read limit contains key, but key length is not provided");
+        }
+    };
+
+    readLimit->KeyBound().IsUpper = isUpper;
+    if (protoReadLimit.has_key_bound_prefix()) {
+        validateKeyLengthIsPresent();
+
+        FromProto(&readLimit->KeyBound().Prefix, protoReadLimit.key_bound_prefix());
+        readLimit->KeyBound().IsInclusive = protoReadLimit.key_bound_is_inclusive();
+
+        if (readLimit->KeyBound().Prefix.GetCount() > *keyLength) {
+            THROW_ERROR_EXCEPTION(
+                "Invalid key bound prefix length; expected no more than %v, actual %v",
+                *keyLength,
+                readLimit->KeyBound().Prefix.GetCount());
+        }
+    } else if (protoReadLimit.has_legacy_key()) {
+        validateKeyLengthIsPresent();
+
+        TLegacyOwningKey legacyKey;
+        FromProto(&legacyKey, protoReadLimit.legacy_key());
+        readLimit->KeyBound() = KeyBoundFromLegacyRow(legacyKey, isUpper, *keyLength);
+    }
+
+    if (protoReadLimit.has_row_index()) {
+        readLimit->SetRowIndex(protoReadLimit.row_index());
+    }
+    if (protoReadLimit.has_offset()) {
+        readLimit->SetOffset(protoReadLimit.offset());
+    }
+    if (protoReadLimit.has_chunk_index()) {
+        readLimit->SetChunkIndex(protoReadLimit.chunk_index());
+    }
+    if (protoReadLimit.has_tablet_index()) {
+        readLimit->SetTabletIndex(protoReadLimit.tablet_index());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadRange::TReadRange(TReadLimit lowerLimit, TReadLimit upperLimit)
@@ -683,9 +741,86 @@ void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange)
     }
 }
 
+void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange, std::optional<int> keyLength)
+{
+    if (protoReadRange.has_lower_limit()) {
+        FromProto(&readRange->LowerLimit(), protoReadRange.lower_limit(), /* isUpper */ false, keyLength);
+    }
+    if (protoReadRange.has_upper_limit()) {
+        FromProto(&readRange->UpperLimit(), protoReadRange.upper_limit(), /* isUpper */ true, keyLength);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TReadLimit, /*key*/4, TUnversionedOwningRow)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReadLimit ReadLimitFromLegacyReadLimit(const TLegacyReadLimit& legacyReadLimit, bool isUpper, int keyLength)
+{
+    TReadLimit result;
+    if (legacyReadLimit.HasRowIndex()) {
+        result.SetRowIndex(legacyReadLimit.GetRowIndex());
+    }
+    if (legacyReadLimit.HasChunkIndex()) {
+        result.SetChunkIndex(legacyReadLimit.GetChunkIndex());
+    }
+    if (legacyReadLimit.HasOffset()) {
+        result.SetOffset(legacyReadLimit.GetOffset());
+    }
+    if (legacyReadLimit.HasTabletIndex()) {
+        result.SetTabletIndex(legacyReadLimit.GetTabletIndex());
+    }
+    if (legacyReadLimit.HasLegacyKey()) {
+        result.KeyBound() = KeyBoundFromLegacyRow(legacyReadLimit.GetLegacyKey(), isUpper, keyLength);
+    }
+
+    return result;
+}
+
+TReadLimit ReadLimitFromLegacyReadLimitKeyless(const TLegacyReadLimit& legacyReadLimit)
+{
+    YT_VERIFY(!legacyReadLimit.HasLegacyKey());
+
+    TReadLimit result;
+    if (legacyReadLimit.HasRowIndex()) {
+        result.SetRowIndex(legacyReadLimit.GetRowIndex());
+    }
+    if (legacyReadLimit.HasChunkIndex()) {
+        result.SetChunkIndex(legacyReadLimit.GetChunkIndex());
+    }
+    if (legacyReadLimit.HasOffset()) {
+        result.SetOffset(legacyReadLimit.GetOffset());
+    }
+    if (legacyReadLimit.HasTabletIndex()) {
+        result.SetTabletIndex(legacyReadLimit.GetTabletIndex());
+    }
+
+    return result;
+}
+
+TLegacyReadLimit ReadLimitToLegacyReadLimit(const TReadLimit& readLimit)
+{
+    TLegacyReadLimit result;
+    if (const auto& rowIndex = readLimit.GetRowIndex()) {
+        result.SetRowIndex(*rowIndex);
+    }
+    if (const auto& chunkIndex = readLimit.GetChunkIndex()) {
+        result.SetChunkIndex(*chunkIndex);
+    }
+    if (const auto& offset = readLimit.GetOffset()) {
+        result.SetOffset(*offset);
+    }
+    if (const auto& tabletIndex = readLimit.GetTabletIndex()) {
+        result.SetTabletIndex(*tabletIndex);
+    }
+    if (readLimit.KeyBound()) {
+        result.SetLegacyKey(KeyBoundToLegacyRow(readLimit.KeyBound()));
+    }
+
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

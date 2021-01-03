@@ -16,6 +16,7 @@
 namespace NYT::NChunkServer::NTesting {
 
 using namespace NObjectClient;
+using namespace NTableClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -176,6 +177,13 @@ void DetachFromChunkList(
         chunkList,
         children.data(),
         children.data() + children.size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TComparator MakeComparator(int keyLength)
+{
+    return TComparator(std::vector<ESortOrder>(keyLength, ESortOrder::Ascending));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

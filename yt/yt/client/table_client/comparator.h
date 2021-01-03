@@ -50,6 +50,9 @@ public:
     //! Shorthand for #lhs = #StrongerKeyBound(#lhs, #rhs).
     void ReplaceIfStrongerKeyBound(TKeyBound& lhs, const TKeyBound& rhs) const;
 
+    //! Same as previous for owning key bounds.
+    void ReplaceIfStrongerKeyBound(TOwningKeyBound& lhs, const TOwningKeyBound& rhs) const;
+
     //! Returns the weakest of two key bounds. Key bounds should be of same direction
     //! (but possibly of different inclusiveness).
     TKeyBound WeakerKeyBound(const TKeyBound& lhs, const TKeyBound& rhs) const;
@@ -67,6 +70,8 @@ public:
 
     //! Returns a comparator that compares rows by first #keyColumnCount columns and ignores other.
     TComparator Trim(int keyColumnCount) const;
+
+    bool HasDescendingSortOrder() const;
 
 private:
     void ValidateKey(const TKey& key) const;

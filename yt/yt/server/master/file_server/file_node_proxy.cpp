@@ -113,17 +113,13 @@ private:
         TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
-    virtual void ValidateFetch(TFetchContext* context) override
+    virtual void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& readLimit) const override
     {
-        for (const auto& range : context->Ranges) {
-            const auto& lowerLimit = range.LowerLimit();
-            const auto& upperLimit = range.UpperLimit();
-            if (upperLimit.HasLegacyKey() || lowerLimit.HasLegacyKey()) {
-                THROW_ERROR_EXCEPTION("Key selectors are not supported for files");
-            }
-            if (lowerLimit.HasRowIndex() || upperLimit.HasRowIndex()) {
-                THROW_ERROR_EXCEPTION("Row index selectors are not supported for files");
-            }
+        if (readLimit.has_key_bound_prefix() || readLimit.has_legacy_key()) {
+            THROW_ERROR_EXCEPTION("Key selectors are not supported for files");
+        }
+        if (readLimit.has_row_index()) {
+            THROW_ERROR_EXCEPTION("Row index selectors are not supported for files");
         }
     }
 };

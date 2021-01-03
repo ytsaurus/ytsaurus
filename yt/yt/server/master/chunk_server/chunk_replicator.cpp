@@ -1185,7 +1185,7 @@ void TChunkReplicator::ScheduleJobs(
     if (!IsReplicatorEnabled()) {
         return;
     }
-    
+
     const auto* nodeDataCenter = node->GetDataCenter();
 
     int misscheduledReplicationJobs = 0;
@@ -1988,8 +1988,8 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
             TChunk* chunk,
             std::optional<i64> /*rowIndex*/,
             std::optional<int> /*tabletIndex*/,
-            const TLegacyReadLimit& /*startLimit*/,
-            const TLegacyReadLimit& /*endLimit*/,
+            const NChunkClient::TReadLimit& /*startLimit*/,
+            const NChunkClient::TReadLimit& /*endLimit*/,
             TTransactionId /*timestampTransactionId*/) override
         {
             Owner_->ScheduleRequisitionUpdate(chunk);
@@ -2004,8 +2004,8 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
         virtual bool OnDynamicStore(
             TDynamicStore* /*dynamicStore*/,
             std::optional<int> /*tabletIndex*/,
-            const NChunkClient::TLegacyReadLimit& /*startLimit*/,
-            const NChunkClient::TLegacyReadLimit& /*endLimit*/) override
+            const NChunkClient::TReadLimit& /*startLimit*/,
+            const NChunkClient::TReadLimit& /*endLimit*/) override
         {
             return true;
         }

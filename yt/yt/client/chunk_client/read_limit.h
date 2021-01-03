@@ -138,6 +138,8 @@ public:
 
 public:
     TReadLimit() = default;
+    explicit TReadLimit(const NTableClient::TKeyBound& keyBound);
+    explicit TReadLimit(NTableClient::TOwningKeyBound keyBound);
     TReadLimit(
         const NProto::TReadLimit& readLimit,
         bool isUpper,
@@ -151,6 +153,10 @@ public:
 TString ToString(const TReadLimit& readLimit);
 
 void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit);
+//! If protoReadLimit contains key, it is transformed into new key bound by
+//! calling KeyBoundFromLegacyKey using *keyLength. In this case, if keyLength
+//! is std::nullopt, exception is thrown.
+void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit, bool isUpper, std::optional<int> keyLength);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -173,6 +179,21 @@ public:
 TString ToString(const TReadRange& readRange);
 
 void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange);
+//! See comment for FromProto(TReadLimit*, const NProto::TReadLimit&, bool, std::optional<int>).
+void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange, std::optional<int> keyLength);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Interop functions.
+
+//! Transform legacy read limit to new read limit possibly transforming legacy key into
+//! key bound by calling KeyBoundFromLegacyKey.
+TReadLimit ReadLimitFromLegacyReadLimit(const TLegacyReadLimit& legacyReadLimit, bool isUpper, int keyLength);
+//! Transform legacy read limit without legacy key into new read limit (merely copying all integer fields).
+TReadLimit ReadLimitFromLegacyReadLimitKeyless(const TLegacyReadLimit& legacyReadLimit);
+
+//! Transform new read limit into legacy read limit.
+TLegacyReadLimit ReadLimitToLegacyReadLimit(const TReadLimit& readLimit);
 
 ////////////////////////////////////////////////////////////////////////////////
 

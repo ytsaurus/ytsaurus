@@ -136,8 +136,8 @@ void BuildChunkSpec(
     TChunk* chunk,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
-    const TLegacyReadLimit& lowerLimit,
-    const TLegacyReadLimit& upperLimit,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit,
     TTransactionId timestampTransactionId,
     bool fetchParityReplicas,
     bool fetchAllMetaExtensions,
@@ -204,32 +204,26 @@ void BuildChunkSpec(
     }
 
     // Try to keep responses small -- avoid producing redundant limits.
-    if (!IsTrivial(lowerLimit)) {
+    if (!lowerLimit.IsTrivial()) {
         ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);
     }
-    if (!IsTrivial(upperLimit)) {
+    if (!upperLimit.IsTrivial()) {
         ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
     }
 
-    i64 lowerRowLimit = 0;
-    if (lowerLimit.HasRowIndex()) {
-        lowerRowLimit = lowerLimit.GetRowIndex();
-    }
-    i64 upperRowLimit = chunk->MiscExt().row_count();
-    if (upperLimit.HasRowIndex()) {
-        upperRowLimit = upperLimit.GetRowIndex();
-    }
+    i64 lowerRowLimit = lowerLimit.GetRowIndex().value_or(0);
+    i64 upperRowLimit = upperLimit.GetRowIndex().value_or(chunk->MiscExt().row_count());
 
     // If one of row indexes is present, then fields row_count_override and
     // uncompressed_data_size_override estimate the chunk range
     // instead of the whole chunk.
     // To ensure the correct usage of this rule, row indexes should be
     // either both set or not.
-    if (lowerLimit.HasRowIndex() && !upperLimit.HasRowIndex()) {
+    if (lowerLimit.GetRowIndex() && !upperLimit.GetRowIndex()) {
         chunkSpec->mutable_upper_limit()->set_row_index(upperRowLimit);
     }
 
-    if (upperLimit.HasRowIndex() && !lowerLimit.HasRowIndex()) {
+    if (upperLimit.GetRowIndex() && !lowerLimit.GetRowIndex()) {
         chunkSpec->mutable_lower_limit()->set_row_index(lowerRowLimit);
     }
 
@@ -255,8 +249,8 @@ void BuildChunkSpec(
 void BuildDynamicStoreSpec(
     const TDynamicStore* dynamicStore,
     std::optional<int> tabletIndex,
-    const TLegacyReadLimit& lowerLimit,
-    const TLegacyReadLimit& upperLimit,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
@@ -284,10 +278,10 @@ void BuildDynamicStoreSpec(
         chunkSpec->add_replicas(ToProto<ui64>(replica));
     }
 
-    if (!IsTrivial(lowerLimit)) {
+    if (!lowerLimit.IsTrivial()) {
         ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);
     }
-    if (!IsTrivial(upperLimit)) {
+    if (!upperLimit.IsTrivial()) {
         ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
     }
     chunkSpec->set_row_index_is_absolute(true);
@@ -304,12 +298,12 @@ public:
         TChunkList* chunkList,
         TCtxFetchPtr rpcContext,
         TFetchContext&& fetchContext,
-        std::optional<int> keyColumnCount)
+        std::optional<TComparator> comparator)
         : Bootstrap_(bootstrap)
         , ChunkList_(chunkList)
         , RpcContext_(std::move(rpcContext))
         , FetchContext_(std::move(fetchContext))
-        , KeyColumnCount_(keyColumnCount)
+        , Comparator_(std::move(comparator))
         , NodeDirectoryBuilder_(
             RpcContext_->Response().mutable_node_directory(),
             FetchContext_.AddressType)
@@ -337,7 +331,7 @@ private:
     TChunkList* const ChunkList_;
     const TCtxFetchPtr RpcContext_;
     TFetchContext FetchContext_;
-    const std::optional<int> KeyColumnCount_;
+    const std::optional<TComparator> Comparator_;
 
     int CurrentRangeIndex_ = 0;
 
@@ -358,7 +352,7 @@ private:
             ChunkList_,
             FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
             FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
-            KeyColumnCount_);
+            Comparator_);
     }
 
     void ReplySuccess()
@@ -384,8 +378,8 @@ private:
         TChunk* chunk,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
-        const TLegacyReadLimit& lowerLimit,
-        const TLegacyReadLimit& upperLimit,
+        const TReadLimit& lowerLimit,
+        const TReadLimit& upperLimit,
         TTransactionId timestampTransactionId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -436,8 +430,8 @@ private:
     virtual bool OnDynamicStore(
         TDynamicStore* dynamicStore,
         std::optional<int> tabletIndex,
-        const TLegacyReadLimit& lowerLimit,
-        const TLegacyReadLimit& upperLimit) override
+        const TReadLimit& lowerLimit,
+        const TReadLimit& upperLimit) override
     {
         if (FetchContext_.OmitDynamicStores) {
             return true;
@@ -959,8 +953,13 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
         medium->GetName());
 }
 
-void TChunkOwnerNodeProxy::ValidateFetch(TFetchContext* /*context*/)
+void TChunkOwnerNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& /* readLimit */) const
 { }
+
+std::optional<TComparator> TChunkOwnerNodeProxy::GetComparator() const
+{
+    return std::nullopt;
+}
 
 void TChunkOwnerNodeProxy::ValidateInUpdate()
 {
@@ -1020,18 +1019,16 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     fetchContext.AddressType = request->has_address_type()
         ? CheckedEnumCast<EAddressType>(request->address_type())
         : EAddressType::InternalRpc;
-    fetchContext.Ranges = FromProto<std::vector<TLegacyReadRange>>(request->ranges());
-    ValidateFetch(&fetchContext);
 
     const auto* node = GetThisImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
+    const auto& comparator = GetComparator();
+    for (const auto& protoRange : request->ranges()) {
+        ValidateReadLimit(protoRange.lower_limit());
+        ValidateReadLimit(protoRange.upper_limit());
 
-    std::optional<int> keyColumnCount;
-    for (const auto& range : fetchContext.Ranges) {
-        if (range.LowerLimit().HasLegacyKey() || range.UpperLimit().HasLegacyKey()) {
-            keyColumnCount = node->As<NTableServer::TTableNode>()->GetTableSchema().GetKeyColumnCount();
-            break;
-        }
+        auto& range = fetchContext.Ranges.emplace_back();
+        FromProto(&range, protoRange, comparator ? std::make_optional(comparator->GetLength()) : std::nullopt);
     }
 
     auto visitor = New<TFetchChunkVisitor>(
@@ -1039,7 +1036,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         chunkList,
         context,
         std::move(fetchContext),
-        keyColumnCount);
+        std::move(comparator));
     visitor->Run();
 }
 
