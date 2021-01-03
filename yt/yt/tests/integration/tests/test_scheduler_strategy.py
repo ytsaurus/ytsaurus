@@ -2942,6 +2942,9 @@ class TestSchedulingSegments(YTEnvSetup):
         "large_gpu",
     ]
 
+    DATA_CENTER = "SAS"
+    RACK = "SAS1"
+
     def _get_usage_ratio(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/usage_ratio", default=0.0)
 
@@ -2973,12 +2976,22 @@ class TestSchedulingSegments(YTEnvSetup):
                 ))
             for response in execute_batch(requests):
                 assert not get_batch_error(response)
+
+        create_data_center(TestSchedulingSegments.DATA_CENTER)
+        create_rack(TestSchedulingSegments.RACK)
+        set("//sys/racks/" + TestSchedulingSegments.RACK + "/@data_center", TestSchedulingSegments.DATA_CENTER)
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/" + node + "/@rack", TestSchedulingSegments.RACK)
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestSchedulingSegments.DATA_CENTER)
+
         create_pool("cpu", wait_for_orchid=False)
         create_pool("small_gpu", wait_for_orchid=False)
         create_pool("large_gpu")
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
             "unsatisfied_segments_rebalancing_timeout": 1000,
+            "data_centers": [TestSchedulingSegments.DATA_CENTER],
         })
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
         wait(
@@ -3065,58 +3078,45 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_satisfaction_margins(self):
-        fair_resource_amount_last = Metric.at_scheduler(
-            "scheduler/segments/fair_resource_amount",
-            grouped_by_tags=["segment"],
-            aggr_method="last",
-        )
-        current_resource_amount_last = Metric.at_scheduler(
-            "scheduler/segments/current_resource_amount",
-            grouped_by_tags=["segment"],
-            aggr_method="last",
-        )
+        set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 80})
+        set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins",
+            {
+                "large_gpu": {
+                    TestSchedulingSegments.DATA_CENTER: 8
+                }
+            })
+        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 30000)
 
-        blocking_op = run_sleeping_vanilla(
-            job_count=4,
-            spec={"pool": "small_gpu"},
-            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
-        )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.05))
+        wait(lambda: are_almost_equal(
+            get(scheduler_orchid_default_pool_tree_config_path() +
+                "/scheduling_segments/satisfaction_margins/large_gpu/" +
+                TestSchedulingSegments.DATA_CENTER, default=0),
+            8))
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/job_interrupt_timeout") == 30000)
 
-        # We have to leave one node for the default segment, otherwise it isn't satisfied.
-        op = run_sleeping_vanilla(
-            job_count=10,
+        filling_op = run_sleeping_vanilla(
+            job_count=9,
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.95))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(filling_op.id), 0.9))
 
-        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 4)
-        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 76)
-        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 8)
-        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 72)
+        run_test_vanilla(
+            """(trap "sleep 40; exit 0" SIGINT; sleep 1000)""",
+            job_count=8,
+            spec={"pool": "small_gpu"},
+            task_patch={"interruption_signal": "SIGINT", "gpu_limit": 1, "enable_gpu_layers": False},
+        )
 
-        # Tweak satisfaction margin, but still fair resource of the default segment is positive, so nothing happens.
-        set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"default": -3.0})
+        time.sleep(3)
 
-        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 1)
-        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 76)
-        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 8)
-        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 72)
-
-        # Finally, change satisfaction margin to be able to satisfy the large gpu segment.
-        set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"default": -4.0})
-
-        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 0)
-        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 76)
-        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 0)
-        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 80)
-
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.0))
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(blocking_op.id), 0.05))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 1.0))
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.95))
+        op = run_test_vanilla(
+            "sleep 1",
+            job_count=1,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: op.get_state() == "completed")
 
     @authors("eshcherbin")
     def test_rebalancing_heuristic(self):
@@ -3600,7 +3600,7 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_freeze_node_segment(self):
-        set("//sys/pools/large_gpu/@min_share_resources", {"gpu": 80})
+        set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 80})
 
         blocking_op = run_sleeping_vanilla(
             job_count=10,
@@ -3621,6 +3621,8 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "large_gpu")
         set("//sys/cluster_nodes/{}/@scheduling_segment".format(node), "default")
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "default")
+
+        set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 72})
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
 
         op.complete()
@@ -3631,6 +3633,419 @@ class TestSchedulingSegments(YTEnvSetup):
         remove("//sys/cluster_nodes/{}/@scheduling_segment".format(node))
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "large_gpu")
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+
+    @authors("eshcherbin")
+    def test_invalid_config(self):
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/default/@config/scheduling_segments/data_centers", ["SAS", "VLA", ""])
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/default/@config/scheduling_segments/data_centers", ["SAS", "VLA", ""])
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"default": {"SAS": "-3.0"}})
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"large_gpu": {"VLA": "-3.0"}})
+
+
+##################################################################
+
+
+class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 10
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+            "scheduling_segments_manage_period": 100,
+            "scheduling_segments_initialization_timeout": 100,
+            "operations_update_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 10,
+                    "user_slots": 10,
+                },
+                "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
+            },
+        },
+        "scheduler_connector": {
+            "heartbeat_period": 100,
+        },
+        "job_proxy_heartbeat_period": 100,
+    }
+
+    SCHEDULING_SEGMENTS = [
+        "default",
+        "large_gpu",
+    ]
+
+    DATA_CENTERS = ["SAS", "VLA"]
+    RACKS = ["SAS1", "VLA1"]
+
+    def _get_usage_ratio(self, op, tree="default"):
+        return get(scheduler_orchid_operation_path(op, tree) + "/usage_ratio", default=0.0)
+
+    def _get_fair_share_ratio(self, op, tree="default"):
+        return get(scheduler_orchid_operation_path(op, tree) + "/fair_share_ratio", default=0.0)
+
+    @classmethod
+    def setup_class(cls):
+        if is_asan_build():
+            pytest.skip("test suite has too high memory consumption for ASAN build")
+        super(TestSchedulingSegmentsMultiDataCenter, cls).setup_class()
+
+    def setup_method(self, method):
+        super(TestSchedulingSegmentsMultiDataCenter, self).setup_method(method)
+        # NB(eshcherbin): This is done to reset node segments.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
+            for node in ls("//sys/cluster_nodes"):
+                requests.append(make_batch_request(
+                    "remove",
+                    path="//sys/cluster_nodes/{}/@scheduling_segment".format(node),
+                    force=True
+                ))
+            for response in execute_batch(requests):
+                assert not get_batch_error(response)
+
+        for dc, r in zip(TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS, TestSchedulingSegmentsMultiDataCenter.RACKS):
+            create_data_center(dc)
+            create_rack(r)
+            set("//sys/racks/" + r + "/@data_center", dc)
+
+        nodes = list(ls("//sys/cluster_nodes"))
+        dc_count = len(TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        for i, node in enumerate(nodes):
+            set("//sys/cluster_nodes/" + node + "/@rack", TestSchedulingSegmentsMultiDataCenter.RACKS[i % dc_count])
+        for i, node in enumerate(nodes):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS[i % dc_count])
+
+        create_pool("cpu", wait_for_orchid=False)
+        create_pool("small_gpu", wait_for_orchid=False)
+        create_pool("large_gpu")
+        set("//sys/pool_trees/default/@config/scheduling_segments", {
+            "mode": "large_gpu",
+            "unsatisfied_segments_rebalancing_timeout": 1000,
+            "data_centers": TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS,
+        })
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
+        wait(
+            lambda: get(
+                scheduler_orchid_default_pool_tree_config_path()
+                + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
+            )
+                    == 1000
+        )
+        # Not to let preemption abort the jobs instead of segments manager.
+        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout_limit", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.95)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.95)
+        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 80)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_unpreemptable_running_job_count") == 80)
+
+    @authors("eshcherbin")
+    def test_data_center_locality_for_large_multihost_operations(self):
+        op = run_sleeping_vanilla(
+            job_count=5,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center", default=None)
+                     in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        dc = get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center")
+
+        wait(lambda: len(op.get_running_jobs()) == 5)
+        jobs = op.get_running_jobs()
+        for _, job in jobs.iteritems():
+            assert get("//sys/cluster_nodes/" + job["address"] + "/@data_center", default="") == dc
+
+    @authors("eshcherbin")
+    def test_no_data_center_locality_for_small_multihost_operations(self):
+        op = run_sleeping_vanilla(
+            job_count=12,
+            spec={"pool": "small_gpu"},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 48.0 / 80.0))
+
+    @authors("eshcherbin")
+    def test_uniform_distribution_of_large_operations_to_data_centers_1(self):
+        ops = []
+        for i in range(10):
+            op = run_sleeping_vanilla(
+                spec={"pool": "large_gpu"},
+                task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            )
+            ops.append(op)
+            wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+
+        dcs = [get(scheduler_orchid_operation_path(op_.id) + "/scheduling_segment_data_center") for op_ in ops]
+        assert dcs[0] != dcs[1]
+        for i in range(2, 10):
+            assert dcs[i] == dcs[i - 2]
+
+    @authors("eshcherbin")
+    def test_uniform_distribution_of_large_operations_to_data_centers_2(self):
+        set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 80})
+
+        blocking_op = run_sleeping_vanilla(
+            job_count=4,
+            spec={"pool": "small_gpu"},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.2))
+
+        big_op = run_sleeping_vanilla(
+            job_count=4,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.4))
+        big_dc = get(scheduler_orchid_operation_path(big_op.id) + "/scheduling_segment_data_center")
+
+        for i in range(4):
+            op = run_sleeping_vanilla(
+                spec={"pool": "large_gpu"},
+                task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            )
+            wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+            wait(lambda: big_dc != get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center"))
+
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.2))
+
+    @authors("eshcherbin")
+    def test_specified_data_center(self):
+        big_op = run_sleeping_vanilla(
+            job_count=4,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.4))
+        big_dc = get(scheduler_orchid_operation_path(big_op.id) + "/scheduling_segment_data_center")
+
+        op = run_sleeping_vanilla(
+            spec={"pool": "large_gpu", "scheduling_segment_data_centers": [big_dc]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: big_dc == get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center"))
+
+    @authors("eshcherbin")
+    def test_data_center_reconsideration(self):
+        big_op = run_sleeping_vanilla(
+            job_count=5,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.5))
+        big_dc = get(scheduler_orchid_operation_path(big_op.id) + "/scheduling_segment_data_center")
+
+        node_to_disappear = None
+        for node in ls("//sys/cluster_nodes"):
+            if get("//sys/cluster_nodes/" + node + "/@data_center") == big_dc:
+                node_to_disappear = node
+                break
+        assert node_to_disappear is not None
+
+        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+        create_pool_tree("other", config={"nodes_filter": "other"})
+        set("//sys/cluster_nodes/" + node_to_disappear + "/@user_tags/end", "other")
+        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 4. / 9.))
+
+        set("//sys/pool_trees/default/@config/scheduling_segments/data_center_reconsideration_timeout", 5000)
+        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 5. / 9.))
+        wait(lambda: big_dc != get(scheduler_orchid_operation_path(big_op.id) + "/scheduling_segment_data_center"))
+        wait(lambda: big_op.get_job_count("aborted") >= 5)
+
+    @authors("eshcherbin")
+    def test_rebalance_large_gpu_segment_nodes_between_data_centers(self):
+        create_pool("large_gpu_other")
+        set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 40})
+        set("//sys/pools/small_gpu/@strong_guarantee_resources", {"gpu": 40})
+
+        blocking_op = run_sleeping_vanilla(
+            job_count=10,
+            spec={"pool": "small_gpu"},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+
+        big_op = run_sleeping_vanilla(
+            job_count=3,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.3))
+        big_dc = get(scheduler_orchid_operation_path(big_op.id) + "/scheduling_segment_data_center")
+
+        opportunistic_op = run_sleeping_vanilla(
+            job_count=2,
+            spec={"pool": "large_gpu_other", "scheduling_segment_data_centers": [big_dc]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(opportunistic_op.id), 0.2))
+
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
+
+        op = run_sleeping_vanilla(
+            job_count=2,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.2))
+        wait(lambda: big_dc != get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center"))
+
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
+
+    @authors("eshcherbin")
+    def test_revive_operation_data_center(self):
+        update_controller_agent_config("snapshot_period", 300)
+
+        ops = []
+        for i in range(10):
+            op = run_sleeping_vanilla(
+                spec={"pool": "large_gpu"},
+                task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            )
+            ops.append(op)
+
+        dcs = []
+        for op in ops:
+            op_dc_path = op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default/scheduling_segment_data_center"
+            wait(lambda: exists(op_dc_path))
+            dcs.append(get(op_dc_path))
+
+        ops[-1].wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        for op, dc in zip(ops, dcs):
+            wait(lambda:  dc == get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment_data_center", default=None))
+
+    @authors("eshcherbin")
+    def test_profiling(self):
+        set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)
+
+        fair_resource_amount_default_last = Metric.at_scheduler(
+            "scheduler/segments/fair_resource_amount",
+            with_tags={"segment": "default"},
+            aggr_method="last",
+        )
+        current_resource_amount_default_last = Metric.at_scheduler(
+            "scheduler/segments/current_resource_amount",
+            with_tags={"segment": "default"},
+            aggr_method="last",
+        )
+        fair_resource_amount_large_last = Metric.at_scheduler(
+            "scheduler/segments/fair_resource_amount",
+            with_tags={"segment": "large_gpu"},
+            grouped_by_tags=["data_center"],
+            aggr_method="last",
+        )
+        current_resource_amount_large_last = Metric.at_scheduler(
+            "scheduler/segments/current_resource_amount",
+            with_tags={"segment": "large_gpu"},
+            grouped_by_tags=["data_center"],
+            aggr_method="last",
+        )
+
+        wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 0)
+        wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 80)
+        for dc in ["Aggr"] + TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
+            wait(lambda: fair_resource_amount_large_last.update().get(dc, verbose=True) == 0)
+            wait(lambda: current_resource_amount_large_last.update().get(dc, verbose=True) == 0)
+
+        blocking_op = run_sleeping_vanilla(
+            job_count=20,
+            spec={"pool": "small_gpu"},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+
+        wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 80)
+        wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 80)
+        for dc in ["Aggr"] + TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
+            wait(lambda: fair_resource_amount_large_last.update().get(dc, verbose=True) == 0)
+            wait(lambda: current_resource_amount_large_last.update().get(dc, verbose=True) == 0)
+
+        op1 = run_sleeping_vanilla(
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op1.id), 0.1))
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/scheduling_segment_data_center")
+                     in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        op1_dc = get(scheduler_orchid_operation_path(op1.id) + "/scheduling_segment_data_center")
+
+        time.sleep(3.0)
+
+        wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 72)
+        wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 80)
+        wait(lambda: fair_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
+        wait(lambda: current_resource_amount_large_last.update().get(op1_dc, verbose=True) == 0)
+        wait(lambda: fair_resource_amount_large_last.update().get("Aggr", verbose=True) == 8)
+        wait(lambda: current_resource_amount_large_last.update().get("Aggr", verbose=True) == 0)
+
+        set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000)
+
+        wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 72)
+        wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 72)
+        wait(lambda: fair_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
+        wait(lambda: current_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
+        wait(lambda: fair_resource_amount_large_last.update().get("Aggr", verbose=True) == 8)
+        wait(lambda: current_resource_amount_large_last.update().get("Aggr", verbose=True) == 8)
+
+        op2 = run_sleeping_vanilla(
+            job_count=2,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op2.id), 0.2))
+        wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/scheduling_segment_data_center")
+                     in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        op2_dc = get(scheduler_orchid_operation_path(op2.id) + "/scheduling_segment_data_center")
+        assert op1_dc != op2_dc
+
+        wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 56)
+        wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 56)
+        wait(lambda: fair_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
+        wait(lambda: current_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
+        wait(lambda: fair_resource_amount_large_last.update().get(op2_dc, verbose=True) == 16)
+        wait(lambda: current_resource_amount_large_last.update().get(op2_dc, verbose=True) == 16)
+        wait(lambda: fair_resource_amount_large_last.update().get("Aggr", verbose=True) == 24)
+        wait(lambda: current_resource_amount_large_last.update().get("Aggr", verbose=True) == 24)
+
+    @authors("eshcherbin")
+    def test_fail_large_gpu_operation_started_in_several_trees(self):
+        node = list(ls("//sys/cluster_nodes"))[0]
+        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+        create_pool_tree("other", config={"nodes_filter": "other"})
+        set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
+
+        big_op = run_sleeping_vanilla(
+            spec={"pool_trees": ["default", "other"]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: big_op.get_state() == "failed")
+
+        small_op = run_test_vanilla(
+            "sleep 1",
+            job_count=2,
+            spec={"pool_trees": ["default", "other"]},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+        small_op.track()
 
 ##################################################################
 

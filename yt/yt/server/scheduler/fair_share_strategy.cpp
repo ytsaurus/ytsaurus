@@ -808,7 +808,13 @@ public:
                         jobsToAbort->push_back(job.JobId);
                     } else {
                         const auto& snapshot = snapshotIt->second;
-                        snapshot->ProcessUpdatedJob(job.OperationId, job.JobId, job.JobResources);
+
+                        bool shouldAbortJob = false;
+                        snapshot->ProcessUpdatedJob(job.OperationId, job.JobId, job.JobResources, job.JobDataCenter, &shouldAbortJob);
+
+                        if (shouldAbortJob) {
+                            jobsToAbort->push_back(job.JobId);
+                        }
                     }
                     break;
                 }
@@ -982,23 +988,55 @@ public:
         return bestTree;
     }
 
-    virtual void InitOperationSchedulingSegment(TOperationId operationId) override
+    virtual TError InitOperationSchedulingSegment(TOperationId operationId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto state = GetOperationState(operationId);
+
+        bool hasDataCenterAwareSegment = false;
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
-            GetTree(treeId)->InitOrUpdateOperationSchedulingSegment(operationId);
+            auto segment = GetTree(treeId)->InitOperationSchedulingSegment(operationId);
+            hasDataCenterAwareSegment |= IsDataCenterAwareSchedulingSegment(segment);
         }
+
+        if (hasDataCenterAwareSegment && state->TreeIdToPoolNameMap().size() > 1) {
+            std::vector<TString> treeIds;
+            for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
+                treeIds.push_back(treeId);
+            }
+
+            return TError(
+                "Scheduling in several trees is forbidden for operations in data center-aware scheduling segments, "
+                "specify a single tree or use the \"schedule_in_single_tree\" spec option")
+                << TErrorAttribute("tree_ids", treeIds);
+        }
+
+        return TError();
     }
 
-    virtual TTreeIdToSchedulingSegmentsInfo GetSchedulingSegmentsInfoPerTree() const
+    virtual TStrategySchedulingSegmentsState GetStrategySchedulingSegmentsState() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        TTreeIdToSchedulingSegmentsInfo result;
+        TStrategySchedulingSegmentsState result;
         for (const auto& [treeId, tree] : IdToTree_) {
-            result.emplace(treeId, tree->GetSchedulingSegmentsInfo());
+            YT_VERIFY(result.TreeStates.emplace(treeId, tree->GetSchedulingSegmentsState()).second);
+        }
+
+        return result;
+    }
+
+    virtual THashMap<TString, TOperationIdWithDataCenterList> GetOperationSchedulingSegmentDataCenterUpdates() const override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        THashMap<TString, TOperationIdWithDataCenterList> result;
+        for (const auto& [treeId, tree] : IdToTree_) {
+            auto updates = tree->GetOperationSchedulingSegmentDataCenterUpdates();
+            if (!updates.empty()) {
+                YT_VERIFY(result.emplace(treeId, std::move(updates)).second);
+            }
         }
 
         return result;

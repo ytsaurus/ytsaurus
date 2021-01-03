@@ -13,7 +13,7 @@
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/job_metrics.h>
 #include <yt/server/lib/scheduler/resource_metering.h>
-#include <yt/server/lib/scheduler/structs.h>
+#include <yt/server/lib/scheduler/scheduling_segment_map.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -258,6 +258,16 @@ public:
         bool isRunningInPool = OnOperationAddedToPool(state, operationElement);
         if (isRunningInPool) {
             TreeHost_->OnOperationRunningInTree(operationId, this);
+        }
+
+        if (auto dataCenter = runtimeParameters->SchedulingSegmentDataCenter) {
+            YT_LOG_DEBUG(
+                "Recovering operation's scheduling segment data center assignment from runtime parameters "
+                "(OperationId: %v, DataCenter: %v)",
+                operationId,
+                dataCenter);
+
+            operationElement->PersistentAttributes().SchedulingSegmentDataCenter = dataCenter;
         }
 
         YT_LOG_INFO("Operation element registered in tree (OperationId: %v, Pool: %v, MarkedAsRunning: %v)",
@@ -660,46 +670,37 @@ public:
         }
     }
 
-    virtual void InitOrUpdateOperationSchedulingSegment(TOperationId operationId) override
+    virtual ESchedulingSegment InitOperationSchedulingSegment(TOperationId operationId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        GetOperationElement(operationId)->InitOrUpdateSchedulingSegment(Config_->SchedulingSegments->Mode);
+        auto element = GetOperationElement(operationId);
+        element->InitOrUpdateSchedulingSegment(Config_->SchedulingSegments->Mode);
+
+        YT_VERIFY(element->SchedulingSegment());
+        return *element->SchedulingSegment();
     }
 
-    virtual TPoolTreeSchedulingSegmentsInfo GetSchedulingSegmentsInfo() const override
+    virtual TTreeSchedulingSegmentsState GetSchedulingSegmentsState() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        TPoolTreeSchedulingSegmentsInfo result;
-        result.Mode = Config_->SchedulingSegments->Mode;
-        result.UnsatisfiedSegmentsRebalancingTimeout = Config_->SchedulingSegments->UnsatisfiedSegmentsRebalancingTimeout;
+        return RootElementSnapshot_
+            ? RootElementSnapshot_->SchedulingSegmentsState
+            : TTreeSchedulingSegmentsState{};
+    }
 
-        if (result.Mode == ESegmentedSchedulingMode::Disabled) {
-            return result;
-        }
+    virtual TOperationIdWithDataCenterList GetOperationSchedulingSegmentDataCenterUpdates() const override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto keyResource = TSchedulingSegmentManager::GetSegmentBalancingKeyResource(result.Mode);
-        result.KeyResource = keyResource;
-
-        if (!RootElementSnapshot_) {
-            return result;
-        }
-
-        for (const auto& [_, operationElement] : RootElementSnapshot_->OperationIdToElement) {
-            // Segment may be unset due to a race, and in this case we silently ignore the operation.
-            if (const auto& segment = operationElement->SchedulingSegment()) {
-                result.FairSharePerSegment[*segment] += operationElement->Attributes().GetFairShare()[keyResource];
+        TOperationIdWithDataCenterList result;
+        for (const auto& [operationId, element] : OperationIdToElement_) {
+            auto params = element->GetRuntimeParameters();
+            const auto& dataCenter = element->PersistentAttributes().SchedulingSegmentDataCenter;
+            if (params->SchedulingSegmentDataCenter != dataCenter) {
+                result.push_back({operationId, dataCenter});
             }
-        }
-
-        const auto& totalResourceLimits = RootElementSnapshot_->RootElement->GetTotalResourceLimits();
-        result.TotalKeyResourceAmount = GetResource(totalResourceLimits, keyResource);
-        for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-            auto keyResourceFairAmount = result.FairSharePerSegment[segment] * result.TotalKeyResourceAmount;
-            auto satisfactionMargin = Config_->SchedulingSegments->SatisfactionMargins[segment];
-
-            result.FairResourceAmountPerSegment[segment] = std::max(keyResourceFairAmount + satisfactionMargin, 0.0);
         }
 
         return result;
@@ -709,7 +710,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        const auto& element = GetOperationElement(operationId);
+        auto element = GetOperationElement(operationId);
         auto serializedParams = ConvertToAttributes(element->GetRuntimeParameters());
         fluent
             .Items(*serializedParams)
@@ -865,6 +866,7 @@ private:
         TFairShareStrategyTreeConfigPtr Config;
         TFairShareStrategyOperationControllerConfigPtr ControllerConfig;
         bool CoreProfilingCompatibilityEnabled;
+        TTreeSchedulingSegmentsState SchedulingSegmentsState;
 
         TOperationElement* FindOperationElement(TOperationId operationId) const
         {
@@ -919,13 +921,38 @@ private:
             Tree_->DoPreemptJobsGracefully(schedulingContext, RootElementSnapshot_);
         }
 
-        virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& jobResources) override
+        virtual void ProcessUpdatedJob(
+            TOperationId operationId,
+            TJobId jobId,
+            const TJobResources& jobResources,
+            const TDataCenter& jobDataCenter,
+            bool* shouldAbortJob) override
         {
             // NB: Should be filtered out on large clusters.
             YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v, Resources: %v)", operationId, jobId, jobResources);
+
+            *shouldAbortJob = false;
+
             auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
             if (operationElement) {
                 operationElement->SetJobResourceUsage(jobId, jobResources);
+
+                const auto& operationSchedulingSegment = operationElement->SchedulingSegment();
+                if (operationSchedulingSegment && IsDataCenterAwareSchedulingSegment(*operationSchedulingSegment)) {
+                    const auto& operationDataCenter = operationElement->PersistentAttributes().SchedulingSegmentDataCenter;
+                    bool jobIsRunningInTheRightDataCenter = operationDataCenter && operationDataCenter == jobDataCenter;
+                    if (!jobIsRunningInTheRightDataCenter) {
+                        *shouldAbortJob = true;
+
+                        YT_LOG_DEBUG(
+                            "Requested to abort job because it is running in a wrong data center "
+                            "(OperationId: %v, JobId: %v, OperationDataCenter: %v, JobDataCenter: %v)",
+                            operationId,
+                            jobId,
+                            operationDataCenter,
+                            jobDataCenter);
+                    }
+                }
             }
         }
 
@@ -1050,6 +1077,13 @@ private:
         updateContext.Now = now;
         updateContext.PreviousUpdateTime = LastFairShareUpdateTime_;
 
+        if (Config_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
+            for (const auto& dataCenter : Config_->SchedulingSegments->DataCenters) {
+                auto tagFilter = GetNodesFilter() & TSchedulingTagFilter(MakeBooleanFormula(dataCenter));
+                updateContext.ResourceLimitsPerDataCenter[dataCenter] = StrategyHost_->GetResourceLimits(tagFilter);
+            }
+        }
+
         auto rootElement = RootElement_->Clone();
         {
             TEventTimer timer(FairSharePreUpdateTimer_);
@@ -1070,6 +1104,7 @@ private:
                     &rootElementSnapshot->DisabledOperationIdToElement,
                     &rootElementSnapshot->PoolNameToElement);
                 std::swap(rootElementSnapshot->ElementIndexes, updateContext.ElementIndexes);
+                std::swap(rootElementSnapshot->SchedulingSegmentsState, updateContext.SchedulingSegmentsState);
             })
             .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
             .Run();
@@ -1426,16 +1461,18 @@ private:
                 bool isJobPreemptable = operationElement->IsPreemptionAllowed(isAggressive, config) &&
                     operationElement->IsJobPreemptable(job->GetId(), isAggressivePreemptionEnabled);
 
-                bool forceJobPreemptable = config->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled &&
-                    context->SchedulingContext()->GetSchedulingSegment() != operationElement->SchedulingSegment();
+                bool forceJobPreemptable = !operationElement->IsSchedulingSegmentCompatibleWithNode(
+                    context->SchedulingContext()->GetSchedulingSegment(),
+                    context->SchedulingContext()->GetNodeDescriptor().DataCenter);
                 YT_LOG_TRACE_IF(forceJobPreemptable,
-                    "Job is preemptable because it is running on a node in a different scheduling segment "
-                    "(JobId: %v, OperationId: %v, OperationSegment: %v, NodeSegment: %v, Address: %v)",
+                    "Job is preemptable because it is running on a node in a different scheduling segment or data center "
+                    "(JobId: %v, OperationId: %v, OperationSegment: %v, NodeSegment: %v, Address: %v, DataCenter: %v)",
                     job->GetId(),
                     operationElement->GetId(),
                     operationElement->SchedulingSegment(),
                     context->SchedulingContext()->GetSchedulingSegment(),
-                    context->SchedulingContext()->GetNodeDescriptor().Address);
+                    context->SchedulingContext()->GetNodeDescriptor().Address,
+                    context->SchedulingContext()->GetNodeDescriptor().DataCenter);
 
                 if (isJobPreemptable || forceJobPreemptable) {
                     const auto* parent = operationElement->GetParent();
@@ -2439,6 +2476,7 @@ private:
             .Item("pool").Value(parent->GetId())
             .Item("slot_index").Value(element->GetMaybeSlotIndex())
             .Item("scheduling_segment").Value(element->SchedulingSegment())
+            .Item("scheduling_segment_data_center").Value(element->PersistentAttributes().SchedulingSegmentDataCenter)
             .Item("start_time").Value(element->GetStartTime())
             .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
             .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())

@@ -8,6 +8,7 @@
 #include "resource_tree_element.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
+#include "scheduling_segment_manager.h"
 #include "fair_share_strategy_operation_controller.h"
 #include "fair_share_tree_snapshot.h"
 #include "packing.h"
@@ -138,7 +139,7 @@ struct TSchedulableAttributes
     }
 };
 
-//! Attributes that persistent between fair share updates.
+//! Attributes that are kept between fair share updates.
 struct TPersistentAttributes
 {
     bool Starving = false;
@@ -153,12 +154,16 @@ struct TPersistentAttributes
     double LastIntegralShareRatio = 0.0;
     TJobResources AppliedResourceLimits = TJobResources::Infinite();
 
-    // NB: we don't want to reset all attributes.
+    TDataCenter SchedulingSegmentDataCenter;
+    std::optional<TInstant> FailingToScheduleAtDataCenterSince;
+
+    // NB: We don't want to reset all attributes.
     void ResetOnElementEnabled()
     {
         auto resetAttributes = TPersistentAttributes();
         resetAttributes.AccumulatedResourceVolume = AccumulatedResourceVolume;
         resetAttributes.LastNonStarvingTime = TInstant::Now();
+        resetAttributes.SchedulingSegmentDataCenter = SchedulingSegmentDataCenter;
         *this = resetAttributes;
     }
 };
@@ -202,6 +207,9 @@ struct TUpdateFairShareContext
 
     std::vector<TPoolPtr> RelaxedPools;
     std::vector<TPoolPtr> BurstPools;
+
+    THashMap<TDataCenter, TJobResources> ResourceLimitsPerDataCenter;
+    TTreeSchedulingSegmentsState SchedulingSegmentsState;
 
     std::optional<TInstant> PreviousUpdateTime;
 };
@@ -392,6 +400,7 @@ public:
 
     virtual bool IsRoot() const;
     virtual bool IsOperation() const;
+    virtual TOperationElement* AsOperation();
     virtual TPool* AsPool();
 
     virtual TString GetLoggingString() const;
@@ -492,6 +501,11 @@ public:
     void Profile(NProfiling::ISensorWriter* writer, bool profilingCompatibilityEnabled) const;
 
     virtual bool AreDetailedLogsEnabled() const;
+
+    virtual void CollectOperationSchedulingSegmentContexts(
+        THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const = 0;
+    virtual void ApplyOperationSchedulingSegmentChanges(
+        const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) = 0;
 
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
@@ -663,6 +677,11 @@ public:
 
     void InitializeChildHeap(TFairShareContext* context);
     void UpdateChild(TFairShareContext* context, TSchedulerElement* child);
+
+    virtual void CollectOperationSchedulingSegmentContexts(
+        THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const override;
+    virtual void ApplyOperationSchedulingSegmentChanges(
+        const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) override;
 
 protected:
     NProfiling::TBufferedProducerPtr ProducerBuffer_;
@@ -1049,6 +1068,8 @@ public:
 
     virtual TString GetId() const override;
 
+    virtual TOperationElement* AsOperation() override;
+
     virtual bool IsSchedulable() const override;
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
@@ -1141,6 +1162,13 @@ public:
 
     virtual bool AreDetailedLogsEnabled() const override;
 
+    bool IsSchedulingSegmentCompatibleWithNode(ESchedulingSegment nodeSegment, const TDataCenter& nodeDataCenter) const;
+
+    virtual void CollectOperationSchedulingSegmentContexts(
+        THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const override;
+    virtual void ApplyOperationSchedulingSegmentChanges(
+        const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) override;
+
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
@@ -1148,6 +1176,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<ESchedulingSegment>, SchedulingSegment);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<THashSet<TString>>, SpecifiedSchedulingSegmentDataCenters);
 
 private:
     const TOperationElementSharedStatePtr OperationElementSharedState_;
@@ -1274,6 +1303,7 @@ private:
     void UpdateRelaxedPoolIntegralShares(TUpdateFairShareContext* context, const TResourceVector& availableShare);
     TResourceVector EstimateAvailableShare();
     void ConsumeAndRefillIntegralPools(TUpdateFairShareContext* context);
+    void ManageSchedulingSegments(TUpdateFairShareContext* context);
 
     virtual double GetSpecifiedBurstRatio() const override;
     virtual double GetSpecifiedResourceFlowRatio() const override;

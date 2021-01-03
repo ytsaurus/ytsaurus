@@ -28,6 +28,8 @@ DECLARE_REFCOUNTED_CLASS(TControllerAgentTracker)
 
 struct IEventLogHost;
 
+DECLARE_REFCOUNTED_STRUCT(ISchedulerTree)
+
 DECLARE_REFCOUNTED_STRUCT(ISchedulerStrategy)
 struct ISchedulerStrategyHost;
 struct IOperationStrategyHost;

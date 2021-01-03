@@ -14,10 +14,10 @@ using namespace NYTree;
 
 TExecNode::TExecNode(
     TNodeId id,
-    const TNodeDescriptor& nodeDescriptor,
+    TNodeDescriptor nodeDescriptor,
     ENodeState state)
     : Id_(id)
-    , NodeDescriptor_(nodeDescriptor)
+    , NodeDescriptor_(std::move(nodeDescriptor))
     , MasterState_(NNodeTrackerClient::ENodeState::Offline)
     , SchedulerState_(state)
     , HasOngoingHeartbeat_(false)
@@ -41,6 +41,7 @@ TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
     return TExecNodeDescriptor(
         Id_,
         GetDefaultAddress(),
+        NodeDescriptor_.GetDataCenter(),
         IOWeight_,
         MasterState_ == NNodeTrackerClient::ENodeState::Online && SchedulerState_ == ENodeState::Online,
         ResourceUsage_,
@@ -111,6 +112,7 @@ void TExecNode::BuildAttributes(TFluentMap fluent)
         .Item("resource_limits").Value(ResourceLimits_)
         .Item("tags").Value(Tags_)
         .Item("scheduling_segment").Value(SchedulingSegment_)
+        .Item("data_center").Value(NodeDescriptor_.GetDataCenter())
         .Item("last_non_preemptive_heartbeat_statistics").Value(LastNonPreemptiveHeartbeatStatistics_)
         .Item("last_preemptive_heartbeat_statistics").Value(LastPreemptiveHeartbeatStatistics_)
         .Item("running_job_statistics").BeginMap()

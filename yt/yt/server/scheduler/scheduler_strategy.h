@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "scheduler_tree.h"
+
 #include <yt/server/lib/scheduler/event_log.h>
 #include <yt/server/lib/scheduler/job_metrics.h>
 #include <yt/server/lib/scheduler/resource_metering.h>
@@ -88,6 +90,13 @@ struct ISchedulerStrategyHost
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStrategySchedulingSegmentsState
+{
+    THashMap<TString, TTreeSchedulingSegmentsState> TreeStates;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EJobUpdateStatus,
     (Running)
     (Finished)
@@ -99,8 +108,10 @@ struct TJobUpdate
     TOperationId OperationId;
     TJobId JobId;
     TString TreeId;
-    // It used to update job resources in case of EJobUpdateStatus::Running status.
+    // It is used to update job resources in case of EJobUpdateStatus::Running status.
     TJobResources JobResources;
+    // It is used to determine whether the job should be aborted if the operation is running in a DC-aware scheduling segment.
+    TDataCenter JobDataCenter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,9 +193,12 @@ struct ISchedulerStrategy
     //! depending on the operation's demand and current resource usage in each tree.
     virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) = 0;
 
-    virtual void InitOperationSchedulingSegment(TOperationId operationId) = 0;
+    //! Returns an error if scheduling segment initialization is impossible. This results in operation's failure.
+    virtual TError InitOperationSchedulingSegment(TOperationId operationId) = 0;
 
-    virtual TTreeIdToSchedulingSegmentsInfo GetSchedulingSegmentsInfoPerTree() const = 0;
+    virtual TStrategySchedulingSegmentsState GetStrategySchedulingSegmentsState() const = 0;
+
+    virtual THashMap<TString, TOperationIdWithDataCenterList> GetOperationSchedulingSegmentDataCenterUpdates() const = 0;
 
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,

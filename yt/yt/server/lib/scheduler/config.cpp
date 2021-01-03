@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,6 +67,39 @@ TFairShareStrategySchedulingSegmentsConfig::TFairShareStrategySchedulingSegments
 
     RegisterParameter("unsatisfied_segments_rebalancing_timeout", UnsatisfiedSegmentsRebalancingTimeout)
         .Default(TDuration::Minutes(5));
+
+    RegisterParameter("data_center_reconsideration_timeout", DataCenterReconsiderationTimeout)
+        .Default(TDuration::Minutes(20));
+
+    RegisterParameter("data_centers", DataCenters)
+        .Default();
+
+    RegisterPostprocessor([&] {
+        for (const auto& dataCenter : DataCenters) {
+            ValidateDataCenterName(dataCenter);
+        }
+    });
+
+    RegisterPostprocessor([&] {
+        for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
+            if (!IsDataCenterAwareSchedulingSegment(segment)) {
+                continue;
+            }
+
+            for (const auto& dataCenter : SatisfactionMargins.At(segment).GetDataCenters()) {
+                if (!dataCenter) {
+                    // This could never happen but I'm afraid to put YT_VERIFY here.
+                    THROW_ERROR_EXCEPTION("Satisfaction margin can be specified only for non-null data centers");
+                }
+
+                if (DataCenters.find(*dataCenter) == DataCenters.end()) {
+                    THROW_ERROR_EXCEPTION("Satisfaction margin can be specified only for configured data centers")
+                        << TErrorAttribute("configured_data_centers", DataCenters)
+                        << TErrorAttribute("specified_data_center", dataCenter);
+                }
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

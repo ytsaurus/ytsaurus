@@ -1283,7 +1283,13 @@ public:
             }
         }
 
-        Strategy_->InitOperationSchedulingSegment(operation->GetId());
+        {
+            auto error = Strategy_->InitOperationSchedulingSegment(operation->GetId());
+            if (!error.IsOK()) {
+                OnOperationFailed(operation, error);
+                return;
+            }
+        }
 
         if (operation->Spec()->TestingOperationOptions->DelayAfterMaterialize) {
             TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayAfterMaterialize);
@@ -1343,7 +1349,7 @@ public:
     {
         return FairShareUpdatePool_->GetInvoker();
     }
-    
+
     virtual IInvokerPtr GetOrchidWorkerInvoker() const override
     {
         return OrchidWorkerPool_->GetInvoker();
@@ -1843,7 +1849,7 @@ private:
 
     std::vector<TOperationPtr> OperationsToDestroy_;
 
-    TSchedulingSegmentManager SchedulingSegmentManager_;
+    TNodeSchedulingSegmentManager NodeSchedulingSegmentManager_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -2008,7 +2014,7 @@ private:
             YT_LOG_INFO("Connecting node shards");
 
             auto segmentsInitializationDeadline = TInstant::Now() + Config_->SchedulingSegmentsInitializationTimeout;
-            SchedulingSegmentManager_.SetSegmentsInitializationDeadline(segmentsInitializationDeadline);
+            NodeSchedulingSegmentManager_.SetNodeSegmentsInitializationDeadline(segmentsInitializationDeadline);
 
             TNodeShardMasterHandshakeResult nodeShardResult{
                 .InitialSchedulingSegmentsState = result.SchedulingSegmentsState,
@@ -2046,7 +2052,7 @@ private:
                     responseKeeper->EndRequest(operation->GetMutationId(), responseMessage);
                 }
 
-                // NB: it is valid to reset state, since operation revival descriptor 
+                // NB: it is valid to reset state, since operation revival descriptor
                 // has necessary information about state.
                 operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
 
@@ -2080,7 +2086,7 @@ private:
 
         TotalResourceLimitsProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_limits"));
         TotalResourceUsageProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_usage"));
-        SchedulingSegmentManager_.SetProfilingEnabled(true);
+        NodeSchedulingSegmentManager_.SetProfilingEnabled(true);
 
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
@@ -2092,7 +2098,7 @@ private:
 
         TotalResourceLimitsProfiler_.Reset();
         TotalResourceUsageProfiler_.Reset();
-        SchedulingSegmentManager_.SetProfilingEnabled(false);
+        NodeSchedulingSegmentManager_.SetProfilingEnabled(false);
 
         {
             auto error = TError(EErrorCode::MasterDisconnected, "Master disconnected");
@@ -2275,7 +2281,8 @@ private:
             "tags",
             "state",
             "io_weights",
-            "scheduling_segment"
+            "scheduling_segment",
+            "data_center"
         });
         batchReq->AddRequest(req, "get_nodes");
     }
@@ -4019,12 +4026,49 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Started managing scheduling segments");
+        PersistOperationSchedulingSegmentDataCenters();
 
-        TManageSchedulingSegmentsContext context;
+        ManageNodeSchedulingSegments();
+    }
+
+    // TODO(eshcherbin): Think about storing data center in runtime parameters only.
+    // Current implementation has a lag between operation data center assignment and persisting this
+    // decision by updating runtime parameters at the master. This lag is acceptable and is left for
+    // implementation simplicity and code readability purposes.
+    void PersistOperationSchedulingSegmentDataCenters()
+    {
+        auto updatesPerTree = Strategy_->GetOperationSchedulingSegmentDataCenterUpdates();
+
+        {
+            THashMap<TString, int> updateCountPerTree(updatesPerTree.size());
+            for (const auto& [treeId, updates] : updatesPerTree) {
+                updateCountPerTree.emplace(treeId, updates.size());
+            }
+
+            YT_LOG_DEBUG("Updating scheduling segment data centers in operations' runtime parameters (UpdateCountPerTree: %v)",
+                updateCountPerTree);
+        }
+
+        for (const auto& [treeId, updates] : updatesPerTree) {
+            for (const auto& [operationId, newDataCenter] : updates) {
+                if (auto operation = FindOperation(operationId)) {
+                    auto params = operation->GetRuntimeParameters();
+                    GetOrCrash(params->SchedulingOptionsPerPoolTree, treeId)->SchedulingSegmentDataCenter = newDataCenter;
+                    operation->SetRuntimeParameters(params);
+                    Strategy_->ApplyOperationRuntimeParameters(operation.Get());
+                }
+            }
+        }
+    }
+
+    void ManageNodeSchedulingSegments()
+    {
+        YT_LOG_DEBUG("Started managing node scheduling segments");
+
+        TManageNodeSchedulingSegmentsContext context;
         context.Now = TInstant::Now();
         context.NodeShardHost = this;
-        context.SegmentsInfoPerTree = Strategy_->GetSchedulingSegmentsInfoPerTree();
+        context.StrategySegmentsState = Strategy_->GetStrategySchedulingSegmentsState();
         context.ExecNodeDescriptors = GetCachedExecNodeDescriptors();
         for (const auto& [nodeId, _] : *context.ExecNodeDescriptors) {
             auto it = NodeIdToDescriptor_.find(nodeId);
@@ -4038,7 +4082,7 @@ private:
             }
         }
 
-        SchedulingSegmentManager_.ManageSegments(&context);
+        NodeSchedulingSegmentManager_.ManageNodeSegments(&context);
 
         int totalMovedNodeCount = 0;
         for (const auto& movedNodesInShard : context.MovedNodesPerNodeShard) {
@@ -4067,12 +4111,13 @@ private:
             context.ExecNodeDescriptors = GetCachedExecNodeDescriptors();
         }
 
-        if (context.Now > SchedulingSegmentManager_.GetSegmentsInitializationDeadline()) {
-            auto segmentsState = SchedulingSegmentManager_.BuildSegmentsState(&context);
+        if (context.Now > NodeSchedulingSegmentManager_.GetNodeSegmentsInitializationDeadline()) {
+            auto segmentsState = New<TPersistentSchedulingSegmentsState>();
+            segmentsState->NodeStates = NodeSchedulingSegmentManager_.BuildPersistentNodeSegmentsState(&context);
             MasterConnector_->StoreSchedulingSegmentsStateAsync(std::move(segmentsState));
         }
 
-        YT_LOG_DEBUG("Finished managing scheduling segments");
+        YT_LOG_DEBUG("Finished managing node scheduling segments");
     }
 
     class TOperationsService

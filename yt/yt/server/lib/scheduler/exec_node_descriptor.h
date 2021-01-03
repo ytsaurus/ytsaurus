@@ -42,7 +42,8 @@ struct TExecNodeDescriptor
 
     TExecNodeDescriptor(
         NNodeTrackerClient::TNodeId id,
-        const TString& address,
+        TString address,
+        std::optional<TString> dataCenter,
         double ioWeight,
         bool online,
         const TJobResources& resourceUsage,
@@ -56,6 +57,7 @@ struct TExecNodeDescriptor
 
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
     TString Address;
+    std::optional<TString> DataCenter;
     double IOWeight = 0.0;
     bool Online = false;
     TJobResources ResourceUsage;

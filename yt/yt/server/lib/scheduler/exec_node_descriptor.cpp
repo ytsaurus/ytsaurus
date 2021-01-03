@@ -27,7 +27,8 @@ TString ToString(const TRunningJobStatistics& statistics)
 
 TExecNodeDescriptor::TExecNodeDescriptor(
     NNodeTrackerClient::TNodeId id,
-    const TString& address,
+    TString address,
+    std::optional<TString> dataCenter,
     double ioWeight,
     bool online,
     const TJobResources& resourceUsage,
@@ -37,7 +38,8 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     ESchedulingSegment schedulingSegment,
     bool schedulingSegmentFrozen)
     : Id(id)
-    , Address(address)
+    , Address(std::move(address))
+    , DataCenter(std::move(dataCenter))
     , IOWeight(ioWeight)
     , Online(online)
     , ResourceUsage(resourceUsage)

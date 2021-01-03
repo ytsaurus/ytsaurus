@@ -818,7 +818,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         execNode->SetSchedulingSegmentFrozen(false);
         if (specifiedSchedulingSegment) {
-            SetNodeSchedulingSegment(execNode, *specifiedSchedulingSegment, /* abortAllJobs */ true);
+            SetNodeSchedulingSegment(execNode, *specifiedSchedulingSegment);
             execNode->SetSchedulingSegmentFrozen(true);
         }
 
@@ -1327,7 +1327,7 @@ int TNodeShard::GetJobReporterQueueIsTooLargeNodeCount()
 void TNodeShard::SetSchedulingSegmentsForNodes(const TSetNodeSchedulingSegmentOptionsList& nodesWithSegments)
 {
     std::vector<std::pair<TNodeId, ESchedulingSegment>> missingNodeIdsWithSegments;
-    for (const auto& [nodeId, segment, abortAllJobs] : nodesWithSegments) {
+    for (const auto& [nodeId, segment] : nodesWithSegments) {
         auto it = IdToNode_.find(nodeId);
         if (it == IdToNode_.end()) {
             missingNodeIdsWithSegments.emplace_back(nodeId, segment);
@@ -1335,7 +1335,7 @@ void TNodeShard::SetSchedulingSegmentsForNodes(const TSetNodeSchedulingSegmentOp
         }
 
         const auto& node = it->second;
-        SetNodeSchedulingSegment(node, segment, abortAllJobs);
+        SetNodeSchedulingSegment(node, segment);
     }
 
     YT_LOG_DEBUG_UNLESS(missingNodeIdsWithSegments.empty(),
@@ -1343,20 +1343,16 @@ void TNodeShard::SetSchedulingSegmentsForNodes(const TSetNodeSchedulingSegmentOp
         missingNodeIdsWithSegments);
 }
 
-void TNodeShard::SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment, bool abortAllJobs)
+void TNodeShard::SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment)
 {
     YT_VERIFY(!node->GetSchedulingSegmentFrozen());
 
     if (node->GetSchedulingSegment() != segment) {
-        YT_LOG_DEBUG("Setting new scheduling segment for node (Address: %v, Segment: %v, AbortAllJobs: %v)",
+        YT_LOG_DEBUG("Setting new scheduling segment for node (Address: %v, Segment: %v)",
             node->GetDefaultAddress(),
-            segment,
-            abortAllJobs);
+            segment);
 
         node->SetSchedulingSegment(segment);
-        if (abortAllJobs) {
-            AbortAllJobsAtNode(node, EAbortReason::NodeSchedulingSegmentChanged);
-        }
     }
 }
 
@@ -1431,7 +1427,7 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
         if (now < SchedulingSegmentInitializationDeadline_) {
             auto it = InitialSchedulingSegmentsState_->NodeStates.find(nodeId);
             if (it != InitialSchedulingSegmentsState_->NodeStates.end()) {
-                SetNodeSchedulingSegment(node, it->second.Segment, /* abortAllJobs */ false);
+                SetNodeSchedulingSegment(node, it->second.Segment);
                 InitialSchedulingSegmentsState_->NodeStates.erase(it);
             }
         } else {
@@ -1536,7 +1532,7 @@ void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reaso
     }
 
     if (reason == EAbortReason::NodeFairShareTreeChanged && !node->GetSchedulingSegmentFrozen()) {
-        SetNodeSchedulingSegment(node, ESchedulingSegment::Default, /* abortAllJobs */ false);
+        SetNodeSchedulingSegment(node, ESchedulingSegment::Default);
     }
 }
 
@@ -2068,13 +2064,14 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
             if (!operationState->Terminated) {
                 const auto& controller = operationState->Controller;
                 controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended);
-                JobsToSubmitToStrategy_[job->GetId()] =
-                    TJobUpdate{
-                        EJobUpdateStatus::Finished,
-                        job->GetOperationId(),
-                        job->GetId(),
-                        job->GetTreeId(),
-                        TJobResources()};
+                JobsToSubmitToStrategy_[job->GetId()] = TJobUpdate{
+                    EJobUpdateStatus::Finished,
+                    job->GetOperationId(),
+                    job->GetId(),
+                    job->GetTreeId(),
+                    TJobResources(),
+                    job->GetNode()->NodeDescriptor().GetDataCenter()
+                };
                 operationState->JobsToSubmitToStrategy.insert(job->GetId());
             }
             continue;
@@ -2155,14 +2152,14 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
 
     auto it = JobsToSubmitToStrategy_.find(job->GetId());
     if (it == JobsToSubmitToStrategy_.end() || it->second.Status != EJobUpdateStatus::Finished) {
-        JobsToSubmitToStrategy_[job->GetId()] =
-            TJobUpdate{
-                EJobUpdateStatus::Running,
-                job->GetOperationId(),
-                job->GetId(),
-                job->GetTreeId(),
-                job->ResourceUsage()
-            };
+        JobsToSubmitToStrategy_[job->GetId()] = TJobUpdate{
+            EJobUpdateStatus::Running,
+            job->GetOperationId(),
+            job->GetId(),
+            job->GetTreeId(),
+            job->ResourceUsage(),
+            job->GetNode()->NodeDescriptor().GetDataCenter()
+        };
     }
 
     YT_VERIFY(Dominates(job->ResourceUsage(), TJobResources()));
@@ -2419,7 +2416,8 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
                 job->GetOperationId(),
                 job->GetId(),
                 job->GetTreeId(),
-                TJobResources()};
+                TJobResources(),
+                job->GetNode()->NodeDescriptor().GetDataCenter()};
         operationState->JobsToSubmitToStrategy.insert(job->GetId());
 
         YT_LOG_DEBUG_IF(enableLogging, "Job unregistered (JobId: %v, OperationId: %v, State: %v)",

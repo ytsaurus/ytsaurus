@@ -2,8 +2,11 @@
 
 #include "public.h"
 #include "node_shard.h"
+#include "persistent_scheduler_state.h"
+#include "resource_vector.h"
+#include "scheduler_strategy.h"
 
-#include <yt/server/lib/scheduler/structs.h>
+#include <yt/server/lib/scheduler/scheduling_segment_map.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -13,11 +16,11 @@ namespace NYT::NScheduler {
 
 using TNodeShardIdToMovedNodes = std::array<TSetNodeSchedulingSegmentOptionsList, MaxNodeShardCount>;
 
-struct TManageSchedulingSegmentsContext
+struct TManageNodeSchedulingSegmentsContext
 {
     TInstant Now;
     INodeShardHost* NodeShardHost;
-    TTreeIdToSchedulingSegmentsInfo SegmentsInfoPerTree;
+    TStrategySchedulingSegmentsState StrategySegmentsState;
     TRefCountedExecNodeDescriptorMapPtr ExecNodeDescriptors;
     THashMap<TString, std::vector<NNodeTrackerClient::TNodeId>> NodeIdsPerTree;
 
@@ -28,58 +31,106 @@ struct TManageSchedulingSegmentsContext
 
 using TChangeNodeSegmentPenaltyFunction = std::function<double(const TExecNodeDescriptor&)>;
 
-class TSchedulingSegmentManager
+class TNodeSchedulingSegmentManager
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, SegmentsInitializationDeadline);
-
-    static ESchedulingSegment GetSegmentForOperation(
-        ESegmentedSchedulingMode mode,
-        const TJobResources& operationMinNeededResources);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, NodeSegmentsInitializationDeadline);
 
     static EJobResourceType GetSegmentBalancingKeyResource(ESegmentedSchedulingMode mode);
 
-    void ManageSegments(TManageSchedulingSegmentsContext* context);
+    TNodeSchedulingSegmentManager();
 
-    TPersistentSchedulingSegmentsStatePtr BuildSegmentsState(TManageSchedulingSegmentsContext* context) const;
+    void ManageNodeSegments(TManageNodeSchedulingSegmentsContext* context);
 
-    TSchedulingSegmentManager();
+    TPersistentNodeSchedulingSegmentStateMap BuildPersistentNodeSegmentsState(TManageNodeSchedulingSegmentsContext* context) const;
 
-    void SetProfilingEnabled(bool enable);
+    void SetProfilingEnabled(bool enabled);
 
 private:
-    struct TTreeSchedulingSegmentsState
+    struct TPersistentTreeAttributes
     {
         std::optional<TInstant> UnsatisfiedSince;
         ESegmentedSchedulingMode PreviousMode = ESegmentedSchedulingMode::Disabled;
     };
-    THashMap<TString, TTreeSchedulingSegmentsState> TreeIdToState_;
+    THashMap<TString, TPersistentTreeAttributes> TreeIdToPersistentAttributes_;
 
     NProfiling::TBufferedProducerPtr BufferedProducer_;
 
-    void ResetTree(TManageSchedulingSegmentsContext *context, const TString& treeId);
+    void ResetTree(TManageNodeSchedulingSegmentsContext *context, const TString& treeId);
 
     void LogAndProfileSegmentsInTree(
-        TManageSchedulingSegmentsContext* context,
+        TManageNodeSchedulingSegmentsContext* context,
         const TString& treeId,
         const TSegmentToResourceAmount& currentResourceAmountPerSegment,
         NProfiling::ISensorWriter* sensorWriter) const;
 
     void RebalanceSegmentsInTree(
-        TManageSchedulingSegmentsContext* context,
+        TManageNodeSchedulingSegmentsContext* context,
         const TString& treeId,
         TSegmentToResourceAmount currentResourceAmountPerSegment);
 
     TChangeNodeSegmentPenaltyFunction CreatePenaltyFunction(
-        TManageSchedulingSegmentsContext* context,
+        TManageNodeSchedulingSegmentsContext* context,
         const TString& treeId) const;
 
-    std::vector<TExecNodeDescriptor> GetMovableNodesInTree(
-        TManageSchedulingSegmentsContext *context,
+    void GetMovableNodesInTree(
+        TManageNodeSchedulingSegmentsContext *context,
         const TString& treeId,
-        const TSegmentToResourceAmount& currentResourceAmountPerSegment);
+        const TSegmentToResourceAmount& currentResourceAmountPerSegment,
+        THashMap<TDataCenter, std::vector<TExecNodeDescriptor>>* movableNodesPerDataCenter,
+        THashMap<TDataCenter, std::vector<TExecNodeDescriptor>>* aggressivelyMovableNodesPerDataCenter);
+};
 
-    static NLogging::TLogger CreateTreeLogger(const TString& treeId);
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOperationSchedulingSegmentContext
+{
+    const TJobResources& ResourceDemand;
+    const TJobResources& ResourceUsage;
+    const TResourceVector& DemandShare;
+    const TResourceVector& FairShare;
+    const std::optional<THashSet<TString>>& SpecifiedDataCenters;
+    const std::optional<ESchedulingSegment>& Segment;
+
+    TDataCenter DataCenter;
+    std::optional<TInstant> FailingToScheduleAtDataCenterSince;
+};
+
+struct TManageTreeSchedulingSegmentsContext
+{
+    const TFairShareStrategyTreeConfigPtr& TreeConfig;
+    const TJobResources& TotalResourceLimits;
+    THashMap<TDataCenter, TJobResources> ResourceLimitsPerDataCenter;
+    THashMap<TOperationId, TOperationSchedulingSegmentContext> Operations;
+
+    TTreeSchedulingSegmentsState SchedulingSegmentsState;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStrategySchedulingSegmentManager
+{
+public:
+    static ESchedulingSegment GetSegmentForOperation(
+        ESegmentedSchedulingMode mode,
+        const TJobResources& operationMinNeededResources);
+
+    static void ManageSegmentsInTree(
+        TManageTreeSchedulingSegmentsContext* context,
+        const TString& treeId);
+
+private:
+    static void ResetOperationDataCenterAssignmentsInTree(
+        TManageTreeSchedulingSegmentsContext* context,
+        const TString& treeId);
+
+    static void CollectFairSharePerSegmentInTree(TManageTreeSchedulingSegmentsContext* context);
+
+    static void AssignOperationsToDataCentersInTree(
+        TManageTreeSchedulingSegmentsContext* context,
+        const TString& treeId,
+        THashMap<TDataCenter, double> totalCapacityPerDataCenter,
+        THashMap<TDataCenter, double> remainingCapacityPerDataCenter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

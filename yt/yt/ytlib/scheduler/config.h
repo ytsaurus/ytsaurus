@@ -391,6 +391,7 @@ public:
     EPreemptionMode PreemptionMode;
 
     std::optional<ESchedulingSegment> SchedulingSegment;
+    std::optional<THashSet<TString>> SchedulingSegmentDataCenters;
 
     bool EnableLimitingAncestorCheck;
 
@@ -1451,6 +1452,7 @@ public:
 
     // Cannot be specified by user.
     bool Tentative;
+    std::optional<TString> SchedulingSegmentDataCenter;
 
     TOperationFairShareTreeRuntimeParameters();
 };
