@@ -57,7 +57,6 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     const NChunkClient::TLegacyReadRange& readRange,
     std::optional<int> partitionTag = std::nullopt,
     const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr,
-    int virtualKeyPrefixLength = 0,
     std::optional<i64> virtualRowIndex = std::nullopt);
 
 ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
