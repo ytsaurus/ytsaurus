@@ -29,13 +29,11 @@ public:
     TTableReader(
         IAsyncZeroCopyInputStreamPtr underlying,
         i64 startRowIndex,
-        const TKeyColumns& keyColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         TTableSchemaPtr schema,
         const NApi::NRpcProxy::NProto::TRowsetStatistics& statistics)
         : Underlying_ (std::move(underlying))
         , StartRowIndex_(startRowIndex)
-        , KeyColumns_(keyColumns)
         , TableSchema_(std::move(schema))
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
         , Decoder_(CreateWireRowStreamDecoder(NameTable_))
@@ -137,11 +135,6 @@ public:
         return NameTable_;
     }
 
-    virtual const TKeyColumns& GetKeyColumns() const override
-    {
-        return KeyColumns_;
-    }
-
     virtual const TTableSchemaPtr& GetTableSchema() const override
     {
         return TableSchema_;
@@ -161,7 +154,6 @@ private:
 
     const IAsyncZeroCopyInputStreamPtr Underlying_;
     const i64 StartRowIndex_;
-    const TKeyColumns KeyColumns_;
     const TTableSchemaPtr TableSchema_;
     const std::vector<TString> OmittedInaccessibleColumns_;
 
@@ -246,14 +238,12 @@ TFuture<ITableReaderPtr> CreateTableReader(TApiServiceProxy::TReqReadTablePtr re
                 }
 
                 i64 startRowIndex = meta.start_row_index();
-                auto keyColumns = FromProto<TKeyColumns>(meta.key_columns());
                 auto omittedInaccessibleColumns = FromProto<std::vector<TString>>(
                     meta.omitted_inaccessible_columns());
                 auto schema = NYT::FromProto<TTableSchemaPtr>(meta.schema());
                 return New<TTableReader>(
                     inputStream,
                     startRowIndex,
-                    std::move(keyColumns),
                     std::move(omittedInaccessibleColumns),
                     std::move(schema),
                     meta.statistics());

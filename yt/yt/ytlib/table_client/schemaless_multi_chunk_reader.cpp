@@ -300,7 +300,6 @@ public:
     virtual i64 GetTableRowIndex() const override;
 
     virtual const TNameTablePtr& GetNameTable() const override;
-    virtual const TKeyColumns& GetKeyColumns() const override;
 
     virtual void Interrupt() override;
 
@@ -446,11 +445,6 @@ i64 TSchemalessMultiChunkReader::GetTableRowIndex() const
 const TNameTablePtr& TSchemalessMultiChunkReader::GetNameTable() const
 {
     return NameTable_;
-}
-
-const TKeyColumns& TSchemalessMultiChunkReader::GetKeyColumns() const
-{
-    return KeyColumns_;
 }
 
 void TSchemalessMultiChunkReader::Interrupt()
@@ -820,11 +814,6 @@ public:
     virtual const TNameTablePtr& GetNameTable() const override
     {
         return NameTable_;
-    }
-
-    virtual const TKeyColumns& GetKeyColumns() const override
-    {
-        return KeyColumns_;
     }
 
     virtual i64 GetTableRowIndex() const override

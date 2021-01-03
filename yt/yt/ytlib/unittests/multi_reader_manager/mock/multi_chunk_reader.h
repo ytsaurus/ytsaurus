@@ -68,11 +68,6 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual const NTableClient::TKeyColumns& GetKeyColumns() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     virtual void Interrupt() override
     {
         MultiReaderManager_->Interrupt();

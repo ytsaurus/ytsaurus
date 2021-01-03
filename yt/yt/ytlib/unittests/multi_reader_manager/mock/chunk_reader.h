@@ -78,11 +78,6 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual const NTableClient::TKeyColumns& GetKeyColumns() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     virtual i64 GetTableRowIndex() const override
     {
         YT_UNIMPLEMENTED();

@@ -136,12 +136,6 @@ public:
         return Reader_->GetNameTable();
     }
 
-    virtual const TKeyColumns& GetKeyColumns() const override
-    {
-        YT_VERIFY(Reader_);
-        return Reader_->GetKeyColumns();
-    }
-
     virtual const TTableSchemaPtr& GetTableSchema() const override
     {
         YT_VERIFY(Reader_);

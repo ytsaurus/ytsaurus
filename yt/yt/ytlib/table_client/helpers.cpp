@@ -109,11 +109,6 @@ public:
         return UnderlyingReader_->GetNameTable();
     }
 
-    virtual const TKeyColumns& GetKeyColumns() const override
-    {
-        return UnderlyingReader_->GetKeyColumns();
-    }
-
     virtual const TTableSchemaPtr& GetTableSchema() const override
     {
         YT_ABORT();
