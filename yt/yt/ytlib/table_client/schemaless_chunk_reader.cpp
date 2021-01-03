@@ -95,7 +95,6 @@ public:
         const TClientBlockReadOptions& blockReadOptions,
         const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns,
-        int virtualKeyPrefixLength,
         const std::vector<TString>& omittedInaccessibleColumns,
         std::optional<i64> virtualRowIndex = std::nullopt)
         : ChunkState_(chunkState)
@@ -105,7 +104,7 @@ public:
         , Options_(options)
         , NameTable_(nameTable)
         , ColumnFilter_(columnFilter)
-        , ExtendedKeyColumns_(keyColumns)
+        , KeyColumns_(keyColumns)
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
         , OmittedInaccessibleColumnSet_(OmittedInaccessibleColumns_.begin(), OmittedInaccessibleColumns_.end())
         , Sampler_(Config_->SamplingRate, std::random_device()())
@@ -116,12 +115,6 @@ public:
     {
         if (blockReadOptions.ReadSessionId) {
             Logger.AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId);
-        }
-
-        // If virtual key prefix length is longer than extended key columns,
-        // we can treat chunk as unsorted.
-        if (virtualKeyPrefixLength < ExtendedKeyColumns_.size()) {
-            KeyColumns_ = std::vector<TString>(ExtendedKeyColumns_.begin() + virtualKeyPrefixLength, ExtendedKeyColumns_.end());
         }
 
         if (Config_->SamplingSeed) {
@@ -163,8 +156,7 @@ protected:
     const TNameTablePtr NameTable_;
 
     const TColumnFilter ColumnFilter_;
-    //! Virtual key columns + physical key columns.
-    TKeyColumns ExtendedKeyColumns_;
+
     //! Physical key columns.
     TKeyColumns KeyColumns_;
     const std::vector<TString> OmittedInaccessibleColumns_;
@@ -381,7 +373,6 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
-        int virtualKeyPrefixLength,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         std::optional<int> partitionTag,
@@ -430,7 +421,6 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
-    int virtualKeyPrefixLength,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     std::optional<int> partitionTag,
@@ -451,7 +441,6 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
         blockReadOptions,
         columnFilter,
         keyColumns,
-        virtualKeyPrefixLength,
         omittedInaccessibleColumns,
         virtualRowIndex)
     , ChunkMeta_(chunkMeta)
@@ -547,7 +536,6 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
-        int virtualKeyPrefixLength,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TLegacyReadRange& readRange,
@@ -585,7 +573,6 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
-    int virtualKeyPrefixLength,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TLegacyReadRange& readRange,
@@ -601,7 +588,6 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
         std::move(nameTable),
         blockReadOptions,
         keyColumns,
-        virtualKeyPrefixLength,
         omittedInaccessibleColumns,
         columnFilter,
         partitionTag,
@@ -881,7 +867,6 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         std::move(nameTable),
         blockReadOptions,
         keyColumns,
-        0 /* virtualKeyPrefixLength */,
         omittedInaccessibleColumns,
         columnFilter,
         partitionTag,
@@ -1060,7 +1045,6 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
-        int virtualKeyPrefixLength,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TLegacyReadRange& readRange,
@@ -1075,7 +1059,6 @@ public:
             blockReadOptions,
             columnFilter,
             keyColumns,
-            virtualKeyPrefixLength,
             omittedInaccessibleColumns,
             virtualRowIndex)
         , TColumnarRangeChunkReaderBase(
@@ -1702,7 +1685,6 @@ public:
             blockReadOptions,
             columnFilter,
             keyColumns,
-            /* virtualKeyPrefixLength */ 0,
             omittedInaccessibleColumns)
         , TColumnarLookupChunkReaderBase(
             chunkMeta,
@@ -1978,7 +1960,6 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     const TLegacyReadRange& readRange,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager,
-    int virtualKeyPrefixLength,
     std::optional<i64> virtualRowIndex)
 {
     YT_VERIFY(chunkMeta->GetChunkType() == EChunkType::Table);
@@ -1994,7 +1975,6 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 nameTable,
                 blockReadOptions,
                 keyColumns,
-                virtualKeyPrefixLength,
                 omittedInaccessibleColumns,
                 columnFilter,
                 readRange,
@@ -2012,7 +1992,6 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 nameTable,
                 blockReadOptions,
                 keyColumns,
-                virtualKeyPrefixLength,
                 omittedInaccessibleColumns,
                 columnFilter,
                 readRange,

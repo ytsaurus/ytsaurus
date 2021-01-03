@@ -223,7 +223,6 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             range,
                             partitionTag,
                             chunkReaderMemoryManager,
-                            dataSource.GetVirtualKeyPrefixLength(),
                             dataSliceDescriptor.VirtualRowIndex);
                     }));
                 });
