@@ -78,7 +78,6 @@ public:
             Host_->GetClient(),
             Host_->GetBlockCache(),
             Host_->GetInputNodeDirectory(),
-            keyColumns,
             outputSchema->ToComparator(),
             nameTable,
             BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),

@@ -22,7 +22,6 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     NApi::NNative::IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    TKeyColumns keyColumns,
     TComparator comparator,
     TNameTablePtr nameTable,
     TClosure onNetworkReleased,

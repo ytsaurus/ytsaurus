@@ -43,7 +43,6 @@ TPartitionChunkReader::TPartitionChunkReader(
     TNameTablePtr nameTable,
     IBlockCachePtr blockCache,
     const TClientBlockReadOptions& blockReadOptions,
-    const TKeyColumns& keyColumns,
     int partitionTag,
     TChunkReaderMemoryManagerPtr memoryManager)
     : TChunkReaderBase(
@@ -53,7 +52,6 @@ TPartitionChunkReader::TPartitionChunkReader(
         blockReadOptions,
         std::move(memoryManager))
     , NameTable_(nameTable)
-    , KeyColumns_(keyColumns)
     , PartitionTag_(partitionTag)
 {
     SetReadyEvent(BIND(&TPartitionChunkReader::InitializeBlockSequence, MakeStrong(this))
@@ -68,7 +66,6 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         TProtoExtensionTag<NProto::TBlockMetaExt>::Value,
         TProtoExtensionTag<NProto::TTableSchemaExt>::Value,
         TProtoExtensionTag<NProto::TNameTableExt>::Value,
-        TProtoExtensionTag<NProto::TKeyColumnsExt>::Value
     };
 
     ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(
@@ -93,10 +90,6 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     InitNameTable(chunkNameTable);
 
-    auto keyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(ChunkMeta_->extensions());
-    auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
-    YT_VERIFY(chunkKeyColumns == KeyColumns_);
-
     BlockMetaExt_ = GetProtoExtension<NProto::TBlockMetaExt>(ChunkMeta_->extensions());
     std::vector<TBlockFetcher::TBlockInfo> blocks;
     for (auto& blockMeta : BlockMetaExt_.blocks()) {
@@ -117,10 +110,10 @@ void TPartitionChunkReader::InitFirstBlock()
     BlockReader_ = new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         BlockMetaExt_.blocks(CurrentBlockIndex_),
-        GetTableSchema(*ChunkMeta_),
+        schema,
         IdMapping_,
-        KeyColumns_.size(),
-        KeyColumns_.size());
+        schema->GetKeyColumnCount(),
+        schema->GetKeyColumnCount());
 
     BlockReaders_.emplace_back(BlockReader_);
 }
@@ -171,7 +164,6 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
     int partitionTag,
     const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter,
@@ -222,7 +214,6 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         nameTable,
                         blockCache,
                         blockReadOptions,
-                        keyColumns,
                         partitionTag,
                         multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
                 });
