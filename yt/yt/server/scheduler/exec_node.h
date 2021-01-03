@@ -121,7 +121,7 @@ public:
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,
-        const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
+        NNodeTrackerClient::TNodeDescriptor nodeDescriptor,
         ENodeState state);
 
     const TString& GetDefaultAddress() const;

@@ -105,7 +105,6 @@ struct TSetNodeSchedulingSegmentOptions
 {
     NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
     ESchedulingSegment Segment = ESchedulingSegment::Default;
-    bool AbortAllJobs = false;
 };
 
 using TSetNodeSchedulingSegmentOptionsList = std::vector<TSetNodeSchedulingSegmentOptions>;
@@ -329,7 +328,7 @@ private:
     // NB: 'node' passed by value since we want to own it after remove.
     void RemoveNode(TExecNodePtr node);
 
-    void SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment, bool abortAllJobs);
+    void SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment);
 
     void AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
     void AbortUnconfirmedJobs(

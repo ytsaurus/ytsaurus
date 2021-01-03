@@ -31,6 +31,8 @@
 #include <yt/server/master/transaction_server/transaction.h>
 #include <yt/server/master/transaction_server/transaction_manager.h>
 
+#include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
+
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -467,9 +469,7 @@ public:
 
     TRack* CreateRack(const TString& name, TObjectId hintId)
     {
-        if (name.empty()) {
-            THROW_ERROR_EXCEPTION("Rack name cannot be empty");
-        }
+        ValidateRackName(name);
 
         if (FindRackByName(name)) {
             THROW_ERROR_EXCEPTION(
@@ -583,9 +583,7 @@ public:
 
     TDataCenter* CreateDataCenter(const TString& name, TObjectId hintId)
     {
-        if (name.empty()) {
-            THROW_ERROR_EXCEPTION("Data center name cannot be empty");
-        }
+        ValidateDataCenterName(name);
 
         if (FindDataCenterByName(name)) {
             THROW_ERROR_EXCEPTION(

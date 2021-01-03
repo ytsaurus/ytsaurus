@@ -64,13 +64,15 @@ struct TPersistentNodeSchedulingSegmentState
 void Serialize(const TPersistentNodeSchedulingSegmentState& state, NYson::IYsonConsumer* consumer);
 void Deserialize(TPersistentNodeSchedulingSegmentState& state, NYTree::INodePtr node);
 
+using TPersistentNodeSchedulingSegmentStateMap = THashMap<NNodeTrackerClient::TNodeId, TPersistentNodeSchedulingSegmentState>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPersistentSchedulingSegmentsState
     : public NYTree::TYsonSerializable
 {
 public:
-    THashMap<NNodeTrackerClient::TNodeId, TPersistentNodeSchedulingSegmentState> NodeStates;
+    TPersistentNodeSchedulingSegmentStateMap NodeStates;
 
     TPersistentSchedulingSegmentsState();
 };

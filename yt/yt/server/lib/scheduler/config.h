@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "scheduling_tag.h"
+#include "scheduling_segment_map.h"
 #include "structs.h"
 
 #include <yt/server/lib/job_proxy/config.h>
@@ -143,6 +144,10 @@ public:
     TSegmentToResourceAmount SatisfactionMargins;
 
     TDuration UnsatisfiedSegmentsRebalancingTimeout;
+
+    TDuration DataCenterReconsiderationTimeout;
+
+    THashSet<TString> DataCenters;
 
     TFairShareStrategySchedulingSegmentsConfig();
 };

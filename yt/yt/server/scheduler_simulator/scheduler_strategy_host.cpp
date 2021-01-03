@@ -184,12 +184,12 @@ void TSchedulerStrategyHost::MarkOperationAsRunningInStrategy(TOperationId opera
 
 void TSchedulerStrategyHost::AbortOperation(TOperationId operationId, const TError& error)
 {
-    YT_VERIFY(false);
+    YT_ABORT();
 }
 
 void TSchedulerStrategyHost::FlushOperationNode(TOperationId operationId)
 {
-    YT_VERIFY(false);
+    YT_ABORT();
 }
 
 void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job, TDuration interruptTimeout)

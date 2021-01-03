@@ -1784,6 +1784,8 @@ TFairShareStrategyPackingConfig::TFairShareStrategyPackingConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr int MaxSchedulingSegmentDataCenterCount = 8;
+
 TStrategyOperationSpec::TStrategyOperationSpec()
 {
     RegisterParameter("pool", Pool)
@@ -1816,8 +1818,18 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default(EPreemptionMode::Normal);
     RegisterParameter("scheduling_segment", SchedulingSegment)
         .Default();
+    RegisterParameter("scheduling_segment_data_centers", SchedulingSegmentDataCenters)
+        .Default();
     RegisterParameter("enable_limiting_ancestor_check", EnableLimitingAncestorCheck)
         .Default(true);
+
+    RegisterPostprocessor([&] {
+        if (SchedulingSegmentDataCenters && SchedulingSegmentDataCenters->size() >= MaxSchedulingSegmentDataCenterCount) {
+            THROW_ERROR_EXCEPTION("%Qv size must be not greater than %v",
+                "scheduling_segment_data_centers",
+                MaxSchedulingSegmentDataCenterCount);
+        }
+    });
 
     RegisterPostprocessor([&] {
         if (ScheduleInSingleTree && (TentativePoolTrees || UseDefaultTentativePoolTrees)) {
@@ -1843,6 +1855,8 @@ TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParamete
         .Default(false);
     RegisterParameter("tentative", Tentative)
         .Default(false);
+    RegisterParameter("scheduling_segment_data_center", SchedulingSegmentDataCenter)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

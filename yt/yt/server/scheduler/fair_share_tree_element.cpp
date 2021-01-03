@@ -5,7 +5,6 @@
 #include "piecewise_linear_function_helpers.h"
 #include "resource_tree_element.h"
 #include "scheduling_context.h"
-#include "scheduling_segment_manager.h"
 
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -382,6 +381,11 @@ bool TSchedulerElement::IsRoot() const
 bool TSchedulerElement::IsOperation() const
 {
     return false;
+}
+
+TOperationElement* TSchedulerElement::AsOperation()
+{
+    return nullptr;
 }
 
 TPool* TSchedulerElement::AsPool()
@@ -1623,6 +1627,22 @@ TValue TCompositeSchedulerElement::ComputeByFitting(
     }
 
     return resultSum;
+}
+
+void TCompositeSchedulerElement::CollectOperationSchedulingSegmentContexts(
+    THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const
+{
+    for (const auto& child : EnabledChildren_) {
+        child->CollectOperationSchedulingSegmentContexts(operationContexts);
+    }
+}
+
+void TCompositeSchedulerElement::ApplyOperationSchedulingSegmentChanges(
+    const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts)
+{
+    for (const auto& child : EnabledChildren_) {
+        child->ApplyOperationSchedulingSegmentChanges(operationContexts);
+    }
 }
 
 void TCompositeSchedulerElement::InitIntegralPoolLists(TUpdateFairShareContext* context)
@@ -3211,6 +3231,7 @@ TOperationElement::TOperationElement(
     , RuntimeParameters_(other.RuntimeParameters_)
     , Spec_(other.Spec_)
     , SchedulingSegment_(other.SchedulingSegment_)
+    , SpecifiedSchedulingSegmentDataCenters_(other.SpecifiedSchedulingSegmentDataCenters_)
     , OperationElementSharedState_(other.OperationElementSharedState_)
     , Controller_(other.Controller_)
     , RunningInThisPoolTree_(other.RunningInThisPoolTree_)
@@ -3442,8 +3463,9 @@ void TOperationElement::PrescheduleJob(
         return;
     }
 
-    if (TreeConfig_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled &&
-        SchedulingSegment_ != context->SchedulingContext()->GetSchedulingSegment())
+    if (!IsSchedulingSegmentCompatibleWithNode(
+        context->SchedulingContext()->GetSchedulingSegment(),
+        context->SchedulingContext()->GetNodeDescriptor().DataCenter))
     {
         onOperationDeactivated(EDeactivationReason::IncompatibleSchedulingSegment);
         return;
@@ -3490,7 +3512,7 @@ TString TOperationElement::GetLoggingString() const
 {
     return Format(
         "Scheduling info for tree %Qv = {%v, "
-        "PendingJobs: %v, AggregatedMinNeededResources: %v, SchedulingSegment: %v, "
+        "PendingJobs: %v, AggregatedMinNeededResources: %v, SchedulingSegment: %v, SchedulingSegmentDataCenter: %v, "
         "PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, PreemptionStatusStatistics: %v, "
         "DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v}",
         GetTreeId(),
@@ -3498,6 +3520,7 @@ TString TOperationElement::GetLoggingString() const
         Controller_->GetPendingJobCount(),
         Controller_->GetAggregatedMinNeededJobResources(),
         SchedulingSegment_,
+        PersistentAttributes_.SchedulingSegmentDataCenter,
         GetPreemptableJobCount(),
         GetAggressivelyPreemptableJobCount(),
         GetPreemptionStatusStatistics(),
@@ -3729,6 +3752,11 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
 TString TOperationElement::GetId() const
 {
     return ToString(OperationId_);
+}
+
+TOperationElement* TOperationElement::AsOperation()
+{
+    return this;
 }
 
 bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
@@ -4283,16 +4311,22 @@ void TOperationElement::InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode m
 {
     auto maybeInitialMinNeededResources = Operation_->GetInitialAggregatedMinNeededResources();
     auto segment = Spec_->SchedulingSegment.value_or(
-        TSchedulingSegmentManager::GetSegmentForOperation(mode, maybeInitialMinNeededResources.value_or(TJobResources())));
+        TStrategySchedulingSegmentManager::GetSegmentForOperation(mode,
+            maybeInitialMinNeededResources.value_or(TJobResources{})));
 
-    YT_LOG_DEBUG_UNLESS(SchedulingSegment_ == segment,
-        "Setting new scheduling segment for operation (Segment: %v, Mode: %v, InitialMinNeededResources: %v, SpecifiedSegment: %v)",
-        segment,
-        mode,
-        maybeInitialMinNeededResources,
-        Spec_->SchedulingSegment);
+    if (SchedulingSegment_ != segment) {
+        YT_LOG_DEBUG("Setting new scheduling segment for operation (Segment: %v, Mode: %v, InitialMinNeededResources: %v, SpecifiedSegment: %v)",
+            segment,
+            mode,
+            maybeInitialMinNeededResources,
+            Spec_->SchedulingSegment);
 
-    SchedulingSegment_ = segment;
+        SchedulingSegment_ = segment;
+        SpecifiedSchedulingSegmentDataCenters_ = Spec_->SchedulingSegmentDataCenters;
+        if (!IsDataCenterAwareSchedulingSegment(segment)) {
+            PersistentAttributes_.SchedulingSegmentDataCenter.reset();
+        }
+    }
 }
 
 bool TOperationElement::IsLimitingAncestorCheckEnabled() const
@@ -4303,6 +4337,55 @@ bool TOperationElement::IsLimitingAncestorCheckEnabled() const
 bool TOperationElement::AreDetailedLogsEnabled() const
 {
     return RuntimeParameters_->EnableDetailedLogs;
+}
+
+bool TOperationElement::IsSchedulingSegmentCompatibleWithNode(ESchedulingSegment nodeSegment, const TDataCenter& nodeDataCenter) const
+{
+    if (TreeConfig_->SchedulingSegments->Mode == ESegmentedSchedulingMode::Disabled) {
+        return true;
+    }
+
+    if (!SchedulingSegment_) {
+        return false;
+    }
+
+    if (IsDataCenterAwareSchedulingSegment(*SchedulingSegment_)) {
+        if (!PersistentAttributes_.SchedulingSegmentDataCenter) {
+            // We have not decided on the operation's data center yet.
+            return false;
+        }
+
+        return SchedulingSegment_ == nodeSegment && PersistentAttributes_.SchedulingSegmentDataCenter == nodeDataCenter;
+    }
+
+    YT_VERIFY(!PersistentAttributes_.SchedulingSegmentDataCenter);
+
+    return *SchedulingSegment_ == nodeSegment;
+}
+
+void TOperationElement::CollectOperationSchedulingSegmentContexts(
+    THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const
+{
+    YT_VERIFY(operationContexts->emplace(
+        OperationId_,
+        TOperationSchedulingSegmentContext{
+            .ResourceDemand = ResourceDemand_,
+            .ResourceUsage = ResourceUsageAtUpdate_,
+            .DemandShare = Attributes_.DemandShare,
+            .FairShare = Attributes_.FairShare.Total,
+            .SpecifiedDataCenters = SpecifiedSchedulingSegmentDataCenters_,
+            .Segment = SchedulingSegment_,
+            .DataCenter = PersistentAttributes_.SchedulingSegmentDataCenter,
+            .FailingToScheduleAtDataCenterSince = PersistentAttributes_.FailingToScheduleAtDataCenterSince,
+        }).second);
+}
+
+void TOperationElement::ApplyOperationSchedulingSegmentChanges(
+    const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts)
+{
+    const auto& context = GetOrCrash(operationContexts, OperationId_);
+    PersistentAttributes_.SchedulingSegmentDataCenter = context.DataCenter;
+    PersistentAttributes_.FailingToScheduleAtDataCenterSince = context.FailingToScheduleAtDataCenterSince;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4389,6 +4472,9 @@ void TRootElement::PreUpdate(TUpdateFairShareContext* context)
 ///
 /// 10. Update dynamic attributes based on the calculated fair share (for orchid).
 ///
+/// 11. Manage scheduling segments.
+///    We build the tree's scheduling segment state and assign eligible operations in DC-aware segments to data centers.
+///
 
 void TRootElement::Update(TUpdateFairShareContext* context)
 {
@@ -4410,9 +4496,11 @@ void TRootElement::Update(TUpdateFairShareContext* context)
 
     PublishFairShareAndUpdatePreemption();
 
-    // We use dynamic attributes to calculate SatisfactioRatio by the algorithm used at actual scheduling phase.
+    // We calculate SatisfactionRatio by computing dynamic attributes using the same algorithm as during the scheduling phase.
     TDynamicAttributesList dynamicAttributesList{static_cast<size_t>(TreeSize_)};
     UpdateSchedulableAttributesFromDynamicAttributes(&dynamicAttributesList);
+
+    ManageSchedulingSegments(context);
 }
 
 void TRootElement::UpdateFairShare(TUpdateFairShareContext* context)
@@ -4750,6 +4838,26 @@ void TRootElement::UpdateRelaxedPoolIntegralShares(TUpdateFairShareContext* cont
             fairShareWithinGuarantees,
             integralShare,
             limitedIntegralShare);
+    }
+}
+
+void TRootElement::ManageSchedulingSegments(TUpdateFairShareContext* context)
+{
+    TManageTreeSchedulingSegmentsContext manageSegmentsContext{
+        .TreeConfig = TreeConfig_,
+        .TotalResourceLimits = TotalResourceLimits_,
+        .ResourceLimitsPerDataCenter = std::move(context->ResourceLimitsPerDataCenter),
+    };
+
+    if (TreeConfig_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
+        CollectOperationSchedulingSegmentContexts(&manageSegmentsContext.Operations);
+    }
+
+    TStrategySchedulingSegmentManager::ManageSegmentsInTree(&manageSegmentsContext, TreeId_);
+
+    context->SchedulingSegmentsState = std::move(manageSegmentsContext.SchedulingSegmentsState);
+    if (TreeConfig_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
+        ApplyOperationSchedulingSegmentChanges(manageSegmentsContext.Operations);
     }
 }
 

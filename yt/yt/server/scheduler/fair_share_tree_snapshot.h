@@ -22,7 +22,12 @@ struct IFairShareTreeSnapshot
 {
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
     virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
-    virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& jobResources) = 0;
+    virtual void ProcessUpdatedJob(
+        TOperationId operationId,
+        TJobId jobId,
+        const TJobResources& jobResources,
+        const TDataCenter& jobDataCenter,
+        bool* shouldAbortJob) = 0;
     virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
     virtual bool HasOperation(TOperationId operationId) const = 0;
     virtual bool IsOperationRunningInTree(TOperationId operationId) const = 0;

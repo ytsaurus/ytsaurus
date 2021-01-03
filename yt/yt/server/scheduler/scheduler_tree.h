@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/server/lib/scheduler/config.h>
 
@@ -22,6 +22,31 @@ struct TPoolsUpdateResult
     TError Error;
     bool Updated;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTreeSchedulingSegmentsState
+{
+    ESegmentedSchedulingMode Mode = ESegmentedSchedulingMode::Disabled;
+    TDuration UnsatisfiedSegmentsRebalancingTimeout;
+
+    std::optional<EJobResourceType> KeyResource;
+    double TotalKeyResourceAmount = 0.0;
+
+    TDataCenterList DataCenters;
+    TSegmentToResourceAmount FairResourceAmountPerSegment;
+    TSegmentToFairShare FairSharePerSegment;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOperationIdWithDataCenter
+{
+    TOperationId OperationId;
+    TDataCenter DataCenter;
+};
+
+using TOperationIdWithDataCenterList = std::vector<TOperationIdWithDataCenter>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,8 +108,9 @@ struct ISchedulerTree
     virtual TPersistentTreeStatePtr BuildPersistentTreeState() const = 0;
     virtual void InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState) = 0;
 
-    virtual void InitOrUpdateOperationSchedulingSegment(TOperationId operationId) = 0;
-    virtual TPoolTreeSchedulingSegmentsInfo GetSchedulingSegmentsInfo() const = 0;
+    virtual ESchedulingSegment InitOperationSchedulingSegment(TOperationId operationId) = 0;
+    virtual TTreeSchedulingSegmentsState GetSchedulingSegmentsState() const = 0;
+    virtual TOperationIdWithDataCenterList GetOperationSchedulingSegmentDataCenterUpdates() const = 0;
 
     virtual void BuildOperationAttributes(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;
     virtual void BuildOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;
