@@ -129,6 +129,13 @@ TNodeShard::TNodeShard(
     TotalCompletedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_completed_wall_time");
     TotalFailedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_failed_wall_time");
     TotalAbortedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_aborted_wall_time");
+    
+    SoftConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
+        .WithTag("limit_type", "soft")
+        .Counter("/concurrent_heartbeat_limit_reached");
+    HardConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
+        .WithTag("limit_type", "hard")
+        .Counter("/concurrent_heartbeat_limit_reached");
 }
 
 int TNodeShard::GetId() const
@@ -485,6 +492,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         YT_LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v)",
             node->GetDefaultAddress(),
             Config_->HardConcurrentHeartbeatLimit);
+        SoftConcurrentHeartbeatLimitReachedCounter_.Increment();
     } else if (ConcurrentHeartbeatCount_ >= Config_->SoftConcurrentHeartbeatLimit &&
         node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
     {
@@ -492,6 +500,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         YT_LOG_DEBUG("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v)",
             node->GetDefaultAddress(),
             Config_->SoftConcurrentHeartbeatLimit);
+        HardConcurrentHeartbeatLimitReachedCounter_.Increment();
     }
 
     response->set_enable_job_reporter(Config_->EnableJobReporter);
