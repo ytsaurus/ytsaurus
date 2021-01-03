@@ -669,6 +669,10 @@ public:
             WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
+            // It means that scheduler was disconnected during check.
+            if (operation->GetStarted().IsSet()) {
+                return operation->GetStarted();
+            }
             auto wrappedError = TError("Operation has failed to start")
                 << ex;
             operation->SetStarted(wrappedError);
