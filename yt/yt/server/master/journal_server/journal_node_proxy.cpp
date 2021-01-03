@@ -261,24 +261,19 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    virtual void ValidateFetch(TFetchContext* context) override
+    virtual void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& readLimit) const override
     {
-        for (const auto& range : context->Ranges) {
-            const auto& lowerLimit = range.LowerLimit();
-            const auto& upperLimit = range.UpperLimit();
-            // XXX: other types
-            if (upperLimit.HasLegacyKey() || lowerLimit.HasLegacyKey()) {
-                THROW_ERROR_EXCEPTION("Key selectors are not supported for journals");
-            }
-            if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
-                THROW_ERROR_EXCEPTION("Offset selectors are not supported for journals");
-            }
-            if (upperLimit.HasChunkIndex() || lowerLimit.HasChunkIndex()) {
-                THROW_ERROR_EXCEPTION("Chunk selectors are not supported for journals");
-            }
-            if (upperLimit.HasTabletIndex() || lowerLimit.HasTabletIndex()) {
-                THROW_ERROR_EXCEPTION("Tablet selectors are not supported for journals");
-            }
+        if (readLimit.has_legacy_key() || readLimit.has_key_bound_prefix()) {
+            THROW_ERROR_EXCEPTION("Key selectors are not supported for journals");
+        }
+        if (readLimit.has_offset()) {
+            THROW_ERROR_EXCEPTION("Offset selectors are not supported for journals");
+        }
+        if (readLimit.has_chunk_index()) {
+            THROW_ERROR_EXCEPTION("Chunk selectors are not supported for journals");
+        }
+        if (readLimit.has_tablet_index()) {
+            THROW_ERROR_EXCEPTION("Tablet selectors are not supported for journals");
         }
     }
 

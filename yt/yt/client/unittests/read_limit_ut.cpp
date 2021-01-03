@@ -105,6 +105,41 @@ TEST(TReadLimitTest, LegacyKey)
     EXPECT_FALSE(newReadLimit.IsTrivial());
 }
 
+TEST(TReadLimitTest, Interop)
+{
+    TReadLimit readLimitA;
+    readLimitA.SetRowIndex(1);
+    readLimitA.SetOffset(2);
+    readLimitA.SetChunkIndex(3);
+    readLimitA.SetTabletIndex(4);
+
+    TLegacyReadLimit legacyReadLimitA;
+    legacyReadLimitA.SetRowIndex(1);
+    legacyReadLimitA.SetOffset(2);
+    legacyReadLimitA.SetChunkIndex(3);
+    legacyReadLimitA.SetTabletIndex(4);
+
+    // I am too lazy to write a proper comparison operator,
+    // so let us just compare string read limit representations.
+
+    EXPECT_EQ(ToString(legacyReadLimitA), ToString(ReadLimitToLegacyReadLimit(readLimitA)));
+    EXPECT_EQ(ToString(readLimitA), ToString(ReadLimitFromLegacyReadLimitKeyless(legacyReadLimitA)));
+    EXPECT_EQ(ToString(readLimitA), ToString(ReadLimitFromLegacyReadLimit(legacyReadLimitA, /* isUpper */ true, /* keyLength */ 1)));
+
+    TReadLimit readLimitB;
+    readLimitB.KeyBound() = TOwningKeyBound::FromRow() > MakeRow({42});
+
+    TLegacyReadLimit legacyReadLimitB;
+    TUnversionedOwningRowBuilder builder;
+    builder.AddValue(MakeUnversionedInt64Value(42));
+    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
+    legacyReadLimitB.SetLegacyKey(builder.FinishRow());
+
+    EXPECT_EQ(ToString(legacyReadLimitB), ToString(ReadLimitToLegacyReadLimit(readLimitB)));
+    EXPECT_EQ(ToString(readLimitB), ToString(ReadLimitFromLegacyReadLimit(legacyReadLimitB, /* isUpper */ false, /* keyLength */ 1)));
+    // Crashes: ReadLimitFromLegacyReadLimitKeyless(legacyReadLimitB).
+}
+
 TEST(TReadLimitTest, Trivial)
 {
     TReadLimit readLimit;

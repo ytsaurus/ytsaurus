@@ -894,6 +894,14 @@ TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree, std::optio
     }
 }
 
+TOwningKeyBound GetUpperKeyBoundOrThrow(const TChunkTree* chunkTree, int keyColumnCount)
+{
+    // TODO(max42): rewrite without using function above.
+    auto upperBoundKey = GetUpperBoundKeyOrThrow(chunkTree, keyColumnCount);
+    // NB: upper bound key may contain min/max sentinels.
+    return KeyBoundFromLegacyRow(upperBoundKey, /* isUpper */ true, keyColumnCount);
+}
+
 TLegacyOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
 {
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
@@ -977,6 +985,14 @@ TLegacyOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree, std::optional<int
     }
 }
 
+TOwningKeyBound GetLowerKeyBoundOrThrow(const TChunkTree* chunkTree, int keyColumnCount)
+{
+    // TODO(max42): rewrite without using function above.
+    auto lowerBoundKey = GetMinKeyOrThrow(chunkTree, keyColumnCount);
+    // NB: min key may contain <min> for dynamic stores.
+    return KeyBoundFromLegacyRow(lowerBoundKey, /* isUpper */ false, keyColumnCount);
+}
+
 TLegacyOwningKey GetMaxKeyOrThrow(const TChunk* chunk)
 {
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
@@ -1023,6 +1039,21 @@ TLegacyOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree)
                     currentChunkTree->GetType());
         }
     }
+}
+
+std::pair<TUnversionedOwningRow, TUnversionedOwningRow> GetBoundaryKeysOrThrow(const TChunk* chunk)
+{
+    auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
+        chunk->ChunkMeta().extensions());
+    if (!optionalBoundaryKeysExt) {
+        THROW_ERROR_EXCEPTION("Cannot compute boundary keys in chunk %v since it's missing boundary info",
+            chunk->GetId());
+    }
+
+    auto minKey = FromProto<TLegacyOwningKey>(optionalBoundaryKeysExt->min());
+    auto maxKey = FromProto<TLegacyOwningKey>(optionalBoundaryKeysExt->max());
+
+    return {std::move(minKey), std::move(maxKey)};
 }
 
 std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews)

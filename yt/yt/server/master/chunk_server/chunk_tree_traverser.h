@@ -6,6 +6,8 @@
 
 #include <yt/client/chunk_client/read_limit.h>
 
+#include <yt/client/table_client/comparator.h>
+
 #include <yt/core/misc/error.h>
 
 namespace NYT::NChunkServer {
@@ -22,8 +24,8 @@ struct IChunkVisitor
         TChunk* chunk,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
-        const NChunkClient::TLegacyReadLimit& startLimit,
-        const NChunkClient::TLegacyReadLimit& endLimit,
+        const NChunkClient::TReadLimit& startLimit,
+        const NChunkClient::TReadLimit& endLimit,
         TTransactionId timestampTransactionId) = 0;
 
     virtual void OnFinish(const TError& error) = 0;
@@ -40,8 +42,8 @@ struct IChunkVisitor
     virtual bool OnDynamicStore(
         TDynamicStore* dynamicStore,
         std::optional<int> tabletIndex,
-        const NChunkClient::TLegacyReadLimit& startLimit,
-        const NChunkClient::TLegacyReadLimit& endLimit) = 0;
+        const NChunkClient::TReadLimit& startLimit,
+        const NChunkClient::TReadLimit& endLimit) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkVisitor)
@@ -95,15 +97,25 @@ IChunkTraverserContextPtr GetSyncChunkTraverserContext();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Traverses the subtree at #root pruning it to |[lowerLimit, upperLimit)| range.
+//! Traverses the subtree at #root pruning it to |lowerLimit:upperLimit| range.
 //! For unsealed chunks, may consult the context to figure out the quorum information.
 void TraverseChunkTree(
     IChunkTraverserContextPtr context,
     IChunkVisitorPtr visitor,
     TChunkList* root,
-    const NChunkClient::TLegacyReadLimit& lowerLimit,
-    const NChunkClient::TLegacyReadLimit& upperLimit,
-    std::optional<int> keyColumnCount);
+    const NChunkClient::TReadLimit& lowerLimit,
+    const NChunkClient::TReadLimit& upperLimit,
+    std::optional<NTableClient::TComparator> comparator);
+
+//! Legacy version of previous function. Works by transforming legacy lower and upper
+//! limits into new read limits and invoking previous version.
+void TraverseChunkTree(
+    IChunkTraverserContextPtr context,
+    IChunkVisitorPtr visitor,
+    TChunkList* root,
+    const NChunkClient::TLegacyReadLimit& legacyLowerLimit,
+    const NChunkClient::TLegacyReadLimit& legacyUpperLimit,
+    std::optional<NTableClient::TComparator> comparator);
 
 //! Traverses the subtree at #root. No bounds are being checked,
 //! #visitor is being notified of each relevant child.

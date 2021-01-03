@@ -18,8 +18,8 @@ void BuildChunkSpec(
     TChunk* chunk,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
-    const NChunkClient::TLegacyReadLimit& lowerLimit,
-    const NChunkClient::TLegacyReadLimit& upperLimit,
+    const NChunkClient::TReadLimit& lowerLimit,
+    const NChunkClient::TReadLimit& upperLimit,
     TTransactionId timestampTransactionId,
     bool fetchParityReplicas,
     bool fetchAllMetaExtensions,
@@ -30,8 +30,8 @@ void BuildChunkSpec(
 
 void BuildDynamicStoreSpec(
     const TDynamicStore* dynamicStore,
-    const NChunkClient::TLegacyReadLimit& lowerLimit,
-    const NChunkClient::TLegacyReadLimit& upperLimit,
+    const NChunkClient::TReadLimit& lowerLimit,
+    const NChunkClient::TReadLimit& upperLimit,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     NCellMaster::TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec);
@@ -63,12 +63,17 @@ protected:
         bool FetchParityReplicas = false;
         bool OmitDynamicStores = false;
         bool ThrowOnChunkViews = false;
-        std::vector<NChunkClient::TLegacyReadRange> Ranges;
+        std::vector<NChunkClient::TReadRange> Ranges;
     };
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
-    virtual void ValidateFetch(TFetchContext* context);
+    //! This method validates if requested read limit is allowed for this type of node
+    //! (i.e. key limits requires node to be a sorted table).
+    virtual void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& readLimit) const;
+
+    //! If this node is a sorted table, return comparator corresponding to sort order.
+    virtual std::optional<NTableClient::TComparator> GetComparator() const;
 
     void ValidateInUpdate();
     virtual void ValidateBeginUpload();

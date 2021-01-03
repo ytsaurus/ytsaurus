@@ -8,6 +8,7 @@ namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -204,6 +205,13 @@ void TChunkList::SetKind(EChunkListKind kind)
 
     Kind_ = kind;
     RecomputeChunkListStatistics(this);
+}
+
+TKeyBound TChunkList::GetPivotKeyBound() const
+{
+    return PivotKey_
+        ? TKeyBound::FromRow() >= PivotKey_
+        : TKeyBound::MakeUniversal(/* isUpper */ false);
 }
 
 bool TChunkList::IsSealed() const

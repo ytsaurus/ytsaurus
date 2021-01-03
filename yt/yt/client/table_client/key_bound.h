@@ -109,7 +109,10 @@ private:
 
 class TKeyBound
     : public NDetail::TKeyBoundImpl<TUnversionedRow, TKeyBound>
-{ };
+{
+public:
+    TOwningKeyBound ToOwning() const;
+};
 
 void FormatValue(TStringBuilderBase* builder, const TKeyBound& keyBound, TStringBuf format);
 TString ToString(const TKeyBound& keyBound);
