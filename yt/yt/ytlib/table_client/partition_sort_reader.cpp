@@ -59,7 +59,6 @@ public:
         NApi::NNative::IClientPtr client,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
-        TKeyColumns keyColumns,
         TComparator comparator,
         TNameTablePtr nameTable,
         TClosure onNetworkReleased,
@@ -73,9 +72,7 @@ public:
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
-        : KeyColumns_(std::move(keyColumns))
-        , Comparator_(std::move(comparator))
-        , KeyColumnCount_(KeyColumns_.size())
+        : Comparator_(std::move(comparator))
         , OnNetworkReleased_(std::move(onNetworkReleased))
         , NameTable_(std::move(nameTable))
         , Approximate_(approximate)
@@ -104,7 +101,6 @@ public:
             std::move(dataSourceDirectory),
             std::move(dataSliceDescriptors),
             NameTable_,
-            KeyColumns_,
             partitionTag,
             std::move(blockReadOptions),
             std::move(trafficMeter),
@@ -340,9 +336,7 @@ private:
         }
     };
 
-    const TKeyColumns KeyColumns_;
     const TComparator Comparator_;
-    const int KeyColumnCount_;
     const TClosure OnNetworkReleased_;
     const TNameTablePtr NameTable_;
 
@@ -394,7 +388,7 @@ private:
             EstimatedRowCount_,
             EstimatedBucketCount_);
 
-        KeyBuffer_.reserve(EstimatedRowCount_ * KeyColumnCount_);
+        KeyBuffer_.reserve(EstimatedRowCount_ * Comparator_.GetLength());
         RowDescriptorBuffer_.reserve(EstimatedRowCount_);
         Buckets_.reserve(EstimatedRowCount_ + EstimatedBucketCount_);
     }
@@ -573,7 +567,6 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     NApi::NNative::IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    TKeyColumns keyColumns,
     TComparator comparator,
     TNameTablePtr nameTable,
     TClosure onNetworkReleased,
@@ -593,7 +586,6 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
         std::move(client),
         std::move(blockCache),
         std::move(nodeDirectory),
-        std::move(keyColumns),
         std::move(comparator),
         std::move(nameTable),
         onNetworkReleased,

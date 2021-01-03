@@ -40,7 +40,6 @@ public:
         TNameTablePtr nameTable,
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        const TKeyColumns& keyColumns,
         int partitionTag,
         NChunkClient::TChunkReaderMemoryManagerPtr chunkReaderMemoryManager = nullptr);
 
@@ -52,7 +51,6 @@ public:
 
 private:
     const TNameTablePtr NameTable_;
-    const TKeyColumns KeyColumns_;
 
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
 
@@ -142,7 +140,6 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
     int partitionTag,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter,

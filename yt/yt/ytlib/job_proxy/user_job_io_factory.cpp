@@ -593,7 +593,6 @@ public:
             std::move(client),
             GetNullBlockCache(),
             JobSpecHelper_->GetInputNodeDirectory(),
-            keyColumns,
             comparator,
             nameTable,
             onNetworkReleased,
