@@ -93,6 +93,7 @@ std::vector<int> ListPids()
         pids.push_back(pid);
     }
 
+    YT_VERIFY(::closedir(dirStream) == 0);
     return pids;
 #else
     return {};
