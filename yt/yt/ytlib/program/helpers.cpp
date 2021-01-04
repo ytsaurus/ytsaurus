@@ -25,6 +25,8 @@
 
 #include <yt/core/rpc/dispatcher.h>
 
+#include <yt/core/service_discovery/yp/service_discovery.h>
+
 namespace NYT {
 
 using namespace NConcurrency;
@@ -69,6 +71,9 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
     NNet::TAddressResolver::Get()->EnsureLocalHostName();
 
     NRpc::TDispatcher::Get()->Configure(config->RpcDispatcher);
+
+    NRpc::TDispatcher::Get()->SetServiceDiscovery(
+        NServiceDiscovery::NYP::CreateServiceDiscovery(config->YPServiceDiscovery));
 
     NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
 

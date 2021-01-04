@@ -9,11 +9,13 @@
 #include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
+#include <yt/core/misc/atomic_object.h>
 
 namespace NYT::NRpc {
 
 using namespace NConcurrency;
 using namespace NBus;
+using namespace NServiceDiscovery;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,6 +127,16 @@ public:
         return CompressionPool_->GetInvoker();
     }
 
+    IServiceDiscoveryPtr GetServiceDiscovery()
+    {
+        return ServiceDiscovery_.Load();
+    }
+
+    void SetServiceDiscovery(IServiceDiscoveryPtr serviceDiscovery)
+    {
+        ServiceDiscovery_.Store(std::move(serviceDiscovery));
+    }
+
     void Shutdown()
     {
         LightQueue_->Shutdown();
@@ -152,6 +164,8 @@ private:
 
     // Using linear search in vector since number of networks is very small.
     SmallVector<TString, 8> NetworkNames_;
+
+    TAtomicObject<IServiceDiscoveryPtr> ServiceDiscovery_;
 
     TNetworkId DoRegisterNetwork(const TString& networkName)
     {
@@ -229,6 +243,16 @@ const IInvokerPtr& TDispatcher::GetCompressionPoolInvoker()
 const IFairShareThreadPoolPtr& TDispatcher::GetFairShareCompressionThreadPool()
 {
     return Impl_->GetFairShareCompressionThreadPool();
+}
+
+IServiceDiscoveryPtr TDispatcher::GetServiceDiscovery()
+{
+    return Impl_->GetServiceDiscovery();
+}
+
+void TDispatcher::SetServiceDiscovery(IServiceDiscoveryPtr serviceDiscovery)
+{
+    Impl_->SetServiceDiscovery(std::move(serviceDiscovery));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

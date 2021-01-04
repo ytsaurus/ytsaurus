@@ -4,16 +4,23 @@
 #include "config.h"
 #include "roaming_channel.h"
 #include "dynamic_channel_pool.h"
+#include "dispatcher.h"
+
+#include <yt/core/service_discovery/service_discovery.h>
 
 #include <yt/core/concurrency/spinlock.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/core/net/address.h>
+
 namespace NYT::NRpc {
 
-// using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NServiceDiscovery;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +55,14 @@ public:
             ServiceName_,
             DiscoverRequestHook_))
     {
-        Pool_->SetPeers(Config_->Addresses);
+        if (Config_->Addresses) {
+            ConfigureFromAddresses();
+        } else if (Config_->Endpoints) {
+            ConfigureFromEndpoints();
+        } else {
+            // Must not happen for a properly validated configuration.
+            Pool_->SetPeerDiscoveryError(TError("No endpoints configured"));
+        }
     }
 
     TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request)
@@ -69,6 +83,49 @@ private:
     const TDiscoverRequestHook DiscoverRequestHook_;
 
     const TDynamicChannelPoolPtr Pool_;
+
+    IServiceDiscoveryPtr ServiceDiscovery_;
+    TPeriodicExecutorPtr EndpointsUpdateExecutor_;
+
+    void ConfigureFromAddresses()
+    {
+        Pool_->SetPeers(*Config_->Addresses);
+    }
+
+    void ConfigureFromEndpoints()
+    {
+        ServiceDiscovery_ = TDispatcher::Get()->GetServiceDiscovery();
+        if (!ServiceDiscovery_) {
+            Pool_->SetPeerDiscoveryError(TError("No Service Discovery is configured"));
+            return;
+        }
+
+        EndpointsUpdateExecutor_ = New<TPeriodicExecutor>(
+            TDispatcher::Get()->GetHeavyInvoker(),
+            BIND(&TBalancingChannelSubprovider::UpdateEndpoints, MakeWeak(this)),
+            Config_->Endpoints->UpdatePeriod);
+        EndpointsUpdateExecutor_->Start();
+    }
+
+    void UpdateEndpoints()
+    {
+        ServiceDiscovery_->ResolveEndpoints(
+            Config_->Endpoints->Cluster,
+            Config_->Endpoints->EndpointSetId)
+            .Subscribe(
+                BIND(&TBalancingChannelSubprovider::OnEndpointsResolved, MakeWeak(this)));
+    }
+
+    void OnEndpointsResolved(const TErrorOr<TEndpointSet> endpointSetOrError)
+    {
+        if (!endpointSetOrError.IsOK()) {
+            Pool_->SetPeerDiscoveryError(endpointSetOrError);
+            return;
+        }
+
+        const auto& endpointSet = endpointSetOrError.Value();
+        Pool_->SetPeers(AddressesFromEndpointSet(endpointSet));
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TBalancingChannelSubprovider)
@@ -117,11 +174,11 @@ public:
 
     virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request) override
     {
-        if (Config_->Addresses.size() == 1) {
+        if (Config_->Addresses && Config_->Addresses->size() == 1) {
             // Disable discovery and balancing when just one address is given.
             // This is vital for jobs since node's redirector is incapable of handling
             // Discover requests properly.
-            return MakeFuture(ChannelFactory_->CreateChannel(Config_->Addresses[0]));
+            return MakeFuture(ChannelFactory_->CreateChannel((*Config_->Addresses)[0]));
         } else {
             return GetSubprovider(request->GetService())->GetChannel(request);
         }

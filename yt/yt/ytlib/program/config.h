@@ -16,6 +16,8 @@
 
 #include <yt/core/profiling/config.h>
 
+#include <yt/core/service_discovery/yp/config.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
@@ -33,6 +35,7 @@ public:
     THashMap<TString, int> FiberStackPoolSizes;
     NNet::TAddressResolverConfigPtr AddressResolver;
     NRpc::TDispatcherConfigPtr RpcDispatcher;
+    NServiceDiscovery::NYP::TServiceDiscoveryConfigPtr YPServiceDiscovery;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NProfiling::TProfileManagerConfigPtr ProfileManager;
     NProfiling::TSolomonExporterConfigPtr SolomonExporter;
@@ -50,6 +53,8 @@ public:
         RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();
         RegisterParameter("rpc_dispatcher", RpcDispatcher)
+            .DefaultNew();
+        RegisterParameter("yp_service_discovery", YPServiceDiscovery)
             .DefaultNew();
         RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();

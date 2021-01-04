@@ -273,8 +273,10 @@ public:
     {
         auto cellConfig = New<TCellConfig>();
         cellConfig->CellId = config->CellId;
-        for (const auto& address : config->Addresses) {
-            cellConfig->Peers.emplace_back(address);
+        if (config->Addresses) {
+            for (const auto& address : *config->Addresses) {
+                cellConfig->Peers.emplace_back(address);
+            }
         }
         return ReconfigureCell(cellConfig, configVersion);
     }
@@ -356,9 +358,10 @@ private:
     {
         auto peerConfig = New<TPeerConnectionConfig>();
         peerConfig->CellId = entry->Descriptor.CellId;
+        peerConfig->Addresses.emplace();
         for (const auto& peer : entry->Descriptor.Peers) {
             if (!peer.IsNull()) {
-                peerConfig->Addresses.emplace_back(peer.GetAddressOrThrow(Networks_));
+                peerConfig->Addresses->push_back(peer.GetAddressOrThrow(Networks_));
             }
         }
         peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;

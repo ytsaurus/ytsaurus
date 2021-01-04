@@ -54,14 +54,15 @@ TError ConvertResolveStatusToError(int status)
 {
     switch (status) {
         case ::NYP::NServiceDiscovery::NApi::NOT_EXISTS:
-            return TError(EErrorCode::EndpointSetDoesNotExist,
+            return TError(NServiceDiscovery::EErrorCode::EndpointSetDoesNotExist,
                 "Endpoint set does not exist");
         case ::NYP::NServiceDiscovery::NApi::NOT_CHANGED:
         case ::NYP::NServiceDiscovery::NApi::OK:
         case ::NYP::NServiceDiscovery::NApi::EMPTY:
             return TError();
         default:
-            return TError("Unknown resolve status %v",
+            return TError(NServiceDiscovery::EErrorCode::UnknownResolveStatus,
+                "Unknown resolve status %v",
                 status);
     }
 }
@@ -207,7 +208,9 @@ protected:
                     rawResponseOrError);
                 const auto& response = responseOrError.ValueOrThrow();
                 if (auto resolveStatusError = NDetail::ConvertResolveStatusToError(response.ResolveStatus); !resolveStatusError.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Error resolving endpoint set %Qv at YP cluster %Qv",
+                    THROW_ERROR_EXCEPTION(
+                        NServiceDiscovery::EErrorCode::EndpointResolveFailed,
+                        "Error resolving endpoint set %Qv at YP cluster %Qv",
                         clusterEndpointSetIdPair.second,
                         clusterEndpointSetIdPair.first)
                         << resolveStatusError;

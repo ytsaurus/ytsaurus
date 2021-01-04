@@ -258,16 +258,56 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChannelPoolConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TServiceDiscoveryEndpointsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString Cluster;
+    TString EndpointSetId;
+    TDuration UpdatePeriod;
+
+    TServiceDiscoveryEndpointsConfig()
+    {
+        RegisterParameter("cluster", Cluster);
+        RegisterParameter("endpoint_set_id", EndpointSetId);
+        RegisterParameter("update_period", UpdatePeriod)
+            .Default(TDuration::Seconds(60));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TServiceDiscoveryEndpointsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBalancingChannelConfig
     : public TDynamicChannelPoolConfig
 {
 public:
-    //! List of seed addresses.
-    std::vector<TString> Addresses;
+    //! First option: static list of addresses.
+    std::optional<std::vector<TString>> Addresses;
+
+    //! Second option: SD endpoints.
+    TServiceDiscoveryEndpointsConfigPtr Endpoints;
 
     TBalancingChannelConfig()
     {
-        RegisterParameter("addresses", Addresses);
+        RegisterParameter("addresses", Addresses)
+            .Optional();
+        RegisterParameter("endpoints", Endpoints)
+            .Optional();
+
+        RegisterPostprocessor([&] {
+            int endpointConfigCount = 0;
+            if (Addresses) {
+                ++endpointConfigCount;
+            }
+            if (Endpoints) {
+                ++endpointConfigCount;
+            }
+            if (endpointConfigCount != 1) {
+                THROW_ERROR_EXCEPTION("Exactly one of \"addresses\" and \"endpoints\" must be specified");
+            }
+        });
     }
 };
 
