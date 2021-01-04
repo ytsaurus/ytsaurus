@@ -14,18 +14,17 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AddStripeToList(
-    TChunkStripePtr stripe,
+void AccountStripeInList(
+    const TChunkStripePtr& stripe,
     const TChunkStripeListPtr& list,
     std::optional<i64> stripeDataWeight,
     std::optional<i64> stripeRowCount,
-    TNodeId nodeId)
+    NNodeTrackerClient::TNodeId nodeId)
 {
     auto statistics = stripe->GetStatistics();
     list->TotalDataWeight += stripeDataWeight.value_or(statistics.DataWeight);
     list->TotalRowCount += stripeRowCount.value_or(statistics.RowCount);
     list->TotalChunkCount += statistics.ChunkCount;
-    list->Stripes.emplace_back(std::move(stripe));
 
     if (nodeId == InvalidNodeId) {
         return;
@@ -49,6 +48,22 @@ void AddStripeToList(
             }
         }
     }
+}
+
+void AddStripeToList(
+    TChunkStripePtr stripe,
+    const TChunkStripeListPtr& list,
+    std::optional<i64> stripeDataWeight,
+    std::optional<i64> stripeRowCount,
+    TNodeId nodeId)
+{
+    list->Stripes.emplace_back(std::move(stripe));
+    AccountStripeInList(
+        list->Stripes.back(),
+        list,
+        stripeDataWeight,
+        stripeRowCount,
+        nodeId);
 }
 
 std::vector<TInputChunkPtr> GetStripeListChunks(const TChunkStripeListPtr& stripeList)

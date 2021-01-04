@@ -13,6 +13,16 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Recalculate stripe list statistics like TotalChunkCount, TotalDataWeight, etc.
+//! If third and/or fourth args are present, they are taken instead of
+//! corresponding values from chunk stripe statistics.
+void AccountStripeInList(
+    const TChunkStripePtr& stripe,
+    const TChunkStripeListPtr& list,
+    std::optional<i64> stripeDataWeight = std::nullopt,
+    std::optional<i64> stripeRowCount = std::nullopt,
+    NNodeTrackerClient::TNodeId nodeId = NNodeTrackerClient::InvalidNodeId);
+
 //! Add chunk stripe to chunk stripe list and recalculate stripe list statistics like
 //! TotalChunkCount, TotalDataWeight, etc.
 //! If third and/or fourth args are present, they are taken instead of

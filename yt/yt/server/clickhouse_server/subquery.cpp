@@ -1061,6 +1061,7 @@ std::vector<TSubquery> BuildSubqueries(
                 YT_VERIFY(operandIndex < fullStripeList->Stripes.size());
                 YT_VERIFY(!fullStripeList->Stripes[operandIndex]);
                 fullStripeList->Stripes[operandIndex] = std::move(stripe);
+                AccountStripeInList(fullStripeList->Stripes[operandIndex], fullStripeList);
             }
             for (auto& stripe : fullStripeList->Stripes) {
                 if (!stripe) {
