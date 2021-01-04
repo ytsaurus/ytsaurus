@@ -11,7 +11,10 @@
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 
+#include <yt/core/profiling/timing.h>
+
 #include <util/folder/path.h>
+
 #include <util/system/execpath.h>
 #include <util/system/env.h>
 
@@ -19,7 +22,7 @@ namespace NYT::NTracing {
 
 using namespace NConcurrency;
 
-struct TTraceSpanTag {};
+struct TTraceSpanTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,21 +53,20 @@ class TTraceManager::TImpl
 {
 public:
     TImpl()
-        : ActionQueue_(New<TActionQueue>("Tracing"))
-    { }
+        : CleanupExecutor_(New<TPeriodicExecutor>(
+            ActionQueue_->GetInvoker(),
+            BIND(&TImpl::Cleanup, this)))
+    {
+        CleanupExecutor_->Start();
+    }
 
     void Configure(TTraceManagerConfigPtr config)
     {
-        if (Enabled_.exchange(true)) {
-            return;
-        }
+        CleanupExecutor_->SetPeriod(config->CleanupPeriod);
 
-        Config_ = std::move(config);
-        CleanupExecutor_ = New<TPeriodicExecutor>(
-            ActionQueue_->GetInvoker(),
-            BIND(&TImpl::Cleanup, this),
-            Config_->CleanupPeriod);
-        CleanupExecutor_->Start();
+        CleanupPeriod_.store(config->CleanupPeriod);
+        TraceBufferSize_.store(config->TraceBufferSize);
+        Enabled_.store(true);
     }
 
     void Shutdown()
@@ -72,14 +74,13 @@ public:
         ActionQueue_->Shutdown();
     }
 
-    void Enqueue(
-        const NTracing::TTraceContextPtr& traceContext)
+    void Enqueue(NTracing::TTraceContextPtr traceContext)
     {
-        if (!Enabled_) {
+        if (!Enabled_.load()) {
             return;
         }
 
-        EventQueue_.Enqueue(traceContext);
+        EventQueue_.Enqueue(std::move(traceContext));
     }
 
     std::pair<i64, std::vector<TSharedRef>> ReadTraces(i64 startIndex, i64 limit)
@@ -100,12 +101,14 @@ public:
     }
 
 private:
-    TTraceManagerConfigPtr Config_;
-    TActionQueuePtr ActionQueue_;
-    TMultipleProducerSingleConsumerLockFreeStack<TTraceContextPtr> EventQueue_;
-    TPeriodicExecutorPtr CleanupExecutor_;
+    const TActionQueuePtr ActionQueue_ = New<TActionQueue>("Tracing");
+    const TPeriodicExecutorPtr CleanupExecutor_;
 
-    std::atomic<bool> Enabled_ = {false};
+    std::atomic<TDuration> CleanupPeriod_;
+    std::atomic<i64> TraceBufferSize_ = 0;
+    std::atomic<bool> Enabled_ = false;
+    
+    TMultipleProducerSingleConsumerLockFreeStack<TTraceContextPtr> EventQueue_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, BufferLock_);
     std::deque<TSharedRef> TracesBuffer_;
@@ -114,8 +117,9 @@ private:
 
     void Cleanup()
     {
-        auto startTime = TInstant::Now();
-        YT_LOG_DEBUG("Running tracing cleanup iteration");
+        YT_LOG_DEBUG("Running trace cleanup iteration");
+
+        NProfiling::TWallTimer timer;
         auto batch = EventQueue_.DequeueAll();
 
         bool traceDebug = false;
@@ -130,7 +134,7 @@ private:
                 ToProto(protoBatch.add_spans(), traceContext);
             }
 
-            YT_LOG_DEBUG("Dumping traces to file (Filename: %Qv, BatchSize: %v)",
+            YT_LOG_DEBUG("Dumping traces to file (Filename: %v, BatchSize: %v)",
                 traceFileName,
                 batch.size());
             TString batchDump;
@@ -145,14 +149,17 @@ private:
             PushTrace(trace);
         }
 
-        YT_LOG_DEBUG("Collected %v traces", batch.size());
-        auto duration = TInstant::Now() - startTime;
-        if (!traceDebug && duration > Config_->CleanupPeriod) {
-            YT_LOG_WARNING("Trace cleanup iteration took %v; disabling trace collection",
-                duration);
-            Enabled_ = false;
-        } else {
-            Enabled_ = true;
+        YT_LOG_DEBUG("Traces collected (Count: %v)",
+            batch.size());
+        
+        auto elapsed = timer.GetElapsedTime();
+        if (!traceDebug && elapsed > CleanupPeriod_.load()) {
+            YT_LOG_WARNING("Trace cleanup took too much time; disabling trace collection (CleanupTime: %v)",
+                elapsed);
+            Enabled_.store(false);
+        } else if (!Enabled_.exchange(true)) {
+            YT_LOG_WARNING("Trace collection re-enabled (CleanupTime: %v)",
+                elapsed);
         }
     }
 
@@ -167,7 +174,7 @@ private:
         TracesBuffer_.push_back(ref);
         TracesBufferSize_ += ref.size();
 
-        while (!TracesBuffer_.empty() && TracesBufferSize_ > Config_->TracesBufferSize) {
+        while (!TracesBuffer_.empty() && TracesBufferSize_ > TraceBufferSize_.load()) {
             StartIndex_++;
             TracesBufferSize_ -= TracesBuffer_.front().Size();
             TracesBuffer_.pop_front();
