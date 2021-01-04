@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/service_discovery/public.h>
+
 #include <yt/core/actions/public.h>
 
 #include <yt/core/concurrency/public.h>
@@ -18,7 +20,6 @@ class TDispatcher
 {
 public:
     TDispatcher();
-
     ~TDispatcher();
 
     static TDispatcher* Get();
@@ -49,6 +50,9 @@ public:
     //! Returns the fair-share thread pool with the similar semantics as previous two.
     //! NB: this thread pool is different from the underlying thread pool beneath two previous invokers.
     const NConcurrency::IFairShareThreadPoolPtr& GetFairShareCompressionThreadPool();
+
+    NServiceDiscovery::IServiceDiscoveryPtr GetServiceDiscovery();
+    void SetServiceDiscovery(NServiceDiscovery::IServiceDiscoveryPtr serviceDiscovery);
 
 private:
     class TImpl;

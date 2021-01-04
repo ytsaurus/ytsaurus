@@ -195,25 +195,29 @@ public:
                 SecondaryMasterCellTags_,
                 secondaryCellTags);
 
-            auto expectedPrimaryCellAddresses = Config_->PrimaryMaster->Addresses;
-            std::sort(expectedPrimaryCellAddresses.begin(), expectedPrimaryCellAddresses.end());
-            const auto& actualPrimaryCellAddresses = cellAddresses[PrimaryMasterCellTag_];
-            YT_LOG_WARNING_UNLESS(
-                expectedPrimaryCellAddresses == actualPrimaryCellAddresses,
-                "Synchronized primary master cell addresses do not match, connection config is probably incorrect (ConfigPrimaryMasterAddresses: %v, SynchronizedPrimaryMasterAddresses: %v)",
-                expectedPrimaryCellAddresses,
-                actualPrimaryCellAddresses);
-
-            for (auto cellConfig : Config_->SecondaryMasters) {
-                auto expectedCellAddresses = cellConfig->Addresses;
-                std::sort(expectedCellAddresses.begin(), expectedCellAddresses.end());
-                const auto& actualCellAddresses = cellAddresses[CellTagFromId(cellConfig->CellId)];
-
+            if (Config_->PrimaryMaster->Addresses) {
+                auto expectedPrimaryCellAddresses = *Config_->PrimaryMaster->Addresses;
+                std::sort(expectedPrimaryCellAddresses.begin(), expectedPrimaryCellAddresses.end());
+                const auto& actualPrimaryCellAddresses = cellAddresses[PrimaryMasterCellTag_];
                 YT_LOG_WARNING_UNLESS(
-                    expectedCellAddresses == actualCellAddresses,
-                    "Synchronized secondary master cell addresses do not match, connection config is probably incorrect (ConfigSecondaryMasterAddresses: %v, SynchronizedSecondaryMasterAddresses: %v)",
-                    expectedCellAddresses,
-                    actualCellAddresses);
+                    expectedPrimaryCellAddresses == actualPrimaryCellAddresses,
+                    "Synchronized primary master cell addresses do not match, connection config is probably incorrect (ConfigPrimaryMasterAddresses: %v, SynchronizedPrimaryMasterAddresses: %v)",
+                    expectedPrimaryCellAddresses,
+                    actualPrimaryCellAddresses);
+
+                for (auto cellConfig : Config_->SecondaryMasters) {
+                    if (cellConfig->Addresses) {
+                        auto expectedCellAddresses = *cellConfig->Addresses;
+                        std::sort(expectedCellAddresses.begin(), expectedCellAddresses.end());
+                        const auto& actualCellAddresses = cellAddresses[CellTagFromId(cellConfig->CellId)];
+
+                        YT_LOG_WARNING_UNLESS(
+                            expectedCellAddresses == actualCellAddresses,
+                            "Synchronized secondary master cell addresses do not match, connection config is probably incorrect (ConfigSecondaryMasterAddresses: %v, SynchronizedSecondaryMasterAddresses: %v)",
+                            expectedCellAddresses,
+                            actualCellAddresses);
+                    }
+                }
             }
         }
 

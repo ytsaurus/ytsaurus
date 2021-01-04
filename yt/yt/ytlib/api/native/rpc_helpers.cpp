@@ -8,6 +8,8 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 bool IsCachingEnabled(
     const TConnectionConfigPtr& config,
     const TMasterReadOptions& options)
@@ -15,13 +17,13 @@ bool IsCachingEnabled(
     if (options.ReadFrom == EMasterChannelKind::LocalCache) {
         return true;
     }
-    
+
     const auto& cache = config->MasterCache;
     if (!cache) {
         return false;
     }
 
-    if (!cache->EnableMasterCacheDiscovery && cache->Addresses.empty()) {
+    if (!cache->EnableMasterCacheDiscovery && (!cache->Addresses || cache->Addresses->empty())) {
         return false;
     }
 
@@ -29,6 +31,8 @@ bool IsCachingEnabled(
         options.ReadFrom == EMasterChannelKind::Cache ||
         options.ReadFrom == EMasterChannelKind::MasterCache;
 }
+
+} // namespace
 
 void SetCachingHeader(
     const IClientRequestPtr& request,

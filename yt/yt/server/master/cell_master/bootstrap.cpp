@@ -469,10 +469,10 @@ NNative::IConnectionPtr TBootstrap::CreateClusterConnection() const
     auto cloneMasterConfig = [] (const auto& cellConfig) {
         auto result = New<NNative::TMasterConnectionConfig>();
         result->CellId = cellConfig->CellId;
-        result->Addresses.reserve(cellConfig->Peers.size());
+        result->Addresses.emplace();
         for (const auto& peer : cellConfig->Peers) {
             if (peer.Address) {
-                result->Addresses.push_back(*peer.Address);
+                result->Addresses->push_back(*peer.Address);
             }
         }
         return result;

@@ -626,9 +626,12 @@ private:
                 createMasters(cellPath, cellConfig);
             }
 
-            for (const auto& timestampProviderAddress : Config_->TimestampProvider->Addresses) {
-                auto addressPath = "//sys/timestamp_providers/" + ToYPathLiteral(timestampProviderAddress);
-                createOrchidNode(addressPath, timestampProviderAddress);
+            // TODO(babenko): handle service discovery.
+            if (Config_->TimestampProvider->Addresses) {
+                for (const auto& timestampProviderAddress : *Config_->TimestampProvider->Addresses) {
+                    auto addressPath = "//sys/timestamp_providers/" + ToYPathLiteral(timestampProviderAddress);
+                    createOrchidNode(addressPath, timestampProviderAddress);
+                }
             }
 
             auto createDiscoveryOrchid = [&] (const TYPath& path, NElection::TCellConfigPtr cellConfig) {

@@ -16,6 +16,8 @@
 
 #include <yt/core/tracing/trace_context.h>
 
+#include <yt/core/service_discovery/public.h>
+
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,6 +101,8 @@ template <class T>
 void WriteAuthenticationIdentityToProto(T* proto, const TAuthenticationIdentity& identity);
 template <class T>
 TAuthenticationIdentity ParseAuthenticationIdentityFromProto(const T& proto);
+
+std::vector<TString> AddressesFromEndpointSet(const NServiceDiscovery::TEndpointSet& endpointSet);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1037,15 +1037,23 @@ TCellId TBootstrap::GetCellId(TCellTag cellTag) const
 
 std::vector<TString> TBootstrap::GetMasterAddressesOrThrow(TCellTag cellTag) const
 {
+    // TODO(babenko): handle service discovery.
+    auto unwrapAddresses = [&] (const auto& optionalAddresses) {
+        if (!optionalAddresses) {
+            THROW_ERROR_EXCEPTION("Missing addresses for master cell with tag %v", cellTag);
+        }
+        return *optionalAddresses;
+    };
+
     auto cellId = GetCellId(cellTag);
 
     if (Config_->ClusterConnection->PrimaryMaster->CellId == cellId) {
-        return Config_->ClusterConnection->PrimaryMaster->Addresses;
+        return unwrapAddresses(Config_->ClusterConnection->PrimaryMaster->Addresses);
     }
 
     for (const auto& secondaryMaster : Config_->ClusterConnection->SecondaryMasters) {
         if (secondaryMaster->CellId == cellId) {
-            return secondaryMaster->Addresses;
+            return unwrapAddresses(secondaryMaster->Addresses);
         }
     }
 

@@ -14,6 +14,10 @@
 
 #include <yt/core/misc/hash.h>
 
+#include <yt/core/net/address.h>
+
+#include <yt/core/service_discovery/service_discovery.h>
+
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
@@ -507,8 +511,6 @@ void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, b
     SetMutationId(request, id ? id : TMutationId::Create(), retry);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 void SetAuthenticationIdentity(const IClientRequestPtr& request, const TAuthenticationIdentity& identity)
 {
     request->SetUser(identity.User);
@@ -518,6 +520,16 @@ void SetAuthenticationIdentity(const IClientRequestPtr& request, const TAuthenti
 void SetCurrentAuthenticationIdentity(const IClientRequestPtr& request)
 {
     SetAuthenticationIdentity(request, GetCurrentAuthenticationIdentity());
+}
+
+std::vector<TString> AddressesFromEndpointSet(const NServiceDiscovery::TEndpointSet& endpointSet)
+{
+    std::vector<TString> addresses;
+    addresses.reserve(endpointSet.Endpoints.size());
+    for (const auto& endpoint : endpointSet.Endpoints) {
+        addresses.push_back(NNet::BuildServiceAddress(endpoint.Fqdn, endpoint.Port));
+    }
+    return addresses;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
