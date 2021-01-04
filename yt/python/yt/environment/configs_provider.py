@@ -841,15 +841,13 @@ class ConfigsProvider_19(ConfigsProvider):
         else:
             enable_proxy_discovery = provision["rpc_driver"]["enable_proxy_discovery"]
             if enable_proxy_discovery and http_proxy_url is None:
-                raise YtError("Rpc proxy discovery enabled, but no http proxies configured")
+                raise YtError("RPC proxy discovery enabled but no HTTP proxies configured")
 
         if enable_proxy_discovery:
-            config["enable_proxy_discovery"] = True
-            config["discover_proxies_from_cypress"] = False
             config["cluster_url"] = http_proxy_url
         else:
-            config["enable_proxy_discovery"] = False
             config["addresses"] = rpc_proxy_addresses
+
         update_inplace(config, self._build_cluster_connection_config(
             provision,
             master_connection_configs,
