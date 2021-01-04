@@ -10,6 +10,11 @@
 
 #include <yt/core/rpc/public.h>
 
+// TODO(prime@): Create http endpoint for discovery that works without authentication.
+#include <yt/core/misc/atomic_object.h>
+
+#include <yt/core/service_discovery/public.h>
+
 #include <yt/core/logging/log.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -57,16 +62,18 @@ private:
     const NConcurrency::TActionQueuePtr ActionQueue_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const NRpc::TDynamicChannelPoolPtr ChannelPool_;
-
     const NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
+
     NRpc::IChannelPtr DiscoveryChannel_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, HttpDiscoveryLock_);
     // TODO(prime@): Create http endpoint for discovery that works without authentication.
-    std::optional<NApi::TClientOptions> HttpCredentials_;
+    TAtomicObject<TString> DiscoveryToken_;
 
-    std::vector<TString> DiscoverProxiesByRpc(const NRpc::IChannelPtr& channel);
-    std::vector<TString> DiscoverProxiesByHttp(const NApi::TClientOptions& options);
+    NServiceDiscovery::IServiceDiscoveryPtr ServiceDiscovery_;
+
+    std::vector<TString> DiscoverProxiesViaRpc();
+    std::vector<TString> DiscoverProxiesViaHttp();
+    std::vector<TString> DiscoverProxiesViaServiceDiscovery();
 
     void OnProxyListUpdate();
 };

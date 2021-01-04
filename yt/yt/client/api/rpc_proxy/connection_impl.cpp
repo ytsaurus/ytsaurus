@@ -22,8 +22,11 @@
 #include <yt/core/rpc/roaming_channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/dynamic_channel_pool.h>
+#include <yt/core/rpc/dispatcher.h>
 
 #include <yt/core/ytree/fluent.h>
+
+#include <yt/core/service_discovery/service_discovery.h>
 
 namespace NYT::NApi::NRpcProxy {
 
@@ -56,45 +59,6 @@ TString NormalizeHttpProxyUrl(TString url)
     }
 
     return url;
-}
-
-std::vector<TString> GetRpcProxiesFromHttp(
-    const NHttp::TClientConfigPtr& config,
-    const TString& proxyUrl,
-    const std::optional<TString>& oauthToken,
-    const std::optional<TString>& role)
-{
-    auto client = CreateClient(config, TTcpDispatcher::Get()->GetXferPoller());
-    auto headers = New<THeaders>();
-    if (oauthToken) {
-        headers->Add("Authorization", "OAuth " + *oauthToken);
-    }
-    headers->Add("X-YT-Header-Format", "<format=text>yson");
-
-    headers->Add(
-        "X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
-            .BeginMap()
-                .Item("output_format")
-            .BeginAttributes()
-                .Item("format").Value("text")
-            .EndAttributes()
-            .Value("yson")
-            .OptionalItem("role", role)
-            .EndMap().GetData());
-
-    auto path = proxyUrl + "/api/v4/discover_proxies";
-    auto rsp = WaitFor(client->Get(path, headers))
-        .ValueOrThrow();
-    if (rsp->GetStatusCode() != EStatusCode::OK) {
-        THROW_ERROR_EXCEPTION("HTTP proxy discovery request returned an error")
-            << TErrorAttribute("status_code", rsp->GetStatusCode())
-            << ParseYTError(rsp);
-    }
-
-    auto body = rsp->ReadAll();
-    auto node = ConvertTo<INodePtr>(TYsonString(ToString(body)));
-    node = node->AsMap()->FindChild("proxies");
-    return ConvertTo<std::vector<TString>>(node);
 }
 
 TString MakeConnectionLoggingTag(const TConnectionConfigPtr& config, TGuid connectionId)
@@ -228,10 +192,21 @@ TConnection::TConnection(TConnectionConfigPtr config)
 {
     Config_->Postprocess();
 
-    if (!Config_->EnableProxyDiscovery) {
-        ChannelPool_->SetPeers(Config_->ProxyAddresses);
-    } else if (!Config_->ProxyAddresses.empty()) {
-        UpdateProxyListExecutor_->Start();
+    if (Config_->ProxyEndpoints) {
+        ServiceDiscovery_ = NRpc::TDispatcher::Get()->GetServiceDiscovery();
+        if (!ServiceDiscovery_) {
+            ChannelPool_->SetPeerDiscoveryError(TError("No Service Discovery is configured"));
+            return;
+        }
+    }
+
+    if (Config_->ProxyAddresses) {
+        auto address = (*Config_->ProxyAddresses)[RandomNumber(Config_->ProxyAddresses->size())];
+        DiscoveryChannel_ = ChannelFactory_->CreateChannel(address);
+    }
+
+    if (Config_->ProxyAddresses) {
+        ChannelPool_->SetPeers(*Config_->ProxyAddresses);
     }
 }
 
@@ -274,12 +249,12 @@ IInvokerPtr TConnection::GetInvoker()
 
 NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)
 {
-    if (Config_->ClusterUrl) {
-        auto guard = Guard(HttpDiscoveryLock_);
-        if (!HttpCredentials_) {
-            HttpCredentials_ = options;
-            UpdateProxyListExecutor_->Start();
-        }
+    if (options.Token) {
+        DiscoveryToken_.Store(*options.Token);
+    }
+
+    if (Config_->ClusterUrl || Config_->ProxyEndpoints) {
+        UpdateProxyListExecutor_->Start();
     }
 
     return New<TClient>(this, options);
@@ -307,36 +282,92 @@ const TConnectionConfigPtr& TConnection::GetConfig()
     return Config_;
 }
 
-std::vector<TString> TConnection::DiscoverProxiesByRpc(const IChannelPtr& channel)
-{
-    TDiscoveryServiceProxy proxy(channel);
-
-    auto req = proxy.DiscoverProxies();
-    if (Config_->ProxyRole) {
-        req->set_role(*Config_->ProxyRole);
-    }
-    req->SetTimeout(Config_->RpcTimeout);
-
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
-
-    std::vector<TString> proxies;
-    for (const auto& address : rsp->addresses()) {
-        proxies.push_back(address);
-    }
-    return proxies;
-}
-
-std::vector<TString> TConnection::DiscoverProxiesByHttp(const TClientOptions& options)
+std::vector<TString> TConnection::DiscoverProxiesViaRpc()
 {
     try {
-        return GetRpcProxiesFromHttp(
-            Config_->HttpClient,
-            NormalizeHttpProxyUrl(*Config_->ClusterUrl),
-            options.Token,
-            Config_->ProxyRole);
+        YT_LOG_DEBUG("Updating proxy list via RPC");
+
+        TDiscoveryServiceProxy proxy(DiscoveryChannel_);
+
+        auto req = proxy.DiscoverProxies();
+        if (Config_->ProxyRole) {
+            req->set_role(*Config_->ProxyRole);
+        }
+        req->SetTimeout(Config_->RpcTimeout);
+
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        return FromProto<std::vector<TString>>(rsp->addresses());
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error discovering proxies from HTTP")
+        DiscoveryChannel_.Reset();
+        THROW_ERROR_EXCEPTION("Error discovering RPC proxies via RPC")
+            << ex;
+    }
+}
+
+std::vector<TString> TConnection::DiscoverProxiesViaHttp()
+{
+    try {
+        YT_LOG_DEBUG("Updating proxy list via HTTP");
+
+        auto client = NHttp::CreateClient(Config_->HttpClient, TTcpDispatcher::Get()->GetXferPoller());
+        auto headers = New<THeaders>();
+        if (auto token = DiscoveryToken_.Load()) {
+            headers->Add("Authorization", "OAuth " + token);
+        }
+        headers->Add("X-YT-Header-Format", "<format=text>yson");
+
+        headers->Add(
+            "X-YT-Parameters", BuildYsonStringFluently(EYsonFormat::Text)
+                .BeginMap()
+                    .Item("output_format")
+                    .BeginAttributes()
+                        .Item("format").Value("text")
+                    .EndAttributes()
+                    .Value("yson")
+                    .OptionalItem("role", Config_->ProxyRole)
+                .EndMap().GetData());
+
+        auto url = NormalizeHttpProxyUrl(*Config_->ClusterUrl) + "/api/v4/discover_proxies";
+        auto rsp = WaitFor(client->Get(url, headers))
+            .ValueOrThrow();
+
+        if (rsp->GetStatusCode() != EStatusCode::OK) {
+            THROW_ERROR_EXCEPTION("HTTP proxy discovery request returned an error")
+                << TErrorAttribute("status_code", rsp->GetStatusCode())
+                << ParseYTError(rsp);
+        }
+
+        auto body = rsp->ReadAll();
+        auto node = ConvertTo<INodePtr>(TYsonString(ToString(body)));
+        node = node->AsMap()->FindChild("proxies");
+        return ConvertTo<std::vector<TString>>(node);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error discovering RPC proxies via HTTP")
+            << ex;
+    }
+}
+
+std::vector<TString> TConnection::DiscoverProxiesViaServiceDiscovery()
+{
+    try {
+        YT_LOG_DEBUG("Updating proxy list via Service Discovery");
+
+        auto endpointSet = WaitFor(ServiceDiscovery_->ResolveEndpoints(
+            Config_->ProxyEndpoints->Cluster,
+            Config_->ProxyEndpoints->EndpointSetId))
+            .ValueOrThrow();
+
+        std::vector<TString> addresses;
+        addresses.reserve(endpointSet.Endpoints.size());
+        for (const auto& endpoint : endpointSet.Endpoints) {
+            addresses.push_back(NNet::BuildServiceAddress(endpoint.Fqdn, endpoint.Port));
+        }
+
+        return addresses;
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error discovering RPC proxies via Service Discovery")
             << ex;
     }
 }
@@ -344,7 +375,10 @@ std::vector<TString> TConnection::DiscoverProxiesByHttp(const TClientOptions& op
 void TConnection::OnProxyListUpdate()
 {
     auto attributes = CreateEphemeralAttributes();
-    if (Config_->ClusterUrl) {
+    if (Config_->ProxyEndpoints) {
+        attributes->Set("endpoint_set_cluster", Config_->ProxyEndpoints->Cluster);
+        attributes->Set("endpoint_set_id", Config_->ProxyEndpoints->EndpointSetId);
+    } else if (Config_->ClusterUrl) {
         attributes->Set("cluster_url", Config_->ClusterUrl);
     } else {
         attributes->Set("rpc_proxy_addresses", Config_->ProxyAddresses);
@@ -355,24 +389,12 @@ void TConnection::OnProxyListUpdate()
     for (int attempt = 0;; ++attempt) {
         try {
             std::vector<TString> proxies;
-            if (Config_->ClusterUrl) {
-                YT_LOG_DEBUG("Updating proxy list from HTTP");
-                YT_VERIFY(HttpCredentials_);
-                proxies = DiscoverProxiesByHttp(*HttpCredentials_);
-            } else {
-                YT_LOG_DEBUG("Updating proxy list from RPC");
-
-                if (!DiscoveryChannel_) {
-                    auto address = Config_->ProxyAddresses[RandomNumber(Config_->ProxyAddresses.size())];
-                    DiscoveryChannel_ = ChannelFactory_->CreateChannel(address);
-                }
-
-                try {
-                    proxies = DiscoverProxiesByRpc(DiscoveryChannel_);
-                } catch (const std::exception&) {
-                    DiscoveryChannel_.Reset();
-                    throw;
-                }
+            if (Config_->ProxyEndpoints) {
+                proxies = DiscoverProxiesViaServiceDiscovery();
+            } else if (Config_->ClusterUrl) {
+                proxies = DiscoverProxiesViaHttp();
+            } else if (Config_->ProxyAddresses) {
+                proxies = DiscoverProxiesViaRpc();
             }
 
             if (proxies.empty()) {

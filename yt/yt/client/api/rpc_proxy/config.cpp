@@ -12,9 +12,11 @@ TConnectionConfig::TConnectionConfig()
         .Optional();
     RegisterParameter("proxy_addresses", ProxyAddresses)
         .Alias("addresses")
-        .Default();
+        .Optional();
+    RegisterParameter("proxy_endpoints", ProxyEndpoints)
+        .Optional();
     RegisterParameter("proxy_host_order", ProxyHostOrder)
-        .Default();
+        .Optional();
 
     RegisterParameter("dynamic_channel_pool", DynamicChannelPool)
         .DefaultNew();
@@ -67,9 +69,6 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("enable_legacy_rpc_codecs", EnableLegacyRpcCodecs)
         .Default(true);
 
-    RegisterParameter("enable_proxy_discovery", EnableProxyDiscovery)
-        .Default(true);
-
     RegisterParameter("enable_retries", EnableRetries)
         .Default(false);
     RegisterParameter("retrying_channel", RetryingChannel)
@@ -84,15 +83,14 @@ TConnectionConfig::TConnectionConfig()
     });
 
     RegisterPostprocessor([&] {
-        if (!ClusterUrl && ProxyAddresses.empty()) {
-            THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
+        if (!ProxyEndpoints && !ClusterUrl && !ProxyAddresses) {
+            THROW_ERROR_EXCEPTION("Either \"endpoints\" or \"cluster_url\" or \"proxy_addresses\" must be specified");
         }
-
-        if (!EnableProxyDiscovery) {
-            if (ProxyAddresses.empty()) {
-                THROW_ERROR_EXCEPTION("\"addresses\" must be specified");
-            }
-            ClusterUrl.reset();
+        if (ProxyEndpoints && ProxyRole) {
+            THROW_ERROR_EXCEPTION("\"proxy_role\" is not supported by Service Discovery");
+        }
+        if (ProxyAddresses && ProxyAddresses->empty()) {
+            THROW_ERROR_EXCEPTION("\"proxy_addresses\" must not be empty");
         }
     });
 }

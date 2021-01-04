@@ -23,7 +23,8 @@ class TConnectionConfig
 public:
     std::optional<TString> ClusterUrl;
     std::optional<TString> ProxyRole;
-    std::vector<TString> ProxyAddresses;
+    std::optional<std::vector<TString>> ProxyAddresses;
+    NRpc::TServiceDiscoveryEndpointsConfigPtr ProxyEndpoints;
     std::vector<NRe2::TRe2Ptr> ProxyHostOrder;
 
     NRpc::TDynamicChannelPoolConfigPtr DynamicChannelPool;
@@ -55,7 +56,6 @@ public:
     NCompression::ECodec ResponseCodec;
 
     bool EnableLegacyRpcCodecs;
-    bool EnableProxyDiscovery;
 
     bool EnableRetries;
     NRpc::TRetryingChannelConfigPtr RetryingChannel;
