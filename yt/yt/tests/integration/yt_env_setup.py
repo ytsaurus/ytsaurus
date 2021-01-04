@@ -51,6 +51,7 @@ def prepare_yatest_environment(need_suid, artifact_components=None):
     global SANDBOX_ROOTDIR
     global SANDBOX_STORAGE_ROOTDIR
 
+    # This env var is used for determining if we are in Devtools' ytexec environment or not.
     ytrecipe = os.environ.get("YT_OUTPUT") is not None
 
     ram_drive_path = arcadia_interop.yatest_common.get_param("ram_drive_path")
@@ -60,6 +61,12 @@ def prepare_yatest_environment(need_suid, artifact_components=None):
         destination = os.path.join(ram_drive_path, "build")
 
     destination = os.path.join(destination, "suid" if need_suid else "nosuid")
+
+    if "trunk" in artifact_components:
+        # Explicitly specifying trunk components is not necessary as we already assume
+        # any component to be taken from trunk by default. We still allow doing that for clarity.
+        # So just skip such components.
+        artifact_components.pop("trunk")
 
     if not os.path.exists(destination):
         os.makedirs(destination)
@@ -112,12 +119,28 @@ def skip_if_porto(func):
     return decorator.decorate(func, wrapper)
 
 
+def get_sanitizer_type():
+    try:
+        return arcadia_interop.yatest_common.context.sanitize
+    except NotImplementedError:
+        # This method is called from is_{asan,msan}_build which may be
+        # called outside of testing runtime. For example, when one test
+        # imports class from another test, Arcadia binary python building
+        # system collects dependencies; during that process class code is
+        # interpreted, and if one of the tests imposes pytest.mark.skipif
+        # depending on sanitizer type, error is raised.
+        #
+        # We do not want error to be raised in this case as it breaks
+        # Arcadia's import_test.
+        return None
+
+
 def is_asan_build():
-    return arcadia_interop.yatest_common.context.sanitize == "address"
+    return get_sanitizer_type() == "address"
 
 
 def is_msan_build():
-    return arcadia_interop.yatest_common.context.sanitize == "memory"
+    return get_sanitizer_type() == "memory"
 
 
 def skip_if_rpc_driver_backend(func):

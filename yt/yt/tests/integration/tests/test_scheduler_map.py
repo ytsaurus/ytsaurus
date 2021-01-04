@@ -250,6 +250,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output(self, sort_kind):
+        if sort_kind == "descending" and self.Env.get_component_version("ytserver-master").abi <= (20, 3):
+            pytest.skip("Test requires descending sort order support")
+
         create("table", "//tmp/t1")
         for i in xrange(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
@@ -300,6 +303,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output_overlap(self, sort_kind):
+        if sort_kind == "descending" and self.Env.get_component_version("ytserver-master").abi <= (20, 3):
+            pytest.skip("Test requires descending sort order support")
+
         create("table", "//tmp/t1")
         for i in xrange(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
@@ -330,6 +336,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output_job_failure(self, sort_kind):
+        if sort_kind == "descending" and self.Env.get_component_version("ytserver-master").abi <= (20, 3):
+            pytest.skip("Test requires descending sort order support")
+
         create("table", "//tmp/t1")
         for i in xrange(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})

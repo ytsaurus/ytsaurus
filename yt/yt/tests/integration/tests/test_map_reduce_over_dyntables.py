@@ -729,7 +729,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
     @authors("ifsmirnov")
     def test_ordered_tablet_index_stress(self):
         sync_create_cells(1)
-        create_dynamic_table("//tmp/t", schema=[{"name": "key", "type": "int64"}])
+        create_dynamic_table("//tmp/t", schema=[{"name": "key", "type": "int64"}], enable_dynamic_store_read=True)
 
         random.seed(152314)
 

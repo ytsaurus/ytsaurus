@@ -1,4 +1,3 @@
-# from yt.yt.tests.integration.tests.test_journals import TestJournals as BaseTestJournals
 from original_tests.yt.yt.tests.integration.tests.test_journals import TestJournals as BaseTestJournals
 
 
