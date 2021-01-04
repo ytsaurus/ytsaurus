@@ -723,7 +723,7 @@ class YTInstance(object):
     def get_component_version(self, component):
         """
         Return structure identifying component version.
-        Returned object has fields "abi" and "literal", e.g. "20.3" and "20.3.1234-...".
+        Returned object has fields "abi" and "literal", e.g. (20, 3) and "20.3.1234-...".
 
         :param component: should be binary name, e.g. "ytserver-master", "ytserver-node", etc.
         :type component str

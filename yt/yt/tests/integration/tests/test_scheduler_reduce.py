@@ -2121,6 +2121,8 @@ done
 
     @authors("gritukan")
     def test_sort_by_without_key_guarantee(self):
+        pytest.skip("TODO: gritukan")
+
         create(
             "table",
             "//tmp/in1",
@@ -2401,6 +2403,9 @@ for line in sys.stdin:
     @authors("gritukan")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_tricky_read_limits(self, optimize_for):
+        if self.Env.get_component_version("ytserver-job-proxy").abi <= (20, 3):
+            pytest.skip("Job proxy does not contain fix for the bug yet")
+
         # YT-14023.
         create(
             "table",

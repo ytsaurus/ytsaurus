@@ -49,13 +49,24 @@ def get_root_paths(source_prefix="", inside_arcadia=None):
     return yt_root, python_root, global_root
 
 
-def search_binary_path(binary_name, package_suffix=None):
-    # TODO(max42): build_path seems to be a wrong path to search for artifacts.
-    # Actually they reside in CWD, which is located pretty deep inside build_path().
-    # In other words, this code is probably correct, but much slower than needed.
+def search_binary_path(binary_name, build_path_suffix=None, cwd_suffix=None):
+    """
+    Search for binary with given name somewhere in file system depending on keyword arguments.
+    build_path_suffix and cwd_suffix should not be specified simultaneously. If none
+    of them specified, search is performed in yatest_common.build_path().
+    :param binary_name: name of the binary, e.g. ytserver-all or logrotate
+    :param build_path_suffix: if present, subtree is yatest.common.build_path() + build_path_suffix
+    :param cwd_suffix: if present, subtree is <cwd> + cwd_suffix
+    :return:
+    """
+    assert build_path_suffix is None or cwd_suffix is None
     binary_root = yatest_common.build_path()
-    if package_suffix is not None:
-        binary_root = os.path.abspath(package_suffix)
+    if cwd_suffix is not None:
+        binary_root = cwd_suffix
+    if build_path_suffix is not None:
+        binary_root = os.path.join(yatest_common.build_path(), build_path_suffix)
+    binary_root = os.path.abspath(binary_root)
+
     for dirpath, _, filenames in os.walk(binary_root):
         for f in filenames:
             if f == binary_name:
@@ -82,9 +93,9 @@ def insert_sudo_wrapper(bin_dir):
             trampoline.write(SUDO_WRAPPER.format(sudofixup, os.getuid(), orig_path, binary))
             os.chmod(bin_path, 0o755)
 
-def get_binary_path(path, arcadia_root):
+def get_binary_path(path, arcadia_root, **kwargs):
     if arcadia_root is None:
-        return search_binary_path(path)
+        return search_binary_path(path, **kwargs)
     else:
         return os.path.join(arcadia_root, path)
 
@@ -105,9 +116,12 @@ def prepare_yt_binaries(destination,
                         need_suid=False, component_whitelist=None):
     if use_ytserver_all:
         if use_from_package:
-            ytserver_all = search_binary_path("ytserver-all", package_suffix=package_suffix)
+            if package_suffix is not None:
+                ytserver_all = search_binary_path("ytserver-all", cwd_suffix=package_suffix)
+            else:
+                ytserver_all = search_binary_path("ytserver-all", build_path_suffix="yt")
         else:
-            ytserver_all = get_binary_path("ytserver-all", arcadia_root)
+            ytserver_all = get_binary_path("ytserver-all", arcadia_root, build_path_suffix="yt")
         if copy_ytserver_all:
             ytserver_all_destination = os.path.join(destination, "ytserver-all")
             if ytserver_all_suffix is not None:
@@ -131,7 +145,8 @@ def prepare_yt_binaries(destination,
                 os.symlink(ytserver_all, dst_path)
         else:
             binary_path = get_binary_path("ytserver-{0}".format(binary), arcadia_root)
-            os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
+            dst_path = os.path.join(destination, "ytserver-" + binary)
+            os.symlink(binary_path, dst_path)
 
     if need_suid:
         insert_sudo_wrapper(destination)

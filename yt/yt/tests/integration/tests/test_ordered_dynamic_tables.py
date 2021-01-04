@@ -944,7 +944,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
     @authors("babenko", "levysotsky")
     def test_reshard_trimmed_shared_yt_6948(self):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", tablet_count=5)
+        self._create_simple_table("//tmp/t", tablet_count=5, enable_dynamic_store_read=True)
         sync_mount_table("//tmp/t")
         for i in xrange(5):
             insert_rows("//tmp/t", [{"$tablet_index": i, "a": i}])
