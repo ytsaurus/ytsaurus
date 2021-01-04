@@ -13,14 +13,14 @@ class TTraceManagerConfig
 {
 public:
     TDuration CleanupPeriod;
-    i64 TracesBufferSize;
+    i64 TraceBufferSize;
 
     TTraceManagerConfig()
     {
         RegisterParameter("cleanup_period", CleanupPeriod)
             .Default(TDuration::Seconds(1));
 
-        RegisterParameter("traces_buffer_size", TracesBufferSize)
+        RegisterParameter("trace_buffer_size", TraceBufferSize)
             .Default(16_MB);
     }
 };
@@ -35,8 +35,10 @@ class TSamplingConfig
 public:
     //! Request is sampled with probability P.
     double GlobalSampleRate = 0.0;
+    
     //! Additionaly, request is sampled with probability P(user).
     THashMap<TString, double> UserSampleRate;
+    
     //! Additionaly, first K requests for each user are sampled after reset.
     int MinUserTraceCount = 0;
 
