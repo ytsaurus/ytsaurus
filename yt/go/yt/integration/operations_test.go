@@ -188,7 +188,7 @@ func TestListAllOperations(t *testing.T) {
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
 	defer cancel()
 
 	opAnnotation := guid.New().String()
