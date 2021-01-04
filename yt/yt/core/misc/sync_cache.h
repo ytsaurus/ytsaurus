@@ -1,6 +1,8 @@
 #pragma once
 
 #include "public.h"
+#include "cache_config.h"
+#include "memory_usage_tracker.h"
 
 #include <yt/core/concurrency/spinlock.h>
 
@@ -15,7 +17,7 @@ namespace NYT {
 template <class TKey, class TValue, class THash>
 class TSyncSlruCacheBase;
 
-template <class TKey, class TValue, class THash = ::hash<TKey>>
+template <class TKey, class TValue, class THash = THash<TKey>>
 class TSyncCacheValueBase
     : public virtual TRefCounted
 {
@@ -37,7 +39,7 @@ class TSyncSlruCacheBase
     : public virtual TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TValue> TValuePtr;
+    using TValuePtr = TIntrusivePtr<TValue>;
 
     int GetSize() const;
     std::vector<TValuePtr> GetAll();
@@ -49,8 +51,13 @@ public:
     bool TryRemove(const TValuePtr& value);
     void Clear();
 
+    void Reconfigure(const TSlruCacheDynamicConfigPtr& config);
+
 protected:
-    TSlruCacheConfigPtr Config_;
+    const TSlruCacheConfigPtr Config_;
+
+    std::atomic<i64> Capacity_;
+    std::atomic<double> YoungerSizeFraction_;
 
     explicit TSyncSlruCacheBase(
         TSlruCacheConfigPtr config,
@@ -88,13 +95,13 @@ private:
 
     std::unique_ptr<TShard[]> Shards_;
 
-    std::atomic<int> Size_ = {0};
+    std::atomic<int> Size_ = 0;
 
     NProfiling::TCounter HitWeightCounter_;
     NProfiling::TCounter MissedWeightCounter_;
     NProfiling::TCounter DroppedWeightCounter_;
-    std::atomic<i64> YoungerWeightCounter_{0};
-    std::atomic<i64> OlderWeightCounter_{0};
+    std::atomic<i64> YoungerWeightCounter_ = 0;
+    std::atomic<i64> OlderWeightCounter_ = 0;
 
     TShard* GetShardByKey(const TKey& key) const;
 
@@ -108,6 +115,24 @@ private:
     void MoveToOlder(TShard* shard, TItem* item);
     void Pop(TShard* shard, TItem* item);
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, class THash = THash<TKey>>
+class TMemoryTrackingSyncSlruCacheBase
+    : public TSyncSlruCacheBase<TKey, TValue, THash>
+{
+public:
+    explicit TMemoryTrackingSyncSlruCacheBase(
+        TSlruCacheConfigPtr config,
+        IMemoryUsageTrackerPtr memoryTracker,
+        const NProfiling::TRegistry& profiler = {});
+
+    void Reconfigure(const TSlruCacheDynamicConfigPtr& config);
+
+private:
+    TMemoryUsageTrackerGuard MemoryTrackerGuard_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

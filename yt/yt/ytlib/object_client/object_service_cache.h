@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 #include <yt/core/misc/historic_usage_aggregator.h>
 
 #include <yt/core/concurrency/spinlock.h>
@@ -90,11 +90,12 @@ DEFINE_REFCOUNTED_TYPE(TCacheProfilingCounters)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectServiceCache
-    : public TAsyncSlruCacheBase<TObjectServiceCacheKey, TObjectServiceCacheEntry>
+    : public TMemoryTrackingAsyncSlruCacheBase<TObjectServiceCacheKey, TObjectServiceCacheEntry>
 {
 public:
     TObjectServiceCache(
-        const TObjectServiceCacheConfigPtr& config,
+        TObjectServiceCacheConfigPtr config,
+        IMemoryUsageTrackerPtr memoryTracker,
         const NLogging::TLogger& logger,
         const NProfiling::TRegistry& profiler);
 
@@ -115,10 +116,14 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
+    void Reconfigure(const TObjectServiceCacheDynamicConfigPtr& config);
+
 private:
+    const TObjectServiceCacheConfigPtr Config_;
     const NLogging::TLogger Logger;
     const NProfiling::TRegistry Profiler_;
-    const double TopEntryByteRateThreshold_;
+
+    std::atomic<double> TopEntryByteRateThreshold_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
 

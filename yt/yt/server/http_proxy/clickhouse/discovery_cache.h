@@ -6,7 +6,7 @@
 
 #include <yt/client/misc/discovery.h>
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 
 namespace NYT::NHttpProxy::NClickHouse {
 

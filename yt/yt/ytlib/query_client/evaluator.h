@@ -9,32 +9,25 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEvaluator
-    : public TRefCounted
+struct IEvaluator
+    : public virtual TRefCounted
 {
-public:
-    explicit TEvaluator(
-        TExecutorConfigPtr config,
-        const NProfiling::TRegistry& profiler = {},
-        IMemoryUsageTrackerPtr memoryTracker = nullptr);
-
-    ~TEvaluator();
-
-    TQueryStatistics Run(
-        TConstBaseQueryPtr fragment,
-        ISchemafulUnversionedReaderPtr reader,
-        IUnversionedRowsetWriterPtr writer,
-        TJoinSubqueryProfiler joinProfiler,
-        TConstFunctionProfilerMapPtr functionProfilers,
-        TConstAggregateProfilerMapPtr aggregateProfilers,
-        const TQueryBaseOptions& options);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual TQueryStatistics Run(
+        const TConstBaseQueryPtr& query,
+        const ISchemafulUnversionedReaderPtr& reader,
+        const IUnversionedRowsetWriterPtr& writer,
+        const TJoinSubqueryProfiler& joinProfiler,
+        const TConstFunctionProfilerMapPtr& functionProfilers,
+        const TConstAggregateProfilerMapPtr& aggregateProfilers,
+        const TQueryBaseOptions& options) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TEvaluator)
+DEFINE_REFCOUNTED_TYPE(IEvaluator)
+
+IEvaluatorPtr CreateEvaluator(
+    TExecutorConfigPtr config,
+    IMemoryUsageTrackerPtr memoryTracker = nullptr,
+    const NProfiling::TRegistry& profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

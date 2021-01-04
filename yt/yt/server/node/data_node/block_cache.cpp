@@ -21,25 +21,21 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServerBlockCache
-    : public IBlockCache
+class TDataNodeBlockCache
+    : public IClientBlockCache
 {
 public:
-    TServerBlockCache(
-        TDataNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
-        : Config_(config)
-        , Bootstrap_(bootstrap)
+    explicit TDataNodeBlockCache(NClusterNode::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+        , Config_(Bootstrap_->GetConfig()->DataNode->BlockCache)
         , UnderlyingCache_(CreateClientBlockCache(
-            Config_->BlockCache,
+            Config_,
             EBlockType::UncompressedData,
+            Bootstrap_
+                ->GetMemoryUsageTracker()
+                ->WithCategory(EMemoryCategory::BlockCache),
             DataNodeProfiler.WithPrefix("/block_cache")))
-    {
-        auto result = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(
-            EMemoryCategory::BlockCache,
-            Config_->BlockCache->GetTotalCapacity());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving memory for block cache");
-    }
+    { }
 
     virtual void Put(
         const TBlockId& id,
@@ -78,19 +74,20 @@ public:
         return EBlockType::CompressedData | EBlockType::UncompressedData;
     }
 
+    virtual void Reconfigure(const TBlockCacheDynamicConfigPtr& config) override
+    {
+        UnderlyingCache_->Reconfigure(config);
+    }
+
 private:
-    const TDataNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
-
-    const IBlockCachePtr UnderlyingCache_;
-
+    const TBlockCacheConfigPtr Config_;
+    const IClientBlockCachePtr UnderlyingCache_;
 };
 
-IBlockCachePtr CreateServerBlockCache(
-    TDataNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+IClientBlockCachePtr CreateDataNodeBlockCache(NClusterNode::TBootstrap* bootstrap)
 {
-    return New<TServerBlockCache>(config, bootstrap);
+    return New<TDataNodeBlockCache>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,7 @@
 #include "private.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/dynamic_config/dynamic_config_manager.h>
@@ -51,26 +52,28 @@ DEFINE_REFCOUNTED_TYPE(TReplicatorHintConfigFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THintManager::TImpl
-    : public TRefCounted
+class THintManager
+    : public IHintManager
 {
 public:
-    TImpl(THintManagerConfigPtr config, const TBootstrap* bootstrap)
-        : ReplicatorHintConfigFetcher_(New<TReplicatorHintConfigFetcher>(
-            config->ReplicatorHintConfigFetcher,
-            bootstrap))
+    explicit THintManager(TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+        , Config_(Bootstrap_->GetConfig()->TabletNode->HintManager)
+        , ReplicatorHintConfigFetcher_(New<TReplicatorHintConfigFetcher>(
+            Config_->ReplicatorHintConfigFetcher,
+            Bootstrap_))
     {
-        ReplicatorHintConfigFetcher_->SubscribeConfigUpdated(BIND(&TImpl::OnDynamicConfigUpdated, MakeWeak(this)));
+        ReplicatorHintConfigFetcher_->SubscribeConfigChanged(BIND(&THintManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    void Start()
+    virtual void Start() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         ReplicatorHintConfigFetcher_->Start();
     }
 
-    bool IsReplicaClusterBanned(TStringBuf clusterName) const
+    virtual bool IsReplicaClusterBanned(TStringBuf clusterName) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -79,50 +82,38 @@ public:
         }
 
         auto guard = ReaderGuard(SpinLock_);
-
         return BannedReplicaClusters_.contains(clusterName);
     }
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    NClusterNode::TBootstrap* const Bootstrap_;
+    const THintManagerConfigPtr Config_;
+    const TReplicatorHintConfigFetcherPtr ReplicatorHintConfigFetcher_;
+
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
-
     THashSet<TString> BannedReplicaClusters_;
-    TReplicatorHintConfigFetcherPtr ReplicatorHintConfigFetcher_;
 
-    void OnDynamicConfigUpdated(
+    void OnDynamicConfigChanged(
         const TReplicatorHintConfigPtr& /* oldConfig */,
         const TReplicatorHintConfigPtr& newConfig)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto guard = WriterGuard(SpinLock_);
+        {
+            auto guard = WriterGuard(SpinLock_);
+            BannedReplicaClusters_ = newConfig->BannedReplicaClusters;
+        }
 
-        BannedReplicaClusters_ = newConfig->BannedReplicaClusters;
         YT_LOG_DEBUG("Updated list of banned replica clusters (BannedReplicaClusters: %v)",
-            BannedReplicaClusters_);
+            newConfig->BannedReplicaClusters);
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-THintManager::THintManager(
-    THintManagerConfigPtr config,
-    const TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
-{ }
-
-THintManager::~THintManager() = default;
-
-void THintManager::Start()
+IHintManagerPtr CreateHintManager(NClusterNode::TBootstrap* bootstrap)
 {
-    Impl_->Start();
-}
-
-bool THintManager::IsReplicaClusterBanned(TStringBuf clusterName) const
-{
-    return Impl_->IsReplicaClusterBanned(clusterName);
+    return New<THintManager>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,7 +7,7 @@ namespace NYT::NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChannelWrapper
-    : public IChannel
+    : public virtual IChannel
 {
 public:
     explicit TChannelWrapper(IChannelPtr underlyingChannel);
@@ -28,7 +28,6 @@ public:
 
 protected:
     const IChannelPtr UnderlyingChannel_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TChannelWrapper)

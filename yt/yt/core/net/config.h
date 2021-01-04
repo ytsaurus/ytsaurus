@@ -4,7 +4,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/misc/config.h>
+#include <yt/core/misc/cache_config.h>
 
 namespace NYT::NNet {
 

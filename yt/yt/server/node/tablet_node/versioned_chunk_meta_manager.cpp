@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 
 namespace NYT::NTabletNode {
 
@@ -73,8 +73,10 @@ public:
                 std::move(chunkReader),
                 blockReadOptions,
                 New<TTableSchema>(schema),
-                {} /* ColumnRenameDesctiptors */,
-                Bootstrap_->GetMemoryUsageTracker());
+                {} /* columnRenameDesctiptors */,
+                Bootstrap_
+                    ->GetMemoryUsageTracker()
+                    ->WithCategory(EMemoryCategory::VersionedChunkMeta));
 
             asyncMeta.Subscribe(BIND([cookie = std::move(cookie), key] (const TErrorOr<TCachedVersionedChunkMetaPtr>& metaOrError) mutable {
                 if (metaOrError.IsOK()) {

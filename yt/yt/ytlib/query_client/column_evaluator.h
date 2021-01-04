@@ -83,27 +83,20 @@ DEFINE_REFCOUNTED_TYPE(TColumnEvaluator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TColumnEvaluatorCache
-    : public TRefCounted
+struct IColumnEvaluatorCache
+    : public virtual TRefCounted
 {
-public:
-    explicit TColumnEvaluatorCache(
-        TColumnEvaluatorCacheConfigPtr config,
-        const TConstTypeInferrerMapPtr& typeInferrers = BuiltinTypeInferrersMap,
-        const TConstFunctionProfilerMapPtr& profilers = BuiltinFunctionProfilers);
-    ~TColumnEvaluatorCache();
+    virtual TColumnEvaluatorPtr Find(const TTableSchemaPtr& schema) = 0;
 
-    TColumnEvaluatorPtr Find(TTableSchemaPtr schema);
-
-private:
-    class TImpl;
-
-    DECLARE_NEW_FRIEND();
-
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void Reconfigure(const TColumnEvaluatorCacheDynamicConfigPtr& config) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCache)
+DEFINE_REFCOUNTED_TYPE(IColumnEvaluatorCache)
+
+IColumnEvaluatorCachePtr CreateColumnEvaluatorCache(
+    TColumnEvaluatorCacheConfigPtr config,
+    TConstTypeInferrerMapPtr typeInferrers = BuiltinTypeInferrersMap,
+    TConstFunctionProfilerMapPtr profilers = BuiltinFunctionProfilers);
 
 ////////////////////////////////////////////////////////////////////////////////
 

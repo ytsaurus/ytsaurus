@@ -8,12 +8,14 @@
 #include "location.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 
 namespace NYT::NDataNode {
 
@@ -24,9 +26,12 @@ using namespace NHydra::NProto;
 
 static const auto& Logger = DataNodeLogger;
 
+DECLARE_REFCOUNTED_CLASS(TCachedChangelog)
+DECLARE_REFCOUNTED_CLASS(TJournalDispatcher)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJournalDispatcher::TCachedChangelogKey
+struct TCachedChangelogKey
 {
     TStoreLocationPtr Location;
     TChunkId ChunkId;
@@ -47,47 +52,49 @@ struct TJournalDispatcher::TCachedChangelogKey
             Location == other.Location &&
             ChunkId == other.ChunkId;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJournalDispatcher::TImpl
+class TJournalDispatcher
     : public TAsyncSlruCacheBase<TCachedChangelogKey, TCachedChangelog>
+    , public IJournalDispatcher
 {
 public:
-    explicit TImpl(TDataNodeConfigPtr config)
+    explicit TJournalDispatcher(NClusterNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
-            config->ChangelogReaderCache,
+            bootstrap->GetConfig()->DataNode->ChangelogReaderCache,
             DataNodeProfiler.WithPrefix("/changelog_cache"))
-        , Config_(config)
-    { }
+        , Bootstrap_(bootstrap)
+    {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigChanged(BIND(&TJournalDispatcher::OnDynamicConfigChanged, MakeWeak(this)));
+    }
 
-    TFuture<IChangelogPtr> OpenChangelog(
+    virtual TFuture<IChangelogPtr> OpenChangelog(
         const TStoreLocationPtr& location,
-        TChunkId chunkId);
+        TChunkId chunkId) override;
 
-    TFuture<IChangelogPtr> CreateChangelog(
+    virtual TFuture<IChangelogPtr> CreateChangelog(
         const TStoreLocationPtr& location,
         TChunkId chunkId,
         bool enableMultiplexing,
-        const TWorkloadDescriptor& workloadDescriptor);
+        const TWorkloadDescriptor& workloadDescriptor) override;
 
-    TFuture<void> RemoveChangelog(
+    virtual TFuture<void> RemoveChangelog(
         const TJournalChunkPtr& chunk,
-        bool enableMultiplexing);
+        bool enableMultiplexing) override;
 
-    TFuture<bool> IsChangelogSealed(
+    virtual TFuture<bool> IsChangelogSealed(
         const TStoreLocationPtr& location,
-        TChunkId chunkId);
+        TChunkId chunkId) override;
 
-    TFuture<void> SealChangelog(TJournalChunkPtr chunk);
+    virtual TFuture<void> SealChangelog(TJournalChunkPtr chunk) override;
 
 private:
+    NClusterNode::TBootstrap* const Bootstrap_;
+
     friend class TCachedChangelog;
-
-    const TDataNodeConfigPtr Config_;
-
 
     IChangelogPtr OnChangelogOpenedOrCreated(
         TStoreLocationPtr location,
@@ -99,17 +106,26 @@ private:
     virtual void OnAdded(const TCachedChangelogPtr& changelog) override;
     virtual void OnRemoved(const TCachedChangelogPtr& changelog) override;
 
+    void OnDynamicConfigChanged(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+    {
+        const auto& config = newNodeConfig->DataNode;
+        TAsyncSlruCacheBase::Reconfigure(config->ChangelogReaderCache);
+    }
 };
+
+DEFINE_REFCOUNTED_TYPE(TJournalDispatcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJournalDispatcher::TCachedChangelog
+class TCachedChangelog
     : public TAsyncCacheValueBase<TCachedChangelogKey, TCachedChangelog>
     , public IChangelog
 {
 public:
     TCachedChangelog(
-        TImplPtr owner,
+        TJournalDispatcherPtr owner,
         TStoreLocationPtr location,
         TChunkId chunkId,
         IChangelogPtr underlyingChangelog,
@@ -189,7 +205,7 @@ public:
     }
 
 private:
-    const TImplPtr Owner_;
+    const TJournalDispatcherPtr Owner_;
     const TStoreLocationPtr Location_;
     const TChunkId ChunkId_;
     const bool EnableMultiplexing_;
@@ -197,9 +213,11 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TCachedChangelog)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
+TFuture<IChangelogPtr> TJournalDispatcher::OpenChangelog(
     const TStoreLocationPtr& location,
     TChunkId chunkId)
 {
@@ -210,7 +228,7 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
 
     const auto& journalManager = location->GetJournalManager();
     return journalManager->OpenChangelog(chunkId).Apply(BIND(
-        &TImpl::OnChangelogOpenedOrCreated,
+        &TJournalDispatcher::OnChangelogOpenedOrCreated,
         MakeStrong(this),
         location,
         chunkId,
@@ -218,7 +236,7 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
         Passed(std::move(cookie))));
 }
 
-IChangelogPtr TJournalDispatcher::TImpl::OnChangelogOpenedOrCreated(
+IChangelogPtr TJournalDispatcher::OnChangelogOpenedOrCreated(
     TStoreLocationPtr location,
     TChunkId chunkId,
     bool enableMultiplexing,
@@ -241,7 +259,7 @@ IChangelogPtr TJournalDispatcher::TImpl::OnChangelogOpenedOrCreated(
     return cachedChangelog;
 }
 
-TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
+TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
     const TStoreLocationPtr& location,
     TChunkId chunkId,
     bool enableMultiplexing,
@@ -260,7 +278,7 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
             enableMultiplexing,
             workloadDescriptor);
         return asyncChangelog.Apply(BIND(
-            &TImpl::OnChangelogOpenedOrCreated,
+            &TJournalDispatcher::OnChangelogOpenedOrCreated,
             MakeStrong(this),
             location,
             chunkId,
@@ -271,7 +289,7 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
     }
 }
 
-TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
+TFuture<void> TJournalDispatcher::RemoveChangelog(
     const TJournalChunkPtr& chunk,
     bool enableMultiplexing)
 {
@@ -283,7 +301,7 @@ TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
     return journalManager->RemoveChangelog(chunk, enableMultiplexing);
 }
 
-TFuture<bool> TJournalDispatcher::TImpl::IsChangelogSealed(
+TFuture<bool> TJournalDispatcher::IsChangelogSealed(
     const TStoreLocationPtr& location,
     TChunkId chunkId)
 {
@@ -291,14 +309,14 @@ TFuture<bool> TJournalDispatcher::TImpl::IsChangelogSealed(
     return journalManager->IsChangelogSealed(chunkId);
 }
 
-TFuture<void> TJournalDispatcher::TImpl::SealChangelog(TJournalChunkPtr chunk)
+TFuture<void> TJournalDispatcher::SealChangelog(TJournalChunkPtr chunk)
 {
     const auto& location = chunk->GetStoreLocation();
     const auto& journalManager = location->GetJournalManager();
     return journalManager->SealChangelog(chunk);
 }
 
-void TJournalDispatcher::TImpl::OnAdded(const TCachedChangelogPtr& changelog)
+void TJournalDispatcher::OnAdded(const TCachedChangelogPtr& changelog)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -310,7 +328,7 @@ void TJournalDispatcher::TImpl::OnAdded(const TCachedChangelogPtr& changelog)
         key.ChunkId);
 }
 
-void TJournalDispatcher::TImpl::OnRemoved(const TCachedChangelogPtr& changelog)
+void TJournalDispatcher::OnRemoved(const TCachedChangelogPtr& changelog)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -324,45 +342,9 @@ void TJournalDispatcher::TImpl::OnRemoved(const TCachedChangelogPtr& changelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJournalDispatcher::TJournalDispatcher(TDataNodeConfigPtr config)
-    : Impl_(New<TImpl>(config))
-{ }
-
-TJournalDispatcher::~TJournalDispatcher() = default;
-
-TFuture<IChangelogPtr> TJournalDispatcher::OpenChangelog(
-    const TStoreLocationPtr& location,
-    TChunkId chunkId)
+IJournalDispatcherPtr CreateJournalDispatcher(NClusterNode::TBootstrap* bootstrap)
 {
-    return Impl_->OpenChangelog(location, chunkId);
-}
-
-TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
-    const TStoreLocationPtr& location,
-    TChunkId chunkId,
-    bool enableMultiplexing,
-    const TWorkloadDescriptor& workloadDescriptor)
-{
-    return Impl_->CreateChangelog(location, chunkId, enableMultiplexing, workloadDescriptor);
-}
-
-TFuture<void> TJournalDispatcher::RemoveChangelog(
-    const TJournalChunkPtr& chunk,
-    bool enableMultiplexing)
-{
-    return Impl_->RemoveChangelog(chunk, enableMultiplexing);
-}
-
-TFuture<bool> TJournalDispatcher::IsChangelogSealed(
-    const TStoreLocationPtr& location,
-    TChunkId chunkId)
-{
-    return Impl_->IsChangelogSealed(location, chunkId);
-}
-
-TFuture<void> TJournalDispatcher::SealChangelog(TJournalChunkPtr chunk)
-{
-    return Impl_->SealChangelog(chunk);
+    return New<TJournalDispatcher>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -29,7 +29,7 @@ public:
 
 public:
     //! Raises when dynamic config changes.
-    DEFINE_SIGNAL(void(const TConfigPtr& /* oldConfig */, const TConfigPtr& /* newConfig */), ConfigUpdated);
+    DEFINE_SIGNAL(void(const TConfigPtr& /* oldConfig */, const TConfigPtr& /* newConfig */), ConfigChanged);
 
 public:
     // NB: Invoker must be serialized.
@@ -81,6 +81,7 @@ private:
     TError UpdateError_;
     TError UnrecognizedOptionError_;
     TInstant LastConfigUpdateTime_;
+    TInstant LastConfigChangeTime_;
     NYTree::IMapNodePtr AppliedConfigNode_ = NYTree::GetEphemeralNodeFactory()->CreateMap();
     TConfigPtr AppliedConfig_ = New<TConfig>();
 

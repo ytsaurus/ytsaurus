@@ -37,8 +37,8 @@ struct IConnection
     virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const = 0;
     virtual NObjectClient::TCellId GetMasterCellId(NObjectClient::TCellTag cellTag) const = 0;
 
-    virtual const NQueryClient::TEvaluatorPtr& GetQueryEvaluator() = 0;
-    virtual const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() = 0;
+    virtual const NQueryClient::IEvaluatorPtr& GetQueryEvaluator() = 0;
+    virtual const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() = 0;
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() = 0;
 
     virtual const NCellMasterClient::TCellDirectoryPtr& GetMasterCellDirectory() = 0;
@@ -120,17 +120,20 @@ DEFINE_REFCOUNTED_TYPE(TStickyGroupSizeCache)
 struct TConnectionOptions
 {
     bool RetryRequestQueueSizeLimitExceeded = false;
-    
+
     //! If non-null, overrides TConnectionConfig::ThreadPoolSize and
     //! suppresses creation of a per-connection thread pool.
     IInvokerPtr ThreadPoolInvoker;
+
+    //! If non-null, provides an externally-controlled block cache.
+    NChunkClient::IBlockCachePtr BlockCache;
 };
 
 //! Native connection talks directly to the cluster via internal
 //! (and typically not stable) RPC protocols.
 IConnectionPtr CreateConnection(
     TConnectionConfigPtr config,
-    const TConnectionOptions& options = TConnectionOptions());
+    TConnectionOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

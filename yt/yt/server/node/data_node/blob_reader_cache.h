@@ -6,22 +6,14 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/core/misc/error.h>
-
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages cached blob chunk readers.
-class TBlobReaderCache
-    : public TRefCounted
+struct IBlobReaderCache
+    : public virtual TRefCounted
 {
-public:
-    TBlobReaderCache(
-        TDataNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
-    ~TBlobReaderCache();
-
     //! Returns a (cached) blob chunk reader.
     /*!
      *  This call is thread-safe but may block since it actually opens the file.
@@ -31,26 +23,18 @@ public:
      *
      *  This method throws on failure.
      */
-    NChunkClient::TFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk);
+    virtual NChunkClient::TFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk) = 0;
 
     //! Evicts the reader from the cache thus hopefully closing the files.
     /*!
      *  NB: Do not make #chunk a smartpointer since #EvictReader is called from TCachedBlobChunk dtor.
      */
-    void EvictReader(TBlobChunkBase* chunk);
-
-private:
-    class TCachedReader;
-    using TCachedReaderPtr = TIntrusivePtr<TCachedReader>;
-
-    class TImpl;
-    using TImplPtr = TIntrusivePtr<TImpl>;
-
-    const TImplPtr Impl_;
-
+    virtual void EvictReader(TBlobChunkBase* chunk) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TBlobReaderCache)
+DEFINE_REFCOUNTED_TYPE(IBlobReaderCache)
+
+IBlobReaderCachePtr CreateBlobReaderCache(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

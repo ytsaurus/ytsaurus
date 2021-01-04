@@ -825,7 +825,7 @@ protected:
             .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
+        ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(config);
 
         MergeFrom(RangeExtractorMap.Get(), *BuiltinRangeExtractorMap);
     }
@@ -864,7 +864,7 @@ protected:
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
-    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
     TRangeExtractorMapPtr RangeExtractorMap = New<TRangeExtractorMap>();
 };
@@ -955,7 +955,7 @@ TOwningRow YsonToRow(
 }
 
 TQueryStatistics DoExecuteQuery(
-    TEvaluatorPtr evaluator,
+    IEvaluatorPtr evaluator,
     const std::vector<TString>& source,
     TFunctionProfilerMapPtr functionProfilers,
     TAggregateProfilerMapPtr aggregateProfilers,
@@ -1375,14 +1375,14 @@ protected:
         }
     }
 
-    TEvaluatorPtr Evaluator_ = New<TEvaluator>(New<TExecutorConfig>());
+    const IEvaluatorPtr Evaluator_ = CreateEvaluator(New<TExecutorConfig>());
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TActionQueuePtr ActionQueue_;
 
-    TTypeInferrerMapPtr TypeInferrers_ = New<TTypeInferrerMap>();
-    TFunctionProfilerMapPtr FunctionProfilers_ = New<TFunctionProfilerMap>();
-    TAggregateProfilerMapPtr AggregateProfilers_ = New<TAggregateProfilerMap>();
+    const TTypeInferrerMapPtr TypeInferrers_ = New<TTypeInferrerMap>();
+    const TFunctionProfilerMapPtr FunctionProfilers_ = New<TFunctionProfilerMap>();
+    const TAggregateProfilerMapPtr AggregateProfilers_ = New<TAggregateProfilerMap>();
 
 };
 

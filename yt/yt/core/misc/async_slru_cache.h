@@ -1,6 +1,8 @@
 #pragma once
 
 #include "public.h"
+#include "cache_config.h"
+#include "memory_usage_tracker.h"
 
 #include <yt/core/actions/future.h>
 
@@ -11,6 +13,8 @@
 #include <yt/core/profiling/timing.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <atomic>
 
 namespace NYT {
 
@@ -32,7 +36,7 @@ protected:
     explicit TAsyncCacheValueBase(const TKey& key);
 
 private:
-    typedef TAsyncSlruCacheBase<TKey, TValue, THash> TCache;
+    using TCache = TAsyncSlruCacheBase<TKey, TValue, THash>;
     friend class TAsyncSlruCacheBase<TKey, TValue, THash>;
 
     TWeakPtr<TCache> Cache_;
@@ -41,14 +45,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class THash = THash<TKey> >
+template <class TKey, class TValue, class THash = THash<TKey>>
 class TAsyncSlruCacheBase
     : public virtual TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TValue> TValuePtr;
-    typedef TFuture<TValuePtr> TValueFuture;
-    typedef TPromise<TValuePtr> TValuePromise;
+    using TValuePtr = TIntrusivePtr<TValue>;
+    using TValueFuture = TFuture<TValuePtr>;
+    using TValuePromise = TPromise<TValuePtr>;
 
     class TInsertCookie
     {
@@ -98,8 +102,13 @@ public:
     void TryRemove(const TValuePtr& value, bool forbidResurrection = false);
     void Clear();
 
+    void Reconfigure(const TSlruCacheDynamicConfigPtr& config);
+
 protected:
-    TSlruCacheConfigPtr Config_;
+    const TSlruCacheConfigPtr Config_;
+
+    std::atomic<i64> Capacity_;
+    std::atomic<double> YoungerSizeFraction_;
 
     explicit TAsyncSlruCacheBase(
         TSlruCacheConfigPtr config,
@@ -140,15 +149,15 @@ private:
     THashMap<TKey, TValue*, THash> ValueMap_;
 
     THashMap<TKey, TItem*, THash> ItemMap_;
-    std::atomic<int> ItemMapSize_ = {0};
+    std::atomic<int> ItemMapSize_ = 0;
 
     std::vector<TItem*> TouchBuffer_;
-    std::atomic<int> TouchBufferPosition_ = {0};
+    std::atomic<int> TouchBufferPosition_ = 0;
 
     NProfiling::TCounter HitWeightCounter_;
     NProfiling::TCounter MissedWeightCounter_;
-    std::atomic<i64> YoungerWeightCounter_{0};
-    std::atomic<i64> OlderWeightCounter_{0};
+    std::atomic<i64> YoungerWeightCounter_ = 0;
+    std::atomic<i64> OlderWeightCounter_ = 0;
 
 
     bool Touch(TItem* item);
@@ -170,8 +179,26 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TKey, class TValue, class THash = THash<TKey>>
+class TMemoryTrackingAsyncSlruCacheBase
+    : public TAsyncSlruCacheBase<TKey, TValue, THash>
+{
+public:
+    explicit TMemoryTrackingAsyncSlruCacheBase(
+        TSlruCacheConfigPtr config,
+        IMemoryUsageTrackerPtr memoryTracker,
+        const NProfiling::TRegistry& profiler = {});
+
+    void Reconfigure(const TSlruCacheDynamicConfigPtr& config);
+
+private:
+    TMemoryUsageTrackerGuard MemoryTrackerGuard_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
-#define ASYNC_CACHE_INL_H_
-#include "async_cache-inl.h"
-#undef ASYNC_CACHE_INL_H_
+#define ASYNC_SLRU_CACHE_INL_H_
+#include "async_slru_cache-inl.h"
+#undef ASYNC_SLRU_CACHE_INL_H_

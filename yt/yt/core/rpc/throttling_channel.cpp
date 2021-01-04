@@ -8,21 +8,23 @@
 
 namespace NYT::NRpc {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TThrottlingChannel
     : public TChannelWrapper
+    , public IThrottlingChannel
 {
 public:
-    TThrottlingChannel(TThrottlingChannelConfigPtr config, IChannelPtr underlyingChannel)
+    TThrottlingChannel(
+        TThrottlingChannelConfigPtr config,
+        IChannelPtr underlyingChannel)
         : TChannelWrapper(std::move(underlyingChannel))
-        , Config_(config)
-    {
-        auto throttlerConfig = New<NConcurrency::TThroughputThrottlerConfig>();
-        throttlerConfig->Period = TDuration::Seconds(1);
-        throttlerConfig->Limit = Config_->RateLimit;
-        Throttler_ = CreateReconfigurableThroughputThrottler(throttlerConfig);
-    }
+        , Config_(std::move(config))
+        , Throttler_(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>(
+            Config_->RateLimit)))
+    { }
 
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
@@ -57,21 +59,27 @@ public:
         return requestControlThunk;
     }
 
+    virtual void Reconfigure(const TThrottlingChannelDynamicConfigPtr& config) override
+    {
+        Throttler_->Reconfigure(New<TThroughputThrottlerConfig>(
+            config->RateLimit.value_or(Config_->RateLimit)));
+    }
+
 private:
     const TThrottlingChannelConfigPtr Config_;
-
-    NConcurrency::IThroughputThrottlerPtr Throttler_;
-
+    const IReconfigurableThroughputThrottlerPtr Throttler_;
 };
 
-IChannelPtr CreateThrottlingChannel(
+IThrottlingChannelPtr CreateThrottlingChannel(
     TThrottlingChannelConfigPtr config,
     IChannelPtr underlyingChannel)
 {
     YT_VERIFY(config);
     YT_VERIFY(underlyingChannel);
 
-    return New<TThrottlingChannel>(config, underlyingChannel);
+    return New<TThrottlingChannel>(
+        std::move(config),
+        std::move(underlyingChannel));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

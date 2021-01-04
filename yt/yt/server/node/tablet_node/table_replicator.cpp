@@ -79,7 +79,7 @@ public:
         NNative::IConnectionPtr localConnection,
         TTabletSlotPtr slot,
         TSlotManagerPtr slotManager,
-        THintManagerPtr hintManager,
+        IHintManagerPtr hintManager,
         IInvokerPtr workerInvoker,
         IThroughputThrottlerPtr nodeInThrottler,
         IThroughputThrottlerPtr nodeOutThrottler)
@@ -133,7 +133,7 @@ private:
     const NNative::IConnectionPtr LocalConnection_;
     const TTabletSlotPtr Slot_;
     const TSlotManagerPtr SlotManager_;
-    const THintManagerPtr HintManager_;
+    const IHintManagerPtr HintManager_;
     const IInvokerPtr WorkerInvoker_;
 
     const TTabletId TabletId_;
@@ -918,7 +918,7 @@ TTableReplicator::TTableReplicator(
     NNative::IConnectionPtr localConnection,
     TTabletSlotPtr slot,
     TSlotManagerPtr slotManager,
-    THintManagerPtr hintManager,
+    IHintManagerPtr hintManager,
     IInvokerPtr workerInvoker,
     IThroughputThrottlerPtr nodeInThrottler,
     IThroughputThrottlerPtr nodeOutThrottler)

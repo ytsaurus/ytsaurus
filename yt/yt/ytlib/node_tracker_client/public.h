@@ -76,10 +76,6 @@ DEFINE_ENUM(ENodeRole,
     ((TimestampProvider) (1))
 );
 
-using TNodeMemoryTracker = TMemoryUsageTracker<EMemoryCategory>;
-using TNodeMemoryTrackerPtr = TIntrusivePtr<TNodeMemoryTracker>;
-using TNodeMemoryTrackerGuard = TMemoryUsageTrackerGuard<EMemoryCategory>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNodeTrackerClient

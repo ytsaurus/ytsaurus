@@ -65,7 +65,7 @@ void RunQuery(
             *udfDirectory);
     }
 
-    auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
+    auto evaluator = CreateEvaluator(New<TExecutorConfig>());
     auto reader = CreateSchemafulReaderAdapter(readerFactory, query->GetReadSchema());
 
     YT_LOG_INFO("Reading, evaluating query and writing");

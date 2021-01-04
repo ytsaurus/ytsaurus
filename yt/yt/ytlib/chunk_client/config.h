@@ -18,7 +18,7 @@
 
 #include <yt/library/erasure/public.h>
 
-#include <yt/core/misc/config.h>
+#include <yt/core/misc/cache_config.h>
 #include <yt/core/misc/error.h>
 
 #include <yt/core/rpc/config.h>
@@ -193,13 +193,6 @@ public:
     TSlruCacheConfigPtr CompressedData;
     TSlruCacheConfigPtr UncompressedData;
 
-    i64 GetTotalCapacity() const
-    {
-        return
-            CompressedData->Capacity +
-            UncompressedData->Capacity;
-    }
-
     TBlockCacheConfig()
     {
         RegisterParameter("compressed_data", CompressedData)
@@ -210,6 +203,26 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBlockCacheDynamicConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TSlruCacheDynamicConfigPtr CompressedData;
+    TSlruCacheDynamicConfigPtr UncompressedData;
+
+    TBlockCacheDynamicConfig()
+    {
+        RegisterParameter("compressed_data", CompressedData)
+            .DefaultNew();
+        RegisterParameter("uncompressed_data", UncompressedData)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBlockCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

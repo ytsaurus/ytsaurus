@@ -12,7 +12,7 @@
 
 #include <yt/core/profiling/timing.h>
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/memory_usage_tracker.h>
 
@@ -24,12 +24,11 @@
 #include <utility>
 
 namespace NYT::NQueryClient {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
 using namespace NProfiling;
-
-using NNodeTrackerClient::TNodeMemoryTracker;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,26 +199,27 @@ private:
 
 typedef TIntrusivePtr<TCachedCGQuery> TCachedCGQueryPtr;
 
-class TEvaluator::TImpl
+class TEvaluator
     : public TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQuery>
+    , public IEvaluator
 {
 public:
-    TImpl(
+    TEvaluator(
         const TExecutorConfigPtr& config,
-        const NProfiling::TRegistry& profiler,
-        IMemoryUsageTrackerPtr memoryTracker)
+        IMemoryUsageTrackerPtr memoryTracker,
+        const NProfiling::TRegistry& profiler)
         : TAsyncSlruCacheBase(config->CGCache, profiler.WithPrefix("/cg_cache"))
         , MemoryTracker_(std::move(memoryTracker))
     { }
 
-    TQueryStatistics Run(
+    virtual TQueryStatistics Run(
         const TConstBaseQueryPtr& query,
         const ISchemafulUnversionedReaderPtr& reader,
         const IUnversionedRowsetWriterPtr& writer,
         const TJoinSubqueryProfiler& joinProfiler,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
-        const TQueryBaseOptions& options)
+        const TQueryBaseOptions& options) override
     {
         NTracing::TChildTraceContextGuard guard("QueryClient.Evaluate");
         NTracing::AddTag("fragment_id", ToString(query->Id));
@@ -391,36 +391,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEvaluator::TEvaluator(
+IEvaluatorPtr CreateEvaluator(
     TExecutorConfigPtr config,
-    const NProfiling::TRegistry& profiler,
-    IMemoryUsageTrackerPtr memoryTracker)
-    : Impl_(New<TImpl>(
-        std::move(config),
-        profiler,
-        std::move(memoryTracker)))
-{ }
-
-TEvaluator::~TEvaluator()
-{ }
-
-TQueryStatistics TEvaluator::Run(
-    TConstBaseQueryPtr query,
-    ISchemafulUnversionedReaderPtr reader,
-    IUnversionedRowsetWriterPtr writer,
-    TJoinSubqueryProfiler joinProfiler,
-    TConstFunctionProfilerMapPtr functionProfilers,
-    TConstAggregateProfilerMapPtr aggregateProfilers,
-    const TQueryBaseOptions& options)
+    IMemoryUsageTrackerPtr memoryTracker,
+    const NProfiling::TRegistry& profiler)
 {
-    return Impl_->Run(
-        std::move(query),
-        std::move(reader),
-        std::move(writer),
-        std::move(joinProfiler),
-        std::move(functionProfilers),
-        std::move(aggregateProfilers),
-        options);
+    return New<TEvaluator>(
+        std::move(config),
+        std::move(memoryTracker),
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

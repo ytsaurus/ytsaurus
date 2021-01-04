@@ -1,12 +1,9 @@
 #pragma once
-#include <atomic>
-#ifndef ASYNC_CACHE_INL_H_
-#error "Direct inclusion of this file is not allowed, include async_cache.h"
+#ifndef ASYNC_SLRU_CACHE_INL_H_
+#error "Direct inclusion of this file is not allowed, include async_slru_cache.h"
 // For the sake of sane code completion.
-#include "async_cache.h"
+#include "async_slru_cache.h"
 #endif
-
-#include "config.h"
 
 #include <util/system/yield.h>
 
@@ -41,6 +38,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
     TSlruCacheConfigPtr config,
     const NProfiling::TRegistry& profiler)
     : Config_(std::move(config))
+    , Capacity_(Config_->Capacity)
+    , YoungerSizeFraction_(Config_->YoungerSizeFraction)
     , TouchBuffer_(Config_->TouchBufferCapacity)
     , HitWeightCounter_(profiler.Counter("/hit"))
     , MissedWeightCounter_(profiler.Counter("/missed"))
@@ -73,6 +72,20 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Clear()
 
     // NB: Lists must die outside the critical section.
     guard.Release();
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynamicConfigPtr& config)
+{
+    Capacity_.store(config->Capacity.value_or(Config_->Capacity));
+    YoungerSizeFraction_.store(config->YoungerSizeFraction.value_or(Config_->YoungerSizeFraction));
+
+    {
+        auto writerGuard = WriterGuard(SpinLock_);
+
+        DrainTouchBuffer();
+        Trim(writerGuard);
+    }
 }
 
 template <class TKey, class TValue, class THash>
@@ -496,8 +509,10 @@ template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard)
 {
     // Move from older to younger.
+    auto capacity = Capacity_.load();
+    auto youngerSizeFraction = YoungerSizeFraction_.load();
     while (!OlderLruList_.Empty() &&
-           OlderWeightCounter_.load() > Config_->Capacity * (1 - Config_->YoungerSizeFraction))
+           OlderWeightCounter_.load() > capacity * (1 - youngerSizeFraction))
     {
         auto* item = &*(--OlderLruList_.End());
         MoveToYounger(item);
@@ -506,7 +521,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TSpinlockWrite
     // Evict from younger.
     std::vector<TValuePtr> evictedValues;
     while (!YoungerLruList_.Empty() &&
-           YoungerWeightCounter_.load() + OlderWeightCounter_.load() > Config_->Capacity)
+           YoungerWeightCounter_.load() + OlderWeightCounter_.load() > capacity)
     {
         auto* item = &*(--YoungerLruList_.End());
         auto value = item->Value;
@@ -631,6 +646,28 @@ template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::Abort()
 {
     Cancel(TError("Cache item insertion aborted"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, class THash>
+TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::TMemoryTrackingAsyncSlruCacheBase(
+    TSlruCacheConfigPtr config,
+    IMemoryUsageTrackerPtr memoryTracker,
+    const NProfiling::TRegistry& profiler)
+    : TAsyncSlruCacheBase<TKey, TValue, THash>(
+        std::move(config),
+        profiler)
+    , MemoryTrackerGuard_(TMemoryUsageTrackerGuard::Acquire(
+        std::move(memoryTracker),
+        this->Config_->Capacity))
+{ }
+
+template <class TKey, class TValue, class THash>
+void TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynamicConfigPtr& config)
+{
+    MemoryTrackerGuard_.SetSize(config->Capacity.value_or(this->Config_->Capacity));
+    TAsyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

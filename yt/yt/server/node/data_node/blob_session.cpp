@@ -106,12 +106,13 @@ TFuture<void> TBlobSession::DoPutBlocks(
     }
 
     // Make all acquisitions in advance to ensure that this error is retriable.
-    const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
-    std::vector<TNodeMemoryTrackerGuard> memoryTrackerGuards;
+    auto memoryTracker = Bootstrap_
+        ->GetMemoryUsageTracker()
+        ->WithCategory(EMemoryCategory::BlobSession);
+    std::vector<TMemoryUsageTrackerGuard> memoryTrackerGuards;
     for (const auto& block : blocks) {
-        auto guardOrError = TNodeMemoryTrackerGuard::TryAcquire(
+        auto guardOrError = TMemoryUsageTrackerGuard::TryAcquire(
             memoryTracker,
-            EMemoryCategory::BlobSession,
             block.Size());
         if (!guardOrError.IsOK()) {
             return MakeFuture(TError(guardOrError).SetCode(NChunkClient::EErrorCode::WriteThrottlingActive));

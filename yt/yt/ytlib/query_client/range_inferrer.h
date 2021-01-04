@@ -21,7 +21,7 @@ TRangeInferrer CreateRangeInferrer(
     TConstExpressionPtr predicate,
     const TTableSchemaPtr& schema,
     const TKeyColumns& keyColumns,
-    const TColumnEvaluatorCachePtr& evaluatorCache,
+    const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options);
 

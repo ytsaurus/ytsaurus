@@ -334,6 +334,24 @@ DEFINE_REFCOUNTED_TYPE(TThrottlingChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TThrottlingChannelDynamicConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    std::optional<int> RateLimit;
+
+    TThrottlingChannelDynamicConfig()
+    {
+        RegisterParameter("rate_limit", RateLimit)
+            .GreaterThan(0)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TThrottlingChannelDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TResponseKeeperConfig
     : public NYTree::TYsonSerializable
 {

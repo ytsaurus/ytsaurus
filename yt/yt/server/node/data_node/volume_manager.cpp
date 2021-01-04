@@ -57,7 +57,7 @@ IVolumeManagerPtr CreatePortoVolumeManager(
 
 #include <yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 #include <yt/core/misc/checksum.h>
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/finally.h>
@@ -1565,7 +1565,9 @@ class TPortoVolumeManager
     : public IVolumeManager
 {
 public:
-    TPortoVolumeManager(const TVolumeManagerConfigPtr& config, TBootstrap* bootstrap)
+    TPortoVolumeManager(
+        const TVolumeManagerConfigPtr& config,
+        TBootstrap* bootstrap)
     {
         // Create locations.
         for (int index = 0; index < config->LayerLocations.size(); ++index) {

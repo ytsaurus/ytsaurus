@@ -333,6 +333,10 @@ b"""
         sync_period = 100;
     };
 
+    dynamic_config_manager = {
+        update_period = 1000;
+    };
+
     cluster_connection = {
         enable_read_from_followers = %true;
 
@@ -351,17 +355,6 @@ b"""
         };
 
         enable_udf = %true;
-
-        block_cache = {
-            compressed_data = {
-                capacity = 0;
-                shard_count = 1;
-            };
-            uncompressed_data = {
-                capacity = 0;
-                shard_count = 1;
-            };
-        };
     };
 
     data_node = {
@@ -379,19 +372,30 @@ b"""
         };
         register_retry_period = 100;
 
+        chunk_meta_cache = {
+            capacity = 1000000;
+            shard_count = 1;
+        };
+
+        block_meta_cache = {
+            capacity = 1000000;
+            shard_count = 1;
+        };
+
+        blocks_ext_cache = {
+            capacity = 1000000;
+            shard_count = 1;
+        };
+
         block_cache = {
             compressed_data = {
-                capacity = 0;
+                capacity = 1000000;
                 shard_count = 1;
             };
             uncompressed_data = {
-                capacity = 0;
+                capacity = 1000000;
                 shard_count = 1;
             };
-        };
-
-        chunk_meta_cache = {
-            capacity = 0;
         };
 
         sync_directories_on_connect = %true;
@@ -477,27 +481,6 @@ b"""
 {
     "%true" = {
         config_annotation = "default";
-        exec_agent = {
-            node_directory_prepare_backoff_time = 100;
-        };
-        data_node = {
-            incremental_heartbeat_period = 200;
-            register_retry_period = 100;
-
-            block_cache = {
-                compressed_data = {
-                    capacity = 0;
-                    shard_count = 1;
-                };
-                uncompressed_data = {
-                    capacity = 0;
-                    shard_count = 1;
-                };
-            };
-            chunk_meta_cache = {
-                capacity = 0;
-            };
-        };
     };
 }
 """)

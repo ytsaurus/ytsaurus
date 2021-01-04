@@ -13,52 +13,39 @@ namespace NYT::NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides access to changelogs corresponding to journals stored at node.
-class TJournalDispatcher
-    : public TRefCounted
+struct IJournalDispatcher
+    : public virtual TRefCounted
 {
-public:
-    explicit TJournalDispatcher(TDataNodeConfigPtr config);
-    ~TJournalDispatcher();
-
     //! Asynchronously opens (or returns a cached) changelog corresponding
     //! to a given journal chunk.
-    TFuture<NHydra::IChangelogPtr> OpenChangelog(
+    virtual TFuture<NHydra::IChangelogPtr> OpenChangelog(
         const TStoreLocationPtr& location,
-        TChunkId chunkId);
+        TChunkId chunkId) = 0;
 
     //! Asynchronously creates a new changelog corresponding to a given journal chunk.
-    TFuture<NHydra::IChangelogPtr> CreateChangelog(
+    virtual TFuture<NHydra::IChangelogPtr> CreateChangelog(
         const TStoreLocationPtr& location,
         TChunkId chunkId,
         bool enableMultiplexing,
-        const TWorkloadDescriptor& workloadDescriptor);
+        const TWorkloadDescriptor& workloadDescriptor) = 0;
 
     //! Asynchronously removes files of a given journal chunk.
-    TFuture<void> RemoveChangelog(
+    virtual TFuture<void> RemoveChangelog(
         const TJournalChunkPtr& chunk,
-        bool enableMultiplexing);
+        bool enableMultiplexing) = 0;
 
     //! Asynchronously checks if a given journal chunk is sealed.
-    TFuture<bool> IsChangelogSealed(
+    virtual TFuture<bool> IsChangelogSealed(
         const TStoreLocationPtr& location,
-        TChunkId chunkId);
+        TChunkId chunkId) = 0;
 
     //! Asynchronously marks a given journal chunk as sealed.
-    TFuture<void> SealChangelog(TJournalChunkPtr chunk);
-
-private:
-    struct TCachedChangelogKey;
-
-    class TCachedChangelog;
-    using TCachedChangelogPtr = TIntrusivePtr<TCachedChangelog>;
-
-    class TImpl;
-    using TImplPtr = TIntrusivePtr<TImpl>;
-
-    const TImplPtr Impl_;
+    virtual TFuture<void> SealChangelog(TJournalChunkPtr chunk) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TJournalDispatcher)
+DEFINE_REFCOUNTED_TYPE(IJournalDispatcher)
+
+IJournalDispatcherPtr CreateJournalDispatcher(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -39,8 +39,8 @@ struct TInMemoryChunkData
     std::vector<NChunkClient::TBlock> Blocks;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;
-    NClusterNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
-    std::atomic<bool> Finalized = {false};
+    TMemoryUsageTrackerGuard MemoryTrackerGuard;
+    std::atomic<bool> Finalized = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)
@@ -84,7 +84,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
     NChunkClient::TReadSessionId readSessionId,
-    const NNodeTrackerClient::TNodeMemoryTrackerPtr& memoryTracker,
+    const NClusterNode::TNodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
     const TReaderProfilerPtr& readerProfiler);

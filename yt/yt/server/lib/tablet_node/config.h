@@ -16,6 +16,8 @@
 
 #include <yt/ytlib/security_client/config.h>
 
+#include <yt/ytlib/query_client/config.h>
+
 #include <yt/client/misc/workload.h>
 
 #include <yt/core/compression/public.h>
@@ -823,6 +825,8 @@ public:
     TStoreTrimmerDynamicConfigPtr StoreTrimmer;
     TPartitionBalancerDynamicConfigPtr PartitionBalancer;
 
+    NQueryClient::TColumnEvaluatorCacheDynamicConfigPtr ColumnEvaluatorCache;
+
     TTabletNodeDynamicConfig()
     {
         RegisterParameter("slots", Slots)
@@ -841,6 +845,9 @@ public:
         RegisterParameter("store_trimmer", StoreTrimmer)
             .DefaultNew();
         RegisterParameter("partition_balancer", PartitionBalancer)
+            .DefaultNew();
+
+        RegisterParameter("column_evaulator_cache", ColumnEvaluatorCache)
             .DefaultNew();
     }
 };
@@ -920,6 +927,9 @@ public:
     //! Time to keep retired tablet snapshots hoping for a rapid Hydra restart.
     TDuration TabletSnapshotEvictionTimeout;
 
+    //! Column evaluator used for handling tablet writes.
+    NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
+
     TTabletNodeConfig()
     {
         RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
@@ -989,6 +999,9 @@ public:
 
         RegisterParameter("tablet_snapshot_eviction_timeout", TabletSnapshotEvictionTimeout)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("column_evaulator_cache", ColumnEvaluatorCache)
+            .DefaultNew();
 
         RegisterPreprocessor([&] {
             HydraManager->MaxCommitBatchDelay = TDuration::MilliSeconds(5);

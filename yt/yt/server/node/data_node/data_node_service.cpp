@@ -15,6 +15,7 @@
 #include "session.h"
 #include "session_manager.h"
 #include "table_schema_cache.h"
+#include "chunk_meta_manager.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 
@@ -908,11 +909,12 @@ private:
             }
 
             if (partitionTag) {
-                auto cachedBlockMeta = Bootstrap_->GetBlockMetaCache()->Find(chunkId);
+                const auto& blockMetaCache = Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache();
+                auto cachedBlockMeta = blockMetaCache->Find(chunkId);
                 if (!cachedBlockMeta) {
                     auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
                     cachedBlockMeta = New<TCachedBlockMeta>(chunkId, std::move(blockMetaExt));
-                    Bootstrap_->GetBlockMetaCache()->TryInsert(cachedBlockMeta);
+                    blockMetaCache->TryInsert(cachedBlockMeta);
                 }
 
                 *response->mutable_chunk_meta() = FilterChunkMetaByPartitionTag(*meta, cachedBlockMeta, *partitionTag);

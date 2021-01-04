@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/rpc/public.h>
+#include <yt/core/rpc/service.h>
 
 #include <yt/core/actions/public.h>
 
@@ -12,13 +12,21 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateCachingObjectService(
+struct ICachingObjectService
+    : public virtual NRpc::IService
+{
+    virtual void Reconfigure(const TCachingObjectServiceDynamicConfigPtr& config) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ICachingObjectService)
+
+ICachingObjectServicePtr CreateCachingObjectService(
     TCachingObjectServiceConfigPtr config,
     IInvokerPtr invoker,
     NRpc::IChannelPtr masterChannel,
     TObjectServiceCachePtr cache,
     NRpc::TRealmId masterCellId,
-    const NLogging::TLogger& logger);
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

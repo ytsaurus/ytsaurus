@@ -476,6 +476,23 @@ DEFINE_REFCOUNTED_TYPE(TTableSchemaCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableSchemaCacheDynamicConfig
+    : public TSlruCacheDynamicConfig
+{
+public:
+    std::optional<TDuration> TableSchemaCacheRequestTimeout;
+
+    TTableSchemaCacheDynamicConfig()
+    {
+        RegisterParameter("table_schema_cache_request_timeout", TableSchemaCacheRequestTimeout)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableSchemaCacheDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVolumeManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -971,6 +988,14 @@ public:
 
     TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
+    TSlruCacheDynamicConfigPtr ChunkMetaCache;
+    TSlruCacheDynamicConfigPtr BlocksExtCache;
+    TSlruCacheDynamicConfigPtr BlockMetaCache;
+    NChunkClient::TBlockCacheDynamicConfigPtr BlockCache;
+    TSlruCacheDynamicConfigPtr BlobReaderCache;
+    TSlruCacheDynamicConfigPtr ChangelogReaderCache;
+    TTableSchemaCacheDynamicConfigPtr TableSchemaCache;
+
     TDataNodeDynamicConfig()
     {
         RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
@@ -985,6 +1010,21 @@ public:
 
         RegisterParameter("throttlers", Throttlers)
             .Optional();
+
+        RegisterParameter("chunk_meta_cache", ChunkMetaCache)
+            .DefaultNew();
+        RegisterParameter("blocks_ext_cache", BlocksExtCache)
+            .DefaultNew();
+        RegisterParameter("block_meta_cache", BlockMetaCache)
+            .DefaultNew();
+        RegisterParameter("block_cache", BlockCache)
+            .DefaultNew();
+        RegisterParameter("blob_reader_cache", BlobReaderCache)
+            .DefaultNew();
+        RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
+            .DefaultNew();
+        RegisterParameter("table_schema_cache", TableSchemaCache)
+            .DefaultNew();
     }
 };
 

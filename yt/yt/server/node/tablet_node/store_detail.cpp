@@ -94,15 +94,15 @@ TStoreBase::~TStoreBase()
     UpdateTabletDynamicMemoryUsage(-1);
 }
 
-void TStoreBase::SetMemoryTracker(NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker)
+void TStoreBase::SetMemoryTracker(NClusterNode::TNodeMemoryTrackerPtr memoryTracker)
 {
     YT_VERIFY(!MemoryTracker_);
     MemoryTracker_ = std::move(memoryTracker);
-    DynamicMemoryTrackerGuard_ = NNodeTrackerClient::TNodeMemoryTrackerGuard::Acquire(
-        MemoryTracker_,
-        GetMemoryCategory(),
+    DynamicMemoryTrackerGuard_ = TMemoryUsageTrackerGuard::Acquire(
+        MemoryTracker_->WithCategory(
+            GetMemoryCategory(),
+            Tablet_->GetPoolTagByMemoryCategory(GetMemoryCategory())),
         DynamicMemoryUsage_,
-        Tablet_->GetPoolTagByMemoryCategory(GetMemoryCategory()),
         MemoryUsageGranularity);
 }
 

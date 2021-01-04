@@ -23,7 +23,7 @@ public:
         NApi::NNative::IConnectionPtr localConnection,
         TTabletSlotPtr slot,
         TSlotManagerPtr slotManager,
-        THintManagerPtr hintManager,
+        IHintManagerPtr hintManager,
         IInvokerPtr workerInvoker,
         NConcurrency::IThroughputThrottlerPtr nodeInThrottler,
         NConcurrency::IThroughputThrottlerPtr nodeOutThrottler);

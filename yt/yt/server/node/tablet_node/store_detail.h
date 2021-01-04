@@ -45,7 +45,7 @@ public:
     virtual EStoreState GetStoreState() const override;
     virtual void SetStoreState(EStoreState state) override;
 
-    void SetMemoryTracker(NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker);
+    void SetMemoryTracker(NClusterNode::TNodeMemoryTrackerPtr memoryTracker);
     virtual i64 GetDynamicMemoryUsage() const override;
 
     virtual void Save(TSaveContext& context) const override;
@@ -74,8 +74,8 @@ protected:
 
     const NLogging::TLogger Logger;
 
-    NNodeTrackerClient::TNodeMemoryTrackerPtr MemoryTracker_;
-    NNodeTrackerClient::TNodeMemoryTrackerGuard DynamicMemoryTrackerGuard_;
+    NClusterNode::TNodeMemoryTrackerPtr MemoryTracker_;
+    TMemoryUsageTrackerGuard DynamicMemoryTrackerGuard_;
 
 
     TLegacyOwningKey RowToKey(TUnversionedRow row) const;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "cache_config.h"
 
 #include <yt/core/actions/future.h>
 

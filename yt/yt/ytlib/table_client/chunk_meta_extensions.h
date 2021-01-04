@@ -82,11 +82,13 @@ class TCachedBlockMeta
     , public NTableClient::NProto::TBlockMetaExt
 {
 public:
-    TCachedBlockMeta(NChunkClient::TChunkId chunkId, NTableClient::NProto::TBlockMetaExt blockMetaExt);
+    TCachedBlockMeta(
+        NChunkClient::TChunkId chunkId,
+        NTableClient::NProto::TBlockMetaExt blockMetaExt);
     i64 GetWeight() const;
 
 private:
-    i64 Weight_;
+    const i64 Weight_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedBlockMeta)
@@ -94,10 +96,13 @@ DEFINE_REFCOUNTED_TYPE(TCachedBlockMeta)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockMetaCache
-    : public TSyncSlruCacheBase<NChunkClient::TChunkId, TCachedBlockMeta>
+    : public TMemoryTrackingSyncSlruCacheBase<NChunkClient::TChunkId, TCachedBlockMeta>
 {
 public:
-    TBlockMetaCache(TSlruCacheConfigPtr config, const NProfiling::TRegistry& profiler);
+    TBlockMetaCache(
+        TSlruCacheConfigPtr config,
+        IMemoryUsageTrackerPtr memoryTracker,
+        const NProfiling::TRegistry& profiler);
 
 private:
     virtual i64 GetWeight(const TCachedBlockMetaPtr& value) const override;

@@ -10,9 +10,7 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NChunkClient::IBlockCachePtr CreateServerBlockCache(
-    TDataNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+NChunkClient::IClientBlockCachePtr CreateDataNodeBlockCache(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

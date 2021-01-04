@@ -105,7 +105,7 @@ TRowRanges GetPrunedRanges(
     TObjectId tableId,
     const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
-    const TColumnEvaluatorCachePtr& evaluatorCache,
+    const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options,
     const NLogging::TLogger& Logger)
@@ -149,7 +149,7 @@ TRowRanges GetPrunedRanges(
     TObjectId tableId,
     const TSharedRange<TRowRange>& ranges,
     const TRowBufferPtr& rowBuffer,
-    const TColumnEvaluatorCachePtr& evaluatorCache,
+    const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options)
 {

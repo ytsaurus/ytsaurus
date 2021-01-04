@@ -11,7 +11,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/checksum.h>
 
@@ -56,7 +56,8 @@ struct TSubrequestResponse
 };
 
 class TCachingObjectService
-    : public TServiceBase
+    : public ICachingObjectService
+    , public TServiceBase
 {
 public:
     TCachingObjectService(
@@ -65,7 +66,7 @@ public:
         IChannelPtr masterChannel,
         TObjectServiceCachePtr cache,
         TRealmId masterCellId,
-        const NLogging::TLogger& logger)
+        NLogging::TLogger logger)
         : TServiceBase(
             std::move(invoker),
             TObjectServiceProxy::GetDescriptor(),
@@ -78,10 +79,19 @@ public:
             config,
             masterChannel))
         , Logger(logger.WithTag("RealmId: %v", masterCellId))
+        , CacheTtlRatio_(Config_->CacheTtlRatio)
+        , EntryByteRateLimit_(Config_->EntryByteRateLimit)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10000)
             .SetConcurrencyLimit(10000));
+    }
+
+    virtual void Reconfigure(const TCachingObjectServiceDynamicConfigPtr& config) override
+    {
+        MasterChannel_->Reconfigure(config);
+        CacheTtlRatio_.store(config->CacheTtlRatio.value_or(Config_->CacheTtlRatio));
+        EntryByteRateLimit_.store(config->EntryByteRateLimit.value_or(Config_->EntryByteRateLimit));
     }
 
 private:
@@ -171,8 +181,11 @@ private:
     const TCachingObjectServiceConfigPtr Config_;
     const TObjectServiceCachePtr Cache_;
     const TCellId CellId_;
-    const IChannelPtr MasterChannel_;
+    const IThrottlingChannelPtr MasterChannel_;
     const NLogging::TLogger Logger;
+
+    std::atomic<double> CacheTtlRatio_;
+    std::atomic<i64> EntryByteRateLimit_;
 
     std::atomic<bool> CachingEnabled_ = false;
 };
@@ -237,8 +250,9 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             auto successExpirationTime = FromProto<TDuration>(cachingRequestHeaderExt.success_expiration_time());
             auto failureExpirationTime = FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time());
 
-            auto nodeSuccessExpirationTime = successExpirationTime * Config_->CacheTtlRatio;
-            auto nodeFailureExpirationTime = failureExpirationTime * Config_->CacheTtlRatio;
+            auto cacheTtlRatio = CacheTtlRatio_.load();
+            auto nodeSuccessExpirationTime = successExpirationTime * cacheTtlRatio;
+            auto nodeFailureExpirationTime = failureExpirationTime * cacheTtlRatio;
 
             bool cachingEnabled = CachingEnabled_.load(std::memory_order_relaxed);
             auto cookie = Cache_->BeginLookup(
@@ -342,7 +356,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                 if (request->has_current_sticky_group_size()) {
                     auto currentStickyGroupSize = request->current_sticky_group_size();
                     auto totalSize = subrequestResponse.ByteRate * currentStickyGroupSize;
-                    auto advisedStickyGroupSize = 1 + static_cast<int>(totalSize / Config_->EntryByteRateLimit);
+                    auto advisedStickyGroupSize = 1 + static_cast<int>(totalSize / EntryByteRateLimit_.load());
                     response->add_advised_sticky_group_size(advisedStickyGroupSize);
                 }
                 const auto& masterResponseMessage = subrequestResponse.Message;
@@ -367,13 +381,13 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         }));
 }
 
-IServicePtr CreateCachingObjectService(
+ICachingObjectServicePtr CreateCachingObjectService(
     TCachingObjectServiceConfigPtr config,
     IInvokerPtr invoker,
     IChannelPtr masterChannel,
     TObjectServiceCachePtr cache,
     TRealmId masterCellId,
-    const NLogging::TLogger& logger)
+    NLogging::TLogger logger)
 {
     return New<TCachingObjectService>(
         std::move(config),
@@ -381,7 +395,7 @@ IServicePtr CreateCachingObjectService(
         std::move(masterChannel),
         std::move(cache),
         masterCellId,
-        logger);
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

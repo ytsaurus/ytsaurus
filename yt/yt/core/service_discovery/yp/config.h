@@ -2,7 +2,8 @@
 
 #include "public.h"
 
-#include <yt/core/misc/config.h>
+#include <yt/core/misc/cache_config.h>
+
 #include <yt/core/rpc/config.h>
 
 #include <yt/core/ytree/yson_serializable.h>

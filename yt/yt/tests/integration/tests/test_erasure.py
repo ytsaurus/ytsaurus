@@ -446,6 +446,18 @@ class TestErasureMulticell(TestErasure):
 
 class TestDynamicTablesErasure(TestErasureBase):
     USE_DYNAMIC_TABLES = True
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "block_cache": {
+                "compressed_data": {
+                    "capacity": 0
+                },
+                "uncompressed_data": {
+                    "capacity": 0
+                }
+            }
+        }
+    }
 
     @authors("akozhikhov")
     def test_erasure_reader_failures(self):

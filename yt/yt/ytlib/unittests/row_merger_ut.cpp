@@ -79,7 +79,7 @@ class TRowMergerTestBase
 {
 protected:
     const TRowBufferPtr Buffer_ = New<TRowBuffer>();
-    TColumnEvaluatorCachePtr ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
+    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(
         New<TColumnEvaluatorCacheConfig>());
 
     TVersionedRow BuildVersionedRow(

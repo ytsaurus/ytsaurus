@@ -6,8 +6,6 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
-
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/client/table_client/schema.h>
@@ -16,7 +14,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
-#include <yt/core/misc/public.h>
+#include <yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/core/actions/future.h>
 
@@ -43,19 +41,19 @@ public:
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TTableSchemaPtr& schema,
         const TColumnRenameDescriptors& renameDescriptors = {},
-        const NNodeTrackerClient::TNodeMemoryTrackerPtr& memoryTracker = nullptr);
+        const IMemoryUsageTrackerPtr& memoryTracker = nullptr);
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TTableSchemaPtr& schema,
         const TColumnRenameDescriptors& renameDescriptors = {},
-        const NNodeTrackerClient::TNodeMemoryTrackerPtr& memoryTracker = nullptr);
+        const IMemoryUsageTrackerPtr& memoryTracker = nullptr);
 
     virtual i64 GetMemoryUsage() const override;
 
 private:
-    NNodeTrackerClient::TNodeMemoryTrackerGuard MemoryTrackerGuard_;
+    TMemoryUsageTrackerGuard MemoryTrackerGuard_;
 
     TCachedVersionedChunkMeta();
 
@@ -64,7 +62,7 @@ private:
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TTableSchemaPtr& schema,
         const TColumnRenameDescriptors& renameDescriptors,
-        NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker);
+        const IMemoryUsageTrackerPtr& memoryTracker);
 
     void ValidateChunkMeta();
     void ValidateSchema(const TTableSchema& readerSchema);

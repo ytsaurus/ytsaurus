@@ -4,7 +4,7 @@
 
 #include <yt/client/api/client.h>
 
-#include <yt/core/misc/config.h>
+#include <yt/core/misc/cache_config.h>
 
 #include <yt/core/rpc/config.h>
 
@@ -53,8 +53,7 @@ DEFINE_REFCOUNTED_TYPE(TObjectAttributeCacheConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectServiceCacheConfig
-    : public NRpc::TThrottlingChannelConfig
-    , public TSlruCacheConfig
+    : public TSlruCacheConfig
 {
 public:
     double TopEntryByteRateThreshold;
@@ -74,8 +73,26 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TObjectServiceCacheDynamicConfig
+    : public TSlruCacheDynamicConfig
+{
+public:
+    std::optional<double> TopEntryByteRateThreshold;
+
+    TObjectServiceCacheDynamicConfig()
+    {
+        RegisterParameter("top_entry_byte_rate_threshold", TopEntryByteRateThreshold)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCachingObjectServiceConfig
-    : public TObjectServiceCacheConfig
+    : public NRpc::TThrottlingChannelConfig
+    , public TObjectServiceCacheConfig
 {
 public:
     double CacheTtlRatio;
@@ -93,6 +110,29 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingObjectServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingObjectServiceDynamicConfig
+    : public NRpc::TThrottlingChannelDynamicConfig
+    , public TObjectServiceCacheDynamicConfig
+{
+public:
+    std::optional<double> CacheTtlRatio;
+    std::optional<i64> EntryByteRateLimit;
+
+    TCachingObjectServiceDynamicConfig()
+    {
+        RegisterParameter("cache_ttl_ratio", CacheTtlRatio)
+            .InRange(0, 1)
+            .Optional();
+        RegisterParameter("entry_byte_rate_limit", EntryByteRateLimit)
+            .GreaterThan(0)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingObjectServiceDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

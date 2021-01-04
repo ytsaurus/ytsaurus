@@ -443,6 +443,9 @@ public:
     //! Query agent configuration part.
     NQueryAgent::TQueryAgentDynamicConfigPtr QueryAgent;
 
+    //! Metadata cache service configuration.
+    NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;
+
     TClusterNodeDynamicConfig()
     {
         RegisterParameter("config_annotation", ConfigAnnotation)
@@ -462,6 +465,8 @@ public:
         RegisterParameter("tablet_node", TabletNode)
             .DefaultNew();
         RegisterParameter("query_agent", QueryAgent)
+            .DefaultNew();
+        RegisterParameter("caching_object_service", CachingObjectService)
             .DefaultNew();
 
         RegisterPostprocessor([&] {

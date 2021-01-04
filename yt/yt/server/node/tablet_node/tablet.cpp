@@ -1308,9 +1308,9 @@ void TTablet::Initialize()
     if (LookupCacheSize_) {
         RowCache_ = New<TRowCache>(
             LookupCacheSize_,
-            CreateMemoryTrackerForCategory(
-                Context_->GetMemoryUsageTracker(),
-                NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
+            Context_
+                ->GetMemoryUsageTracker()
+                ->WithCategory(NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
     }
 }
 

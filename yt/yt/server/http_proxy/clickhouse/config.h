@@ -8,6 +8,8 @@
 
 #include <yt/core/http/config.h>
 
+#include <yt/core/misc/cache_config.h>
+
 namespace NYT::NHttpProxy::NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////

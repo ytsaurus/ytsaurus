@@ -12,7 +12,6 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "dynamic_config_manager": {
-            "update_period": 50,
             "enable_unrecognized_options_alert": True,
         },
     }
@@ -24,8 +23,8 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
         return dynamic_config.get("config_annotation", "")
 
-    def get_dynamic_config_last_update_time(self, node):
-        return get("//sys/cluster_nodes/{}/orchid/dynamic_config_manager/last_config_update_time".format(node))
+    def get_dynamic_config_last_change_time(self, node):
+        return get("//sys/cluster_nodes/{}/orchid/dynamic_config_manager/last_config_change_time".format(node))
 
     @authors("gritukan")
     def test_simple(self):
@@ -256,7 +255,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
         wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[2]))) == 0)
 
     @authors("gritukan")
-    def test_last_config_update_time(self):
+    def test_last_config_change_time(self):
         nodes = ls("//sys/cluster_nodes")
 
         set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[0]), ["nodeA"])
@@ -275,8 +274,8 @@ class TestNodeDynamicConfig(YTEnvSetup):
         wait(lambda: self.get_dynamic_config_annotation(nodes[0]) == "configA")
         wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "configB")
 
-        node_a_config_last_update_time = self.get_dynamic_config_last_update_time(nodes[0])
-        node_b_config_last_update_time = self.get_dynamic_config_last_update_time(nodes[1])
+        node_a_config_last_change_time = self.get_dynamic_config_last_change_time(nodes[0])
+        node_b_config_last_change_time = self.get_dynamic_config_last_change_time(nodes[1])
 
         config = {
             "nodeA": {
@@ -291,8 +290,8 @@ class TestNodeDynamicConfig(YTEnvSetup):
         wait(lambda: self.get_dynamic_config_annotation(nodes[0]) == "configA")
         wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "configB2")
 
-        assert self.get_dynamic_config_last_update_time(nodes[0]) == node_a_config_last_update_time
-        assert self.get_dynamic_config_last_update_time(nodes[1]) > node_b_config_last_update_time
+        assert self.get_dynamic_config_last_change_time(nodes[0]) == node_a_config_last_change_time
+        assert self.get_dynamic_config_last_change_time(nodes[1]) > node_b_config_last_change_time
 
     @authors("gritukan")
     def test_no_config_node(self):

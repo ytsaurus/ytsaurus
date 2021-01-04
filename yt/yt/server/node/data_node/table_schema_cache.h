@@ -10,6 +10,8 @@
 
 #include <util/datetime/base.h>
 
+#include <atomic>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,12 +74,16 @@ class TTableSchemaCache
     : public TSyncSlruCacheBase<TSchemaCacheKey, TCachedTableSchemaWrapper>
 {
 public:
-    explicit TTableSchemaCache(const TTableSchemaCacheConfigPtr& config);
+    explicit TTableSchemaCache(TTableSchemaCacheConfigPtr config);
 
     TCachedTableSchemaWrapperPtr GetOrCreate(const TSchemaCacheKey& key, i64 schemaSize);
 
+    void Reconfigure(const TTableSchemaCacheDynamicConfigPtr& config);
+
 private:
-    const TDuration TableSchemaCacheRequestTimeout_;
+    const TTableSchemaCacheConfigPtr Config_;
+
+    std::atomic<TDuration> TableSchemaCacheRequestTimeout_;
 
     virtual i64 GetWeight(const TCachedTableSchemaWrapperPtr& value) const override;
 };
