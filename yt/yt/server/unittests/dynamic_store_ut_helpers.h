@@ -75,7 +75,7 @@ protected:
         return EPeerState::Leading;
     }
 
-    virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
+    virtual IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
     {
         return ColumnEvaluatorCache_;
     }
@@ -122,7 +122,7 @@ protected:
         return NNodeTrackerClient::NullNodeDescriptor();
     }
 
-    virtual NNodeTrackerClient::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
+    virtual NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
     {
         return nullptr;
     }
@@ -370,7 +370,7 @@ protected:
 
 
 
-    const TColumnEvaluatorCachePtr ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
+    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(
         New<TColumnEvaluatorCacheConfig>());
 
     TNameTablePtr NameTable_;

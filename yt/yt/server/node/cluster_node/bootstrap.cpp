@@ -103,8 +103,6 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-
 #include <yt/client/misc/workload.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
@@ -253,10 +251,7 @@ void TBootstrap::DoInitialize()
         Config_->ResourceLimits->TotalMemory,
         std::vector<std::pair<EMemoryCategory, i64>>{},
         Logger,
-        TRegistry("/cluster_node/memory_usage"));
-
-    MasterConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
-    MasterClient_ = MasterConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+        ClusterNodeProfiler.WithPrefix("/memory_usage"));
 
     MasterCacheQueue_ = New<TActionQueue>("MasterCache");
     QueryThreadPool_ = CreateTwoLevelFairShareThreadPool(
@@ -280,6 +275,31 @@ void TBootstrap::DoInitialize()
         Config_->DataNode->StorageLookupThreadCount,
         "StorageLookup");
 
+    BlockCache_ = ClientBlockCache_ = CreateDataNodeBlockCache(this);
+
+    MasterConnection_ = NApi::NNative::CreateConnection(
+        Config_->ClusterConnection,
+        NApi::NNative::TConnectionOptions{
+            .ThreadPoolInvoker = GetStorageHeavyInvoker(),
+            .BlockCache = GetBlockCache()
+        });
+    MasterClient_ = MasterConnection_->CreateNativeClient(
+        TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+    MasterConnector_ = New<NDataNode::TMasterConnector>(
+        Config_->DataNode,
+        localRpcAddresses,
+        NYT::GetLocalAddresses(Config_->Addresses, Config_->SkynetHttpPort),
+        NYT::GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort),
+        Config_->Tags,
+        this);
+    MasterConnector_->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
+    MasterConnector_->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
+    MasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
+
+    DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
+    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
@@ -297,23 +317,19 @@ void TBootstrap::DoInitialize()
         createBatchingChunkService(config);
     }
 
-    BlobReaderCache_ = New<TBlobReaderCache>(Config_->DataNode, this);
+    BlobReaderCache_ = CreateBlobReaderCache(this);
 
     TableSchemaCache_ = New<TTableSchemaCache>(Config_->DataNode->TableSchemaCache);
 
-    JournalDispatcher_ = New<TJournalDispatcher>(Config_->DataNode);
+    JournalDispatcher_ = CreateJournalDispatcher(this);
 
     ChunkRegistry_ = New<TChunkRegistry>(this);
 
-    ChunkMetaManager_ = New<TChunkMetaManager>(Config_->DataNode, this);
+    ChunkMetaManager_ = CreateChunkMetaManager(this);
 
     ChunkBlockManager_ = New<TChunkBlockManager>(Config_->DataNode, this);
 
     NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
-
-    BlockCache_ = CreateServerBlockCache(Config_->DataNode, this);
-
-    BlockMetaCache_ = New<TBlockMetaCache>(Config_->DataNode->BlockMetaCache, TRegistry("/data_node/block_meta_cache"));
 
     PeerBlockDistributor_ = New<TPeerBlockDistributor>(Config_->DataNode->PeerBlockDistributor, this);
     PeerBlockTable_ = New<TPeerBlockTable>(Config_->DataNode->PeerBlockTable, this);
@@ -321,23 +337,9 @@ void TBootstrap::DoInitialize()
 
     SessionManager_ = New<TSessionManager>(Config_->DataNode, this);
 
-    MasterConnector_ = New<NDataNode::TMasterConnector>(
-        Config_->DataNode,
-        localRpcAddresses,
-        NYT::GetLocalAddresses(Config_->Addresses, Config_->SkynetHttpPort),
-        NYT::GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort),
-        Config_->Tags,
-        this);
-    MasterConnector_->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
-    MasterConnector_->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
-    MasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
-
-    DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
-    DynamicConfigManager_->SubscribeConfigUpdated(BIND(&TBootstrap::OnDynamicConfigUpdated, this));
-
     NodeResourceManager_ = New<TNodeResourceManager>(this);
 
-    TabletNodeHintManager_ = New<NTabletNode::THintManager>(Config_->TabletNode->HintManager, this);
+    TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
     TabletSlotManager_ = New<NTabletNode::TSlotManager>(Config_->TabletNode, this);
     MasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::TSlotManager::PopulateAlerts, TabletSlotManager_));
 
@@ -544,8 +546,7 @@ void TBootstrap::DoInitialize()
 
     SchedulerConnector_ = New<TSchedulerConnector>(Config_->ExecAgent->SchedulerConnector, this);
 
-    ColumnEvaluatorCache_ = New<NQueryClient::TColumnEvaluatorCache>(
-        New<NQueryClient::TColumnEvaluatorCacheConfig>());
+    ColumnEvaluatorCache_ = NQueryClient::CreateColumnEvaluatorCache(Config_->TabletNode->ColumnEvaluatorCache);
 
     SecurityManager_ = New<TSecurityManager>(Config_->TabletNode->SecurityManager, this);
 
@@ -568,13 +569,9 @@ void TBootstrap::DoInitialize()
 
     ObjectServiceCache_ = New<TObjectServiceCache>(
         Config_->CachingObjectService,
+        MemoryUsageTracker_->WithCategory(EMemoryCategory::MasterCache),
         Logger,
-        TRegistry("/cluster_node/master_cache"));
-
-    {
-        auto result = GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::MasterCache, Config_->CachingObjectService->Capacity);
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving memory for master cache");
-    }
+        ClusterNodeProfiler.WithPrefix("/master_cache"));
 
     auto initCachingObjectService = [&] (const auto& masterConfig) {
         return CreateCachingObjectService(
@@ -883,7 +880,7 @@ const TJobReporterPtr& TBootstrap::GetJobReporter() const
     return JobReporter_;
 }
 
-const NTabletNode::THintManagerPtr& TBootstrap::GetTabletNodeHintManager() const
+const NTabletNode::IHintManagerPtr& TBootstrap::GetTabletNodeHintManager() const
 {
     return TabletNodeHintManager_;
 }
@@ -953,7 +950,7 @@ TNetworkStatistics& TBootstrap::GetNetworkStatistics() const
     return *NetworkStatistics_;
 }
 
-const TChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const
+const IChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const
 {
     return ChunkMetaManager_;
 }
@@ -961,11 +958,6 @@ const TChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const
 const IBlockCachePtr& TBootstrap::GetBlockCache() const
 {
     return BlockCache_;
-}
-
-const TBlockMetaCachePtr& TBootstrap::GetBlockMetaCache() const
-{
-    return BlockMetaCache_;
 }
 
 const TPeerBlockDistributorPtr& TBootstrap::GetPeerBlockDistributor() const
@@ -983,7 +975,7 @@ const TPeerBlockUpdaterPtr& TBootstrap::GetPeerBlockUpdater() const
     return PeerBlockUpdater_;
 }
 
-const TBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const
+const IBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const
 {
     return BlobReaderCache_;
 }
@@ -993,7 +985,7 @@ const TTableSchemaCachePtr& TBootstrap::GetTableSchemaCache() const
     return TableSchemaCache_;
 }
 
-const TJournalDispatcherPtr& TBootstrap::GetJournalDispatcher() const
+const IJournalDispatcherPtr& TBootstrap::GetJournalDispatcher() const
 {
     return JournalDispatcher_;
 }
@@ -1060,7 +1052,7 @@ std::vector<TString> TBootstrap::GetMasterAddressesOrThrow(TCellTag cellTag) con
     THROW_ERROR_EXCEPTION("Master with cell tag %v is not known", cellTag);
 }
 
-const NQueryClient::TColumnEvaluatorCachePtr& TBootstrap::GetColumnEvaluatorCache() const
+const NQueryClient::IColumnEvaluatorCachePtr& TBootstrap::GetColumnEvaluatorCache() const
 {
     return ColumnEvaluatorCache_;
 }
@@ -1226,7 +1218,7 @@ void TBootstrap::OnMasterDisconnected()
     }
 }
 
-void TBootstrap::OnDynamicConfigUpdated(
+void TBootstrap::OnDynamicConfigChanged(
     const TClusterNodeDynamicConfigPtr& /* oldConfig */,
     const TClusterNodeDynamicConfigPtr& newConfig)
 {
@@ -1273,6 +1265,17 @@ void TBootstrap::OnDynamicConfigUpdated(
             ? newConfig->TabletNode->Throttlers[kind]
             : Config_->TabletNode->Throttlers[kind];
         RawTabletNodeThrottlers_[kind]->Reconfigure(throttlerConfig);
+    }
+
+    ClientBlockCache_->Reconfigure(newConfig->DataNode->BlockCache);
+
+    TableSchemaCache_->Reconfigure(newConfig->DataNode->TableSchemaCache);
+
+    ColumnEvaluatorCache_->Reconfigure(newConfig->TabletNode->ColumnEvaluatorCache);
+
+    ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
+    for (const auto& service : CachingObjectServices_) {
+        service->Reconfigure(newConfig->CachingObjectService);
     }
 }
 

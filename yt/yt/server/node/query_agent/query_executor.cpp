@@ -282,8 +282,8 @@ public:
         TQueryAgentConfigPtr config,
         TFunctionImplCachePtr functionImplCache,
         TBootstrap* bootstrap,
-        TColumnEvaluatorCachePtr columnEvaluatorCache,
-        TEvaluatorPtr evaluator,
+        IColumnEvaluatorCachePtr columnEvaluatorCache,
+        IEvaluatorPtr evaluator,
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
@@ -335,8 +335,8 @@ private:
     const TQueryAgentConfigPtr Config_;
     const TFunctionImplCachePtr FunctionImplCache_;
     TBootstrap* const Bootstrap_;
-    const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-    const TEvaluatorPtr Evaluator_;
+    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    const IEvaluatorPtr Evaluator_;
 
     const TConstQueryPtr Query_;
 
@@ -577,7 +577,7 @@ private:
 
                 auto pipe = New<TSchemafulPipe>();
 
-                auto asyncStatistics = BIND(&TEvaluator::Run, Evaluator_)
+                auto asyncStatistics = BIND(&IEvaluator::Run, Evaluator_)
                     .AsyncVia(Invoker_)
                     .Run(
                         subquery,
@@ -1033,12 +1033,12 @@ public:
             config->FunctionImplCache,
             bootstrap->GetMasterClient()))
         , Bootstrap_(bootstrap)
-        , Evaluator_(New<TEvaluator>(
+        , Evaluator_(CreateEvaluator(
             Config_,
-            QueryAgentProfiler,
-            CreateMemoryTrackerForCategory(
-                Bootstrap_->GetMemoryUsageTracker(),
-                NNodeTrackerClient::EMemoryCategory::Query)))
+            Bootstrap_
+                ->GetMemoryUsageTracker()
+                ->WithCategory(NNodeTrackerClient::EMemoryCategory::Query),
+            QueryAgentProfiler))
         , ColumnEvaluatorCache_(Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()
@@ -1078,8 +1078,8 @@ private:
     const TQueryAgentConfigPtr Config_;
     const TFunctionImplCachePtr FunctionImplCache_;
     TBootstrap* const Bootstrap_;
-    const TEvaluatorPtr Evaluator_;
-    const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    const IEvaluatorPtr Evaluator_;
+    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 };
 
 IQuerySubexecutorPtr CreateQuerySubexecutor(

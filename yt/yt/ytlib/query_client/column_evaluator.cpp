@@ -190,11 +190,12 @@ private:
 };
 
 // TODO(lukyan): Use async cache?
-class TColumnEvaluatorCache::TImpl
+class TColumnEvaluatorCache
     : public TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedColumnEvaluator>
+    , public IColumnEvaluatorCache
 {
 public:
-    explicit TImpl(
+    TColumnEvaluatorCache(
         TColumnEvaluatorCacheConfigPtr config,
         const TConstTypeInferrerMapPtr& typeInferrers,
         const TConstFunctionProfilerMapPtr& profilers)
@@ -203,18 +204,18 @@ public:
         , Profilers_(profilers)
     { }
 
-    TColumnEvaluatorPtr Get(TTableSchemaPtr schema)
+    virtual TColumnEvaluatorPtr Find(const TTableSchemaPtr& schema) override
     {
         llvm::FoldingSetNodeID id;
         Profile(schema, &id);
 
-        auto cachedEvaluator = Find(id);
+        auto cachedEvaluator = TSyncSlruCacheBase::Find(id);
         if (!cachedEvaluator) {
             YT_LOG_DEBUG("Codegen cache miss: generating column evaluator (Schema: %v)",
                 *schema);
 
             auto evaluator = TColumnEvaluator::Create(
-                std::move(schema),
+                schema,
                 TypeInferers_,
                 Profilers_);
             cachedEvaluator = New<TCachedColumnEvaluator>(id, evaluator);
@@ -225,28 +226,25 @@ public:
         return cachedEvaluator->GetColumnEvaluator();
     }
 
+    virtual void Reconfigure(const TColumnEvaluatorCacheDynamicConfigPtr& config) override
+    {
+        TSyncSlruCacheBase::Reconfigure(config->CGCache);
+    }
+
 private:
     const TConstTypeInferrerMapPtr TypeInferers_;
     const TConstFunctionProfilerMapPtr Profilers_;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-TColumnEvaluatorCache::TColumnEvaluatorCache(
+IColumnEvaluatorCachePtr CreateColumnEvaluatorCache(
     TColumnEvaluatorCacheConfigPtr config,
-    const TConstTypeInferrerMapPtr& typeInferrers,
-    const TConstFunctionProfilerMapPtr& profilers)
-    : Impl_(New<TImpl>(
-        std::move(config),
-        typeInferrers,
-        profilers))
-{ }
-
-TColumnEvaluatorCache::~TColumnEvaluatorCache() = default;
-
-TColumnEvaluatorPtr TColumnEvaluatorCache::Find(TTableSchemaPtr schema)
+    TConstTypeInferrerMapPtr typeInferrers,
+    TConstFunctionProfilerMapPtr profilers)
 {
-    return Impl_->Get(std::move(schema));
+    return New<TColumnEvaluatorCache>(
+        std::move(config),
+        std::move(typeInferrers),
+        std::move(profilers));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

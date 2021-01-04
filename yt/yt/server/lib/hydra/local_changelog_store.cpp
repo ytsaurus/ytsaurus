@@ -7,7 +7,7 @@
 #include <yt/ytlib/chunk_client/io_engine.h>
 #include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 #include <yt/core/misc/fs.h>
 
 namespace NYT::NHydra {

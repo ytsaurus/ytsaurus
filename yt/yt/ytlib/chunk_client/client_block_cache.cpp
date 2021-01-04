@@ -36,7 +36,6 @@ public:
         : TSyncCacheValueBase(id)
         , Data_(data)
     { }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedBlock)
@@ -46,20 +45,24 @@ DEFINE_REFCOUNTED_TYPE(TCachedBlock)
 DECLARE_REFCOUNTED_CLASS(TPerTypeClientBlockCache)
 
 class TPerTypeClientBlockCache
-    : public TSyncSlruCacheBase<TBlockId, TCachedBlock>
+    : public TMemoryTrackingSyncSlruCacheBase<TBlockId, TCachedBlock>
 {
 public:
     TPerTypeClientBlockCache(
         EBlockType type,
         TSlruCacheConfigPtr config,
+        IMemoryUsageTrackerPtr memoryTracker,
         const NProfiling::TRegistry& profiler)
-        : TSyncSlruCacheBase(config, profiler)
+        : TMemoryTrackingSyncSlruCacheBase(
+            std::move(config),
+            std::move(memoryTracker),
+            profiler)
         , Type_(type)
     { }
 
     void Put(const TBlockId& id, const TBlock& data)
     {
-        if (Config_->Capacity == 0) {
+        if (Capacity_.load() == 0) {
             // Shortcut when cache is disabled.
             return;
         }
@@ -80,9 +83,9 @@ public:
 
     TBlock Find(const TBlockId& id)
     {
-        if (Config_->Capacity == 0) {
+        if (Capacity_.load() == 0) {
             // Shortcut when cache is disabled.
-            return TBlock();
+            return {};
         }
 
         auto block = TSyncSlruCacheBase::Find(id);
@@ -95,7 +98,7 @@ public:
             YT_LOG_TRACE("Block cache miss (BlockId: %v, BlockType: %v)",
                 id,
                 Type_);
-            return TBlock();
+            return {};
         }
     }
 
@@ -108,7 +111,6 @@ private:
 
         return block->GetData().Size();
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TPerTypeClientBlockCache)
@@ -116,12 +118,13 @@ DEFINE_REFCOUNTED_TYPE(TPerTypeClientBlockCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientBlockCache
-    : public IBlockCache
+    : public IClientBlockCache
 {
 public:
     TClientBlockCache(
         TBlockCacheConfigPtr config,
         EBlockType supportedBlockTypes,
+        IMemoryUsageTrackerPtr memoryTracker,
         const NProfiling::TRegistry& profiler)
         : SupportedBlockTypes_(supportedBlockTypes)
     {
@@ -130,8 +133,9 @@ public:
                 auto cache = New<TPerTypeClientBlockCache>(
                     type,
                     config,
+                    memoryTracker,
                     profiler.WithPrefix("/" + FormatEnum(type)));
-                YT_VERIFY(PerTypeCaches_.insert({type, cache}).second);
+                YT_VERIFY(PerTypeCaches_.emplace(type, cache).second);
             }
         };
         initType(EBlockType::CompressedData, config->CompressedData);
@@ -144,8 +148,7 @@ public:
         const TBlock& data,
         const std::optional<TNodeDescriptor>& /*source*/) override
     {
-        auto cache = FindPerTypeCache(type);
-        if (cache) {
+        if (const auto& cache = FindPerTypeCache(type)) {
             cache->Put(id, data);
         }
     }
@@ -154,7 +157,7 @@ public:
         const TBlockId& id,
         EBlockType type) override
     {
-        auto cache = FindPerTypeCache(type);
+        const auto& cache = FindPerTypeCache(type);
         return cache ? cache->Find(id) : TBlock();
     }
 
@@ -163,25 +166,41 @@ public:
         return SupportedBlockTypes_;
     }
 
+    virtual void Reconfigure(const TBlockCacheDynamicConfigPtr& config) override
+    {
+        auto reconfigureType = [&] (EBlockType type, TSlruCacheDynamicConfigPtr config) {
+            if (const auto& cache = FindPerTypeCache(type)) {
+                cache->Reconfigure(config);
+            }
+        };
+        reconfigureType(EBlockType::CompressedData, config->CompressedData);
+        reconfigureType(EBlockType::UncompressedData, config->UncompressedData);
+    }
+
 private:
     const EBlockType SupportedBlockTypes_;
 
     THashMap<EBlockType, TPerTypeClientBlockCachePtr> PerTypeCaches_;
 
-    TPerTypeClientBlockCachePtr FindPerTypeCache(EBlockType type)
+    const TPerTypeClientBlockCachePtr& FindPerTypeCache(EBlockType type)
     {
         auto it = PerTypeCaches_.find(type);
-        return it == PerTypeCaches_.end() ? nullptr : it->second;
+        static TPerTypeClientBlockCachePtr NullCache;
+        return it == PerTypeCaches_.end() ? NullCache : it->second;
     }
-
 };
 
-IBlockCachePtr CreateClientBlockCache(
+IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
+    IMemoryUsageTrackerPtr memoryTracker,
     const NProfiling::TRegistry& profiler)
 {
-    return New<TClientBlockCache>(config, supportedBlockTypes, profiler);
+    return New<TClientBlockCache>(
+        std::move(config),
+        supportedBlockTypes,
+        std::move(memoryTracker),
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

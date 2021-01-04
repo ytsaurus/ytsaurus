@@ -140,6 +140,7 @@ void TDynamicConfigManagerBase<TConfig>::DoUpdateConfig()
     {
         auto guard = Guard(SpinLock_);
         std::swap(UpdateError_, error);
+        LastConfigUpdateTime_ = TInstant::Now();
     }
 }
 
@@ -256,13 +257,13 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 
     // NB: The handler could raise an exception.
     // The config must only be considered applied _after_ a successful call.
-    ConfigUpdated_.Fire(AppliedConfig_, newConfig);
+    ConfigChanged_.Fire(AppliedConfig_, newConfig);
 
     {
         auto guard = Guard(SpinLock_);
         std::swap(AppliedConfigNode_, matchedConfigNode);
         std::swap(AppliedConfig_, newConfig);
-        LastConfigUpdateTime_ = TInstant::Now();
+        LastConfigChangeTime_ = TInstant::Now();
     }
 
     ConfigLoadedPromise_.TrySet();
@@ -277,10 +278,12 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
 
     NYTree::INodePtr configNode;
     TInstant lastConfigUpdateTime;
+    TInstant lastConfigChangeTime;
     {
         auto guard = Guard(SpinLock_);
         configNode = AppliedConfigNode_;
         lastConfigUpdateTime = LastConfigUpdateTime_;
+        lastConfigChangeTime = LastConfigChangeTime_;
     }
 
     NYTree::BuildYsonFluently(consumer)
@@ -289,6 +292,7 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
                 fluent.Item("applied_config").Value(configNode);
             })
             .Item("last_config_update_time").Value(lastConfigUpdateTime)
+            .Item("last_config_change_time").Value(lastConfigChangeTime)
         .EndMap();
 }
 

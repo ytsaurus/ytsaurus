@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/config.h>
+#include <yt/core/misc/cache_config.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -30,6 +30,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TExecutorConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TColumnEvaluatorCacheConfig
     : public NYTree::TYsonSerializable
 {
@@ -49,6 +51,23 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TColumnEvaluatorCacheDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TSlruCacheDynamicConfigPtr CGCache;
+
+    TColumnEvaluatorCacheDynamicConfig()
+    {
+        RegisterParameter("cg_cache", CGCache)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

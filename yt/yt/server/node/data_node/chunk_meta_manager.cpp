@@ -3,14 +3,19 @@
 #include "private.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+
 namespace NYT::NDataNode {
 
 using namespace NChunkClient;
+using namespace NTableClient;
 using namespace NNodeTrackerClient;
 using namespace NClusterNode;
 
@@ -22,66 +27,80 @@ static const auto& Logger = DataNodeLogger;
 
 TCachedChunkMeta::TCachedChunkMeta(
     TChunkId chunkId,
-    TRefCountedChunkMetaPtr meta,
-    TNodeMemoryTrackerPtr memoryTracker)
+    TRefCountedChunkMetaPtr meta)
     : TAsyncCacheValueBase(chunkId)
     , Meta_(std::move(meta))
-    , MemoryTrackerGuard_(std::make_unique<TNodeMemoryTrackerGuard>(TNodeMemoryTrackerGuard::Acquire(
-        std::move(memoryTracker),
-        EMemoryCategory::ChunkMeta,
-        Meta_->SpaceUsed())))
+    , Weight_(Meta_->SpaceUsedLong())
 { }
 
-i64 TCachedChunkMeta::GetSize() const
+i64 TCachedChunkMeta::GetWeight() const
 {
-    return MemoryTrackerGuard_->GetSize();
+    return Weight_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedBlocksExt::TCachedBlocksExt(
     TChunkId chunkId,
-    TRefCountedBlocksExtPtr blocksExt,
-    TNodeMemoryTrackerPtr memoryTracker)
+    TRefCountedBlocksExtPtr blocksExt)
     : TAsyncCacheValueBase(chunkId)
     , BlocksExt_(std::move(blocksExt))
-    , MemoryTrackerGuard_(std::make_unique<TNodeMemoryTrackerGuard>(TNodeMemoryTrackerGuard::Acquire(
-        std::move(memoryTracker),
-        EMemoryCategory::ChunkBlockMeta,
-        BlocksExt_->SpaceUsed())))
+    , Weight_(BlocksExt_->SpaceUsedLong())
 { }
 
-i64 TCachedBlocksExt::GetSize() const
+i64 TCachedBlocksExt::GetWeight() const
 {
-    return MemoryTrackerGuard_->GetSize();
+    return Weight_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkMetaManager::TImpl
-    : public TRefCounted
+class TChunkMetaManager
+    : public IChunkMetaManager
 {
 public:
-    TImpl(
-        TDataNodeConfigPtr config,
-        TBootstrap* bootstrap)
+    explicit TChunkMetaManager(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , MetaCache_(New<TChunkMetaCache>(config))
-        , BlocksExtCache_(New<TBlocksExtCache>(config))
+        , Config_(Bootstrap_->GetConfig()->DataNode)
+        , ChunkMetaCache_(New<TChunkMetaCache>(
+            Config_->ChunkMetaCache,
+            Bootstrap_
+                ->GetMemoryUsageTracker()
+                ->WithCategory(EMemoryCategory::ChunkMeta),
+            DataNodeProfiler.WithPrefix("/chunk_meta_cache")))
+        , BlocksExtCache_(New<TBlocksExtCache>(
+            Config_->BlocksExtCache,
+            Bootstrap_
+                ->GetMemoryUsageTracker()
+                ->WithCategory(EMemoryCategory::ChunkBlockMeta),
+            DataNodeProfiler.WithPrefix("/blocks_ext_cache")))
+        , BlockMetaCache_(New<TBlockMetaCache>(
+            Config_->BlockMetaCache,
+            Bootstrap_
+                ->GetMemoryUsageTracker()
+                ->WithCategory(EMemoryCategory::ChunkBlockMeta),
+            DataNodeProfiler.WithPrefix("/block_meta_cache")))
     {
         YT_VERIFY(Bootstrap_);
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigChanged(BIND(&TChunkMetaManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    
-    TRefCountedChunkMetaPtr FindCachedMeta(TChunkId chunkId)
+    virtual const NTableClient::TBlockMetaCachePtr& GetBlockMetaCache() override
     {
-        auto cachedMeta = MetaCache_->Find(chunkId);
+        return BlockMetaCache_;
+    }
+
+    virtual TRefCountedChunkMetaPtr FindCachedMeta(TChunkId chunkId) override
+    {
+        auto cachedMeta = ChunkMetaCache_->Find(chunkId);
         return cachedMeta ? cachedMeta->GetMeta() : nullptr;
     }
 
-    void PutCachedMeta(
+    virtual void PutCachedMeta(
         TChunkId chunkId,
-        TRefCountedChunkMetaPtr meta)
+        TRefCountedChunkMetaPtr meta) override
     {
         auto cookie = BeginInsertCachedMeta(chunkId);
         if (cookie.IsActive()) {
@@ -92,39 +111,38 @@ public:
         }
     }
 
-    TCachedChunkMetaCookie BeginInsertCachedMeta(TChunkId chunkId)
+    virtual TCachedChunkMetaCookie BeginInsertCachedMeta(TChunkId chunkId) override
     {
-        return MetaCache_->BeginInsert(chunkId);
+        return ChunkMetaCache_->BeginInsert(chunkId);
     }
 
-    void EndInsertCachedMeta(
+    virtual void EndInsertCachedMeta(
         TCachedChunkMetaCookie&& cookie,
-        TRefCountedChunkMetaPtr meta)
+        TRefCountedChunkMetaPtr meta) override
     {
         auto chunkId = cookie.GetKey();
         auto cachedMeta = New<TCachedChunkMeta>(
             chunkId,
-            std::move(meta),
-            Bootstrap_->GetMemoryUsageTracker());
+            std::move(meta));
         cookie.EndInsert(cachedMeta);
 
         YT_LOG_DEBUG("Chunk meta is put into cache (ChunkId: %v)",
             chunkId);
     }
 
-    void RemoveCachedMeta(TChunkId chunkId)
+    virtual void RemoveCachedMeta(TChunkId chunkId) override
     {
-         MetaCache_->TryRemove(chunkId);
+         ChunkMetaCache_->TryRemove(chunkId);
     }
 
 
-    TRefCountedBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId)
+    virtual TRefCountedBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId) override
     {
         auto cachedBlocksExt = BlocksExtCache_->Find(chunkId);
         return cachedBlocksExt ? cachedBlocksExt->GetBlocksExt() : nullptr;
     }
 
-    void PutCachedBlocksExt(TChunkId chunkId, TRefCountedBlocksExtPtr blocksExt)
+    virtual void PutCachedBlocksExt(TChunkId chunkId, TRefCountedBlocksExtPtr blocksExt) override
     {
         auto cookie = BeginInsertCachedBlocksExt(chunkId);
         if (cookie.IsActive()) {
@@ -135,42 +153,46 @@ public:
         }
     }
 
-    TCachedBlocksExtCookie BeginInsertCachedBlocksExt(TChunkId chunkId)
+    virtual TCachedBlocksExtCookie BeginInsertCachedBlocksExt(TChunkId chunkId) override
     {
         return BlocksExtCache_->BeginInsert(chunkId);
     }
 
-    void EndInsertCachedBlocksExt(
+    virtual void EndInsertCachedBlocksExt(
         TCachedBlocksExtCookie&& cookie,
-        TRefCountedBlocksExtPtr blocksExt)
+        TRefCountedBlocksExtPtr blocksExt) override
     {
         auto chunkId = cookie.GetKey();
         auto cachedBlocksExt = New<TCachedBlocksExt>(
             chunkId,
-            std::move(blocksExt),
-            Bootstrap_->GetMemoryUsageTracker());
+            std::move(blocksExt));
         cookie.EndInsert(cachedBlocksExt);
 
         YT_LOG_DEBUG("Blocks ext is put into cache (ChunkId: %v)",
             chunkId);
     }
 
-    void RemoveCachedBlocksExt(TChunkId chunkId)
+    virtual void RemoveCachedBlocksExt(TChunkId chunkId) override
     {
          BlocksExtCache_->TryRemove(chunkId);
     }
 
 private:
     TBootstrap* const Bootstrap_;
+    const TDataNodeConfigPtr Config_;
 
     class TChunkMetaCache
-        : public TAsyncSlruCacheBase<TChunkId, TCachedChunkMeta>
+        : public TMemoryTrackingAsyncSlruCacheBase<TChunkId, TCachedChunkMeta>
     {
     public:
-        explicit TChunkMetaCache(TDataNodeConfigPtr config)
-            : TAsyncSlruCacheBase(
-                config->ChunkMetaCache,
-                DataNodeProfiler.WithPrefix("/chunk_meta_cache"))
+        TChunkMetaCache(
+            TSlruCacheConfigPtr config,
+            IMemoryUsageTrackerPtr memoryTracker,
+            NProfiling::TRegistry profiler)
+            : TMemoryTrackingAsyncSlruCacheBase(
+                std::move(config),
+                std::move(memoryTracker),
+                std::move(profiler))
         { }
 
     protected:
@@ -178,20 +200,24 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            return meta->GetSize();
+            return meta->GetWeight();
         }
     };
 
-    const TIntrusivePtr<TChunkMetaCache> MetaCache_;
+    const TIntrusivePtr<TChunkMetaCache> ChunkMetaCache_;
 
     class TBlocksExtCache
-        : public TAsyncSlruCacheBase<TChunkId, TCachedBlocksExt>
+        : public TMemoryTrackingAsyncSlruCacheBase<TChunkId, TCachedBlocksExt>
     {
     public:
-        explicit TBlocksExtCache(TDataNodeConfigPtr config)
-            : TAsyncSlruCacheBase(
-                config->BlocksExtCache,
-                DataNodeProfiler.WithPrefix("/blocks_ext_cache"))
+        TBlocksExtCache(
+            TSlruCacheConfigPtr config,
+            IMemoryUsageTrackerPtr memoryTracker,
+            NProfiling::TRegistry profiler)
+            : TMemoryTrackingAsyncSlruCacheBase(
+                std::move(config),
+                std::move(memoryTracker),
+                std::move(profiler))
         { }
 
     protected:
@@ -199,81 +225,28 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            return blocksExt->GetSize();
+            return blocksExt->GetWeight();
         }
     };
 
     const TIntrusivePtr<TBlocksExtCache> BlocksExtCache_;
+
+    const NTableClient::TBlockMetaCachePtr BlockMetaCache_;
+
+    void OnDynamicConfigChanged(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+    {
+        const auto& config = newNodeConfig->DataNode;
+        ChunkMetaCache_->Reconfigure(config->ChunkMetaCache);
+        BlocksExtCache_->Reconfigure(config->BlocksExtCache);
+        BlockMetaCache_->Reconfigure(config->BlockMetaCache);
+    }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkMetaManager::TChunkMetaManager(
-    TDataNodeConfigPtr config,
-    TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
-{ }
-
-TChunkMetaManager::~TChunkMetaManager() = default;
-
-TRefCountedChunkMetaPtr TChunkMetaManager::FindCachedMeta(TChunkId chunkId)
+IChunkMetaManagerPtr CreateChunkMetaManager(NClusterNode::TBootstrap* bootstrap)
 {
-    return Impl_->FindCachedMeta(chunkId);
-}
-
-void TChunkMetaManager::PutCachedMeta(
-    TChunkId chunkId,
-    TRefCountedChunkMetaPtr meta)
-{
-    Impl_->PutCachedMeta(chunkId, std::move(meta));
-}
-
-TCachedChunkMetaCookie TChunkMetaManager::BeginInsertCachedMeta(TChunkId chunkId)
-{
-    return Impl_->BeginInsertCachedMeta(chunkId);
-}
-
-void TChunkMetaManager::EndInsertCachedMeta(
-    TCachedChunkMetaCookie&& cookie,
-    TRefCountedChunkMetaPtr meta)
-{
-    Impl_->EndInsertCachedMeta(
-        std::move(cookie),
-        std::move(meta));
-}
-
-void TChunkMetaManager::RemoveCachedMeta(TChunkId chunkId)
-{
-    Impl_->RemoveCachedMeta(chunkId);
-}
-
-TRefCountedBlocksExtPtr TChunkMetaManager::FindCachedBlocksExt(TChunkId chunkId)
-{
-    return Impl_->FindCachedBlocksExt(chunkId);
-}
-
-void TChunkMetaManager::PutCachedBlocksExt(TChunkId chunkId, TRefCountedBlocksExtPtr blocksExt)
-{
-    Impl_->PutCachedBlocksExt(chunkId, std::move(blocksExt));
-}
-
-TCachedBlocksExtCookie TChunkMetaManager::BeginInsertCachedBlocksExt(TChunkId chunkId)
-{
-    return Impl_->BeginInsertCachedBlocksExt(chunkId);
-}
-
-void TChunkMetaManager::EndInsertCachedBlocksExt(
-    TCachedBlocksExtCookie&& cookie,
-    TRefCountedBlocksExtPtr blocksExt)
-{
-    Impl_->EndInsertCachedBlocksExt(
-        std::move(cookie),
-        std::move(blocksExt));
-}
-
-void TChunkMetaManager::RemoveCachedBlocksExt(TChunkId chunkId)
-{
-    Impl_->RemoveCachedBlocksExt(chunkId);
+    return New<TChunkMetaManager>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -64,6 +64,7 @@ public:
         , Logger(std::move(logger))
         , Cache_(New<TObjectServiceCache>(
             Config_->CachingObjectService,
+            GetNullMemoryUsageTracker(),
             Logger,
             TRegistry("/local_cache")))
         , RpcServer_(CreateLocalServer())

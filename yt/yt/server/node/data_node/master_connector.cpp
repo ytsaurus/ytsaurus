@@ -15,6 +15,7 @@
 #include <yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/server/node/data_node/journal_dispatcher.h>
+#include <yt/server/node/data_node/chunk_meta_manager.h>
 
 #include <yt/server/node/job_agent/job_controller.h>
 
@@ -1276,7 +1277,7 @@ void TMasterConnector::OnChunkRemoved(const IChunkPtr& chunk)
     delta->AddedSinceLastSuccess.erase(chunk);
     delta->RemovedSinceLastSuccess.insert(chunk);
 
-    Bootstrap_->GetBlockMetaCache()->TryRemove(chunk->GetId());
+    Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache()->TryRemove(chunk->GetId());
 
     YT_LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v)",
         chunk->GetId(),

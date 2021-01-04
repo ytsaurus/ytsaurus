@@ -2010,10 +2010,13 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             chunkReader,
             TClientBlockReadOptions(),
             Schema_,
-            {} /* ColumnRenameDescriptors */,
-            MemoryTracker_);
+            {} /* columnRenameDescriptors */,
+            MemoryTracker_
+                ? MemoryTracker_->WithCategory(EMemoryCategory::VersionedChunkMeta)
+                : GetNullMemoryUsageTracker());
         auto cachedMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
+
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
         auto chunkState = New<TChunkState>(

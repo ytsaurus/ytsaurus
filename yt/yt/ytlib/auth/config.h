@@ -4,7 +4,7 @@
 
 #include <yt/core/ypath/public.h>
 
-#include <yt/core/misc/config.h>
+#include <yt/core/misc/cache_config.h>
 
 #include <yt/core/concurrency/config.h>
 

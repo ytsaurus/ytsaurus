@@ -41,7 +41,7 @@ private:
         ESlotState State = ESlotState::Empty;
         NChunkClient::TBlock Block;
         TPromise<void> WrittenPromise = NewPromise<void>();
-        NClusterNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
+        TMemoryUsageTrackerGuard MemoryTrackerGuard;
         TPendingIOGuard PendingIOGuard;
     };
 

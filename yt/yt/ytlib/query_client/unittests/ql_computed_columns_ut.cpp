@@ -34,7 +34,7 @@ protected:
             .WillRepeatedly(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
+        ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(config);
     }
 
     std::vector<TKeyRange> Coordinate(const TString& source, ui64 rangeExpansionLimit = 1000)
@@ -153,7 +153,7 @@ private:
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
-    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     TTableSchema Schema_;
     TTableSchema SecondarySchema_;
 };

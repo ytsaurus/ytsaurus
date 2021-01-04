@@ -89,7 +89,7 @@ void FinalizeChunkData(
     }
 
     if (data->MemoryTrackerGuard) {
-        data->MemoryTrackerGuard.UpdateSize(data->ChunkMeta->GetMemoryUsage());
+        data->MemoryTrackerGuard.IncrementSize(data->ChunkMeta->GetMemoryUsage());
     }
 
     if (tabletSnapshot->HashTableSize > 0) {
@@ -99,7 +99,7 @@ void FinalizeChunkData(
             data->ChunkMeta,
             tabletSnapshot->RowKeyComparer);
         if (data->LookupHashTable && data->MemoryTrackerGuard) {
-            data->MemoryTrackerGuard.UpdateSize(data->LookupHashTable->GetByteSize());
+            data->MemoryTrackerGuard.IncrementSize(data->LookupHashTable->GetByteSize());
         }
     }
 
@@ -420,7 +420,7 @@ private:
             YT_VERIFY(!data->Blocks[id.BlockIndex].Data);
             data->Blocks[id.BlockIndex] = block;
             if (data->MemoryTrackerGuard) {
-                data->MemoryTrackerGuard.UpdateSize(block.Size());
+                data->MemoryTrackerGuard.IncrementSize(block.Size());
             }
             YT_VERIFY(!data->ChunkMeta);
         }
@@ -461,11 +461,11 @@ private:
 
         auto chunkData = New<TInMemoryChunkData>();
         chunkData->InMemoryMode = mode;
-        chunkData->MemoryTrackerGuard = NClusterNode::TNodeMemoryTrackerGuard::Acquire(
-            Bootstrap_->GetMemoryUsageTracker(),
-            EMemoryCategory::TabletStatic,
+        chunkData->MemoryTrackerGuard = TMemoryUsageTrackerGuard::Acquire(
+            Bootstrap_
+                ->GetMemoryUsageTracker()
+                ->WithCategory(EMemoryCategory::TabletStatic),
             0 /*size*/,
-            {} /*poolTag*/,
             MemoryUsageGranularity);
 
         // Replace the old data, if any, by a new one.
@@ -511,7 +511,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
     TReadSessionId readSessionId,
-    const TNodeMemoryTrackerPtr& memoryTracker,
+    const NClusterNode::TNodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
     const TReaderProfilerPtr& readerProfiler)
@@ -618,11 +618,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     chunkData->InMemoryMode = mode;
     chunkData->StartBlockIndex = startBlockIndex;
     if (memoryTracker) {
-        chunkData->MemoryTrackerGuard = NClusterNode::TNodeMemoryTrackerGuard::Acquire(
-            memoryTracker,
-            EMemoryCategory::TabletStatic,
+        chunkData->MemoryTrackerGuard = TMemoryUsageTrackerGuard::Acquire(
+            memoryTracker->WithCategory(EMemoryCategory::TabletStatic),
             preallocatedMemory,
-            {} /*poolTag*/,
             MemoryUsageGranularity);
     }
     chunkData->Blocks.reserve(endBlockIndex - startBlockIndex);
@@ -711,7 +709,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     readerProfiler->SetCodecStatistics(decompressionStatistics);
 
     if (chunkData->MemoryTrackerGuard) {
-        chunkData->MemoryTrackerGuard.UpdateSize(allocatedMemory - preallocatedMemory);
+        chunkData->MemoryTrackerGuard.IncrementSize(allocatedMemory - preallocatedMemory);
     }
 
     FinalizeChunkData(chunkData, store->GetChunkId(), meta, tabletSnapshot);

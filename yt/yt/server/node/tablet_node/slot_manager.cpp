@@ -75,7 +75,7 @@ public:
         SlotScanExecutor_->Start();
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigUpdated(BIND(&TImpl::OnDynamicConfigUpdated, MakeWeak(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void SetTotalTabletSlotCount(int slotCount)
@@ -656,7 +656,7 @@ private:
         return snapshot;
     }
 
-    void OnDynamicConfigUpdated(
+    void OnDynamicConfigChanged(
         const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldConfig */,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig)
     {

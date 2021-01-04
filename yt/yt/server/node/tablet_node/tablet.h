@@ -8,6 +8,8 @@
 #include "cached_row.h"
 #include "tablet_profiling.h"
 
+#include <yt/server/node/cluster_node/public.h>
+
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/client/table_client/schema.h>
@@ -239,7 +241,7 @@ struct ITabletContext
     virtual NObjectClient::TCellId GetCellId() = 0;
     virtual const TString& GetTabletCellBundleName() = 0;
     virtual NHydra::EPeerState GetAutomatonState() = 0;
-    virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
+    virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
     virtual IStorePtr CreateStore(
         TTablet* tablet,
@@ -249,8 +251,7 @@ struct ITabletContext
     virtual TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NRpc::IServerPtr GetLocalRpcServer() = 0;
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() = 0;
-
-    virtual NNodeTrackerClient::TNodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
+    virtual NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

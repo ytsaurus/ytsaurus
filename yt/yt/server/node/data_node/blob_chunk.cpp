@@ -545,6 +545,7 @@ void TBlobChunkBase::OnBlocksRead(
             // prevent cache from holding the whole block sequence.
             {
                 TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
+                struct TCachedBlobChunkBlockTag { };
                 block.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(block.Data);
             }
             entry.Block = block;

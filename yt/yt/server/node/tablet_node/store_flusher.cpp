@@ -83,7 +83,7 @@ public:
     virtual void Start() override
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigUpdated(BIND(&TStoreFlusher::OnDynamicConfigUpdated, MakeWeak(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND(&TStoreFlusher::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
@@ -133,8 +133,8 @@ private:
 
     THashMap<TString, TTabletCellBundleData> TabletCellBundleData_;
 
-    void OnDynamicConfigUpdated(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldConfig */,
+    void OnDynamicConfigChanged(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         const auto& config = newNodeConfig->TabletNode->StoreFlusher;

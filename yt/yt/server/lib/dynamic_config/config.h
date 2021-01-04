@@ -45,11 +45,11 @@ public:
 
     //! Whether alert for unrecognized dynamic config options
     //! should be enabled.
-    bool EnableUnrecognizedOptionsAlert = false;
+    bool EnableUnrecognizedOptionsAlert;
 
     //! If true, config node absence will not be tracted as
     //! an error.
-    bool IgnoreConfigAbsence = false;
+    bool IgnoreConfigAbsence;
 
     TDynamicConfigManagerConfig();
 };

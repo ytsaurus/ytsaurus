@@ -2,6 +2,8 @@ from __future__ import print_function
 
 import yt_commands
 
+from yt_helpers import get_current_time, parse_yt_time
+
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.porto_helpers import remove_all_volumes
@@ -976,43 +978,32 @@ class YTEnvSetup(object):
             self._wait_for_scheduler_state_restored(driver=driver)
 
     def _setup_nodes_dynamic_config(self, driver=None):
-        dynamic_node_config = get_dynamic_node_config()
-        yt_commands.set("//sys/cluster_nodes/@config", dynamic_node_config, driver=driver)
+        yt_commands.set("//sys/cluster_nodes/@config", get_dynamic_node_config(), driver=driver)
+
+        now = get_current_time()
 
         nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
 
         def check():
-            # COMPAT(max42): request only applied_config when 20.2 is no more.
-            results_old = yt_commands.execute_batch(
+            responses = yt_commands.execute_batch(
                 [
                     yt_commands.make_batch_request(
                         "get",
-                        path="//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(node),
+                        path="//sys/cluster_nodes/{0}/orchid/dynamic_config_manager".format(node),
                         return_only_value=True,
                     )
                     for node in nodes
                 ],
                 driver=driver,
             )
-            results_new = yt_commands.execute_batch(
-                [
-                    yt_commands.make_batch_request(
-                        "get",
-                        path="//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/applied_config".format(node),
-                        return_only_value=True,
-                    )
-                    for node in nodes
-                ],
-                driver=driver,
-            )
-
-            for result_old, result_new in zip(results_old, results_new):
-                if "error" in result_old and "error" in result_new:
-                    raise YtError("Both old and new paths for dynamic config manager returned errors:\n" +
-                                  str(result_old["error"]) + "\n" + str(result_new["error"]))
-                if "error" not in result_old and yt_commands.get_batch_output(result_old) != dynamic_node_config["%true"]:
-                    return False
-                if "error" not in result_new and yt_commands.get_batch_output(result_new) != dynamic_node_config["%true"]:
+            for response in responses:
+                output = yt_commands.get_batch_output(response)
+                if "last_config_change_time" not in output:
+                    # COMPAT(babenko): YT Node is not recent enough.
+                    sleep(1.0)
+                    return True
+                last_config_update_time = parse_yt_time(output["last_config_update_time"])
+                if last_config_update_time < now:
                     return False
             return True
 

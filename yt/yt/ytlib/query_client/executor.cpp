@@ -171,8 +171,8 @@ public:
     TQueryExecutor(
         NNative::IConnectionPtr connection,
         IInvokerPtr invoker,
-        TColumnEvaluatorCachePtr columnEvaluatorCache,
-        TEvaluatorPtr evaluator,
+        IColumnEvaluatorCachePtr columnEvaluatorCache,
+        IEvaluatorPtr evaluator,
         INodeChannelFactoryPtr nodeChannelFactory,
         TFunctionImplCachePtr functionImplCache)
         : Connection_(std::move(connection))
@@ -210,8 +210,8 @@ public:
 private:
     const NNative::IConnectionPtr Connection_;
     const IInvokerPtr Invoker_;
-    const TColumnEvaluatorCachePtr ColumnEvaluatorCache;
-    const TEvaluatorPtr Evaluator_;
+    const IColumnEvaluatorCachePtr ColumnEvaluatorCache;
+    const IEvaluatorPtr Evaluator_;
     const INodeChannelFactoryPtr NodeChannelFactory_;
     const TFunctionImplCachePtr FunctionImplCache_;
 
@@ -615,8 +615,8 @@ std::vector<std::pair<TDataRanges, TString>> InferRanges(
 IExecutorPtr CreateQueryExecutor(
     NNative::IConnectionPtr connection,
     IInvokerPtr invoker,
-    TColumnEvaluatorCachePtr columnEvaluatorCache,
-    TEvaluatorPtr evaluator,
+    IColumnEvaluatorCachePtr columnEvaluatorCache,
+    IEvaluatorPtr evaluator,
     INodeChannelFactoryPtr nodeChannelFactory,
     TFunctionImplCachePtr functionImplCache)
 {

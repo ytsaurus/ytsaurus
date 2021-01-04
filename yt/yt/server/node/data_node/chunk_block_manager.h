@@ -9,7 +9,7 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 #include <yt/core/misc/ref.h>
 
 namespace NYT::NDataNode {

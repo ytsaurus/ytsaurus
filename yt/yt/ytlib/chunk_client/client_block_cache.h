@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "block_cache.h"
 
 #include <yt/core/profiling/profiler.h>
 
@@ -8,10 +8,21 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IClientBlockCache
+    : public IBlockCache
+{
+    virtual void Reconfigure(const TBlockCacheDynamicConfigPtr& config) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IClientBlockCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Creates a simple client-side block cache.
-IBlockCachePtr CreateClientBlockCache(
+IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
+    IMemoryUsageTrackerPtr memoryTracker,
     const NProfiling::TRegistry& profiler = {});
 
 //! Returns an always-empty block cache.

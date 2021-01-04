@@ -1,6 +1,7 @@
 #include "skynet_http_handler.h"
 
 #include "local_chunk_reader.h"
+#include "chunk_meta_manager.h"
 
 #include <yt/server/node/data_node/chunk_store.h>
 #include <yt/server/node/data_node/chunk.h>
@@ -131,7 +132,7 @@ public:
             chunk,
             Bootstrap_->GetChunkBlockManager(),
             Bootstrap_->GetBlockCache(),
-            Bootstrap_->GetBlockMetaCache());
+            Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache());
 
         auto chunkState = New<TChunkState>(
             Bootstrap_->GetBlockCache(),

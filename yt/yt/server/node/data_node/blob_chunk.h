@@ -12,7 +12,7 @@
 
 #include <yt/core/concurrency/spinlock.h>
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 
 namespace NYT::NDataNode {
 

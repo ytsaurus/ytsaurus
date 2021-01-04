@@ -239,7 +239,6 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         "instance_limits_update_period": 200,
         "resource_limits_update_period": 200,
         "dynamic_config_manager": {
-            "update_period": 50,
             "enable_unrecognized_options_alert": True,
         },
         "resource_limits": {

@@ -62,6 +62,7 @@
 #include <yt/core/rpc/retrying_channel.h>
 
 #include <yt/core/misc/checksum.h>
+#include <yt/core/misc/memory_usage_tracker.h>
 
 namespace NYT::NApi::NNative {
 
@@ -171,10 +172,15 @@ public:
             GetPrimaryMasterCellId(),
             Logger);
 
-        BlockCache_ = CreateClientBlockCache(
-            Config_->BlockCache,
-            EBlockType::CompressedData|EBlockType::UncompressedData,
-            Profiler_.WithPrefix("/block_cache"));
+        if (Options_.BlockCache) {
+            BlockCache_ = Options_.BlockCache;
+        } else {
+            BlockCache_ = CreateClientBlockCache(
+                Config_->BlockCache,
+                EBlockType::CompressedData | EBlockType::UncompressedData,
+                GetNullMemoryUsageTracker(),
+                Profiler_.WithPrefix("/block_cache"));
+        }
 
         TableMountCache_ = CreateNativeTableMountCache(
             Config_->TableMountCache,
@@ -182,8 +188,8 @@ public:
             CellDirectory_,
             Logger);
 
-        QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(Config_->ColumnEvaluatorCache);
+        QueryEvaluator_ = CreateEvaluator(Config_->QueryEvaluator);
+        ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(Config_->ColumnEvaluatorCache);
 
         NodeDirectory_ = New<TNodeDirectory>();
         NodeDirectorySynchronizer_ = New<TNodeDirectorySynchronizer>(
@@ -311,12 +317,12 @@ public:
         return BlockCache_;
     }
 
-    virtual const TEvaluatorPtr& GetQueryEvaluator() override
+    virtual const IEvaluatorPtr& GetQueryEvaluator() override
     {
         return QueryEvaluator_;
     }
 
-    virtual const TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() override
+    virtual const IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() override
     {
         return ColumnEvaluatorCache_;
     }
@@ -480,8 +486,8 @@ private:
     ITimestampProviderPtr TimestampProvider_;
     TJobShellDescriptorCachePtr JobShellDescriptorCache_;
     TPermissionCachePtr PermissionCache_;
-    TEvaluatorPtr QueryEvaluator_;
-    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    IEvaluatorPtr QueryEvaluator_;
+    IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
     TCellDirectoryPtr CellDirectory_;
     TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
@@ -551,9 +557,9 @@ private:
 
 IConnectionPtr CreateConnection(
     TConnectionConfigPtr config,
-    const TConnectionOptions& options)
+    TConnectionOptions options)
 {
-    auto connection = New<TConnection>(config, options);
+    auto connection = New<TConnection>(std::move(config), std::move(options));
     connection->Initialize();
     return connection;
 }

@@ -8,26 +8,19 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THintManager
-    : public TRefCounted
+struct IHintManager
+    : public virtual TRefCounted
 {
-public:
-    THintManager(
-        THintManagerConfigPtr config,
-        const NClusterNode::TBootstrap* bootstrap);
-    ~THintManager();
-
     //! \note Thread affinity: ControlThread
-    void Start();
+    virtual void Start() = 0;
 
-    bool IsReplicaClusterBanned(TStringBuf clusterName) const;
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    //! \note Thread affinity: any
+    virtual bool IsReplicaClusterBanned(TStringBuf clusterName) const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(THintManager)
+DEFINE_REFCOUNTED_TYPE(IHintManager)
+
+IHintManagerPtr CreateHintManager(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

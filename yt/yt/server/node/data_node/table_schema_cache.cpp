@@ -97,9 +97,10 @@ bool TCachedTableSchemaWrapper::CheckSchemaSet()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchemaCache::TTableSchemaCache(const TTableSchemaCacheConfigPtr& config)
+TTableSchemaCache::TTableSchemaCache(TTableSchemaCacheConfigPtr config)
     : TSyncSlruCacheBase(config, TRegistry("/data_node/table_schema_cache"))
-    , TableSchemaCacheRequestTimeout_(config->TableSchemaCacheRequestTimeout)
+    , Config_(std::move(config))
+    , TableSchemaCacheRequestTimeout_(Config_->TableSchemaCacheRequestTimeout)
 { }
 
 TCachedTableSchemaWrapperPtr TTableSchemaCache::GetOrCreate(const TSchemaCacheKey& key, i64 schemaSize)
@@ -108,13 +109,20 @@ TCachedTableSchemaWrapperPtr TTableSchemaCache::GetOrCreate(const TSchemaCacheKe
         return result;
     }
 
-    auto emptyTableSchema = New<TCachedTableSchemaWrapper>(key, schemaSize, TableSchemaCacheRequestTimeout_);
+    auto emptyTableSchema = New<TCachedTableSchemaWrapper>(key, schemaSize, TableSchemaCacheRequestTimeout_.load());
     TCachedTableSchemaWrapperPtr existingTableSchema;
     if (!TryInsert(emptyTableSchema, &existingTableSchema)) {
         return existingTableSchema;
     }
 
     return emptyTableSchema;
+}
+
+void TTableSchemaCache::Reconfigure(const TTableSchemaCacheDynamicConfigPtr& config)
+{
+    TSyncSlruCacheBase::Reconfigure(config);
+    TableSchemaCacheRequestTimeout_.store(
+        config->TableSchemaCacheRequestTimeout.value_or(Config_->TableSchemaCacheRequestTimeout));
 }
 
 i64 TTableSchemaCache::GetWeight(const TCachedTableSchemaWrapperPtr& value) const

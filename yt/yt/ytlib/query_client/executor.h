@@ -25,8 +25,8 @@ std::vector<std::pair<TDataRanges, TString>> InferRanges(
 IExecutorPtr CreateQueryExecutor(
     NApi::NNative::IConnectionPtr connection,
     IInvokerPtr invoker,
-    TColumnEvaluatorCachePtr columnEvaluatorCache,
-    TEvaluatorPtr evaluator,
+    IColumnEvaluatorCachePtr columnEvaluatorCache,
+    IEvaluatorPtr evaluator,
     NNodeTrackerClient::INodeChannelFactoryPtr nodeChannelFactory,
     TFunctionImplCachePtr functionImplCache);
 

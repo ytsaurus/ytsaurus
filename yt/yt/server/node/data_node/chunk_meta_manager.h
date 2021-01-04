@@ -6,10 +6,12 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/ytlib/table_client/public.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/optional.h>
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 #include <yt/core/misc/property.h>
 
 namespace NYT::NDataNode {
@@ -26,15 +28,12 @@ public:
 public:
     TCachedChunkMeta(
         TChunkId chunkId,
-        NChunkClient::TRefCountedChunkMetaPtr meta,
-        NClusterNode::TNodeMemoryTrackerPtr memoryTracker);
+        NChunkClient::TRefCountedChunkMetaPtr meta);
 
-    i64 GetSize() const;
+    i64 GetWeight() const;
 
 private:
-    // NB: Avoid including TMemoryUsageTracker here.
-    std::unique_ptr<NClusterNode::TNodeMemoryTrackerGuard> MemoryTrackerGuard_;
-
+    const i64 Weight_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedChunkMeta)
@@ -53,15 +52,12 @@ public:
 public:
     TCachedBlocksExt(
         TChunkId chunkId,
-        NChunkClient::TRefCountedBlocksExtPtr blocksExt,
-        NClusterNode::TNodeMemoryTrackerPtr memoryTracker);
+        NChunkClient::TRefCountedBlocksExtPtr blocksExt);
 
-    i64 GetSize() const;
+    i64 GetWeight() const;
 
 private:
-    // NB: Avoid including TMemoryUsageTracker here.
-    std::unique_ptr<NClusterNode::TNodeMemoryTrackerGuard> MemoryTrackerGuard_;
-
+    const i64 Weight_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedBlocksExt)
@@ -75,61 +71,54 @@ using TCachedBlocksExtCookie = TAsyncSlruCacheBase<TChunkId, TCachedBlocksExt>::
  *  \note
  *  Thread affinity: any
  */
-class TChunkMetaManager
-    : public TRefCounted
+struct IChunkMetaManager
+    : public virtual TRefCounted
 {
-public:
-    TChunkMetaManager(
-        TDataNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
-
-    ~TChunkMetaManager();
+    //! Returns the block meta cache.
+    virtual const NTableClient::TBlockMetaCachePtr& GetBlockMetaCache() = 0;
 
     //! Returns cached chunk meta if prevent in the cache; if not then returns null.
-    NChunkClient::TRefCountedChunkMetaPtr FindCachedMeta(TChunkId chunkId);
+    virtual NChunkClient::TRefCountedChunkMetaPtr FindCachedMeta(TChunkId chunkId) = 0;
 
     //! Puts chunk meta into the cache.
-    void PutCachedMeta(
+    virtual void PutCachedMeta(
         TChunkId chunkId,
-        NChunkClient::TRefCountedChunkMetaPtr meta);
+        NChunkClient::TRefCountedChunkMetaPtr meta) = 0;
 
     //! Starts an asynchronous chunk meta load.
-    TCachedChunkMetaCookie BeginInsertCachedMeta(TChunkId chunkId);
+    virtual TCachedChunkMetaCookie BeginInsertCachedMeta(TChunkId chunkId) = 0;
 
     //! Completes an asynchronous chunk meta load.
-    void EndInsertCachedMeta(
+    virtual void EndInsertCachedMeta(
         TCachedChunkMetaCookie&& cookie,
-        NChunkClient::TRefCountedChunkMetaPtr meta);
-    
+        NChunkClient::TRefCountedChunkMetaPtr meta) = 0;
+
     //! Forcefully evicts cached chunk meta from the cache, if any.
-    void RemoveCachedMeta(TChunkId chunkId);
+    virtual void RemoveCachedMeta(TChunkId chunkId) = 0;
 
     //! Looks for blocks ext in the cache.
-    NChunkClient::TRefCountedBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId);
+    virtual NChunkClient::TRefCountedBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId) = 0;
 
     //! Puts blocks ext into the cache.
-    void PutCachedBlocksExt(
+    virtual void PutCachedBlocksExt(
         TChunkId chunkId,
-        NChunkClient::TRefCountedBlocksExtPtr blocksExt);
+        NChunkClient::TRefCountedBlocksExtPtr blocksExt) = 0;
 
     //! Starts an asynchronous blocks ext load.
-    TCachedBlocksExtCookie BeginInsertCachedBlocksExt(TChunkId chunkId);
+    virtual TCachedBlocksExtCookie BeginInsertCachedBlocksExt(TChunkId chunkId) = 0;
 
     //! Completes an asynchronous blocks ext load.
-    void EndInsertCachedBlocksExt(
+    virtual void EndInsertCachedBlocksExt(
         TCachedBlocksExtCookie&& cookie,
-        NChunkClient::TRefCountedBlocksExtPtr blocksExt);
+        NChunkClient::TRefCountedBlocksExtPtr blocksExt) = 0;
 
     //! Forcefully evicts cached blocks ext from the cache, if any.
-    void RemoveCachedBlocksExt(TChunkId chunkId);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual void RemoveCachedBlocksExt(TChunkId chunkId) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkMetaManager)
+DEFINE_REFCOUNTED_TYPE(IChunkMetaManager)
+
+IChunkMetaManagerPtr CreateChunkMetaManager(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

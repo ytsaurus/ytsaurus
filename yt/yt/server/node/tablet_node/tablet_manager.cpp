@@ -133,11 +133,11 @@ public:
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
         , TabletContext_(this)
         , TabletMap_(TTabletMapTraits(this))
-        , WriteLogsMemoryTrackerGuard_(TNodeMemoryTrackerGuard::Acquire(
-            Bootstrap_->GetMemoryUsageTracker(),
-            EMemoryCategory::TabletDynamic,
+        , WriteLogsMemoryTrackerGuard_(TMemoryUsageTrackerGuard::Acquire(
+            Bootstrap_
+                ->GetMemoryUsageTracker()
+                ->WithCategory(EMemoryCategory::TabletDynamic),
             0 /*size*/,
-            {} /*poolTag*/,
             MemoryUsageGranularity))
         , DistributedThrottlerManager_(
             CreateDistributedThrottlerManager(Bootstrap_, Slot_->GetCellId()))
@@ -568,7 +568,7 @@ private:
             return Owner_->Slot_->GetAutomatonState();
         }
 
-        virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
+        virtual IColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
         {
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();
         }
@@ -597,7 +597,7 @@ private:
             return Owner_->Bootstrap_->GetRpcServer();
         }
 
-        virtual NNodeTrackerClient::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
+        virtual NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
         {
             return Owner_->Bootstrap_->GetMemoryUsageTracker();
         }
@@ -640,7 +640,7 @@ private:
 
     // NB: Write logs are generally much smaller than dynamic stores,
     // so we don't worry about per-pool management here.
-    TNodeMemoryTrackerGuard WriteLogsMemoryTrackerGuard_;
+    TMemoryUsageTrackerGuard WriteLogsMemoryTrackerGuard_;
 
     const IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
 
@@ -793,7 +793,7 @@ private:
             lockTablets(transaction->ImmediateLocklessWriteLog());
             lockTablets(transaction->DelayedLocklessWriteLog());
 
-            WriteLogsMemoryTrackerGuard_.UpdateSize(
+            WriteLogsMemoryTrackerGuard_.IncrementSize(
                 GetTransactionWriteLogMemoryUsage(transaction->ImmediateLockedWriteLog()) +
                 GetTransactionWriteLogMemoryUsage(transaction->ImmediateLocklessWriteLog()) +
                 GetTransactionWriteLogMemoryUsage(transaction->DelayedLocklessWriteLog()));
@@ -2783,7 +2783,7 @@ private:
         const TTransactionWriteRecord& record,
         TTransactionSignature signature)
     {
-        WriteLogsMemoryTrackerGuard_.UpdateSize(record.GetByteSize());
+        WriteLogsMemoryTrackerGuard_.IncrementSize(record.GetByteSize());
         writeLog->Enqueue(record);
         transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
     }
@@ -2794,7 +2794,7 @@ private:
         for (const auto& record : *writeLog) {
             byteSize += record.GetByteSize();
         }
-        WriteLogsMemoryTrackerGuard_.UpdateSize(-byteSize);
+        WriteLogsMemoryTrackerGuard_.IncrementSize(-byteSize);
         writeLog->Clear();
     }
 

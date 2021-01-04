@@ -10,12 +10,11 @@
 
 namespace NYT::NTableClient {
 
-using namespace NProto;
-
-using NChunkClient::NProto::TChunkMeta;
-using NChunkClient::EChunkType;
-using NYson::IYsonConsumer;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
+using namespace NTableClient::NProto;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,7 +138,10 @@ bool FindBoundaryKeyBounds(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, const TCachedBlockMetaPtr& cachedBlockMeta, int partitionTag)
+TChunkMeta FilterChunkMetaByPartitionTag(
+    const TChunkMeta& chunkMeta,
+    const TCachedBlockMetaPtr& cachedBlockMeta,
+    int partitionTag)
 {
     YT_VERIFY(chunkMeta.type() == static_cast<int>(EChunkType::Table));
     auto filteredChunkMeta = chunkMeta;
@@ -161,12 +163,13 @@ TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, const TCac
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedBlockMeta::TCachedBlockMeta(NChunkClient::TChunkId chunkId, NTableClient::NProto::TBlockMetaExt blockMeta)
-    : TSyncCacheValueBase<NChunkClient::TChunkId, TCachedBlockMeta>(chunkId)
-    , NTableClient::NProto::TBlockMetaExt(std::move(blockMeta))
-{
-    Weight_ = SpaceUsedLong();
-}
+TCachedBlockMeta::TCachedBlockMeta(
+    NChunkClient::TChunkId chunkId,
+    TBlockMetaExt blockMeta)
+    : TSyncCacheValueBase<TChunkId, TCachedBlockMeta>(chunkId)
+    , TBlockMetaExt(std::move(blockMeta))
+    , Weight_(SpaceUsedLong())
+{ }
 
 i64 TCachedBlockMeta::GetWeight() const
 {
@@ -175,8 +178,14 @@ i64 TCachedBlockMeta::GetWeight() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockMetaCache::TBlockMetaCache(TSlruCacheConfigPtr config, const NProfiling::TRegistry& profiler)
-    : TSyncSlruCacheBase<NChunkClient::TChunkId, TCachedBlockMeta>(std::move(config), profiler)
+TBlockMetaCache::TBlockMetaCache(
+    TSlruCacheConfigPtr config,
+    IMemoryUsageTrackerPtr memoryTracker,
+    const NProfiling::TRegistry& profiler)
+    : TMemoryTrackingSyncSlruCacheBase<TChunkId, TCachedBlockMeta>(
+        std::move(config),
+        std::move(memoryTracker),
+        profiler)
 { }
 
 i64 TBlockMetaCache::GetWeight(const TCachedBlockMetaPtr& value) const

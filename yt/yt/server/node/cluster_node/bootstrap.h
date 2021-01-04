@@ -74,7 +74,7 @@ public:
     const NYTree::IMapNodePtr& GetOrchidRoot() const;
     const NJobAgent::TJobControllerPtr& GetJobController() const;
     const NJobAgent::TJobReporterPtr& GetJobReporter() const;
-    const NTabletNode::THintManagerPtr& GetTabletNodeHintManager() const;
+    const NTabletNode::IHintManagerPtr& GetTabletNodeHintManager() const;
     const NTabletNode::TSlotManagerPtr& GetTabletSlotManager() const;
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::IInMemoryManagerPtr& GetInMemoryManager() const;
@@ -86,19 +86,18 @@ public:
     const NDataNode::TChunkCachePtr& GetChunkCache() const;
     const NDataNode::TChunkRegistryPtr& GetChunkRegistry() const;
     const NDataNode::TSessionManagerPtr& GetSessionManager() const;
-    const NDataNode::TChunkMetaManagerPtr& GetChunkMetaManager() const;
+    const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const;
     const NDataNode::TChunkBlockManagerPtr& GetChunkBlockManager() const;
     NDataNode::TNetworkStatistics& GetNetworkStatistics() const;
     const NChunkClient::IBlockCachePtr& GetBlockCache() const;
-    const NTableClient::TBlockMetaCachePtr& GetBlockMetaCache() const;
     const NDataNode::TPeerBlockDistributorPtr& GetPeerBlockDistributor() const;
     const NDataNode::TPeerBlockTablePtr& GetPeerBlockTable() const;
     const NDataNode::TPeerBlockUpdaterPtr& GetPeerBlockUpdater() const;
-    const NDataNode::TBlobReaderCachePtr& GetBlobReaderCache() const;
+    const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const;
     const NDataNode::TTableSchemaCachePtr& GetTableSchemaCache() const;
-    const NDataNode::TJournalDispatcherPtr& GetJournalDispatcher() const;
+    const NDataNode::IJournalDispatcherPtr& GetJournalDispatcher() const;
     const NDataNode::TMasterConnectorPtr& GetMasterConnector() const;
-    const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
+    const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
     const NQueryAgent::IQuerySubexecutorPtr& GetQueryExecutor() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const;
@@ -149,7 +148,7 @@ private:
     NApi::NNative::IConnectionPtr MasterConnection_;
     NApi::NNative::IClientPtr MasterClient_;
     NRpc::IServerPtr RpcServer_;
-    std::vector<NRpc::IServicePtr> CachingObjectServices_;
+    std::vector<NObjectClient::ICachingObjectServicePtr> CachingObjectServices_;
     NHttp::IServerPtr HttpServer_;
     NHttp::IServerPtr SkynetHttpServer_;
     NYTree::IMapNodePtr OrchidRoot_;
@@ -158,23 +157,23 @@ private:
     NExecAgent::TSlotManagerPtr ExecSlotManager_;
     NJobAgent::TGpuManagerPtr GpuManager_;
     NJobProxy::TJobProxyConfigPtr JobProxyConfigTemplate_;
-    NNodeTrackerClient::TNodeMemoryTrackerPtr MemoryUsageTracker_;
+    TNodeMemoryTrackerPtr MemoryUsageTracker_;
     NExecAgent::TSchedulerConnectorPtr SchedulerConnector_;
     NDataNode::TChunkStorePtr ChunkStore_;
     NDataNode::TChunkCachePtr ChunkCache_;
     NDataNode::TChunkRegistryPtr ChunkRegistry_;
     NDataNode::TSessionManagerPtr SessionManager_;
-    NDataNode::TChunkMetaManagerPtr ChunkMetaManager_;
+    NDataNode::IChunkMetaManagerPtr ChunkMetaManager_;
     NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
     std::unique_ptr<NDataNode::TNetworkStatistics> NetworkStatistics_;
+    NChunkClient::IClientBlockCachePtr ClientBlockCache_;
     NChunkClient::IBlockCachePtr BlockCache_;
-    NTableClient::TBlockMetaCachePtr BlockMetaCache_;
     NDataNode::TPeerBlockTablePtr PeerBlockTable_;
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater_;
     NDataNode::TPeerBlockDistributorPtr PeerBlockDistributor_;
-    NDataNode::TBlobReaderCachePtr BlobReaderCache_;
+    NDataNode::IBlobReaderCachePtr BlobReaderCache_;
     NDataNode::TTableSchemaCachePtr TableSchemaCache_;
-    NDataNode::TJournalDispatcherPtr JournalDispatcher_;
+    NDataNode::IJournalDispatcherPtr JournalDispatcher_;
     NDataNode::TMasterConnectorPtr MasterConnector_;
     ICoreDumperPtr CoreDumper_;
     TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
@@ -186,13 +185,13 @@ private:
     TEnumIndexedVector<NTabletNode::ETabletNodeThrottlerKind, NConcurrency::IThroughputThrottlerPtr> TabletNodeThrottlers_;
     NConcurrency::IThroughputThrottlerPtr TabletNodePreloadInThrottler_;
 
-    NTabletNode::THintManagerPtr TabletNodeHintManager_;
+    NTabletNode::IHintManagerPtr TabletNodeHintManager_;
     NTabletNode::TSlotManagerPtr TabletSlotManager_;
     NTabletNode::TSecurityManagerPtr SecurityManager_;
     NTabletNode::IInMemoryManagerPtr InMemoryManager_;
     NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
 
-    NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     NQueryAgent::IQuerySubexecutorPtr QueryExecutor_;
 
 #ifdef __linux__
@@ -216,7 +215,7 @@ private:
     void OnMasterConnected();
     void OnMasterDisconnected();
 
-    void OnDynamicConfigUpdated(
+    void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig);
 };

@@ -37,11 +37,11 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TTableSchemaPtr& schema,
     const TColumnRenameDescriptors& renameDescriptors,
-    const TNodeMemoryTrackerPtr& memoryTracker)
+    const IMemoryUsageTrackerPtr& memoryTracker)
 {
     try {
         auto cachedMeta = New<TCachedVersionedChunkMeta>();
-        cachedMeta->Init(chunkId, chunkMeta, schema, renameDescriptors, std::move(memoryTracker));
+        cachedMeta->Init(chunkId, chunkMeta, schema, renameDescriptors, memoryTracker);
         return cachedMeta;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
@@ -55,12 +55,12 @@ TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     const TClientBlockReadOptions& blockReadOptions,
     const TTableSchemaPtr& schema,
     const TColumnRenameDescriptors& renameDescriptors,
-    const TNodeMemoryTrackerPtr& memoryTracker)
+    const IMemoryUsageTrackerPtr& memoryTracker)
 {
     auto chunkId = chunkReader->GetChunkId();
     return chunkReader->GetMeta(blockReadOptions)
         .Apply(BIND([=] (const TRefCountedChunkMetaPtr& chunkMeta) {
-            return TCachedVersionedChunkMeta::Create(chunkId, *chunkMeta, schema, renameDescriptors, std::move(memoryTracker));
+            return TCachedVersionedChunkMeta::Create(chunkId, *chunkMeta, schema, renameDescriptors, memoryTracker);
         }));
 }
 
@@ -69,7 +69,7 @@ void TCachedVersionedChunkMeta::Init(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TTableSchemaPtr& schema,
     const TColumnRenameDescriptors& renameDescriptors,
-    TNodeMemoryTrackerPtr memoryTracker)
+    const IMemoryUsageTrackerPtr& memoryTracker)
 {
     ChunkId_ = chunkId;
 
@@ -92,9 +92,8 @@ void TCachedVersionedChunkMeta::Init(
     }
 
     if (memoryTracker) {
-        MemoryTrackerGuard_ = TNodeMemoryTrackerGuard::Acquire(
-            std::move(memoryTracker),
-            EMemoryCategory::VersionedChunkMeta,
+        MemoryTrackerGuard_ = TMemoryUsageTrackerGuard::Acquire(
+            memoryTracker,
             GetMemoryUsage());
     }
 }

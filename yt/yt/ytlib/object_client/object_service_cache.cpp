@@ -7,7 +7,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/checksum.h>
 
@@ -137,13 +137,17 @@ TCacheProfilingCounters::TCacheProfilingCounters(const NProfiling::TRegistry& pr
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectServiceCache::TObjectServiceCache(
-    const TObjectServiceCacheConfigPtr& config,
+    TObjectServiceCacheConfigPtr config,
+    IMemoryUsageTrackerPtr memoryTracker,
     const NLogging::TLogger& logger,
     const NProfiling::TRegistry& profiler)
-    : TAsyncSlruCacheBase(config)
+    : TMemoryTrackingAsyncSlruCacheBase(
+        config,
+        std::move(memoryTracker))
+    , Config_(std::move(config))
     , Logger(logger)
     , Profiler_(profiler.WithSparse())
-    , TopEntryByteRateThreshold_(config->TopEntryByteRateThreshold)
+    , TopEntryByteRateThreshold_(Config_->TopEntryByteRateThreshold)
 { }
 
 TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
@@ -257,6 +261,13 @@ IYPathServicePtr TObjectServiceCache::GetOrchidService()
     return IYPathService::FromProducer(producer);
 }
 
+void TObjectServiceCache::Reconfigure(const TObjectServiceCacheDynamicConfigPtr& config)
+{
+    TMemoryTrackingAsyncSlruCacheBase::Reconfigure(config);
+    TopEntryByteRateThreshold_.store(config->TopEntryByteRateThreshold.value_or(
+        Config_->TopEntryByteRateThreshold));
+}
+
 TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TString& user, const TString& method)
 {
     auto key = std::make_tuple(user, method);
@@ -348,10 +359,12 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry)
     entry->IncrementRate();
     auto current = entry->GetByteRate();
 
-    if (previous < TopEntryByteRateThreshold_ && current >= TopEntryByteRateThreshold_) {
+    auto topEntryByteRateThreshold = TopEntryByteRateThreshold_.load();
+
+    if (previous < topEntryByteRateThreshold && current >= topEntryByteRateThreshold) {
         auto guard = WriterGuard(TopEntriesLock_);
 
-        if (entry->GetByteRate() >= TopEntryByteRateThreshold_) {
+        if (entry->GetByteRate() >= topEntryByteRateThreshold) {
             if (TopEntries_.emplace(key, entry).second) {
                 YT_LOG_DEBUG("Added entry to top (Key: %v, ByteRate: %v -> %v)",
                     key,
@@ -361,10 +374,10 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry)
         }
     }
 
-    if (previous >= TopEntryByteRateThreshold_ && current < TopEntryByteRateThreshold_) {
+    if (previous >= topEntryByteRateThreshold && current < topEntryByteRateThreshold) {
         auto guard = WriterGuard(TopEntriesLock_);
 
-        if (entry->GetByteRate() < TopEntryByteRateThreshold_) {
+        if (entry->GetByteRate() < topEntryByteRateThreshold) {
             if (TopEntries_.erase(key) > 0) {
                 YT_LOG_DEBUG("Removed entry from top (Key: %v, ByteRate: %v -> %v)",
                     key,

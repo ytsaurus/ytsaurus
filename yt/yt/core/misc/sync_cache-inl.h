@@ -6,8 +6,6 @@
 #include "sync_cache.h"
 #endif
 
-#include "config.h"
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,6 +35,8 @@ TSyncSlruCacheBase<TKey, TValue, THash>::TSyncSlruCacheBase(
     TSlruCacheConfigPtr config,
     const NProfiling::TRegistry& profiler)
     : Config_(std::move(config))
+    , Capacity_(Config_->Capacity)
+    , YoungerSizeFraction_(Config_->YoungerSizeFraction)
     , HitWeightCounter_(profiler.Counter("/hit"))
     , MissedWeightCounter_(profiler.Counter("/missed"))
     , DroppedWeightCounter_(profiler.Counter("/dropped"))
@@ -57,7 +57,7 @@ TSyncSlruCacheBase<TKey, TValue, THash>::TSyncSlruCacheBase(
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
 {
-    for (size_t i = 0; i < Config_->ShardCount; ++i) {
+    for (int i = 0; i < Config_->ShardCount; ++i) {
         auto& shard = Shards_[i];
         auto guard = WriterGuard(shard.SpinLock);
 
@@ -92,6 +92,20 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
         Size_ -= totalItemCount;
 
         // NB: Lists must die outside the critical section.
+    }
+}
+
+template <class TKey, class TValue, class THash>
+void TSyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynamicConfigPtr& config)
+{
+    Capacity_.store(config->Capacity.value_or(Config_->Capacity));
+    YoungerSizeFraction_.store(config->YoungerSizeFraction.value_or(Config_->YoungerSizeFraction));
+
+    for (int index = 0; index < Config_->ShardCount; ++index) {
+        auto* shard = &Shards_[index];
+        auto guard = WriterGuard(shard->SpinLock);
+
+        Trim(shard, guard);
     }
 }
 
@@ -179,9 +193,12 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(const TValuePtr& value, 
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard)
 {
+    auto capacity = Capacity_.load();
+    auto youngerSizeFraction = YoungerSizeFraction_.load();
+
     // Move from older to younger.
     while (!shard->OlderLruList.Empty() &&
-           Config_->ShardCount * shard->OlderWeightCounter > Config_->Capacity * (1 - Config_->YoungerSizeFraction))
+           Config_->ShardCount * shard->OlderWeightCounter > capacity * (1 - youngerSizeFraction))
     {
         auto* item = &*(--shard->OlderLruList.End());
         MoveToYounger(shard, item);
@@ -190,7 +207,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::
     // Evict from younger.
     std::vector<TValuePtr> evictedValues;
     while (!shard->YoungerLruList.Empty() &&
-           Config_->ShardCount * (shard->YoungerWeightCounter + shard->OlderWeightCounter) > Config_->Capacity)
+           Config_->ShardCount * (shard->YoungerWeightCounter + shard->OlderWeightCounter) > capacity)
     {
         auto* item = &*(--shard->YoungerLruList.End());
         auto value = item->Value;
@@ -389,6 +406,28 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Pop(TShard* shard, TItem* item)
         OlderWeightCounter_.fetch_sub(weight, std::memory_order_relaxed);
     }
     item->Unlink();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, class THash>
+TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::TMemoryTrackingSyncSlruCacheBase(
+    TSlruCacheConfigPtr config,
+    IMemoryUsageTrackerPtr memoryTracker,
+    const NProfiling::TRegistry& profiler)
+    : TSyncSlruCacheBase<TKey, TValue, THash>(
+        std::move(config),
+        profiler)
+    , MemoryTrackerGuard_(TMemoryUsageTrackerGuard::Acquire(
+        std::move(memoryTracker),
+        this->Config_->Capacity))
+{ }
+
+template <class TKey, class TValue, class THash>
+void TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynamicConfigPtr& config)
+{
+    MemoryTrackerGuard_.SetSize(config->Capacity.value_or(this->Config_->Capacity));
+    TSyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

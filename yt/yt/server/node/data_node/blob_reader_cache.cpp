@@ -6,12 +6,14 @@
 #include "chunk_meta_manager.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/ytlib/chunk_client/file_reader.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/async_slru_cache.h>
 
 namespace NYT::NDataNode {
 
@@ -38,14 +40,14 @@ TReaderCacheKey MakeReaderCacheKey(TBlobChunkBase* chunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlobReaderCache::TCachedReader
+class TCachedReader
     : public TAsyncCacheValueBase<TReaderCacheKey, TCachedReader>
     , public TFileReader
     , public IBlocksExtCache
 {
 public:
     TCachedReader(
-        const TChunkMetaManagerPtr& chunkMetaManager,
+        const IChunkMetaManagerPtr& chunkMetaManager,
         const TBlobChunkBasePtr& chunk,
         const TString& fileName,
         bool validateBlockChecksums)
@@ -76,27 +78,26 @@ public:
     }
 
 private:
-    const TChunkMetaManagerPtr ChunkMetaManager_;
+    const IChunkMetaManagerPtr ChunkMetaManager_;
     const TBlobChunkBasePtr Chunk_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlobReaderCache::TImpl
+class TBlobReaderCache
     : public TAsyncSlruCacheBase<TReaderCacheKey, TCachedReader>
+    , public IBlobReaderCache
 {
 public:
-    TImpl(
-        const TDataNodeConfigPtr& config,
-        NClusterNode::TBootstrap* bootstrap)
+    explicit TBlobReaderCache(NClusterNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
-            config->BlobReaderCache,
+            bootstrap->GetConfig()->DataNode->BlobReaderCache,
             DataNodeProfiler.WithPrefix("/block_reader_cache"))
-        , Config_(config)
         , Bootstrap_(bootstrap)
+        , Config_(Bootstrap_->GetConfig()->DataNode)
     { }
 
-    TFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk)
+    virtual TFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk) override
     {
         auto readGuard = TChunkReadGuard::Acquire(chunk);
         const auto& location = chunk->GetLocation();
@@ -136,37 +137,29 @@ public:
             .ValueOrThrow();
     }
 
-    void EvictReader(TBlobChunkBase* chunk)
+    virtual void EvictReader(TBlobChunkBase* chunk) override
     {
         TAsyncSlruCacheBase::TryRemove(MakeReaderCacheKey(chunk));
     }
 
 private:
-    const TDataNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
+    const TDataNodeConfigPtr Config_;
 
+    void OnDynamicConfigChanged(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
+    {
+        const auto& config = newNodeConfig->DataNode;
+        TAsyncSlruCacheBase::Reconfigure(config->BlobReaderCache);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlobReaderCache::TBlobReaderCache(
-    TDataNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(
-        std::move(config),
-        bootstrap))
-{ }
-
-TBlobReaderCache::~TBlobReaderCache() = default;
-
-TFileReaderPtr TBlobReaderCache::GetReader(const TBlobChunkBasePtr& chunk)
+IBlobReaderCachePtr CreateBlobReaderCache(NClusterNode::TBootstrap* bootstrap)
 {
-    return Impl_->GetReader(chunk);
-}
-
-void TBlobReaderCache::EvictReader(TBlobChunkBase* chunk)
-{
-    Impl_->EvictReader(chunk);
+    return New<TBlobReaderCache>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

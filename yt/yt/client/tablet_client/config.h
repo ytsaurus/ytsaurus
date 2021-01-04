@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/config.h>
+#include <yt/core/misc/cache_config.h>
 
 namespace NYT::NTabletClient {
 

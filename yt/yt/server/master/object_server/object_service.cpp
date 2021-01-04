@@ -155,6 +155,7 @@ public:
         , AutomatonInvoker_(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
         , Cache_(New<TObjectServiceCache>(
             Config_->MasterCache,
+            GetNullMemoryUsageTracker(),
             ObjectServerLogger,
             ObjectServerProfiler.WithPrefix("/master_cache")))
         , StickyUserErrorCache_(Config_->StickyUserErrorExpireTime)
