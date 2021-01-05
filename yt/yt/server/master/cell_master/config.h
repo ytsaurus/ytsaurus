@@ -71,6 +71,11 @@ public:
     {
         RegisterParameter("rpc_timeout", RpcTimeout)
             .Default(TDuration::Seconds(30));
+
+        RegisterPreprocessor([&] {
+            RetryAttempts = 100;
+            RetryTimeout = TDuration::Minutes(3);
+        });
     }
 };
 

@@ -44,6 +44,11 @@ public:
             .Default(false);
         RegisterParameter("timestamp_provider_discovery_period", TimestampProviderDiscoveryPeriod)
             .Default(TDuration::Minutes(1));
+
+        RegisterPreprocessor([&] {
+            RetryAttempts = 100;
+            RetryTimeout = TDuration::Minutes(3);
+        });
     }
 };
 

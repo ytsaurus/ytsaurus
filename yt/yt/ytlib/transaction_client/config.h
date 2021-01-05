@@ -33,7 +33,12 @@ public:
         RegisterParameter("default_ping_period", DefaultPingPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(30));
+
+        RegisterPreprocessor([&] {
+            RetryAttempts = 100;
+            RetryTimeout = TDuration::Minutes(3);
+        });
 
         RegisterPostprocessor([&] () {
             if (DefaultTransactionTimeout <= DefaultPingPeriod) {
