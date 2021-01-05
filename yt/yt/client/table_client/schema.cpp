@@ -533,6 +533,23 @@ int TTableSchema::GetValueColumnCount() const
     return GetColumnCount() - GetKeyColumnCount();
 }
 
+TSortColumns TTableSchema::GetSortColumns() const
+{
+    TSortColumns sortColumns;
+    sortColumns.reserve(GetKeyColumnCount());
+
+    for (const auto& column : Columns()) {
+        if (column.SortOrder()) {
+            sortColumns.push_back(TColumnSortSchema{
+                .Name = column.Name(),
+                .SortOrder = *column.SortOrder()
+            });
+        }
+    }
+
+    return sortColumns;
+}
+
 TTableSchemaPtr TTableSchema::SetKeyColumnCount(int keyColumnCount) const
 {
     auto schema = *this;
@@ -579,6 +596,19 @@ TTableSchemaPtr TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
                 .SetSortOrder(ESortOrder::Ascending));
     }
     schema.KeyColumnCount_ = keyColumns.size();
+    ValidateTableSchema(schema);
+    return New<TTableSchema>(std::move(schema));
+}
+
+TTableSchemaPtr TTableSchema::FromSortColumns(const TSortColumns& sortColumns)
+{
+    TTableSchema schema;
+    for (const auto& sortColumn : sortColumns) {
+        schema.Columns_.push_back(
+            TColumnSchema(sortColumn.Name, ESimpleLogicalValueType::Any)
+                .SetSortOrder(sortColumn.SortOrder));
+    }
+    schema.KeyColumnCount_ = sortColumns.size();
     ValidateTableSchema(schema);
     return New<TTableSchema>(std::move(schema));
 }
@@ -702,23 +732,37 @@ TTableSchemaPtr TTableSchema::ToCanonical() const
 
 TTableSchemaPtr TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
 {
+    TSortColumns sortColumns;
+    sortColumns.reserve(keyColumns.size());
+    for (const auto& keyColumn : keyColumns) {
+        sortColumns.push_back(TColumnSortSchema{
+            .Name = keyColumn,
+            .SortOrder = ESortOrder::Ascending
+        });
+    }
+
+    return TTableSchema::ToSorted(sortColumns);
+}
+
+TTableSchemaPtr TTableSchema::ToSorted(const TSortColumns& sortColumns) const
+{
     int oldKeyColumnCount = 0;
     auto columns = Columns();
-    for (int index = 0; index < keyColumns.size(); ++index) {
+    for (int index = 0; index < sortColumns.size(); ++index) {
         auto it = std::find_if(
             columns.begin() + index,
             columns.end(),
             [&] (const TColumnSchema& column) {
-                return column.Name() == keyColumns[index];
+                return column.Name() == sortColumns[index].Name;
             });
 
         if (it == columns.end()) {
             if (Strict_) {
-                THROW_ERROR_EXCEPTION("Column %Qv is not found in strict schema", keyColumns[index])
+                THROW_ERROR_EXCEPTION("Column %Qv is not found in strict schema", sortColumns[index].Name)
                     << TErrorAttribute("schema", *this)
-                    << TErrorAttribute("key_columns", keyColumns);
+                    << TErrorAttribute("sort_columns", sortColumns);
             } else {
-                columns.push_back(TColumnSchema(keyColumns[index], EValueType::Any));
+                columns.push_back(TColumnSchema(sortColumns[index].Name, EValueType::Any));
                 it = columns.end();
                 --it;
             }
@@ -729,12 +773,12 @@ TTableSchemaPtr TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
         }
 
         std::swap(columns[index], *it);
-        columns[index].SetSortOrder(ESortOrder::Ascending);
+        columns[index].SetSortOrder(sortColumns[index].SortOrder);
     }
 
     auto uniqueKeys = UniqueKeys_ && oldKeyColumnCount == GetKeyColumnCount();
 
-    for (auto it = columns.begin() + keyColumns.size(); it != columns.end(); ++it) {
+    for (auto it = columns.begin() + sortColumns.size(); it != columns.end(); ++it) {
         it->SetSortOrder(std::nullopt);
     }
 

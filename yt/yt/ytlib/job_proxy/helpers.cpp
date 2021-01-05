@@ -109,16 +109,24 @@ IPartitionerPtr CreatePartitioner(const TPartitionJobSpecExt& partitionJobSpecEx
             partitionLowerBounds.push_back(TOwningKeyBound::FromRow(owningKey, /* isInclusive */ isInclusive, /* isUpper */ false));
         }
 
-        // TODO(gritukan): Use comparator from job spec.
-        int keyColumnCount = partitionJobSpecExt.reduce_key_column_count();
-        TComparator comparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
+        auto comparator = GetComparator(FromProto<TSortColumns>(partitionJobSpecExt.sort_columns()));
+        // COMPAT(gritukan)
+        if (comparator.GetLength() == 0) {
+            int keyColumnCount = partitionJobSpecExt.reduce_key_column_count();
+            comparator = TComparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
+        }
 
         return CreateOrderedPartitioner(std::move(partitionLowerBounds), comparator);
     } else if (partitionJobSpecExt.has_wire_partition_keys()) {
         auto wirePartitionKeys = TSharedRef::FromString(partitionJobSpecExt.wire_partition_keys());
-        // TODO(gritukan): Use comparator from job spec.
-        int keyColumnCount = partitionJobSpecExt.reduce_key_column_count();
-        TComparator comparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
+
+        auto comparator = GetComparator(FromProto<TSortColumns>(partitionJobSpecExt.sort_columns()));
+        // COMPAT(gritukan)
+        if (comparator.GetLength() == 0) {
+            int keyColumnCount = partitionJobSpecExt.reduce_key_column_count();
+            comparator = TComparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
+        }
+
         return CreateOrderedPartitioner(wirePartitionKeys, comparator);
     } else {
         return CreateHashPartitioner(

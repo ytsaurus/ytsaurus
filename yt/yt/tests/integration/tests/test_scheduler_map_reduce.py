@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup, wait
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
+from yt_helpers import skip_if_no_descending
 
 from collections import defaultdict
 from random import shuffle
@@ -537,7 +538,11 @@ print "x={0}\ty={1}".format(x, y)
         op.abort()
 
     @authors("savrus")
-    def test_query_simple(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_query_simple(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -547,7 +552,7 @@ print "x={0}\ty={1}".format(x, y)
             out="//tmp/t2",
             mapper_command="cat",
             reducer_command="cat",
-            sort_by=["a"],
+            sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "input_query": "a",
                 "input_schema": [{"name": "a", "type": "string"}],
@@ -558,7 +563,11 @@ print "x={0}\ty={1}".format(x, y)
 
     @authors("babenko", "dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_rename_columns_simple(seld, optimize_for):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_rename_columns_simple(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create(
             "table",
             "//tmp/tin",
@@ -578,7 +587,7 @@ print "x={0}\ty={1}".format(x, y)
             out="//tmp/tout",
             mapper_command="cat",
             reducer_command="cat",
-            sort_by=["a"],
+            sort_by=[{"name": "a", "sort_order": sort_order}],
         )
 
         assert read_table("//tmp/tout") == [{"b": 42, "a": 25}]
@@ -949,9 +958,12 @@ print "x={0}\ty={1}".format(x, y)
         assert_items_equal(actual, expected)
 
     @authors("max42")
-    @pytest.mark.parametrize("sorted", [False, True])
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending", None])
     @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_output_table(self, sorted, ordered):
+    def test_map_output_table(self, sort_order, ordered):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         create(
@@ -962,7 +974,7 @@ print "x={0}\ty={1}".format(x, y)
                     {
                         "name": "bypass_key",
                         "type": "int64",
-                        "sort_order": "ascending" if sorted else None,
+                        "sort_order": sort_order,
                     }
                 ]
             },
@@ -970,13 +982,17 @@ print "x={0}\ty={1}".format(x, y)
 
         write_table("<append=%true>//tmp/t_in", [{"a": i} for i in range(10)])
 
+        if sort_order == "descending":
+            sort_by = [{"name": "shuffle_key", "sort_order": "descending"}]
+        else:
+            sort_by = [{"name": "shuffle_key", "sort_order": "ascending"}]
         op = map_reduce(
             in_="//tmp/t_in",
             out=["//tmp/t_out_map", "//tmp/t_out"],
             mapper_command="echo \"{bypass_key=$YT_JOB_INDEX}\" 1>&4; echo '{shuffle_key=23}'",
             reducer_command="cat",
             reduce_by=["shuffle_key"],
-            sort_by=["shuffle_key"],
+            sort_by=sort_by,
             spec={
                 "mapper_output_table_count": 1,
                 "max_failed_job_count": 1,
@@ -1017,7 +1033,11 @@ print "x={0}\ty={1}".format(x, y)
         assert max(values) <= 2 * job_count // node_count
 
     @authors("dakovalkov")
-    def test_ordered_map_reduce(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_ordered_map_reduce(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         for i in range(50):
@@ -1027,15 +1047,22 @@ print "x={0}\ty={1}".format(x, y)
             out="//tmp/t_out",
             mapper_command="cat",
             reducer_command="cat",
-            sort_by=["key"],
+            sort_by=[{"name": "key", "sort_order": sort_order}],
             map_job_count=1,
             ordered=True,
         )
 
-        assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
+        expected = read_table("//tmp/t_in")
+        if sort_order == "descending":
+            expected = expected[::-1]
+        assert read_table("//tmp/t_out") == expected
 
     @authors("babenko")
-    def test_commandless_user_job_spec(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_commandless_user_job_spec(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         for i in range(50):
@@ -1044,14 +1071,18 @@ print "x={0}\ty={1}".format(x, y)
             in_="//tmp/t_in",
             out="//tmp/t_out",
             reducer_command="cat",
-            sort_by=["key"],
+            sort_by=[{"name": "key", "sort_order": sort_order}],
             spec={"mapper": {"cpu_limit": 1}, "reduce_combiner": {"cpu_limit": 1}},
         )
 
         assert_items_equal(read_table("//tmp/t_in"), read_table("//tmp/t_out"))
 
     @authors("max42")
-    def test_sampling(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sampling(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create(
             "table",
             "//tmp/t1",
@@ -1070,12 +1101,14 @@ print "x={0}\ty={1}".format(x, y)
             table_writer={"block_size": 1024},
         )
 
+        sort_by = [{"name": "key", "sort_order": sort_order}]
+
         map_reduce(
             in_="//tmp/t1",
             out=["//tmp/t2", "//tmp/t3"],
             mapper_command="cat; echo '{a=1}' >&4",
             reducer_command="cat",
-            sort_by=["key"],
+            sort_by=sort_by,
             spec={
                 "sampling": {"sampling_rate": 0.5, "io_block_size": 10 ** 5},
                 "mapper_output_table_count": 1,
@@ -1089,7 +1122,7 @@ print "x={0}\ty={1}".format(x, y)
             out=["//tmp/t2", "//tmp/t3"],
             mapper_command="cat; echo '{a=1}' >&4",
             reducer_command="cat",
-            sort_by=["key"],
+            sort_by=sort_by,
             spec={
                 "sampling": {"sampling_rate": 0.5, "io_block_size": 10 ** 5},
                 "map_job_count": 10,
@@ -1104,7 +1137,7 @@ print "x={0}\ty={1}".format(x, y)
             out=["//tmp/t2", "//tmp/t3"],
             mapper_command="cat; echo '{a=1}' >&4",
             reducer_command="cat",
-            sort_by=["key"],
+            sort_by=sort_by,
             spec={
                 "sampling": {"sampling_rate": 1, "io_block_size": 10 ** 5},
                 "map_job_count": 10,
@@ -1119,7 +1152,7 @@ print "x={0}\ty={1}".format(x, y)
             out=["//tmp/t2", "//tmp/t3"],
             mapper_command="cat; echo '{a=1}' >&4",
             reducer_command="cat",
-            sort_by=["key"],
+            sort_by=sort_by,
             spec={
                 "sampling": {"sampling_rate": 0.5, "io_block_size": 10 ** 5},
                 "partition_count": 7,
@@ -1175,7 +1208,7 @@ print "x={0}\ty={1}".format(x, y)
         shuffle(rows)
         write_table("//tmp/t1", rows)
 
-        with raises_yt_error("Pivot keys should be sorted"):
+        with raises_yt_error("Pivot keys should should form"):
             map_reduce(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -1215,6 +1248,46 @@ print "x={0}\ty={1}".format(x, y)
         assert_items_equal(read_table("//tmp/t2"), sorted(rows))
         chunk_ids = get("//tmp/t2/@chunk_ids")
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 21, 21]
+
+    @authors("gritukan")
+    def test_pivot_keys_descending(self):
+        skip_if_no_descending(self.Env)
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+
+        rows = [{"key": "%02d" % key} for key in range(50)]
+        shuffle(rows)
+        write_table("//tmp/t1", rows)
+
+        sort_by = [{"name": "key", "sort_order": "descending"}]
+        map_reduce(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            mapper_command="cat",
+            reducer_command="cat",
+            sort_by=sort_by,
+            spec={"pivot_keys": [["43"], ["01"]]},
+        )
+
+        assert_items_equal(read_table("//tmp/t2"), sorted(rows))
+        chunk_ids = get("//tmp/t2/@chunk_ids")
+        # Partitions are (+oo, 43), [43, 01), [01, -oo).
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [2, 6, 42]
+
+        map_reduce(
+            in_="//tmp/t1",
+            out="//tmp/t3",
+            reducer_command="cat",
+            sort_by=sort_by,
+            spec={"pivot_keys": [["43"], ["01"]]},
+        )
+
+        assert_items_equal(read_table("//tmp/t3"), sorted(rows))
+        chunk_ids = get("//tmp/t3/@chunk_ids")
+        # Partitions are (+oo, 43), [43, 01), [01, -oo).
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [2, 6, 42]
 
     @authors("levysotsky")
     def test_intermediate_schema(self):
@@ -1268,7 +1341,7 @@ for l in sys.stdin:
             mapper_command="python mapper.py",
             reducer_command="cat",
             reduce_combiner_command="cat",
-            sort_by=["a"],
+            sort_by="a",
             spec={
                 "mapper": {
                     "output_streams": [

@@ -1454,6 +1454,8 @@ protected:
         {
             TSortTaskBase::OnTaskCompleted();
 
+            YT_VERIFY(Controller_->GetFinalPartitions().size() == 1);
+
             if (Controller_->SortedMergeTask) {
                 Controller_->SortedMergeTask->Finalize();
             }
@@ -2789,12 +2791,12 @@ protected:
         ValidateIntermediateDataAccountPermission(EPermission::Use);
 
         for (const auto& table : InputTables_) {
-            for (const auto& name : Spec->SortBy) {
-                if (auto column = table->Schema->FindColumn(name)) {
+            for (const auto& sortColumn : Spec->SortBy) {
+                if (auto column = table->Schema->FindColumn(sortColumn.Name)) {
                     if (column->Aggregate()) {
                         THROW_ERROR_EXCEPTION("Sort by aggregate column is not allowed")
                             << TErrorAttribute("table_path", table->Path)
-                            << TErrorAttribute("column_name", name);
+                            << TErrorAttribute("column_name", sortColumn.Name);
                     }
                 }
             }
@@ -2814,8 +2816,8 @@ protected:
         streamDescriptor.DestinationPool = SortedMergeTask->GetChunkPoolInput();
         streamDescriptor.ChunkMapping = SortedMergeTask->GetChunkMapping();
         streamDescriptor.TableWriterOptions = GetIntermediateTableWriterOptions();
-        if (streamDescriptor.TableUploadOptions.TableSchema->GetKeyColumns() != Spec->SortBy) {
-            streamDescriptor.TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Spec->SortBy);
+        if (streamDescriptor.TableUploadOptions.TableSchema->GetSortColumns() != Spec->SortBy) {
+            streamDescriptor.TableUploadOptions.TableSchema = TTableSchema::FromSortColumns(Spec->SortBy);
         }
         streamDescriptor.RequiresRecoveryInfo = true;
         streamDescriptor.IsFinalOutput = false;
@@ -3038,11 +3040,11 @@ private:
         ValidateSchemaInferenceMode(Spec->SchemaInferenceMode);
 
         if ((table->Dynamic || table->TableUploadOptions.UpdateMode == EUpdateMode::Append) &&
-            table->TableUploadOptions.TableSchema->GetKeyColumns() != Spec->SortBy)
+            table->TableUploadOptions.TableSchema->GetSortColumns() != Spec->SortBy)
         {
             THROW_ERROR_EXCEPTION("sort_by is different from output table key columns")
                 << TErrorAttribute("output_table_path", Spec->OutputTablePath)
-                << TErrorAttribute("output_table_key_columns", table->TableUploadOptions.TableSchema->GetKeyColumns())
+                << TErrorAttribute("output_table_sort_columns", table->TableUploadOptions.TableSchema->GetSortColumns())
                 << TErrorAttribute("sort_by", Spec->SortBy);
         }
 
@@ -3063,7 +3065,7 @@ private:
 
             case ESchemaInferenceMode::FromOutput:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    table->TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Spec->SortBy);
+                    table->TableUploadOptions.TableSchema = TTableSchema::FromSortColumns(Spec->SortBy);
                 } else {
                     table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
                     ValidateOutputSchemaComputedColumnsCompatibility();
@@ -3293,7 +3295,7 @@ private:
                 Config->Fetcher,
                 ESamplingPolicy::Sorting,
                 sampleCount,
-                Spec->SortBy,
+                GetColumnNames(Spec->SortBy),
                 Options->MaxSampleSize,
                 InputNodeDirectory_,
                 GetCancelableInvoker(),
@@ -3387,7 +3389,8 @@ private:
             SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
             auto* partitionJobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
-            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
+            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
+            ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec->SortBy);
         }
 
         {
@@ -3398,7 +3401,8 @@ private:
             SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
-            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
+            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
+            ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec->SortBy);
         }
 
         TJobSpec sortJobSpecTemplate;
@@ -3414,7 +3418,7 @@ private:
             }
 
             auto* sortJobSpecExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
-            ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            ToProto(sortJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
         }
 
         {
@@ -3441,7 +3445,7 @@ private:
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).GetData());
 
-            ToProto(mergeJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
         }
 
         {
@@ -3454,7 +3458,7 @@ private:
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).GetData());
 
-            ToProto(mergeJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
         }
     }
 
@@ -3785,15 +3789,15 @@ private:
             ValidateUserFileCount(Spec->ReduceCombiner, "reduce combiner");
         }
 
-        if (!CheckKeyColumnsCompatible(Spec->SortBy, Spec->ReduceBy)) {
+        if (!CheckKeyColumnsCompatible(GetColumnNames(Spec->SortBy), Spec->ReduceBy)) {
             THROW_ERROR_EXCEPTION("Reduce columns %v are not compatible with sort columns %v",
                 Spec->ReduceBy,
-                Spec->SortBy);
+                GetColumnNames(Spec->SortBy));
         }
 
         YT_LOG_DEBUG("ReduceColumns: %v, SortColumns: %v",
             Spec->ReduceBy,
-            Spec->SortBy);
+            GetColumnNames(Spec->SortBy));
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -3858,18 +3862,18 @@ private:
     {
         if (!Spec->HasSchemafulIntermediateStreams()) {
             IntermediateStreamSchemas_ = {New<TTableSchema>()};
-            IntermediateChunkSchema_ = TTableSchema::FromKeyColumns(Spec->SortBy);
+            IntermediateChunkSchema_ = TTableSchema::FromSortColumns(Spec->SortBy);
             return;
         }
 
-        auto toStreamSchema = [] (const TTableSchemaPtr& schema, const TKeyColumns& keyColumns) {
+        auto toStreamSchema = [] (const TTableSchemaPtr& schema, const TSortColumns& sortColumns) {
             auto columns = schema->Columns();
-            for (const auto& keyColumn : keyColumns) {
-                if (!schema->FindColumn(keyColumn)) {
-                    columns.push_back(TColumnSchema(keyColumn, SimpleLogicalType(ESimpleLogicalValueType::Null)));
+            for (const auto& sortColumn : sortColumns) {
+                if (!schema->FindColumn(sortColumn.Name)) {
+                    columns.push_back(TColumnSchema(sortColumn.Name, SimpleLogicalType(ESimpleLogicalValueType::Null)));
                 }
             }
-            return New<TTableSchema>(std::move(columns), schema->GetStrict())->ToSorted(keyColumns);
+            return New<TTableSchema>(std::move(columns), schema->GetStrict())->ToSorted(sortColumns);
         };
 
         auto inferColumnType = [] (const std::vector<TInputTablePtr>& tables, TStringBuf keyColumn) -> TLogicalTypePtr {
@@ -3908,7 +3912,7 @@ private:
             if (AreAllEqual(IntermediateStreamSchemas_)) {
                 chunkSchemaColumns = IntermediateStreamSchemas_.front()->Columns();
             } else {
-                chunkSchemaColumns = IntermediateStreamSchemas_.front()->Filter(Spec->SortBy)->Columns();
+                chunkSchemaColumns = IntermediateStreamSchemas_.front()->Filter(GetColumnNames(Spec->SortBy))->Columns();
             }
         } else {
             YT_VERIFY(!InputTables_.empty());
@@ -3918,9 +3922,9 @@ private:
             if (AreAllEqual(IntermediateStreamSchemas_)) {
                 chunkSchemaColumns = IntermediateStreamSchemas_.front()->Columns();
             } else {
-                for (const auto& keyColumn : Spec->SortBy) {
-                    auto type = inferColumnType(InputTables_, keyColumn);
-                    chunkSchemaColumns.emplace_back(keyColumn, std::move(type), ESortOrder::Ascending);
+                for (const auto& sortColumn : Spec->SortBy) {
+                    auto type = inferColumnType(InputTables_, sortColumn.Name);
+                    chunkSchemaColumns.emplace_back(sortColumn.Name, std::move(type), sortColumn.SortOrder);
                 }
             }
         }
@@ -4151,7 +4155,8 @@ private:
 
             auto* partitionJobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
-            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
+            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
+            ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec->SortBy);
 
             if (Spec->HasNontrivialMapper()) {
                 InitUserJobSpecTemplate(
@@ -4173,7 +4178,8 @@ private:
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
-            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
+            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
+            ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec->SortBy);
         }
 
         auto intermediateDataSourceDirectory = BuildIntermediateDataSourceDirectory(IntermediateStreamSchemas_);
@@ -4191,8 +4197,9 @@ private:
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
 
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
+                ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
                 reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
+                ToProto(reduceJobSpecExt->mutable_sort_columns(), Spec->SortBy);
 
                 InitUserJobSpecTemplate(
                     schedulerJobSpecExt->mutable_user_job_spec(),
@@ -4203,7 +4210,7 @@ private:
             } else {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::IntermediateSort));
                 auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
-                ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
+                ToProto(sortJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
             }
         }
 
@@ -4218,8 +4225,9 @@ private:
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).GetData());
 
-            ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
             reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
+            ToProto(reduceJobSpecExt->mutable_sort_columns(), Spec->SortBy);
 
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),
@@ -4240,8 +4248,9 @@ private:
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).GetData());
 
-            ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
             reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
+            ToProto(reduceJobSpecExt->mutable_sort_columns(), Spec->SortBy);
 
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),

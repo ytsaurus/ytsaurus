@@ -181,6 +181,12 @@ message TKeyColumnsExt
     repeated string names = 1;
 }
 
+message TSortColumnsExt
+{
+    repeated string names = 1;
+    repeated int32 sort_orders = 2;
+}
+
 message TColumnMetaExt
 {
     repeated NTableChunkFormat.NProto.TColumnMeta columns = 1;

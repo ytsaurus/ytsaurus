@@ -429,6 +429,7 @@ message TPartitionJobSpecExt
     // Deprecated = 5.
 
     // Sort key columns (may be wider than reduce key).
+    // COMPAT(gritukan): Deprecate.
     required NTableClient.NProto.TKeyColumnsExt sort_key_columns = 6;
 
     // Size of key prefix used for bucket decision.
@@ -445,6 +446,8 @@ message TPartitionJobSpecExt
     optional bytes wire_partition_lower_bound_prefixes = 10;
 
     repeated bool partition_lower_bound_inclusivenesses = 11;
+
+    required NTableClient.NProto.TSortColumnsExt sort_columns = 12;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -491,6 +494,7 @@ message TReduceJobSpecExt
     }
 
     // Sort by key columns.
+    // COMPAT(gritukan)
     repeated string key_columns = 1;
 
     // Reduce by prefix length of key columns.
@@ -501,6 +505,8 @@ message TReduceJobSpecExt
 
     // Join by prefix length of secondary key columns.
     optional int32 join_key_column_count = 4 [default = 0];
+
+    optional NTableClient.NProto.TSortColumnsExt sort_columns = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

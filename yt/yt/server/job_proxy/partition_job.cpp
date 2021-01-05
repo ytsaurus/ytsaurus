@@ -57,6 +57,16 @@ public:
         TotalRowCount_ = GetCumulativeRowCount(dataSliceDescriptors);
 
         auto keyColumns = FromProto<TKeyColumns>(PartitionJobSpecExt_.sort_key_columns());
+        auto sortColumns = FromProto<TSortColumns>(PartitionJobSpecExt_.sort_columns());
+        // COMPAT(gritukan)
+        if (sortColumns.empty()) {
+            for (const auto& keyColumn : keyColumns) {
+                sortColumns.push_back(TColumnSortSchema{
+                    .Name = keyColumn,
+                    .SortOrder = ESortOrder::Ascending
+                });
+            }
+        }
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
@@ -95,10 +105,10 @@ public:
 
         YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
-        auto outputSchema = TTableSchema::FromKeyColumns(keyColumns);
+        auto outputSchema = TTableSchema::FromSortColumns(sortColumns);
         if (outputSpec.has_table_schema()) {
             DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
-            outputSchema = outputSchema->ToSorted(keyColumns);
+            outputSchema = outputSchema->ToSorted(sortColumns);
         }
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());

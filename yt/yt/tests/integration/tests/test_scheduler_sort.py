@@ -3,6 +3,7 @@ import pytest
 from copy import deepcopy
 from random import shuffle
 from yt_env_setup import YTEnvSetup
+from yt_helpers import skip_if_no_descending
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
@@ -290,7 +291,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
             )
 
     @authors("max42")
-    def test_sort_with_sampling(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sort_with_sampling(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t_in")
 
         n = 1003
@@ -305,7 +310,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         op = sort(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            sort_by="a",
+            sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "partition_job_io": {"table_reader": {"sampling_rate": 0.5}},
                 "partition_count": 10,
@@ -316,7 +321,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         op = sort(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            sort_by="a",
+            sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "partition_job_io": {"table_reader": {"sampling_rate": 0.5}},
                 "partition_count": 10,
@@ -326,7 +331,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
         check()
 
     @authors("psushin")
-    def test_simple_read_limits(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_simple_read_limits(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         v1 = {"key": "aaa", "value": "2"}
         v2 = {"key": "bb", "value": "5"}
         v3 = {"key": "bbxx", "value": "1"}
@@ -344,10 +353,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(
             in_="<lower_limit={key=[b]}; upper_limit={key=[z]}>//tmp/t_in",
             out="//tmp/t_out",
-            sort_by="value",
+            sort_by=[{"name": "value", "sort_order": sort_order}],
         )
 
-        assert read_table("//tmp/t_out") == [v3, v2]
+        expected = [v3, v2] if sort_order == "ascending" else [v2, v3]
+        assert read_table("//tmp/t_out") == expected
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["value"]
 
@@ -493,30 +503,44 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="field")
 
     @authors("dakovalkov")
-    def test_append_simple(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_simple(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t_in")
         create(
             "table",
             "//tmp/t_out",
             attributes={
                 "schema": make_schema(
-                    [{"name": "key", "type": "int64", "sort_order": "ascending"}],
+                    [{"name": "key", "type": "int64", "sort_order": sort_order}],
                     unique_keys=False,
                 )
             },
         )
 
-        write_table("//tmp/t_in", {"key": 2})
-        write_table("//tmp/t_out", {"key": 1})
+        old_key = 1
+        new_key = 2 if sort_order == "ascending" else 0
 
-        sort(in_="//tmp/t_in", out="<append=true>//tmp/t_out", sort_by="key")
+        write_table("//tmp/t_in", {"key": new_key})
+        write_table("//tmp/t_out", {"key": old_key})
 
-        assert read_table("//tmp/t_out") == [{"key": 1}, {"key": 2}]
+        sort(
+            in_="//tmp/t_in",
+            out="<append=true>//tmp/t_out",
+            sort_by=[{"name": "key", "sort_order": sort_order}])
+
+        assert read_table("//tmp/t_out") == [{"key": old_key}, {"key": new_key}]
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["key"]
 
     @authors("dakovalkov")
-    def test_append_different_key_columns(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_different_key_columns(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t_in")
         create(
             "table",
@@ -524,7 +548,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "key", "type": "int64", "sort_order": "ascending"},
+                        {"name": "key", "type": "int64", "sort_order": sort_order},
                         {"name": "subkey", "type": "int64"},
                     ],
                     unique_keys=False,
@@ -532,14 +556,22 @@ class TestSchedulerSortCommands(YTEnvSetup):
             },
         )
 
-        write_table("//tmp/t_in", {"key": 2, "subkey": 2})
-        write_table("//tmp/t_out", {"key": 1, "subkey": 1})
+        old_row = {"key": 2, "subkey": 2}
+        new_row = {"key": 1, "subkey": 1}
+        if sort_order == "descending":
+            old_row, new_row = new_row, old_row
+
+        write_table("//tmp/t_in", old_row)
+        write_table("//tmp/t_out", new_row)
 
         with pytest.raises(YtError):
             sort(
                 in_="//tmp/t_in",
                 out="<append=true>//tmp/t_out",
-                sort_by=["key", "subkey"],
+                sort_by=[
+                    {"name": "key", "sort_order": sort_order},
+                    {"name": "subkey", "sort_order": sort_order},
+                ],
             )
 
     @authors("dakovalkov")
@@ -565,8 +597,44 @@ class TestSchedulerSortCommands(YTEnvSetup):
         with pytest.raises(YtError):
             sort(in_="//tmp/t_in", out="<append=true>//tmp/t_out", sort_by="key")
 
+    @authors("gritukan", "dakovalkov")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_different_sort_order(self, sort_order):
+        skip_if_no_descending(self.Env)
+
+        inverted_sort_order = "descending" if sort_order == "ascending" else "ascending"
+
+        create("table", "//tmp/in_0")
+        create("table", "//tmp/in_2")
+
+        create(
+            "table",
+            "//tmp/out",
+            attributes={
+                "schema": make_schema(
+                    [{"name": "key", "type": "int64", "sort_order": sort_order}],
+                    unique_keys=False,
+                )
+            },
+        )
+
+        write_table("//tmp/in_0", {"key": 0})
+        write_table("//tmp/in_2", {"key": 2})
+        write_table("//tmp/out", {"key": 1})
+
+        for in_table in ["//tmp/in_0", "//tmp/in_2"]:
+            with pytest.raises(YtError):
+                sort(
+                    in_=in_table,
+                    out="<append=true>//tmp/out",
+                    sort_by=[{"name": "key", "sort_order": inverted_sort_order}])
+
     @authors("ignat")
-    def test_maniac(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_maniac(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         v1 = {"key": "aaa"}
         v2 = {"key": "bb"}
         v3 = {"key": "bbxx"}
@@ -582,7 +650,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            sort_by="missing_key",
+            sort_by=[{"name": "missing_key", "sort_order": sort_order}],
             spec={
                 "partition_count": 5,
                 "partition_job_count": 2,
@@ -731,7 +799,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
 
     @authors("panin", "ignat")
-    def test_composite_key(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_composite_key(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         v1 = {"key": -7, "subkey": "bar", "value": "v1"}
         v2 = {"key": -7, "subkey": "foo", "value": "v2"}
         v3 = {"key": 12, "subkey": "a", "value": "v3"}
@@ -743,17 +815,41 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by=["key", "subkey"])
+        sort(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by=[
+                {"name": "key", "sort_order": sort_order},
+                {"name": "subkey", "sort_order": sort_order}
+            ]
+        )
 
-        assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
+        expected = [v1, v2, v3, v4, v5]
+        if sort_order == "descending":
+            expected = expected[::-1]
+        assert read_table("//tmp/t_out") == expected
 
         create("table", "//tmp/t_another_out")
-        sort(in_="//tmp/t_out", out="//tmp/t_another_out", sort_by=["subkey", "key"])
+        sort(
+            in_="//tmp/t_in",
+            out="//tmp/t_another_out",
+            sort_by=[
+                {"name": "subkey", "sort_order": sort_order},
+                {"name": "key", "sort_order": sort_order}
+            ]
+        )
 
-        assert read_table("//tmp/t_another_out") == [v3, v1, v2, v5, v4]
+        expected = [v3, v1, v2, v5, v4]
+        if sort_order == "descending":
+            expected = expected[::-1]
+        assert read_table("//tmp/t_another_out") == expected
 
     @authors("ignat")
-    def test_many_inputs(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_many_inputs(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         v1 = {"key": -7, "value": "v1"}
         v2 = {"key": -3, "value": "v2"}
         v3 = {"key": 0, "value": "v3"}
@@ -768,11 +864,20 @@ class TestSchedulerSortCommands(YTEnvSetup):
         write_table("//tmp/in2", [v3, v6, v2])  # some random order
 
         create("table", "//tmp/t_out")
-        sort(in_=["//tmp/in1", "//tmp/in2"], out="//tmp/t_out", sort_by="key")
+        sort(
+            in_=["//tmp/in1", "//tmp/in2"],
+            out="//tmp/t_out",
+            sort_by=[
+                {"name": "key", "sort_order": sort_order},
+            ]
+        )
 
-        assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5, v6]
+        expected = [v1, v2, v3, v4, v5, v6]
+        if sort_order == "descending":
+            expected = expected[::-1]
+        assert read_table("//tmp/t_out") == expected
 
-    def sort_with_options(self, optimize_for, **kwargs):
+    def sort_with_options(self, optimize_for, sort_order, **kwargs):
         input = "//tmp/in"
         output = "//tmp/out"
         create("table", input, attributes={"optimize_for": optimize_for})
@@ -780,37 +885,57 @@ class TestSchedulerSortCommands(YTEnvSetup):
         for i in xrange(20, 0, -1):
             write_table("<append=true>" + input, [{"key": i, "value": [1, 2]}])
 
-        args = {"in_": [input], "out": output, "sort_by": "key"}
+        args = {
+            "in_": [input],
+            "out": output,
+            "sort_by": [{"name": "key", "sort_order": sort_order}],
+        }
         args.update(kwargs)
 
         sort(**args)
         assert get("//tmp/out/@sorted")
-        assert read_table(output + "{key}") == [{"key": i} for i in xrange(1, 21)]
+        expected = [{"key": i} for i in xrange(1, 21)]
+        if sort_order == "descending":
+            expected = expected[::-1]
+        assert read_table(output + "{key}") == expected
 
     @authors("ignat", "babenko", "psushin")
-    def test_one_partition_no_merge(self):
-        self.sort_with_options("lookup")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_one_partition_no_merge(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
+        self.sort_with_options("lookup", sort_order)
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_one_partition_with_merge(self, optimize_for):
-        self.sort_with_options(optimize_for, spec={"data_weight_per_sort_job": 1})
+        self.sort_with_options(optimize_for, "ascending", spec={"data_weight_per_sort_job": 1})
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_two_partitions_no_merge(self, optimize_for):
-        self.sort_with_options(optimize_for, spec={"partition_count": 2})
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_two_partitions_no_merge(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
+        self.sort_with_options(optimize_for, sort_order, spec={"partition_count": 2})
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_ten_partitions_no_merge(self, optimize_for):
-        self.sort_with_options(optimize_for, spec={"partition_count": 10})
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_ten_partitions_no_merge(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
+        self.sort_with_options(optimize_for, sort_order, spec={"partition_count": 10})
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_two_partitions_with_merge(self, optimize_for):
         self.sort_with_options(
             optimize_for,
+            "ascending",
             spec={
                 "partition_count": 2,
                 "partition_data_size": 1,
@@ -819,17 +944,32 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
 
     @authors("ignat")
-    def test_inplace_sort(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_inplace_sort(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"key": "b"}, {"key": "a"}])
 
-        sort(in_="//tmp/t", out="//tmp/t", sort_by="key")
+        sort(
+            in_="//tmp/t",
+            out="//tmp/t",
+            sort_by=[{"name": "key", "sort_order": sort_order}]
+        )
 
         assert get("//tmp/t/@sorted")
-        assert read_table("//tmp/t") == [{"key": "a"}, {"key": "b"}]
+        expected = [{"key": "a"}, {"key": "b"}]
+        if sort_order == "descending":
+            expected = expected[::-1]
+        assert read_table("//tmp/t") == expected
 
     @authors("ignat")
-    def test_inplace_sort_with_schema(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_inplace_sort_with_schema(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create(
             "table",
             "//tmp/t",
@@ -837,7 +977,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
         write_table("//tmp/t", [{"key": "b"}, {"key": "a"}])
 
-        sort(in_="//tmp/t", out="//tmp/t", sort_by="key")
+        sort(
+            in_="//tmp/t",
+            out="//tmp/t",
+            sort_by=[{"name": "key", "sort_order": sort_order}]
+        )
 
         assert get("//tmp/t/@sorted")
         assert normalize_schema(get("//tmp/t/@schema")) == make_schema(
@@ -846,17 +990,24 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     "name": "key",
                     "type": "string",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 }
             ],
             strict=True,
             unique_keys=False,
         )
-        assert read_table("//tmp/t") == [{"key": "a"}, {"key": "b"}]
+        expected = [{"key": "a"}, {"key": "b"}]
+        if sort_order == "descending":
+            expected = expected[::-1]
+        assert read_table("//tmp/t") == expected
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_auto_schema_inference(self, optimize_for):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_auto_schema_inference(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         loose_schema = make_schema([{"name": "key", "type": "int64"}], strict=False)
         strict_schema = make_schema([{"name": "key", "type": "int64"}])
 
@@ -877,40 +1028,46 @@ class TestSchedulerSortCommands(YTEnvSetup):
         write_table("<append=true>//tmp/input_loose", {"key": 1, "value": "foo"})
         write_table("<append=true>//tmp/input_weak", {"key": 1, "value": "foo"})
 
+        sort_by = [{"name": "key", "sort_order": sort_order}]
+
         # input weak
-        sort(in_="//tmp/input_weak", out="//tmp/output_loose", sort_by="key")
+        sort(in_="//tmp/input_weak", out="//tmp/output_loose", sort_by=sort_by)
 
         assert get("//tmp/output_loose/@schema_mode") == "strong"
         assert get("//tmp/output_loose/@sorted")
 
-        sort(in_="//tmp/input_weak", out="//tmp/output_weak", sort_by="key")
+        sort(in_="//tmp/input_weak", out="//tmp/output_weak", sort_by=sort_by)
 
         assert get("//tmp/output_weak/@schema_mode") == "weak"
         assert get("//tmp/output_weak/@sorted")
 
         with pytest.raises(YtError):
-            sort(in_="//tmp/input_weak", out="//tmp/output_strict", sort_by="key")
+            sort(in_="//tmp/input_weak", out="//tmp/output_strict", sort_by=sort_by)
 
         # input loose
-        sort(in_="//tmp/input_loose", out="//tmp/output_loose", sort_by="key")
+        sort(in_="//tmp/input_loose", out="//tmp/output_loose", sort_by=sort_by)
 
         assert get("//tmp/output_loose/@schema_mode") == "strong"
         assert get("//tmp/output_loose/@sorted")
 
-        sort(in_="//tmp/input_loose", out="//tmp/output_weak", sort_by="key")
+        sort(in_="//tmp/input_loose", out="//tmp/output_weak", sort_by=sort_by)
 
         assert get("//tmp/output_weak/@schema_mode") == "strong"
         assert get("//tmp/output_weak/@sorted")
 
         with pytest.raises(YtError):
-            sort(in_="//tmp/input_loose", out="//tmp/output_strict", sort_by="key")
+            sort(in_="//tmp/input_loose", out="//tmp/output_strict", sort_by=sort_by)
 
     @authors("savrus")
-    def test_unique_keys_inference(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_unique_keys_inference(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         schema_in = make_schema(
             [
-                {"name": "key1", "type": "string", "sort_order": "ascending"},
-                {"name": "key2", "type": "string", "sort_order": "ascending"},
+                {"name": "key1", "type": "string", "sort_order": sort_order},
+                {"name": "key2", "type": "string", "sort_order": sort_order},
                 {"name": "key3", "type": "string"},
             ],
             strict=True,
@@ -922,9 +1079,12 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         row1 = {"key1": "a", "key2": "b", "key3": "c"}
         row2 = {"key1": "b", "key2": "a", "key3": "d"}
+        if sort_order == "descending":
+            row1, row2 = row2, row1
         write_table("//tmp/t_in", [row1, row2])
 
         def _do(out_table, sort_by, unique_keys, result):
+            sort_by = [{"name": col, "sort_order": sort_order} for col in sort_by]
             sort(
                 in_="//tmp/t_in",
                 out=out_table,
@@ -932,7 +1092,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 spec={"schema_inference_mode": "from_input"},
             )
 
-            assert get(out_table + "/@sorted_by") == sort_by
+            assert get(out_table + "/@sorted_by") == [col["name"] for col in sort_by]
             assert get(out_table + "/@schema/@strict")
             assert get(out_table + "/@schema/@unique_keys") == unique_keys
             assert read_table(out_table) == result
@@ -983,7 +1143,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort(in_="//tmp/input", out="//tmp/output", sort_by="key")
 
     @authors("ermolovd")
-    def test_complex_types_schema_validation(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_complex_types_schema_validation(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         input_schema = make_schema(
             [
                 {"name": "index", "type_v3": "int64"},
@@ -994,7 +1158,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
         output_schema = make_schema(
             [
-                {"name": "index", "type_v3": "int64", "sort_order": "ascending"},
+                {"name": "index", "type_v3": "int64", "sort_order": sort_order},
                 {"name": "value", "type_v3": list_type(optional_type("string"))},
             ],
             unique_keys=False,
@@ -1003,39 +1167,43 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         create("table", "//tmp/input", attributes={"schema": input_schema})
         create("table", "//tmp/output", attributes={"schema": output_schema})
-        write_table(
-            "//tmp/input",
-            [
-                {"index": 1, "value": [None]},
-                {"index": 2, "value": ["foo"]},
-            ],
-        )
+
+        input_rows = [
+            {"index": 1, "value": [None]},
+            {"index": 2, "value": ["foo"]},
+        ]
+        if sort_order == "descending":
+            input_rows = input_rows[::-1]
+
+        write_table("//tmp/input", input_rows)
 
         # We check that yson representation of types are compatible with each other
         write_table("//tmp/output", read_table("//tmp/input"))
+
+        sort_by = [{"name": "index", "sort_order": sort_order}]
 
         with pytest.raises(YtError):
             sort(
                 in_="//tmp/input",
                 out="//tmp/output",
-                sort_by="index",
+                sort_by=sort_by,
                 spec={"schema_inference_mode": "auto"},
             )
         sort(
             in_="//tmp/input",
             out="//tmp/output",
-            sort_by="index",
+            sort_by=sort_by,
             spec={"schema_inference_mode": "from_output"},
         )
         assert normalize_schema_v3(output_schema) == normalize_schema_v3(get("//tmp/output/@schema"))
         sort(
             in_="//tmp/input",
             out="//tmp/output",
-            sort_by="index",
+            sort_by=sort_by,
             spec={"schema_inference_mode": "from_input"},
         )
         input_sorted_schema = deepcopy(input_schema)
-        input_sorted_schema[0]["sort_order"] = "ascending"
+        input_sorted_schema[0]["sort_order"] = sort_order
         assert normalize_schema_v3(input_sorted_schema) == normalize_schema_v3(get("//tmp/output/@schema"))
 
     @authors("savrus")
@@ -1166,7 +1334,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
         verify_sort(["value", "key2", "key1"])
 
     @authors("savrus", "psushin")
-    def test_computed_columns(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_computed_columns(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create(
             "table",
             "//tmp/t",
@@ -1181,7 +1353,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
         write_table("//tmp/t", [{"k2": i} for i in xrange(2)])
         assert read_table("//tmp/t") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
-        sort(in_="//tmp/t", out="//tmp/t", sort_by="k1")
+        sort_by = [{"name": "k1", "sort_order": sort_order}]
+        sort(in_="//tmp/t", out="//tmp/t", sort_by=sort_by)
 
         assert normalize_schema(get("//tmp/t/@schema")) == make_schema(
             [
@@ -1189,7 +1362,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     "name": "k1",
                     "type": "int64",
                     "expression": "k2 * 2",
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                     "required": False,
                 },
                 {"name": "k2", "type": "int64", "required": False},
@@ -1198,7 +1371,10 @@ class TestSchedulerSortCommands(YTEnvSetup):
             strict=True,
         )
 
-        assert read_table("//tmp/t") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+        expected = [{"k1": i * 2, "k2": i} for i in xrange(2)]
+        if sort_order == "descending":
+            expected = expected[::-1]
+        assert read_table("//tmp/t") == expected
 
         create("table", "//tmp/t2")
         for i in xrange(5):
@@ -1210,7 +1386,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 sort(
                     in_="//tmp/t2",
                     out="//tmp/t",
-                    sort_by="k1",
+                    sort_by=sort_order,
                     spec={"schema_inference_mode": schema_inference_mode},
                 )
 
@@ -1270,15 +1446,19 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("#" + chunk_id + "/@max_block_size") < 1024 * 2
 
     @authors("savrus")
-    def test_column_selectors_schema_inference(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_column_selectors_schema_inference(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create(
             "table",
             "//tmp/t",
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "k1", "type": "int64", "sort_order": "ascending"},
-                        {"name": "k2", "type": "int64", "sort_order": "ascending"},
+                        {"name": "k1", "type": "int64", "sort_order": sort_order},
+                        {"name": "k2", "type": "int64", "sort_order": sort_order},
                         {"name": "v1", "type": "int64"},
                         {"name": "v2", "type": "int64"},
                     ],
@@ -1288,9 +1468,15 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
         create("table", "//tmp/t_out")
         rows = [{"k1": i, "k2": i + 1, "v1": i + 2, "v2": i + 3} for i in xrange(2)]
+        if sort_order == "descending":
+            rows = rows[::-1]
         write_table("//tmp/t", rows)
 
-        sort(in_="//tmp/t{k1,v1}", out="//tmp/t_out", sort_by="k1")
+        sort(
+            in_="//tmp/t{k1,v1}",
+            out="//tmp/t_out",
+            sort_by=[{"name": "k1", "sort_order": sort_order}]
+        )
 
         assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "v1")} for r in rows])
 
@@ -1300,7 +1486,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     "name": "k1",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {"name": "v1", "type": "int64", "required": False},
             ],
@@ -1313,7 +1499,14 @@ class TestSchedulerSortCommands(YTEnvSetup):
         remove("//tmp/t_out")
         create("table", "//tmp/t_out")
 
-        sort(in_="//tmp/t{k1,k2,v2}", out="//tmp/t_out", sort_by=["k1", "k2"])
+        sort(
+            in_="//tmp/t{k1,k2,v2}",
+            out="//tmp/t_out",
+            sort_by=[
+                {"name": "k1", "sort_order": sort_order},
+                {"name": "k2", "sort_order": sort_order},
+            ],
+        )
 
         assert_items_equal(
             read_table("//tmp/t_out"),
@@ -1326,13 +1519,13 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     "name": "k1",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {
                     "name": "k2",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {"name": "v2", "type": "int64", "required": False},
             ],
@@ -1342,13 +1535,17 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert normalize_schema(get("//tmp/t_out/@schema")) == schema
 
     @authors("savrus")
-    def test_column_selectors_output_schema_validation(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_column_selectors_output_schema_validation(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create(
             "table",
             "//tmp/t",
             attributes={
                 "schema": [
-                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "key", "type": "int64", "sort_order": sort_order},
                     {"name": "value", "type": "string"},
                 ]
             },
@@ -1356,12 +1553,18 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t_out",
-            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": sort_order}]},
         )
         rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        if sort_order == "descending":
+            rows = rows[::-1]
         write_table("//tmp/t", rows)
 
-        sort(in_="//tmp/t{key}", out="//tmp/t_out", sort_by="key")
+        sort(
+            in_="//tmp/t{key}",
+            out="//tmp/t_out",
+            sort_by=[{"name": "key", "sort_order": sort_order}],
+        )
 
         assert_items_equal(read_table("//tmp/t_out"), [{"key": r["key"]} for r in rows])
 
@@ -1434,6 +1637,28 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert check_operation_tasks(op, {"partition(0)", "partition(1)", "partition(2)", "final_sort"})
 
     @authors("gritukan")
+    def test_pivot_keys_descending(self):
+        skip_if_no_descending(self.Env)
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        rows = [{"key": "%02d" % key} for key in range(50)]
+        shuffle(rows)
+        write_table("//tmp/t1", rows)
+
+        sort(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            sort_by=[{"name": "key", "sort_order": "descending"}],
+            spec={"pivot_keys": [["43"], ["01"]]},
+        )
+        assert_items_equal(read_table("//tmp/t2"), sorted(rows)[::-1])
+        chunk_ids = get("//tmp/t2/@chunk_ids")
+        # Partitions are (+oo, 43), [43, 01), [01, -oo).
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [2, 6, 42]
+
+    @authors("gritukan")
     def test_non_existent_sort_by_column(self):
         create("table", "//tmp/in", attributes={"schema": [{"name": "x", "type": "int64"}]})
         create("table", "//tmp/out")
@@ -1443,7 +1668,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort(in_="//tmp/in", out="//tmp/out", sort_by="foo")
 
     @authors("gritukan")
-    def test_non_strict_schema(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_non_strict_schema(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
@@ -1452,18 +1681,25 @@ class TestSchedulerSortCommands(YTEnvSetup):
             [{"key": 2, "value": "a"}, {"key": 1, "value": "b"}],
         )
 
-        sort(in_="//tmp/in", out="//tmp/out1", sort_by="key")
-        assert read_table("//tmp/out1") == [
+        sort(
+            in_="//tmp/in",
+            out="//tmp/out1",
+            sort_by=[{"name": "key", "sort_order": sort_order}],
+        )
+        expected = [
             {"key": 1, "value": "b"},
             {"key": 2, "value": "a"},
         ]
+        if sort_order == "descending":
+            expected = expected[::-1]
+        assert read_table("//tmp/out1") == expected
         schema = make_schema(
             [
                 {
                     "name": "key",
                     "type": "any",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {"name": "value", "type": "string", "required": False},
             ],
@@ -1472,7 +1708,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
         assert normalize_schema(get("//tmp/out1/@schema")) == schema
 
-        sort(in_="//tmp/in", out="//tmp/out2", sort_by="foo")
+        sort(
+            in_="//tmp/in",
+            out="//tmp/out2",
+            sort_by=[{"name": "foo", "sort_order": sort_order}],
+        )
         assert sorted(read_table("//tmp/out1")) == [
             {"key": 1, "value": "b"},
             {"key": 2, "value": "a"},
@@ -1483,7 +1723,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     "name": "foo",
                     "type": "any",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {"name": "value", "type": "string", "required": False},
             ],
@@ -1817,6 +2057,57 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 expected += [{"x": i}] * 10
             assert read_table("//tmp/t_out") == expected
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("sort_type", ["simple_sort_1_phase", "2_phase", "2_phase_hierarchical"])
+    def test_descending_sort_order(self, sort_type):
+        skip_if_no_descending(self.Env)
+
+        rows = [{"x": str(x), "y": str(y)} for x in range(5, 0, -1) for y in range(5)]
+        expected = deepcopy(rows)
+        random.shuffle(rows)
+
+        create("table", "//tmp/in")
+        for row in rows:
+            write_table("<append=%true>//tmp/in", [row])
+
+        create("table", "//tmp/out")
+
+        sort_by = [
+            {"name": "x", "sort_order": "descending"},
+            {"name": "y", "sort_order": "ascending"},
+        ]
+
+        if sort_type == "simple_sort_1_phase":
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by)
+            op.track()
+            assert check_operation_tasks(op, ["simple_sort"])
+        elif sort_type == "2_phase":
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec={
+                "partition_count": 3,
+                "data_weight_per_sort_job": 10 ** 8,
+            })
+            op.track()
+            assert check_operation_tasks(op, ["partition(0)", "final_sort"])
+        elif sort_type == "2_phase_hierarchical":
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec={
+                "partition_count": 3,
+                "max_partition_factor": 2,
+                "data_weight_per_sort_job": 10 ** 8,
+            })
+            op.track()
+            assert check_operation_tasks(op, ["partition(0)", "partition(1)", "final_sort"])
+
+        output_schema = make_schema(
+            [
+                {"name": "x", "sort_order": "descending", "type": "any", "required": False},
+                {"name": "y", "sort_order": "ascending", "type": "any", "required": False},
+            ],
+            unique_keys=False,
+            strict=False,
+        )
+
+        assert normalize_schema(output_schema) == normalize_schema(get("//tmp/out/@schema"))
+        assert read_table("//tmp/out") == expected
 
 ##################################################################
 

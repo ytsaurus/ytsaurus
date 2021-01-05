@@ -8474,6 +8474,20 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
 
 void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumns)
 {
+    TSortColumns sortColumns;
+    sortColumns.reserve(keyColumns.size());
+    for (const auto& keyColumn : keyColumns) {
+        sortColumns.push_back(TColumnSortSchema{
+            .Name = keyColumn,
+            .SortOrder = ESortOrder::Ascending
+        });
+    }
+
+    InferSchemaFromInput(sortColumns);
+}
+
+void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColumns)
+{
     // We infer schema only for operations with one output table.
     YT_VERIFY(OutputTables_.size() == 1);
     YT_VERIFY(InputTables_.size() >= 1);
@@ -8490,7 +8504,7 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
     }
 
     if (OutputTables_[0]->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-        OutputTables_[0]->TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(keyColumns);
+        OutputTables_[0]->TableUploadOptions.TableSchema = TTableSchema::FromSortColumns(sortColumns);
     } else {
         auto schema = InputTables_[0]->Schema
             ->ToStrippedColumnAttributes()
@@ -8503,7 +8517,7 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
         }
 
         OutputTables_[0]->TableUploadOptions.TableSchema = InputTables_[0]->Schema
-            ->ToSorted(keyColumns)
+            ->ToSorted(sortColumns)
             ->ToSortedStrippedColumnAttributes()
             ->ToCanonical();
 

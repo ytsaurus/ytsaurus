@@ -5,9 +5,14 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/serialize.h>
+
 namespace NYT::NTableClient {
 
 using namespace NLogging;
+using namespace NYson;
+using namespace NYTree;
 
 //! Used only for YT_LOG_FATAL below.
 static const TLogger Logger("TableClientComparator");
@@ -285,12 +290,33 @@ bool TComparator::HasDescendingSortOrder() const
 
 void FormatValue(TStringBuilderBase* builder, const TComparator& comparator, TStringBuf /* spec */)
 {
-    builder->AppendFormat("{Length: %v}", comparator.GetLength());
+    builder->AppendFormat("{Length: %v, SortOrders: ", comparator.GetLength());
+    for (auto sortOrder : comparator.SortOrders()) {
+        switch (sortOrder) {
+            case ESortOrder::Ascending:
+                builder->AppendChar('A');
+                break;
+            case ESortOrder::Descending:
+                builder->AppendChar('D');
+                break;
+            default:
+                YT_ABORT();
+        }
+    }
+    builder->AppendChar('}');
 }
 
 TString ToString(const TComparator& comparator)
 {
     return ToStringViaBuilder(comparator);
+}
+
+void Serialize(const TComparator& comparator, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .DoListFor(comparator.SortOrders(), [&] (TFluentList fluent, ESortOrder sortOrder) {
+            fluent.Item().Value(sortOrder);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

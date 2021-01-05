@@ -892,6 +892,7 @@ protected:
     const TExecNodeDescriptorMap& GetOnlineExecNodeDescriptors();
 
     void InferSchemaFromInput(const NTableClient::TKeyColumns& keyColumns = NTableClient::TKeyColumns());
+    void InferSchemaFromInput(const NTableClient::TSortColumns& sortColumns);
     void InferSchemaFromInputOrdered();
     void FilterOutputSchemaByInputColumnSelectors();
     void ValidateOutputSchemaOrdered() const;

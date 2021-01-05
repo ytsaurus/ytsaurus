@@ -3,6 +3,7 @@
 #include "logical_type.h"
 #include "row_base.h"
 #include "comparator.h"
+#include "column_sort_schema.h"
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/optional.h>
@@ -172,12 +173,17 @@ public:
     int GetKeyColumnCount() const;
     int GetValueColumnCount() const;
 
+    TSortColumns GetSortColumns() const;
+
     bool HasNontrivialSchemaModification() const;
 
     //! Constructs a non-strict schema from #keyColumns assigning all components EValueType::Any type.
     //! #keyColumns could be empty, in which case an empty non-strict schema is returned.
     //! The resulting schema is validated.
     static TTableSchemaPtr FromKeyColumns(const TKeyColumns& keyColumns);
+
+    //! Same as above, but infers key column sort orders from #sortColumns.
+    static TTableSchemaPtr FromSortColumns(const TSortColumns& sortColumns);
 
     //! Returns schema with first `keyColumnCount' columns sorted in ascending order
     //! and other columns non-sorted.
@@ -234,6 +240,7 @@ public:
 
     //! Returns (possibly reordered) schema with set key columns.
     TTableSchemaPtr ToSorted(const TKeyColumns& keyColumns) const;
+    TTableSchemaPtr ToSorted(const TSortColumns& sortColumns) const;
 
     //! Only applies to sorted replicated tables.
     //! Returns the ordered schema used in replication logs.

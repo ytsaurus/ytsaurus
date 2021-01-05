@@ -1300,7 +1300,8 @@ private:
                 EErrorCode::SortOrderViolation,
                 "Sort order violation: %v > %v",
                 currentKey,
-                nextKey);
+                nextKey)
+                << TErrorAttribute("comparator", comparator);
         }
 
         if (Options_->ExplodeOnValidationError) {
