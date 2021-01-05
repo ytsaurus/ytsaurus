@@ -1,5 +1,8 @@
 #include <yt/core/test_framework/framework.h>
 
+#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/ytlib/table_client/sorted_merging_reader.h>
+
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/client/table_client/helpers.h>
@@ -7,10 +10,9 @@
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_row_batch.h>
 
-#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
-
 #include <yt/core/misc/protobuf_helpers.h>
+
+#include <random>
 
 namespace NYT::NTableClient {
 namespace {
@@ -21,43 +23,123 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
-using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResultStorage
 {
 public:
-    void OnUnreadRows(TRange<TUnversionedRow> unreadRows)
+    void OnUnreadRows(const std::vector<TUnversionedRow>& unreadRows)
     {
-        UnreadRowCount_ = unreadRows.Size();
-        if (!unreadRows.Empty()) {
-            FirstUnreadRow_ = ToString(unreadRows[0]);
+        UnreadRows_.reserve(unreadRows.size());
+        for (const auto& row : unreadRows) {
+            UnreadRows_.push_back(TUnversionedOwningRow(row));
         }
     }
 
     int GetUnreadRowCount() const
     {
-        return UnreadRowCount_;
+        return UnreadRows_.size();
     }
 
-    const TString& GetFirstUnreadRow() const
+    TString GetFirstUnreadRow() const
     {
-        return FirstUnreadRow_;
+        return ToString(UnreadRows_.front());
+    }
+
+    const std::vector<TUnversionedOwningRow>& GetUnreadRows() const
+    {
+        return UnreadRows_;
     }
 
 private:
-    i64 UnreadRowCount_;
-    TString FirstUnreadRow_;
+    std::vector<TUnversionedOwningRow> UnreadRows_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableData
+struct TRawTableData
 {
     TString Schema;
     std::vector<TString> Rows;
 };
+
+struct TTableData
+{
+    TTableSchema Schema;
+    std::vector<TUnversionedOwningRow> Rows;
+
+    TTableData() = default;
+
+    TTableData(const TRawTableData& rawTableData)
+    {
+        Schema = ConvertTo<TTableSchema>(TYsonString(rawTableData.Schema));
+        Rows.reserve(rawTableData.Rows.size());
+        for (const auto& rawRow : rawTableData.Rows) {
+            Rows.push_back(YsonToSchemafulRow(rawRow, Schema, /* treatMissingAsNull */false));
+        }
+    }
+};
+
+//! Generate a random table with #columnCount columns sorted by #comparator and #rowCount rows.
+//! Table values are integers from [0, #valuesRange).
+TTableData RandomTable(int columnCount, TComparator comparator, int rowCount, int valuesRange, int seed)
+{
+    std::mt19937 rng(seed);
+
+    TTableData tableData;
+
+    int keyColumnCount = comparator.GetLength();
+
+    std::vector<TColumnSchema> columns;
+    columns.reserve(columnCount);
+    for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+        std::optional<ESortOrder> sortOrder;
+        if (columnIndex < keyColumnCount) {
+            sortOrder = comparator.SortOrders()[columnIndex];
+        }
+        TColumnSchema columnSchema(
+            /* name */Format("c%v", columnIndex),
+            /* type */EValueType::Int64,
+            /* sortOrder */sortOrder);
+        columns.push_back(std::move(columnSchema));
+    }
+
+    tableData.Schema = TTableSchema(std::move(columns));
+
+    tableData.Rows.reserve(rowCount);
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        TUnversionedOwningRowBuilder builder;
+        for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+            builder.AddValue(MakeUnversionedInt64Value(rng() % valuesRange));
+        }
+        tableData.Rows.push_back(builder.FinishRow());
+    }
+
+    std::sort(tableData.Rows.begin(), tableData.Rows.end(), [&] (auto lhs, auto rhs) {
+        auto lhsKey = TKey::FromRow(lhs, keyColumnCount);
+        auto rhsKey = TKey::FromRow(rhs, keyColumnCount);
+        return comparator.CompareKeys(lhsKey, rhsKey) < 0;
+    });
+
+    return tableData;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedOwningRow AddTableIndex(
+    TUnversionedRow row,
+    int tableIndex,
+    int tableIndexId)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (const auto& value : row) {
+        builder.AddValue(value);
+    }
+    builder.AddValue(MakeUnversionedInt64Value(tableIndex, tableIndexId));
+
+    return builder.FinishRow();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,19 +148,21 @@ class TSchemalessMultiChunkFakeReader
 {
 public:
     TSchemalessMultiChunkFakeReader(
-        const TTableData& tableData,
+        TTableData tableData,
         int inputTableIndex,
         TResultStorage* resultStorage = nullptr)
-        : TableData_(tableData)
-        , TableSchema_(ConvertTo<TTableSchema>(TYsonString(tableData.Schema)))
+        : TableSchema_(std::move(tableData.Schema))
         , KeyColumns_(TableSchema_.GetKeyColumns())
-        , InputTableIndex_(inputTableIndex)
         , ResultStorage_(resultStorage)
     {
         for (int i = 0; i < TableSchema_.GetColumnCount(); ++i) {
             NameTable_->RegisterName(TableSchema_.Columns()[i].Name());
         }
-        NameTable_->RegisterName(TableIndexColumnName);
+        int tableIndexId = NameTable_->RegisterName(TableIndexColumnName);
+
+        for (const auto& row : tableData.Rows) {
+            TableRows_.push_back(AddTableIndex(row, inputTableIndex, tableIndexId));
+        }
     }
 
     virtual TFuture<void> GetReadyEvent() const override
@@ -114,15 +198,15 @@ public:
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         Rows_.clear();
-        if (Interrupted_ || RowIndex_ >= TableData_.Rows.size()) {
+        if (Interrupted_ || RowIndex_ >= TableRows_.size()) {
             return nullptr;
         }
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
-        TString tableIndexYson = Format("; \"@table_index\"=%d", InputTableIndex_);
-        while (rows.size() < options.MaxRowsPerRead && RowIndex_ < TableData_.Rows.size()) {
-            Rows_.push_back(YsonToSchemafulRow(TableData_.Rows[RowIndex_] + tableIndexYson, TableSchema_, false));
-            rows.push_back(Rows_.back());
+        while (rows.size() < options.MaxRowsPerRead && RowIndex_ < TableRows_.size()) {
+            auto row = TableRows_[RowIndex_];
+            Rows_.push_back(row);
+            rows.push_back(row);
             ++RowIndex_;
         }
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
@@ -140,7 +224,11 @@ public:
 
     virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override
     {
-        ResultStorage_->OnUnreadRows(unreadRows);
+        std::vector<TUnversionedRow> rows(unreadRows.begin(), unreadRows.end());
+        for (int rowIndex = RowIndex_; rowIndex < TableRows_.size(); ++rowIndex) {
+            rows.push_back(TableRows_[rowIndex]);
+        }
+        ResultStorage_->OnUnreadRows(rows);
         return {};
     }
 
@@ -151,7 +239,7 @@ public:
 
     virtual i64 GetTotalRowCount() const override
     {
-        return TableData_.Rows.size();
+        return TableRows_.size();
     }
 
     virtual void Interrupt() override
@@ -170,12 +258,11 @@ public:
     }
 
 private:
-    const TTableData& TableData_;
+    std::vector<TUnversionedOwningRow> TableRows_;
     const TTableSchema TableSchema_;
     const TKeyColumns KeyColumns_;
     const TNameTablePtr NameTable_ = New<TNameTable>();
 
-    int InputTableIndex_ = 0;
     TResultStorage* ResultStorage_ = nullptr;
 
     int RowIndex_ = 0;
@@ -185,7 +272,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessSortedMergingReaderTest
+class TSortedMergingReaderTest
     : public ::testing::Test
 {
 protected:
@@ -265,7 +352,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TTableData tableData0 {
+const TRawTableData tableData0 = {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending};"
         "{name = c1; type = int64; sort_order = ascending};"
@@ -280,7 +367,7 @@ const TTableData tableData0 {
     }
 };
 
-const TTableData tableData1 {
+const TRawTableData tableData1 = {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending};"
         "{name = c1; type = int64; sort_order = ascending};"
@@ -298,7 +385,7 @@ const TTableData tableData1 {
     }
 };
 
-const TTableData tableData2 {
+const TRawTableData tableData2 = {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending};"
         "{name = c1; type = int64};"
@@ -316,7 +403,7 @@ const TTableData tableData2 {
     }
 };
 
-const TTableData tableData3 {
+const TRawTableData tableData3 = {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending};"
         "{name = c1; type = int64}; ]",
@@ -327,7 +414,7 @@ const TTableData tableData3 {
     }
 };
 
-const TTableData tableData4 {
+const TRawTableData tableData4 = {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending};"
         "{name = c1; type = int64}; ]",
@@ -338,7 +425,7 @@ const TTableData tableData4 {
     }
 };
 
-const TTableData tableData5 {
+const TRawTableData tableData5 = {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending}; ]",
     {
@@ -351,7 +438,7 @@ const TTableData tableData5 {
     }
 };
 
-const TTableData tableData6 {
+const TRawTableData tableData6 = {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending}; ]",
     {
@@ -362,7 +449,7 @@ const TTableData tableData6 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderSingleTable)
+TEST_F(TSortedMergingReaderTest, SortedMergingReaderSingleTable)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -370,27 +457,30 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderSingleTable)
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
         primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData0, 0, &(*resultStorage)[0]));
 
-        return CreateSchemalessSortedMergingReader(primaryReaders, 2, 2, false);
+        TComparator sortComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+        TComparator reduceComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+        return CreateSortedMergingReader(primaryReaders, sortComparator, reduceComparator, false);
     };
 
     std::vector<TResultStorage> resultStorage;
     auto rows = ReadAll(createReader, &resultStorage);
     for (int interruptRowCount = 0; interruptRowCount < static_cast<int>(rows.size()); ++interruptRowCount) {
         int rowsPerRead = 1;
+        auto lastRow = interruptRowCount != 0 ? rows[interruptRowCount - 1] : TString("");
         ReadAndCheckResult(
             createReader,
             &resultStorage,
             rowsPerRead,
             interruptRowCount,
             interruptRowCount,
-            interruptRowCount != 0 ? rows[interruptRowCount - 1] : TString(""),
+            lastRow,
             {
-                {0, TString("")},
+                {rows.size() - interruptRowCount, rows[interruptRowCount]},
             });
     }
 }
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderMultipleTablesInterruptAtKeyEdge)
+TEST_F(TSortedMergingReaderTest, SortedMergingReaderMultipleTablesInterruptAtKeyEdge)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -401,7 +491,9 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderMultipleTablesInte
             New<TSchemalessMultiChunkFakeReader>(tableData2, 0, &(*resultStorage)[1])
         };
 
-        return CreateSchemalessSortedMergingReader(primaryReaders, 3, 2, true);
+        TComparator sortComparator(std::vector<ESortOrder>(3, ESortOrder::Ascending));
+        TComparator reduceComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+        return CreateSortedMergingReader(primaryReaders, sortComparator, reduceComparator, true);
     };
 
     std::vector<TResultStorage> resultStorage;
@@ -435,9 +527,175 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderMultipleTablesInte
         });
 }
 
+TEST_F(TSortedMergingReaderTest, SortedMergingReaderStressTest)
+{
+    std::mt19937 rng(42);
+
+    constexpr int TableCount = 3;
+    constexpr int RowCount = 20;
+    constexpr int ColumnCount = 2;
+    constexpr int KeyColumnCount = 2;
+    constexpr int ReduceColumnCount = 1;
+    constexpr int ValuesRange = 30;
+    constexpr int MaxRowsPerRead = 4;
+    constexpr int Iterations = 15000;
+
+    for (int iteration = 0; iteration < Iterations; ++iteration) {
+        std::vector<ESortOrder> sortOrders;
+        for (int columnIndex = 0; columnIndex < KeyColumnCount; ++columnIndex) {
+            if (rng() % 2 == 0) {
+                sortOrders.push_back(ESortOrder::Ascending);
+            } else {
+                sortOrders.push_back(ESortOrder::Descending);
+            }
+        }
+
+        TComparator sortComparator(sortOrders);
+        sortOrders.resize(ReduceColumnCount);
+        TComparator reduceComparator(sortOrders);
+
+        std::vector<TTableData> inputTables;
+
+        std::vector<TUnversionedOwningRow> expected;
+        for (int tableIndex = 0; tableIndex < TableCount; ++tableIndex) {
+            inputTables.push_back(
+                RandomTable(
+                    ColumnCount,
+                    sortComparator,
+                    rng() % RowCount,
+                    (rng() % ValuesRange) + 1,
+                    iteration * TableCount + tableIndex));
+            for (const auto& row : inputTables.back().Rows) {
+                expected.emplace_back(AddTableIndex(row, tableIndex, ColumnCount));
+            }
+        }
+
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+        primaryReaders.reserve(TableCount);
+        std::vector<TResultStorage> resultStorages;
+        resultStorages.resize(TableCount);
+        for (int tableIndex = 0; tableIndex < TableCount; ++tableIndex) {
+            primaryReaders.push_back(
+                New<TSchemalessMultiChunkFakeReader>(inputTables[tableIndex], tableIndex, &resultStorages[tableIndex]));
+        }
+
+        // Key edge interrupt is more interesting case.
+        bool interruptAtKeyEdge = (rng() % 10 < 7);
+
+        auto reader = CreateSortedMergingReader(primaryReaders, sortComparator, reduceComparator, interruptAtKeyEdge);
+
+        std::sort(expected.begin(), expected.end(), [&] (auto lhs, auto rhs) {
+            auto lhsKey = TKey::FromRow(lhs, KeyColumnCount);
+            auto rhsKey = TKey::FromRow(rhs, KeyColumnCount);
+            int comparisionResult = sortComparator.CompareKeys(lhsKey, rhsKey);
+            if (comparisionResult != 0) {
+                return comparisionResult < 0;
+            }
+            auto lhsTableIndex = lhs[lhs.GetCount() - 1];
+            auto rhsTableIndex = rhs[rhs.GetCount() - 1];
+            return lhsTableIndex < rhsTableIndex;
+        });
+
+        int interruptIndex = rng() % (expected.size() + 1);
+        if (interruptIndex == 0) {
+            reader->Interrupt();
+            while (true) {
+                TRowBatchReadOptions options{
+                    .MaxRowsPerRead = static_cast<i64>(rng() % 2)
+                };
+                auto batch = reader->Read(options);
+                if (!batch) {
+                    break;
+                }
+                EXPECT_EQ(batch->GetRowCount(), 0);
+            }
+            continue;
+        }
+
+        auto interruptKey = TKey::FromRow(expected[interruptIndex - 1], ReduceColumnCount);
+        int expectedReadRowCount = interruptIndex;
+
+        if (interruptAtKeyEdge) {
+            while (expectedReadRowCount < expected.size() &&
+                reduceComparator.CompareKeys(
+                    TKey::FromRow(expected[expectedReadRowCount], ReduceColumnCount),
+                    interruptKey) == 0)
+            {
+                ++expectedReadRowCount;
+            }
+        }
+
+        std::vector<TUnversionedOwningRow> rowsRead;
+        while (rowsRead.size() < interruptIndex) {
+            int rowsLeft = interruptIndex - rowsRead.size();
+            int maxRowsPerRead = rng() % std::min(rowsLeft + 1, MaxRowsPerRead + 1);
+            TRowBatchReadOptions options{
+                .MaxRowsPerRead = maxRowsPerRead
+            };
+
+            auto batch = reader->Read(options);
+            ASSERT_TRUE(static_cast<bool>(batch));
+            if (batch->IsEmpty()) {
+                auto waitResult = WaitFor(reader->GetReadyEvent());
+                EXPECT_TRUE(waitResult.IsOK());
+                continue;
+            }
+
+            auto rows = batch->MaterializeRows();
+            for (const auto& row : rows) {
+                rowsRead.push_back(TUnversionedOwningRow(row));
+            }
+        }
+
+        EXPECT_EQ(rowsRead.size(), interruptIndex);
+        reader->Interrupt();
+
+        while (true) {
+            int maxRowsPerRead = rng() % (MaxRowsPerRead + 1);
+            TRowBatchReadOptions options{
+                .MaxRowsPerRead = maxRowsPerRead
+            };
+
+            auto batch = reader->Read(options);
+            if (!batch) {
+                break;
+            }
+
+            if (batch->IsEmpty()) {
+                auto waitResult = WaitFor(reader->GetReadyEvent());
+                EXPECT_TRUE(waitResult.IsOK());
+                continue;
+            }
+
+            auto rows = batch->MaterializeRows();
+            for (const auto& row : rows) {
+                rowsRead.push_back(TUnversionedOwningRow(row));
+            }
+        }
+
+        std::vector<TUnversionedOwningRow> expectedRead(expected.begin(), expected.begin() + expectedReadRowCount);
+
+        EXPECT_EQ(expectedRead, rowsRead);
+
+        reader->GetInterruptDescriptor(NYT::TRange<TUnversionedRow>());
+
+        std::vector<std::vector<TUnversionedOwningRow>> expectedUnreadRows(TableCount);
+        for (int rowIndex = expectedReadRowCount; rowIndex < expected.size(); ++rowIndex) {
+            const auto& row = expected[rowIndex];
+            int tableIndex;
+            FromUnversionedValue(&tableIndex, row[row.GetCount() - 1]);
+            expectedUnreadRows[tableIndex].push_back(row);
+        }
+
+        for (int tableIndex = 0; tableIndex < TableCount; ++tableIndex) {
+            EXPECT_EQ(resultStorages[tableIndex].GetUnreadRows(), expectedUnreadRows[tableIndex]);
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMultiplePrimary)
+TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMultiplePrimary)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -451,7 +709,16 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
             New<TSchemalessMultiChunkFakeReader>(tableData2, 0)
         };
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 3, 2, foreignReaders, 1, true);
+        TComparator sortComparator(std::vector<ESortOrder>(3, ESortOrder::Ascending));
+        TComparator reduceComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+        TComparator joinComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        return CreateSortedJoiningReader(
+            primaryReaders,
+            sortComparator,
+            reduceComparator,
+            foreignReaders,
+            joinComparator,
+            true);
     };
 
     // Expected sequence of rows:
@@ -550,7 +817,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
         });
 }
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBeforeForeign)
+TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBeforeForeign)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -562,7 +829,16 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 2));
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 3, 2, foreignReaders, 1, true);
+        TComparator sortComparator(std::vector<ESortOrder>(3, ESortOrder::Ascending));
+        TComparator reduceComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+        TComparator joinComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        return CreateSortedJoiningReader(
+            primaryReaders,
+            sortComparator,
+            reduceComparator,
+            foreignReaders,
+            joinComparator,
+            true);
     };
 
     // Expected sequence of rows:
@@ -661,7 +937,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         });
 }
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBeforePrimary)
+TEST_F(TSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBeforePrimary)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -673,7 +949,16 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 1));
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 3, 2, foreignReaders, 1, true);
+        TComparator sortComparator(std::vector<ESortOrder>(3, ESortOrder::Ascending));
+        TComparator reduceComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+        TComparator joinComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        return CreateSortedJoiningReader(
+            primaryReaders,
+            sortComparator,
+            reduceComparator,
+            foreignReaders,
+            joinComparator,
+            true);
     };
 
     // Expected sequence of rows:
@@ -755,7 +1040,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultipleForeignBef
         });
 }
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMultipleForeign)
+TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMultipleForeign)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -767,7 +1052,16 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 1));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 2));
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 3, 2, foreignReaders, 1, true);
+        TComparator sortComparator(std::vector<ESortOrder>(3, ESortOrder::Ascending));
+        TComparator reduceComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+        TComparator joinComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        return CreateSortedJoiningReader(
+            primaryReaders,
+            sortComparator,
+            reduceComparator,
+            foreignReaders,
+            joinComparator,
+            true);
     };
 
     // Expected sequence of rows:
@@ -849,7 +1143,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeMulti
         });
 }
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrimary)
+TEST_F(TSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrimary)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -861,7 +1155,16 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrima
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 1));
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 1, 1, foreignReaders, 1, false);
+        TComparator sortComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        TComparator reduceComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        TComparator joinComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        return CreateSortedJoiningReader(
+            primaryReaders,
+            sortComparator,
+            reduceComparator,
+            foreignReaders,
+            joinComparator,
+            false);
     };
 
     // Expected sequence of rows:
@@ -943,7 +1246,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforePrima
         });
 }
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForeign)
+TEST_F(TSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForeign)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -955,7 +1258,16 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForei
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 1));
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 2));
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 1, 1, foreignReaders, 1, false);
+        TComparator sortComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        TComparator reduceComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        TComparator joinComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        return CreateSortedJoiningReader(
+            primaryReaders,
+            sortComparator,
+            reduceComparator,
+            foreignReaders,
+            joinComparator,
+            false);
     };
 
     // Expected sequence of rows:
@@ -1037,7 +1349,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForei
         });
 }
 
-TEST_F(TSchemalessSortedMergingReaderTest, InterruptOnReduceKeyChange)
+TEST_F(TSortedMergingReaderTest, InterruptOnReduceKeyChange)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -1048,7 +1360,16 @@ TEST_F(TSchemalessSortedMergingReaderTest, InterruptOnReduceKeyChange)
         std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData4, 1));
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 2, 2, foreignReaders, 1, true);
+        TComparator sortComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+        TComparator reduceComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+        TComparator joinComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        return CreateSortedJoiningReader(
+            primaryReaders,
+            sortComparator,
+            reduceComparator,
+            foreignReaders,
+            joinComparator,
+            true);
     };
 
     std::vector<TResultStorage> resultStorage;
@@ -1068,7 +1389,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, InterruptOnReduceKeyChange)
         });
 }
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderEqualKeys)
+TEST_F(TSortedMergingReaderTest, SortedJoiningReaderEqualKeys)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -1082,7 +1403,16 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderEqualKeys)
             New<TSchemalessMultiChunkFakeReader>(tableData1, 0)
         };
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 1, 1, foreignReaders, 1, false);
+        TComparator sortComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        TComparator reduceComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        TComparator joinComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        return CreateSortedJoiningReader(
+            primaryReaders,
+            sortComparator,
+            reduceComparator,
+            foreignReaders,
+            joinComparator,
+            false);
     };
 
     std::vector<TResultStorage> resultStorage;
@@ -1116,7 +1446,7 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderEqualKeys)
         });
 }
 
-TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderCheckLastRows)
+TEST_F(TSortedMergingReaderTest, SortedJoiningReaderCheckLastRows)
 {
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
@@ -1127,7 +1457,16 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderCheckLastRows)
         std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
         foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData6, 0));
 
-        return CreateSchemalessSortedJoiningReader(primaryReaders, 1, 1, foreignReaders, 1, false);
+        TComparator sortComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        TComparator reduceComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        TComparator joinComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+        return CreateSortedJoiningReader(
+            primaryReaders,
+            sortComparator,
+            reduceComparator,
+            foreignReaders,
+            joinComparator,
+            true);
     };
 
     // Expected sequence of rows:
@@ -1155,6 +1494,314 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderCheckLastRows)
         {
             {0, TString("")},
         });
+}
+
+TEST_F(TSortedMergingReaderTest, SortedJoiningReaderStressTest)
+{
+    std::mt19937 rng(42);
+
+    constexpr int TableCount = 5;
+    constexpr int RowCount = 20;
+    constexpr int ColumnCount = 3;
+    constexpr int KeyColumnCount = 3;
+    constexpr int ReduceColumnCount = 2;
+    constexpr int JoinColumnCount = 1;
+    constexpr int ValuesRange = 50;
+    constexpr int MaxRowsPerRead = 4;
+    constexpr int Iterations = 15000;
+
+    for (int iteration = 0; iteration < Iterations; ++iteration) {
+        std::vector<ESortOrder> sortOrders;
+        for (int columnIndex = 0; columnIndex < KeyColumnCount; ++columnIndex) {
+            if (rng() % 2 == 0) {
+                sortOrders.push_back(ESortOrder::Ascending);
+            } else {
+                sortOrders.push_back(ESortOrder::Descending);
+            }
+        }
+
+        TComparator sortComparator(sortOrders);
+        sortOrders.resize(ReduceColumnCount);
+        TComparator reduceComparator(sortOrders);
+        sortOrders.resize(JoinColumnCount);
+        TComparator joinComparator(sortOrders);
+
+        std::vector<TTableData> inputTables;
+        std::vector<bool> isPrimaryTable;
+
+        auto getTableIndex = [&] (const TUnversionedOwningRow& row) {
+            int tableIndex;
+            FromUnversionedValue(&tableIndex, row[row.GetCount() - 1]);
+            return tableIndex;
+        };
+
+        auto isPrimaryRow = [&] (const TUnversionedOwningRow& row) {
+            return isPrimaryTable[getTableIndex(row)];
+        };
+
+        std::vector<TUnversionedOwningRow> allPrimaryRows;
+        std::vector<TUnversionedOwningRow> allForeignRows;
+        for (int tableIndex = 0; tableIndex < TableCount; ++tableIndex) {
+            inputTables.push_back(
+                RandomTable(
+                    ColumnCount,
+                    sortComparator,
+                    rng() % RowCount,
+                    (rng() % ValuesRange) + 1,
+                    iteration * TableCount + tableIndex));
+            isPrimaryTable.push_back(static_cast<bool>(rng() % 2));
+        }
+
+        {
+            int primaryTableCount = 0;
+            for (auto isPrimary : isPrimaryTable) {
+                if (isPrimary) {
+                    ++primaryTableCount;
+                }
+            }
+
+            // At least one primary table should exist.
+            if (primaryTableCount == 0) {
+                isPrimaryTable[rng() % isPrimaryTable.size()] = true;
+            }
+        }
+
+        for (int tableIndex = 0; tableIndex < TableCount; ++tableIndex) {
+            const auto& table = inputTables[tableIndex];
+            bool isPrimary = isPrimaryTable[tableIndex];
+            for (const auto& row : table.Rows) {
+                auto rowWithTableIndex = AddTableIndex(row, tableIndex, ColumnCount);
+                if (isPrimary) {
+                    allPrimaryRows.push_back(rowWithTableIndex);
+                } else {
+                    allForeignRows.push_back(rowWithTableIndex);
+                }
+            }
+        }
+
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
+        std::vector<TResultStorage> resultStorages(TableCount);
+        for (int tableIndex = 0; tableIndex < TableCount; ++tableIndex) {
+            auto tableReader = New<TSchemalessMultiChunkFakeReader>(
+                inputTables[tableIndex],
+                tableIndex,
+                &resultStorages[tableIndex]);
+            if (isPrimaryTable[tableIndex]) {
+                primaryReaders.push_back(std::move(tableReader));
+            } else {
+                foreignReaders.push_back(std::move(tableReader));
+            }
+        }
+
+        // Key edge interrupt is more interesting case.
+        bool interruptAtKeyEdge = (rng() % 10 < 7);
+
+        auto reader = CreateSortedJoiningReader(
+            primaryReaders,
+            sortComparator,
+            reduceComparator,
+            foreignReaders,
+            joinComparator,
+            interruptAtKeyEdge);
+
+        {
+            THashSet<TKey> allPrimaryJoinKeys;
+            for (const auto& primaryRow : allPrimaryRows) {
+                auto joinKey = TKey::FromRow(primaryRow, joinComparator.GetLength());
+                allPrimaryJoinKeys.insert(joinKey);
+            }
+
+            std::vector<TUnversionedOwningRow> allJoinedForeignRows;
+            for (const auto& foreignRow : allForeignRows) {
+                auto joinKey = TKey::FromRow(foreignRow, joinComparator.GetLength());
+                if (allPrimaryJoinKeys.contains(joinKey)) {
+                    allJoinedForeignRows.push_back(foreignRow);
+                }
+            }
+
+            allForeignRows = allJoinedForeignRows;
+        }
+
+        std::sort(allPrimaryRows.begin(), allPrimaryRows.end(), [&] (auto lhs, auto rhs) {
+            auto lhsKey = TKey::FromRow(lhs, KeyColumnCount);
+            auto rhsKey = TKey::FromRow(rhs, KeyColumnCount);
+            int comparisionResult = sortComparator.CompareKeys(lhsKey, rhsKey);
+            if (comparisionResult != 0) {
+                return comparisionResult < 0;
+            }
+            auto lhsTableIndex = lhs[lhs.GetCount() - 1];
+            auto rhsTableIndex = rhs[rhs.GetCount() - 1];
+            return lhsTableIndex < rhsTableIndex;
+        });
+
+        std::vector<TUnversionedOwningRow> allRows;
+        for (const auto& row : allPrimaryRows) {
+            allRows.push_back(row);
+        }
+        for (const auto& row : allForeignRows) {
+            allRows.push_back(row);
+        }
+
+        // XXX(gritukan): That's weird.
+        int primaryStreamTableIndex = -1;
+        if (!allPrimaryRows.empty()) {
+            primaryStreamTableIndex = getTableIndex(allPrimaryRows.front());
+        }
+
+        // NB(gritukan): stable sort is required here, since primary rows should
+        // be sorted by stricter comparator.
+        std::stable_sort(allRows.begin(), allRows.end(), [&] (auto lhs, auto rhs) {
+            auto lhsKey = TKey::FromRow(lhs, joinComparator.GetLength());
+            auto rhsKey = TKey::FromRow(rhs, joinComparator.GetLength());
+            int comparisionResult = joinComparator.CompareKeys(lhsKey, rhsKey);
+            if (comparisionResult != 0) {
+                return comparisionResult < 0;
+            }
+            auto lhsTableIndex = getTableIndex(lhs);
+            auto rhsTableIndex = getTableIndex(rhs);
+            if (isPrimaryTable[lhsTableIndex]) {
+                lhsTableIndex = primaryStreamTableIndex;
+            }
+            if (isPrimaryTable[rhsTableIndex]) {
+                rhsTableIndex = primaryStreamTableIndex;
+            }
+            return lhsTableIndex < rhsTableIndex;
+        });
+
+        int interruptIndex = rng() % (allRows.size() + 1);
+        bool emptyOutput = (interruptIndex == 0);
+        int lastReadPrimaryRowIndex = interruptIndex - 1;
+        if (interruptIndex) {
+            while (lastReadPrimaryRowIndex >= 0 && !isPrimaryRow(allRows[lastReadPrimaryRowIndex])) {
+                --lastReadPrimaryRowIndex;
+            }
+            if (lastReadPrimaryRowIndex < 0) {
+                emptyOutput = true;
+            }
+        }
+        if (emptyOutput) {
+            reader->Interrupt();
+            while (true) {
+                TRowBatchReadOptions options{
+                    .MaxRowsPerRead = static_cast<i64>(rng() % 2)
+                };
+                auto batch = reader->Read(options);
+                if (!batch) {
+                    break;
+                }
+                EXPECT_EQ(batch->GetRowCount(), 0);
+            }
+            continue;
+        }
+
+        YT_VERIFY(lastReadPrimaryRowIndex >= 0);
+        auto lastReadPrimaryKey = TKey::FromRow(allRows[lastReadPrimaryRowIndex], reduceComparator.GetLength());
+
+        auto readPrimaryRow = [&] (int rowIndex) {
+            const auto& row = allRows[rowIndex];
+            YT_VERIFY(isPrimaryRow(row));
+            if (interruptAtKeyEdge) {
+                auto primaryKey = TKey::FromRow(row, reduceComparator.GetLength());
+                return reduceComparator.CompareKeys(primaryKey, lastReadPrimaryKey) <= 0;
+            } else {
+                return rowIndex <= lastReadPrimaryRowIndex;
+            }
+        };
+
+        THashSet<TKey> readPrimaryJoinKeys;
+        for (int rowIndex = 0; rowIndex < allRows.size(); ++rowIndex) {
+            const auto& row = allRows[rowIndex];
+            if (isPrimaryRow(row) && readPrimaryRow(rowIndex)) {
+                auto joinKey = TKey::FromRow(row, joinComparator.GetLength());
+                readPrimaryJoinKeys.insert(joinKey);
+            }
+        }
+
+        std::vector<TUnversionedOwningRow> expectedReadRows;
+        for (int rowIndex = 0; rowIndex < allRows.size(); ++rowIndex) {
+            const auto& row = allRows[rowIndex];
+            if (isPrimaryRow(row)) {
+                if (readPrimaryRow(rowIndex)) {
+                    auto primaryKey = TKey::FromRow(row, reduceComparator.GetLength());
+                    if (reduceComparator.CompareKeys(primaryKey, lastReadPrimaryKey) <= 0) {
+                        expectedReadRows.push_back(row);
+                    }
+                }
+            } else {
+                auto joinKey = TKey::FromRow(row, joinComparator.GetLength());
+                if (readPrimaryJoinKeys.contains(joinKey) || rowIndex < interruptIndex) {
+                    expectedReadRows.push_back(row);
+                }
+            }
+        }
+
+        std::vector<TUnversionedOwningRow> rowsRead;
+        while (rowsRead.size() < interruptIndex) {
+            int rowsLeft = interruptIndex - rowsRead.size();
+            int maxRowsPerRead = rng() % std::min(rowsLeft + 1, MaxRowsPerRead + 1);
+            TRowBatchReadOptions options{
+                .MaxRowsPerRead = maxRowsPerRead
+            };
+
+            auto batch = reader->Read(options);
+            EXPECT_TRUE(static_cast<bool>(batch));
+            if (batch->IsEmpty()) {
+                auto waitResult = WaitFor(reader->GetReadyEvent());
+                EXPECT_TRUE(waitResult.IsOK());
+                continue;
+            }
+
+            auto rows = batch->MaterializeRows();
+            for (const auto& row : rows) {
+                rowsRead.push_back(TUnversionedOwningRow(row));
+            }
+        }
+
+        EXPECT_EQ(rowsRead.size(), interruptIndex);
+        reader->Interrupt();
+
+        while (true) {
+            int maxRowsPerRead = rng() % (MaxRowsPerRead + 1);
+            TRowBatchReadOptions options{
+                .MaxRowsPerRead = maxRowsPerRead
+            };
+
+            auto batch = reader->Read(options);
+            if (!batch) {
+                break;
+            }
+
+            if (batch->IsEmpty()) {
+                auto waitResult = WaitFor(reader->GetReadyEvent());
+                EXPECT_TRUE(waitResult.IsOK());
+                continue;
+            }
+
+            auto rows = batch->MaterializeRows();
+            for (const auto& row : rows) {
+                rowsRead.push_back(TUnversionedOwningRow(row));
+            }
+        }
+
+        EXPECT_EQ(expectedReadRows, rowsRead);
+
+        reader->GetInterruptDescriptor(NYT::TRange<TUnversionedRow>());
+
+        std::vector<std::vector<TUnversionedOwningRow>> expectedUnreadRows(TableCount);
+        for (int rowIndex = 0; rowIndex < allRows.size(); ++rowIndex) {
+            const auto& row = allRows[rowIndex];
+            if (isPrimaryRow(row) && !readPrimaryRow(rowIndex)) {
+                expectedUnreadRows[getTableIndex(row)].push_back(row);
+            }
+        }
+
+        for (int tableIndex = 0; tableIndex < TableCount; ++tableIndex) {
+            if (isPrimaryTable[tableIndex]) {
+                EXPECT_EQ(resultStorages[tableIndex].GetUnreadRows(), expectedUnreadRows[tableIndex]);
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
