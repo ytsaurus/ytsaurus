@@ -357,6 +357,19 @@ TSharedRef ExtractMessageFromEnvelopedMessage(const TSharedRef& data)
     return codec->Decompress(compressedMessage);
 }
 
+TErrorCode StatusCodeToErrorCode(grpc_status_code statusCode)
+{
+    switch (statusCode) {
+        case GRPC_STATUS_OK:
+            return NYT::EErrorCode::OK;
+        case GRPC_STATUS_INVALID_ARGUMENT:
+        case GRPC_STATUS_RESOURCE_EXHAUSTED:
+            return NRpc::EErrorCode::ProtocolError;
+        default:
+            return NRpc::EErrorCode::TransportError;
+    }
+}
+
 TString SerializeError(const TError& error)
 {
     TString serializedError;

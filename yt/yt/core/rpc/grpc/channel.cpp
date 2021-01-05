@@ -448,8 +448,8 @@ private:
                 if (serializedError) {
                     error = DeserializeError(serializedError);
                 } else {
-                    error = TError(NRpc::EErrorCode::TransportError, "GRPC error")
-                        << TErrorAttribute("details", ToString(ResponseStatusDetails_));
+                    error = TError(StatusCodeToErrorCode(ResponseStatusCode_), ToString(ResponseStatusDetails_))
+                        << TErrorAttribute("status_code", ResponseStatusCode_);
                 }
                 NotifyError(TStringBuf("Request failed"), error);
                 return;
