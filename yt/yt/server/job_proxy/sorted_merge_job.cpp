@@ -13,7 +13,7 @@
 #include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
+#include <yt/ytlib/table_client/sorted_merging_reader.h>
 
 namespace NYT::NJobProxy {
 
@@ -55,6 +55,11 @@ public:
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
         auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(SchedulerJobSpecExt_.table_reader_options()));
 
+        YT_VERIFY(!dataSourceDirectory->DataSources().empty());
+
+        // Schema of any input table. It is used to infer comparators for readers.
+        auto inputTableSchema = dataSourceDirectory->DataSources().front().Schema();
+
         for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
@@ -84,10 +89,19 @@ public:
             readers.push_back(reader);
         }
 
-        Reader_ = CreateSchemalessSortedMergingReader(
+        TComparator inputTableComparator;
+        // TODO(gritukan): Pass correct schema in Sort operations.
+        if (inputTableSchema) {
+            inputTableComparator = inputTableSchema->ToComparator();
+        } else {
+            inputTableComparator = TComparator(std::vector<ESortOrder>(keyColumns.size(), ESortOrder::Ascending));
+        }
+
+        auto sortComparator = inputTableComparator.Trim(keyColumns.size());
+        Reader_ = CreateSortedMergingReader(
             readers,
-            keyColumns.size(),
-            keyColumns.size(),
+            sortComparator,
+            sortComparator,
             /*interruptAtKeyEdge=*/false);
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());

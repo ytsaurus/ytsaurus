@@ -2,22 +2,24 @@
 
 #include "public.h"
 
+#include <yt/client/table_client/comparator.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessMultiChunkReaderPtr CreateSchemalessSortedMergingReader(
+ISchemalessMultiChunkReaderPtr CreateSortedMergingReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
-    int sortKeyColumnCount,
-    int reduceKeyColumnCount,
+    TComparator sortComparator,
+    TComparator reduceComparator,
     bool interruptAtKeyEdge);
 
-ISchemalessMultiChunkReaderPtr CreateSchemalessSortedJoiningReader(
+ISchemalessMultiChunkReaderPtr CreateSortedJoiningReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& primaryReaders,
-    int primaryKeyColumnCount,
-    int reduceKeyColumnCount,
+    TComparator primaryComparator,
+    TComparator reduceComparator,
     const std::vector<ISchemalessMultiChunkReaderPtr>& foreignReaders,
-    int foreignKeyColumnCount,
+    TComparator foreignComparator,
     bool interruptAtKeyEdge);
 
 ////////////////////////////////////////////////////////////////////////////////

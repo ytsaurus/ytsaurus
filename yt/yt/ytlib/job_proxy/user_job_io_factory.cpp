@@ -6,6 +6,7 @@
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
@@ -18,7 +19,7 @@
 #include <yt/ytlib/table_client/partition_sort_reader.h>
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
+#include <yt/ytlib/table_client/sorted_merging_reader.h>
 
 #include <yt/client/api/public.h>
 
@@ -340,6 +341,15 @@ public:
 
         auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
 
+        // Schema of any input primary table. It is used to infer comparators for readers.
+        TTableSchemaPtr primaryTableSchema;
+        for (const auto& dataSource : dataSourceDirectory->DataSources()) {
+            if (!dataSource.GetForeign()) {
+                primaryTableSchema = dataSource.Schema();
+            }
+        }
+        YT_VERIFY(primaryTableSchema);
+
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
@@ -399,14 +409,20 @@ public:
             foreignReaders.emplace_back(reader);
         }
 
-        const auto primaryKeyColumnCount = reduceJobSpecExt.key_columns_size();
-        const auto reduceKeyColumnCount = reduceJobSpecExt.reduce_key_column_count();
-        return CreateSchemalessSortedJoiningReader(
+        auto inputTableComparator = primaryTableSchema->ToComparator();
+        // TODO(gritukan): Pass correct schema in MapReduce operations.
+        if (inputTableComparator.GetLength() == 0) {
+            inputTableComparator = TComparator(std::vector<ESortOrder>(reduceJobSpecExt.key_columns_size(), ESortOrder::Ascending));
+        }
+        auto sortComparator = inputTableComparator.Trim(reduceJobSpecExt.key_columns_size());
+        auto reduceComparator = inputTableComparator.Trim(reduceJobSpecExt.reduce_key_column_count());
+        auto joinComparator = inputTableComparator.Trim(foreignKeyColumnCount);
+        return CreateSortedJoiningReader(
             primaryReaders,
-            primaryKeyColumnCount,
-            reduceKeyColumnCount,
+            sortComparator,
+            reduceComparator,
             foreignReaders,
-            foreignKeyColumnCount,
+            joinComparator,
             InterruptAtKeyEdge_);
     }
 
