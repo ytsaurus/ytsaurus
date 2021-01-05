@@ -183,6 +183,8 @@ TSharedRef ExtractMessageFromEnvelopedMessage(const TSharedRef& data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TErrorCode StatusCodeToErrorCode(grpc_status_code statusCode);
+
 TString SerializeError(const TError& error);
 TError DeserializeError(TStringBuf serializedError);
 
