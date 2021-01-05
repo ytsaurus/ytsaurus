@@ -6,6 +6,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import *
+from yt_helpers import skip_if_no_descending
 
 from yt.test_helpers import assert_items_equal
 from yt.yson import loads
@@ -250,8 +251,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output(self, sort_kind):
-        if sort_kind == "descending" and self.Env.get_component_version("ytserver-master").abi <= (20, 3):
-            pytest.skip("Test requires descending sort order support")
+        if sort_kind == "descending":
+            skip_if_no_descending(self.Env)
 
         create("table", "//tmp/t1")
         for i in xrange(2):
@@ -303,8 +304,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output_overlap(self, sort_kind):
-        if sort_kind == "descending" and self.Env.get_component_version("ytserver-master").abi <= (20, 3):
-            pytest.skip("Test requires descending sort order support")
+        if sort_kind == "descending":
+            skip_if_no_descending(self.Env)
 
         create("table", "//tmp/t1")
         for i in xrange(2):
@@ -336,8 +337,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output_job_failure(self, sort_kind):
-        if sort_kind == "descending" and self.Env.get_component_version("ytserver-master").abi <= (20, 3):
-            pytest.skip("Test requires descending sort order support")
+        if sort_kind == "descending":
+            skip_if_no_descending(self.Env)
 
         create("table", "//tmp/t1")
         for i in xrange(2):

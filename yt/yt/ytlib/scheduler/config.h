@@ -19,6 +19,7 @@
 #include <yt/client/formats/format.h>
 #include <yt/client/formats/config.h>
 
+#include <yt/client/table_client/column_sort_schema.h>
 #include <yt/client/table_client/schema.h>
 
 #include <yt/client/transaction_client/public.h>
@@ -1285,7 +1286,7 @@ public:
     //! Hard limit on the total number of data slices in all merge pool.
     int MaxMergeDataSliceCount;
 
-    std::vector<TString> SortBy;
+    NTableClient::TSortColumns SortBy;
 
     //! If |true| then the scheduler attempts to distribute partition jobs evenly
     //! (w.r.t. the uncompressed input data size) across the cluster to balance IO

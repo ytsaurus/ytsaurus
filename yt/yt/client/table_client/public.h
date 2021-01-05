@@ -23,6 +23,7 @@ class TLogicalType;
 class TColumnSchema;
 class TTableSchemaExt;
 class TKeyColumnsExt;
+class TSortColumnsExt;
 class TBoundaryKeysExt;
 class TBlockIndexesExt;
 class TBlockMetaExt;

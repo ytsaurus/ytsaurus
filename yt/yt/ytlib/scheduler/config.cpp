@@ -1190,24 +1190,36 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(0.7);
 
     RegisterPostprocessor([&] () {
-        NTableClient::ValidateKeyColumns(SortBy);
+        NTableClient::ValidateSortColumns(SortBy);
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
 
         // Validate pivot_keys.
-        for (int index = 1; index < PivotKeys.size(); ++index) {
-            if (PivotKeys[index] < PivotKeys[index - 1]) {
-                THROW_ERROR_EXCEPTION("Pivot keys should be sorted")
-                    << TErrorAttribute("previous_key", PivotKeys[index - 1])
-                    << TErrorAttribute("current_key", PivotKeys[index]);
-            }
-        }
-
         for (const auto& pivotKey : PivotKeys) {
+            try {
+                for (const auto& value : pivotKey) {
+                    ValidateDataValueType(value.Type);
+                }
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(TError("Pivot keys are invalid") << ex);
+            }
+
             if (pivotKey.GetCount() > SortBy.size()) {
                 THROW_ERROR_EXCEPTION("Pivot key cannot be longer than sort_by")
                     << TErrorAttribute("key", pivotKey)
                     << TErrorAttribute("sort_by", SortBy);
+            }
+        }
+
+        auto sortComparator = GetComparator(SortBy);
+        for (int index = 0; index + 1 < PivotKeys.size(); ++index) {
+            const auto& upperBound = TKeyBound::FromRow() < PivotKeys[index];
+            const auto& nextUpperBound = TKeyBound::FromRow() < PivotKeys[index + 1];
+            if (sortComparator.CompareKeyBounds(upperBound, nextUpperBound) >= 0) {
+                THROW_ERROR_EXCEPTION("Pivot keys should should form a strictly increasing sequence")
+                    << TErrorAttribute("pivot_key", PivotKeys[index])
+                    << TErrorAttribute("next_pivot_key", PivotKeys[index + 1])
+                    << TErrorAttribute("comparator", sortComparator);
             }
         }
     });
@@ -1394,22 +1406,29 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         }
 
         if (ReduceBy.empty()) {
-            ReduceBy = SortBy;
+            ReduceBy = GetColumnNames(SortBy);
         }
 
         if (SortBy.empty()) {
-            SortBy = ReduceBy;
+            for (const auto& reduceColumn : ReduceBy) {
+                SortBy.push_back(TColumnSortSchema{
+                    .Name = reduceColumn,
+                    .SortOrder = ESortOrder::Ascending
+                });
+            }
         }
 
         if (HasNontrivialMapper()) {
             for (const auto& stream : Mapper->OutputStreams) {
-                if (stream->Schema->GetKeyColumns() != SortBy) {
+                if (stream->Schema->GetSortColumns() != SortBy) {
                     THROW_ERROR_EXCEPTION("Schemas of mapper output streams should have exactly "
-                        "\"sort_by\" key column prefix")
-                        << TErrorAttribute("violating_schema", stream->Schema);
+                        "\"sort_by\" sort column prefix")
+                        << TErrorAttribute("violating_schema", stream->Schema)
+                        << TErrorAttribute("sort_by", SortBy);
                 }
+                auto sortColumnNames = GetColumnNames(SortBy);
                 const auto& firstStream = Mapper->OutputStreams.front();
-                if (*stream->Schema->Filter(SortBy) != *firstStream->Schema->Filter(SortBy)) {
+                if (*stream->Schema->Filter(sortColumnNames) != *firstStream->Schema->Filter(sortColumnNames)) {
                     THROW_ERROR_EXCEPTION("Key columns of mapper output streams should have the same names and types")
                         << TErrorAttribute("lhs_schema", firstStream->Schema)
                         << TErrorAttribute("rhs_schema", stream->Schema);

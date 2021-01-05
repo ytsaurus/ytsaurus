@@ -291,3 +291,12 @@ def filter_tests(name_pred=None):
         return cls
 
     return decorate_class
+
+
+def skip_if_no_descending(env):
+    if env.get_component_version("ytserver-master").abi <= (20, 3):
+        pytest.skip("Masters do not support descending yet")
+    if env.get_component_version("ytserver-controller-agent").abi <= (20, 3):
+        pytest.skip("Controller agents do not support descending yet")
+    if env.get_component_version("ytserver-job-proxy").abi <= (20, 3):
+        pytest.skip("Job proxies do not support descending yet")

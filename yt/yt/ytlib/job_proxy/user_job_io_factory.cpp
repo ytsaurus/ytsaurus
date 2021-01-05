@@ -27,6 +27,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/client/table_client/column_sort_schema.h>
 #include <yt/client/table_client/name_table.h>
 
 #include <yt/core/ytree/convert.h>
@@ -506,10 +507,21 @@ public:
         // that correspond to the map-sink edge. Think more about how this may be done properly.
         if (!options->ReturnBoundaryKeys) {
             auto keyColumns = FromProto<TKeyColumns>(jobSpecExt.sort_key_columns());
+            auto sortColumns = FromProto<TSortColumns>(jobSpecExt.sort_columns());
+            // COMPAT(gritukan)
+            if (sortColumns.empty()) {
+                for (const auto& keyColumn : keyColumns) {
+                    sortColumns.push_back(TColumnSortSchema{
+                        .Name = keyColumn,
+                        .SortOrder = ESortOrder::Ascending
+                    });
+                }
+            }
+
             auto nameTable = TNameTable::FromKeyColumns(keyColumns);
             nameTable->SetEnableColumnNameValidation();
             if (tableSchema->Columns().empty()) {
-                tableSchema = TTableSchema::FromKeyColumns(keyColumns);
+                tableSchema = TTableSchema::FromSortColumns(sortColumns);
             }
 
             // This writer is used for partitioning.
@@ -601,8 +613,12 @@ public:
         }
         YT_VERIFY(partitionTag);
 
-        // TODO(gritukan): Always pass output schema to partition reduce jobs.
-        TComparator comparator(std::vector<ESortOrder>(keyColumns.size(), ESortOrder::Ascending));
+        auto comparator = GetComparator(FromProto<TSortColumns>(reduceJobSpecExt.sort_columns()));
+
+        // COMPAT(gritukan)
+        if (comparator.GetLength() == 0) {
+            comparator = TComparator(std::vector<ESortOrder>(keyColumns.size(), ESortOrder::Ascending));
+        }
 
         return CreatePartitionSortReader(
             JobSpecHelper_->GetJobIOConfig()->TableReader,
