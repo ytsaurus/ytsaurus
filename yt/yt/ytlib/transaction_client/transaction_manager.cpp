@@ -456,6 +456,7 @@ private:
     friend class TTransactionManager::TImpl;
 
     const TIntrusivePtr<TTransactionManager::TImpl> Owner_;
+    const NLogging::TLogger Logger;
 
     ETransactionType Type_;
 
@@ -489,7 +490,7 @@ private:
     TTimestamp StartTimestamp_ = NullTimestamp;
     TTransactionId Id_;
 
-    const NLogging::TLogger Logger;
+    std::atomic<TInstant> PingLeaseDeadline_ = TInstant::Max();
 
 
     static void ValidateStartOptions(
@@ -1056,6 +1057,7 @@ private:
                         YT_LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
+                        PingLeaseDeadline_.store(TInstant::Now() + GetTimeout());
                         return TError();
                     } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction &&
                                TypeFromId(cellId) == EObjectType::MasterCell)
@@ -1100,6 +1102,13 @@ private:
             return;
         }
 
+        if (IsPingLeaseExpired()) {
+            YT_LOG_DEBUG("Transaction could not be pinged within timeout and is considered expired (TransactionId: %v)",
+                Id_);
+            SetAborted(TError("Transaction could not be pinged within timeout and is considered expired"));
+            return;
+        }
+
         SendPing().Subscribe(BIND([=, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& error) {
             if (!IsPingableState()) {
                 YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
@@ -1119,6 +1128,11 @@ private:
         auto state = GetState();
         // NB: We have to continue pinging the transaction while committing.
         return state == ETransactionState::Active || state == ETransactionState::Committing;
+    }
+
+    bool IsPingLeaseExpired()
+    {
+        return Type_ == ETransactionType::Tablet && PingLeaseDeadline_.load() < TInstant::Now();
     }
 
 
