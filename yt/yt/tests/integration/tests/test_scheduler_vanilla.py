@@ -10,6 +10,8 @@ import datetime
 
 from collections import Counter
 
+from flaky import flaky
+
 ##################################################################
 
 
@@ -530,6 +532,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert op.get_job_count("failed", from_orchid=False) == 0
 
     @authors("gritukan")
+    @flaky(max_runs=5)
     def test_set_final_job_state_metrics(self):
         nodes = ls("//sys/cluster_nodes")
 
