@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt_helpers import skip_if_no_descending
 
 from yt.yson import to_yson_type, loads
 from yt.environment.helpers import assert_items_equal
@@ -83,13 +84,20 @@ class TestTables(YTEnvSetup):
             set_node_banned(node, False)
 
     @authors("ignat")
-    def test_sorted_write_table(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_write_table(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/table")
 
+        rows = [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}]
+        if sort_order == "descending":
+            rows = rows[::-1]
         write_table(
             "//tmp/table",
-            [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}],
-            sorted_by="key",
+            rows,
+            sorted_by={"name": "key", "sort_order": sort_order},
         )
 
         assert get("//tmp/table/@sorted")
@@ -97,23 +105,36 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table/@row_count") == 4
 
         # sorted flag is discarded when writing unsorted data to sorted table
-        write_table("<append=true>//tmp/table", {"key": 4})
+        next_key = 4 if sort_order == "ascending" else -1
+        write_table("<append=true>//tmp/table", {"key": next_key})
         assert not get("//tmp/table/@sorted")
         with pytest.raises(YtError):
             get("//tmp/table/@sorted_by")
 
     @authors("monster")
-    def test_append_sorted_simple(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_sorted_simple(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/table")
+
+        first_chunk = [{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 1, "b": 0}]
+        second_chunk = [{"a": 1, "b": 0}, {"a": 2, "b": 0}]
+        if sort_order == "descending":
+            first_chunk = first_chunk[::-1]
+            second_chunk = second_chunk[::-1]
+            first_chunk, second_chunk = second_chunk, first_chunk
+        sorted_by = [{"name": "a", "sort_order": sort_order}, {"name": "b", "sort_order": sort_order}]
         write_table(
             "//tmp/table",
-            [{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 1, "b": 0}],
-            sorted_by=["a", "b"],
+            first_chunk,
+            sorted_by=sorted_by,
         )
         write_table(
             "<append=true>//tmp/table",
-            [{"a": 1, "b": 0}, {"a": 2, "b": 0}],
-            sorted_by=["a", "b"],
+            second_chunk,
+            sorted_by=sorted_by,
         )
 
         assert get("//tmp/table/@sorted")
@@ -121,9 +142,22 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table/@row_count") == 5
 
     @authors("shakurov")
-    def test_append_sorted_simple_with_transaction(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_sorted_simple_with_transaction(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/table")
-        write_table("//tmp/table", [{"a": 0}, {"a": 0}, {"a": 1}], sorted_by=["a"])
+
+        first_chunk = [{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 1, "b": 0}]
+        second_chunk = [{"a": 1, "b": 0}, {"a": 2, "b": 0}]
+        if sort_order == "descending":
+            first_chunk = first_chunk[::-1]
+            second_chunk = second_chunk[::-1]
+            first_chunk, second_chunk = second_chunk, first_chunk
+        sorted_by = [{"name": "a", "sort_order": sort_order}]
+
+        write_table("//tmp/table", first_chunk, sorted_by=sorted_by)
 
         tx_b1 = start_transaction()
         tx_b2 = start_transaction(tx=tx_b1)
@@ -131,15 +165,15 @@ class TestTables(YTEnvSetup):
         lock("//tmp/table", mode="exclusive", tx=tx_b2)
         abort_transaction(tx=tx_b2)
 
-        write_table("<append=true>//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"])
+        write_table("<append=true>//tmp/table", second_chunk, sorted_by=sorted_by)
 
         tx_b3 = start_transaction(tx=tx_b1)
 
         with pytest.raises(YtError):
             write_table(
                 "<append=true>//tmp/table",
-                [{"a": 1}, {"a": 2}],
-                sorted_by=["a"],
+                second_chunk,
+                sorted_by=sorted_by,
                 tx=tx_b3,
             )
         self._wait_until_unlocked("//tmp/table")
@@ -153,17 +187,28 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table/@row_count") == 5
 
     @authors("monster")
-    def test_append_sorted_with_less_key_columns(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_sorted_with_less_key_columns(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/table")
+
+        first_chunk = [{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 1, "b": 0}]
+        second_chunk = [{"a": 1, "b": 0}, {"a": 2, "b": 0}]
+        if sort_order == "descending":
+            first_chunk = first_chunk[::-1]
+            second_chunk = second_chunk[::-1]
+            first_chunk, second_chunk = second_chunk, first_chunk
         write_table(
             "//tmp/table",
-            [{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 1, "b": 0}],
-            sorted_by=["a", "b"],
+            first_chunk,
+            sorted_by=[{"name": "a", "sort_order": sort_order}, {"name": "b", "sort_order": sort_order}],
         )
         write_table(
             "<append=true>//tmp/table",
-            [{"a": 1, "b": 1}, {"a": 2, "b": 0}],
-            sorted_by=["a"],
+            second_chunk,
+            sorted_by=[{"name": "a", "sort_order": sort_order}],
         )
 
         assert get("//tmp/table/@sorted")
@@ -171,55 +216,131 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table/@row_count") == 5
 
     @authors("ignat", "monster")
-    def test_append_sorted_order_violated(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_sorted_order_violated(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/table")
-        write_table("//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"])
-        with pytest.raises(YtError):
-            write_table("<append=true>//tmp/table", [{"a": 0}], sorted_by=["a"])
+
+        first_chunk = [{"a": 1}, {"a": 2}]
+        second_chunk = [{"a": 0}]
+        if sort_order == "descending":
+            first_chunk = first_chunk[::-1]
+            second_chunk = second_chunk[::-1]
+            first_chunk, second_chunk = second_chunk, first_chunk
+        sorted_by = [{"name": "a", "sort_order": sort_order}]
+        write_table("//tmp/table", first_chunk, sorted_by=sorted_by)
+        with raises_yt_error(SortOrderViolation):
+            write_table("<append=true>//tmp/table", second_chunk, sorted_by=sorted_by)
         self._wait_until_unlocked("//tmp/table")
 
     @authors("ignat", "monster")
-    def test_append_sorted_to_unsorted(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_sorted_to_unsorted(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/table")
-        write_table("//tmp/table", [{"a": 2}, {"a": 1}, {"a": 0}])
+
+        first_chunk = [{"a": 2}, {"a": 1}, {"a": 0}]
+        second_chunk = [{"a": 2}, {"a": 3}]
+        if sort_order == "descending":
+            first_chunk = first_chunk[::-1]
+            second_chunk = second_chunk[::-1]
+            first_chunk, second_chunk = second_chunk, first_chunk
+        sorted_by = [{"name": "a", "sort_order": sort_order}]
+        write_table("//tmp/table", first_chunk)
         with pytest.raises(YtError):
-            write_table("<append=true>//tmp/table", [{"a": 2}, {"a": 3}], sorted_by=["a"])
+            write_table("<append=true>//tmp/table", second_chunk, sorted_by=sorted_by)
         self._wait_until_unlocked("//tmp/table")
 
     @authors("ignat", "monster")
-    def test_append_sorted_with_more_key_columns(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_sorted_with_more_key_columns(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/table")
-        write_table("//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}], sorted_by=["a"])
+
+        sorted_by_a = [{"name": "a", "sort_order": sort_order}]
+        sorted_by_ab = [{"name": "a", "sort_order": sort_order}, {"name": "b", "sort_order": sort_order}]
+        write_table("//tmp/table", [{"a": 0}], sorted_by=sorted_by_a)
+        next_key = 1 if sort_order == "ascending" else -1
         with pytest.raises(YtError):
             write_table(
                 "<append=true>//tmp/table",
-                [{"a": 2, "b": 1}, {"a": 3, "b": 0}],
-                sorted_by=["a", "b"],
+                [{"a": next_key, "b": 0}],
+                sorted_by=sorted_by_ab,
             )
         self._wait_until_unlocked("//tmp/table")
 
     @authors("ignat", "monster")
-    def test_append_sorted_with_different_key_columns(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_sorted_with_different_key_columns(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/table")
-        write_table("//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}], sorted_by=["a"])
+        rows = [{"a": 0}, {"a": 1}, {"a": 2}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table(
+            "//tmp/table",
+            rows,
+            sorted_by=[{"name": "a", "sort_order": sort_order}])
+
+        rows = [{"b": 0}, {"b": 1}]
+        if sort_order == "descending":
+            rows = rows[::-1]
         with pytest.raises(YtError):
-            write_table("<append=true>//tmp/table", [{"b": 0}, {"b": 1}], sorted_by=["b"])
+            write_table(
+                "<append=true>//tmp/table",
+                [{"b": 0}, {"b": 1}],
+                sorted_by=[{"name": "b", "sort_order": sort_order}])
         self._wait_until_unlocked("//tmp/table")
 
     @authors("monster")
-    def test_append_sorted_concurrently(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_sorted_concurrently(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/table")
         tx1 = start_transaction()
         tx2 = start_transaction()
-        write_table("<append=true>//tmp/table", [{"a": 0}, {"a": 1}], sorted_by=["a"], tx=tx1)
+        first_chunk = [{"a": 0}, {"a": 1}]
+        second_chunk = [{"a": 1}, {"a": 2}]
+        if sort_order == "descending":
+            first_chunk = first_chunk[::-1]
+            second_chunk = second_chunk[::-1]
+            first_chunk, second_chunk = second_chunk, first_chunk
+        sorted_by = [{"name": "a", "sort_order": sort_order}]
+        write_table("<append=true>//tmp/table", first_chunk, sorted_by=sorted_by, tx=tx1)
         with pytest.raises(YtError):
             write_table(
                 "<append=true>//tmp/table",
-                [{"a": 1}, {"a": 2}],
-                sorted_by=["a"],
+                second_chunk,
+                sorted_by=sorted_by,
                 tx=tx2,
             )
+        abort_transaction(tx1)
         self._wait_until_unlocked("//tmp/table")
+
+    @authors("gritukan")
+    def test_append_sorted_different_sort_order(self):
+        skip_if_no_descending(self.Env)
+
+        create("table", "//tmp/table")
+        write_table(
+            "//tmp/table",
+            [{"a": 0}],
+            sorted_by=[{"name": "a", "sort_order": "ascending"}])
+        with pytest.raises(YtError):
+            write_table(
+                "<append=true>//tmp/table",
+                [{"a": 0}],
+                sorted_by=[{"name": "a", "sort_order": "descending"}])
 
     @authors("ignat")
     def test_append_overwrite_write_table(self):
@@ -377,14 +498,18 @@ class TestTables(YTEnvSetup):
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_sorted_unique(self, optimize_for):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_unique(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create(
             "table",
             "//tmp/table",
             attributes={
                 "optimize_for": optimize_for,
                 "schema": make_schema(
-                    [{"name": "key", "type": "int64", "sort_order": "ascending"}],
+                    [{"name": "key", "type": "int64", "sort_order": sort_order}],
                     unique_keys=True,
                 ),
             },
@@ -392,21 +517,30 @@ class TestTables(YTEnvSetup):
 
         assert get("//tmp/table/@schema_mode") == "strong"
 
-        write_table("//tmp/table", [{"key": 0}, {"key": 1}])
+        rows = [{"key": 0}, {"key": 1}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/table", rows)
 
+        key = 1 if sort_order == "ascending" else 0
         with pytest.raises(YtError):
-            write_table("<append=true>//tmp/table", [{"key": 1}])
+            write_table("<append=true>//tmp/table", [{"key": key}])
         self._wait_until_unlocked("//tmp/table")
 
+        key = 2 if sort_order == "ascending" else -1
         with pytest.raises(YtError):
-            write_table("<append=true>//tmp/table", [{"key": 2}, {"key": 2}])
+            write_table("<append=true>//tmp/table", [{"key": key}, {"key": key}])
         self._wait_until_unlocked("//tmp/table")
 
-        write_table("<append=true>//tmp/table", [{"key": 2}])
+        write_table("<append=true>//tmp/table", [{"key": key}])
 
         assert get("//tmp/table/@schema_mode") == "strong"
         assert get("//tmp/table/@schema/@unique_keys")
-        assert read_table("//tmp/table") == [{"key": i} for i in xrange(3)]
+        if sort_order == "ascending":
+            expected = [{"key": 0}, {"key": 1}, {"key": 2}]
+        else:
+            expected = [{"key": 1}, {"key": 0}, {"key": -1}]
+        assert read_table("//tmp/table") == expected
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -883,9 +1017,18 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/t2/@key_columns") == []
 
     @authors("babenko", "ignat")
-    def test_copy_sorted(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_copy_sorted(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t1")
-        sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
+        sort(
+            in_="//tmp/t1",
+            out="//tmp/t1",
+            sort_by=[{"name": "key", "sort_order": sort_order}],
+        )
+
         assert get("//tmp/t1/@sorted")
         assert get("//tmp/t1/@key_columns") == ["key"]
 
@@ -1089,14 +1232,14 @@ class TestTables(YTEnvSetup):
         wait(lambda: self._check_replication_factor("//tmp/t", 2))
 
     @authors("babenko")
-    def test_key_columns1(self):
+    def test_key_columns(self):
         create(
             "table",
             "//tmp/t",
             attributes={
                 "schema": [
                     {"name": "a", "type": "any", "sort_order": "ascending"},
-                    {"name": "b", "type": "any", "sort_order": "ascending"},
+                    {"name": "b", "type": "any", "sort_order": "descending"},
                 ]
             },
         )
@@ -1337,7 +1480,11 @@ class TestTables(YTEnvSetup):
             create("table", "//tmp/t", attributes={"dynamic": True})
 
     @authors("savrus")
-    def test_schema_validation(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_schema_validation(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         def init_table(path, schema):
             remove(path, force=True)
             create("table", path, attributes={"schema": schema})
@@ -1373,6 +1520,8 @@ class TestTables(YTEnvSetup):
         test_negative(schema, [{"values": 1}])
 
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        if sort_order == "descending":
+            rows = rows[::-1]
 
         schema = make_schema(
             [
@@ -1380,7 +1529,7 @@ class TestTables(YTEnvSetup):
                     "name": "key",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {"name": "value", "type": "string", "required": False},
             ],
@@ -1396,7 +1545,7 @@ class TestTables(YTEnvSetup):
                     "name": "key",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {"name": "value", "type": "string", "required": False},
             ],
@@ -1406,6 +1555,8 @@ class TestTables(YTEnvSetup):
         test_positive(schema, rows)
 
         rows = [{"key": 1, "value": str(i)} for i in xrange(10)]
+        if sort_order == "descending":
+            rows = rows[::-1]
         test_negative(schema, rows)
 
     @authors("max42")
@@ -1643,10 +1794,17 @@ class TestTables(YTEnvSetup):
         assert statistics[2]["chunk_count"] == 2
 
     @authors("babenko", "shakurov")
-    def test_append_sorted_to_corrupted_table_YT_11060(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_sorted_to_corrupted_table_YT_11060(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t")
 
-        write_table("<append=true; sorted_by=[key]>//tmp/t", {"key": 1})
+        sorted_by = '[{name=key;sort_order=' + sort_order + '}]'
+        mul = 1 if sort_order == "ascending" else -1
+
+        write_table("<append=true; sorted_by={}>//tmp/t".format(sorted_by), {"key": 1 * mul})
         assert get("//tmp/t/@sorted")
 
         tx1 = start_transaction()
@@ -1654,7 +1812,7 @@ class TestTables(YTEnvSetup):
         lock("//tmp/t", tx=tx11, mode="exclusive")
         abort_transaction(tx11)
 
-        write_table("<append=true>//tmp/t", [{"key": 3}, {"key": 2}])
+        write_table("<append=true>//tmp/t", [{"key": 3 * mul}, {"key": 2 * mul}])
 
         tx12 = start_transaction(tx=tx1)
         lock("//tmp/t", tx=tx12, mode="exclusive")
@@ -1666,20 +1824,24 @@ class TestTables(YTEnvSetup):
 
         with pytest.raises(YtError):
             write_table(
-                "<append=true;sorted_by=[key]>//tmp/t",
-                [{"key": 15}, {"key": 20}, {"key": 25}],
+                "<append=true;sorted_by={}>//tmp/t".format(sorted_by),
+                [{"key": 15 * mul}, {"key": 20 * mul}, {"key": 25 * mul}],
             )
         self._wait_until_unlocked("//tmp/t")
 
     @authors("gritukan")
-    def test_boundary_keys_attribute(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_boundary_keys_attribute(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create(
             "table",
             "//tmp/t1",
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "a", "type": "int64", "sort_order": "ascending"},
+                        {"name": "a", "type": "int64", "sort_order": sort_order},
                         {"name": "b", "type": "string"},
                     ]
                 )
@@ -1687,9 +1849,12 @@ class TestTables(YTEnvSetup):
         )
 
         assert get("//tmp/t1/@boundary_keys") == {}
-        write_table("//tmp/t1", [{"a": 1, "b": "x"}, {"a": 2, "b": "x"}, {"a": 3, "b": "x"}])
-        assert get("//tmp/t1/@boundary_keys/min_key") == [1]
-        assert get("//tmp/t1/@boundary_keys/max_key") == [3]
+        rows = [{"a": 1, "b": "x"}, {"a": 2, "b": "x"}, {"a": 3, "b": "x"}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/t1", rows)
+        assert get("//tmp/t1/@boundary_keys/min_key") == [rows[0]["a"]]
+        assert get("//tmp/t1/@boundary_keys/max_key") == [rows[-1]["a"]]
 
         create("table", "//tmp/t2")
         assert not exists("//tmp/t2/@boundary_keys")
@@ -1986,14 +2151,15 @@ class TestTables(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("unique_keys", [False, True])
-    def test_alter_key_column(self, unique_keys, optimize_for):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_alter_key_column(self, unique_keys, optimize_for, sort_order):
         old_schema = make_schema(
             [
                 {
                     "name": "key",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {"name": "value", "type": "int64", "required": False},
             ],
@@ -2006,13 +2172,13 @@ class TestTables(YTEnvSetup):
                     "name": "key",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {
                     "name": "x",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {"name": "value", "type": "int64", "required": False},
             ],
@@ -2025,13 +2191,13 @@ class TestTables(YTEnvSetup):
                     "name": "x",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {
                     "name": "key",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {"name": "value", "type": "int64", "required": False},
             ],
@@ -2044,15 +2210,35 @@ class TestTables(YTEnvSetup):
                     "name": "key",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
                 {"name": "value", "type": "int64", "required": False},
                 {
                     "name": "x",
                     "type": "int64",
                     "required": False,
-                    "sort_order": "ascending",
+                    "sort_order": sort_order,
                 },
+            ],
+            unique_keys=unique_keys,
+            strict=True,
+        )
+        opposite_sort_order = "descending" if sort_order == "ascending" else "ascending"
+        bad_schema_3 = make_schema(
+            [
+                {
+                    "name": "key",
+                    "type": "int64",
+                    "required": False,
+                    "sort_order": opposite_sort_order,
+                },
+                {
+                    "name": "x",
+                    "type": "int64",
+                    "required": False,
+                    "sort_order": sort_order,
+                },
+                {"name": "value", "type": "int64", "required": False},
             ],
             unique_keys=unique_keys,
             strict=True,
@@ -2063,8 +2249,11 @@ class TestTables(YTEnvSetup):
             "//tmp/t",
             attributes={"schema": old_schema, "optimize_for": optimize_for},
         )
-        write_table("//tmp/t", [{"key": 1, "value": 1}])
-        write_table("<append=true>//tmp/t", [{"key": 2, "value": 2}])
+        rows = [{"key": 1, "value": 1}, {"key": 2, "value": 2}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/t", rows[0])
+        write_table("<append=true>//tmp/t", rows[1])
         assert get("//tmp/t/@chunk_count") == 2
 
         with raises_yt_error(IncompatibleSchemas):
@@ -2073,21 +2262,26 @@ class TestTables(YTEnvSetup):
         with raises_yt_error(IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema_2)
 
+        with raises_yt_error(IncompatibleSchemas):
+            alter_table("//tmp/t", schema=bad_schema_3)
+
         alter_table("//tmp/t", schema=new_schema)
 
-        assert read_table("//tmp/t") == [{"key": 1, "value": 1}, {"key": 2, "value": 2}]
+        assert read_table("//tmp/t") == rows
 
-        create("table", "//tmp/t_out", attributes={"schema": new_schema})
-        merge(combine_chunks=True, mode="sorted", in_=["//tmp/t"], out="//tmp/t_out")
+        # TODO(gritukan): Descending merge.
+        if sort_order == "ascending":
+            create("table", "//tmp/t_out", attributes={"schema": new_schema})
+            merge(combine_chunks=True, mode="sorted", in_=["//tmp/t"], out="//tmp/t_out")
 
-        assert read_table("//tmp/t_out") == [
-            {"key": 1, "value": 1, "x": yson.YsonEntity()},
-            {"key": 2, "value": 2, "x": yson.YsonEntity()},
-        ]
-        assert get("//tmp/t_out/@chunk_count") == 1
+            assert read_table("//tmp/t_out") == [
+                {"key": 1, "value": 1, "x": yson.YsonEntity()},
+                {"key": 2, "value": 2, "x": yson.YsonEntity()},
+            ]
+            assert get("//tmp/t_out/@chunk_count") == 1
 
-        with raises_yt_error(IncompatibleSchemas):
-            alter_table("//tmp/t", schema=old_schema)
+            with raises_yt_error(IncompatibleSchemas):
+                alter_table("//tmp/t", schema=old_schema)
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("key_columns_action", ["shorten", "widen"])
