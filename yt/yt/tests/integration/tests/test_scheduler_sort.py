@@ -1967,7 +1967,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
         for mode in ["3-phase", "2-phase"]:
             for partition_count, max_partition_factor, partition_tree_depth in [
                 [4, 2, 2],
-                [22, 3, 3],
             ]:
                 op = sort(
                     in_="//tmp/t_in",
@@ -2009,7 +2008,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         for partition_count, max_partition_factor, partition_tree_depth in [
             [7, 2, 3],
-            [26, 3, 3],
         ]:
             if exists("//tmp/t_in"):
                 remove("//tmp/t_in")
