@@ -10,7 +10,7 @@
 
 #include <yt/library/erasure/public.h>
 
-#include <yt/client/table_client/public.h>
+#include <yt/client/table_client/column_sort_schema.h>
 
 #include <yt/client/chunk_client/read_limit.h>
 
@@ -87,8 +87,8 @@ public:
     NTableClient::TTableSchemaPtr GetSchema() const;
 
     // "sorted_by"
-    NTableClient::TKeyColumns GetSortedBy() const;
-    void SetSortedBy(const NTableClient::TKeyColumns& value);
+    NTableClient::TSortColumns GetSortedBy() const;
+    void SetSortedBy(const NTableClient::TSortColumns& value);
 
     // "row_count_limit"
     std::optional<i64> GetRowCountLimit() const;

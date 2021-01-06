@@ -549,12 +549,12 @@ std::optional<TColumnRenameDescriptors> TRichYPath::GetColumnRenameDescriptors()
     return FindAttribute<TColumnRenameDescriptors>(*this, "rename_columns");
 }
 
-TKeyColumns TRichYPath::GetSortedBy() const
+TSortColumns TRichYPath::GetSortedBy() const
 {
-    return GetAttribute(*this, "sorted_by", TKeyColumns());
+    return GetAttribute(*this, "sorted_by", TSortColumns());
 }
 
-void TRichYPath::SetSortedBy(const TKeyColumns& value)
+void TRichYPath::SetSortedBy(const TSortColumns& value)
 {
     if (value.empty()) {
         Attributes().Remove("sorted_by");

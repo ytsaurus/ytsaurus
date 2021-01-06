@@ -300,3 +300,7 @@ def skip_if_no_descending(env):
         pytest.skip("Controller agents do not support descending yet")
     if env.get_component_version("ytserver-job-proxy").abi <= (20, 3):
         pytest.skip("Job proxies do not support descending yet")
+    if env.get_component_version("ytserver-http-proxy").abi <= (20, 3):
+        pytest.skip("Http proxies do not support descending yet")
+    if env.get_component_version("ytserver-proxy").abi <= (20, 3):
+        pytest.skip("Rpc proxies do not support descending yet")

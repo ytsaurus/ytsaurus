@@ -2,7 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
-from yt_helpers import Metric
+from yt_helpers import Metric, skip_if_no_descending
 
 from yt.yson import to_yson_type
 
@@ -391,10 +391,14 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("max42")
     def test_table_output(self):
+        skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t_ab")  # append = %true
-        create("table", "//tmp/t_bc")  # sorted_by = [a]
+        create("table", "//tmp/t_bc_1")  # sorted_by = [a], sort_order=ascending
+        create("table", "//tmp/t_bc_2")  # sorted_by = [a], sort_order=descending
         create("table", "//tmp/t_ac")  # regular
         write_table("//tmp/t_ab", [{"a": 1}])
+
         vanilla(
             spec={
                 "tasks": {
@@ -409,18 +413,20 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     "task_b": {
                         "job_count": 1,
                         "output_table_paths": [
-                            "<sorted_by=[a]>//tmp/t_bc",
+                            "<sorted_by=[a]>//tmp/t_bc_1",
+                            "<sorted_by=[{name=a;sort_order=descending}]>//tmp/t_bc_2",
                             "<append=%true>//tmp/t_ab",
                         ],
-                        "command": "echo '{a=7}' >&1; echo '{a=5}' >&4",
+                        "command": "echo '{a=7}' >&1; echo '{a=7}' >&4; echo '{a=5}' >&7",
                     },
                     "task_c": {
                         "job_count": 1,
                         "output_table_paths": [
                             "//tmp/t_ac",
-                            "<sorted_by=[a]>//tmp/t_bc",
+                            "<sorted_by=[a]>//tmp/t_bc_1",
+                            "<sorted_by=[{name=a;sort_order=descending}]>//tmp/t_bc_2",
                         ],
-                        "command": "echo '{a=3}' >&1; echo '{a=6}' >&4",
+                        "command": "echo '{a=3}' >&1; echo '{a=6}' >&4; echo '{a=6}' >&7",
                     },
                 }
             }
@@ -429,7 +435,10 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             [{"a": 1}, {"a": 20}, {"a": 5}],
             [{"a": 1}, {"a": 5}, {"a": 20}],
         ]
-        assert read_table("//tmp/t_bc") == [{"a": 6}, {"a": 7}]
+        assert get("//tmp/t_bc_1/@sorted")
+        assert read_table("//tmp/t_bc_1") == [{"a": 6}, {"a": 7}]
+        assert get("//tmp/t_bc_2/@sorted")
+        assert read_table("//tmp/t_bc_2") == [{"a": 7}, {"a": 6}]
         assert read_table("//tmp/t_ac") in [[{"a": 3}, {"a": 9}], [{"a": 9}, {"a": 3}]]
 
     @authors("max42")

@@ -47,30 +47,30 @@ void TTableUploadOptions::Persist(const NPhoenix::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ValidateKeyColumnsEqual(const TKeyColumns& keyColumns, const TTableSchema& schema)
+static void ValidateSortColumnsEqual(const TSortColumns& sortColumns, const TTableSchema& schema)
 {
-    if (keyColumns != schema.GetKeyColumns()) {
+    if (sortColumns != schema.GetSortColumns()) {
         THROW_ERROR_EXCEPTION("YPath attribute \"sorted_by\" must be compatible with table schema for a \"strong\" schema mode")
-            << TErrorAttribute("key_columns", keyColumns)
+            << TErrorAttribute("sort_columns", sortColumns)
             << TErrorAttribute("table_schema", schema);
     }
 }
 
-static void ValidateAppendKeyColumns(const TKeyColumns& keyColumns, const TTableSchema& schema, i64 rowCount)
+static void ValidateAppendKeyColumns(const TSortColumns& sortColumns, const TTableSchema& schema, i64 rowCount)
 {
-    ValidateKeyColumns(keyColumns);
+    ValidateSortColumns(sortColumns);
 
     if (rowCount == 0) {
         return;
     }
 
-    auto tableKeyColumns = schema.GetKeyColumns();
+    auto tableSortColumns = schema.GetSortColumns();
     bool areKeyColumnsCompatible = true;
-    if (tableKeyColumns.size() < keyColumns.size()) {
+    if (tableSortColumns.size() < sortColumns.size()) {
         areKeyColumnsCompatible = false;
     } else {
-        for (int i = 0; i < keyColumns.size(); ++i) {
-            if (tableKeyColumns[i] != keyColumns[i]) {
+        for (int i = 0; i < sortColumns.size(); ++i) {
+            if (tableSortColumns[i] != sortColumns[i]) {
                 areKeyColumnsCompatible = false;
                 break;
             }
@@ -78,9 +78,9 @@ static void ValidateAppendKeyColumns(const TKeyColumns& keyColumns, const TTable
     }
 
     if (!areKeyColumnsCompatible) {
-        THROW_ERROR_EXCEPTION("Key columns mismatch while trying to append sorted data into a non-empty table")
-            << TErrorAttribute("append_key_columns", keyColumns)
-            << TErrorAttribute("current_key_columns", tableKeyColumns);
+        THROW_ERROR_EXCEPTION("Sort columns mismatch while trying to append sorted data into a non-empty table")
+            << TErrorAttribute("append_sort_columns", sortColumns)
+            << TErrorAttribute("table_sort_columns", tableSortColumns);
     }
 }
 
@@ -123,7 +123,7 @@ TTableUploadOptions GetTableUploadOptions(
     TTableUploadOptions result;
     auto pathSchema = path.GetSchema();
     if (path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
-        ValidateKeyColumnsEqual(path.GetSortedBy(), *schema);
+        ValidateSortColumnsEqual(path.GetSortedBy(), *schema);
 
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Append;
@@ -136,7 +136,7 @@ TTableUploadOptions GetTableUploadOptions(
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Append;
         result.SchemaMode = ETableSchemaMode::Weak;
-        result.TableSchema = TTableSchema::FromKeyColumns(path.GetSortedBy());
+        result.TableSchema = TTableSchema::FromSortColumns(path.GetSortedBy());
     } else if (path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
         result.LockMode = (schema->IsSorted() && !dynamic) ? ELockMode::Exclusive : ELockMode::Shared;
         result.UpdateMode = EUpdateMode::Append;
@@ -149,7 +149,7 @@ TTableUploadOptions GetTableUploadOptions(
         result.SchemaMode = ETableSchemaMode::Weak;
         result.TableSchema = New<TTableSchema>();
     } else if (!path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
-        ValidateKeyColumnsEqual(path.GetSortedBy(), *schema);
+        ValidateSortColumnsEqual(path.GetSortedBy(), *schema);
 
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
@@ -159,7 +159,7 @@ TTableUploadOptions GetTableUploadOptions(
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
         result.SchemaMode = ETableSchemaMode::Weak;
-        result.TableSchema = TTableSchema::FromKeyColumns(path.GetSortedBy());
+        result.TableSchema = TTableSchema::FromSortColumns(path.GetSortedBy());
     } else if (!path.GetAppend() && pathSchema && (schemaMode == ETableSchemaMode::Strong)) {
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
