@@ -1307,7 +1307,7 @@ private:
 
     void FetchChunkSpecs()
     {
-        auto chunkSpecFetcher = New<TChunkSpecFetcher>(
+        auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             Client_,
             Client_->Connection_->GetNodeDirectory(),
             Client_->Connection_->GetInvoker(),

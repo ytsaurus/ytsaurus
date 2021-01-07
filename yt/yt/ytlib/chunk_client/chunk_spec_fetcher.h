@@ -6,7 +6,11 @@
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
+#include <yt/ytlib/query_client/query_service_proxy.h>
+
 #include <yt/client/chunk_client/read_limit.h>
+
+#include <yt/client/table_client/comparator.h>
 
 #include <yt/core/misc/common.h>
 
@@ -16,16 +20,16 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Fetches chunk specs from master, waits for the result and processes the responses (possibly locating
-//! foreign chunks).
-class TChunkSpecFetcher
+//! This class fetches chunk specs from master and processes the responses
+//! (possibly locating foreign chunks).
+class TMasterChunkSpecFetcher
     : public TRefCounted
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<NProto::TChunkSpec>, ChunkSpecs);
 
 public:
-    TChunkSpecFetcher(
+    TMasterChunkSpecFetcher(
         const NApi::NNative::IClientPtr& client,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const IInvokerPtr& invoker,
@@ -77,7 +81,87 @@ private:
     void DoFetchFromCell(NObjectClient::TCellTag cellTag);
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkSpecFetcher)
+DEFINE_REFCOUNTED_TYPE(TMasterChunkSpecFetcher)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! This class fetches dynamic table chunk specs directly from tablet cells
+//! also optionally retrieving sample keys.
+//! Restrictions:
+//! - fetcher currently works only with sorted dynamic tables;
+//! - no retries are performed at all (i.e. when some tablets are missing, they
+//!   are invalidated in tablet mount cache but no retry after invalidation happens).
+class TTabletChunkSpecFetcher
+    : public TRefCounted
+{
+public:
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NProto::TChunkSpec>, ChunkSpecs);
+
+    using TRequest = NQueryClient::NProto::TReqFetchTabletStores;
+    using TSubrequest = NQueryClient::NProto::TReqFetchTabletStores::TSubrequest;
+
+public:
+    struct TOptions
+    {
+        NApi::NNative::IClientPtr Client;
+        //! Row buffer that is used when samples are requested.
+        //! May be nullptr only if no samples are requested.
+        NTableClient::TRowBufferPtr RowBuffer;
+        //! This callback will be invoked for each request to particular node.
+        //! It may be used to specify required extension tags or for something else.
+        std::function<void(TRequest*)> InitializeFetchRequest;
+        //! Codec used for compressing RPC responses.
+        NCompression::ECodec ResponseCodecId = NCompression::ECodec::Lz4;
+    };
+
+    TTabletChunkSpecFetcher(
+        TOptions options,
+        const IInvokerPtr& invoker,
+        const NLogging::TLogger& logger);
+
+    void Add(
+        const NYPath::TYPath& path,
+        i64 chunkCount,
+        int tableIndex = 0,
+        const std::vector<TReadRange>& ranges = {TReadRange()});
+
+    TFuture<void> Fetch();
+
+private:
+    TOptions Options_;
+    IInvokerPtr Invoker_;
+    const NLogging::TLogger& Logger;
+
+    i64 TotalChunkCount_ = 0;
+    int TableCount_ = 0;
+
+    //! Used only for logging.
+    static constexpr const int MissingTabletIdCountLimit = 5;
+
+    struct TNodeState
+    {
+        //! Each subrequest consists of a bunch of ranges of single tablet.
+        //! This vector stores subrequests for all tablets residing on this node.
+        std::vector<TSubrequest> Subrequests;
+        //! Tablet infos are stored for possible further invalidation in table mount cache
+        //! (in case when subrequest fails with tablet_missing = true).
+        std::vector<NTabletClient::TTabletInfoPtr> Tablets;
+        std::vector<NProto::TChunkSpec> ChunkSpecs;
+        std::vector<NTabletClient::TTabletId> MissingTabletIds;
+    };
+
+    THashMap<NRpc::TAddressWithNetwork, TNodeState> NodeAddressToState_;
+
+    void AddSorted(
+        const NTabletClient::TTableMountInfo& tableMountInfo,
+        int tableIndex,
+        const std::vector<TReadRange>& ranges);
+
+    void DoFetch();
+    void DoFetchFromNode(const NRpc::TAddressWithNetwork& address);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletChunkSpecFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 

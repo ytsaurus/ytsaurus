@@ -2,12 +2,19 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/client/table_client/key_bound.h>
+
 namespace NYT::NTabletClient {
 
 using namespace NTableClient;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TKeyBound TTabletInfo::GetLowerKeyBound() const
+{
+    return TKeyBound::FromRow() >= PivotKey;
+}
 
 bool TTabletInfo::IsInMemory() const
 {
@@ -29,6 +36,8 @@ bool TTabletInfo::IsInMemory() const
             YT_ABORT();
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 bool TTableMountInfo::IsSorted() const
 {

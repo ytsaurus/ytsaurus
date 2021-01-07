@@ -39,6 +39,8 @@ struct TTabletInfo
     TInstant UpdateTime;
     std::vector<TWeakPtr<TTableMountInfo>> Owners;
 
+    NTableClient::TKeyBound GetLowerKeyBound() const;
+
     bool IsInMemory() const;
 };
 
