@@ -1,9 +1,12 @@
-from yt_commands import *
+from base import Clique, ClickHouseTestBase
 
-import pytest
+from yt_commands import (authors, create_user, sync_mount_table, add_member, remove, create, sync_create_cells,
+                         create_tablet_cell_bundle, freeze_table, wait_for_tablet_state, write_file, read_table,
+                         write_table)
+
+from yt.environment import arcadia_interop
 
 import subprocess
-import sys
 import os.path
 
 import yt.packages.requests as requests
@@ -14,7 +17,9 @@ from yt.environment.helpers import OpenPortIterator
 
 from yt.clickhouse.test_helpers import get_log_tailer_config, get_host_paths
 
-from distutils.spawn import find_executable
+from yt.common import wait
+
+import yt.yson as yson
 
 HOST_PATHS = get_host_paths(arcadia_interop, ["dummy-logger", "ytserver-log-tailer"])
 
@@ -40,7 +45,7 @@ class TestLogTailer(YTEnvSetup):
         log_tailer_config["logging"]["writers"]["debug"]["file_name"] = os.path.join(
             self.path_to_run, "logs", "dummy_logger", "log_tailer.debug.log"
         )
-        log_tailer_config["cluster_connection"] = self.__class__.Env.configs["driver"]
+        log_tailer_config["cluster_connection"] = self.Env.configs["driver"]
 
         os.mkdir(os.path.join(self.path_to_run, "logs", "dummy_logger"))
         log_tailer_config_file = os.path.join(self.path_to_run, "logs", "dummy_logger", "log_tailer_config.yson")
@@ -137,12 +142,12 @@ class TestLogTailer(YTEnvSetup):
             # Calling `terminate` on them will result in OSError.
             try:
                 dummy_logger.terminate()
-            except:
+            except OSError:
                 pass
 
             try:
                 log_tailer.terminate()
-            except:
+            except OSError:
                 pass
 
             for log_table in log_tables:
@@ -163,7 +168,7 @@ class TestLogTailer(YTEnvSetup):
                     if "value" not in rsp[-1]:
                         return False
                     return rsp[-1]["value"] == 1000
-                except:
+                except:  # noqa
                     return False
 
             wait(check_rows_written_profiling)
@@ -180,6 +185,109 @@ class TestLogTailer(YTEnvSetup):
                 rows = read_table(log_table)
                 assert len(rows) == 1000
             cleanup()
-        except:
+        except:  # noqa
             cleanup()
             raise
+
+
+class TestClickHouseWithLogTailer(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    @authors("gritukan")
+    def test_log_tailer(self):
+        clique_index = Clique.clique_index
+
+        # Prepare log tailer config and upload it to Cypress.
+        log_tailer_config = get_log_tailer_config()
+        log_file_path = os.path.join(
+            self.path_to_run, "logs", "clickhouse-{}".format(clique_index), "clickhouse-{}.debug.log".format(0)
+        )
+
+        log_table = "//sys/clickhouse/logs/log"
+        log_tailer_config["log_tailer"]["log_files"] = [{"path": log_file_path, "tables": [{"path": log_table}]}]
+
+        log_tailer_config["logging"]["writers"]["debug"]["file_name"] = os.path.join(
+            self.path_to_run, "logs", "clickhouse-{}".format(clique_index), "log_tailer-{}.debug.log".format(0)
+        )
+        log_tailer_config["cluster_connection"] = self.Env.configs["driver"]
+        log_tailer_config_filename = "//sys/clickhouse/log_tailer_config.yson"
+        create("file", log_tailer_config_filename)
+        write_file(log_tailer_config_filename, yson.dumps(log_tailer_config, yson_format="pretty"))
+
+        # Create dynamic tables for logs.
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        create("map_node", "//sys/clickhouse/logs")
+
+        create(
+            "table",
+            log_table,
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "timestamp", "type": "string", "sort_order": "ascending"},
+                    {"name": "increment", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "category", "type": "string"},
+                    {"name": "message", "type": "string"},
+                    {"name": "log_level", "type": "string"},
+                    {"name": "thread_id", "type": "string"},
+                    {"name": "fiber_id", "type": "string"},
+                    {"name": "trace_id", "type": "string"},
+                    {"name": "job_id", "type": "string"},
+                    {"name": "operation_id", "type": "string"},
+                ],
+                "tablet_cell_bundle": "sys",
+                "atomicity": "none",
+            },
+        )
+
+        sync_mount_table(log_table)
+
+        # Create log tailer user and make it superuser.
+        create_user("yt-log-tailer")
+        add_member("yt-log-tailer", "superusers")
+
+        # Create clique with log tailer enabled.
+        with Clique(
+                instance_count=1,
+                cypress_ytserver_log_tailer_config_path=log_tailer_config_filename,
+                host_ytserver_log_tailer_path=HOST_PATHS["ytserver-log-tailer"],
+                enable_log_tailer=True,
+        ) as clique:
+
+            # Make some queries.
+            create(
+                "table",
+                "//tmp/t",
+                attributes={
+                    "schema": [
+                        {"name": "key1", "type": "string"},
+                        {"name": "key2", "type": "string"},
+                        {"name": "value", "type": "int64"},
+                    ]
+                },
+            )
+            for i in range(5):
+                write_table(
+                    "<append=%true>//tmp/t",
+                    [{"key1": "dream", "key2": "theater", "value": i * 5 + j} for j in range(5)],
+                )
+            total = 24 * 25 // 2
+
+            for _ in range(10):
+                result = clique.make_query('select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
+                assert result == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
+
+        # Freeze table to flush logs.
+        freeze_table(log_table)
+        wait_for_tablet_state(log_table, "frozen")
+
+        # Check whether log was written.
+        try:
+            assert len(read_table(log_table)) > 0
+        except:  # noqa
+            remove(log_table)
+            raise
+        remove(log_table)

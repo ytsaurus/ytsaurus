@@ -1,1 +1,1 @@
-from conftest_lib.conftest import *
+from conftest_lib.conftest import *  # noqa
