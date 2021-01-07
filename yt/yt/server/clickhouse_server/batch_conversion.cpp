@@ -757,6 +757,10 @@ DB::Block ConvertNonColumnarRowBatchToBlock(
                 case EValueType::Boolean: {
                     if (readSchema.Columns()[columnIndex].GetPhysicalType() == EValueType::Any) {
                         ToAny(rowBuffer.Get(), &value, &value, compositeSettings->DefaultYsonFormat);
+                        if (compositeValueConverters[columnIndex]) {
+                            compositeValueConverters[columnIndex]->ConsumeYson(TStringBuf(value.Data.String, value.Length));
+                            break;
+                        }
                     }
                     auto field = ConvertToField(value);
                     block.getByPosition(columnIndex).column->assumeMutableRef().insert(field);

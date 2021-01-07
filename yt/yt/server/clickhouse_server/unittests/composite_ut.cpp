@@ -40,6 +40,14 @@ void AppendVector(std::vector<TString>& lhs, std::vector<TString>& rhs)
     lhs.insert(lhs.end(), rhs.begin(), rhs.end());
 };
 
+void ValidateTypeEquality(const DB::DataTypePtr& lhs, const DB::DataTypePtr& rhs)
+{
+    ASSERT_NE(lhs, nullptr);
+    ASSERT_NE(rhs, nullptr);
+    EXPECT_TRUE(lhs->equals(*rhs));
+    EXPECT_EQ(lhs->getName(), rhs->getName());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestComposites
@@ -80,7 +88,7 @@ TEST_F(TTestComposites, TestAnyPassthrough)
         settings->DefaultYsonFormat = ysonFormat;
         TComplexTypeFieldDescriptor descriptor(SimpleLogicalType(ESimpleLogicalValueType::Any));
         TCompositeValueToClickHouseColumnConverter converter(descriptor, settings);
-        EXPECT_TRUE(converter.GetDataType()->equals(DB::DataTypeString()));
+        ValidateTypeEquality(converter.GetDataType(), std::make_shared<DB::DataTypeString>());
 
         for (const auto& yson : ysons) {
             converter.ConsumeYson(yson);
@@ -179,7 +187,7 @@ TEST_F(TTestComposites, TestSimpleTypes)
 
         TComplexTypeFieldDescriptor descriptor(SimpleLogicalType(simpleLogicalValueType));
         TCompositeValueToClickHouseColumnConverter converter(descriptor, Settings_);
-        EXPECT_TRUE(converter.GetDataType()->equals(*expectedDataType));
+        ValidateTypeEquality(converter.GetDataType(), expectedDataType);
         for (const auto& yson : ysons) {
             converter.ConsumeYson(yson);
         }
@@ -231,7 +239,7 @@ TEST_F(TTestComposites, TestOptionalSimpleType)
             nestingLevel);
         TComplexTypeFieldDescriptor descriptor(logicalType);
         TCompositeValueToClickHouseColumnConverter converter(descriptor, Settings_);
-        EXPECT_TRUE(converter.GetDataType()->equals(*expectedDataType));
+        ValidateTypeEquality(converter.GetDataType(), expectedDataType);
 
         if (nestingLevel > 0) {
             converter.ConsumeNull();
@@ -263,7 +271,7 @@ TEST_F(TTestComposites, TestListInt32)
 
     TComplexTypeFieldDescriptor descriptor(logicalType);
     TCompositeValueToClickHouseColumnConverter converter(descriptor, Settings_);
-    EXPECT_TRUE(converter.GetDataType()->equals(*expectedDataType));
+    ValidateTypeEquality(converter.GetDataType(), expectedDataType);
 
     for (const auto& [index, yson] : Enumerate(ysonsListInt32)) {
         if (index == 3) {
@@ -296,7 +304,7 @@ TEST_F(TTestComposites, TestListListInt32)
 
     TComplexTypeFieldDescriptor descriptor(logicalType);
     TCompositeValueToClickHouseColumnConverter converter(descriptor, Settings_);
-    EXPECT_TRUE(converter.GetDataType()->equals(*expectedDataType));
+    ValidateTypeEquality(converter.GetDataType(), expectedDataType);
 
     for (const auto& [index, yson] : Enumerate(ysonsListListInt32)) {
         if (index == 3) {
@@ -330,7 +338,7 @@ TEST_F(TTestComposites, TestListAny)
 
     TComplexTypeFieldDescriptor descriptor(logicalType);
     TCompositeValueToClickHouseColumnConverter converter(descriptor, settings);
-    EXPECT_TRUE(converter.GetDataType()->equals(*expectedDataType));
+    ValidateTypeEquality(converter.GetDataType(), expectedDataType);
 
     for (const auto& [index, yson] : Enumerate(ysonsListAny)) {
         converter.ConsumeYson(yson);
@@ -358,7 +366,7 @@ TEST_F(TTestComposites, TestOptionalListOptionalInt32)
 
     TComplexTypeFieldDescriptor descriptor(logicalType);
     TCompositeValueToClickHouseColumnConverter converter(descriptor, Settings_);
-    EXPECT_TRUE(converter.GetDataType()->equals(*expectedDataType));
+    ValidateTypeEquality(converter.GetDataType(), expectedDataType);
 
     for (const auto& [index, yson] : Enumerate(ysonsOptionalListOptionalInt32)) {
         if (index == 1) {
@@ -385,14 +393,14 @@ TEST_F(TTestComposites, TestDictIntString)
     };
 
     auto logicalType = DictLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32), SimpleLogicalType(ESimpleLogicalValueType::String));
-    auto expectedDataType = std::make_shared<DB::DataTypeArray>(std::make_shared<DB::DataTypeTuple>(std::vector<DB::DataTypePtr>{
-        std::make_shared<DB::DataTypeNumber<i32>>(),
-        std::make_shared<DB::DataTypeString>()
-    }));
+    auto expectedDataType = std::make_shared<DB::DataTypeArray>(std::make_shared<DB::DataTypeTuple>(
+        std::vector<DB::DataTypePtr>{std::make_shared<DB::DataTypeNumber<i32>>(), std::make_shared<DB::DataTypeString>()},
+        std::vector<std::string>{"key", "value"}
+    ));
 
     TComplexTypeFieldDescriptor descriptor(logicalType);
     TCompositeValueToClickHouseColumnConverter converter(descriptor, Settings_);
-    EXPECT_TRUE(converter.GetDataType()->equals(*expectedDataType));
+    ValidateTypeEquality(converter.GetDataType(), expectedDataType);
 
     for (const auto& yson : ysonDicts) {
         converter.ConsumeYson(yson);
@@ -419,7 +427,7 @@ TEST_F(TTestComposites, TestOptionalTupleInt32String)
 
     TComplexTypeFieldDescriptor descriptor(logicalType);
     TCompositeValueToClickHouseColumnConverter converter(descriptor, Settings_);
-    EXPECT_TRUE(converter.GetDataType()->equals(*expectedDataType));
+    ValidateTypeEquality(converter.GetDataType(), expectedDataType);
 
     for (const auto& [index, yson] : Enumerate(ysonsOptionalTupleInt32String)) {
         if (index == 2) {
@@ -454,11 +462,13 @@ TEST_F(TTestComposites, TestOptionalStructInt32String)
         TStructField{.Type = SimpleLogicalType(ESimpleLogicalValueType::String), .Name = "value"},
     }));
 
-    auto expectedDataType = std::make_shared<DB::DataTypeTuple>(std::vector<DB::DataTypePtr>{std::make_shared<DB::DataTypeNumber<i32>>(), std::make_shared<DB::DataTypeString>()});
+    auto expectedDataType = std::make_shared<DB::DataTypeTuple>(
+        std::vector<DB::DataTypePtr>{std::make_shared<DB::DataTypeNumber<i32>>(), std::make_shared<DB::DataTypeString>()},
+        std::vector<std::string>{"key", "value"});
 
     TComplexTypeFieldDescriptor descriptor(logicalType);
     TCompositeValueToClickHouseColumnConverter converter(descriptor, Settings_);
-    EXPECT_TRUE(converter.GetDataType()->equals(*expectedDataType));
+    ValidateTypeEquality(converter.GetDataType(), expectedDataType);
 
     for (const auto& [index, yson] : Enumerate(ysonsOptionalStructInt32String)) {
         if (index == 4) {

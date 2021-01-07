@@ -12,7 +12,7 @@ TCompositeSettings::TCompositeSettings()
         .Default(NYson::EYsonFormat::Binary);
 
     RegisterParameter("enable_conversion", EnableConversion)
-        .Default(false);
+        .Default(true);
 }
 
 TDynamicTableSettings::TDynamicTableSettings()

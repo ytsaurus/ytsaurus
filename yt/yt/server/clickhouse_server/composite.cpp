@@ -393,13 +393,10 @@ public:
 
     virtual DB::DataTypePtr GetDataType() const override
     {
-        /* TODO(max42): CHYT-469
-         * auto tupleDataType = std::make_shared<DB::DataTypeTuple>(
+        auto tupleDataType = std::make_shared<DB::DataTypeTuple>(
             std::vector<DB::DataTypePtr>{KeyConverter_->GetDataType(), ValueConverter_->GetDataType()},
             std::vector<std::string>{"key", "value"});
-         */
-        auto tupleDataType = std::make_shared<DB::DataTypeTuple>(
-            std::vector<DB::DataTypePtr>{KeyConverter_->GetDataType(), ValueConverter_->GetDataType()});
+
         return std::make_shared<DB::DataTypeArray>(std::move(tupleDataType));
     }
 
@@ -514,9 +511,7 @@ public:
         for (const auto& FieldConverter : FieldConverters_) {
             dataTypes.emplace_back(FieldConverter->GetDataType());
         }
-        // TODO(max42): CHYT-469.
-        // return std::make_shared<DB::DataTypeTuple>(dataTypes, std::vector<std::string>(FieldNames_.begin(), FieldNames_.end()));
-        return std::make_shared<DB::DataTypeTuple>(dataTypes);
+        return std::make_shared<DB::DataTypeTuple>(dataTypes, std::vector<std::string>(FieldNames_.begin(), FieldNames_.end()));
     }
 
 private:
