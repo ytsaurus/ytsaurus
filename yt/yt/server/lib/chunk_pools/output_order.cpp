@@ -47,6 +47,11 @@ void TOutputOrder::TEntry::Persist(const TPersistenceContext& context)
     Persist(context, Content_);
 }
 
+bool TOutputOrder::TEntry::operator ==(const TOutputOrder::TEntry& other) const
+{
+    return Content_ == other.Content_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TOutputOrder::Push(TOutputOrder::TEntry entry)

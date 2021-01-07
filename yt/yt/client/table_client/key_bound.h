@@ -76,7 +76,7 @@ public:
 
     void FormatValue(TStringBuilderBase* builder) const;
 
-    operator bool() const;
+    explicit operator bool() const;
 
     //! Test if this key bound allows any key.
     bool IsUniversal() const;
@@ -95,7 +95,12 @@ public:
     //! Return key bound that is lower among {*this, this->Invert()}.
     TKeyBound LowerCounterpart() const;
 
+    //! Returns string among {">=", ">", "<=", "<"} defining this key bound kind.
+    TStringBuf GetRelation() const;
+
     void Persist(const TPersistenceContext& context);
+
+    void Serialize(NYson::IYsonConsumer* consumer) const;
 
 private:
     static void ValidateValueTypes(const TRow& row);
@@ -117,6 +122,8 @@ public:
 void FormatValue(TStringBuilderBase* builder, const TKeyBound& keyBound, TStringBuf format);
 TString ToString(const TKeyBound& keyBound);
 
+void Serialize(const TKeyBound& keyBound, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOwningKeyBound
@@ -128,6 +135,8 @@ public:
 
 void FormatValue(TStringBuilderBase* builder, const TOwningKeyBound& keyBound, TStringBuf format);
 TString ToString(const TOwningKeyBound& keyBound);
+
+void Serialize(const TOwningKeyBound& keyBound, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

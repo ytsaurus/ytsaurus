@@ -138,7 +138,7 @@ public:
     }
 
     //! Needed for SERIALIZATION_DUMP_INDENT.
-    operator bool() const
+    explicit operator bool() const
     {
         return false;
     }
@@ -172,7 +172,7 @@ public:
     }
 
     //! Needed for SERIALIZATION_DUMP_SUSPEND.
-    operator bool() const
+    explicit operator bool() const
     {
         return false;
     }

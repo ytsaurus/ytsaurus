@@ -2,9 +2,13 @@
 
 #include "serialize.h"
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NTableClient {
 
 using namespace NLogging;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,6 +147,21 @@ TString ToString(const TKey& key)
         return Format("[%v]", JoinToString(key.Begin(), key.End()));
     } else {
         return "#";
+    }
+}
+
+void Serialize(const TKey& key, IYsonConsumer* consumer)
+{
+    if (key) {
+        BuildYsonFluently(consumer)
+            .DoListFor(MakeRange(key.Begin(), key.End()), [&](TFluentList fluent, const TUnversionedValue& value) {
+                fluent
+                    .Item()
+                    .Value(value);
+            });
+    } else {
+        BuildYsonFluently(consumer)
+            .Entity();
     }
 }
 

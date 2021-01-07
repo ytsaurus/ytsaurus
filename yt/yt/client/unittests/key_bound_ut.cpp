@@ -5,10 +5,15 @@
 
 #include <yt/core/test_framework/framework.h>
 
+#include <yt/core/ytree/convert.h>
+
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NTableClient {
 namespace {
+
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,6 +215,42 @@ TEST(TKeyBoundTest, KeyBoundFromLegacyRow)
     EXPECT_EQ(
         KeyBoundFromLegacyRow(MakeRow({intValue1, maxValue, intValue2}), /* isUpper */ true, KeyLength),
         MakeKeyBound({intValue1}, /* isInclusive */ true, /* isUpper */ true));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TKeyBoundTest, Serialization)
+{
+    TUnversionedOwningRowBuilder builder;
+    builder.AddValue(MakeUnversionedDoubleValue(3.14, 0));
+    builder.AddValue(MakeUnversionedInt64Value(-42, 1));
+    builder.AddValue(MakeUnversionedUint64Value(27, 2));
+    TString str = "Foo";
+    builder.AddValue(MakeUnversionedStringValue(str, 3));
+
+    auto owningRow = builder.FinishRow();
+
+    auto keyBoundGT = TOwningKeyBound::FromRow() > owningRow;
+    auto keyBoundGE = TOwningKeyBound::FromRow() >= owningRow;
+    auto keyBoundLT = TOwningKeyBound::FromRow() < owningRow;
+    auto keyBoundLE = TOwningKeyBound::FromRow() <= owningRow;
+
+    EXPECT_EQ(
+        ConvertToYsonString(keyBoundGT, EYsonFormat::Text).GetData(),
+        "[\">\";[3.14;-42;27u;\"Foo\";];]");
+    EXPECT_EQ(
+        ConvertToYsonString(keyBoundGE, EYsonFormat::Text).GetData(),
+        "[\">=\";[3.14;-42;27u;\"Foo\";];]");
+    EXPECT_EQ(
+        ConvertToYsonString(keyBoundLT, EYsonFormat::Text).GetData(),
+        "[\"<\";[3.14;-42;27u;\"Foo\";];]");
+    EXPECT_EQ(
+        ConvertToYsonString(keyBoundLE, EYsonFormat::Text).GetData(),
+        "[\"<=\";[3.14;-42;27u;\"Foo\";];]");
+
+    EXPECT_EQ(
+        ConvertToYsonString(TOwningKeyBound(), EYsonFormat::Text).GetData(),
+        "#");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

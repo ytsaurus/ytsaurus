@@ -470,7 +470,7 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
         }
         PreviousUpperBound_ = upperBound;
         if (lowerBound) {
-            YT_VERIFY(!upperBound || lowerBound <= upperBound);
+            YT_VERIFY(!upperBound || !comparator.IsRangeEmpty(lowerBound, upperBound));
         }
         AppendWhereCondition(lowerBound, upperBound);
     }
