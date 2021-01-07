@@ -3,10 +3,6 @@
 #include "connection.h"
 #include "transaction.h"
 
-#include <yt/client/object_client/helpers.h>
-
-#include <yt/client/transaction_client/timestamp_provider.h>
-
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_meta_fetcher.h>
 #include <yt/ytlib/chunk_client/chunk_spec_fetcher.h>
@@ -23,12 +19,19 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/schema_inferer.h>
 
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/ytlib/tablet_client/helpers.h>
+
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/table_client/row_buffer.h>
+
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/core/ypath/helpers.h>
 
@@ -1032,6 +1035,8 @@ private:
 
     NChunkClient::NProto::TDataStatistics DataStatistics_;
 
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+
     void CreateObjects(
         const std::vector<TRichYPath>& srcPaths,
         TRichYPath dstPath)
@@ -1438,27 +1443,19 @@ private:
     {
         YT_LOG_DEBUG("Sorting chunks");
 
+        auto comparator = OutputTableSchema_->ToComparator();
         std::stable_sort(
             ChunkSpecs_.begin(),
             ChunkSpecs_.end(),
             [&] (const NChunkClient::NProto::TChunkSpec& lhs, const NChunkClient::NProto::TChunkSpec& rhs) {
-                auto lhsBoundaryKeysExt =
-                    FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(lhs.chunk_meta().extensions());
-                auto rhsBoundaryKeysExt =
-                    FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(rhs.chunk_meta().extensions());
-                auto lhsMinKey = FromProto<TLegacyOwningKey>(lhsBoundaryKeysExt->min());
-                auto rhsMinKey = FromProto<TLegacyOwningKey>(rhsBoundaryKeysExt->min());
+                auto [lhsMinKey, lhsMaxKey] = GetChunkBoundaryKeys(lhs.chunk_meta());
+                auto [rhsMinKey, rhsMaxKey] = GetChunkBoundaryKeys(rhs.chunk_meta());
 
-                int compareResult = CompareRows(lhsMinKey, rhsMinKey, OutputTableSchema_->GetKeyColumnCount());
-                if (compareResult < 0) {
-                    return true;
-                } else if (compareResult > 0) {
-                    return false;
+                int minKeyResult = comparator.CompareKeys(lhsMinKey, rhsMinKey);
+                if (minKeyResult != 0) {
+                    return minKeyResult < 0;
                 } else {
-                    auto lhsMaxKey = FromProto<TLegacyOwningKey>(lhsBoundaryKeysExt->max());
-                    auto rhsMaxKey = FromProto<TLegacyOwningKey>(rhsBoundaryKeysExt->max());
-
-                    return CompareRows(lhsMaxKey, rhsMaxKey, OutputTableSchema_->GetKeyColumnCount()) < 0;
+                    return comparator.CompareKeys(lhsMaxKey, rhsMaxKey) < 0;
                 }
             });
     }
@@ -1467,32 +1464,23 @@ private:
     {
         YT_LOG_DEBUG("Validating chunk ranges");
 
+        auto comparator = OutputTableSchema_->ToComparator();
         for (int chunkIndex = 0; chunkIndex + 1 < ChunkSpecs_.size(); ++chunkIndex) {
             const auto& currentChunkSpec = ChunkSpecs_[chunkIndex];
             const auto& nextChunkSpec = ChunkSpecs_[chunkIndex + 1];
 
-            auto currentChunkMaxKey = FromProto<TLegacyOwningKey>(
-                FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
-                    currentChunkSpec.chunk_meta().extensions())->max());
-            auto nextChunkMinKey = FromProto<TLegacyOwningKey>(
-                FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
-                    nextChunkSpec.chunk_meta().extensions())->min());
+            auto currentChunkMaxKey = GetChunkBoundaryKeys(currentChunkSpec.chunk_meta()).second;
+            auto nextChunkMinKey = GetChunkBoundaryKeys(nextChunkSpec.chunk_meta()).first;
 
-            int compareResult = CompareRows(
-                currentChunkMaxKey,
-                nextChunkMinKey,
-                OutputTableSchema_->GetKeyColumnCount());
-
-            if (compareResult > 0) {
+            int comparisionResult = comparator.CompareKeys(currentChunkMaxKey, nextChunkMinKey);
+            if (comparisionResult > 0) {
                 THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SortOrderViolation, "Chunks ranges are overlapping")
                     << TErrorAttribute("current_chunk_id", FromProto<TChunkId>(currentChunkSpec.chunk_id()))
                     << TErrorAttribute("next_chunk_id", FromProto<TChunkId>(nextChunkSpec.chunk_id()))
                     << TErrorAttribute("current_chunk_max_key", currentChunkMaxKey)
                     << TErrorAttribute("next_chunk_min_key", nextChunkMinKey)
-                    << TErrorAttribute("key_column_count", OutputTableSchema_->GetKeyColumnCount());
-            }
-
-            if (compareResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
+                    << TErrorAttribute("comparator", comparator);
+            } else if (comparisionResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "Key appears in two chunks but output table schema requires unique keys")
@@ -1500,7 +1488,7 @@ private:
                     << TErrorAttribute("next_chunk_id", FromProto<TChunkId>(nextChunkSpec.chunk_id()))
                     << TErrorAttribute("current_chunk_max_key", currentChunkMaxKey)
                     << TErrorAttribute("next_chunk_min_key", nextChunkMinKey)
-                    << TErrorAttribute("key_column_count", OutputTableSchema_->GetKeyColumnCount());
+                    << TErrorAttribute("comparator", comparator);
             }
         }
     }
@@ -1518,38 +1506,34 @@ private:
             DstObject_.GetPath());
 
         auto boundaryKeysMap = ConvertToNode(TYsonString(rspOrError.Value()->value()))->AsMap();
-        auto maxKeyNode = boundaryKeysMap->FindChild("max_key");
+        auto tableMaxKeyNode = boundaryKeysMap->FindChild("max_key");
 
-        if (maxKeyNode && !ChunkSpecs_.empty()) {
-            auto maxKey = ConvertTo<TLegacyOwningKey>(maxKeyNode);
+        if (tableMaxKeyNode && !ChunkSpecs_.empty()) {
+            auto comparator = OutputTableSchema_->ToComparator();
 
-            auto firstChunkMinKey = FromProto<TLegacyOwningKey>(
-                FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
-                ChunkSpecs_[0].chunk_meta().extensions())->min());
+            auto tableMaxKeyRow = ConvertTo<TUnversionedOwningRow>(tableMaxKeyNode);
+            YT_VERIFY(tableMaxKeyRow.GetCount() == comparator.GetLength());
+            auto tableMaxKey = TKey::FromRow(tableMaxKeyRow);
 
-            auto compareResult = CompareRows(
-                maxKey,
-                firstChunkMinKey,
-                OutputTableSchema_->GetKeyColumnCount());
+            auto firstChunkMinKey = GetChunkBoundaryKeys(ChunkSpecs_[0].chunk_meta()).first;
 
-            if (compareResult > 0) {
+            auto comparisionResult = comparator.CompareKeys(tableMaxKey, firstChunkMinKey);
+            if (comparisionResult > 0) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::SortOrderViolation,
                     "First key of chunk to append is less than last key in table")
                     << TErrorAttribute("chunk_id", FromProto<TChunkId>(ChunkSpecs_[0].chunk_id()))
-                    << TErrorAttribute("table_max_key", maxKey)
+                    << TErrorAttribute("table_max_key", tableMaxKey)
                     << TErrorAttribute("first_chunk_min_key", firstChunkMinKey)
-                    << TErrorAttribute("key_column_count", OutputTableSchema_->GetKeyColumnCount());
-            }
-
-            if (compareResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
+                    << TErrorAttribute("comparator", comparator);
+            } else if (comparisionResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "First key of chunk to append equals to last key in table")
                     << TErrorAttribute("chunk_id", FromProto<TChunkId>(ChunkSpecs_[0].chunk_id()))
-                    << TErrorAttribute("table_max_key", maxKey)
+                    << TErrorAttribute("table_max_key", tableMaxKey)
                     << TErrorAttribute("first_chunk_min_key", firstChunkMinKey)
-                    << TErrorAttribute("key_column_count", OutputTableSchema_->GetKeyColumnCount());
+                    << TErrorAttribute("comparator", comparator);
             }
         }
     }
@@ -1707,6 +1691,26 @@ private:
             DstObject_.GetPath());
 
         UploadTransaction_->Detach();
+    }
+
+    std::pair<TKey, TKey> GetChunkBoundaryKeys(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+    {
+        int keyColumnCount = OutputTableSchema_->GetKeyColumnCount();
+
+        auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunkMeta.extensions());
+        auto minKeyRow = FromProto<TUnversionedOwningRow>(boundaryKeysExt.min());
+        auto maxKeyRow = FromProto<TUnversionedOwningRow>(boundaryKeysExt.max());
+
+        auto prepareKey = [&] (TUnversionedOwningRow row) {
+            // NB: This can happen due to altering a key column.
+            if (row.GetCount() < keyColumnCount) {
+                row = WidenKey(row, keyColumnCount);
+            }
+
+            return TKey::FromRowUnchecked(RowBuffer_->Capture(row.Begin(), keyColumnCount), keyColumnCount);
+        };
+
+        return {prepareKey(minKeyRow), prepareKey(maxKeyRow)};
     }
 };
 
