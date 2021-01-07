@@ -158,6 +158,8 @@ void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit);
 //! is std::nullopt, exception is thrown.
 void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit, bool isUpper, std::optional<int> keyLength);
 
+void Serialize(const TReadLimit& readLimit, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReadRange
@@ -181,6 +183,8 @@ TString ToString(const TReadRange& readRange);
 void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange);
 //! See comment for FromProto(TReadLimit*, const NProto::TReadLimit&, bool, std::optional<int>).
 void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange, std::optional<int> keyLength);
+
+void Serialize(const TReadRange& readLimit, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

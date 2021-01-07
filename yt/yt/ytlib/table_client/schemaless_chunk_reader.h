@@ -55,7 +55,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
-    const NChunkClient::TLegacyReadRange& readRange,
+    const NChunkClient::TReadRange& readRange,
     std::optional<int> partitionTag = std::nullopt,
     const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr,
     std::optional<i64> virtualRowIndex = std::nullopt);
