@@ -207,15 +207,15 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();
 
-    TLegacyReadLimit lowerLimit;
+    TReadLimit lowerLimit;
     lowerRowIndex = std::min(std::max(lowerRowIndex, StartingRowIndex_), StartingRowIndex_ + GetRowCount());
     lowerLimit.SetRowIndex(lowerRowIndex - StartingRowIndex_);
 
-    TLegacyReadLimit upperLimit;
+    TReadLimit upperLimit;
     upperRowIndex = std::min(std::max(upperRowIndex, StartingRowIndex_), StartingRowIndex_ + GetRowCount());
     upperLimit.SetRowIndex(upperRowIndex - StartingRowIndex_);
 
-    TLegacyReadRange readRange(lowerLimit, upperLimit);
+    TReadRange readRange(lowerLimit, upperLimit);
 
     TColumnFilter valueColumnFilter;
     if (!columnFilter.IsUniversal()) {

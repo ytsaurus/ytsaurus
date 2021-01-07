@@ -72,8 +72,8 @@ using namespace NApi;
 using namespace NLogging;
 
 using NChunkClient::TDataSliceDescriptor;
-using NChunkClient::TLegacyReadLimit;
-using NChunkClient::TLegacyReadRange;
+using NChunkClient::TReadLimit;
+using NChunkClient::TReadRange;
 using NChunkClient::NProto::TMiscExt;
 using NChunkClient::TChunkReaderStatistics;
 
@@ -187,14 +187,19 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         return MakeFuture<IReaderBasePtr>(ex);
                     }
 
-                    TLegacyReadRange range{
-                        chunkSpec.has_lower_limit() ? TLegacyReadLimit(chunkSpec.lower_limit()) : TLegacyReadLimit(),
-                        chunkSpec.has_upper_limit() ? TLegacyReadLimit(chunkSpec.upper_limit()) : TLegacyReadLimit()
-                    };
-
                     auto asyncChunkMeta = DownloadChunkMeta(remoteReader, blockReadOptions, partitionTag);
 
                     return asyncChunkMeta.Apply(BIND([=] (const TColumnarChunkMetaPtr& chunkMeta) -> IReaderBasePtr {
+                        TReadRange readRange;
+                        // TODO(gritukan): Rethink it after YT-14154.
+                        int keyColumnCount = std::max<int>(sortColumns.size(), chunkMeta->GetChunkSchema()->GetKeyColumnCount());
+                        if (chunkSpec.has_lower_limit()) {
+                            FromProto(&readRange.LowerLimit(), chunkSpec.lower_limit(), /* isUpper */ false, keyColumnCount);
+                        }
+                        if (chunkSpec.has_upper_limit()) {
+                            FromProto(&readRange.UpperLimit(), chunkSpec.upper_limit(), /* isUpper */ true, keyColumnCount);
+                        }
+
                         chunkMeta->RenameColumns(dataSource.ColumnRenameDescriptors());
 
                         auto chunkState = New<TChunkState>(
@@ -220,7 +225,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             sortColumns,
                             dataSource.OmittedInaccessibleColumns(),
                             columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
-                            range,
+                            readRange,
                             partitionTag,
                             chunkReaderMemoryManager,
                             dataSliceDescriptor.VirtualRowIndex);

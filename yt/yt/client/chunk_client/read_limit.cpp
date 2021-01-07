@@ -692,6 +692,18 @@ void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit, 
     }
 }
 
+void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("key_bound").Value(readLimit.KeyBound())
+            .Item("row_index").Value(readLimit.GetRowIndex())
+            .Item("offset").Value(readLimit.GetOffset())
+            .Item("chunk_index").Value(readLimit.GetChunkIndex())
+            .Item("tablet_index").Value(readLimit.GetTabletIndex())
+        .EndMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadRange::TReadRange(TReadLimit lowerLimit, TReadLimit upperLimit)
@@ -749,6 +761,15 @@ void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange, 
     if (protoReadRange.has_upper_limit()) {
         FromProto(&readRange->UpperLimit(), protoReadRange.upper_limit(), /* isUpper */ true, keyLength);
     }
+}
+
+void Serialize(const TReadRange& readLimit, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("lower_limit").Value(readLimit.LowerLimit())
+            .Item("upper_limit").Value(readLimit.UpperLimit())
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

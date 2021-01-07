@@ -296,6 +296,8 @@ protected:
 
 TEST_P(TSchemalessChunksTest, WithoutSampling)
 {
+    int keyColumnCount = std::get<1>(GetParam()).GetKeyColumnCount();
+
     auto readNameTable = New<TNameTable>();
     InitNameTable(readNameTable, 4);
 
@@ -306,7 +308,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         readNameTable,
         columnFilter,
         std::get<3>(GetParam()),
-        std::get<1>(GetParam()).GetKeyColumnCount());
+        keyColumnCount);
 
     auto chunkState = New<TChunkState>(
         GetNullBlockCache(),
@@ -321,6 +323,11 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
     TClientBlockReadOptions blockReadOptions;
     blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
+    auto legacyReadRange = std::get<3>(GetParam());
+
+    auto lowerReadLimit = ReadLimitFromLegacyReadLimit(legacyReadRange.LowerLimit(), /* isUpper */ false, keyColumnCount);
+    auto upperReadLimit = ReadLimitFromLegacyReadLimit(legacyReadRange.UpperLimit(), /* isUpper */ true, keyColumnCount);
+    
     auto chunkReader = CreateSchemalessRangeChunkReader(
         std::move(chunkState),
         ChunkMeta_,
@@ -332,7 +339,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         /* sortColumns */ {},
         /* omittedInaccessibleColumns */ {},
         columnFilter,
-        std::get<3>(GetParam()));
+        TReadRange(lowerReadLimit, upperReadLimit));
 
     CheckSchemalessResult(expected, chunkReader, 0);
 }
@@ -480,7 +487,7 @@ protected:
             /* sortColumns */ {},
             /* omittedInaccessibleColumns */ {},
             columnFilter,
-            TLegacyReadRange());
+            TReadRange());
     }
 };
 

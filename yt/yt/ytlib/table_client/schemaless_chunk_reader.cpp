@@ -74,6 +74,8 @@ using namespace NApi;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TLegacyReadLimit;
 using NChunkClient::TLegacyReadRange;
+using NChunkClient::TReadLimit;
+using NChunkClient::TReadRange;
 using NChunkClient::NProto::TMiscExt;
 using NChunkClient::TChunkReaderStatistics;
 
@@ -538,7 +540,7 @@ public:
         const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
-        const TLegacyReadRange& readRange,
+        const TReadRange& readRange,
         std::optional<int> partitionTag,
         const TChunkReaderMemoryManagerPtr& memoryManager,
         std::optional<i64> virtualRowIndex = std::nullopt);
@@ -575,7 +577,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
-    const TLegacyReadRange& readRange,
+    const TReadRange& readRange,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager,
     std::optional<i64> virtualRowIndex)
@@ -593,9 +595,11 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
         partitionTag,
         memoryManager,
         virtualRowIndex)
-    , ReadRange_(readRange)
 {
-    YT_LOG_DEBUG("Reading range %v", ReadRange_);
+    ReadRange_.LowerLimit() = ReadLimitToLegacyReadLimit(readRange.LowerLimit());
+    ReadRange_.UpperLimit() = ReadLimitToLegacyReadLimit(readRange.UpperLimit());
+
+    YT_LOG_DEBUG("Reading range of a chunk (Range: %v)", ReadRange_);
 
     // Initialize to lowest reasonable value.
     RowIndex_ = ReadRange_.LowerLimit().HasRowIndex()
@@ -1045,7 +1049,7 @@ public:
         const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
-        const TLegacyReadRange& readRange,
+        const TReadRange& readRange,
         const TChunkReaderMemoryManagerPtr& memoryManager,
         std::optional<i64> virtualRowIndex)
         : TSchemalessChunkReaderBase(
@@ -1068,10 +1072,10 @@ public:
             BIND(&TColumnarSchemalessRangeChunkReader::OnRowsSkipped, MakeWeak(this)),
             memoryManager)
     {
-        YT_LOG_DEBUG("Reading range %v", readRange);
+        YT_LOG_DEBUG("Reading range of a chunk (Range: %v)", readRange);
 
-        LowerLimit_ = readRange.LowerLimit();
-        UpperLimit_ = readRange.UpperLimit();
+        LowerLimit_ = ReadLimitToLegacyReadLimit(readRange.LowerLimit());
+        UpperLimit_ = ReadLimitToLegacyReadLimit(readRange.UpperLimit());
 
         RowIndex_ = LowerLimit_.HasRowIndex() ? LowerLimit_.GetRowIndex() : 0;
 
@@ -1952,7 +1956,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
-    const TLegacyReadRange& readRange,
+    const TReadRange& readRange,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager,
     std::optional<i64> virtualRowIndex)
