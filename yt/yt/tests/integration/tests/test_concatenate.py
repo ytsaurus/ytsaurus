@@ -1,6 +1,8 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+from yt_helpers import skip_if_no_descending
+
 import pytest
 
 ##################################################################
@@ -366,8 +368,42 @@ class TestConcatenate(YTEnvSetup):
             concatenate(["//tmp/t1"], "//tmp/union")
 
     @authors("gritukan")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_concatenate_simple(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
+        create(
+            "table",
+            "//tmp/in1",
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
+        )
+        write_table("//tmp/in1", [{"a": 1}])
+
+        create(
+            "table",
+            "//tmp/in2",
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
+        )
+        write_table("//tmp/in2", [{"a": 2}])
+
+        create(
+            "table",
+            "//tmp/out",
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
+        )
+
+        concatenate(["//tmp/in1", "//tmp/in2"], "//tmp/out")
+        assert get("//tmp/out/@sorted")
+        assert get("//tmp/out/@sorted_by") == ["a"]
+        if sort_order == "ascending":
+            assert read_table("//tmp/out") == [{"a": 1}, {"a": 2}]
+        else:
+            assert read_table("//tmp/out") == [{"a": 2}, {"a": 1}]
+
+    @authors("gritukan")
     @pytest.mark.parametrize("erasure", [False, True])
-    def test_sorted_concatenation(self, erasure):
+    def test_sorted_concatenate_stricter_chunks(self, erasure):
         def make_rows(values):
             return [{"a": value} for value in values]
 
@@ -397,27 +433,38 @@ class TestConcatenate(YTEnvSetup):
         assert get("//tmp/out/@sorted")
 
     @authors("gritukan")
-    def test_sorted_concatenation_comparator(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_concatenate_comparator(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create(
             "table",
-            "//tmp/in",
-            attributes={"schema": make_schema([{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}])},
+            "//tmp/in1",
+            attributes={
+                "schema": make_schema([
+                    {"name": "a", "type": "int64", "sort_order": sort_order},
+                    {"name": "b", "type": "string"}
+                ])
+            },
         )
+        first_chunk = [{"a": 1, "b": "x"}, {"a": 2, "b": "z"}]
+        if sort_order == "descending":
+            first_chunk = first_chunk[::-1]
+        write_table("//tmp/in1", first_chunk)
 
-        write_table(
-            "<chunk_key_column_count=1;append=true>//tmp/in",
-            [{"a": 1, "b": "x"}, {"a": 2, "b": "z"}],
+        create(
+            "table",
+            "//tmp/in2",
+            attributes={
+                "schema": make_schema([
+                    {"name": "a", "type": "int64", "sort_order": sort_order},
+                    {"name": "b", "type": "string"}
+                ])
+            },
         )
-        write_table(
-            "<chunk_key_column_count=1;append=true>//tmp/in",
-            [{"a": 1, "b": "y"}, {"a": 1, "b": "z"}],
-        )
-        assert read_table("//tmp/in") == [
-            {"a": 1, "b": "x"},
-            {"a": 2, "b": "z"},
-            {"a": 1, "b": "y"},
-            {"a": 1, "b": "z"},
-        ]
+        second_chunk = [{"a": 1, "b": "y"}, {"a": 1, "b": "z"}]
+        write_table("//tmp/in2", second_chunk)
 
         create(
             "table",
@@ -425,60 +472,55 @@ class TestConcatenate(YTEnvSetup):
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "a", "type": "int64", "sort_order": "ascending"},
+                        {"name": "a", "type": "int64", "sort_order": sort_order},
                         {"name": "b", "type": "string"},
                     ]
                 )
             },
         )
 
-        concatenate(["//tmp/in"], "//tmp/out")
-        assert read_table("//tmp/out") == [
-            {"a": 1, "b": "y"},
-            {"a": 1, "b": "z"},
-            {"a": 1, "b": "x"},
-            {"a": 2, "b": "z"},
-        ]
+        concatenate(["//tmp/in1", "//tmp/in2"], "//tmp/out")
+        if sort_order == "ascending":
+            assert read_table("//tmp/out") == second_chunk + first_chunk
+        else:
+            assert read_table("//tmp/out") == first_chunk + second_chunk
         assert get("//tmp/out/@sorted")
 
     @authors("gritukan")
-    def test_sorted_concatenation_with_overlapping_ranges(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_concatenate_overlapping_ranges(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         def make_rows(values):
-            return [{"a": value} for value in values]
+            mul = 1 if sort_order == "ascending" else -1
+            return [{"a": value * mul} for value in values]
 
         create(
             "table",
-            "//tmp/in",
-            attributes={"schema": make_schema([{"name": "a", "type": "int64"}])},
+            "//tmp/in1",
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
         )
-
-        write_table("<chunk_key_column_count=1;append=true>//tmp/in", make_rows([1, 3]))
-        write_table("<chunk_key_column_count=1;append=true>//tmp/in", make_rows([2, 4]))
-        assert get("//tmp/in/@chunk_count") == 2
-
-        assert read_table("//tmp/in") == make_rows([1, 3, 2, 4])
+        write_table("//tmp/in1", make_rows([1, 3]))
 
         create(
             "table",
-            "//tmp/out1",
-            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])},
+            "//tmp/in2",
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
         )
+        write_table("//tmp/in2", make_rows([2, 4]))
 
         create(
             "table",
-            "//tmp/out2",
-            attributes={"schema": make_schema([{"name": "a", "type": "int64"}])},
+            "//tmp/out",
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
         )
 
         with raises_yt_error(SortOrderViolation):
-            concatenate(["//tmp/in"], "//tmp/out1")
-
-        concatenate(["//tmp/in"], "//tmp/out2")
-        assert read_table("//tmp/out2") == make_rows([1, 3, 2, 4])
-        assert not get("//tmp/out2/@sorted")
+            concatenate(["//tmp/in1", "//tmp/in2"], "//tmp/out")
 
     @authors("gritukan")
-    def test_sorted_concatenation_schema(self):
+    def test_sorted_concatenate_schema(self):
         def make_row(a, b, c):
             return {"a": a, "b": b, "c": c}
 
@@ -570,28 +612,33 @@ class TestConcatenate(YTEnvSetup):
         assert read_table("//tmp/out3") == [{"a": 1}, {"a": 3}, {"a": 2}, {"a": 4}]
 
     @authors("gritukan")
-    def test_sorted_concatenation_append(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_concatenate_append(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         def make_rows(values):
-            return [{"a": value} for value in values]
+            mul = 1 if sort_order == "ascending" else -1
+            return [{"a": value * mul} for value in values]
 
         create(
             "table",
             "//tmp/in1",
-            attributes={"schema": make_schema([{"name": "a", "type": "int64"}])},
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
         )
-        write_table("<chunk_key_column_count=1;append=true>//tmp/in1", make_rows([1, 2]))
+        write_table("//tmp/in1", make_rows([1, 2]))
 
         create(
             "table",
             "//tmp/in2",
-            attributes={"schema": make_schema([{"name": "a", "type": "int64"}])},
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
         )
-        write_table("<chunk_key_column_count=1;append=true>//tmp/in2", make_rows([5, 6]))
+        write_table("//tmp/in2", make_rows([5, 6]))
 
         create(
             "table",
             "//tmp/out1",
-            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])},
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
         )
         write_table("//tmp/out1", make_rows([3, 4]))
 
@@ -607,14 +654,14 @@ class TestConcatenate(YTEnvSetup):
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "a", "type": "int64", "sort_order": "ascending"},
+                        {"name": "a", "type": "int64", "sort_order": sort_order},
                     ],
                     unique_keys=False,
                 )
             },
         )
 
-        write_table("<chunk_key_column_count=1;append=true>//tmp/in3", make_rows([2, 2]))
+        write_table("//tmp/in3", make_rows([2, 2]))
 
         concatenate(["//tmp/in3", "//tmp/in3"], "<append=true>//tmp/in3")
         assert read_table("//tmp/in3") == make_rows([2, 2, 2, 2, 2, 2])
@@ -625,90 +672,53 @@ class TestConcatenate(YTEnvSetup):
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "a", "type": "int64", "sort_order": "ascending"},
+                        {"name": "a", "type": "int64", "sort_order": sort_order},
                     ],
                     unique_keys=True,
                 )
             },
         )
-        write_table("<chunk_key_column_count=1;append=true>//tmp/in4", make_rows([2]))
+        write_table("//tmp/in4", make_rows([2]))
         with raises_yt_error(UniqueKeyViolation):
             concatenate(["//tmp/in4", "//tmp/in4"], "<append=true>//tmp/in4")
 
     @authors("gritukan")
-    def test_sorted_concatenate_unique_keys(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_concatenate_unique_keys_validation(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         def make_rows(values):
-            return [{"a": value} for value in values]
+            mul = 1 if sort_order == "ascending" else -1
+            return [{"a": value * mul} for value in values]
 
-        create(
-            "table",
-            "//tmp/in1",
-            attributes={"schema": make_schema([{"name": "a", "type": "int64"}])},
-        )
-        for x in [1, 4, 2, 3]:
-            write_table(
-                "<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/in1",
-                make_rows([x]),
-            )
+        unique_keys_schema = make_schema([{
+            "name": "a",
+            "type": "int64",
+            "sort_order": sort_order}], unique_keys=True)
+        not_unique_keys_schema = make_schema([{
+            "name": "a",
+            "type": "int64",
+            "sort_order": sort_order}], unique_keys=False)
 
-        create(
-            "table",
-            "//tmp/out1",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "a", "type": "int64", "sort_order": "ascending"}],
-                    unique_keys=True,
-                )
-            },
-        )
-        concatenate(["//tmp/in1"], "//tmp/out1")
-        assert read_table("//tmp/out1") == make_rows([1, 2, 3, 4])
+        create("table", "//tmp/in1", attributes={"schema": unique_keys_schema})
+        write_table("//tmp/in1", {"a": 1})
 
-        write_table("<chunk_key_column_count=1;append=true>//tmp/in1", make_rows([5]))
+        create("table", "//tmp/in2", attributes={"schema": unique_keys_schema})
+        write_table("//tmp/in2", {"a": 1})
+
+        create("table", "//tmp/in3", attributes={"schema": not_unique_keys_schema})
+        write_table("//tmp/in3", {"a": 2})
+
+        create("table", "//tmp/out", attributes={"schema": unique_keys_schema})
+
+        # No. Keys are not unique.
+        with raises_yt_error(UniqueKeyViolation):
+            concatenate(["//tmp/in1", "//tmp/in2"], "//tmp/out")
+
+        # No. Schema is too weak.
         with raises_yt_error(SchemaViolation):
-            concatenate(["//tmp/in1"], "//tmp/out1")
-
-        create(
-            "table",
-            "//tmp/in2",
-            attributes={"schema": make_schema([{"name": "a", "type": "int64"}])},
-        )
-        for x in [1, 3, 2, 2, 4, 5]:
-            write_table(
-                "<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/in2",
-                make_rows([x]),
-            )
-
-        with raises_yt_error(UniqueKeyViolation):
-            concatenate(["//tmp/in2"], "//tmp/out1")
-
-        create(
-            "table",
-            "//tmp/in3",
-            attributes={"schema": make_schema([{"name": "a", "type": "int64"}])},
-        )
-        for x in [4, 3, 2]:
-            write_table(
-                "<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/in3",
-                make_rows([x]),
-            )
-
-        create(
-            "table",
-            "//tmp/out2",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "a", "type": "int64", "sort_order": "ascending"}],
-                    unique_keys=True,
-                )
-            },
-        )
-        write_table("//tmp/out2", make_rows([1, 2]))
-        with raises_yt_error(UniqueKeyViolation):
-            concatenate(["//tmp/in3"], "<append=true>//tmp/out2")
-
-        concatenate(["//tmp/in3"], "//tmp/out2")
-        assert read_table("//tmp/out2") == make_rows([2, 3, 4])
+            concatenate(["//tmp/in1", "//tmp/in3"], "//tmp/out")
 
     @authors("gritukan")
     def test_input_with_custom_transaction(self):
