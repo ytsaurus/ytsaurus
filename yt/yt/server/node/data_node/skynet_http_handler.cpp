@@ -152,7 +152,7 @@ public:
             chunkReader,
             New<TNameTable>(),
             blockReadOptions,
-            /* keyColumns */ {},
+            /* sortColumns */ {},
             /* omittedInaccessibleColumns */ {},
             /* columnFilter */ {},
             readRange);

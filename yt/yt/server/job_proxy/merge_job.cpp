@@ -97,7 +97,7 @@ public:
                 std::move(nameTable),
                 BlockReadOptions_,
                 columnFilter,
-                /* keyColumns */ {},
+                /* sortColumns */ {},
                 partitionTag,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),

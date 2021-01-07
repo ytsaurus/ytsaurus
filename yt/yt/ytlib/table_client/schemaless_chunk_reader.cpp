@@ -94,7 +94,7 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TColumnFilter& columnFilter,
-        const TKeyColumns& keyColumns,
+        const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         std::optional<i64> virtualRowIndex = std::nullopt)
         : ChunkState_(chunkState)
@@ -104,7 +104,7 @@ public:
         , Options_(options)
         , NameTable_(nameTable)
         , ColumnFilter_(columnFilter)
-        , KeyColumns_(keyColumns)
+        , SortColumns_(sortColumns)
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
         , OmittedInaccessibleColumnSet_(OmittedInaccessibleColumns_.begin(), OmittedInaccessibleColumns_.end())
         , Sampler_(Config_->SamplingRate, std::random_device()())
@@ -157,8 +157,8 @@ protected:
 
     const TColumnFilter ColumnFilter_;
 
-    //! Physical key columns.
-    TKeyColumns KeyColumns_;
+    TSortColumns SortColumns_;
+
     const std::vector<TString> OmittedInaccessibleColumns_;
     const THashSet<TStringBuf> OmittedInaccessibleColumnSet_; // strings are being owned by OmittedInaccessibleColumns_
 
@@ -265,7 +265,7 @@ protected:
         const TChunkSpec& chunkSpec,
         const TLegacyReadLimit& lowerLimit,
         const TLegacyReadLimit& upperLimit,
-        const TKeyColumns& keyColumns,
+        const TSortColumns& sortColumns,
         i64 rowIndex) const
     {
         std::vector<TDataSliceDescriptor> unreadDescriptors;
@@ -288,7 +288,7 @@ protected:
         auto upperKey = upperLimit.HasLegacyKey() ? upperLimit.GetLegacyKey() : lastChunkKey;
         TLegacyOwningKey firstUnreadKey;
         if (!unreadRows.Empty()) {
-            firstUnreadKey = GetKeyPrefix(unreadRows[0], keyColumns.size());
+            firstUnreadKey = GetKeyPrefix(unreadRows[0], sortColumns.size());
         }
         // NB: checks after the first one are invalid unless
         // we read some data. Before we read anything, lowerKey may be
@@ -372,7 +372,7 @@ public:
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
-        const TKeyColumns& keyColumns,
+        const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         std::optional<int> partitionTag,
@@ -387,7 +387,7 @@ protected:
 
     const TColumnarChunkMetaPtr ChunkMeta_;
 
-    int ChunkKeyColumnCount_ = 0;
+    TSortColumns ChunkSortColumns_;
 
     std::optional<int> PartitionTag_;
 
@@ -420,7 +420,7 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     std::optional<int> partitionTag,
@@ -440,7 +440,7 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
         nameTable,
         blockReadOptions,
         columnFilter,
-        keyColumns,
+        sortColumns,
         omittedInaccessibleColumns,
         virtualRowIndex)
     , ChunkMeta_(chunkMeta)
@@ -535,7 +535,7 @@ public:
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
-        const TKeyColumns& keyColumns,
+        const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TLegacyReadRange& readRange,
@@ -572,7 +572,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TLegacyReadRange& readRange,
@@ -587,7 +587,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
         std::move(underlyingReader),
         std::move(nameTable),
         blockReadOptions,
-        keyColumns,
+        sortColumns,
         omittedInaccessibleColumns,
         columnFilter,
         partitionTag,
@@ -632,7 +632,7 @@ void THorizontalSchemalessRangeChunkReader::DoInitializeBlockSequence()
 
         CreateBlockSequence(0, BlockMetaExt_->blocks_size());
     } else {
-        bool readSorted = ReadRange_.LowerLimit().HasLegacyKey() || ReadRange_.UpperLimit().HasLegacyKey() || !KeyColumns_.empty();
+        bool readSorted = ReadRange_.LowerLimit().HasLegacyKey() || ReadRange_.UpperLimit().HasLegacyKey() || !SortColumns_.empty();
         if (readSorted) {
             InitializeBlockSequenceSorted();
         } else {
@@ -650,28 +650,27 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
         THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
     }
 
-    auto chunkKeyColumns = ChunkMeta_->GetChunkSchema()->GetKeyColumns();
-    ChunkKeyColumnCount_ = chunkKeyColumns.size();
+    ChunkSortColumns_ = ChunkMeta_->GetChunkSchema()->GetSortColumns();
 
-    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
+    ValidateSortColumns(SortColumns_, ChunkSortColumns_, Options_->DynamicTable);
 
-    if (KeyColumns_.empty()) {
-        KeyColumns_ = chunkKeyColumns;
+    if (SortColumns_.empty()) {
+        SortColumns_ = ChunkSortColumns_;
     }
 
-    std::optional<int> keyColumnCount;
+    std::optional<int> sortColumnCount;
     if (Options_->DynamicTable) {
-        keyColumnCount = KeyColumns_.size();
+        sortColumnCount = SortColumns_.size();
     } else {
-        ChunkMeta_->InitBlockLastKeys(KeyColumns_);
+        ChunkMeta_->InitBlockLastKeys(GetColumnNames(SortColumns_));
     }
 
     int beginIndex = std::max(
         ApplyLowerRowLimit(*BlockMetaExt_, ReadRange_.LowerLimit()),
-        ApplyLowerKeyLimit(ChunkMeta_->BlockLastKeys(), ReadRange_.LowerLimit(), keyColumnCount));
+        ApplyLowerKeyLimit(ChunkMeta_->BlockLastKeys(), ReadRange_.LowerLimit(), sortColumnCount));
     int endIndex = std::min(
         ApplyUpperRowLimit(*BlockMetaExt_, ReadRange_.UpperLimit()),
-        ApplyUpperKeyLimit(ChunkMeta_->BlockLastKeys(), ReadRange_.UpperLimit(), keyColumnCount));
+        ApplyUpperKeyLimit(ChunkMeta_->BlockLastKeys(), ReadRange_.UpperLimit(), sortColumnCount));
 
     CreateBlockSequence(beginIndex, endIndex);
 }
@@ -696,18 +695,18 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
         blockMeta,
         ChunkMeta_->GetChunkSchema(),
         IdMapping_,
-        ChunkKeyColumnCount_,
-        KeyColumns_.size(),
+        ChunkSortColumns_.size(),
+        SortColumns_.size(),
         VirtualColumnCount_));
 
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
-    int keyColumnCount = std::max(ChunkKeyColumnCount_, static_cast<int>(KeyColumns_.size()));
+    int sortColumnCount = std::max(ChunkSortColumns_.size(), SortColumns_.size());
     CheckBlockUpperLimits(
         BlockMetaExt_->blocks(blockIndex).chunk_row_count(),
         ChunkMeta_->BlockLastKeys() ? ChunkMeta_->BlockLastKeys()[blockIndex] : TLegacyKey(),
         ReadRange_.UpperLimit(),
-        keyColumnCount);
+        sortColumnCount);
 
     const auto& lowerLimit = ReadRange_.LowerLimit();
 
@@ -799,7 +798,7 @@ TInterruptDescriptor THorizontalSchemalessRangeChunkReader::GetInterruptDescript
         ChunkSpec_,
         ReadRange_.LowerLimit(),
         ReadRange_.UpperLimit(),
-        KeyColumns_,
+        SortColumns_,
         RowIndex_);
 }
 
@@ -817,7 +816,7 @@ public:
         NChunkClient::IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
-        const TKeyColumns& keyColumns,
+        const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TSharedRange<TLegacyKey>& keys,
@@ -851,7 +850,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
@@ -866,7 +865,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         std::move(underlyingReader),
         std::move(nameTable),
         blockReadOptions,
-        keyColumns,
+        sortColumns,
         omittedInaccessibleColumns,
         columnFilter,
         partitionTag,
@@ -901,10 +900,9 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
         THROW_ERROR_EXCEPTION("Requested lookup for a chunk without \"unique_keys\" restriction");
     }
 
-    auto chunkKeyColumns = ChunkMeta_->GetChunkSchema()->GetKeyColumns();
-    ChunkKeyColumnCount_ = chunkKeyColumns.size();
+    ChunkSortColumns_ = ChunkMeta_->GetChunkSchema()->GetSortColumns();
 
-    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
+    ValidateSortColumns(SortColumns_, ChunkSortColumns_, Options_->DynamicTable);
 
     // Don't call InitBlockLastKeys because this reader should be used only for dynamic tables.
     YT_VERIFY(Options_->DynamicTable);
@@ -913,7 +911,7 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
         TLegacyReadLimit readLimit;
         readLimit.SetLegacyKey(TLegacyOwningKey(key));
 
-        int index = ApplyLowerKeyLimit(ChunkMeta_->BlockLastKeys(), readLimit, KeyColumns_.size());
+        int index = ApplyLowerKeyLimit(ChunkMeta_->BlockLastKeys(), readLimit, SortColumns_.size());
         if (index == BlockMetaExt_->blocks_size()) {
             break;
         }
@@ -1016,8 +1014,8 @@ void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
         blockMeta,
         ChunkMeta_->GetChunkSchema(),
         IdMapping_,
-        ChunkKeyColumnCount_,
-        KeyColumns_.size(),
+        ChunkSortColumns_.size(),
+        SortColumns_.size(),
         VirtualColumnCount_));
 }
 
@@ -1044,7 +1042,7 @@ public:
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
-        const TKeyColumns& keyColumns,
+        const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TLegacyReadRange& readRange,
@@ -1058,7 +1056,7 @@ public:
             nameTable,
             blockReadOptions,
             columnFilter,
-            keyColumns,
+            sortColumns,
             omittedInaccessibleColumns,
             virtualRowIndex)
         , TColumnarRangeChunkReaderBase(
@@ -1125,7 +1123,7 @@ public:
             ChunkSpec_,
             LowerLimit_,
             UpperLimit_,
-            KeyColumns_,
+            SortColumns_,
             RowIndex_);
     }
 
@@ -1437,7 +1435,7 @@ private:
         if (LowerLimit_.HasLegacyKey()) {
             minKeyColumnCount = std::max(minKeyColumnCount, LowerLimit_.GetLegacyKey().GetCount());
         }
-        bool sortedRead = minKeyColumnCount > 0 || !KeyColumns_.empty();
+        bool sortedRead = minKeyColumnCount > 0 || !SortColumns_.empty();
 
         if (sortedRead && !ChunkMeta_->Misc().sorted()) {
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
@@ -1446,10 +1444,7 @@ private:
         const auto& chunkSchema = *ChunkMeta_->GetChunkSchema();
         const auto& columnMeta = ChunkMeta_->ColumnMeta();
 
-        ValidateKeyColumns(
-            KeyColumns_,
-            chunkSchema.GetKeyColumns(),
-            Options_->DynamicTable);
+        ValidateSortColumns(SortColumns_, chunkSchema.GetSortColumns(), Options_->DynamicTable);
 
         // Cannot read more key columns than stored in chunk, even if range keys are longer.
         minKeyColumnCount = std::min(minKeyColumnCount, chunkSchema.GetKeyColumnCount());
@@ -1460,9 +1455,9 @@ private:
         } else {
             chunkNameTable = ChunkMeta_->ChunkNameTable();
             if (UpperLimit_.HasLegacyKey() || LowerLimit_.HasLegacyKey()) {
-                ChunkMeta_->InitBlockLastKeys(KeyColumns_.empty()
+                ChunkMeta_->InitBlockLastKeys(SortColumns_.empty()
                     ? chunkSchema.GetKeyColumns()
-                    : KeyColumns_);
+                    : GetColumnNames(SortColumns_));
             }
         }
 
@@ -1539,7 +1534,7 @@ private:
             Columns_.emplace_back(std::move(columnReader), keyIndex);
         }
 
-        for (int keyIndex = minKeyColumnCount; keyIndex < KeyColumns_.size(); ++keyIndex) {
+        for (int keyIndex = minKeyColumnCount; keyIndex < SortColumns_.size(); ++keyIndex) {
             auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyIndex,
                 keyIndex);
@@ -1670,7 +1665,7 @@ public:
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
-        const TKeyColumns& keyColumns,
+        const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TSharedRange<TLegacyKey>& keys,
@@ -1684,7 +1679,7 @@ public:
             nameTable,
             blockReadOptions,
             columnFilter,
-            keyColumns,
+            sortColumns,
             omittedInaccessibleColumns)
         , TColumnarLookupChunkReaderBase(
             chunkMeta,
@@ -1831,9 +1826,9 @@ private:
         const auto& chunkSchema = *ChunkMeta_->GetChunkSchema();
         const auto& columnMeta = ChunkMeta_->ColumnMeta();
 
-        ValidateKeyColumns(
-            KeyColumns_,
-            chunkSchema.GetKeyColumns(),
+        ValidateSortColumns(
+            SortColumns_,
+            chunkSchema.GetSortColumns(),
             Options_->DynamicTable);
 
         TNameTablePtr chunkNameTable;
@@ -1841,11 +1836,11 @@ private:
             chunkNameTable = TNameTable::FromSchema(chunkSchema);
         } else {
             chunkNameTable = ChunkMeta_->ChunkNameTable();
-            ChunkMeta_->InitBlockLastKeys(KeyColumns_);
+            ChunkMeta_->InitBlockLastKeys(GetColumnNames(SortColumns_));
         }
 
         // Create key column readers.
-        KeyColumnReaders_.resize(KeyColumns_.size());
+        KeyColumnReaders_.resize(SortColumns_.size());
         for (int keyColumnIndex = 0; keyColumnIndex < chunkSchema.GetKeyColumnCount(); ++keyColumnIndex) {
             auto columnReader = CreateUnversionedColumnReader(
                 chunkSchema.Columns()[keyColumnIndex],
@@ -1856,7 +1851,7 @@ private:
             KeyColumnReaders_[keyColumnIndex] = columnReader.get();
             Columns_.emplace_back(std::move(columnReader), keyColumnIndex);
         }
-        for (int keyColumnIndex = chunkSchema.GetKeyColumnCount(); keyColumnIndex < KeyColumns_.size(); ++keyColumnIndex) {
+        for (int keyColumnIndex = chunkSchema.GetKeyColumnCount(); keyColumnIndex < SortColumns_.size(); ++keyColumnIndex) {
             auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyColumnIndex,
                 keyColumnIndex);
@@ -1954,7 +1949,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TLegacyReadRange& readRange,
@@ -1974,7 +1969,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 underlyingReader,
                 nameTable,
                 blockReadOptions,
-                keyColumns,
+                sortColumns,
                 omittedInaccessibleColumns,
                 columnFilter,
                 readRange,
@@ -1991,7 +1986,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 underlyingReader,
                 nameTable,
                 blockReadOptions,
-                keyColumns,
+                sortColumns,
                 omittedInaccessibleColumns,
                 columnFilter,
                 readRange,
@@ -2013,7 +2008,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
@@ -2034,7 +2029,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 std::move(underlyingReader),
                 std::move(nameTable),
                 blockReadOptions,
-                keyColumns,
+                sortColumns,
                 omittedInaccessibleColumns,
                 columnFilter,
                 keys,
@@ -2051,7 +2046,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 std::move(underlyingReader),
                 std::move(nameTable),
                 blockReadOptions,
-                keyColumns,
+                sortColumns,
                 omittedInaccessibleColumns,
                 columnFilter,
                 keys,

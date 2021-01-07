@@ -51,7 +51,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     NChunkClient::IChunkReaderPtr chunkReader,
     const TClientBlockReadOptions& blockReadOptions,
     const TTableSchemaPtr& resultSchema,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     const NChunkClient::TLegacyReadRange& readRange,
     TTimestamp timestamp)
 {
@@ -67,7 +67,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
                     std::move(chunkReader),
                     std::move(nameTable),
                     blockReadOptions,
-                    keyColumns,
+                    sortColumns,
                     /* omittedInaccessibleColumns */ {},
                     columnFilter,
                     readRange);

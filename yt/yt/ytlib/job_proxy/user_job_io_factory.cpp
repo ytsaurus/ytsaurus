@@ -116,7 +116,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
         std::move(nameTable),
         blockReadOptions,
         columnFilter,
-        /* keyColumns */ {},
+        /* sortColumns */ {},
         /* partitionTag */ std::nullopt,
         std::move(trafficMeter),
         std::move(bandwidthThrottler),
@@ -331,6 +331,12 @@ public:
         const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
 
+        // TODO(gritukan): Descending!
+        TSortColumns sortColumns;
+        for (const auto& keyColumn : keyColumns) {
+            sortColumns.push_back({keyColumn, ESortOrder::Ascending});
+        }
+
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
         nameTable = TNameTable::FromKeyColumns(keyColumns);
         const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
@@ -369,7 +375,7 @@ public:
                 nameTable,
                 BlockReadOptions_,
                 columnFilter,
-                keyColumns,
+                sortColumns,
                 /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
@@ -400,7 +406,7 @@ public:
                 nameTable,
                 BlockReadOptions_,
                 columnFilter,
-                keyColumns,
+                sortColumns,
                 /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,

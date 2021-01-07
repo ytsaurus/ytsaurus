@@ -257,7 +257,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         std::move(chunkReader),
         blockReadOptions,
         readSchema,
-        TKeyColumns(),
+        TSortColumns(),
         {readRange});
 
     return New<TReader>(

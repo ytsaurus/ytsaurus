@@ -34,6 +34,9 @@ void FromProto(
     TSortColumns* sortColumns,
     const NProto::TSortColumnsExt& protoSortColumns);
 
+void FormatValue(TStringBuilderBase* builder, const TSortColumns& key, TStringBuf format);
+TString ToString(const TSortColumns& key);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TKeyColumns GetColumnNames(const TSortColumns& sortColumns);

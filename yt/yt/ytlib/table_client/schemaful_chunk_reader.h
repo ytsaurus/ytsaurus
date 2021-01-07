@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/client/table_client/column_sort_schema.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +19,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     NChunkClient::IChunkReaderPtr chunkReader,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TTableSchemaPtr& resultSchema,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     const NChunkClient::TLegacyReadRange& readRange,
     TTimestamp timestamp = NullTimestamp);
 
