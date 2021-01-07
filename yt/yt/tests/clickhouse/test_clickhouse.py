@@ -1867,7 +1867,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 return result
 
             assert clique.make_query("select * from `//tmp/dt0`") == [{"key": 0, "value": 10}]
-            
+
             query = "select *, $table_index, $table_path, $table_name from `//tmp/dt0`"
             assert clique.make_query(query) == [get_table_content(0)]
 
@@ -4581,6 +4581,9 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
                 "subquery": {
                     "min_data_weight_per_thread": 0,
                 },
+                "settings": {
+                    "dynamic_table": {},
+                },
             },
         }
 
@@ -4731,22 +4734,22 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
         set("//tmp/t/@enable_dynamic_store_read", True)
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in range(3000)]
+        rows = [{"key": i, "value": str(i)} for i in range(300)]
 
-        insert_rows("//tmp/t", rows[:1500])
+        insert_rows("//tmp/t", rows[:150])
 
         with Clique(instance_count, config_patch=self._get_config_patch()) as clique:
-            assert clique.make_query("select * from `//tmp/t` order by key", verbose=False) == rows[:1500]
-            assert clique.make_query("select * from `//tmp/t[100:500]` order by key", verbose=False) == rows[100:500]
+            assert clique.make_query("select * from `//tmp/t` order by key", verbose=False) == rows[:150]
+            assert clique.make_query("select * from `//tmp/t[10:50]` order by key", verbose=False) == rows[10:50]
 
             ts = generate_timestamp()
             ypath_with_ts = "<timestamp={}>//tmp/t".format(ts)
 
-            insert_rows("//tmp/t", rows[1500:])
+            insert_rows("//tmp/t", rows[150:])
 
             assert clique.make_query("select * from `//tmp/t` order by key", verbose=False) == rows
             assert (
-                clique.make_query("select * from `{}` order by key".format(ypath_with_ts), verbose=False) == rows[:1500]
+                clique.make_query("select * from `{}` order by key".format(ypath_with_ts), verbose=False) == rows[:150]
             )
 
             sync_freeze_table("//tmp/t")
@@ -4837,6 +4840,13 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             sync_mount_table("//tmp/t")
             t.join()
             assert sorted(read_table("//tmp/t")) == [{"key": i, "value": str(i)} for i in range(20)]
+
+
+class TestClickHouseDynamicTablesFetchFromTablets(TestClickHouseDynamicTables):
+    def _get_config_patch(self):
+        config_patch = super(TestClickHouseDynamicTablesFetchFromTablets, self)._get_config_patch()
+        config_patch["yt"]["settings"]["dynamic_table"]["fetch_from_tablets"] = True
+        return config_patch
 
 
 class TestColumnarRead(ClickHouseTestBase):

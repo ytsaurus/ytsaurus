@@ -48,6 +48,8 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/virtual_value_directory.h>
 
+#include <yt/ytlib/query_client/proto/query_service.pb.h>
+
 #include <yt/client/table_client/key_bound.h>
 #include <yt/client/table_client/comparator.h>
 
@@ -75,6 +77,8 @@
 #include <DataTypes/DataTypeNullable.h>
 
 #include <cmath>
+
+#include <library/cpp/iterator/functools.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -193,6 +197,9 @@ private:
     std::vector<std::vector<TLegacyDataSlicePtr>> InputDataSlices_;
 
     std::vector<TTableReadSpec> TableReadSpecs_;
+
+    TMasterChunkSpecFetcherPtr MasterChunkSpecFetcher_;
+    TTabletChunkSpecFetcherPtr TabletChunkSpecFetcher_;
 
     TLogger Logger;
 
@@ -541,21 +548,9 @@ private:
         }
     }
 
-    void FetchTableReadSpecs()
+    void InitializeChunkSpecFetchers()
     {
-        i64 totalChunkCount = 0;
-        for (const auto& inputTable : InputTables_) {
-            totalChunkCount += inputTable->ChunkCount;
-        }
-        YT_LOG_INFO("Fetching tables (TableCount: %v, TotalChunkCount: %v)",
-            InputTables_.size(),
-            totalChunkCount);
-
-        if (StorageContext_->Settings->InferDynamicTableRangesFromPivotKeys) {
-            InferDynamicTableRangesFromPivotKeys();
-        }
-
-        auto chunkSpecFetcher = New<TChunkSpecFetcher>(
+        MasterChunkSpecFetcher_ = New<TMasterChunkSpecFetcher>(
             Client_,
             nullptr /* nodeDirectory */,
             Invoker_,
@@ -574,6 +569,75 @@ private:
                 SetSuppressExpirationTimeoutRenewal(req, true);
             },
             Logger);
+
+        TTabletChunkSpecFetcher::TOptions options{
+            .Client = Client_,
+            .RowBuffer = RowBuffer_,
+            .InitializeFetchRequest = [=] (TTabletChunkSpecFetcher::TRequest* req) {
+                req->set_fetch_all_meta_extensions(true);
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
+                if (!QueryContext_->Settings->DynamicTable->EnableDynamicStoreRead) {
+                    req->set_omit_dynamic_stores(true);
+                }
+            }
+        };
+
+        TabletChunkSpecFetcher_ = New<TTabletChunkSpecFetcher>(
+            std::move(options),
+            Invoker_,
+            Logger);
+    }
+
+    void AddTableForFetching(const TTablePtr& table, int tableIndex)
+    {
+        if (table->Dynamic && QueryContext_->Settings->DynamicTable->FetchFromTablets &&
+            table->TableMountInfo->MountedTablets.size() == table->TableMountInfo->Tablets.size())
+        {
+            std::vector<TReadRange> readRanges;
+            for (const auto& legacyReadRange : table->Path.GetRanges()) {
+                auto& readRange = readRanges.emplace_back();
+                readRange.LowerLimit() = ReadLimitFromLegacyReadLimit(
+                    legacyReadRange.LowerLimit(),
+                    /* isUpper */ false,
+                    table->Comparator.GetLength());
+                readRange.UpperLimit() = ReadLimitFromLegacyReadLimit(
+                    legacyReadRange.UpperLimit(),
+                    /* isUpper */ true,
+                    table->Comparator.GetLength());
+            }
+
+            TabletChunkSpecFetcher_->Add(
+                FromObjectId(table->ObjectId),
+                table->ChunkCount,
+                tableIndex,
+                std::move(readRanges));
+        } else {
+            MasterChunkSpecFetcher_->Add(
+                table->ObjectId,
+                table->ExternalCellTag,
+                table->ChunkCount,
+                tableIndex,
+                table->Path.GetRanges());
+        }
+    }
+
+    void FetchTableReadSpecs()
+    {
+        i64 totalChunkCount = 0;
+        for (const auto& inputTable : InputTables_) {
+            totalChunkCount += inputTable->ChunkCount;
+        }
+        YT_LOG_INFO("Fetching tables (TableCount: %v, TotalChunkCount: %v)",
+            InputTables_.size(),
+            totalChunkCount);
+
+        if (StorageContext_->Settings->InferDynamicTableRangesFromPivotKeys) {
+            InferDynamicTableRangesFromPivotKeys();
+        }
+
+        InitializeChunkSpecFetchers();
 
         for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
             const auto& table = InputTables_[tableIndex];
@@ -599,26 +663,32 @@ private:
 
             // We do not need to fetch anything if table was filtered by index.
             if (CanBeTrueOnTable_[tableIndex]) {
-                chunkSpecFetcher->Add(
-                    table->ObjectId,
-                    table->ExternalCellTag,
-                    table->ChunkCount,
-                    tableIndex,
-                    table->Path.GetRanges());
+                AddTableForFetching(table, tableIndex);
             }
         }
 
-        WaitFor(chunkSpecFetcher->Fetch())
+
+        std::vector<TFuture<void>> asyncResults = {
+            MasterChunkSpecFetcher_->Fetch(),
+            TabletChunkSpecFetcher_->Fetch()
+        };
+
+        WaitFor(AllSucceeded(asyncResults))
             .ThrowOnError();
 
-        YT_LOG_INFO("Chunk specs fetched (ChunkCount: %v)", chunkSpecFetcher->ChunkSpecs().size());
-
-        for (auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+        int chunkCount = 0;
+        for (auto& chunkSpec : Concatenate(
+            MasterChunkSpecFetcher_->ChunkSpecs(),
+            TabletChunkSpecFetcher_->ChunkSpecs()))
+        {
+            chunkCount++;
             auto tableIndex = chunkSpec.table_index();
             // Table indices will be properly reassigned later by JoinTableReadSpecs.
             chunkSpec.set_table_index(0);
             TableReadSpecs_[tableIndex].DataSliceDescriptors.emplace_back(TDataSliceDescriptor(std::move(chunkSpec)));
         }
+
+        YT_LOG_INFO("Chunk specs fetched (ChunkCount: %v)", chunkCount);
     }
 
     //! Wrap chunk spec from data slice descriptor into data slice,

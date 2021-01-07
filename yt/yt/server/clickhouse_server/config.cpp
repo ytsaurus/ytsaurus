@@ -31,6 +31,9 @@ TDynamicTableSettings::TDynamicTableSettings()
 
     RegisterParameter("transaction_atomicity", TransactionAtomicity)
         .Default(NTransactionClient::EAtomicity::Full);
+
+    RegisterParameter("fetch_from_tablets", FetchFromTablets)
+        .Default(false);
 }
 
 TQuerySettings::TQuerySettings()

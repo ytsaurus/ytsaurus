@@ -60,6 +60,8 @@ public:
 
     NTransactionClient::EAtomicity TransactionAtomicity;
 
+    bool FetchFromTablets;
+
     TDynamicTableSettings();
 };
 

@@ -5137,7 +5137,7 @@ void TOperationControllerBase::FetchInputTables()
         /*storeChunkStatistics=*/false,
         Logger);
 
-    auto chunkSpecFetcher = New<TChunkSpecFetcher>(
+    auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
         InputClient,
         InputNodeDirectory_,
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
@@ -5949,7 +5949,7 @@ void TOperationControllerBase::FetchUserFiles()
 {
     std::vector<TUserFile*> userFiles;
 
-    auto chunkSpecFetcher = New<TChunkSpecFetcher>(
+    auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
         InputClient,
         InputNodeDirectory_,
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
