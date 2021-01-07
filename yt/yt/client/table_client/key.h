@@ -17,7 +17,7 @@ public:
     TKey(const TUnversionedValue* begin, int length);
 
     //! Returns true if key is non-null and false otherwise.
-    operator bool() const;
+    explicit operator bool() const;
 
     //! Construct from a given row and possibly key length and validate that row does not contain
     //! setntinels of types Min, Max and Bottom. If key length is not specified, row length will be used instead.
@@ -57,6 +57,8 @@ bool operator!=(const TKey& lhs, const TKey& rhs);
 
 void FormatValue(TStringBuilderBase* builder, const TKey& key, TStringBuf format);
 TString ToString(const TKey& key);
+
+void Serialize(const TKey& key, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,8 +3,12 @@
 #include "row_buffer.h"
 #include "serialize.h"
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NTableClient {
 
+using namespace NYson;
+using namespace NYTree;
 using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,6 +171,22 @@ TKeyBound TKeyBoundImpl<TRow, TKeyBound>::LowerCounterpart() const
 }
 
 template <class TRow, class TKeyBound>
+TStringBuf TKeyBoundImpl<TRow, TKeyBound>::GetRelation() const
+{
+    if (IsUpper && IsInclusive) {
+        return "<=";
+    } else if (IsUpper && !IsInclusive) {
+        return "<";
+    } else if (!IsUpper && IsInclusive) {
+        return ">=";
+    } else if (!IsUpper && !IsInclusive) {
+        return ">";
+    } else {
+        Y_UNREACHABLE();
+    }
+}
+
+template <class TRow, class TKeyBound>
 void TKeyBoundImpl<TRow, TKeyBound>::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -174,6 +194,21 @@ void TKeyBoundImpl<TRow, TKeyBound>::Persist(const TPersistenceContext& context)
     Persist(context, Prefix);
     Persist(context, IsInclusive);
     Persist(context, IsUpper);
+}
+
+template <class TRow, class TKeyBound>
+void TKeyBoundImpl<TRow, TKeyBound>::Serialize(IYsonConsumer* consumer) const
+{
+    if (*this) {
+        BuildYsonFluently(consumer)
+            .BeginList()
+                .Item().Value(GetRelation())
+                .Item().Value(Prefix)
+            .EndList();
+    } else {
+        BuildYsonFluently(consumer)
+            .Entity();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,6 +241,11 @@ TString ToString(const TOwningKeyBound& keyBound)
     return ToStringViaBuilder(keyBound);
 }
 
+void Serialize(const TKeyBound& keyBound, IYsonConsumer* consumer)
+{
+    keyBound.Serialize(consumer);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TOwningKeyBound TKeyBound::ToOwning() const
@@ -225,6 +265,11 @@ void FormatValue(TStringBuilderBase* builder, const TKeyBound& keyBound, TString
 TString ToString(const TKeyBound& keyBound)
 {
     return ToStringViaBuilder(keyBound);
+}
+
+void Serialize(const TOwningKeyBound& keyBound, IYsonConsumer* consumer)
+{
+    keyBound.Serialize(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

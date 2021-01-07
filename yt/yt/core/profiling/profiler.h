@@ -469,7 +469,7 @@ public:
     }
 
     //! Needed for PROFILE_TIMING.
-    operator bool() const
+    explicit operator bool() const
     {
         return false;
     }
@@ -533,7 +533,7 @@ public:
         }
     }
 
-    operator bool() const
+    explicit operator bool() const
     {
         return false;
     }

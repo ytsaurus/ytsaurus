@@ -28,6 +28,8 @@ public:
         //! Used only for persistence.
         TEntry();
 
+        bool operator ==(const TEntry& other) const;
+
         void Persist(const TPersistenceContext& context);
     private:
         using TContentType = std::variant<NChunkClient::TInputChunkPtr, int>;

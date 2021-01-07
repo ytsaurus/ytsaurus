@@ -11,6 +11,11 @@ void TBoundaryKeys::Persist(const TPersistenceContext& context)
     Persist(context, MaxKey);
 }
 
+bool TBoundaryKeys::operator ==(const TBoundaryKeys& other) const
+{
+    return MinKey == other.MinKey && MaxKey == other.MaxKey;
+}
+
 TBoundaryKeys::operator bool() const
 {
     return static_cast<bool>(MinKey) && static_cast<bool>(MaxKey);
@@ -88,6 +93,11 @@ void TChunkStripeKey::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Key_);
+}
+
+bool TChunkStripeKey::operator ==(const TChunkStripeKey& other) const
+{
+    return Key_ == other.Key_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

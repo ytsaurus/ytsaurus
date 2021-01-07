@@ -16,7 +16,9 @@ struct TBoundaryKeys
 
     void Persist(const TPersistenceContext& context);
 
-    operator bool() const;
+    bool operator ==(const TBoundaryKeys& other) const;
+
+    explicit operator bool() const;
 };
 
 //! A generic key that allows us to sort chunk stripes.
@@ -33,7 +35,7 @@ public:
     bool IsBoundaryKeys() const;
     bool IsOutputOrderEntry() const;
 
-    operator bool() const;
+    explicit operator bool() const;
 
     int& AsIndex();
     int AsIndex() const;
@@ -45,6 +47,8 @@ public:
     const NChunkPools::TOutputOrder::TEntry& AsOutputOrderEntry() const;
 
     void Persist(const TPersistenceContext& context);
+
+    bool operator ==(const TChunkStripeKey& other) const;
 
 private:
     std::variant<int, TBoundaryKeys, NChunkPools::TOutputOrder::TEntry> Key_;

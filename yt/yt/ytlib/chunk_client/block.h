@@ -40,7 +40,7 @@ struct TBlock
     //! for block reordering (see TBlockReorderer).
     std::optional<int> GroupIndex;
 
-    operator bool() const;
+    explicit operator bool() const;
 
     size_t Size() const;
 
