@@ -191,19 +191,19 @@ void ValidateKeyColumnCount(
     }
 }
 
-void ValidateKeyColumns(
-    const TKeyColumns& tableKeyColumns,
-    const TKeyColumns& chunkKeyColumns,
+void ValidateSortColumns(
+    const TSortColumns& tableSortColumns,
+    const TSortColumns& chunkSortColumns,
     bool requireUniqueKeys)
 {
-    ValidateKeyColumnCount(tableKeyColumns.size(), chunkKeyColumns.size(), requireUniqueKeys);
+    ValidateKeyColumnCount(tableSortColumns.size(), chunkSortColumns.size(), requireUniqueKeys);
 
-    for (int i = 0; i < std::min(tableKeyColumns.size(), chunkKeyColumns.size()); ++i) {
-        if (chunkKeyColumns[i] != tableKeyColumns[i]) {
+    for (int i = 0; i < std::min(tableSortColumns.size(), chunkSortColumns.size()); ++i) {
+        if (chunkSortColumns[i] != tableSortColumns[i]) {
             THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
-                "Incompatible key columns: chunk key columns %v, table key columns %v",
-                chunkKeyColumns,
-                tableKeyColumns);
+                "Incompatible sort columns: chunk sort columns %v, table sort columns %v",
+                chunkSortColumns,
+                tableSortColumns);
         }
     }
 }

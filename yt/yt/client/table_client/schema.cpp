@@ -1030,7 +1030,10 @@ void FromProto(
     for (int columnIndex = 0; columnIndex < protoKeyColumns.names_size(); ++columnIndex) {
         auto& columnSchema = columns[columnIndex];
         YT_VERIFY(columnSchema.Name() == protoKeyColumns.names(columnIndex));
-        columnSchema.SetSortOrder(ESortOrder::Ascending);
+        // TODO(gritukan): YT-14155 
+        if (!columnSchema.SortOrder()) {
+            columnSchema.SetSortOrder(ESortOrder::Ascending);
+        }
     }
     for (int columnIndex = protoKeyColumns.names_size(); columnIndex < columns.size(); ++columnIndex) {
         auto& columnSchema = columns[columnIndex];

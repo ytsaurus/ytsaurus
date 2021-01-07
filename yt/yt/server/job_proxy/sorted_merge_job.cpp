@@ -48,6 +48,12 @@ public:
 
         auto keyColumns = FromProto<TKeyColumns>(MergeJobSpecExt_.key_columns());
 
+        // TODO(gritukan): Descending!
+        TSortColumns sortColumns;
+        for (const auto& keyColumn : keyColumns) {
+            sortColumns.push_back({keyColumn, ESortOrder::Ascending});
+        }
+
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
         std::vector<ISchemalessMultiChunkReaderPtr> readers;
 
@@ -79,7 +85,7 @@ public:
                 nameTable,
                 BlockReadOptions_,
                 /* columnFilter */ {},
-                keyColumns,
+                sortColumns,
                 /* partitionTag */ std::nullopt,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),

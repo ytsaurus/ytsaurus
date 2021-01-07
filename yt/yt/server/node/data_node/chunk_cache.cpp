@@ -1157,7 +1157,7 @@ private:
             nameTable,
             blockReadOptions,
             /* columnFilter */ {},
-            /* keyColumns */ {},
+            /* sortColumns */ {},
             /* partitionTag */ std::nullopt,
             trafficMeter,
             Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),

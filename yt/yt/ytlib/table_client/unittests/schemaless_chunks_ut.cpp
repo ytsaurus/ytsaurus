@@ -15,6 +15,7 @@
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
+#include <yt/client/table_client/column_sort_schema.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
@@ -328,7 +329,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         MemoryReader_,
         readNameTable,
         blockReadOptions,
-        /* keyColumns */ {},
+        /* sortColumns */ {},
         /* omittedInaccessibleColumns */ {},
         columnFilter,
         std::get<3>(GetParam()));
@@ -476,7 +477,7 @@ protected:
             MemoryReader_,
             TNameTable::FromSchema(*Schema_),
             blockReadOptions,
-            /* keyColumns */ {},
+            /* sortColumns */ {},
             /* omittedInaccessibleColumns */ {},
             columnFilter,
             TLegacyReadRange());
@@ -690,7 +691,7 @@ protected:
 
     ISchemalessChunkReaderPtr LookupRows(
         TSharedRange<TLegacyKey> keys,
-        const TKeyColumns& keyColumns)
+        const TSortColumns& sortColumns)
     {
         auto options = New<TChunkReaderOptions>();
         options->DynamicTable = true;
@@ -704,7 +705,7 @@ protected:
             Schema_);
         auto chunkMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
-        chunkMeta->InitBlockLastKeys(keyColumns);
+        chunkMeta->InitBlockLastKeys(GetColumnNames(sortColumns));
 
         auto chunkState = New<TChunkState>(
             GetNullBlockCache(),
@@ -724,7 +725,7 @@ protected:
             MemoryReader_,
             WriteNameTable_,
             blockReadOptions,
-            keyColumns,
+            sortColumns,
             /* omittedInaccessibleColumns */ {},
             /* columnFilter */ {},
             keys);
@@ -766,7 +767,7 @@ TEST_P(TSchemalessChunksLookupTest, Simple)
         keys.push_back(key);
     }
 
-    auto reader = LookupRows(MakeSharedRange(keys), Schema_->GetKeyColumns());
+    auto reader = LookupRows(MakeSharedRange(keys), Schema_->GetSortColumns());
     CheckSchemalessResult(expected, reader, Schema_->GetKeyColumnCount());
 }
 
@@ -775,9 +776,9 @@ TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
     std::vector<TUnversionedRow> expected;
     std::vector<TUnversionedRow> keys;
 
-    auto keyColumns = Schema_->GetKeyColumns();
-    keyColumns.push_back("w1");
-    keyColumns.push_back("w2");
+    auto sortColumns = Schema_->GetSortColumns();
+    sortColumns.push_back({"w1", ESortOrder::Ascending});
+    sortColumns.push_back({"w2", ESortOrder::Ascending});
 
     for (int index = 0; index < Rows_.size(); ++index) {
         if (index % 10 != 0) {
@@ -787,7 +788,7 @@ TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
         auto row = Rows_[index];
         expected.push_back(row);
 
-        auto key = TMutableUnversionedRow::Allocate(&Pool_, keyColumns.size());
+        auto key = TMutableUnversionedRow::Allocate(&Pool_, sortColumns.size());
         for (int valueIndex = 0; valueIndex < Schema_->GetKeyColumnCount(); ++valueIndex) {
             key[valueIndex] = row[valueIndex];
         }
@@ -797,7 +798,7 @@ TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
         keys.push_back(key);
     }
 
-    auto reader = LookupRows(MakeSharedRange(keys), keyColumns);
+    auto reader = LookupRows(MakeSharedRange(keys), sortColumns);
     CheckSchemalessResult(expected, reader, Schema_->GetKeyColumnCount());
 }
 

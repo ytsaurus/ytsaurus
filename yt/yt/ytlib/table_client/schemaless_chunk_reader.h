@@ -13,6 +13,7 @@
 #include <yt/client/chunk_client/read_limit.h>
 #include <yt/client/chunk_client/reader_base.h>
 
+#include <yt/client/table_client/column_sort_schema.h>
 #include <yt/client/table_client/unversioned_reader.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -51,7 +52,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const NChunkClient::TLegacyReadRange& readRange,
@@ -67,7 +68,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,

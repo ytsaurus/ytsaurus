@@ -135,7 +135,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -217,7 +217,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             remoteReader,
                             nameTable,
                             blockReadOptions,
-                            keyColumns,
+                            sortColumns,
                             dataSource.OmittedInaccessibleColumns(),
                             columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                             range,
@@ -287,7 +287,6 @@ public:
     TSchemalessMultiChunkReader(
         IMultiReaderManagerPtr multiReaderManager,
         TNameTablePtr nameTable,
-        const TKeyColumns& keyColumns,
         const std::vector<TDataSliceDescriptor>& dataSliceDescriptors);
 
     ~TSchemalessMultiChunkReader();
@@ -348,7 +347,6 @@ public:
 private:
     const IMultiReaderManagerPtr MultiReaderManager_;
     const TNameTablePtr NameTable_;
-    const TKeyColumns KeyColumns_;
 
     ISchemalessChunkReaderPtr CurrentReader_;
     std::atomic<i64> RowIndex_ = 0;
@@ -368,11 +366,9 @@ private:
 TSchemalessMultiChunkReader::TSchemalessMultiChunkReader(
     IMultiReaderManagerPtr multiReaderManager,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors)
     : MultiReaderManager_(std::move(multiReaderManager))
     , NameTable_(nameTable)
-    , KeyColumns_(keyColumns)
     , RowCount_(GetCumulativeRowCount(dataSliceDescriptors))
 {
     if (dataSliceDescriptors.empty()) {
@@ -509,7 +505,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -542,7 +538,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
                 nameTable,
                 blockReadOptions,
                 columnFilter,
-                keyColumns,
+                sortColumns,
                 partitionTag,
                 trafficMeter,
                 std::move(bandwidthThrottler),
@@ -550,7 +546,6 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
                 multiReaderMemoryManager),
             multiReaderMemoryManager),
         nameTable,
-        keyColumns,
         dataSliceDescriptors);
 }
 
@@ -569,7 +564,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
-    const TKeyColumns& keyColumns,
+    const TSortColumns& sortColumns,
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -602,7 +597,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
                 nameTable,
                 blockReadOptions,
                 columnFilter,
-                keyColumns,
+                sortColumns,
                 partitionTag,
                 trafficMeter,
                 std::move(bandwidthThrottler),
@@ -610,7 +605,6 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
                 multiReaderMemoryManager),
             multiReaderMemoryManager),
         nameTable,
-        keyColumns,
         dataSliceDescriptors);
 }
 
@@ -865,10 +859,6 @@ private:
     // Number of "active" columns in id mapping.
     int SchemaColumnCount_ = 0;
 
-    // Columns that output row stream is sorted by. May not coincide with schema key columns,
-    // because some column may be filtered out by the column filter.
-    TKeyColumns KeyColumns_;
-
     const TPromise<void> ErrorPromise_ = NewPromise<void>();
 
     TLogger Logger;
@@ -912,14 +902,6 @@ private:
             if (id >= 0) {
                 ++SchemaColumnCount_;
             }
-        }
-
-        for (int index = 0; index < Schema_->GetKeyColumnCount(); ++index) {
-            if (IdMapping_[index] < 0) {
-                break;
-            }
-
-            KeyColumns_.push_back(Schema_->Columns()[index].Name());
         }
     }
 
@@ -1354,7 +1336,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 nameTable,
                 blockReadOptions,
                 columnFilter,
-                dataSource.Schema()->GetKeyColumns(),
+                dataSource.Schema()->GetSortColumns(),
                 /* partitionTag */ std::nullopt,
                 /* trafficMeter */ nullptr,
                 bandwidthThrottler,

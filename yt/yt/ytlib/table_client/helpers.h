@@ -6,6 +6,7 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/adapters.h>
 #include <yt/client/table_client/columnar_statistics.h>
+#include <yt/client/table_client/column_sort_schema.h>
 #include <yt/client/table_client/table_output.h>
 #include <yt/client/table_client/unversioned_row_batch.h>
 
@@ -52,23 +53,23 @@ TUnversionedValue MakeUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Checks whether chunk with `chunkKeyColumns' key columns
-//! can belong to sorted table with `tableKeyColumns' key columns and
+//! Checks whether chunk with `chunkSortColumns' sort columns
+//! can belong to sorted table with `tableSortColumns' sort columns and
 //! given key uniqueness.
 //! Table is sorted without key uniqueness requirement iff all of its
 //! chunks are sorted, boundary keys of neighbouring chunks are properly ordered when
-//! compared by first `tableKeyColumns' values (replacing missing values with nulls if necessary)
-//! and for all chunks `chunkKeyColumns' is prefix of `tableKeyColumns' or
-//! `tableKeyColumns' is prefix of `chunkKeyColumns'.
+//! compared by first `tableSortColumns' values (replacing missing values with nulls if necessary)
+//! and for all chunks `chunkSortColumns' is prefix of `tableSortColumns' or
+//! `tableSortColumns' is prefix of `chunkSortColumns'.
 //! Table is sorted with key uniqueness requirement iff all of its chunks are sorted
 //! and have unique keys, boundary keys of neighbouring chunks are properly ordered
-//! and different and `chunkKeyColumns' is a prefix of `tableKeyColumns'.
-void ValidateKeyColumns(
-    const TKeyColumns& tableKeyColumns,
-    const TKeyColumns& chunkKeyColumns,
+//! and different and `chunkSortColumns' is a prefix of `tableSortColumns'.
+void ValidateSortColumns(
+    const TSortColumns& tableSortColumns,
+    const TSortColumns& chunkSortColumns,
     bool requireUniqueKeys);
 
-//! Same as `ValidateKeyColumns' but does not check column names.
+//! Same as `ValidateSortColumns' but does not check column names.
 void ValidateKeyColumnCount(
     int tableKeyColumnCount,
     int chunkKeyColumnCount,
