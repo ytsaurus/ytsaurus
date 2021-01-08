@@ -831,7 +831,9 @@ private:
         }
 
         auto logMessage = builder.Flush();
-        AddTag(RequestInfoAnnotation, logMessage);
+        if (TraceContext_) {
+            TraceContext_->AddTag(RequestInfoAnnotation, logMessage);
+        }
         YT_LOG_EVENT(Logger, LogLevel_, logMessage);
     }
 
@@ -872,7 +874,9 @@ private:
             TotalTime_);
 
         auto logMessage = builder.Flush();
-        AddTag(ResponseInfoAnnotation, logMessage);
+        if (TraceContext_) {
+            TraceContext_->AddTag(ResponseInfoAnnotation, logMessage);
+        }
         YT_LOG_EVENT(Logger, LogLevel_, logMessage);
     }
 
