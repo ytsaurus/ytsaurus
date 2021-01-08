@@ -9,6 +9,8 @@
 #include "delayed_executor.h"
 #include "thread_affinity.h"
 
+#include <yt/core/tracing/trace_context.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +31,7 @@ TFuture<T> TAsyncBatcher<T>::Run()
         PendingPromise_ = NewPromise<void>();
         if (BatchingDelay_) {
             TDelayedExecutor::Submit(
-                BIND(&TAsyncBatcher::OnDeadlineReached, MakeWeak(this)),
+                BIND_DONT_CAPTURE_TRACE_CONTEXT(&TAsyncBatcher::OnDeadlineReached, MakeWeak(this)),
                 BatchingDelay_);
         } else {
             DeadlineReached_ = true;
@@ -48,13 +50,15 @@ TFuture<T> TAsyncBatcher<T>::Run()
 template <class T>
 void TAsyncBatcher<T>::Cancel(const TError& error)
 {
-    auto guard = Guard(Lock_);
+    auto lockGuard = Guard(Lock_);
     std::array<TPromise<T>, 2> promises{
         std::move(PendingPromise_),
         std::move(ActivePromise_)
     };
-    guard.Release();
-    for (auto& promise : promises) {
+    lockGuard.Release();
+
+    NTracing::TNullTraceContextGuard traceContextGuard;
+    for (const auto& promise : promises) {
         if (promise) {
             promise.TrySet(error);
         }
@@ -89,7 +93,7 @@ void TAsyncBatcher<T>::DoRun(TSpinlockGuard<TAdaptiveLock>& guard)
 
     Provider_
         .Run()
-        .Subscribe(BIND(&TAsyncBatcher::OnResult, MakeWeak(this)));
+        .Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT(&TAsyncBatcher::OnResult, MakeWeak(this)));
 }
 
 template <class T>
