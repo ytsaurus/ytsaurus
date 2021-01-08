@@ -517,6 +517,7 @@ protected:
         TFairShareStrategyTreeConfigPtr treeConfig,
         TString treeId,
         TString id,
+        EResourceTreeElementKind elementKind,
         const NLogging::TLogger& logger);
     TSchedulerElement(
         const TSchedulerElement& other,
@@ -588,6 +589,7 @@ public:
         NProfiling::TTagId profilingTag,
         const TString& treeId,
         const TString& id,
+        EResourceTreeElementKind elementKind,
         const NLogging::TLogger& logger);
     TCompositeSchedulerElement(
         const TCompositeSchedulerElement& other,

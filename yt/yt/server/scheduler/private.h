@@ -58,6 +58,12 @@ DEFINE_ENUM(EResourceTreeIncreaseResult,
     (ResourceLimitExceeded)
 );
 
+DEFINE_ENUM(EResourceTreeElementKind,
+    (Operation)
+    (Pool)
+    (Root)
+);
+
 extern const NLogging::TLogger SchedulerEventLogger;
 extern const NLogging::TLogger SchedulerResourceMeteringLogger;
 

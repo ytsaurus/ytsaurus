@@ -588,9 +588,10 @@ TSchedulerElement::TSchedulerElement(
     TFairShareStrategyTreeConfigPtr treeConfig,
     TString treeId,
     TString id,
+    EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
     : TSchedulerElementFixedState(host, treeHost, std::move(treeConfig), std::move(treeId))
-    , ResourceTreeElement_(New<TResourceTreeElement>(TreeHost_->GetResourceTree(), id))
+    , ResourceTreeElement_(New<TResourceTreeElement>(TreeHost_->GetResourceTree(), id, elementKind))
     , Logger(logger)
 {
     if (id == RootPoolName) {
@@ -1133,8 +1134,9 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     NProfiling::TTagId profilingTag,
     const TString& treeId,
     const TString& id,
+    EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
-    : TSchedulerElement(host, treeHost, std::move(treeConfig), treeId, id, logger)
+    : TSchedulerElement(host, treeHost, std::move(treeConfig), treeId, id, elementKind, logger)
     , ProducerBuffer_(New<TBufferedProducer>())
 { }
 
@@ -2281,6 +2283,7 @@ TPool::TPool(
         profilingTag,
         treeId,
         id,
+        EResourceTreeElementKind::Pool,
         logger.WithTag("PoolId: %v, SchedulingMode: %v",
             id,
             config->Mode))
@@ -3213,6 +3216,7 @@ TOperationElement::TOperationElement(
         std::move(treeConfig),
         treeId,
         ToString(operation->GetId()),
+        EResourceTreeElementKind::Operation,
         logger.WithTag("OperationId: %v", operation->GetId()))
     , TOperationElementFixedState(operation, std::move(controllerConfig))
     , RuntimeParameters_(std::move(runtimeParameters))
@@ -4404,6 +4408,7 @@ TRootElement::TRootElement(
         profilingTag,
         treeId,
         RootPoolName,
+        EResourceTreeElementKind::Root,
         logger.WithTag("PoolId: %v, SchedulingMode: %v",
             RootPoolName,
             ESchedulingMode::FairShare))

@@ -7,9 +7,13 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceTreeElement::TResourceTreeElement(TResourceTree* resourceTree, const TString& id)
+TResourceTreeElement::TResourceTreeElement(
+    TResourceTree* resourceTree,
+    const TString& id,
+    EResourceTreeElementKind elementKind)
     : ResourceTree_(resourceTree)
     , Id_(id)
+    , Kind_(elementKind)
 { }
 
 TJobResources TResourceTreeElement::GetResourceUsage()
@@ -54,10 +58,18 @@ void TResourceTreeElement::SetResourceLimits(TJobResources resourceLimits)
     ResourceTree_->IncrementUsageLockWriteCount();
 
     ResourceLimits_ = resourceLimits;
+    ResourceLimitsSpecified_ = (resourceLimits != TJobResources::Infinite());
+    if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+        ResourceUsagePrecommit_ = TJobResources();
+    }
 }
 
 bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(const TJobResources& delta)
 {
+    if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
+        return true;
+    }
+
     auto guard = WriterGuard(ResourceUsageLock_);
 
     if (!Alive_) {
@@ -84,7 +96,10 @@ bool TResourceTreeElement::CommitLocalResourceUsage(
     ResourceTree_->IncrementUsageLockWriteCount();
 
     ResourceUsage_ += resourceUsageDelta;
-    ResourceUsagePrecommit_ -= precommittedResources;
+    if (Kind_ == EResourceTreeElementKind::Operation || ResourceLimitsSpecified_) {
+        // We can try to subtract some excessive resource usage precommit, if precommit was added before resource limits were set.
+        ResourceUsagePrecommit_ = Max(TJobResources(), ResourceUsagePrecommit_ - precommittedResources);
+    }
     
     YT_VERIFY(Dominates(ResourceUsage_, TJobResources()));
 
@@ -134,6 +149,11 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     const TJobResources& delta,
     TJobResources* availableResourceLimitsOutput)
 {
+    if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
+        *availableResourceLimitsOutput = TJobResources::Infinite();
+        return true;
+    }
+
     auto guard = WriterGuard(ResourceUsageLock_);
 
     if (!Alive_) {
