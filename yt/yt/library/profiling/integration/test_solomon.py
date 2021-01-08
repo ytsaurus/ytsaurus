@@ -20,7 +20,7 @@ def test_url():
         ]
 
         p = yatest.common.execute(cmd, wait=False, env={"YT_LOG_LEVEL": "DEBUG"})
-        time.sleep(12)
+        time.sleep(15)
         assert p.running
 
         yield f"http://localhost:{port}"
