@@ -739,16 +739,20 @@ private:
             return;
         }
 
+        {
+            NTracing::TNullTraceContextGuard guard;
+            auto syncError = TError(
+                NRpc::EErrorCode::Unavailable,
+                "Failed to synchronize with cell %v since it has disconnected",
+                mailbox->GetCellId());
+            for (const auto& [messageId, syncPromise] : mailbox->SyncRequests()) {
+                syncPromise.Set(syncError);
+            }
+        }
+
+        mailbox->SyncRequests().clear();
         mailbox->SetConnected(false);
         mailbox->SetPostInProgress(false);
-        auto syncError = TError(
-            NRpc::EErrorCode::Unavailable,
-            "Failed to synchronize with cell %v since it has disconnected",
-            mailbox->GetCellId());
-        for (const auto& [messageId, syncPromise] : mailbox->SyncRequests()) {
-            syncPromise.Set(syncError);
-        }
-        mailbox->SyncRequests().clear();
         mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
         mailbox->SetInFlightOutcomingMessageCount(0);
         TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
@@ -905,7 +909,7 @@ private:
         }
 
         auto batcher = New<TAsyncBatcher<void>>(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT(&TImpl::DoSyncWith, MakeWeak(this), cellId),
+            BIND(&TImpl::DoSyncWith, MakeWeak(this), cellId),
             Config_->SyncDelay);
 
         {
@@ -940,6 +944,8 @@ private:
         YT_LOG_DEBUG("Synchronizing with another instance (SrcCellId: %v, DstCellId: %v)",
             cellId,
             SelfCellId_);
+
+        NTracing::TNullTraceContextGuard guard;
 
         THiveServiceProxy proxy(std::move(channel));
 
@@ -1024,6 +1030,7 @@ private:
 
     void FlushSyncRequests(TMailbox* mailbox)
     {
+        NTracing::TNullTraceContextGuard guard;
         auto& syncRequests = mailbox->SyncRequests();
         while (!syncRequests.empty()) {
             auto it = syncRequests.begin();
@@ -1063,8 +1070,10 @@ private:
             return;
         }
 
+        NTracing::TNullTraceContextGuard guard;
+
         mailbox->SetPostBatchingCookie(TDelayedExecutor::Submit(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT([this, this_ = MakeStrong(this), cellId = mailbox->GetCellId()] {
+            BIND([this, this_ = MakeStrong(this), cellId = mailbox->GetCellId()] {
                 TWallTimer timer;
                 auto finally = Finally([&] {
                     SyncPostingTimeCounter_.Add(timer.GetElapsedTime());
@@ -1095,6 +1104,8 @@ private:
             return;
         }
 
+        NTracing::TNullTraceContextGuard guard;
+
         auto firstInFlightOutcomingMessageId = mailbox->GetFirstInFlightOutcomingMessageId();
         auto firstOutcomingMessageId = mailbox->GetFirstOutcomingMessageId();
         const auto& outcomingMessages = mailbox->OutcomingMessages();
@@ -1107,7 +1118,7 @@ private:
         TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
         if (!allowIdle && firstInFlightOutcomingMessageId == mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size()) {
             mailbox->IdlePostCookie() = TDelayedExecutor::Submit(
-                BIND_DONT_CAPTURE_TRACE_CONTEXT(&TImpl::OnIdlePostOutcomingMessages, MakeWeak(this), dstCellId)
+                BIND(&TImpl::OnIdlePostOutcomingMessages, MakeWeak(this), dstCellId)
                     .Via(EpochAutomatonInvoker_),
                 Config_->IdlePostPeriod);
             return;
