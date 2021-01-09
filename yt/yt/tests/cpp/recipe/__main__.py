@@ -31,7 +31,7 @@ def get_output_dir():
 def prepare_yatest_environment():
     destination = os.path.join(get_output_dir(), "build")
     os.makedirs(destination)
-    path = arcadia_interop.prepare_yt_environment(destination, copy_ytserver_all=True, need_suid=False)
+    path = arcadia_interop.prepare_yt_environment(destination, copy_ytserver_all="YT_OUTPUT" not in os.environ, need_suid=False)
     os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
 
