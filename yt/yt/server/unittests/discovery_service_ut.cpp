@@ -97,16 +97,16 @@ public:
         }
     }
 
-    TDiscoveryClientPtr CreateDiscoveryClient(
+    IDiscoveryClientPtr CreateDiscoveryClient(
         const TDiscoveryClientConfigPtr& discoveryClientConfig = New<TDiscoveryClientConfig>())
     {
         if (discoveryClientConfig->ServerAddresses.empty()) {
             discoveryClientConfig->ServerAddresses = Addresses_;
         }
-        return New<TDiscoveryClient>(discoveryClientConfig, ChannelFactory_);
+        return NDiscoveryClient::CreateDiscoveryClient(discoveryClientConfig, ChannelFactory_);
     }
 
-    TMemberClientPtr CreateMemberClient(
+    IMemberClientPtr CreateMemberClient(
         const TString& groupId,
         const TString& memberId,
         const TMemberClientConfigPtr& memberClientConfig = New<TMemberClientConfig>())
@@ -118,7 +118,7 @@ public:
         memberClientConfig->AttributeUpdatePeriod = TDuration::Seconds(1);
         const auto& actionQueue = New<TActionQueue>("MemberClient");
         ActionQueues_.push_back(actionQueue);
-        return New<TMemberClient>(
+        return NDiscoveryClient::CreateMemberClient(
             memberClientConfig,
             ChannelFactory_,
             actionQueue->GetInvoker(),
@@ -260,7 +260,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
     TString groupId = "/sample_group";
     TString memberId = "sample_member";
 
-    std::vector<TMemberClientPtr> memberClients;
+    std::vector<IMemberClientPtr> memberClients;
     int membersNum = 10;
     for (int i = 0; i < membersNum; ++i) {
         memberClients.push_back(CreateMemberClient(groupId, memberId + ToString(i)));

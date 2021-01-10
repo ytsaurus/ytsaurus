@@ -27,8 +27,9 @@ class TRspHeartbeat;
 
 DECLARE_REFCOUNTED_CLASS(TMemberClientConfig)
 DECLARE_REFCOUNTED_CLASS(TDiscoveryClientConfig)
-DECLARE_REFCOUNTED_CLASS(TMemberClient)
-DECLARE_REFCOUNTED_CLASS(TDiscoveryClient)
+
+DECLARE_REFCOUNTED_STRUCT(IMemberClient)
+DECLARE_REFCOUNTED_STRUCT(IDiscoveryClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 

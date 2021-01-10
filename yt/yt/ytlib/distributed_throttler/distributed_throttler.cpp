@@ -216,7 +216,7 @@ public:
     TDistributedThrottlerService(
         IServerPtr rpcServer,
         IInvokerPtr invoker,
-        TDiscoveryClientPtr discoveryClient,
+        IDiscoveryClientPtr discoveryClient,
         TGroupId groupId,
         TDistributedThrottlerConfigPtr config,
         TRealmId realmId,
@@ -373,7 +373,7 @@ public:
 
 private:
     const IServerPtr RpcServer_;
-    const TDiscoveryClientPtr DiscoveryClient_;
+    const IDiscoveryClientPtr DiscoveryClient_;
     const TString GroupId_;
     const TPeriodicExecutorPtr UpdatePeriodicExecutor_;
     TThrottlers* const Throttlers_;
@@ -708,13 +708,13 @@ public:
         : ChannelFactory_(std::move(channelFactory))
         , GroupId_(std::move(groupId))
         , MemberId_(std::move(memberId))
-        , MemberClient_(New<TMemberClient>(
+        , MemberClient_(CreateMemberClient(
             config->MemberClient,
             ChannelFactory_,
             invoker,
             MemberId_,
             GroupId_))
-        , DiscoveryClient_(New<TDiscoveryClient>(
+        , DiscoveryClient_(CreateDiscoveryClient(
             config->DiscoveryClient,
             ChannelFactory_))
         , UpdateLimitsExecutor_(New<TPeriodicExecutor>(
@@ -854,8 +854,8 @@ private:
     const IChannelFactoryPtr ChannelFactory_;
     const TGroupId GroupId_;
     const TMemberId MemberId_;
-    const TMemberClientPtr MemberClient_;
-    const TDiscoveryClientPtr DiscoveryClient_;
+    const IMemberClientPtr MemberClient_;
+    const IDiscoveryClientPtr DiscoveryClient_;
     const TPeriodicExecutorPtr UpdateLimitsExecutor_;
     const TPeriodicExecutorPtr UpdateLeaderExecutor_;
     const TRealmId RealmId_;
