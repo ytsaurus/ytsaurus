@@ -68,11 +68,11 @@ IAttributeDictionaryPtr CreateMemberAttributes(IAttributeDictionaryPtr underlyin
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemberClient::TImpl
-    : public TRefCounted
+class TMemberClient
+    : public IMemberClient
 {
 public:
-    TImpl(
+    TMemberClient(
         TMemberClientConfigPtr config,
         IChannelFactoryPtr channelFactory,
         IInvokerPtr invoker,
@@ -82,7 +82,7 @@ public:
         , GroupId_(std::move(groupId))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             std::move(invoker),
-            BIND(&TImpl::OnHeartbeat, MakeWeak(this)),
+            BIND(&TMemberClient::OnHeartbeat, MakeWeak(this)),
             config->HeartbeatPeriod))
         , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
         , Logger(DiscoveryClientLogger.WithTag("GroupId: %v, MemberId: %v",
@@ -97,34 +97,34 @@ public:
         , ThreadSafeAttributes_(CreateThreadSafeAttributes(Attributes_.Get()))
     { }
 
-    NYTree::IAttributeDictionary* GetAttributes()
+    virtual NYTree::IAttributeDictionary* GetAttributes() override
     {
         return ThreadSafeAttributes_.Get();
     }
 
-    i64 GetPriority()
+    virtual i64 GetPriority() override
     {
         return Priority_.load();
     }
 
-    void SetPriority(i64 value)
+    virtual void SetPriority(i64 value) override
     {
         Priority_ = value;
     }
 
-    void Start()
+    virtual void Start() override
     {
         YT_LOG_INFO("Starting member client");
         PeriodicExecutor_->Start();
     }
 
-    void Stop()
+    virtual void Stop() override
     {
         YT_LOG_INFO("Stopping member client");
         PeriodicExecutor_->Stop();
     }
 
-    void Reconfigure(TMemberClientConfigPtr config)
+    virtual void Reconfigure(TMemberClientConfigPtr config) override
     {
         auto guard = WriterGuard(Lock_);
 
@@ -203,50 +203,19 @@ private:
     }
 };
 
-TMemberClient::TMemberClient(
+IMemberClientPtr CreateMemberClient(
     TMemberClientConfigPtr config,
     IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
     TString memberId,
     TString groupId)
-    : Impl_(New<TImpl>(
+{
+    return New<TMemberClient>(
         std::move(config),
         std::move(channelFactory),
         std::move(invoker),
         std::move(memberId),
-        std::move(groupId)))
-{ }
-
-TMemberClient::~TMemberClient() = default;
-
-NYTree::IAttributeDictionary* TMemberClient::GetAttributes()
-{
-    return Impl_->GetAttributes();
-}
-
-i64 TMemberClient::GetPriority()
-{
-    return Impl_->GetPriority();
-}
-
-void TMemberClient::SetPriority(i64 value)
-{
-    Impl_->SetPriority(value);
-}
-
-void TMemberClient::Start()
-{
-    Impl_->Start();
-}
-
-void TMemberClient::Stop()
-{
-    Impl_->Stop();
-}
-
-void TMemberClient::Reconfigure(TMemberClientConfigPtr config)
-{
-    Impl_->Reconfigure(std::move(config));
+        std::move(groupId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

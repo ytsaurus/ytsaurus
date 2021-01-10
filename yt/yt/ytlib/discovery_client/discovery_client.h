@@ -15,30 +15,23 @@ namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryClient
-    : public TRefCounted
+struct IDiscoveryClient
+    : public virtual TRefCounted
 {
-public:
-    TDiscoveryClient(
-        TDiscoveryClientConfigPtr config,
-        NRpc::IChannelFactoryPtr channelFactory);
+    virtual TFuture<std::vector<TMemberInfo>> ListMembers(
+        const TString& groupId,
+        const TListMembersOptions& option) = 0;
 
-    TFuture<std::vector<TMemberInfo>> ListMembers(const TString& groupId, const TListMembersOptions& option);
+    virtual TFuture<TGroupMeta> GetGroupMeta(const TString& groupId) = 0;
 
-    TFuture<TGroupMeta> GetGroupMeta(const TString& groupId);
-
-    void Reconfigure(TDiscoveryClientConfigPtr config);
-
-private:
-    const NLogging::TLogger Logger;
-    const NRpc::IChannelFactoryPtr ChannelFactory_;
-    const NRpc::TServerAddressPoolPtr AddressPool_;
-
-    NConcurrency::TReaderWriterSpinLock Lock_;
-    TDiscoveryClientConfigPtr Config_;
+    virtual void Reconfigure(TDiscoveryClientConfigPtr config) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDiscoveryClient)
+DEFINE_REFCOUNTED_TYPE(IDiscoveryClient)
+
+IDiscoveryClientPtr CreateDiscoveryClient(
+    TDiscoveryClientConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

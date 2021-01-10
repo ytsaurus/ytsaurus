@@ -150,7 +150,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
             i == 0 ? leaderThrottlerConfig : throttlerConfig));
     }
 
-    auto discoveryClient = New<TDiscoveryClient>(
+    auto discoveryClient = CreateDiscoveryClient(
         config->DiscoveryClient,
         channelFactory);
 
@@ -237,7 +237,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
             i == 0 ? leaderThrottlerConfig : throttlerConfig));
     }
 
-    auto discoveryClient = New<TDiscoveryClient>(
+    auto discoveryClient = CreateDiscoveryClient(
         config->DiscoveryClient,
         channelFactory);
 

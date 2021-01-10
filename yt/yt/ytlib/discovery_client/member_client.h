@@ -12,34 +12,28 @@ namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemberClient
-    : public TRefCounted
+struct IMemberClient
+    : public virtual TRefCounted
 {
-public:
-    TMemberClient(
-        TMemberClientConfigPtr config,
-        NRpc::IChannelFactoryPtr channelFactory,
-        IInvokerPtr invoker,
-        TString id,
-        TString groupId);
-    ~TMemberClient();
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
 
-    void Start();
-    void Stop();
+    virtual void Reconfigure(TMemberClientConfigPtr config) = 0;
 
-    void Reconfigure(TMemberClientConfigPtr config);
+    virtual NYTree::IAttributeDictionary* GetAttributes() = 0;
 
-    NYTree::IAttributeDictionary* GetAttributes();
-
-    i64 GetPriority();
-    void SetPriority(i64 value);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual i64 GetPriority() = 0;
+    virtual void SetPriority(i64 value) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TMemberClient)
+DEFINE_REFCOUNTED_TYPE(IMemberClient)
+
+IMemberClientPtr CreateMemberClient(
+    TMemberClientConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory,
+    IInvokerPtr invoker,
+    TString id,
+    TString groupId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
