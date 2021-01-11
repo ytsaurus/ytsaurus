@@ -5,14 +5,17 @@ from __future__ import print_function
 from yt.common import copy_docstring_from
 
 import yt.wrapper.yson as yson
-from yt.wrapper.common import chunk_iter_stream, MB, \
-                              DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
-                              chunk_iter_rows, format_disk_space
-from yt.wrapper.cli_helpers import write_silently, print_to_output, run_main, ParseStructuredArgument, populate_argument_help
+from yt.wrapper.common import (
+    chunk_iter_stream, MB,
+    DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources,
+    chunk_iter_rows, format_disk_space)
+from yt.wrapper.cli_helpers import (
+    write_silently, print_to_output, run_main, ParseStructuredArgument, populate_argument_help)
 from yt.wrapper.default_config import get_default_config
-from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder, \
-                                     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder, \
-                                     VanillaSpecBuilder
+from yt.wrapper.spec_builders import (
+    MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder,
+    MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder,
+    VanillaSpecBuilder)
 import yt.wrapper.job_tool as yt_job_tool
 import yt.wrapper.completers as completers
 import yt.wrapper.idm_cli_helpers as idm
@@ -247,20 +250,29 @@ def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **
         argument.completer = completers.complete_ypath
 
 def add_structured_format_argument(parser, name="--format", help="", **kwargs):
-    description = 'response or input format: yson or json, for example: "<format=binary>yson". See also: https://yt.yandex-team.ru/docs/description/storage/formats.html'
+    description = 'response or input format: yson or json, for example: "<format=binary>yson". '\
+                  'See also: https://yt.yandex-team.ru/docs/description/storage/formats.html'
     add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
 
 def add_format_argument(parser, name="--format", help="", **kwargs):
-    description = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred_dsv", "schemaful_dsv" with modifications. See also: https://yt.yandex-team.ru/docs/description/storage/formats.html'
+    description = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred_dsv", "schemaful_dsv" '\
+                  'with modifications. See also: https://yt.yandex-team.ru/docs/description/storage/formats.html'
     add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
 
 def add_structured_argument(parser, name, help="", **kwargs):
     description = "structured %s in %s format" % (name.strip("-"), YT_ARGUMENTS_FORMAT)
-    add_argument(parser, name, help, description=description, action=ParseStructuredArgument, action_load_method=parse_arguments, **kwargs)
+    add_argument(
+        parser,
+        name,
+        help,
+        description=description,
+        action=ParseStructuredArgument,
+        action_load_method=parse_arguments,
+        **kwargs)
 
 def add_type_argument(parser, name, hybrid=False):
     NODE_TYPE_HELP = "one of table, file, document, account, user, list_node, map_node, "\
-                 "string_node, int64_node, uint64_node, double_node, ..."
+                     "string_node, int64_node, uint64_node, double_node, ..."
     if not hybrid:
         add_argument(parser, name, "", description=NODE_TYPE_HELP)
     else:
@@ -268,7 +280,8 @@ def add_type_argument(parser, name, hybrid=False):
 
 def add_read_from_arguments(parser):
     parser.add_argument("--read-from", help='Can be set to "cache" to enable reads from system cache')
-    parser.add_argument("--cache-sticky-group-size", type=int, help='Size of sticky group size for read_from="cache" mode')
+    parser.add_argument("--cache-sticky-group-size", type=int,
+                        help='Size of sticky group size for read_from="cache" mode')
 
 @copy_docstring_from(yt.exists)
 def exists(**kwargs):
@@ -299,7 +312,8 @@ def formatted_print(obj, path, long_format, recursive_resource_usage):
         size = get_disk_space_from_resources(resource_usage)
         date, time = get_attr("modification_time").split("T")
         time = time[:5]
-        sys.stdout.write("%10s %20s %10s %10s %5s %s%s\n" % (type, user, format_disk_space(size), date, time, str(obj), link_tail))
+        sys.stdout.write("%10s %20s %10s %10s %5s %s%s\n" %
+                         (type, user, format_disk_space(size), date, time, str(obj), link_tail))
     else:
         print_to_output(obj)
 
@@ -418,7 +432,8 @@ def add_read_file_parser(add_parser):
         add_ypath_argument(parser, "path", hybrid=True)
         add_structured_argument(parser, "--file-reader")
         parser.add_argument("--offset", type=int, help="offset in input file in bytes, 0 by default")
-        parser.add_argument("--length", type=int, help="length in bytes of desired part of input file, all file without offset by default")
+        parser.add_argument("--length", type=int, help="length in bytes of desired part of input file, "
+                                                       "all file without offset by default")
 
 @copy_docstring_from(yt.read_blob_table)
 def read_blob_table(**kwargs):
@@ -471,7 +486,10 @@ def add_write_file_parser(add_parser):
 
 def add_write_table_parser(add_parser):
     for name, func in [("write", write_table), ("write-table", write_table)]:
-        parser = add_parser(name, func, epilog="Rewrite table by default. For append mode specify <append=true> before path.")
+        parser = add_parser(
+            name,
+            func,
+            epilog="Rewrite table by default. For append mode specify <append=true> before path.")
         add_ypath_argument(parser, "table", hybrid=True)
         add_format_argument(parser, help="input format")
         add_structured_argument(parser, "--table-writer")
@@ -534,7 +552,8 @@ def create_pool(**kwargs):
         try:
             kwargs["attributes"]["pool_tree"] = yt.get("//sys/scheduler/orchid/scheduler/default_pool_tree")
         except yt.YtError as err:
-            raise yt.YtError("Failed to retrive default pool tree from scheduler orchid; please specify the pool_tree argument",
+            raise yt.YtError("Failed to retrive default pool tree from scheduler orchid; "
+                             "please specify the pool_tree argument",
                              inner_errors=[err])
     print(yt.create("scheduler_pool", **kwargs))
 
@@ -574,7 +593,8 @@ def add_get_parser(add_parser):
                               "of entries will be listed (it's not specified which subset); "
                               "default value is enough to list any nonsystem directory."))
     add_structured_format_argument(parser, default=output_format)
-    parser.add_argument("--attribute", action="append", dest="attributes", help="desired node attributes in the response")
+    parser.add_argument("--attribute", action="append", dest="attributes",
+                        help="desired node attributes in the response")
     add_read_from_arguments(parser)
 
 @copy_docstring_from(yt.set)
@@ -635,8 +655,10 @@ def add_move_parser(add_parser):
     add_ypath_argument(parser, "destination_path", help="new node address, path must not exist", hybrid=True)
 
     preserve_account_parser = parser.add_mutually_exclusive_group(required=False)
-    preserve_account_parser.add_argument("--preserve-account", dest="preserve_account", default=None, action="store_true")
-    preserve_account_parser.add_argument("--no-preserve-account", dest="preserve_account", default=None, action="store_false")
+    preserve_account_parser.add_argument("--preserve-account", dest="preserve_account",
+                                         default=None, action="store_true")
+    preserve_account_parser.add_argument("--no-preserve-account", dest="preserve_account",
+                                         default=None, action="store_false")
     parser.add_argument("--preserve-expiration-time", action="store_true",
                         help="preserve expiration time of moved nodes")
     parser.add_argument("--preserve-owner", action="store_true",
@@ -654,8 +676,9 @@ def add_link_parser(add_parser):
     parser.add_argument("-r", "--recursive", action="store_true", help="create parent nodes recursively")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
     parser.add_argument("-l", "--lock-existing", action="store_true")
-    parser.add_argument("-f", "--force", action="store_true", help="force create link even if destination already exists "
-                                                                   "(supported only on cluster with 19+ version)")
+    parser.add_argument("-f", "--force", action="store_true",
+                        help="force create link even if destination already exists "
+                             "(supported only on cluster with 19+ version)")
     add_structured_argument(parser, "--attributes")
 
 def add_concatenate_parser(add_parser):
@@ -679,10 +702,12 @@ def add_mount_table_parser(add_parser):
     parser.add_argument("--freeze", action="store_true")
     parser.add_argument("--sync", action="store_true")
     cell_id_parser = parser.add_mutually_exclusive_group(required=False)
-    cell_id_parser.add_argument("--cell-id",
+    cell_id_parser.add_argument(
+        "--cell-id",
         help="tablet cell id where the tablets will be mounted to, "
              "if omitted then an appropriate cell is chosen automatically")
-    cell_id_parser.add_argument("--target-cell-ids", nargs="+",
+    cell_id_parser.add_argument(
+        "--target-cell-ids", nargs="+",
         help="tablet cell id for each tablet in range "
              "[first-tablet-index, last-tablet-index]. Should be used if exact "
              "destination cell for each tablet is known.")
@@ -788,14 +813,18 @@ def select_rows(print_statistics=None, **kwargs):
     if print_statistics:
         response_parameters = {}
 
-    write_silently(chunk_iter_stream(yt.select_rows(raw=True, response_parameters=response_parameters, **kwargs), yt.config["read_buffer_size"]))
+    select_result = yt.select_rows(raw=True, response_parameters=response_parameters, **kwargs)
+    write_silently(chunk_iter_stream(select_result, yt.config["read_buffer_size"]))
     if print_statistics:
         print_to_output(dump_data(response_parameters), output_stream=sys.stderr)
 
 def add_select_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
     for name in ("select", "select-rows"):
-        parser = add_parser(name, select_rows, epilog="Supported features: https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language.html")
+        parser = add_parser(
+            name, select_rows,
+            epilog="Supported features: "
+                   "https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language.html")
         add_hybrid_argument(parser, "query")
         parser.add_argument("--timestamp", type=int)
         parser.add_argument("--input-row-limit", type=int)
@@ -808,8 +837,10 @@ def add_select_rows_parser(add_parser):
         group.add_argument("--allow-full-scan", dest="allow_full_scan", default=None, action="store_true")
         group.add_argument("--forbid-full-scan", dest="allow_full_scan", default=None, action="store_false")
         group = parser.add_mutually_exclusive_group(required=False)
-        group.add_argument("--allow-join-without-index", dest="allow_join_without_index", default=None, action="store_true")
-        group.add_argument("--forbid-join-without-index", dest="allow_join_without_index", default=None, action="store_false")
+        group.add_argument("--allow-join-without-index", dest="allow_join_without_index",
+                           default=None, action="store_true")
+        group.add_argument("--forbid-join-without-index", dest="allow_join_without_index",
+                           default=None, action="store_false")
         parser.add_argument("--execution-pool", type=str)
         parser.add_argument("--format", action=ParseFormat)
         parser.add_argument("--print-statistics", default=None, action="store_true")
@@ -828,8 +859,10 @@ def add_explain_query_parser(add_parser):
     group.add_argument("--allow-full-scan", dest="allow_full_scan", default=None, action="store_true")
     group.add_argument("--forbid-full-scan", dest="allow_full_scan", default=None, action="store_false")
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument("--allow-join-without-index", dest="allow_join_without_index", default=None, action="store_true")
-    group.add_argument("--forbid-join-without-index", dest="allow_join_without_index", default=None, action="store_false")
+    group.add_argument("--allow-join-without-index", dest="allow_join_without_index",
+                       default=None, action="store_true")
+    group.add_argument("--forbid-join-without-index", dest="allow_join_without_index",
+                       default=None, action="store_false")
     parser.add_argument("--execution-pool", type=str)
     parser.add_argument("--format", action=ParseFormat)
 
@@ -856,8 +889,10 @@ def add_write_rows_arguments(parser):
     durability_parser.add_argument("--durability", dest="durability", default=None, action="store_true")
     durability_parser.add_argument("--no-durability", dest="durability", default=None, action="store_false")
     require_sync_replica_parser = parser.add_mutually_exclusive_group(required=False)
-    require_sync_replica_parser.add_argument("--require-sync-replica", dest="require_sync_replica", default=None, action="store_true")
-    require_sync_replica_parser.add_argument("--no-require-sync-replica", dest="require_sync_replica", default=None, action="store_false")
+    require_sync_replica_parser.add_argument(
+        "--require-sync-replica", dest="require_sync_replica", default=None, action="store_true")
+    require_sync_replica_parser.add_argument(
+        "--no-require-sync-replica", dest="require_sync_replica", default=None, action="store_false")
 
 
 def add_insert_rows_parser(add_parser):
@@ -961,7 +996,8 @@ def operation_args(parser):
     add_operation_handler_related_args(parser)
 
 def add_erase_parser(add_parser):
-    parser = add_parser("erase", operation_handler(yt.run_erase), epilog="Note you can specify range in table to erase.")
+    parser = add_parser("erase", operation_handler(yt.run_erase),
+                        epilog="Note you can specify range in table to erase.")
     add_ypath_argument(parser, "table", help="path to table to erase", hybrid=True)
     add_operation_handler_related_args(parser)
     add_structured_argument(parser, "--spec")
@@ -969,9 +1005,11 @@ def add_erase_parser(add_parser):
 def add_merge_parser(add_parser):
     parser = add_parser("merge", operation_handler(yt.run_merge))
     add_src_arg(parser)
-    add_ypath_argument(parser, "--dst", required=True, dest="destination_table",
+    add_ypath_argument(
+        parser, "--dst", required=True, dest="destination_table",
         help="path to destination table. For append mode add <append=true> before path.")
-    parser.add_argument("--mode", default="auto", choices=["unordered", "ordered", "sorted", "auto"],
+    parser.add_argument(
+        "--mode", default="auto", choices=["unordered", "ordered", "sorted", "auto"],
         help="use sorted mode for saving sortedness. unordered mode by default, ordered for saving order of chunks. "
              "Mode auto chooses from sorted and unordered modes depending on sortedness of source tables.")
     add_operation_handler_related_args(parser)
@@ -986,21 +1024,27 @@ def add_sort_parser(add_parser):
     add_structured_argument(parser, "--spec")
 
 def add_map_parser(add_parser):
-    parser = add_parser("map", operation_handler(yt.run_map), epilog="See also yt map-reduce --help for brief options description.")
+    parser = add_parser("map", operation_handler(yt.run_map),
+                        epilog="See also yt map-reduce --help for brief options description.")
     operation_args(parser)
     parser.add_argument("--ordered", action="store_true", help="Force ordered input for mapper.")
 
 def add_reduce_parser(add_parser):
-    parser = add_parser("reduce", operation_handler(yt.run_reduce),
-        epilog="See also yt map-reduce --help for brief options description.\n Note, source tables must be sorted!\
-For reducing not sorted table use map-reduce command without --mapper")
+    parser = add_parser(
+        "reduce",
+        operation_handler(yt.run_reduce),
+        epilog="See also yt map-reduce --help for brief options description.\n"
+               "Note, source tables must be sorted! "
+               "For reducing not sorted table use map-reduce command without --mapper")
     operation_args(parser)
     parser.add_argument("--reduce-by", action="append", required=False, help="Columns to reduce by.")
     parser.add_argument("--sort-by", action="append", required=False, help="Columns to sort by.")
     parser.add_argument("--join-by", action="append", required=False, help="Columns to join by.")
 
 def add_join_reduce_parser(add_parser):
-    parser = add_parser("join-reduce", operation_handler(yt.run_join_reduce),
+    parser = add_parser(
+        "join-reduce",
+        operation_handler(yt.run_join_reduce),
         epilog="See also yt map-reduce --help for brief options description.\n Note, source tables must be sorted!")
     operation_args(parser)
     parser.add_argument("--join-by", action="append", required=True, help="Columns to join by.")
@@ -1008,10 +1052,13 @@ def add_join_reduce_parser(add_parser):
 def add_remote_copy_parser(add_parser):
     parser = add_parser("remote-copy", operation_handler(yt.run_remote_copy))
     add_src_arg(parser, help="path to source tables in remote cluster")
-    parser.add_argument("--dst", required=True, dest="destination_table", help="path to destination table in current cluster")
-    parser.add_argument("--cluster", required=True, dest="cluster_name", help="remote cluster proxy, like smith")
+    parser.add_argument("--dst", required=True, dest="destination_table",
+                        help="path to destination table in current cluster")
+    parser.add_argument("--cluster", required=True, dest="cluster_name",
+                        help="remote cluster proxy, like smith")
     parser.add_argument("--network", dest="network_name")
-    parser.add_argument("--copy-attributes", action="store_true", help="specify this flag to coping node attributes too")
+    parser.add_argument("--copy-attributes", action="store_true",
+                        help="specify this flag to coping node attributes too")
     add_operation_handler_related_args(parser)
     add_structured_argument(parser, "--cluster-connection")
     add_structured_argument(parser, "--spec")
@@ -1061,7 +1108,8 @@ Source and destination tables can be specified multiple times (but be ready to p
 
 For append mode in destination table add <append=true> modificator to path.
 '''
-    parser = add_parser("map-reduce", operation_handler(yt.run_map_reduce), epilog=MAP_REDUCE_EPILOG, formatter_class=RawDescriptionHelpFormatter)
+    parser = add_parser("map-reduce", operation_handler(yt.run_map_reduce),
+                        epilog=MAP_REDUCE_EPILOG, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("--mapper", required=False)
     parser.add_argument("--reducer", required=True)
     parser.add_argument("--reduce-combiner", required=False)
@@ -1077,7 +1125,8 @@ For append mode in destination table add <append=true> modificator to path.
     parser.add_argument("--reducer-memory-limit", "--reduce-memory-limit", type=int, action=ParseMemoryLimit, help="in MB")
     parser.add_argument("--reduce-combiner-memory-limit", type=int, action=ParseMemoryLimit, help="in MB")
     parser.add_argument("--reduce-by", action="append", required=True, help="Columns to reduce by.")
-    parser.add_argument("--sort-by", action="append", help="Columns to sort by. Must be superset of reduce-by columns. By default is equal to --reduce-by option.")
+    parser.add_argument("--sort-by", action="append", help="Columns to sort by. Must be superset of reduce-by columns. "
+                                                           "By default is equal to --reduce-by option.")
     add_structured_argument(parser, "--spec")
     add_format_argument(parser)
     parser.add_argument("--map-input-format", action=ParseFormat, help="see --format help")
@@ -1167,11 +1216,13 @@ def add_list_operations_parser(add_parser):
 
     add_time_argument(parser, "--from-time", help="lower limit for operations start time")
     add_time_argument(parser, "--to-time", help="upper limit for operations start time")
-    add_time_argument(parser, "--cursor-time", help="cursor time. Used in combination with --cursor-direction and --limit")
+    add_time_argument(parser, "--cursor-time",
+                      help="cursor time. Used in combination with --cursor-direction and --limit")
     parser.add_argument("--cursor-direction", help='cursor direction, can be one of ("none", "past", "future"). '
                                                    'Used in combination with --cursor-time and --limit')
     parser.add_argument("--include-archive", action="store_true", help="include operations from archive in result")
-    parser.add_argument("--no-include-counters", action="store_true", help="do not include operation counters in result")
+    parser.add_argument("--no-include-counters", action="store_true",
+                        help="do not include operation counters in result")
     parser.add_argument("--limit", type=int, help="maximum number of operations in output")
     add_structured_format_argument(parser)
 
@@ -1212,7 +1263,8 @@ def lock(**kwargs):
 def add_lock_parser(add_parser):
     parser = add_parser("lock", lock)
     add_ypath_argument(parser, "path", hybrid=True)
-    parser.add_argument("--mode", help="blocking type, exclusive by default", choices=["snapshot", "shared", "exclusive"])
+    parser.add_argument("--mode", choices=["snapshot", "shared", "exclusive"],
+                        help="blocking type, exclusive by default")
     parser.add_argument("--waitable", action="store_true", help="wait for lock if node is under blocking")
     parser.add_argument("--wait-for", type=int, help="wait interval in milliseconds")
     parser.add_argument("--child-key", help="child key of shared lock")
@@ -1288,7 +1340,7 @@ def add_transfer_account_resources_parser(add_parser):
 
 @copy_docstring_from(yt.generate_timestamp)
 def generate_timestamp():
-    print_to_stdout(str(yt.generate_timestamp()))
+    print_to_output(str(yt.generate_timestamp()))
 
 def add_generate_timestamp_parser(add_parser):
     parser = add_parser("generate-timestamp", help="generate timestamp")
@@ -1305,7 +1357,8 @@ def add_run_job_shell_parser(add_parser):
 def add_abort_job_parser(add_parser):
     parser = add_parser("abort-job", yt.abort_job)
     parser.add_argument("job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
-    parser.add_argument("--interrupt-timeout", type=int, help="try to interrupt job before abort during timeout (in ms)")
+    parser.add_argument("--interrupt-timeout", type=int,
+                        help="try to interrupt job before abort during timeout (in ms)")
 
 @copy_docstring_from(yt.get_job_stderr)
 def get_job_stderr(**kwargs):
@@ -1341,9 +1394,12 @@ def get_job_spec(**kwargs):
 def add_get_job_spec_parser(add_parser):
     parser = add_parser("get-job-spec", get_job_spec)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
-    parser.add_argument("--omit-node-directory", type=bool, help='Whether node directory should be removed from job spec (true by default)')
-    parser.add_argument("--omit-input-table-specs", type=bool, help='Whether input table specs should be removed from job spec (false by default)')
-    parser.add_argument("--omit-output-table-specs", type=bool, help='Whether output table specs should be removed from job spec (false by default)')
+    parser.add_argument("--omit-node-directory", type=bool,
+                        help='Whether node directory should be removed from job spec (true by default)')
+    parser.add_argument("--omit-input-table-specs", type=bool,
+                        help='Whether input table specs should be removed from job spec (false by default)')
+    parser.add_argument("--omit-output-table-specs", type=bool,
+                        help='Whether output table specs should be removed from job spec (false by default)')
 
 @copy_docstring_from(yt.get_supported_features)
 def get_supported_features(**kwargs):
@@ -1385,8 +1441,10 @@ def add_list_jobs_parser(add_parser):
     parser.add_argument("--job-state", help="filter jobs by job state")
     parser.add_argument("--address", help="filter jobs by node address")
     parser.add_argument("--job-competition-id", help="filter jobs by job competition id")
-    parser.add_argument("--sort-field", help='field to sort jobs by. Can be one of ("none", "type", "state", "start_time", '
-                                             '"finish_time", "address", "duration", "progress", "id")')
+    parser.add_argument("--sort-field",
+                        choices=("type", "state", "start_time", "finish_time",
+                                 "address", "durartion", "progress", "id"),
+                        help="field to sort jobs by")
     parser.add_argument("--sort-order", help='sort order. Can be either "ascending" or "descending"')
     parser.add_argument("--limit", type=int, help="output limit")
     parser.add_argument("--offset", type=int, help="offset starting from zero")
@@ -1394,13 +1452,19 @@ def add_list_jobs_parser(add_parser):
     parser.add_argument("--with-stderr", default=None, action="store_true")
     parser.add_argument("--with-fail-context", default=None, action="store_true")
     parser.add_argument("--with-competitors", default=None, action="store_true", help="with competitive jobs")
-    parser.add_argument("--include-cypress", action="store_true",
-                        help='include jobs from Cypress in result. Have effect only if --data-source is set to "manual"')
-    parser.add_argument("--include-runtime", action="store_true",
-                        help='include jobs from controller agents in result. Have effect only if --data-source is set to "manual"')
-    parser.add_argument("--include-archive", action="store_true",
-                        help='include jobs from archive in result. Have effect only if --data-source is set to "manual"')
-    parser.add_argument("--data-source", help='data sources to list jobs from. Can be one of ("auto", "runtime", "archive", "manual")')
+    parser.add_argument(
+        "--include-cypress", action="store_true",
+        help='include jobs from Cypress in result. Have effect only if --data-source is set to "manual"')
+    parser.add_argument(
+        "--include-runtime", action="store_true",
+        help='include jobs from controller agents in result. Have effect only if --data-source is set to "manual"')
+    parser.add_argument(
+        "--include-archive", action="store_true",
+        help='include jobs from archive in result. Have effect only if --data-source is set to "manual"')
+    parser.add_argument(
+        "--data-source",
+        choices=("auto", "runtime", "archive", "manual"),
+        help='data sources to list jobs from')
     add_structured_format_argument(parser)
 
 def add_transform_parser(add_parser):
@@ -1480,7 +1544,8 @@ def add_idm_parser(root_subparsers):
     # idm request
     request_parser = populate_argument_help(idm_subparsers.add_parser("request", description="Show IDM information"))
     add_idm_request_or_revoke_parser(request_parser)
-    request_parser.add_argument("--permissions", "-p", action="store", dest="permissions",
+    request_parser.add_argument(
+        "--permissions", "-p", action="store", dest="permissions",
         type=idm.decode_permissions, default=[],
         help="Permissions like: R - read; RW - read, write, remove; M - mount, U - use")
     request_parser.set_defaults(func=idm.request)
@@ -1496,57 +1561,72 @@ def add_idm_parser(root_subparsers):
 
 def add_idm_show_parser(idm_subparsers):
     parser = populate_argument_help(idm_subparsers.add_parser("show", description="Show IDM information"))
-    parser.add_argument("--immediate", "-i", help="Show only immediate IDM information (not inherited)",
+    parser.add_argument(
+        "--immediate", "-i", help="Show only immediate IDM information (not inherited)",
         action="store_true", default=False)
     parser.set_defaults(func=idm.show)
 
 def add_idm_request_or_revoke_parser(parser):
     # Approvers definition
-    parser.add_argument("--responsibles", "-r", action="store", dest="responsibles",
+    parser.add_argument(
+        "--responsibles", "-r", action="store", dest="responsibles",
         nargs="*", default=[], help="User logins space separated")
-    parser.add_argument("--read-approvers", "-a", action="store", dest="read_approvers",
+    parser.add_argument(
+        "--read-approvers", "-a", action="store", dest="read_approvers",
         nargs="*", default=[], help="User logins space separated")
-    parser.add_argument("--auditors", "-u", action="store", dest="auditors",
+    parser.add_argument(
+        "--auditors", "-u", action="store", dest="auditors",
         nargs="*", default=[], help="User logins space separated")
 
     # Flags definition
     inherit_acl_group = parser.add_mutually_exclusive_group(required=False)
-    inherit_acl_group.add_argument("--set-inherit-acl", action="store_true", dest="inherit_acl",
+    inherit_acl_group.add_argument(
+        "--set-inherit-acl", action="store_true", dest="inherit_acl",
         help="Enable ACL inheritance")
-    inherit_acl_group.add_argument("--unset-inherit-acl", action="store_false", dest="inherit_acl",
+    inherit_acl_group.add_argument(
+        "--unset-inherit-acl", action="store_false", dest="inherit_acl",
         help="Disable ACL inheritance")
 
     inherit_resps_group = parser.add_mutually_exclusive_group(required=False)
-    inherit_resps_group.add_argument("--set-inherit-responsibles", action="store_true", dest="inherit_responsibles",
+    inherit_resps_group.add_argument(
+        "--set-inherit-responsibles", action="store_true", dest="inherit_responsibles",
         help="Enable inheritance responsibles, read apporvers, auditors, boss_approval")
-    inherit_resps_group.add_argument("--unset-inherit-responsibles", action="store_false", dest="inherit_responsibles",
+    inherit_resps_group.add_argument(
+        "--unset-inherit-responsibles", action="store_false", dest="inherit_responsibles",
         help="Disable inheritance of responsibles, read apporvers, auditors, boss_approval")
 
     boss_approval_group = parser.add_mutually_exclusive_group(required=False)
-    boss_approval_group.add_argument("--set-boss-approval", action="store_true", dest="boss_approval",
+    boss_approval_group.add_argument(
+        "--set-boss-approval", action="store_true", dest="boss_approval",
         help="Enable boss approval requirement for personal roles")
-    boss_approval_group.add_argument("--unset-boss-approval", action="store_false", dest="boss_approval",
+    boss_approval_group.add_argument(
+        "--unset-boss-approval", action="store_false", dest="boss_approval",
         help="Disable boss approval requirement for personal roles")
 
-    parser.add_argument("--members", "-m", action="store", dest="members",
+    parser.add_argument(
+        "--members", "-m", action="store", dest="members",
         nargs="*", default=[], help="Members list to remove or add. Only for groups")
 
-    parser.add_argument("--subjects", "-s", dest="subjects", nargs="*", default=[],
+    parser.add_argument(
+        "--subjects", "-s", dest="subjects", nargs="*", default=[],
         help="Space separated user logins or staff/ABC groups like idm-group:ID")
 
     parser.add_argument("--comment", dest="comment", help="Comment for the role")
-    parser.add_argument("--dry-run", action="store_true", dest="dry_run",
+    parser.add_argument(
+        "--dry-run", action="store_true", dest="dry_run",
         help="Do not make real changes", default=False)
 
 
 def add_idm_copy_parser(idm_subparsers):
     parser = populate_argument_help(idm_subparsers.add_parser("copy", description="Copy IDM permissions"))
     parser.add_argument("destination", help="Destination object")
-    parser.add_argument("--immediate", "-i", help="Only copy immediate IDM permissions",
+    parser.add_argument(
+        "--immediate", "-i", help="Only copy immediate IDM permissions",
         action="store_true", default=False)
     parser.add_argument("--erase", "-e", action="store_true",
                         help="Erase all existing permissions from destination object")
-    parser.add_argument("--dry-run", action="store_true", dest="dry_run",
+    parser.add_argument(
+        "--dry-run", action="store_true", dest="dry_run",
         help="Do not make real changes", default=False)
     parser.set_defaults(func=idm.copy)
 
@@ -1595,7 +1675,7 @@ def clickhouse_execute_handler(**kwargs):
         parsed_settings = {}
         for setting in settings:
             if '=' not in setting:
-                raise ValueError("Invalid setting '" + setting + "'. " +
+                raise ValueError("Invalid setting '" + setting + "'. "
                                  "Setting is expected to be in format <key>=<value>")
 
             setting_key, setting_value = setting.split('=', 1)
@@ -1687,7 +1767,8 @@ def add_subparser(subparsers, params_argument=True):
     def add_parser(command_name, function=None, help=None, pythonic_help=None, *args, **kwargs):
         if pythonic_help is None:
             pythonic_help = extract_help(help, function)
-        parser = populate_argument_help(subparsers.add_parser(command_name, *args, description=help, help=pythonic_help, **kwargs))
+        parser = populate_argument_help(
+            subparsers.add_parser(command_name, *args, description=help, help=pythonic_help, **kwargs))
         parser.set_defaults(func=function)
 
         if params_argument:
