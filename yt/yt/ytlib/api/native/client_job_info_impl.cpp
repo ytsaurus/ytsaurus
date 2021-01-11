@@ -950,10 +950,22 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
 }
 
 TSharedRef TClient::DoGetJobStderr(
-    TOperationId operationId,
+    const TOperationIdOrAlias& operationIdOrAlias,
     TJobId jobId,
-    const TGetJobStderrOptions& /*options*/)
+    const TGetJobStderrOptions& options)
 {
+    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetOperationTimeout);
+    auto deadline = timeout.ToDeadLine();
+
+    TOperationId operationId;
+    Visit(operationIdOrAlias.Payload,
+        [&] (const TOperationId& id) {
+            operationId = id;
+        },
+        [&] (const TString& alias) {
+            operationId = ResolveOperationAlias(alias, options, deadline);
+        });
+
     auto stderrRef = DoGetJobStderrFromNode(operationId, jobId);
     if (stderrRef) {
         return stderrRef;
@@ -1078,10 +1090,22 @@ TSharedRef TClient::DoGetJobFailContextFromCypress(
 }
 
 TSharedRef TClient::DoGetJobFailContext(
-    TOperationId operationId,
+    const TOperationIdOrAlias& operationIdOrAlias,
     TJobId jobId,
-    const TGetJobFailContextOptions& /*options*/)
+    const TGetJobFailContextOptions& options)
 {
+    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetOperationTimeout);
+    auto deadline = timeout.ToDeadLine();
+
+    TOperationId operationId;
+    Visit(operationIdOrAlias.Payload,
+        [&] (const TOperationId& id) {
+            operationId = id;
+        },
+        [&] (const TString& alias) {
+            operationId = ResolveOperationAlias(alias, options, deadline);
+        });
+
     if (auto failContextRef = DoGetJobFailContextFromCypress(operationId, jobId)) {
         return failContextRef;
     }
@@ -1879,11 +1903,20 @@ static TError TryFillJobPools(
 }
 
 TListJobsResult TClient::DoListJobs(
-    TOperationId operationId,
+    const TOperationIdOrAlias& operationIdOrAlias,
     const TListJobsOptions& options)
 {
     auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListJobsTimeout);
     auto deadline = timeout.ToDeadLine();
+
+    TOperationId operationId;
+    Visit(operationIdOrAlias.Payload,
+        [&] (const TOperationId& id) {
+            operationId = id;
+        },
+        [&] (const TString& alias) {
+            operationId = ResolveOperationAlias(alias, options, deadline);
+        });
 
     // Issue the requests in parallel.
     TFuture<std::vector<TJob>> archiveResultFuture;
@@ -2119,12 +2152,21 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
 }
 
 TYsonString TClient::DoGetJob(
-    TOperationId operationId,
+    const TOperationIdOrAlias& operationIdOrAlias,
     TJobId jobId,
     const TGetJobOptions& options)
 {
     auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetJobTimeout);
     auto deadline = timeout.ToDeadLine();
+
+    TOperationId operationId;
+    Visit(operationIdOrAlias.Payload,
+        [&] (const TOperationId& id) {
+            operationId = id;
+        },
+        [&] (const TString& alias) {
+            operationId = ResolveOperationAlias(alias, options, deadline);
+        });
 
     const auto& attributes = options.Attributes.value_or(DefaultGetJobAttributes);
 

@@ -95,13 +95,12 @@ void TGetJobSpecCommand::DoExecute(ICommandContextPtr context)
 
 TGetJobStderrCommand::TGetJobStderrCommand()
 {
-    RegisterParameter("operation_id", OperationId);
     RegisterParameter("job_id", JobId);
 }
 
 void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
 {
-    auto result = WaitFor(context->GetClient()->GetJobStderr(OperationId, JobId, Options))
+    auto result = WaitFor(context->GetClient()->GetJobStderr(OperationIdOrAlias, JobId, Options))
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
@@ -113,13 +112,12 @@ void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
 
 TGetJobFailContextCommand::TGetJobFailContextCommand()
 {
-    RegisterParameter("operation_id", OperationId);
     RegisterParameter("job_id", JobId);
 }
 
 void TGetJobFailContextCommand::DoExecute(ICommandContextPtr context)
 {
-    auto result = WaitFor(context->GetClient()->GetJobFailContext(OperationId, JobId, Options))
+    auto result = WaitFor(context->GetClient()->GetJobFailContext(OperationIdOrAlias, JobId, Options))
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
@@ -279,8 +277,6 @@ void TListOperationsCommand::DoExecute(ICommandContextPtr context)
 
 TListJobsCommand::TListJobsCommand()
 {
-    RegisterParameter("operation_id", OperationId);
-
     RegisterParameter("type", Options.Type)
         .Alias("job_type")
         .Optional();
@@ -330,7 +326,7 @@ TListJobsCommand::TListJobsCommand()
 
 void TListJobsCommand::DoExecute(ICommandContextPtr context)
 {
-    auto result = WaitFor(context->GetClient()->ListJobs(OperationId, Options))
+    auto result = WaitFor(context->GetClient()->ListJobs(OperationIdOrAlias, Options))
         .ValueOrThrow();
 
     context->ProduceOutputValue(BuildYsonStringFluently()
@@ -366,7 +362,6 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
 
 TGetJobCommand::TGetJobCommand()
 {
-    RegisterParameter("operation_id", OperationId);
     RegisterParameter("job_id", JobId);
     RegisterParameter("attributes", Options.Attributes)
         .Optional();
@@ -374,7 +369,7 @@ TGetJobCommand::TGetJobCommand()
 
 void TGetJobCommand::DoExecute(ICommandContextPtr context)
 {
-    auto asyncResult = context->GetClient()->GetJob(OperationId, JobId, Options);
+    auto asyncResult = context->GetClient()->GetJob(OperationIdOrAlias, JobId, Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 

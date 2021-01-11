@@ -187,12 +187,12 @@ public:
         const NApi::TGetJobSpecOptions& options) override;
 
     virtual TFuture<TSharedRef> GetJobStderr(
-        NJobTrackerClient::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobStderrOptions& options) override;
 
     virtual TFuture<TSharedRef> GetJobFailContext(
-        NJobTrackerClient::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobFailContextOptions& options) override;
 
@@ -200,11 +200,11 @@ public:
         const NApi::TListOperationsOptions& options) override;
 
     virtual TFuture<NApi::TListJobsResult> ListJobs(
-        NJobTrackerClient::TOperationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TListJobsOptions&) override;
 
     virtual TFuture<NYson::TYsonString> GetJob(
-        NJobTrackerClient::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobOptions& options) override;
 

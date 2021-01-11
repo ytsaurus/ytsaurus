@@ -2137,7 +2137,7 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         TListJobsOptions options;
         SetTimeoutOptions(&options, context.Get());
@@ -2188,9 +2188,9 @@ private:
         options.RunningJobsLookbehindPeriod = FromProto<TDuration>(request->running_jobs_lookbehind_period());
 
         context->SetRequestInfo(
-            "OperationId: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
+            "OperationIdOrAlias: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
             "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v",
-            operationId,
+            operationIdOrAlias,
             options.Type,
             options.State,
             options.Address,
@@ -2203,7 +2203,7 @@ private:
         CompleteCallWith(
             client,
             context,
-            client->ListJobs(operationId, options),
+            client->ListJobs(operationIdOrAlias, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_result(), result);
@@ -2306,20 +2306,20 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
         auto jobId = FromProto<TJobId>(request->job_id());
 
         TGetJobStderrOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("OperationId: %v, JobId: %v",
-            operationId,
+        context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v",
+            operationIdOrAlias,
             jobId);
 
         CompleteCallWith(
             client,
             context,
-            client->GetJobStderr(operationId, jobId, options),
+            client->GetJobStderr(operationIdOrAlias, jobId, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->Attachments().push_back(std::move(result));
@@ -2330,20 +2330,20 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
         auto jobId = FromProto<TJobId>(request->job_id());
 
         TGetJobFailContextOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("OperationId: %v, JobId: %v",
-            operationId,
+        context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v",
+            operationIdOrAlias,
             jobId);
 
         CompleteCallWith(
             client,
             context,
-            client->GetJobFailContext(operationId, jobId, options),
+            client->GetJobFailContext(operationIdOrAlias, jobId, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->Attachments().push_back(std::move(result));
@@ -2354,7 +2354,7 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
         auto jobId = FromProto<TJobId>(request->job_id());
 
         TGetJobOptions options;
@@ -2364,14 +2364,14 @@ private:
             FromProto(&options.Attributes, request->attributes());
         }
 
-        context->SetRequestInfo("OperationId: %v, JobId: %v",
-            operationId,
+        context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v",
+            operationIdOrAlias,
             jobId);
 
         CompleteCallWith(
             client,
             context,
-            client->GetJob(operationId, jobId, options),
+            client->GetJob(operationIdOrAlias, jobId, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_info(result.GetData());

@@ -843,7 +843,7 @@ TFuture<TYsonString> TClient::GetJobSpec(
 }
 
 TFuture<TSharedRef> TClient::GetJobStderr(
-    NJobTrackerClient::TOperationId operationId,
+    const TOperationIdOrAlias& operationIdOrAlias,
     NJobTrackerClient::TJobId jobId,
     const TGetJobStderrOptions& options)
 {
@@ -852,7 +852,7 @@ TFuture<TSharedRef> TClient::GetJobStderr(
     auto req = proxy.GetJobStderr();
     SetTimeoutOptions(*req, options);
 
-    ToProto(req->mutable_operation_id(), operationId);
+    NScheduler::ToProto(req, operationIdOrAlias);
     ToProto(req->mutable_job_id(), jobId);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobStderrPtr& rsp) {
@@ -862,7 +862,7 @@ TFuture<TSharedRef> TClient::GetJobStderr(
 }
 
 TFuture<TSharedRef> TClient::GetJobFailContext(
-    NJobTrackerClient::TOperationId operationId,
+    const TOperationIdOrAlias& operationIdOrAlias,
     NJobTrackerClient::TJobId jobId,
     const TGetJobFailContextOptions& options)
 {
@@ -871,7 +871,7 @@ TFuture<TSharedRef> TClient::GetJobFailContext(
     auto req = proxy.GetJobFailContext();
     SetTimeoutOptions(*req, options);
 
-    ToProto(req->mutable_operation_id(), operationId);
+    NScheduler::ToProto(req, operationIdOrAlias);
     ToProto(req->mutable_job_id(), jobId);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobFailContextPtr& rsp) {
@@ -940,7 +940,7 @@ TFuture<TListOperationsResult> TClient::ListOperations(
 }
 
 TFuture<TListJobsResult> TClient::ListJobs(
-    NJobTrackerClient::TOperationId operationId,
+    const TOperationIdOrAlias& operationIdOrAlias,
     const TListJobsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -948,7 +948,7 @@ TFuture<TListJobsResult> TClient::ListJobs(
     auto req = proxy.ListJobs();
     SetTimeoutOptions(*req, options);
 
-    ToProto(req->mutable_operation_id(), operationId);
+    NScheduler::ToProto(req, operationIdOrAlias);
 
     if (options.Type) {
         req->set_type(NProto::ConvertJobTypeToProto(*options.Type));
@@ -999,7 +999,7 @@ TFuture<TListJobsResult> TClient::ListJobs(
 }
 
 TFuture<TYsonString> TClient::GetJob(
-    NJobTrackerClient::TOperationId operationId,
+    const TOperationIdOrAlias& operationIdOrAlias,
     NJobTrackerClient::TJobId jobId,
     const TGetJobOptions& options)
 {
@@ -1008,7 +1008,7 @@ TFuture<TYsonString> TClient::GetJob(
     auto req = proxy.GetJob();
     SetTimeoutOptions(*req, options);
 
-    ToProto(req->mutable_operation_id(), operationId);
+    NScheduler::ToProto(req, operationIdOrAlias);
     ToProto(req->mutable_job_id(), jobId);
 
     ToProto(req->mutable_attributes(), options.Attributes);

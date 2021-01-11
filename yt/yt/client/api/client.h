@@ -852,10 +852,12 @@ struct TGetJobSpecOptions
 
 struct TGetJobStderrOptions
     : public TTimeoutOptions
+    , public TMasterReadOptions
 { };
 
 struct TGetJobFailContextOptions
     : public TTimeoutOptions
+    , public TMasterReadOptions
 { };
 
 DEFINE_ENUM(EOperationSortDirection,
@@ -997,6 +999,7 @@ struct TGetOperationOptions
 
 struct TGetJobOptions
     : public TTimeoutOptions
+    , public TMasterReadOptions
 {
     std::optional<THashSet<TString>> Attributes;
 };
@@ -1536,12 +1539,12 @@ struct IClient
         const TGetJobSpecOptions& options = {}) = 0;
 
     virtual TFuture<TSharedRef> GetJobStderr(
-        NJobTrackerClient::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const TGetJobStderrOptions& options = {}) = 0;
 
     virtual TFuture<TSharedRef> GetJobFailContext(
-        NJobTrackerClient::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const TGetJobFailContextOptions& options = {}) = 0;
 
@@ -1549,11 +1552,11 @@ struct IClient
         const TListOperationsOptions& options = {}) = 0;
 
     virtual TFuture<TListJobsResult> ListJobs(
-        NJobTrackerClient::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TListJobsOptions& options = {}) = 0;
 
     virtual TFuture<NYson::TYsonString> GetJob(
-        NScheduler::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const TGetJobOptions& options = {}) = 0;
 
