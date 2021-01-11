@@ -131,6 +131,7 @@ DEFINE_ENUM(EMasterReign,
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42
     ((RowBufferEmptyRowDeserialization)                             (1502))  // max42
+    ((RemoveOldCellTracker)                                         (1503))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

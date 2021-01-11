@@ -1,5 +1,4 @@
 #include "cell_tracker.h"
-#include "cell_tracker_impl_old.h"
 #include "cell_tracker_impl.h"
 #include "private.h"
 #include "config.h"
@@ -143,17 +142,12 @@ void TCellTracker::TImpl::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (!IsEnabled())
+    if (!IsEnabled()) {
         return;
+    }
 
     YT_PROFILE_TIMING("/cell_server/cell_balancer/scan_cells") {
-        const auto& config = GetDynamicConfig()->TabletCellBalancer;
-        if (config->EnableTabletCellBalancer) {
-            CellTrackerImpl_->ScanCells();
-        } else {
-            TCellTrackerImplOld(Bootstrap_, StartTime_)
-                .ScanCells();
-        }
+        CellTrackerImpl_->ScanCells();
     }
 }
 

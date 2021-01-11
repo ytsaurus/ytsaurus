@@ -292,15 +292,12 @@ class TDynamicTabletCellBalancerMasterConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    bool EnableTabletCellBalancer;
     bool EnableTabletCellSmoothing;
     bool EnableVerboseLogging;
     TDuration RebalanceWaitTime;
 
     TDynamicTabletCellBalancerMasterConfig()
     {
-        RegisterParameter("enable_tablet_cell_balancer", EnableTabletCellBalancer)
-            .Default(true);
         RegisterParameter("enable_tablet_cell_smoothing", EnableTabletCellSmoothing)
             .Default(true);
         RegisterParameter("enable_verbose_logging", EnableVerboseLogging)
