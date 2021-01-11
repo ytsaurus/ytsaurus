@@ -807,6 +807,8 @@ void TOperationControllerBase::SleepInPrepare()
 
 TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+
     SleepInPrepare();
 
     // Testing purpose code.
@@ -924,6 +926,8 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
 TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize()
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+
     TOperationControllerMaterializeResult result;
 
     try {
@@ -1828,6 +1832,8 @@ i64 TOperationControllerBase::GetPartSize(EOutputTableType tableType)
 
 void TOperationControllerBase::SafeCommit()
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+
     SleepInCommitStage(EDelayInsideOperationCommitStage::Start);
 
     StartOutputCompletionTransaction();
@@ -2381,6 +2387,8 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
 
 void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+
     auto jobId = jobSummary->Id;
 
     if (State != EControllerState::Running) {
@@ -2662,6 +2670,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
 void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+
     auto jobId = jobSummary->Id;
     const auto& result = jobSummary->Result;
 
@@ -2754,6 +2764,8 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
 void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+
     auto jobId = jobSummary->Id;
     auto abortReason = jobSummary->AbortReason;
 
@@ -2834,6 +2846,8 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+
     auto jobId = jobSummary->Id;
 
     if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->CrashControllerAgent) {
@@ -3035,6 +3049,8 @@ void TOperationControllerBase::OnChunkFailed(TChunkId chunkId)
 
 void TOperationControllerBase::SafeOnIntermediateChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas, bool missing)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+
     if (missing) {
         // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
         return;
@@ -3050,6 +3066,8 @@ void TOperationControllerBase::SafeOnIntermediateChunkLocated(TChunkId chunkId, 
 
 void TOperationControllerBase::SafeOnInputChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas, bool missing)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+
     if (missing) {
         // We must have locked all the relevant input chunks, but when user transaction is aborted
         // there can be a race between operation completion and chunk scraper.
@@ -3340,6 +3358,8 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
 
 void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+
     YT_LOG_INFO("Terminating operation controller");
 
     // NB: Errors ignored since we cannot do anything with it.
@@ -3427,6 +3447,8 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 
 void TOperationControllerBase::SafeComplete()
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+
     OnOperationCompleted(true);
 }
 
@@ -4067,6 +4089,8 @@ TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleJobControllerQueue));
+
     if (Spec_->TestingOperationOptions->SchedulingDelay) {
         if (Spec_->TestingOperationOptions->SchedulingDelayType == ESchedulingDelayType::Async) {
             TDelayedExecutor::WaitForDuration(*Spec_->TestingOperationOptions->SchedulingDelay);
@@ -4527,7 +4551,7 @@ TJobResourcesWithQuotaList TOperationControllerBase::GetMinNeededJobResources() 
 
 void TOperationControllerBase::SafeUpdateMinNeededJobResources()
 {
-    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
     THashMap<EJobType, TJobResourcesWithQuota> minNeededJobResources;
 
@@ -7806,7 +7830,7 @@ void TOperationControllerBase::CheckTentativeTreeEligibility()
     }
 }
 
-TSharedRef TOperationControllerBase::BuildJobSpecProto(const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
+TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
 {
     VERIFY_INVOKER_AFFINITY(Host->GetJobSpecBuildPoolInvoker());
 
