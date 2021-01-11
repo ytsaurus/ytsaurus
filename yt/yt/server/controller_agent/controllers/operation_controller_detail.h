@@ -118,7 +118,6 @@ class TOperationControllerBase
 public: \
     virtual returnType method signature final \
     { \
-        VERIFY_INVOKER_POOL_AFFINITY(InvokerPool); \
         TSafeAssertionsGuard safeAssertionsGuard( \
             Host->GetCoreDumper(), \
             Host->GetCoreSemaphore(), \
@@ -181,7 +180,8 @@ private: \
 
     //! Called by #IntermediateChunkScraper.
     IMPLEMENT_SAFE_METHOD(
-        void, OnIntermediateChunkLocated,
+        void,
+        OnIntermediateChunkLocated,
         (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
         (chunkId, replicas, missing),
         false)
@@ -194,14 +194,20 @@ private: \
         (cookie),
         false)
 
-#undef IMPLEMENT_SAFE_METHOD
-
-public:
     /*!
      *  \note Thread affinity: JobSpecBuildPool
      */
-    virtual TSharedRef BuildJobSpecProto(const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec) override final;
+    IMPLEMENT_SAFE_METHOD(
+        TSharedRef,
+        BuildJobSpecProto,
+        (const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec),
+        (joblet, scheduleJobSpec),
+        false
+    )
 
+#undef IMPLEMENT_SAFE_METHOD
+
+public:
     // These are "pure" interface methods, i. e. those that do not involve YT_VERIFYs.
     // If some of these methods still fails due to unnoticed YT_VERIFY, consider
     // moving it to the section above.
