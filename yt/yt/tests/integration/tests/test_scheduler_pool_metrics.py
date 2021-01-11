@@ -318,7 +318,7 @@ class TestPoolMetrics(YTEnvSetup):
         )
 
     # Temporarily flaky due to YT-12207.
-    @flaky(max_runs=3)
+    @flaky(max_runs=5)
     @authors("eshcherbin")
     def test_total_time_operation_completed_several_jobs(self):
         create_pool("unique_pool")
