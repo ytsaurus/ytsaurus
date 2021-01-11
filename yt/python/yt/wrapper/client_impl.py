@@ -60,7 +60,7 @@ class YtClient(ClientState):
         """
         return client_api.sky_share(path, client=self, cluster=cluster, key_columns=key_columns, enable_fastbone=enable_fastbone)
 
-    def move(self, source_path, destination_path, recursive=None, preserve_account=None, preserve_expiration_time=False, preserve_expiration_timeout=False, preserve_owner=False, force=None, pessimistic_quota_check=None):
+    def move(self, source_path, destination_path, recursive=None, force=None, preserve_account=None, preserve_owner=None, preserve_expiration_time=None, preserve_expiration_timeout=None, preserve_creation_time=None, preserve_modification_time=None, pessimistic_quota_check=None):
         """
         Moves (renames) Cypress node.
 
@@ -70,16 +70,18 @@ class YtClient(ClientState):
     :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param bool preserve_account: preserve account.
+    :param bool preserve_owner: preserve owner.
     :param bool preserve_expiration_time: preserve expiration time.
     :param bool preserve_expiration_timeout: preserve expiration timeout.
-    :param bool preserve_owner: preserve owner.
+    :param bool preserve_creation_time: preserve creation time.
+    :param bool preserve_modification_time: preserve modification time.
     :param bool force: force.
     :param bool pessimistic_quota_check: pessimistic quota check.
 
     .. seealso:: `move in the docs <https://yt.yandex-team.ru/docs/api/commands.html#move>`_
     
         """
-        return client_api.move(source_path, destination_path, client=self, recursive=recursive, preserve_account=preserve_account, preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout, preserve_owner=preserve_owner, force=force, pessimistic_quota_check=pessimistic_quota_check)
+        return client_api.move(source_path, destination_path, client=self, recursive=recursive, force=force, preserve_account=preserve_account, preserve_owner=preserve_owner, preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout, preserve_creation_time=preserve_creation_time, preserve_modification_time=preserve_modification_time, pessimistic_quota_check=pessimistic_quota_check)
 
     def suspend_operation(self, operation, abort_running_jobs=False):
         """
@@ -977,7 +979,7 @@ class YtClient(ClientState):
         """
         return client_api.list_operations(client=self, user=user, state=state, type=type, filter=filter, pool=pool, with_failed_jobs=with_failed_jobs, from_time=from_time, to_time=to_time, cursor_time=cursor_time, cursor_direction=cursor_direction, include_archive=include_archive, include_counters=include_counters, limit=limit, enable_ui_mode=enable_ui_mode, attributes=attributes, format=format)
 
-    def copy(self, source_path, destination_path, recursive=None, ignore_existing=None, lock_existing=None, preserve_account=None, preserve_acl=None, preserve_expiration_time=None, preserve_expiration_timeout=None, preserve_creation_time=None, preserve_owner=None, force=None, pessimistic_quota_check=None):
+    def copy(self, source_path, destination_path, recursive=None, force=None, ignore_existing=None, lock_existing=None, preserve_account=None, preserve_owner=None, preserve_acl=None, preserve_expiration_time=None, preserve_expiration_timeout=None, preserve_creation_time=None, preserve_modification_time=None, pessimistic_quota_check=None):
         """
         Copies Cypress node.
 
@@ -989,18 +991,19 @@ class YtClient(ClientState):
     :param bool ignore_existing: ignore existing.
     :param bool lock_existing: lock existing node.
     :param bool preserve_account: preserve account.
+    :param bool preserve_owner: preserve owner.
     :param bool preserve_acl: preserve acl.
     :param bool preserve_expiration_time: preserve expiration time.
     :param bool preserve_expiration_timeout: preserve expiration timeout.
     :param bool preserve_creation_time: preserve creation time.
-    :param bool preserve_owner: preserve owner.
+    :param bool preserve_modification_time: preserve modification time.
     :param bool force: force.
     :param bool pessimistic_quota_check: pessimistic quota check.
 
     .. seealso:: `copy in the docs <https://yt.yandex-team.ru/docs/api/commands.html#copy>`_
     
         """
-        return client_api.copy(source_path, destination_path, client=self, recursive=recursive, ignore_existing=ignore_existing, lock_existing=lock_existing, preserve_account=preserve_account, preserve_acl=preserve_acl, preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout, preserve_creation_time=preserve_creation_time, preserve_owner=preserve_owner, force=force, pessimistic_quota_check=pessimistic_quota_check)
+        return client_api.copy(source_path, destination_path, client=self, recursive=recursive, force=force, ignore_existing=ignore_existing, lock_existing=lock_existing, preserve_account=preserve_account, preserve_owner=preserve_owner, preserve_acl=preserve_acl, preserve_expiration_time=preserve_expiration_time, preserve_expiration_timeout=preserve_expiration_timeout, preserve_creation_time=preserve_creation_time, preserve_modification_time=preserve_modification_time, pessimistic_quota_check=pessimistic_quota_check)
 
     def run_remote_copy(self, source_table, destination_table, cluster_name=None, network_name=None, cluster_connection=None, copy_attributes=None, spec=None, sync=True):
         """
