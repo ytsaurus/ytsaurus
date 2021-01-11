@@ -16,6 +16,8 @@ import os
 
 
 class TestSnapshotValidation(YTEnvSetup):
+    NUM_MASTERS = 1
+
     @authors("ifsmirnov")
     def test_master_snapshot_validation(self):
         create("table", "//tmp/t")
