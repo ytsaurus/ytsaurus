@@ -1529,7 +1529,10 @@ message TRspListOperations
 
 message TReqListJobs
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 20;
+    }
 
     optional EJobType type = 2;
     optional EJobState state = 3;
@@ -1568,7 +1571,10 @@ message TRspListJobs
 
 message TReqGetJob
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 4;
+    }
     required NYT.NProto.TGuid job_id = 2;
 
     optional TAttributeKeys attributes = 3;
@@ -1611,7 +1617,10 @@ message TRspGetJobSpec
 
 message TReqGetJobStderr
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 3;
+    }
     required NYT.NProto.TGuid job_id = 2;
 }
 
@@ -1623,7 +1632,10 @@ message TRspGetJobStderr
 
 message TReqGetJobFailContext
 {
-    required NYT.NProto.TGuid operation_id = 1;
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 3;
+    }
     required NYT.NProto.TGuid job_id = 2;
 }
 

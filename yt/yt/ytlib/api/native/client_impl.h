@@ -390,27 +390,27 @@ public:
         const TGetJobSpecOptions& options),
         (jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobStderr, (
-        NScheduler::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NScheduler::TJobId jobId,
         const TGetJobStderrOptions& options),
-        (operationId, jobId, options))
+        (operationIdOrAlias, jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobFailContext, (
-        NScheduler::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NScheduler::TJobId jobId,
         const TGetJobFailContextOptions& options),
-        (operationId, jobId, options))
+        (operationIdOrAlias, jobId, options))
     IMPLEMENT_METHOD(TListOperationsResult, ListOperations, (
         const TListOperationsOptions& options),
         (options))
     IMPLEMENT_METHOD(TListJobsResult, ListJobs, (
-        NScheduler::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TListJobsOptions& options),
-        (operationId, options))
+        (operationIdOrAlias, options))
     IMPLEMENT_METHOD(NYson::TYsonString, GetJob, (
-        NScheduler::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NScheduler::TJobId jobId,
         const TGetJobOptions& options),
-        (operationId, jobId, options))
+        (operationIdOrAlias, jobId, options))
     IMPLEMENT_METHOD(void, AbandonJob, (
         NScheduler::TJobId jobId,
         const TAbandonJobOptions& options),
@@ -896,7 +896,7 @@ private:
 
     NScheduler::TOperationId ResolveOperationAlias(
         const TString& alias,
-        const TGetOperationOptions& options,
+        const TMasterReadOptions& options,
         TInstant deadline);
 
     // Searches in Cypress for operations satisfying given filters.
@@ -1011,7 +1011,7 @@ private:
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId);
     TSharedRef DoGetJobStderr(
-        NScheduler::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NScheduler::TJobId jobId,
         const TGetJobStderrOptions& options);
 
@@ -1022,7 +1022,7 @@ private:
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId);
     TSharedRef DoGetJobFailContext(
-        NScheduler::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NScheduler::TJobId jobId,
         const TGetJobFailContextOptions& options);
 
@@ -1065,7 +1065,7 @@ private:
         const TListJobsOptions& options);
 
     TListJobsResult DoListJobs(
-        NScheduler::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TListJobsOptions& options);
 
     std::optional<TJob> DoGetJobFromArchive(
@@ -1081,7 +1081,7 @@ private:
         const THashSet<TString>& attributes,
         const TGetJobOptions& options);
     NYson::TYsonString DoGetJob(
-        NScheduler::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NScheduler::TJobId jobId,
         const TGetJobOptions& options);
 

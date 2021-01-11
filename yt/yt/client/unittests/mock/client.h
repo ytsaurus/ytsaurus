@@ -365,12 +365,12 @@ public:
         const TGetJobSpecOptions& options));
 
     MOCK_METHOD3(GetJobStderr, TFuture<TSharedRef>(
-        NJobTrackerClient::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const TGetJobStderrOptions& options));
 
     MOCK_METHOD3(GetJobFailContext, TFuture<TSharedRef>(
-        NJobTrackerClient::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const TGetJobFailContextOptions& options));
 
@@ -378,11 +378,11 @@ public:
         const TListOperationsOptions& options));
 
     MOCK_METHOD2(ListJobs, TFuture<TListJobsResult>(
-        NJobTrackerClient::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TListJobsOptions& options));
 
     MOCK_METHOD3(GetJob, TFuture<NYson::TYsonString>(
-        NScheduler::TOperationId operationId,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NJobTrackerClient::TJobId jobId,
         const TGetJobOptions& options));
 

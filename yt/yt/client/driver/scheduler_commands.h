@@ -12,6 +12,46 @@ namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TOptions>
+class TSimpleOperationCommandBase
+    : public virtual TTypedCommandBase<TOptions>
+{
+private:
+    NScheduler::TOperationId OperationId;
+    std::optional<TString> OperationAlias;
+
+protected:
+    // Is calculated by two fields above.
+    NScheduler::TOperationIdOrAlias OperationIdOrAlias;
+
+public:
+    TSimpleOperationCommandBase()
+    {
+        this->RegisterParameter("operation_id", OperationId)
+            .Default();
+        this->RegisterParameter("operation_alias", OperationAlias)
+            .Default();
+
+        this->RegisterPostprocessor([&] {
+            if (!OperationId.IsEmpty() && OperationAlias.operator bool() ||
+                OperationId.IsEmpty() && !OperationAlias.operator bool())
+            {
+                THROW_ERROR_EXCEPTION("Exactly one of \"operation_id\" and \"operation_alias\" should be set")
+                    << TErrorAttribute("operation_id", OperationId)
+                    << TErrorAttribute("operation_alias", OperationAlias);
+            }
+
+            if (OperationId) {
+                OperationIdOrAlias = OperationId;
+            } else {
+                OperationIdOrAlias = *OperationAlias;
+            }
+        });
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDumpJobContextCommand
     : public TTypedCommand<NApi::TDumpJobContextOptions>
 {
@@ -70,13 +110,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGetJobStderrCommand
-    : public TTypedCommand<NApi::TGetJobStderrOptions>
+    : public TSimpleOperationCommandBase<NApi::TGetJobStderrOptions>
 {
 public:
     TGetJobStderrCommand();
 
 private:
-    NJobTrackerClient::TOperationId OperationId;
     NJobTrackerClient::TJobId JobId;
 
     virtual void DoExecute(ICommandContextPtr context) override;
@@ -85,13 +124,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGetJobFailContextCommand
-    : public TTypedCommand<NApi::TGetJobFailContextOptions>
+    : public TSimpleOperationCommandBase<NApi::TGetJobFailContextOptions>
 {
 public:
     TGetJobFailContextCommand();
 
 private:
-    NJobTrackerClient::TOperationId OperationId;
     NJobTrackerClient::TJobId JobId;
 
     virtual void DoExecute(ICommandContextPtr context) override;
@@ -116,27 +154,24 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListJobsCommand
-    : public TTypedCommand<NApi::TListJobsOptions>
+    : public TSimpleOperationCommandBase<NApi::TListJobsOptions>
 {
 public:
     TListJobsCommand();
 
 private:
-    NJobTrackerClient::TOperationId OperationId;
-
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGetJobCommand
-    : public TTypedCommand<NApi::TGetJobOptions>
+    : public TSimpleOperationCommandBase<NApi::TGetJobOptions>
 {
 public:
     TGetJobCommand();
 
 private:
-    NJobTrackerClient::TOperationId OperationId;
     NJobTrackerClient::TJobId JobId;
 
     virtual void DoExecute(ICommandContextPtr context) override;
@@ -272,46 +307,6 @@ class TRemoteCopyCommand
 {
 public:
     TRemoteCopyCommand();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TOptions>
-class TSimpleOperationCommandBase
-    : public virtual TTypedCommandBase<TOptions>
-{
-private:
-    NScheduler::TOperationId OperationId;
-    std::optional<TString> OperationAlias;
-
-protected:
-    // Is calculated by two fields above.
-    NScheduler::TOperationIdOrAlias OperationIdOrAlias;
-
-public:
-    TSimpleOperationCommandBase()
-    {
-        this->RegisterParameter("operation_id", OperationId)
-            .Default();
-        this->RegisterParameter("operation_alias", OperationAlias)
-            .Default();
-
-        this->RegisterPostprocessor([&] {
-            if (!OperationId.IsEmpty() && OperationAlias.operator bool() ||
-                OperationId.IsEmpty() && !OperationAlias.operator bool())
-            {
-                THROW_ERROR_EXCEPTION("Exactly one of \"operation_id\" and \"operation_alias\" should be set")
-                    << TErrorAttribute("operation_id", OperationId)
-                    << TErrorAttribute("operation_alias", OperationAlias);
-            }
-
-            if (OperationId) {
-                OperationIdOrAlias = OperationId;
-            } else {
-                OperationIdOrAlias = *OperationAlias;
-            }
-        });
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -408,7 +408,7 @@ TYsonString TClient::DoGetOperationFromArchive(
 
 TOperationId TClient::ResolveOperationAlias(
     const TString& alias,
-    const TGetOperationOptions& options,
+    const TMasterReadOptions& options,
     TInstant deadline)
 {
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
