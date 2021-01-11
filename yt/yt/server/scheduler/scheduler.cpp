@@ -2847,6 +2847,8 @@ private:
             WaitFor(MasterConnector_->UpdateInitializedOperationNode(operation))
                 .ThrowOnError();
 
+            ValidateOperationState(operation, EOperationState::ReviveInitializing);
+
             operation->SetStateAndEnqueueEvent(EOperationState::Reviving);
 
             {
