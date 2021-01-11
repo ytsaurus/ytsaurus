@@ -345,10 +345,6 @@ class TestNodeDynamicConfig(YTEnvSetup):
     def test_dynamic_tablet_slot_count(self):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 100)
         set(
-            "//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer",
-            True,
-        )
-        set(
             "//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging",
             True,
         )

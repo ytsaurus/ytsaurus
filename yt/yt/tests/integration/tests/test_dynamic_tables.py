@@ -1273,12 +1273,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
-    def _test_cell_bundle_distribution(self, enable_tablet_cell_balancer, test_decommission=False):
+    def _test_cell_bundle_distribution(self, test_decommission=False):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
-        set(
-            "//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer",
-            enable_tablet_cell_balancer,
-        )
         set(
             "//sys/@config/tablet_manager/decommission_through_extra_peers",
             test_decommission,
@@ -1327,9 +1323,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         _check(nodes[:1], 0, 0)
         _check(nodes[1:], 1, 2)
 
-        if not enable_tablet_cell_balancer:
-            return
-
         set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(nodes[0]), False)
         _check(nodes, 1, 1)
 
@@ -1353,7 +1346,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("gritukan")
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_tablet_cell_balancer_works_after_decommission(self):
-        self._test_cell_bundle_distribution(True, True)
+        self._test_cell_bundle_distribution(True)
 
     @authors("savrus")
     def test_cell_bundle_options(self):

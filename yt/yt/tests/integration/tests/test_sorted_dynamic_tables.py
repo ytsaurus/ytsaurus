@@ -918,7 +918,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         print_debug(get("//sys/cluster_nodes", attributes=["tablet_slots"]))
         print_debug(get("//sys/tablet_cell_bundles/default/@options"))
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
-        set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", True)
 
         self._create_simple_table("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
