@@ -77,11 +77,16 @@ public:
 
         ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             YT_VERIFY(!Reader_);
-            // NB: don't create parallel reader to eliminate non-deterministic behavior,
-            // which is a nightmare for restarted (lost) jobs.
+
+            // COMPAT(gritukan)
+            bool deterministic = !PartitionJobSpecExt_.has_deterministic() || PartitionJobSpecExt_.deterministic();
+
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 
-            Reader_ = CreateSchemalessSequentialMultiReader(
+            auto factory = deterministic
+                ? CreateSchemalessSequentialMultiReader
+                : CreateSchemalessParallelMultiReader;
+            Reader_ = factory(
                 tableReaderConfig,
                 readerOptions,
                 Host_->GetClient(),
