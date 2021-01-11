@@ -82,23 +82,7 @@ void TNodeSchedulingSegmentManager::ManageNodeSegments(TManageNodeSchedulingSegm
 
         LogAndProfileSegmentsInTree(context, treeId, currentResourceAmountPerSegment, &sensorBuffer);
 
-        TSchedulingSegmentMap<bool> isSegmentUnsatisfied;
-        bool hasUnsatisfiedSegment = false;
-        for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-            const auto& fairResourceAmount = strategyTreeState.FairResourceAmountPerSegment.At(segment);
-            const auto& currentResourceAmount = currentResourceAmountPerSegment.At(segment);
-            if (IsDataCenterAwareSchedulingSegment(segment)) {
-                for (const auto& dataCenter : strategyTreeState.DataCenters) {
-                    if (currentResourceAmount.GetOrDefaultAt(dataCenter) < fairResourceAmount.GetOrDefaultAt(dataCenter)) {
-                        hasUnsatisfiedSegment = true;
-                        isSegmentUnsatisfied.At(segment).SetAt(dataCenter, true);
-                    }
-                }
-            } else if (currentResourceAmount.GetOrDefault() < fairResourceAmount.GetOrDefault()) {
-                hasUnsatisfiedSegment = true;
-                isSegmentUnsatisfied.At(segment).Set(true);
-            }
-        }
+        auto [isSegmentUnsatisfied, hasUnsatisfiedSegment] = FindUnsatisfiedSegmentsInTree(context, treeId, currentResourceAmountPerSegment);
 
         auto& unsatisfiedSince = treePersistentAttributes.UnsatisfiedSince;
         if (!hasUnsatisfiedSegment) {
@@ -282,7 +266,6 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
     TSchedulingSegmentMap<int> removedNodeCountPerSegment;
     double totalPenalty = 0.0;
     int totalMovedNodeCount = 0;
-    bool allSegmentsSatisfied = true;
 
     auto trySatisfySegment = [&] (
         ESchedulingSegment segment,
@@ -324,10 +307,6 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
                 currentResourceAmountPerSegment.At(oldSegment).Mutable() -= resourceAmountOnNode;
                 ++removedNodeCountPerSegment.At(oldSegment).Mutable();
             }
-        }
-
-        if (currentResourceAmount < fairResourceAmount) {
-            allSegmentsSatisfied = false;
         }
     };
 
@@ -381,12 +360,14 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
         trySatisfySegment(segment, currentResourceAmount, fairResourceAmount, movableNodes);
     }
 
-    YT_LOG_WARNING_UNLESS(allSegmentsSatisfied,
-        "Failed to satisfy all scheduling segments during rebalancing");
+    auto [isSegmentUnsatisfied, hasUnsatisfiedSegment] = FindUnsatisfiedSegmentsInTree(context, treeId, currentResourceAmountPerSegment);
+    YT_LOG_WARNING_IF(hasUnsatisfiedSegment,
+        "Failed to satisfy all scheduling segments during rebalancing (IsSegmentUnsatisfied: %v)",
+        isSegmentUnsatisfied);
 
     YT_LOG_DEBUG(
         "Finished node scheduling segments rebalancing "
-        "(TotalMovedNodeCount: %v, AddedNodeCountPerSegment: %v, RemovedNodeCountPerSegment: %v,"
+        "(TotalMovedNodeCount: %v, AddedNodeCountPerSegment: %v, RemovedNodeCountPerSegment: %v, "
         "NewResourceAmountPerSegment: %v, TotalPenalty: %v)",
         totalMovedNodeCount,
         addedNodeCountPerSegment,
@@ -482,6 +463,34 @@ TChangeNodeSegmentPenaltyFunction TNodeSchedulingSegmentManager::CreatePenaltyFu
         default:
             return [] (const TExecNodeDescriptor& node) { return node.RunningJobStatistics.TotalCpuTime; };
     }
+}
+
+std::pair<TSchedulingSegmentMap<bool>, bool> TNodeSchedulingSegmentManager::FindUnsatisfiedSegmentsInTree(
+    TManageNodeSchedulingSegmentsContext *context,
+    const TString& treeId,
+    const TSegmentToResourceAmount& currentResourceAmountPerSegment) const
+{
+    const auto& strategyTreeState = context->StrategySegmentsState.TreeStates[treeId];
+
+    TSchedulingSegmentMap<bool> isSegmentUnsatisfied;
+    bool hasUnsatisfiedSegment = false;
+    for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
+        const auto& fairResourceAmount = strategyTreeState.FairResourceAmountPerSegment.At(segment);
+        const auto& currentResourceAmount = currentResourceAmountPerSegment.At(segment);
+        if (IsDataCenterAwareSchedulingSegment(segment)) {
+            for (const auto& dataCenter : strategyTreeState.DataCenters) {
+                if (currentResourceAmount.GetOrDefaultAt(dataCenter) < fairResourceAmount.GetOrDefaultAt(dataCenter)) {
+                    hasUnsatisfiedSegment = true;
+                    isSegmentUnsatisfied.At(segment).SetAt(dataCenter, true);
+                }
+            }
+        } else if (currentResourceAmount.GetOrDefault() < fairResourceAmount.GetOrDefault()) {
+            hasUnsatisfiedSegment = true;
+            isSegmentUnsatisfied.At(segment).Set(true);
+        }
+    }
+
+    return {std::move(isSegmentUnsatisfied), hasUnsatisfiedSegment};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
