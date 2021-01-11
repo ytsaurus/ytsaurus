@@ -794,8 +794,7 @@ TResourceVector TSchedulerElement::ComputeLimitsShare() const
 
 TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
 {
-    TResourceVector vectorSuggestion = TResourceVector::FromDouble(suggestion);
-    vectorSuggestion = TResourceVector::Max(vectorSuggestion, Attributes().StrongGuaranteeShare);
+    auto vectorSuggestion = TResourceVector::FromDouble(suggestion) + Attributes().StrongGuaranteeShare;
     vectorSuggestion = TResourceVector::Min(vectorSuggestion, Attributes().LimitsShare);
     return vectorSuggestion;
 }
@@ -1966,7 +1965,7 @@ TResourceVector TCompositeSchedulerElement::DoUpdateFairShare(double suggestion,
     };
     auto checkFitFactor = [&] (double fitFactor) {
         // Check that we can safely use the given fit factor to compute suggestions for children.
-        return Dominates(suggestedFairShare, getChildrenSuggestedFairShare(fitFactor));
+        return Dominates(suggestedFairShare + TResourceVector::SmallEpsilon(), getChildrenSuggestedFairShare(fitFactor));
     };
 
     // Usually MFFBS(suggestion) is the right fit factor to use for child suggestions.
@@ -2000,9 +1999,9 @@ TResourceVector TCompositeSchedulerElement::DoUpdateFairShare(double suggestion,
 
     bool usedShareNearSuggestedShare =
         TResourceVector::Near(usedFairShare, suggestedFairShare, 1e-4 * MaxComponent(usedFairShare));
-    bool suggestedShareDominatesUsedShare = Dominates(suggestedFairShare, usedFairShare);
+    bool suggestedShareNearlyDominatesUsedShare = Dominates(suggestedFairShare + TResourceVector::SmallEpsilon(), usedFairShare);
     YT_LOG_WARNING_UNLESS(
-        usedShareNearSuggestedShare && suggestedShareDominatesUsedShare,
+        usedShareNearSuggestedShare && suggestedShareNearlyDominatesUsedShare,
         "Fair share significantly differs from predicted in pool ("
         "Mode: %v, "
         "Suggestion: %.20v, "
@@ -2029,7 +2028,7 @@ TResourceVector TCompositeSchedulerElement::DoUpdateFairShare(double suggestion,
         OperationCount(),
         RunningOperationCount());
 
-    YT_VERIFY(suggestedShareDominatesUsedShare);
+    YT_VERIFY(suggestedShareNearlyDominatesUsedShare);
 
     Attributes_.SetFairShare(usedFairShare);
     return usedFairShare;
@@ -3375,14 +3374,14 @@ TResourceVector TOperationElement::DoUpdateFairShare(double suggestion, TUpdateF
     const auto fsbffSegment = FairShareByFitFactor()->SegmentAt(fitFactor);
 
     YT_ELEMENT_LOG_DETAILED(this,
-        "Updated Operation fair share. ("
-        "Suggestion: %.6g, "
-        "UsedFairShare: %.6g, "
-        "FSBSSegmentArguments: {%.6g, %.6g}, "
-        "FSBSSegmentValues: {%.6g, %.6g}, "
-        "FitFactor: %.6g, "
-        "FSBFFSegmentArguments: {%.6g, %.6g}, "
-        "FSBFFSegmentValues: {%.6g, %.6g})",
+        "Updated operation fair share ("
+        "Suggestion: %.10g, "
+        "UsedFairShare: %.10g, "
+        "FSBSSegmentArguments: {%.10g, %.10g}, "
+        "FSBSSegmentValues: {%.10g, %.10g}, "
+        "FitFactor: %.10g, "
+        "FSBFFSegmentArguments: {%.10g, %.10g}, "
+        "FSBFFSegmentValues: {%.10g, %.10g})",
         suggestion,
         usedFairShare,
         fsbsSegment.LeftBound(), fsbsSegment.RightBound(),
