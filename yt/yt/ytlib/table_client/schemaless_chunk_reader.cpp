@@ -1405,13 +1405,16 @@ private:
     {
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
-        i64 dataWeightBefore = DataWeight_;
 
+        i64 rowsDataWeight = 0;
         while (rows.size() < options.MaxRowsPerRead &&
-               DataWeight_ - dataWeightBefore < options.MaxDataWeightPerRead)
+            rowsDataWeight < options.MaxDataWeightPerRead)
         {
             i64 rowCount = ReadPrologue(rows.capacity() - rows.size());
             ReadRows(rowCount, &rows);
+            for (i64 rowIndex = rows.size() - rowCount; rowIndex < rows.size(); ++rowIndex) {
+                rowsDataWeight += GetDataWeight(rows[rowIndex]);
+            }
             if (Completed_ || !TryFetchNextRow()) {
                 break;
             }
