@@ -477,13 +477,15 @@ public:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        // NB(psushin): don't use parallel readers here to minimize nondeterministic
-        // behaviour in mapper, which may lead to huge problems in presence of lost jobs.
+        const auto& partitionJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+        // COMPAT(gritukan)
+        bool deterministic = !partitionJobSpecExt.has_deterministic() || partitionJobSpecExt.deterministic();
+
         return CreateRegularReader(
             JobSpecHelper_,
             std::move(client),
             nodeDescriptor,
-            false,
+            /* isParallel */ !deterministic,
             std::move(nameTable),
             columnFilter,
             BlockReadOptions_,
