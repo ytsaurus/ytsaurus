@@ -291,15 +291,8 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
         TWallTimer timer;
         TBlockId blockId(GetChunkId(), blockIndex);
 
-        if (!block.IsChecksumValid()) {
-            SetFailed(
-                TError(
-                    NChunkClient::EErrorCode::InvalidBlockChecksum,
-                    "Invalid checksum detected in chunk block %v",
-                    blockId)
-                    << TErrorAttribute("expected_checksum", block.Checksum)
-                    << TErrorAttribute("actual_checksum", GetChecksum(block.Data)),
-                /* fatal */ false);
+        if (auto error = block.ValidateChecksum(); !error.IsOK()) {
+            SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /* fatal */ false);
         }
 
         Error_.ThrowOnError();

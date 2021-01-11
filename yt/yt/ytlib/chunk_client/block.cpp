@@ -48,22 +48,23 @@ std::vector<TSharedRef> TBlock::Unwrap(const std::vector<TBlock>& blocks)
     return raw;
 }
 
-bool TBlock::IsChecksumValid() const
+TError TBlock::ValidateChecksum() const
 {
-    if (!Data || (Checksum == NullChecksum)) {
-        return true;
-    }
-    return GetChecksum(Data) == Checksum;
-}
-
-void TBlock::ValidateChecksum() const
-{
-    if (Checksum == NullChecksum) {
-        return;
+    if (!Data || Checksum == NullChecksum) {
+        return TError();
     }
 
-    auto actual = GetChecksum(Data);
-    YT_VERIFY(actual == Checksum);
+    auto actualChecksum = GetChecksum(Data);
+    if (actualChecksum == Checksum) {
+        return TError();
+    } else {
+        return TError(
+            EErrorCode::InvalidBlockChecksum,
+            "Invalid checksum detected in block")
+            << TErrorAttribute("expected_checksum", Checksum)
+            << TErrorAttribute("actual_checksum", actualChecksum)
+            << TErrorAttribute("recalculated_checksum", GetChecksum(Data));
+    }
 }
 
 TChecksum TBlock::GetOrComputeChecksum() const
