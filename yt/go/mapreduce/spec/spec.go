@@ -145,6 +145,10 @@ type Spec struct {
 	ACL                     []yt.ACE `yson:"acl,omitempty"`
 	EnableKeyGuarantee      *bool    `yson:"enable_key_guarantee,omitempty"`
 	ConsiderOnlyPrimarySize *bool    `yson:"consider_only_primary_size,omitempty"`
+
+	ClusterName    string `yson:"cluster_name,omitempty"`
+	NetworkName    string `yson:"network_name,omitempty"`
+	CopyAttributes *bool  `yson:"copy_attributes,omitempty"`
 }
 
 func (s *Spec) ReduceByColumns(columns ...string) *Spec {

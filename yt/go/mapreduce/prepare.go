@@ -105,12 +105,12 @@ func (p *prepare) setGoMaxProc(spec *spec.UserScript) {
 }
 
 func (p *prepare) prepare(opts []OperationOption) error {
-	if err := p.mr.uploadSelf(p.ctx); err != nil {
-		return err
+	if p.spec.Type != yt.OperationRemoteCopy {
+		if err := p.mr.uploadSelf(p.ctx); err != nil {
+			return err
+		}
+		p.spec.PatchUserBinary(p.mr.binaryPath)
 	}
-
-	p.spec.PatchUserBinary(p.mr.binaryPath)
-
 	if len(p.spec.ACL) == 0 || len(p.mr.defaultACL) != 0 {
 		p.spec.ACL = p.mr.defaultACL
 	}
@@ -129,21 +129,23 @@ func (p *prepare) prepare(opts []OperationOption) error {
 		}
 	}
 
-	for _, inputTablePath := range p.spec.InputTablePaths {
-		var tableAttrs struct {
-			Typ    yt.NodeType   `yson:"type"`
-			Schema schema.Schema `yson:"schema"`
-		}
+	if p.spec.Type != yt.OperationRemoteCopy {
+		for _, inputTablePath := range p.spec.InputTablePaths {
+			var tableAttrs struct {
+				Typ    yt.NodeType   `yson:"type"`
+				Schema schema.Schema `yson:"schema"`
+			}
 
-		err := cypress.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &tableAttrs, nil)
-		if yterrors.ContainsResolveError(err) {
-			return xerrors.Errorf("mr: input table %v is missing: %w", inputTablePath.YPath(), err)
-		} else if err != nil {
-			return err
-		}
+			err := cypress.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &tableAttrs, nil)
+			if yterrors.ContainsResolveError(err) {
+				return xerrors.Errorf("mr: input table %v is missing: %w", inputTablePath.YPath(), err)
+			} else if err != nil {
+				return err
+			}
 
-		if tableAttrs.Typ != yt.NodeTable {
-			return xerrors.Errorf("mr: input %q is not a table: type=%v", inputTablePath.YPath(), tableAttrs.Typ)
+			if tableAttrs.Typ != yt.NodeTable {
+				return xerrors.Errorf("mr: input %q is not a table: type=%v", inputTablePath.YPath(), tableAttrs.Typ)
+			}
 		}
 	}
 
