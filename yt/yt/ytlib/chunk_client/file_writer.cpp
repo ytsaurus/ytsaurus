@@ -33,6 +33,8 @@ static const auto FileMode =
 
 static constexpr i64 Alignment = 4096;
 
+static const auto& Logger = ChunkClientLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFileWriterBufferTag
@@ -112,7 +114,10 @@ bool TFileWriter::WriteBlock(const TBlock& block)
     YT_VERIFY(Open_);
     YT_VERIFY(!Closed_);
 
-    block.ValidateChecksum();
+    {
+        auto error = block.ValidateChecksum();
+        YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Block checksum mismatch during file writing");
+    }
 
     try {
         auto* blockInfo = BlocksExt_.add_blocks();

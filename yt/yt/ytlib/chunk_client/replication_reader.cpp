@@ -1550,12 +1550,12 @@ private:
             int blockIndex = req->block_indexes(index);
             auto blockId = TBlockId(reader->ChunkId_, blockIndex);
 
-            if (!block.IsChecksumValid()) {
-                RegisterError(TError("Failed to validate received block checksum")
-                    << TErrorAttribute("block_id", ToString(blockId))
-                    << TErrorAttribute("peer", respondedPeer.AddressWithNetwork)
-                    << TErrorAttribute("actual", GetChecksum(block.Data))
-                    << TErrorAttribute("expected", block.Checksum),
+            if (auto error = block.ValidateChecksum(); !error.IsOK()) {
+                RegisterError(
+                    TError("Failed to validate received block checksum")
+                        << TErrorAttribute("block_id", ToString(blockId))
+                        << TErrorAttribute("peer", respondedPeer.AddressWithNetwork)
+                        << error,
                     /* raiseAlert */ true);
 
                 ++invalidBlockCount;
@@ -1806,12 +1806,12 @@ private:
                 break;
             }
 
-            if (!block.IsChecksumValid()) {
-                RegisterError(TError("Failed to validate received block checksum")
-                    << TErrorAttribute("block_id", ToString(TBlockId(reader->ChunkId_, FirstBlockIndex_ + blocksReceived)))
-                    << TErrorAttribute("peer", peerAddressWithNetwork)
-                    << TErrorAttribute("actual", GetChecksum(block.Data))
-                    << TErrorAttribute("expected", block.Checksum),
+            if (auto error = block.ValidateChecksum(); !error.IsOK()) {
+                RegisterError(
+                    TError("Failed to validate received block checksum")
+                        << TErrorAttribute("block_id", ToString(TBlockId(reader->ChunkId_, FirstBlockIndex_ + blocksReceived)))
+                        << TErrorAttribute("peer", peerAddressWithNetwork)
+                        << error,
                     /* raiseAlert */ true);
 
                 BanPeer(peerAddressWithNetwork.Address, false);

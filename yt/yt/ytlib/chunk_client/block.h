@@ -44,9 +44,7 @@ struct TBlock
 
     size_t Size() const;
 
-    bool IsChecksumValid() const;
-
-    void ValidateChecksum() const;
+    TError ValidateChecksum() const;
 
     TChecksum GetOrComputeChecksum() const;
 

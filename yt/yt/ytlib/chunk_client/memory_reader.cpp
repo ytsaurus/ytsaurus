@@ -1,10 +1,15 @@
 #include "memory_reader.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_reader.h"
+#include "private.h"
 
 namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +36,8 @@ public:
         }
 
         for (const auto& block : blocks) {
-            block.ValidateChecksum();
+            auto error = block.ValidateChecksum();
+            YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Block checksum mismatch during memory block reading");
         }
 
         return MakeFuture(std::move(blocks));
@@ -52,7 +58,8 @@ public:
             Blocks_.begin() + std::min(static_cast<size_t>(blockCount), Blocks_.size() - firstBlockIndex));
 
         for (const auto& block : blocks) {
-            block.ValidateChecksum();
+            auto error = block.ValidateChecksum();
+            YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Block checksum mismatch during memory block reading");
         }
 
         return MakeFuture(std::move(blocks));
