@@ -79,6 +79,11 @@ private:
         const TSegmentToResourceAmount& currentResourceAmountPerSegment,
         THashMap<TDataCenter, std::vector<TExecNodeDescriptor>>* movableNodesPerDataCenter,
         THashMap<TDataCenter, std::vector<TExecNodeDescriptor>>* aggressivelyMovableNodesPerDataCenter);
+
+    std::pair<TSchedulingSegmentMap<bool>, bool> FindUnsatisfiedSegmentsInTree(
+        TManageNodeSchedulingSegmentsContext *context,
+        const TString& treeId,
+        const TSegmentToResourceAmount& currentResourceAmountPerSegment) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
