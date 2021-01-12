@@ -19,7 +19,7 @@ std::vector<TString> ToVectorString(const DB::Names& columnNames);
 
 // YT logical type system -> CH data type system.
 
-DB::DataTypePtr ToDataType(const NTableClient::TLogicalTypePtr& logicalType, const TCompositeSettingsPtr& settings);
+DB::DataTypePtr ToDataType(const NTableClient::TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings);
 
 DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings);
 

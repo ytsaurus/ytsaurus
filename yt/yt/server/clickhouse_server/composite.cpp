@@ -1,6 +1,9 @@
 #include "composite.h"
 
 #include "config.h"
+#include "batch_conversion.h"
+
+#include <yt/client/table_client/helpers.h>
 
 #include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/writer.h>
@@ -37,8 +40,9 @@ template <typename... Args>
 [[noreturn]] void ThrowConversionError(const TComplexTypeFieldDescriptor& descriptor, const Args&... args)
 {
     THROW_ERROR_EXCEPTION(
-        "Composite type to ClickHouse conversion error while converting %Qv field",
-        descriptor.GetDescription())
+        "Error converting %Qv of type %v to ClickHouse",
+        descriptor.GetDescription(),
+        *descriptor.GetType())
             << TError(args...);
 }
 
@@ -49,14 +53,33 @@ TColumn* CheckAndGetMutable(const DB::MutableColumnPtr& column)
     return const_cast<TColumn*>(typedColumn);
 }
 
+//! Perform assignment column = newColumn also checking that new column is similar
+//! to the original one in terms of data types. This helper is useful when conversion
+//! deals with native YT columns, in which case columnar conversion methods create columns
+//! by their own. We want to make sure that no type mismatch happens.
+template <class TMutableColumnPtr>
+void ReplaceColumnTypeChecked(TMutableColumnPtr& column, TMutableColumnPtr newColumn)
+{
+    YT_VERIFY(column);
+    YT_VERIFY(column->structureEquals(*column));
+    column.swap(newColumn);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Node in the conversion tree-like structure. Child nodes are saved by
 //! std::unique_ptr<IConverter> in member fields of particular implementations.
 struct IConverter
 {
-    virtual void Consume(TYsonPullParserCursor* cursor) = 0;
-    virtual void ConsumeNull() = 0;
+    //! Consume single value expressed by YSON stream.
+    virtual void ConsumeYson(TYsonPullParserCursor* cursor) = 0;
+    //! Consume a batch of values represented by unversioned values.
+    virtual void ConsumeUnversionedValues(TRange<TUnversionedValue> values) = 0;
+    //! Consume given number of nulls.
+    virtual void ConsumeNulls(int count) = 0;
+    //! Consume native YT column.
+    virtual void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column) = 0;
+
     virtual DB::ColumnPtr FlushColumn() = 0;
     virtual DB::DataTypePtr GetDataType() const = 0;
     virtual ~IConverter() = default;
@@ -66,35 +89,97 @@ using IConverterPtr = std::unique_ptr<IConverter>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRawYsonToStringConverter
+//! This base implements ConsumeUnversionedValues and ConsumeYtColumn by assuming
+//! that column consists of YSON strings and passing them to ConsumeYson (or ConsumeNull).
+//!
+//! Prerequisites:
+//! - any value passed to ConsumeUnversionedValues should be Null, Any or Composite;
+//! - any column passed to ConsumeYtColumn should be a string column containing valid YSONs.
+class TYsonExtractingConverterBase
     : public IConverter
+{
+public:
+    virtual void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    {
+        // NB: ConsumeYson leads to at least one virtual call per-value, so iterating
+        // over all unversioned values is justified here.
+        for (const auto& value : values) {
+            YT_VERIFY(DispatchUnversionedValue(value));
+        }
+    }
+
+    virtual void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column)
+    {
+        // TODO(max42): this may be done without full column materialization.
+
+        auto stringColumn = ConvertStringLikeYTColumnToCHColumn(column);
+        for (int index = 0; index < stringColumn->size(); ++index) {
+            auto data = static_cast<std::string_view>(stringColumn->getDataAt(index));
+            if (data.size() == 0) {
+                ConsumeNulls(1);
+            } else {
+                TMemoryInput in(data);
+                TYsonPullParser parser(&in, EYsonType::Node);
+                TYsonPullParserCursor cursor(&parser);
+                ConsumeYson(&cursor);
+            }
+        }
+    }
+
+private:
+    bool DispatchUnversionedValue(TUnversionedValue value)
+    {
+        switch (value.Type) {
+            case EValueType::Null:
+                ConsumeNulls(1);
+                return true;
+            case EValueType::Any:
+            case EValueType::Composite: {
+                TMemoryInput in(value.Data.String, value.Length);
+                TYsonPullParser parser(&in, EYsonType::Node);
+                TYsonPullParserCursor cursor(&parser);
+                ConsumeYson(&cursor);
+                return true;
+            }
+            default:
+                return false;
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRawYsonToStringConverter
+    : public TYsonExtractingConverterBase
 {
 public:
     TRawYsonToStringConverter(const TComplexTypeFieldDescriptor& /* descriptor */, const TCompositeSettingsPtr& settings)
         : Column_(DB::ColumnString::create())
+        , Settings_(settings)
         , YsonOutput_(YsonBuffer_)
         , YsonWriter_(&YsonOutput_, settings->DefaultYsonFormat)
     { }
 
-    virtual void Consume(TYsonPullParserCursor* cursor)
+    virtual void ConsumeYson(TYsonPullParserCursor* cursor)
     {
-        auto& offsets = Column_->getOffsets();
-        auto& chars = Column_->getChars();
-
         cursor->TransferComplexValue(&YsonWriter_);
-        YsonWriter_.Flush();
 
-        chars.insert(chars.end(), YsonBuffer_.begin(), YsonBuffer_.end());
-        chars.push_back('\x0');
-        offsets.push_back(chars.size());
-        YsonBuffer_.clear();
+        PushValueFromWriter();
     }
 
-    virtual void ConsumeNull()
+    virtual void ConsumeNulls(int count)
     {
-        // If somebody called ConsumeNull() here, we are probably inside Nullable
+        // If somebody called ConsumeNulls() here, we are probably inside Nullable
         // column, so the exact value here does not matter.
-        Column_->insertDefault();
+        Column_->insertManyDefaults(count);
+    }
+
+    virtual void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    {
+        for (const auto& value : values) {
+            UnversionedValueToYson(value, &YsonWriter_);
+            PushValueFromWriter();
+        }
     }
 
     virtual DB::ColumnPtr FlushColumn() override
@@ -107,16 +192,83 @@ public:
         return std::make_shared<DB::DataTypeString>();
     }
 
+    virtual void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column)
+    {
+        // This is the outermost converter.
+        // Input column may be of concrete type in case of any upcast, so we may need to
+        // perform additional serialization to YSON.
+
+        auto v1Type = CastToV1Type(column.Type).first;
+
+        // TODO(max42): it is possible to eliminate intermediate column at all,
+        // but I am too lazy to rewrite babenko@'s code at this moment.
+        DB::MutableColumnPtr intermediateColumn;
+        switch (v1Type) {
+            case ESimpleLogicalValueType::Any:
+                TYsonExtractingConverterBase::ConsumeYtColumn(column);
+                return;
+            case ESimpleLogicalValueType::String:
+            case ESimpleLogicalValueType::Utf8:
+            case ESimpleLogicalValueType::Json:
+                intermediateColumn = ConvertStringLikeYTColumnToCHColumn(column);
+                break;
+            case ESimpleLogicalValueType::Int8:
+            case ESimpleLogicalValueType::Int16:
+            case ESimpleLogicalValueType::Int32:
+            case ESimpleLogicalValueType::Int64:
+            case ESimpleLogicalValueType::Uint8:
+            case ESimpleLogicalValueType::Uint16:
+            case ESimpleLogicalValueType::Uint32:
+            case ESimpleLogicalValueType::Uint64:
+            case ESimpleLogicalValueType::Date:
+            case ESimpleLogicalValueType::Datetime:
+            case ESimpleLogicalValueType::Timestamp:
+            case ESimpleLogicalValueType::Interval:
+                intermediateColumn = ConvertIntegerYTColumnToCHColumn(column, v1Type);
+                break;
+            case ESimpleLogicalValueType::Boolean:
+                intermediateColumn = ConvertBooleanYTColumnToCHColumn(column);
+                break;
+            case ESimpleLogicalValueType::Double:
+                intermediateColumn = ConvertDoubleYTColumnToCHColumn(column);
+                break;
+            case ESimpleLogicalValueType::Float:
+                intermediateColumn = ConvertFloatYTColumnToCHColumn(column);
+                break;
+            default:
+                // TODO(max42)
+                YT_UNIMPLEMENTED();
+        }
+
+        ReplaceColumnTypeChecked(Column_, ConvertCHColumnToAny(
+            *intermediateColumn,
+            v1Type,
+            Settings_->DefaultYsonFormat));
+    }
+
 private:
     DB::ColumnString::MutablePtr Column_;
+    TCompositeSettingsPtr Settings_;
     TString YsonBuffer_;
     TStringOutput YsonOutput_;
     TYsonWriter YsonWriter_;
+
+    void PushValueFromWriter()
+    {
+        auto& offsets = Column_->getOffsets();
+        auto& chars = Column_->getChars();
+
+        YsonWriter_.Flush();
+        chars.insert(chars.end(), YsonBuffer_.begin(), YsonBuffer_.end());
+        chars.push_back('\x0');
+        offsets.push_back(chars.size());
+        YsonBuffer_.clear();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <ESimpleLogicalValueType valueType, class TCppType, class TColumn>
+template <ESimpleLogicalValueType LogicalType, class TCppType, class TColumn>
 class TSimpleValueConverter
     : public IConverter
 {
@@ -127,64 +279,138 @@ public:
         , Column_(DataType_->createColumn())
     { }
 
-    virtual void Consume(TYsonPullParserCursor* cursor) override
+    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         auto ysonItem = cursor->GetCurrent();
 
-        // NB: even though (at least) one of the downcasts is semantically incorrect,
-        // proper choice of valueType guarantees that we will never dereference an incorrect
-        // pointer, thus no UB happens. On the other hand, we become able to access public
-        // non-interface methods specific to particular column implementation.
-        auto* typedVectorColumn = static_cast<DB::ColumnVector<TCppType>*>(Column_.get());
-        auto* typedStringColumn = static_cast<DB::ColumnString*>(Column_.get());
-        auto* typedNothingColumn = static_cast<DB::ColumnNothing*>(Column_.get());
-
         if constexpr (
-            valueType == ESimpleLogicalValueType::Int8 ||
-            valueType == ESimpleLogicalValueType::Int16 ||
-            valueType == ESimpleLogicalValueType::Int32 ||
-            valueType == ESimpleLogicalValueType::Int64 ||
-            valueType == ESimpleLogicalValueType::Interval)
+            LogicalType == ESimpleLogicalValueType::Int8 ||
+            LogicalType == ESimpleLogicalValueType::Int16 ||
+            LogicalType == ESimpleLogicalValueType::Int32 ||
+            LogicalType == ESimpleLogicalValueType::Int64 ||
+            LogicalType == ESimpleLogicalValueType::Interval)
         {
-            typedVectorColumn->insertValue(ysonItem.UncheckedAsInt64());
+            AssumeVectorColumn()->insertValue(ysonItem.UncheckedAsInt64());
         } else if constexpr (
-            valueType == ESimpleLogicalValueType::Uint8 ||
-            valueType == ESimpleLogicalValueType::Uint16 ||
-            valueType == ESimpleLogicalValueType::Uint32 ||
-            valueType == ESimpleLogicalValueType::Uint64 ||
-            valueType == ESimpleLogicalValueType::Date ||
-            valueType == ESimpleLogicalValueType::Datetime ||
-            valueType == ESimpleLogicalValueType::Timestamp)
+            LogicalType == ESimpleLogicalValueType::Uint8 ||
+            LogicalType == ESimpleLogicalValueType::Uint16 ||
+            LogicalType == ESimpleLogicalValueType::Uint32 ||
+            LogicalType == ESimpleLogicalValueType::Uint64 ||
+            LogicalType == ESimpleLogicalValueType::Date ||
+            LogicalType == ESimpleLogicalValueType::Datetime ||
+            LogicalType == ESimpleLogicalValueType::Timestamp)
         {
-            typedVectorColumn->insertValue(ysonItem.UncheckedAsUint64());
+            AssumeVectorColumn()->insertValue(ysonItem.UncheckedAsUint64());
         } else if constexpr (
-            valueType == ESimpleLogicalValueType::Float ||
-            valueType == ESimpleLogicalValueType::Double)
+            LogicalType == ESimpleLogicalValueType::Float ||
+            LogicalType == ESimpleLogicalValueType::Double)
         {
-            typedVectorColumn->insertValue(ysonItem.UncheckedAsDouble());
-        } else if constexpr (valueType == ESimpleLogicalValueType::Boolean)
-        {
-            typedVectorColumn->insertValue(ysonItem.UncheckedAsBoolean());
+            AssumeVectorColumn()->insertValue(ysonItem.UncheckedAsDouble());
+        } else if constexpr (LogicalType == ESimpleLogicalValueType::Boolean) {
+            AssumeVectorColumn()->insertValue(ysonItem.UncheckedAsBoolean());
         } else if constexpr (
-            valueType == ESimpleLogicalValueType::String ||
-            valueType == ESimpleLogicalValueType::Utf8)
+            LogicalType == ESimpleLogicalValueType::String ||
+            LogicalType == ESimpleLogicalValueType::Utf8)
         {
             auto data = ysonItem.UncheckedAsString();
-            typedStringColumn->insertData(data.data(), data.size());
-        } else if constexpr (valueType == ESimpleLogicalValueType::Void) {
+            AssumeStringColumn()->insertData(data.data(), data.size());
+        } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
             YT_VERIFY(ysonItem.GetType() == EYsonItemType::EntityValue);
-            typedNothingColumn->insertDefault();
+            AssumeNothingColumn()->insertDefault();
         } else {
             YT_ABORT();
         }
         cursor->Next();
     }
 
-    virtual void ConsumeNull() override
+    virtual void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
     {
-        // If somebody called ConsumeNull() here, we are probably inside Nullable
+        for (const auto& value : values) {
+            if (value.Type == EValueType::Null) {
+                ConsumeNulls(1);
+            } else {
+                constexpr auto physicalType = GetPhysicalType(LogicalType);
+                YT_VERIFY(value.Type == physicalType);
+
+                if constexpr (
+                    LogicalType == ESimpleLogicalValueType::Int8 ||
+                    LogicalType == ESimpleLogicalValueType::Int16 ||
+                    LogicalType == ESimpleLogicalValueType::Int32 ||
+                    LogicalType == ESimpleLogicalValueType::Int64 ||
+                    LogicalType == ESimpleLogicalValueType::Interval)
+                {
+                    AssumeVectorColumn()->insertValue(value.Data.Int64);
+                } else if constexpr (
+                    LogicalType == ESimpleLogicalValueType::Uint8 ||
+                    LogicalType == ESimpleLogicalValueType::Uint16 ||
+                    LogicalType == ESimpleLogicalValueType::Uint32 ||
+                    LogicalType == ESimpleLogicalValueType::Uint64 ||
+                    LogicalType == ESimpleLogicalValueType::Date ||
+                    LogicalType == ESimpleLogicalValueType::Datetime ||
+                    LogicalType == ESimpleLogicalValueType::Timestamp)
+                {
+                    AssumeVectorColumn()->insertValue(value.Data.Uint64);
+                } else if constexpr (
+                    LogicalType == ESimpleLogicalValueType::Float ||
+                    LogicalType == ESimpleLogicalValueType::Double)
+                {
+                    AssumeVectorColumn()->insertValue(value.Data.Double);
+                } else if constexpr (LogicalType == ESimpleLogicalValueType::Boolean) {
+                    AssumeVectorColumn()->insertValue(value.Data.Boolean);
+                } else if constexpr (
+                    LogicalType == ESimpleLogicalValueType::String ||
+                    LogicalType == ESimpleLogicalValueType::Utf8)
+                {
+                    AssumeStringColumn()->insertData(value.Data.String, value.Length);
+                } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
+                    AssumeNothingColumn()->insertDefault();
+                } else {
+                    YT_ABORT();
+                }
+            }
+        }
+    }
+
+    virtual void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column) override
+    {
+        if constexpr (
+            LogicalType == ESimpleLogicalValueType::Int8 ||
+            LogicalType == ESimpleLogicalValueType::Int16 ||
+            LogicalType == ESimpleLogicalValueType::Int32 ||
+            LogicalType == ESimpleLogicalValueType::Int64 ||
+            LogicalType == ESimpleLogicalValueType::Interval ||
+            LogicalType == ESimpleLogicalValueType::Uint8 ||
+            LogicalType == ESimpleLogicalValueType::Uint16 ||
+            LogicalType == ESimpleLogicalValueType::Uint32 ||
+            LogicalType == ESimpleLogicalValueType::Uint64 ||
+            LogicalType == ESimpleLogicalValueType::Date ||
+            LogicalType == ESimpleLogicalValueType::Datetime ||
+            LogicalType == ESimpleLogicalValueType::Timestamp)
+        {
+            ReplaceColumnTypeChecked(Column_, ConvertIntegerYTColumnToCHColumn(column, LogicalType));
+        } else if constexpr (LogicalType == ESimpleLogicalValueType::Float) {
+            ReplaceColumnTypeChecked(Column_, ConvertFloatYTColumnToCHColumn(column));
+        } else if constexpr (LogicalType == ESimpleLogicalValueType::Double) {
+            ReplaceColumnTypeChecked(Column_, ConvertDoubleYTColumnToCHColumn(column));
+        } else if constexpr (LogicalType == ESimpleLogicalValueType::Boolean) {
+            ReplaceColumnTypeChecked(Column_, ConvertBooleanYTColumnToCHColumn(column));
+        } else if constexpr (
+            LogicalType == ESimpleLogicalValueType::String ||
+            LogicalType == ESimpleLogicalValueType::Utf8)
+        {
+            ReplaceColumnTypeChecked(Column_, ConvertStringLikeYTColumnToCHColumn(column));
+        } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
+            // AssumeNothingColumn()->insertDefault(column);
+        } else {
+            YT_ABORT();
+        }
+    }
+
+    virtual void ConsumeNulls(int count) override
+    {
+        // If somebody called ConsumeNulls() here, we are probably inside Nullable
         // column, so the exact value here does not matter.
-        Column_->insertDefault();
+        Column_->insertManyDefaults(count);
     }
 
     virtual DB::ColumnPtr FlushColumn() override
@@ -201,12 +427,45 @@ private:
     TComplexTypeFieldDescriptor Descriptor_;
     DB::DataTypePtr DataType_;
     DB::IColumn::MutablePtr Column_;
+
+    DB::ColumnVector<TCppType>* AssumeVectorColumn()
+    {
+        return static_cast<DB::ColumnVector<TCppType>*>(Column_.get());
+    }
+
+    DB::ColumnString* AssumeStringColumn()
+    {
+        return static_cast<DB::ColumnString*>(Column_.get());
+    }
+
+    DB::ColumnNothing* AssumeNothingColumn()
+    {
+        return static_cast<DB::ColumnNothing*>(Column_.get());
+    }
+
+    void SetColumnChecked(DB::IColumn::MutablePtr column)
+    {
+        YT_VERIFY(Column_->structureEquals(*column));
+        Column_.swap(column);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: there is an important difference on how optional<T> works for outermost case with
+// simple T (so called V1 optional scenario) and the rest of cases.
+//
+// For V1 optionals input unversioned values may be either of type T or of type Null.
+// Input native YT columns will also be properly typed, i.e. input column will be of type T
+// with null bitmap.
+//
+// For non-V1 optionals input unversioned values are always Any or Composite (shame on me,
+// I still don't get the difference...). Similarly, input native YT columns will always be
+// string columns. I am not sure if these string columns may provide non-trivial null bitmap,
+// but that makes not much difference as our implementation is ready for that.
+template <bool IsV1Optional>
 class TOptionalConverter
-    : public IConverter
+    : public TYsonExtractingConverterBase
 {
 public:
     TOptionalConverter(IConverterPtr underlyingConverter, int nestingLevel)
@@ -222,7 +481,7 @@ public:
         }
     }
 
-    virtual void Consume(TYsonPullParserCursor* cursor) override
+    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         int outerOptionalsFound = 0;
         while (cursor->GetCurrent().GetType() == EYsonItemType::BeginList && outerOptionalsFound < NestingLevel_ - 1) {
@@ -232,19 +491,19 @@ public:
         if (outerOptionalsFound < NestingLevel_ - 1) {
             // This have to be entity of some level.
             YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::EntityValue);
-            ConsumeNull();
+            ConsumeNulls(1);
             cursor->Next();
         } else {
             YT_VERIFY(outerOptionalsFound == NestingLevel_ - 1);
             // It may either be entity or a representation of underlying non-optional type.
             if (cursor->GetCurrent().GetType() == EYsonItemType::EntityValue) {
-                ConsumeNull();
+                ConsumeNulls(1);
                 cursor->Next();
             } else {
                 if (NullColumn_) {
                     NullColumn_->insertValue(0);
                 }
-                UnderlyingConverter_->Consume(cursor);
+                UnderlyingConverter_->ConsumeYson(cursor);
             }
         }
         while (outerOptionalsFound--) {
@@ -253,12 +512,46 @@ public:
         }
     }
 
-    virtual void ConsumeNull() override
+    virtual void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    {
+        if constexpr (IsV1Optional) {
+            // V1 optional converter always faces either Null or underlying type.
+            if (NullColumn_) {
+                for (const auto& value : values) {
+                    NullColumn_->insertValue(value.Type == EValueType::Null ? 1 : 0);
+                }
+            }
+            UnderlyingConverter_->ConsumeUnversionedValues(values);
+        } else {
+            // Non-v1 optional always deals with Any/Composite. We may safely assert that.
+            // Also, making a virtual call per value is OK in this case.
+            TYsonExtractingConverterBase::ConsumeUnversionedValues(values);
+        }
+    }
+
+    virtual void ConsumeNulls(int count) override
     {
         if (NullColumn_) {
-            NullColumn_->insertValue(1);
+            // TODO(max42): there is no efficient (in terms of virtual calls) way
+            // of inserting same value many times to the column. Introduce it.
+            for (int index = 0; index < count; ++index) {
+                NullColumn_->insert(1);
+            }
         }
-        UnderlyingConverter_->ConsumeNull();
+        UnderlyingConverter_->ConsumeNulls(count);
+    }
+
+    virtual void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column)
+    {
+        if constexpr (IsV1Optional) {
+            if (NullColumn_) {
+                ReplaceColumnTypeChecked(NullColumn_, BuildNullBytemapForCHColumn(column));
+            }
+
+            UnderlyingConverter_->ConsumeYtColumn(column);
+        } else {
+            TYsonExtractingConverterBase::ConsumeYtColumn(column);
+        }
     }
 
     virtual DB::ColumnPtr FlushColumn() override
@@ -293,7 +586,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListConverter
-    : public IConverter
+    : public TYsonExtractingConverterBase
 {
 public:
     TListConverter(IConverterPtr underlyingConverter)
@@ -301,13 +594,13 @@ public:
         , ColumnOffsets_(DB::ColumnVector<ui64>::create())
     { }
 
-    virtual void Consume(TYsonPullParserCursor* cursor) override
+    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
         cursor->Next();
 
         while (cursor->GetCurrent().GetType() != EYsonItemType::EndList && cursor->GetCurrent().GetType() != EYsonItemType::EndOfStream) {
-            UnderlyingConverter_->Consume(cursor);
+            UnderlyingConverter_->ConsumeYson(cursor);
             ++ItemCount_;
         }
 
@@ -317,10 +610,15 @@ public:
         ColumnOffsets_->insertValue(ItemCount_);
     }
 
-    virtual void ConsumeNull() override
+    virtual void ConsumeNulls(int count) override
     {
         // Null is represented as an empty array.
-        ColumnOffsets_->insertValue(ItemCount_);
+
+        // TODO(max42): there is no efficient (in terms of virtual calls) way
+        // of inserting same value many times to the column. Introduce it.
+        for (int index = 0; index < count; ++index) {
+            ColumnOffsets_->insertValue(ItemCount_);
+        }
     }
 
     virtual DB::ColumnPtr FlushColumn() override
@@ -343,7 +641,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDictConverter
-    : public IConverter
+    : public TYsonExtractingConverterBase
 {
 public:
     TDictConverter(IConverterPtr keyConverter, IConverterPtr valueConverter)
@@ -352,7 +650,7 @@ public:
         , ColumnOffsets_(DB::ColumnVector<ui64>::create())
     { }
 
-    virtual void Consume(TYsonPullParserCursor* cursor) override
+    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
         cursor->Next();
@@ -360,8 +658,8 @@ public:
         while (cursor->GetCurrent().GetType() != EYsonItemType::EndList && cursor->GetCurrent().GetType() != EYsonItemType::EndOfStream) {
             YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
             cursor->Next();
-            KeyConverter_->Consume(cursor);
-            ValueConverter_->Consume(cursor);
+            KeyConverter_->ConsumeYson(cursor);
+            ValueConverter_->ConsumeYson(cursor);
             YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::EndList);
             cursor->Next();
             ++ItemCount_;
@@ -373,10 +671,15 @@ public:
         ColumnOffsets_->insertValue(ItemCount_);
     }
 
-    virtual void ConsumeNull() override
+    virtual void ConsumeNulls(int count) override
     {
         // Null is represented as an empty array.
-        ColumnOffsets_->insertValue(ItemCount_);
+
+        // TODO(max42): there is no efficient (in terms of virtual calls) way
+        // of inserting same value many times to the column. Introduce it.
+        for (int index = 0; index < count; ++index) {
+            ColumnOffsets_->insertValue(ItemCount_);
+        }
     }
 
     virtual DB::ColumnPtr FlushColumn() override
@@ -410,31 +713,31 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTupleConverter
-    : public IConverter
+    : public TYsonExtractingConverterBase
 {
 public:
     TTupleConverter(std::vector<IConverterPtr> itemConverters)
         : ItemConverters_(std::move(itemConverters))
     { }
 
-    virtual void Consume(TYsonPullParserCursor* cursor) override
+    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
         cursor->Next();
 
         for (const auto& itemConverter : ItemConverters_) {
-            itemConverter->Consume(cursor);
+            itemConverter->ConsumeYson(cursor);
         }
 
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::EndList);
         cursor->Next();
     }
 
-    virtual void ConsumeNull() override
+    virtual void ConsumeNulls(int count) override
     {
         // Null is represented as a tuple of defaults.
         for (const auto& itemConverter : ItemConverters_) {
-            itemConverter->ConsumeNull();
+            itemConverter->ConsumeNulls(count);
         }
     }
 
@@ -464,7 +767,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStructConverter
-    : public IConverter
+    : public TYsonExtractingConverterBase
 {
 public:
     TStructConverter(std::vector<IConverterPtr> fieldConverters, std::vector<TString> fieldNames)
@@ -476,7 +779,7 @@ public:
         }
     }
 
-    virtual void Consume(TYsonPullParserCursor* cursor) override
+    virtual void ConsumeYson(TYsonPullParserCursor* cursor) override
     {
         if (cursor->GetCurrent().GetType() == EYsonItemType::BeginList) {
             ConsumePositional(cursor);
@@ -487,11 +790,11 @@ public:
         }
     }
 
-    virtual void ConsumeNull() override
+    virtual void ConsumeNulls(int count) override
     {
         // Null is represented as a tuple of defaults.
         for (const auto& fieldConverter : FieldConverters_) {
-            fieldConverter->ConsumeNull();
+            fieldConverter->ConsumeNulls(count);
         }
     }
 
@@ -530,14 +833,14 @@ private:
             cursor->Next();
             YT_VERIFY(!seenPositions[position]);
             seenPositions[position] = true;
-            FieldConverters_[position]->Consume(cursor);
+            FieldConverters_[position]->ConsumeYson(cursor);
         }
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::EndMap);
         cursor->Next();
 
         for (int index = 0; index < seenPositions.size(); ++index) {
             if (!seenPositions[index]) {
-                FieldConverters_[index]->ConsumeNull();
+                FieldConverters_[index]->ConsumeNulls(1);
             }
         }
     }
@@ -548,9 +851,9 @@ private:
         cursor->Next();
         for (int index = 0; index < FieldConverters_.size(); ++index) {
             if (cursor->GetCurrent().GetType() == EYsonItemType::EndList) {
-                FieldConverters_[index]->ConsumeNull();
+                FieldConverters_[index]->ConsumeNulls(1);
             } else {
-                FieldConverters_[index]->Consume(cursor);
+                FieldConverters_[index]->ConsumeYson(cursor);
             }
         }
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::EndList);
@@ -567,24 +870,33 @@ public:
         : Descriptor_(std::move(descriptor))
         , Settings_(std::move(settings))
     {
-        RootConverter_ = CreateConverter(Descriptor_);
+        RootConverter_ = CreateConverter(Descriptor_, /* isOutermost */ true);
     }
 
-    void ConsumeYson(TStringBuf yson)
+    void ConsumeUnversionedValues(TRange<TUnversionedValue> values)
     {
-        TMemoryInput in(yson);
+        RootConverter_->ConsumeUnversionedValues(values);
+    }
+
+    void ConsumeYson(TYsonStringBuf yson)
+    {
+        TMemoryInput in(yson.GetData());
         TYsonPullParser parser(&in, EYsonType::Node);
         TYsonPullParserCursor cursor(&parser);
-        RootConverter_->Consume(&cursor);
-
+        RootConverter_->ConsumeYson(&cursor);
         YT_VERIFY(cursor->IsEndOfStream());
     }
 
-    void ConsumeNull()
+    void ConsumeNulls(int count)
     {
         // This may result in either adding null or default value in case top-most type is not
         // enclosible in Nullable.
-        RootConverter_->ConsumeNull();
+        RootConverter_->ConsumeNulls(count);
+    }
+
+    void ConsumeYtColumn(const NTableClient::IUnversionedColumnarRowBatch::TColumn& column)
+    {
+        RootConverter_->ConsumeYtColumn(column);
     }
 
     DB::ColumnPtr FlushColumn()
@@ -636,12 +948,12 @@ private:
             CASE(ESimpleLogicalValueType::Utf8, DB::UInt8 /* actually unused */, DB::ColumnString, std::make_shared<DB::DataTypeString>())
             CASE(ESimpleLogicalValueType::Void, DB::UInt8 /* actually unused */, DB::ColumnNothing, std::make_shared<DB::DataTypeNothing>())
             default:
-                ThrowConversionError(descriptor, "simple logical value type %v is not supported", valueType);
+                ThrowConversionError(descriptor, "Converting YT simple logical value type %v to ClickHouse is not supported", valueType);
         }
         return converter;
     }
 
-    IConverterPtr CreateOptionalConverter(const TComplexTypeFieldDescriptor& descriptor)
+    IConverterPtr CreateOptionalConverter(const TComplexTypeFieldDescriptor& descriptor, bool isOutermost)
     {
         // Descend to first non-optional enclosed type.
         auto nonOptionalDescriptor = descriptor;
@@ -653,9 +965,17 @@ private:
 
         YT_VERIFY(nestingLevel > 0);
 
+        bool isV1Optional = isOutermost && (nestingLevel == 1) &&
+            nonOptionalDescriptor.GetType()->GetMetatype() == ELogicalMetatype::Simple;
+
         auto underlyingConverter = CreateConverter(nonOptionalDescriptor);
 
-        return std::make_unique<TOptionalConverter>(std::move(underlyingConverter), nestingLevel);
+        if (isV1Optional) {
+            return std::make_unique<TOptionalConverter<true>>(std::move(underlyingConverter), nestingLevel);
+        } else {
+            return std::make_unique<TOptionalConverter<false>>(std::move(underlyingConverter), nestingLevel);
+        }
+
     }
 
     IConverterPtr CreateListConverter(const TComplexTypeFieldDescriptor& descriptor)
@@ -699,7 +1019,7 @@ private:
         return std::make_unique<TStructConverter>(std::move(fieldConverters), std::move(fieldNames));
     }
 
-    IConverterPtr CreateConverter(const TComplexTypeFieldDescriptor& descriptor)
+    IConverterPtr CreateConverter(const TComplexTypeFieldDescriptor& descriptor, bool isOutermost = false)
     {
         const auto& type = descriptor.GetType();
         if (type->GetMetatype() == ELogicalMetatype::Simple) {
@@ -713,7 +1033,7 @@ private:
                 return CreateSimpleLogicalTypeConverter(simpleType.GetElement(), descriptor);
             }
         } else if (type->GetMetatype() == ELogicalMetatype::Optional) {
-            return CreateOptionalConverter(descriptor);
+            return CreateOptionalConverter(descriptor, isOutermost);
         } else if (type->GetMetatype() == ELogicalMetatype::List) {
             return CreateListConverter(descriptor);
         } else if (type->GetMetatype() == ELogicalMetatype::Dict) {
@@ -737,7 +1057,12 @@ TCompositeValueToClickHouseColumnConverter::TCompositeValueToClickHouseColumnCon
     : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings)))
 { }
 
-void TCompositeValueToClickHouseColumnConverter::ConsumeYson(TStringBuf yson)
+void TCompositeValueToClickHouseColumnConverter::ConsumeUnversionedValues(TRange<TUnversionedValue> values)
+{
+    return Impl_->ConsumeUnversionedValues(values);
+}
+
+void TCompositeValueToClickHouseColumnConverter::ConsumeYson(TYsonStringBuf yson)
 {
     return Impl_->ConsumeYson(yson);
 }
@@ -752,12 +1077,22 @@ DB::DataTypePtr TCompositeValueToClickHouseColumnConverter::GetDataType() const
     return Impl_->GetDataType();
 }
 
-void TCompositeValueToClickHouseColumnConverter::ConsumeNull()
+void TCompositeValueToClickHouseColumnConverter::ConsumeNulls(int count)
 {
-    return Impl_->ConsumeNull();
+    return Impl_->ConsumeNulls(count);
+}
+
+void TCompositeValueToClickHouseColumnConverter::ConsumeYtColumn(
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn& column)
+{
+    return Impl_->ConsumeYtColumn(column);
 }
 
 TCompositeValueToClickHouseColumnConverter::~TCompositeValueToClickHouseColumnConverter() = default;
+TCompositeValueToClickHouseColumnConverter::TCompositeValueToClickHouseColumnConverter(
+    TCompositeValueToClickHouseColumnConverter&& other)
+    : Impl_(std::move(other.Impl_))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

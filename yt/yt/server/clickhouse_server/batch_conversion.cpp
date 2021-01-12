@@ -21,6 +21,7 @@
 namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,12 +31,21 @@ static const auto& Logger = ClickHouseYtLogger;
 
 namespace {
 
-template <class F>
-DB::ColumnPtr ConvertCHColumnToAnyByIndexImpl(const DB::IColumn& column, F func)
+template <EYsonFormat ysonFormat, class F>
+DB::ColumnString::MutablePtr ConvertCHColumnToAnyByIndexImpl(const DB::IColumn& column, F func)
 {
     TString ysonBuffer;
     TStringOutput ysonOutput(ysonBuffer);
-    NYson::TBufferedBinaryYsonWriter ysonWriter(&ysonOutput);
+
+    // Using IIFE for constexpr resolution of the writer (for binary YSON we use TBufferedBinaryYsonWriter,
+    // for non-binary we use TYsonWriter).
+    auto ysonWriter = [&] {
+        if constexpr (ysonFormat == EYsonFormat::Binary) {
+            return TBufferedBinaryYsonWriter(&ysonOutput);
+        } else {
+            return TYsonWriter(&ysonOutput, ysonFormat);
+        }
+    }();
 
     auto anyColumn = DB::ColumnString::create();
     auto& offsets = anyColumn->getOffsets();
@@ -53,14 +63,14 @@ DB::ColumnPtr ConvertCHColumnToAnyByIndexImpl(const DB::IColumn& column, F func)
     return anyColumn;
 }
 
-template <class T, class F>
-DB::ColumnPtr ConvertCHVectorColumnToAnyImpl(const DB::IColumn& column, F func)
+template <EYsonFormat ysonFormat, class T, class F>
+DB::ColumnString::MutablePtr ConvertCHVectorColumnToAnyImpl(const DB::IColumn& column, F func)
 {
     const auto* typedColumnPtr = dynamic_cast<const DB::ColumnVector<T>*>(&column);
     YT_VERIFY(typedColumnPtr);
     const auto& typedValues = typedColumnPtr->getData();
 
-    return ConvertCHColumnToAnyByIndexImpl(
+    return ConvertCHColumnToAnyByIndexImpl<ysonFormat>(
         column,
         [&] (size_t index, auto* writer) {
             auto value = typedValues[index];
@@ -68,13 +78,13 @@ DB::ColumnPtr ConvertCHVectorColumnToAnyImpl(const DB::IColumn& column, F func)
         });
 }
 
-template <class F>
-DB::ColumnPtr ConvertCHStringColumnToAnyImpl(const DB::IColumn& column, F func)
+template <EYsonFormat ysonFormat, class F>
+DB::ColumnString::MutablePtr ConvertCHStringColumnToAnyImpl(const DB::IColumn& column, F func)
 {
     const auto* typedColumnPtr = dynamic_cast<const DB::ColumnString*>(&column);
     YT_VERIFY(typedColumnPtr);
 
-    return ConvertCHColumnToAnyByIndexImpl(
+    return ConvertCHColumnToAnyByIndexImpl<ysonFormat>(
         column,
         [&] (size_t index, auto* writer) {
             auto value = typedColumnPtr->getDataAt(index);
@@ -82,7 +92,8 @@ DB::ColumnPtr ConvertCHStringColumnToAnyImpl(const DB::IColumn& column, F func)
         });
 }
 
-DB::ColumnPtr ConvertCHColumnToAny(const DB::IColumn& column, ESimpleLogicalValueType type)
+template <EYsonFormat ysonFormat>
+DB::ColumnString::MutablePtr ConvertCHColumnToAnyImpl(const DB::IColumn& column, ESimpleLogicalValueType type)
 {
     YT_LOG_TRACE("Converting column to any (Count: %v, Type: %v)",
         column.size(),
@@ -91,7 +102,7 @@ DB::ColumnPtr ConvertCHColumnToAny(const DB::IColumn& column, ESimpleLogicalValu
     switch (type) {
         #define XX(valueType, cppType) \
             case ESimpleLogicalValueType::valueType: \
-                return ConvertCHVectorColumnToAnyImpl<cppType>( \
+                return ConvertCHVectorColumnToAnyImpl<ysonFormat, cppType>( \
                     column, \
                     [] (cppType value, auto* writer) { writer->OnInt64Scalar(value); });
         XX(Int8,      i8 )
@@ -103,10 +114,10 @@ DB::ColumnPtr ConvertCHColumnToAny(const DB::IColumn& column, ESimpleLogicalValu
 
         #define XX(valueType, cppType) \
             case ESimpleLogicalValueType::valueType: \
-                return ConvertCHVectorColumnToAnyImpl<cppType>( \
+                return ConvertCHVectorColumnToAnyImpl<ysonFormat, cppType>( \
                     column, \
                     [] (cppType value, auto* writer) { writer->OnUint64Scalar(value); });
-        XX(Uint8,     DB::UInt8 )
+        XX(Uint8,     DB::UInt8)
         XX(Uint16,    ui16)
         XX(Uint32,    ui32)
         XX(Uint64,    ui64)
@@ -117,7 +128,7 @@ DB::ColumnPtr ConvertCHColumnToAny(const DB::IColumn& column, ESimpleLogicalValu
 
         #define XX(chType, cppType) \
             case ESimpleLogicalValueType::chType: \
-                return ConvertCHVectorColumnToAnyImpl<cppType>( \
+                return ConvertCHVectorColumnToAnyImpl<ysonFormat, cppType>( \
                     column, \
                     [] (cppType value, auto* writer) { writer->OnDoubleScalar(value); });
         XX(Float,  float )
@@ -125,12 +136,12 @@ DB::ColumnPtr ConvertCHColumnToAny(const DB::IColumn& column, ESimpleLogicalValu
         #undef XX
 
         case ESimpleLogicalValueType::Boolean:
-            return ConvertCHVectorColumnToAnyImpl<DB::UInt8>(
+            return ConvertCHVectorColumnToAnyImpl<ysonFormat, DB::UInt8>(
                 column,
                 [] (DB::UInt8 value, auto* writer) { writer->OnBooleanScalar(value != 0); });
 
         case ESimpleLogicalValueType::String:
-            return ConvertCHStringColumnToAnyImpl(
+            return ConvertCHStringColumnToAnyImpl<ysonFormat>(
                 column,
                 [] (TStringBuf value, auto* writer) { writer->OnStringScalar(value); });
 
@@ -141,7 +152,7 @@ DB::ColumnPtr ConvertCHColumnToAny(const DB::IColumn& column, ESimpleLogicalValu
 }
 
 template <class T>
-DB::ColumnPtr ConvertIntegerYTColumnToCHColumnImpl(
+DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumnImpl(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn,
     const IUnversionedColumnarRowBatch::TColumn& ytValueColumn,
     TRange<ui32> dictionaryIndexes,
@@ -199,51 +210,8 @@ auto AnalyzeColumnEncoding(const IUnversionedColumnarRowBatch::TColumn& ytColumn
         dictionaryIndexes);
 }
 
-DB::ColumnPtr ConvertIntegerYTColumnToCHColumn(
-    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
-    ESimpleLogicalValueType type)
-{
-    auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
-
-    YT_LOG_TRACE("Converting integer column (Count: %v, Rle: %v, Dictionary: %v)",
-        ytColumn.ValueCount,
-        static_cast<bool>(rleIndexes),
-        static_cast<bool>(dictionaryIndexes));
-
-    switch (type) {
-        #define XX(ytType, chType) \
-            case ESimpleLogicalValueType::ytType: { \
-                return ConvertIntegerYTColumnToCHColumnImpl<chType>( \
-                    ytColumn, \
-                    *ytValueColumn, \
-                    dictionaryIndexes, \
-                    rleIndexes); \
-            }
-
-        XX(Int8,      Int8)
-        XX(Int16,     Int16)
-        XX(Int32,     Int32)
-        XX(Int64,     Int64)
-
-        XX(Uint8,     UInt8)
-        XX(Uint16,    UInt16)
-        XX(Uint32,    UInt32)
-        XX(Uint64,    UInt64)
-
-        XX(Date,      UInt16)
-        XX(Datetime,  UInt32)
-        XX(Interval,  Int64)
-        XX(Timestamp, UInt64)
-
-        #undef XX
-
-        default:
-            YT_ABORT();
-    }
-}
-
 template <class T>
-DB::ColumnPtr ConvertFloatingPointYTColumnToCHColumn(
+DB::MutableColumnPtr ConvertFloatingPointYTColumnToCHColumn(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
     auto relevantValues = ytColumn.GetRelevantTypedValues<T>();
@@ -256,24 +224,6 @@ DB::ColumnPtr ConvertFloatingPointYTColumnToCHColumn(
         sizeof (T) * ytColumn.ValueCount);
 
     return chColumn;
-}
-
-DB::ColumnPtr ConvertDoubleYTColumnToCHColumn(
-    const IUnversionedColumnarRowBatch::TColumn& ytColumn)
-{
-    YT_LOG_TRACE("Converting double column (Count: %v)",
-        ytColumn.ValueCount);
-
-    return ConvertFloatingPointYTColumnToCHColumn<double>(ytColumn);
-}
-
-DB::ColumnPtr ConvertFloatYTColumnToCHColumn(
-    const IUnversionedColumnarRowBatch::TColumn& ytColumn)
-{
-    YT_LOG_TRACE("Converting float column (Count: %v)",
-        ytColumn.ValueCount);
-
-    return ConvertFloatingPointYTColumnToCHColumn<float>(ytColumn);
 }
 
 i64 CountTotalStringLengthInRleDictionaryIndexesWithZeroNull(
@@ -304,7 +254,7 @@ i64 CountTotalStringLengthInRleDictionaryIndexesWithZeroNull(
     return result;
 }
 
-DB::ColumnPtr ConvertStringLikeYTColumnToCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+DB::MutableColumnPtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
@@ -492,66 +442,6 @@ DB::ColumnPtr ConvertStringLikeYTColumnToCHColumn(const IUnversionedColumnarRowB
     return chColumn;
 }
 
-DB::ColumnPtr ConvertBooleanYTColumnToCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
-{
-    YT_LOG_TRACE("Converting boolean column (Count: %v)",
-        ytColumn.ValueCount);
-
-    auto chColumn = DB::ColumnUInt8::create(ytColumn.ValueCount);
-
-    DecodeBytemapFromBitmap(
-        ytColumn.GetBitmapValues(),
-        ytColumn.StartIndex,
-        ytColumn.StartIndex + ytColumn.ValueCount,
-        MakeMutableRange(chColumn->getData().data(), ytColumn.ValueCount));
-
-    return chColumn;
-}
-
-DB::ColumnPtr BuildNullBytemapForCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
-{
-    auto chColumn = DB::ColumnUInt8::create(ytColumn.ValueCount);
-
-    auto nullBytemap = MakeMutableRange(chColumn->getData().data(), ytColumn.ValueCount);
-
-    auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
-
-    YT_LOG_TRACE("Buliding null bytemap (Value: %v, Rle: %v, Dictionary: %v)",
-        ytColumn.ValueCount,
-        static_cast<bool>(rleIndexes),
-        static_cast<bool>(dictionaryIndexes));
-
-    if (rleIndexes && dictionaryIndexes) {
-        BuildNullBytemapFromRleDictionaryIndexesWithZeroNull(
-            dictionaryIndexes,
-            rleIndexes,
-            ytColumn.StartIndex,
-            ytColumn.StartIndex + ytColumn.ValueCount,
-            nullBytemap);
-    } else if (rleIndexes && !dictionaryIndexes) {
-        YT_VERIFY(ytValueColumn->NullBitmap);
-        BuildNullBytemapFromRleNullBitmap(
-            ytValueColumn->NullBitmap->Data,
-            rleIndexes,
-            ytColumn.StartIndex,
-            ytColumn.StartIndex + ytColumn.ValueCount,
-            nullBytemap);
-    } else if (!rleIndexes && dictionaryIndexes)  {
-        BuildNullBytemapFromDictionaryIndexesWithZeroNull(
-            dictionaryIndexes.Slice(ytColumn.StartIndex, ytColumn.StartIndex + ytColumn.ValueCount),
-            nullBytemap);
-    } else {
-        YT_VERIFY(ytColumn.NullBitmap);
-        DecodeBytemapFromBitmap(
-            ytColumn.NullBitmap->Data,
-            ytColumn.StartIndex,
-            ytColumn.StartIndex + ytColumn.ValueCount,
-            nullBytemap);
-    }
-
-    return chColumn;
-}
-
 bool IsIntegerLikeType(ESimpleLogicalValueType type)
 {
     return
@@ -574,10 +464,10 @@ DB::ColumnPtr ConvertCHColumnToComposite(
     TCompositeValueToClickHouseColumnConverter converter(TComplexTypeFieldDescriptor(schema), settings);
     for (int index = 0; index < typedColumn->size(); ++index) {
         if (typedNullColumn && typedNullColumn->getBool(index)) {
-            converter.ConsumeNull();
+            converter.ConsumeNulls(1);
         } else {
             auto yson = typedColumn->getDataAt(index);
-            converter.ConsumeYson(TStringBuf(yson.data, yson.size));
+            converter.ConsumeYson(TYsonStringBuf(yson.data, yson.size));
         }
     }
 
@@ -668,16 +558,21 @@ DB::Block ConvertColumnarRowBatchToBlock(
 
     auto block = headerBlock.cloneEmpty();
 
+    std::vector<TCompositeValueToClickHouseColumnConverter> compositeValueConverters;
+    compositeValueConverters.reserve(readSchema.GetColumnCount());
+
+    for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
+        const auto& columnSchema = readSchema.Columns()[columnIndex];
+        TComplexTypeFieldDescriptor descriptor(columnSchema);
+        compositeValueConverters.emplace_back(descriptor, compositeSettings);
+    }
+
     auto batchColumns = batch->MaterializeColumns();
     for (const auto* ytColumn : batchColumns) {
         auto columnIndex = idToColumnIndex[ytColumn->Id];
         YT_VERIFY(columnIndex != -1);
 
-        const auto& columnSchema = readSchema.Columns()[columnIndex];
-
-        auto chColumn = ConvertYTColumnToCHColumn(*ytColumn, columnSchema, compositeSettings);
-
-        block.getByPosition(columnIndex).column = std::move(chColumn);
+        compositeValueConverters[columnIndex].ConsumeYtColumn(*ytColumn);
 
         presentColumnMask[columnIndex] = true;
     }
@@ -685,8 +580,11 @@ DB::Block ConvertColumnarRowBatchToBlock(
     for (int columnIndex = 0; columnIndex < static_cast<int>(readSchema.Columns().size()); ++columnIndex) {
         if (!presentColumnMask[columnIndex]) {
             YT_VERIFY(!readSchema.Columns()[columnIndex].Required());
-            block.getByPosition(columnIndex).column->assumeMutableRef().insertManyDefaults(batch->GetRowCount());
+            compositeValueConverters[columnIndex].ConsumeNulls(batch->GetRowCount());
         }
+        auto column = compositeValueConverters[columnIndex].FlushColumn();
+        YT_VERIFY(column->size() == batch->GetRowCount());
+        block.getByPosition(columnIndex).column = std::move(column);
     }
 
     return block;
@@ -711,83 +609,54 @@ DB::Block ConvertNonColumnarRowBatchToBlock(
     auto block = headerBlock.cloneEmpty();
 
     // Indexed by column indices.
-    std::vector<std::optional<TCompositeValueToClickHouseColumnConverter>> compositeValueConverters(block.columns());
+    std::vector<TCompositeValueToClickHouseColumnConverter> compositeValueConverters;
+    compositeValueConverters.reserve(readSchema.GetColumnCount());
 
     for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
         const auto& columnSchema = readSchema.Columns()[columnIndex];
-        if (columnSchema.GetPhysicalType() == EValueType::Any && compositeSettings->EnableConversion) {
-            TComplexTypeFieldDescriptor descriptor(columnSchema);
-            compositeValueConverters[columnIndex].emplace(descriptor, compositeSettings);
-        }
+        TComplexTypeFieldDescriptor descriptor(columnSchema);
+        compositeValueConverters.emplace_back(descriptor, compositeSettings);
     }
 
-    for (auto row : batch->MaterializeRows()) {
+    auto rowBatch = batch->MaterializeRows();
+
+    // We transpose rows by writing down contiguous range of values for each column.
+    // This is done to reduce the number of converter virtual calls.
+    std::vector<std::vector<TUnversionedValue>> columnIndexToUnversionedValues(readSchema.GetColumnCount());
+    for (auto& unversionedValues : columnIndexToUnversionedValues) {
+        unversionedValues.reserve(rowBatch.size());
+    }
+
+    auto nullValue = MakeUnversionedNullValue();
+
+    for (auto row : rowBatch) {
         presentValueMask.assign(readSchema.GetColumnCount(), false);
         for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
             auto value = row[index];
             auto id = value.Id;
             int columnIndex = (id < idToColumnIndex.size()) ? idToColumnIndex[id] : -1;
             YT_VERIFY(columnIndex != -1);
+            YT_VERIFY(!presentValueMask[columnIndex]);
             presentValueMask[columnIndex] = true;
-            switch (value.Type) {
-                case EValueType::Null:
-                    // TODO(max42): consider transforming to Y_ASSERT.
-                    YT_VERIFY(readSchema.Columns()[columnIndex].LogicalType()->IsNullable());
-                    if (compositeValueConverters[columnIndex]) {
-                        compositeValueConverters[columnIndex]->ConsumeNull();
-                    } else {
-                        block.getByPosition(columnIndex).column->assumeMutableRef().insertDefault();
-                    }
-                    break;
-
-                // NB(max42): When rewriting this properly, remember that Int64 may
-                // correspond to shorter integer columns.
-                case EValueType::Any:
-                case EValueType::Composite:
-                    if (compositeValueConverters[columnIndex]) {
-                        compositeValueConverters[columnIndex]->ConsumeYson(TStringBuf(value.Data.String, value.Length));
-                        break;
-                    }
-                    [[fallthrough]];
-
-                case EValueType::String:
-                case EValueType::Int64:
-                case EValueType::Uint64:
-                case EValueType::Double:
-                case EValueType::Boolean: {
-                    if (readSchema.Columns()[columnIndex].GetPhysicalType() == EValueType::Any) {
-                        ToAny(rowBuffer.Get(), &value, &value, compositeSettings->DefaultYsonFormat);
-                        if (compositeValueConverters[columnIndex]) {
-                            compositeValueConverters[columnIndex]->ConsumeYson(TStringBuf(value.Data.String, value.Length));
-                            break;
-                        }
-                    }
-                    auto field = ConvertToField(value);
-                    block.getByPosition(columnIndex).column->assumeMutableRef().insert(field);
-                    break;
-                }
-                default:
-                    Y_UNREACHABLE();
-            }
+            columnIndexToUnversionedValues[columnIndex].emplace_back(value);
         }
         for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
             if (!presentValueMask[columnIndex]) {
                 YT_VERIFY(readSchema.Columns()[columnIndex].LogicalType()->IsNullable());
-                if (compositeValueConverters[columnIndex]) {
-                    compositeValueConverters[columnIndex]->ConsumeNull();
-                } else {
-                    block.getByPosition(columnIndex).column->assumeMutableRef().insertDefault();
-                }
+                // NB: converter does not care about value ids.
+                columnIndexToUnversionedValues[columnIndex].emplace_back(nullValue);
             }
         }
     }
 
     for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
-        if (compositeValueConverters[columnIndex]) {
-            auto column = compositeValueConverters[columnIndex]->FlushColumn();
-            YT_VERIFY(column->size() == batch->GetRowCount());
-            block.getByPosition(columnIndex).column = std::move(column);
-        }
+        const auto& unversionedValues = columnIndexToUnversionedValues[columnIndex];
+        YT_VERIFY(unversionedValues.size() == rowBatch.size());
+        auto& converter = compositeValueConverters[columnIndex];
+        converter.ConsumeUnversionedValues(unversionedValues);
+        auto column = converter.FlushColumn();
+        YT_VERIFY(column->size() == rowBatch.size());
+        block.getByPosition(columnIndex).column = std::move(column);
     }
 
     return block;
@@ -819,6 +688,153 @@ DB::Block ConvertRowBatchToBlock(
             headerBlock,
             compositeSettings);
     }
+}
+
+DB::MutableColumnPtr ConvertDoubleYTColumnToCHColumn(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+{
+    YT_LOG_TRACE("Converting double column (Count: %v)",
+        ytColumn.ValueCount);
+
+    return ConvertFloatingPointYTColumnToCHColumn<double>(ytColumn);
+}
+
+DB::MutableColumnPtr ConvertFloatYTColumnToCHColumn(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+{
+    YT_LOG_TRACE("Converting float column (Count: %v)",
+        ytColumn.ValueCount);
+
+    return ConvertFloatingPointYTColumnToCHColumn<float>(ytColumn);
+}
+
+DB::MutableColumnPtr ConvertStringLikeYTColumnToCHColumn(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+{
+    return ConvertStringLikeYTColumnToCHColumnImpl(ytColumn);
+}
+
+DB::MutableColumnPtr ConvertBooleanYTColumnToCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+{
+    YT_LOG_TRACE("Converting boolean column (Count: %v)",
+        ytColumn.ValueCount);
+
+    auto chColumn = DB::ColumnUInt8::create(ytColumn.ValueCount);
+
+    DecodeBytemapFromBitmap(
+        ytColumn.GetBitmapValues(),
+        ytColumn.StartIndex,
+        ytColumn.StartIndex + ytColumn.ValueCount,
+        MakeMutableRange(chColumn->getData().data(), ytColumn.ValueCount));
+
+    return chColumn;
+}
+
+DB::ColumnUInt8::MutablePtr BuildNullBytemapForCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+{
+    auto chColumn = DB::ColumnUInt8::create(ytColumn.ValueCount);
+
+    auto nullBytemap = MakeMutableRange(chColumn->getData().data(), ytColumn.ValueCount);
+
+    auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
+
+    YT_LOG_TRACE("Buliding null bytemap (Value: %v, Rle: %v, Dictionary: %v)",
+        ytColumn.ValueCount,
+        static_cast<bool>(rleIndexes),
+        static_cast<bool>(dictionaryIndexes));
+
+    if (rleIndexes && dictionaryIndexes) {
+        BuildNullBytemapFromRleDictionaryIndexesWithZeroNull(
+            dictionaryIndexes,
+            rleIndexes,
+            ytColumn.StartIndex,
+            ytColumn.StartIndex + ytColumn.ValueCount,
+            nullBytemap);
+    } else if (rleIndexes && !dictionaryIndexes) {
+        YT_VERIFY(ytValueColumn->NullBitmap);
+        BuildNullBytemapFromRleNullBitmap(
+            ytValueColumn->NullBitmap->Data,
+            rleIndexes,
+            ytColumn.StartIndex,
+            ytColumn.StartIndex + ytColumn.ValueCount,
+            nullBytemap);
+    } else if (!rleIndexes && dictionaryIndexes)  {
+        BuildNullBytemapFromDictionaryIndexesWithZeroNull(
+            dictionaryIndexes.Slice(ytColumn.StartIndex, ytColumn.StartIndex + ytColumn.ValueCount),
+            nullBytemap);
+    } else {
+        YT_VERIFY(ytColumn.NullBitmap);
+        DecodeBytemapFromBitmap(
+            ytColumn.NullBitmap->Data,
+            ytColumn.StartIndex,
+            ytColumn.StartIndex + ytColumn.ValueCount,
+            nullBytemap);
+    }
+
+    return chColumn;
+}
+
+DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumn(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    ESimpleLogicalValueType type)
+{
+    auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
+
+    YT_LOG_TRACE("Converting integer column (Count: %v, Rle: %v, Dictionary: %v)",
+        ytColumn.ValueCount,
+        static_cast<bool>(rleIndexes),
+        static_cast<bool>(dictionaryIndexes));
+
+    switch (type) {
+        #define XX(ytType, chType) \
+            case ESimpleLogicalValueType::ytType: { \
+                return ConvertIntegerYTColumnToCHColumnImpl<chType>( \
+                    ytColumn, \
+                    *ytValueColumn, \
+                    dictionaryIndexes, \
+                    rleIndexes); \
+            }
+
+        XX(Int8,      Int8)
+        XX(Int16,     Int16)
+        XX(Int32,     Int32)
+        XX(Int64,     Int64)
+
+        XX(Uint8,     UInt8)
+        XX(Uint16,    UInt16)
+        XX(Uint32,    UInt32)
+        XX(Uint64,    UInt64)
+
+        XX(Date,      UInt16)
+        XX(Datetime,  UInt32)
+        XX(Interval,  Int64)
+        XX(Timestamp, UInt64)
+
+        #undef XX
+
+        default:
+            YT_ABORT();
+    }
+}
+
+DB::ColumnString::MutablePtr ConvertCHColumnToAny(
+    const DB::IColumn& column,
+    ESimpleLogicalValueType type,
+    EYsonFormat ysonFormat)
+{
+    switch (ysonFormat) {
+        #define XX(format) \
+            case EYsonFormat::format: \
+                return ConvertCHColumnToAnyImpl<EYsonFormat::format>(column, type);
+
+        XX(Binary)
+        XX(Pretty)
+        XX(Text)
+
+        #undef XX
+    }
+
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

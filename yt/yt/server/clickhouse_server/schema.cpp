@@ -44,82 +44,10 @@ std::vector<TString> ToVectorString(const DB::Names& columnNames)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DataTypePtr ToDataType(const TLogicalTypePtr& logicalType, const TCompositeSettingsPtr& settings)
+DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings)
 {
-    // TODO(max42): this functions seems redundant. Maybe we can always ask composite converter
-    // to deduce resulting data type for us.
-    if (!IsV1Type(logicalType)) {
-        // This is an ultimately rich type (like optional<optional<...>> or list<...> etc).
-        if (settings->EnableConversion) {
-            return TCompositeValueToClickHouseColumnConverter(TComplexTypeFieldDescriptor(logicalType), New<TCompositeSettings>())
-                .GetDataType();
-        } else {
-            return std::make_shared<DB::DataTypeString>();
-        }
-    }
-
-    switch (logicalType->GetMetatype()) {
-        case ELogicalMetatype::Optional:
-            return std::make_shared<DB::DataTypeNullable>(ToDataType(logicalType->GetElement(), settings));
-        case ELogicalMetatype::Tagged:
-            return ToDataType(logicalType->GetElement(), settings);
-        case ELogicalMetatype::Simple: {
-            auto simpleLogicalType = logicalType->AsSimpleTypeRef().GetElement();
-            switch (simpleLogicalType) {
-                case ESimpleLogicalValueType::Int64:
-                case ESimpleLogicalValueType::Interval:
-                    return std::make_shared<DB::DataTypeInt64>();
-                case ESimpleLogicalValueType::Int32:
-                    return std::make_shared<DB::DataTypeInt32>();
-                case ESimpleLogicalValueType::Int16:
-                    return std::make_shared<DB::DataTypeInt16>();
-                case ESimpleLogicalValueType::Int8:
-                    return std::make_shared<DB::DataTypeInt8>();
-
-                case ESimpleLogicalValueType::Uint64:
-                    return std::make_shared<DB::DataTypeUInt64>();
-                case ESimpleLogicalValueType::Uint32:
-                    return std::make_shared<DB::DataTypeUInt32>();
-                case ESimpleLogicalValueType::Uint16:
-                    return std::make_shared<DB::DataTypeUInt16>();
-                case ESimpleLogicalValueType::Uint8:
-                case ESimpleLogicalValueType::Boolean:
-                    return std::make_shared<DB::DataTypeUInt8>();
-
-                case ESimpleLogicalValueType::Double:
-                    return std::make_shared<DB::DataTypeFloat64>();
-                case ESimpleLogicalValueType::Float:
-                    return std::make_shared<DB::DataTypeFloat32>();
-
-                case ESimpleLogicalValueType::String:
-                case ESimpleLogicalValueType::Utf8:
-                case ESimpleLogicalValueType::Any:
-                case ESimpleLogicalValueType::Json:
-                    return std::make_shared<DB::DataTypeString>();
-
-                case ESimpleLogicalValueType::Date:
-                    return std::make_shared<DB::DataTypeDate>();
-
-                case ESimpleLogicalValueType::Datetime:
-                    return std::make_shared<DB::DataTypeDateTime>();
-
-                case ESimpleLogicalValueType::Timestamp:
-                    // TODO(dakovalkov): https://github.com/yandex/ClickHouse/pull/7170.
-                    // return std::make_shared<DB::DataTypeDateTime>();
-                    return std::make_shared<DB::DataTypeUInt64>();
-
-                case ESimpleLogicalValueType::Null:
-                case ESimpleLogicalValueType::Void:
-                    // TODO(max42): map null and void to nothing.
-                    return std::make_shared<DB::DataTypeString>();
-
-                default:
-                    THROW_ERROR_EXCEPTION("YT value type %Qlv is not supported", simpleLogicalType);
-            }
-        }
-        default:
-            THROW_ERROR_EXCEPTION("YT metatype %Qlv is not supported", logicalType->GetMetatype());
-    }
+    TCompositeValueToClickHouseColumnConverter converter(descriptor, settings);
+    return converter.GetDataType();
 }
 
 DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings)
@@ -128,7 +56,8 @@ DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema, const TCompo
     result.reserve(schema.GetColumnCount());
 
     for (const auto& column : schema.Columns()) {
-        result.emplace_back(ToDataType(column.LogicalType(), settings));
+        TComplexTypeFieldDescriptor descriptor(column);
+        result.emplace_back(ToDataType(std::move(descriptor), settings));
     }
 
     return result;
