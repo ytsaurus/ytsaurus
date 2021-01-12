@@ -273,7 +273,7 @@ void Serialize(
         consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (Py::IsInteger(obj)) {
         SerializePythonInteger(obj, consumer, context);
-    } else if (PyObject_IsInstance(obj.ptr(), YsonStringProxyClass)) {
+    } else if (Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject *>(YsonStringProxyClass)) {
         consumer->OnStringScalar(ConvertToStringBuf(obj.getAttr("_bytes")));
     } else if (obj.hasAttr("to_yson_type") && obj.getAttr("to_yson_type").isCallable()) {
         auto repr = obj.callMemberFunction("to_yson_type");
