@@ -268,7 +268,10 @@ struct TComputedColumnPopulationMatcher
 
         std::vector<DB::DataTypePtr> dataTypes;
         for (const auto& columnName : resultStatement.ColumnNames) {
-            dataTypes.emplace_back(ToDataType(data.TableSchema->FindColumn(columnName)->LogicalType(), data.Settings->Composite));
+            auto* columnSchema = data.TableSchema->FindColumn(columnName);
+            YT_VERIFY(columnSchema);
+            TComplexTypeFieldDescriptor descriptor(*columnSchema);
+            dataTypes.emplace_back(ToDataType(descriptor, data.Settings->Composite));
             columnAsts.emplace_back(std::make_shared<DB::ASTIdentifier>(columnName));
         }
 
