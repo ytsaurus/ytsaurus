@@ -2352,8 +2352,8 @@ done
             })
         op.track()
 
-        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
-        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/speculative_job_counter/aborted/scheduled/speculative_run_won") == 1
+        assert get(op.get_path() + "/@progress/tasks/0/task_name") == "partition_map(0)"
+        assert get(op.get_path() + "/@progress/tasks/0/speculative_job_counter/aborted/scheduled/speculative_run_won") == 1
 
     @authors("gritukan")
     def test_empty_mapper_output(self):
