@@ -217,7 +217,12 @@ private:
 
             YT_VERIFY(RequestBody_.Size() >= 2);
             TMessageWithAttachments messageWithAttachments;
-            messageWithAttachments.Message = ExtractMessageFromEnvelopedMessage(RequestBody_[1]);
+            if (Request_->IsLegacyRpcCodecsEnabled()) {
+                messageWithAttachments.Message = ExtractMessageFromEnvelopedMessage(RequestBody_[1]);
+            } else {
+                messageWithAttachments.Message = RequestBody_[1];
+            }
+
             for (int index = 2; index < RequestBody_.Size(); ++index) {
                 messageWithAttachments.Attachments.push_back(RequestBody_[index]);
             }

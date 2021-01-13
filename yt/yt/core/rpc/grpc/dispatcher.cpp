@@ -38,7 +38,7 @@ TGrpcLibraryLock::TGrpcLibraryLock()
     if (GrpcLibraryRefCounter.fetch_add(1) == 0) {
         // Failure here indicates an attempt to re-initialize GRPC after shutdown.
         YT_VERIFY(GrpcLibraryInitCounter.fetch_add(1) == 0);
-        YT_LOG_INFO("Initializing GRPC library");
+        YT_LOG_DEBUG("Initializing GRPC library");
         grpc_init_openssl();
         grpc_init();
     }
@@ -47,7 +47,7 @@ TGrpcLibraryLock::TGrpcLibraryLock()
 TGrpcLibraryLock::~TGrpcLibraryLock()
 {
     if (GrpcLibraryRefCounter.fetch_sub(1) == 1) {
-        YT_LOG_INFO("Shutting down GRPC library");
+        YT_LOG_DEBUG("Shutting down GRPC library");
         grpc_shutdown();
     }
 }

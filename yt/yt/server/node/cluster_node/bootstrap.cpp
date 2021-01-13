@@ -470,7 +470,7 @@ void TBootstrap::DoInitialize()
     JobProxyConfigTemplate_->JobEnvironment = Config_->ExecAgent->SlotManager->JobEnvironment;
 
     JobProxyConfigTemplate_->Logging = Config_->ExecAgent->JobProxyLogging;
-    JobProxyConfigTemplate_->Tracing = Config_->ExecAgent->JobProxyTracing;
+    JobProxyConfigTemplate_->Jaeger = Config_->ExecAgent->JobProxyJaeger;
     JobProxyConfigTemplate_->StderrPath = Config_->ExecAgent->JobProxyStderrPath;
     JobProxyConfigTemplate_->TestRootFS = Config_->ExecAgent->TestRootFS;
 

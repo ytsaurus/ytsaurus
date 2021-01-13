@@ -328,7 +328,7 @@ public:
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
     NLogging::TLogManagerConfigPtr JobProxyLogging;
-    NTracing::TTraceManagerConfigPtr JobProxyTracing;
+    NTracing::TJaegerTracerConfigPtr JobProxyJaeger;
     std::optional<TString> JobProxyStderrPath;
 
     TDuration SupervisorRpcTimeout;
@@ -384,7 +384,7 @@ public:
 
         RegisterParameter("job_proxy_logging", JobProxyLogging)
             .DefaultNew();
-        RegisterParameter("job_proxy_tracing", JobProxyTracing)
+        RegisterParameter("job_proxy_jaeger", JobProxyJaeger)
             .DefaultNew();
         RegisterParameter("job_proxy_stderr_path", JobProxyStderrPath)
             .Default();

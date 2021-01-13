@@ -1,12 +1,15 @@
 #include "trace_context.h"
 #include "private.h"
-#include "trace_manager.h"
 
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/shutdown.h>
+#include <yt/core/misc/singleton.h>
 
 #include <yt/core/tracing/proto/tracing_ext.pb.h>
+
+#include <yt/yt/library/tracing/tracer.h>
 
 namespace NYT::NTracing {
 
@@ -19,6 +22,50 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TracingLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGlobalTracer
+{
+    TSpinLock Lock;
+    ITracerPtr Tracer;
+};
+
+// TODO(prime@): Switch constinit global variable, once gcc supports it.
+static TGlobalTracer* GlobalTracerStorage()
+{
+    return LeakySingleton<TGlobalTracer>();
+}
+
+ITracerPtr GetGlobalTracer()
+{
+    auto tracerStorage = GlobalTracerStorage();
+    auto guard = Guard(tracerStorage->Lock);
+    return tracerStorage->Tracer;
+}
+
+void SetGlobalTracer(const ITracerPtr& tracer)
+{
+    ITracerPtr oldTracer;
+
+    {
+        auto tracerStorage = GlobalTracerStorage();
+        auto guard = Guard(tracerStorage->Lock);
+        oldTracer = tracerStorage->Tracer;
+        tracerStorage->Tracer = tracer;
+    }
+
+    if (oldTracer) {
+        oldTracer->Stop();
+    }
+}
+
+void ShutdownTracer()
+{
+    SetGlobalTracer(nullptr);
+}
+
+REGISTER_SHUTDOWN_CALLBACK(8, ShutdownTracer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,7 +200,9 @@ void TTraceContext::Finish()
     }
 
     if (sampled) {
-        TTraceManager::Get()->Enqueue(MakeStrong(this));
+        if (auto tracer = GetGlobalTracer(); tracer) {
+            tracer->Enqueue(MakeStrong(this));
+        }
     }
 }
 

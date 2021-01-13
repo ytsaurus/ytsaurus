@@ -17,9 +17,6 @@
 
 #include <yt/core/misc/shutdown.h>
 
-#include <yt/core/tracing/trace_manager.h>
-#include <yt/core/tracing/config.h>
-
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////

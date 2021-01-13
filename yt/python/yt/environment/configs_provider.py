@@ -290,9 +290,18 @@ def set_at(config, path, value, merge=False):
             else:
                 config[part] = value
 
-def init_singletons(config, provision):
+def init_singletons(config, provision, name, process_tags={}):
     set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
     set_at(config, "solomon_exporter/enable_core_profiling_compatibility", True)
+
+    if "JAEGER_COLLECTOR" in os.environ:
+        set_at(config, "jaeger", {
+            "service_name": name,
+            "flush_period": 100,
+            "collector_channel_config": {"address": os.environ["JAEGER_COLLECTOR"]},
+            "enable_pid_tag": True,
+            "process_tags": process_tags,
+        })
 
 def get_at(config, path, default_value=None):
     for part in path.split("/"):
@@ -405,7 +414,10 @@ class ConfigsProvider_19(ConfigsProvider):
             for master_index in xrange(provision["master"]["cell_size"]):
                 config = default_configs.get_master_config()
 
-                init_singletons(config, provision)
+                init_singletons(config, provision, "master", {
+                    "cell_role": "primary" if cell_index == 0 else "secondary",
+                    "master_index": str(master_index),
+                })
 
                 config["hydra_manager"] = _get_hydra_manager_config()
 
@@ -477,7 +489,7 @@ class ConfigsProvider_19(ConfigsProvider):
         for clock_index in xrange(provision["clock"]["cell_size"]):
             config = default_configs.get_clock_config()
 
-            init_singletons(config, provision)
+            init_singletons(config, provision, "clock", {"clock_index": str(clock_index)})
 
             config["hydra_manager"] = _get_hydra_manager_config()
 
@@ -602,7 +614,7 @@ class ConfigsProvider_19(ConfigsProvider):
         for index in xrange(provision["scheduler"]["count"]):
             config = default_configs.get_scheduler_config()
 
-            init_singletons(config, provision)
+            init_singletons(config, provision, "scheduler", {"scheduler_index": str(index)})
             config["cluster_connection"] = \
                 self._build_cluster_connection_config(
                     provision,
@@ -650,7 +662,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
             fqdn = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
             set_at(proxy_config, "coordinator/public_fqdn", fqdn)
-            init_singletons(proxy_config, provision)
+            init_singletons(proxy_config, provision, "http_proxy", {"http_proxy_index": str(index)})
 
             proxy_config["logging"] = init_logging(
                 proxy_config.get("logging"),
@@ -679,7 +691,7 @@ class ConfigsProvider_19(ConfigsProvider):
         for index in xrange(provision["node"]["count"]):
             config = default_configs.get_node_config()
 
-            init_singletons(config, provision)
+            init_singletons(config, provision, "node", {"node_index": str(index)})
 
             config["addresses"] = [
                 ("interconnect", provision["fqdn"]),
@@ -892,7 +904,7 @@ class ConfigsProvider_19(ConfigsProvider):
                     }
                 }
             }
-            init_singletons(config, provision)
+            init_singletons(config, provision, "rpc_proxy", {"rpc_proxy_index": str(rpc_proxy_index)})
             config["cluster_connection"] = self._build_cluster_connection_config(
                 provision,
                 master_connection_configs,
@@ -969,7 +981,7 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
         for index in xrange(provision["controller_agent"]["count"]):
             config = default_configs.get_controller_agent_config()
 
-            init_singletons(config, provision)
+            init_singletons(config, provision, "controller_agent", {"controller_agent_index": str(index)})
             config["cluster_connection"] = \
                 self._build_cluster_connection_config(
                     provision,

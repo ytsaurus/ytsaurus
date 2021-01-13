@@ -27,8 +27,6 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-#include <yt/core/tracing/trace_manager.h>
-
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>
@@ -42,46 +40,6 @@ using namespace NYson;
 using namespace NHttp;
 using namespace NConcurrency;
 using namespace NJson;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTraceHandlerTag {};
-
-class TTracingHttpHandler
-    : public IHttpHandler
-{
-public:
-    virtual void HandleRequest(
-        const IRequestPtr& req,
-        const IResponseWriterPtr& rsp) override
-    {
-        TCgiParameters params(req->GetUrl().RawQuery);
-        auto startIndex = FromString<i64>(params.Get("start_index"));
-        auto limit = FromString<i64>(params.Get("limit"));
-
-        if (auto processCheck = req->GetHeaders()->Find("X-YT-Check-Process-Id")) {
-            if (*processCheck != ToString(ProcessId_)) {
-                rsp->SetStatus(EStatusCode::PreconditionFailed);
-                WaitFor(rsp->Close())
-                    .ThrowOnError();
-                return;
-            }
-        }
-
-        auto [realStartIndex, traces] = NTracing::TTraceManager::Get()->ReadTraces(startIndex, limit);
-
-        rsp->GetHeaders()->Add("X-YT-Trace-Start-Index", ToString(realStartIndex));
-        rsp->GetHeaders()->Add("X-YT-Process-Id", ToString(ProcessId_));
-        rsp->GetHeaders()->Add("Content-Type", "application/x-protobuf");
-        rsp->SetStatus(EStatusCode::OK);
-
-        WaitFor(rsp->WriteBody(MergeRefsToRef<TTraceHandlerTag>(traces)))
-            .ThrowOnError();
-    }
-
-private:
-    const TGuid ProcessId_ = TGuid::Create();
-};
 
 void Initialize(
     const NHttp::IServerPtr& monitoringServer,
@@ -122,10 +80,6 @@ void Initialize(
         monitoringServer->AddHandler(
             "/orchid/",
             GetOrchidYPathHttpHandler(*orchidRoot));
-
-        monitoringServer->AddHandler(
-            "/tracing/traces/v2",
-            New<TTracingHttpHandler>());
     }
 }
 

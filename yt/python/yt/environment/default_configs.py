@@ -500,6 +500,8 @@ b"""
         > yson
     };
 
+    force_tracing = %true;
+
     enable_udf = %true;
 }
 """)

@@ -19,10 +19,10 @@ class TIntrusivePtr
 public:
     typedef T TUnderlying;
 
-    TIntrusivePtr() noexcept
+    constexpr TIntrusivePtr() noexcept 
     { }
 
-    TIntrusivePtr(std::nullptr_t) noexcept
+    constexpr TIntrusivePtr(std::nullptr_t) noexcept
     { }
 
     //! Constructor from an unqualified reference.
