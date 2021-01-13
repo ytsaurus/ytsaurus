@@ -393,11 +393,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(table->GetTableSchema().GetKeyColumns());
             return true;
 
-        case EInternedAttributeKey::Schema:
-            BuildYsonFluently(consumer)
-                .Value(table->GetTableSchema());
-            return true;
-
         case EInternedAttributeKey::SchemaDuplicateCount: {
             const auto& sharedSchema = table->SharedTableSchema();
             i64 duplicateCount = sharedSchema ? sharedSchema->GetRefCount() : 0;
@@ -808,36 +803,44 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
     auto* chunkList = table->GetChunkList();
     auto isExternal = table->IsExternal();
 
-    if (!isExternal) {
-        switch (key) {
-            case EInternedAttributeKey::TableChunkFormatStatistics:
-                return ComputeChunkStatistics(
-                    Bootstrap_,
-                    chunkList,
-                    [] (const TChunk* chunk) { return ETableChunkFormat(chunk->ChunkMeta().version()); });
-
-            case EInternedAttributeKey::OptimizeForStatistics: {
-                auto optimizeForExtractor = [] (const TChunk* chunk) {
-                    switch (static_cast<ETableChunkFormat>(chunk->ChunkMeta().version())) {
-                        case ETableChunkFormat::Old:
-                        case ETableChunkFormat::VersionedSimple:
-                        case ETableChunkFormat::Schemaful:
-                        case ETableChunkFormat::SchemalessHorizontal:
-                            return NTableClient::EOptimizeFor::Lookup;
-                        case ETableChunkFormat::VersionedColumnar:
-                        case ETableChunkFormat::UnversionedColumnar:
-                            return NTableClient::EOptimizeFor::Scan;
-                        default:
-                            YT_ABORT();
-                    }
-                };
-
-                return ComputeChunkStatistics(Bootstrap_, chunkList, optimizeForExtractor);
-            }
-
-            default:
+    switch (key) {
+        case EInternedAttributeKey::TableChunkFormatStatistics:
+            if (isExternal) {
                 break;
+            }
+            return ComputeChunkStatistics(
+                Bootstrap_,
+                chunkList,
+                [] (const TChunk* chunk) { return ETableChunkFormat(chunk->ChunkMeta().version()); });
+
+        case EInternedAttributeKey::OptimizeForStatistics: {
+            if (isExternal) {
+                break;
+            }
+            auto optimizeForExtractor = [] (const TChunk* chunk) {
+                switch (static_cast<ETableChunkFormat>(chunk->ChunkMeta().version())) {
+                    case ETableChunkFormat::Old:
+                    case ETableChunkFormat::VersionedSimple:
+                    case ETableChunkFormat::Schemaful:
+                    case ETableChunkFormat::SchemalessHorizontal:
+                        return NTableClient::EOptimizeFor::Lookup;
+                    case ETableChunkFormat::VersionedColumnar:
+                    case ETableChunkFormat::UnversionedColumnar:
+                        return NTableClient::EOptimizeFor::Scan;
+                    default:
+                        YT_ABORT();
+                }
+            };
+
+            return ComputeChunkStatistics(Bootstrap_, chunkList, optimizeForExtractor);
         }
+
+        case EInternedAttributeKey::Schema: {
+            return table->GetYsonTableSchema();
+        }
+
+        default:
+            break;
     }
 
     return TBase::GetBuiltinAttributeAsync(key);
@@ -1379,8 +1382,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             schema = *schema.ToModifiedSchema(*options.SchemaModification);
         }
 
-        table->SharedTableSchema() = Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry()->GetSchema(
-            std::move(schema));
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& sharedSchemaRegistry = cypressManager->GetSharedTableSchemaRegistry();
+        table->SharedTableSchema() = sharedSchemaRegistry->GetSchema(std::move(schema));
         table->SetSchemaMode(ETableSchemaMode::Strong);
     }
 

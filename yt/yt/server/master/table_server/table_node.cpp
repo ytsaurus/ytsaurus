@@ -348,7 +348,7 @@ void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
         case ESchemaSerializationMethod::TableIdWithSameSchema: {
             auto previousTableId = Load<TVersionedObjectId>(context);
             YT_VERIFY(context.LoadedSchemas().contains(previousTableId));
-            SharedTableSchema().Reset(context.LoadedSchemas().at(previousTableId));
+            SharedTableSchema() = context.LoadedSchemas().at(previousTableId);
             break;
         }
         default:
@@ -468,6 +468,11 @@ TTimestamp TTableNode::CalculateRetainedTimestamp() const
 const NTableClient::TTableSchema& TTableNode::GetTableSchema() const
 {
     return SharedTableSchema() ? SharedTableSchema()->GetTableSchema() : TSharedTableSchemaRegistry::EmptyTableSchema;
+}
+
+const TFuture<TYsonString>& TTableNode::GetYsonTableSchema() const
+{
+    return SharedTableSchema() ? SharedTableSchema()->GetYsonTableSchema() : TSharedTableSchemaRegistry::EmptyYsonTableSchema;
 }
 
 void TTableNode::UpdateExpectedTabletState(ETabletState state)

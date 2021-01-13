@@ -1036,14 +1036,15 @@ void TNontemplateNonversionedObjectProxyBase::GetSelf(
         WriteAttributes(&writer, attributeKeys, false);
         writer.OnEntity();
 
-        writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
-            if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().GetData());
-                context->Reply();
-            } else {
-                context->Reply(resultOrError);
-            }
-        }));
+        writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+                if (resultOrError.IsOK()) {
+                    response->set_value(resultOrError.Value().GetData());
+                    context->Reply();
+                } else {
+                    context->Reply(resultOrError);
+                }
+            }));
     } else {
         response->set_value("#");
         context->Reply();

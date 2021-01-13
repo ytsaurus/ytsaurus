@@ -173,6 +173,7 @@ public:
         NTransactionClient::TTimestamp latestTimestamp) const;
 
     const NTableClient::TTableSchema& GetTableSchema() const;
+    const TFuture<NYson::TYsonString>& GetYsonTableSchema() const;
 
     void UpdateExpectedTabletState(NTabletClient::ETabletState state);
 

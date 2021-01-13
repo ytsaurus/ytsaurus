@@ -555,7 +555,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
 
         writer.OnEndMap();
 
-        return writer.Finish();
+        return writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker());
     } else {
         tokenizer.Expect(NYPath::ETokenType::Literal);
         auto key = tokenizer.GetLiteralValue();
@@ -567,9 +567,10 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
 
         tokenizer.Advance();
         return asyncYson.Apply(BIND(
-            &TSupportsAttributes::DoGetAttributeFragment,
-            key,
-            TYPath(tokenizer.GetInput())));
+                &TSupportsAttributes::DoGetAttributeFragment,
+                key,
+                TYPath(tokenizer.GetInput()))
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
    }
 }
 
