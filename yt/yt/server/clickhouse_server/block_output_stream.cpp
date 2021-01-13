@@ -1,7 +1,7 @@
 #include "block_output_stream.h"
 
 #include "helpers.h"
-#include "schema.h"
+#include "conversion.h"
 #include "config.h"
 
 #include <yt/ytlib/api/native/client.h>
@@ -75,7 +75,7 @@ public:
 
         for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
             auto row = RowBuffer_->AllocateUnversioned(columnCount);
-            
+
             for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
                 const EValueType columnType = Schema_->Columns()[columnIndex].GetPhysicalType();
                 auto& value = row[columnIndex];
@@ -191,7 +191,7 @@ public:
 
 private:
     IUnversionedWriterPtr Writer_;
-    
+
     virtual void DoWriteRows(std::vector<TUnversionedRow> rows, THolderPtr holder)
     {
         if (!Writer_->Write(rows)) {
@@ -274,7 +274,7 @@ private:
             Client_->StartTransaction(
                 ETransactionType::Tablet,
                 transactionStartOptions));
-    
+
         if (!transactionOrError.IsOK()) {
             YT_LOG_WARNING(transactionOrError, "Error starting transaction");
             return transactionOrError;

@@ -7,7 +7,7 @@
 #include "job_size_constraints.h"
 #include "query_analyzer.h"
 #include "query_context.h"
-#include "schema.h"
+#include "conversion.h"
 #include "subquery_spec.h"
 #include "table.h"
 #include "virtual_column.h"
@@ -770,7 +770,7 @@ private:
                     sentinelFound = true;
                     firstSentinelIsMax = true;
                 } else {
-                    chKey[index] = ConvertToField(ytKey[index]);
+                    chKey[index] = ToField(ytKey[index]);
                     lastNonSentinelIndex = index;
                 }
 

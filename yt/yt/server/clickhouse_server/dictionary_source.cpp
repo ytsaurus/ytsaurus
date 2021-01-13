@@ -3,7 +3,7 @@
 #include "helpers.h"
 #include "table.h"
 #include "host.h"
-#include "schema.h"
+#include "conversion.h"
 #include "revision_tracker.h"
 #include "block_input_stream.h"
 

@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include "schema.h"
+#include "conversion.h"
 #include "subquery_spec.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>

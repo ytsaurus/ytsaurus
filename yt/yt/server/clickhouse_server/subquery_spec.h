@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include "schema.h"
+#include "conversion.h"
 
 #include <yt/server/clickhouse_server/protos/subquery_spec.pb.h>
 

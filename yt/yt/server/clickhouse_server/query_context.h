@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include "schema.h"
+#include "conversion.h"
 
 #include <yt/ytlib/api/native/client_cache.h>
 

@@ -10,9 +10,6 @@ TCompositeSettings::TCompositeSettings()
 {
     RegisterParameter("default_yson_format", DefaultYsonFormat)
         .Default(NYson::EYsonFormat::Binary);
-
-    RegisterParameter("enable_conversion", EnableConversion)
-        .Default(true);
 }
 
 TDynamicTableSettings::TDynamicTableSettings()

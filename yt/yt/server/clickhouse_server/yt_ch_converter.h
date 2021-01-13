@@ -10,6 +10,9 @@ namespace NYT::NClickHouseServer
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Note: in normal situation you should not use this class directly. Use one of the
+// helpers from conversion.h.
+
 //! This class serves for two purposes.
 //!
 //! First is obvious: if you have a bunch of data in one of YT internal representations
@@ -19,16 +22,16 @@ namespace NYT::NClickHouseServer
 //! Second is less obvious: even if you do not care about actual conversion, but rather
 //! interested in performing data type conversion (TLogicalTypePtr -> DB::DataTypePtr),
 //! you may instantiate this class and access GetDataType().
-class TCompositeValueToClickHouseColumnConverter
+class TYTCHConverter
 {
 public:
-    TCompositeValueToClickHouseColumnConverter(
+    TYTCHConverter(
         NTableClient::TComplexTypeFieldDescriptor descriptor,
         TCompositeSettingsPtr settings);
 
-    TCompositeValueToClickHouseColumnConverter(TCompositeValueToClickHouseColumnConverter&& other);
+    TYTCHConverter(TYTCHConverter&& other);
 
-    ~TCompositeValueToClickHouseColumnConverter();
+    ~TYTCHConverter();
 
     DB::ColumnPtr FlushColumn();
 

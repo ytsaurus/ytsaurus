@@ -37,8 +37,6 @@ class TCompositeSettings
 public:
     NYson::EYsonFormat DefaultYsonFormat;
 
-    bool EnableConversion;
-
     TCompositeSettings();
 };
 

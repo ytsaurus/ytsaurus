@@ -9,6 +9,7 @@
 #include "query_context.h"
 #include "host.h"
 #include "config.h"
+#include "std_helpers.h"
 
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
@@ -550,7 +551,7 @@ void TQueryAnalyzer::AppendWhereCondition(
         std::vector<DB::ASTPtr> literals;
         literals.reserve(row.GetCount());
         for (const auto& value : row) {
-            auto field = ConvertToField(value);
+            auto field = ToField(value);
             literals.emplace_back(std::make_shared<DB::ASTLiteral>(field));
         }
         return createFunction("tuple", std::move(literals));

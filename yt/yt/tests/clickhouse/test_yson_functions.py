@@ -1,13 +1,11 @@
 from base import ClickHouseTestBase, Clique, QueryFailedError
 
-from yt_commands import (set, create, write_table, read_table, authors, raises_yt_error, remove, merge)
+from yt_commands import (create, write_table, read_table, authors, raises_yt_error, merge)
 
 import yt.yson as yson
 
 
-class BaseTestYsonFunctions(ClickHouseTestBase):
-    ENABLE_COMPOSITE_CONVERSION = False
-
+class TestYsonFunctions(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -79,14 +77,6 @@ class BaseTestYsonFunctions(ClickHouseTestBase):
                 },
             ],
         )
-        set(
-            "//sys/clickhouse/config/yt/settings/composite/enable_conversion",
-            self.ENABLE_COMPOSITE_CONVERSION,
-            recursive=True,
-        )
-
-    def teardown(self):
-        remove("//sys/clickhouse/config/yt/settings/composite/enable_conversion", force=True)
 
     @authors("max42")
     def test_read_int64_strict(self):
@@ -245,23 +235,6 @@ class BaseTestYsonFunctions(ClickHouseTestBase):
             result = clique.make_query("select YPathExtract(a, '/a', 'Array(Array(UInt64))') as i from \"//tmp/s1\"")
             assert result == [{"i": object["a"]}]
 
-    @authors("max42")
-    def test_rich_types_v3_are_strings(self):
-        create(
-            "table",
-            "//tmp/t2",
-            attributes={"schema": [{"name": "a", "type_v3": {"type_name": "list", "item": "int64"}}]},
-        )
-        lst = [42, 23]
-        write_table("//tmp/t2", [{"a": lst}])
-
-        with Clique(1) as clique:
-            result = clique.make_query("describe `//tmp/t2`")
-            assert len(result) == 1
-            assert result[0]["type"] == "Array(Int64)"
-
-            assert clique.make_query("select a from `//tmp/t2`")[0] == {"a": [42, 23]}
-
     # CHYT-370.
     @authors("max42")
     def test_const_arguments(self):
@@ -277,11 +250,3 @@ class BaseTestYsonFunctions(ClickHouseTestBase):
             assert clique.make_query("select YPathRaw(v, '', fmt) as a from `//tmp/t[#1:#5]`") == [
                 {"a": yson.dumps(row["v"], row["fmt"])} for row in read_table("//tmp/t[#1:#5]")
             ]
-
-
-class TestYsonFunctionsCompositeConversionEnabled(BaseTestYsonFunctions):
-    ENABLE_COMPOSITE_CONVERSION = True
-
-
-class TestYsonFunctionsCompositeConversionDisabled(BaseTestYsonFunctions):
-    ENABLE_COMPOSITE_CONVERSION = False

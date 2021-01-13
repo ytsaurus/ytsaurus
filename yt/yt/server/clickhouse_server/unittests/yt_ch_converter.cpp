@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/clickhouse_server/composite.h>
+#include <yt/server/clickhouse_server/yt_ch_converter.h>
 #include <yt/server/clickhouse_server/config.h>
 #include <yt/server/clickhouse_server/helpers.h>
 
@@ -24,7 +24,6 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeArray.h>
-#include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
@@ -64,7 +63,7 @@ using TYsonStringBufs = std::vector<TYsonStringBuf>;
 using TUnversionedValues = std::vector<TUnversionedValue>;
 using TYtColumn = IUnversionedColumnarRowBatch::TColumn*;
 
-void DoConsume(TCompositeValueToClickHouseColumnConverter& converter, TYsonStringBufs ysons)
+void DoConsume(TYTCHConverter& converter, TYsonStringBufs ysons)
 {
     for (const auto& yson : ysons) {
         if (!yson) {
@@ -75,12 +74,12 @@ void DoConsume(TCompositeValueToClickHouseColumnConverter& converter, TYsonStrin
     }
 }
 
-void DoConsume(TCompositeValueToClickHouseColumnConverter& converter, TUnversionedValues values)
+void DoConsume(TYTCHConverter& converter, TUnversionedValues values)
 {
     converter.ConsumeUnversionedValues(values);
 }
 
-void DoConsume(TCompositeValueToClickHouseColumnConverter& converter, TYtColumn ytColumn)
+void DoConsume(TYTCHConverter& converter, TYtColumn ytColumn)
 {
     converter.ConsumeYtColumn(*ytColumn);
 }
@@ -106,7 +105,6 @@ public:
     virtual void SetUp() override
     {
         Settings_ = New<TCompositeSettings>();
-        Settings_->EnableConversion = true;
     }
 
 protected:
@@ -116,7 +114,7 @@ protected:
     template <class TExpectedColumnType = void>
     void ExpectDataConversion(TComplexTypeFieldDescriptor descriptor, const auto& input, std::vector<DB::Field> expectedFields) const
     {
-        TCompositeValueToClickHouseColumnConverter converter(descriptor, Settings_);
+        TYTCHConverter converter(descriptor, Settings_);
         DoConsume(converter, input);
         auto column = converter.FlushColumn();
 
@@ -129,7 +127,7 @@ protected:
 
     void ExpectTypeConversion(TComplexTypeFieldDescriptor descriptor, const DB::DataTypePtr& expectedDataType) const
     {
-        TCompositeValueToClickHouseColumnConverter converter(descriptor, Settings_);
+        TYTCHConverter converter(descriptor, Settings_);
         ValidateTypeEquality(converter.GetDataType(), expectedDataType);
     }
 };
@@ -392,7 +390,7 @@ TEST_F(TTestComposites, TestOptionalSimpleTypeAsUnversionedValue)
 
     auto logicalType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64));
     TComplexTypeFieldDescriptor descriptor(logicalType);
-    TCompositeValueToClickHouseColumnConverter converter(descriptor, Settings_);
+    TYTCHConverter converter(descriptor, Settings_);
 
     std::vector<TUnversionedValue> values = {intValue, nullValue};
 
