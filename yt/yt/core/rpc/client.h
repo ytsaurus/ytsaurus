@@ -80,6 +80,8 @@ struct IClientRequest
     virtual EMultiplexingBand GetMultiplexingBand() const = 0;
     virtual void SetMultiplexingBand(EMultiplexingBand band) = 0;
 
+    virtual bool IsLegacyRpcCodecsEnabled() = 0;
+
     virtual size_t GetHash() const = 0;
 
     // Extension methods.
@@ -191,6 +193,8 @@ public:
 
     virtual EMultiplexingBand GetMultiplexingBand() const override;
     virtual void SetMultiplexingBand(EMultiplexingBand band) override;
+
+    virtual bool IsLegacyRpcCodecsEnabled() override;
 
 protected:
     const IChannelPtr Channel_;

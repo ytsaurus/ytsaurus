@@ -450,6 +450,11 @@ void TClientRequest::PrepareHeader()
     HeaderPrepared_.store(true);
 }
 
+bool TClientRequest::IsLegacyRpcCodecsEnabled()
+{
+    return EnableLegacyRpcCodecs_;
+}
+
 TSharedRefArray TClientRequest::GetHeaderlessMessage() const
 {
     if (SerializedHeaderlessMessageSet_.load()) {

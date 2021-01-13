@@ -3,6 +3,7 @@
 #include "response.h"
 #include "error.h"
 #include "descriptor.h"
+#include "yt/core/tracing/trace_context.h"
 
 #include <yt/python/common/buffered_stream.h>
 #include <yt/python/common/shutdown.h>
@@ -21,9 +22,6 @@
 #include <yt/core/logging/config.h>
 
 #include <yt/core/net/address.h>
-
-#include <yt/core/tracing/trace_manager.h>
-#include <yt/core/tracing/config.h>
 
 #include <yt/core/net/config.h>
 
@@ -283,7 +281,6 @@ void TDriverModuleBase::Initialize(
 
     addPycxxMethod("configure_logging", &TDriverModuleBase::ConfigureLogging, "Configures YT driver logging");
     addPycxxMethod("configure_address_resolver", &TDriverModuleBase::ConfigureAddressResolver, "Configures YT address resolver");
-    addPycxxMethod("configure_tracing", &TDriverModuleBase::ConfigureTracing, "Configures YT driver tracing");
     addPycxxMethod("reopen_logs", &TDriverModuleBase::ReopenLogs, "Reopen driver logs");
     addPycxxMethod("shutdown", &TDriverModuleBase::Shutdown, "Shutdown YT subsystem");
     addPycxxMethod("_internal_shutdown", &TDriverModuleBase::InternalShutdown, "Internal shutdown");
@@ -346,20 +343,6 @@ Py::Object TDriverModuleBase::ConfigureAddressResolver(const Py::Tuple& args_, c
     auto config = ConvertTo<NNet::TAddressResolverConfigPtr>(configNode);
 
     NNet::TAddressResolver::Get()->Configure(config);
-
-    return Py::None();
-}
-
-Py::Object TDriverModuleBase::ConfigureTracing(const Py::Tuple& args_, const Py::Dict& kwargs_)
-{
-    auto args = args_;
-    auto kwargs = kwargs_;
-
-    auto configNode = ConvertToNode(ExtractArgument(args, kwargs, "config"));
-    ValidateArgumentsEmpty(args, kwargs);
-    auto config = ConvertTo<NTracing::TTraceManagerConfigPtr>(configNode);
-
-    NTracing::TTraceManager::Get()->Configure(config);
 
     return Py::None();
 }

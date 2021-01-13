@@ -295,10 +295,6 @@ public:
 
     virtual TFuture<void> Execute(const TDriverRequest& request) override
     {
-        NTracing::TChildTraceContextGuard traceContextGuard(
-            ConcatToString(TStringBuf("Driver:"), request.CommandName),
-            true);
-
         auto it = CommandNameToEntry_.find(request.CommandName);
         if (it == CommandNameToEntry_.end()) {
             return MakeFuture(TError(
@@ -425,7 +421,7 @@ private:
         const auto& request = context->Request();
 
         NTracing::TChildTraceContextGuard span(
-            "Driver." + request.CommandName,
+            ConcatToString(TStringBuf("Driver:"), request.CommandName),
             context->GetConfig()->ForceTracing);
         NTracing::AddTag("user", request.AuthenticatedUser);
         NTracing::AddTag("request_id", request.Id);

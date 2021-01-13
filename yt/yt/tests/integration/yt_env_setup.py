@@ -310,6 +310,7 @@ class YTEnvSetup(object):
             watcher_config={"disable_logrotate": True},
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             kill_child_processes=True,
+            use_native_client=True,
             use_porto_for_servers=cls.USE_PORTO,
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
             fqdn="localhost",

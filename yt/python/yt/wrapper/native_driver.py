@@ -52,13 +52,11 @@ def read_config(path):
         return (
             driver_config["driver"],
             driver_config.get("logging"),
-            driver_config.get("tracing"),
             driver_config.get("address_resolver"),
         )
     else:
         return (
             driver_config,
-            None,
             None,
             None
         )
@@ -99,17 +97,6 @@ def configure_logging(logging_config_from_file, client):
 
     logging_configured = True
 
-tracing_configured = False
-def configure_tracing(tracing_config_from_file, client):
-    global tracing_configured
-    if tracing_configured:
-        return
-
-    if tracing_config_from_file is not None:
-        driver_bindings.configure_tracing(tracing_config_from_file)
-
-    tracing_configured = True
-
 address_resolver_configured = False
 def configure_address_resolver(address_resolver_config, client):
     global address_resolver_configured
@@ -128,14 +115,13 @@ def get_driver_instance(client):
     driver = get_option("_driver", client=client)
     if driver is None:
         logging_config = None
-        tracing_config = None
         address_resolver_config = None
 
         config = get_config(client)
         if config["driver_config"] is not None:
             driver_config = config["driver_config"]
         elif config["driver_config_path"] is not None:
-            driver_config, logging_config, tracing_config, address_resolver_config = \
+            driver_config, logging_config, address_resolver_config = \
                 read_config(config["driver_config_path"])
         else:
             if config["backend"] == "rpc":
@@ -162,7 +148,6 @@ def get_driver_instance(client):
             raise YtError("Driver class not found, install yt driver bindings.")
 
         configure_logging(logging_config, client)
-        configure_tracing(tracing_config, client)
         configure_address_resolver(address_resolver_config, client)
 
         specified_api_version = get_config(client)["api_version"]

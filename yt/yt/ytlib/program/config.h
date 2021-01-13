@@ -22,6 +22,8 @@
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
+#include <yt/yt/library/tracing/jaeger/tracer.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +42,7 @@ public:
     NProfiling::TProfileManagerConfigPtr ProfileManager;
     NProfiling::TSolomonExporterConfigPtr SolomonExporter;
     NLogging::TLogManagerConfigPtr Logging;
-    NTracing::TTraceManagerConfigPtr Tracing;
+    NTracing::TJaegerTracerConfigPtr Jaeger;
 
     TSingletonsConfig()
     {
@@ -64,7 +66,7 @@ public:
             .DefaultNew();
         RegisterParameter("logging", Logging)
             .Default(NLogging::TLogManagerConfig::CreateDefault());
-        RegisterParameter("tracing", Tracing)
+        RegisterParameter("jaeger", Jaeger)
             .DefaultNew();
 
         // COMPAT(prime@): backward compatible config for CHYT

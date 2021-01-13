@@ -45,23 +45,11 @@ logging.getLogger("library.python.filelock").setLevel(logging.INFO)
 
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
-# Used to configure driver logging exactly once per environment (as a set of YT instances).
-_environment_driver_logging_config_per_type = {}
+_environment_driver_logging_config = None
 
-def get_environment_driver_logging_config(default_config, driver_type):
-    if driver_type not in _environment_driver_logging_config_per_type:
-        return default_config
-    # COMPAT
-    if None in _environment_driver_logging_config_per_type:
-        return _environment_driver_logging_config_per_type[None]
-    return _environment_driver_logging_config_per_type[driver_type]
-
-# COMPAT: default None value is for compatibility only.
-def set_environment_driver_logging_config(config, driver_type=None):
-    if config is None:
-        raise YtError("Could not set environment driver logging config to None")
-    global _environment_driver_logging_config_per_type
-    _environment_driver_logging_config_per_type[driver_type] = config
+def set_environment_driver_logging_config(config):
+    global _environment_driver_logging_config
+    _environment_driver_logging_config = config
 
 class YtEnvRetriableError(YtError):
     pass
@@ -486,6 +474,7 @@ class YTInstance(object):
         self.pids_file = open(self.pids_filename, "wt")
         try:
             self._configure_driver_logging()
+            self._configure_yt_tracing()
 
             if self.has_http_proxy:
                 self.start_http_proxy(sync=False)
@@ -736,24 +725,24 @@ class YTInstance(object):
         return self._binaries[component]
 
     def _configure_driver_logging(self):
-        try:
-            import yt_driver_bindings
-            yt_driver_bindings.configure_logging(
-                get_environment_driver_logging_config(self.configs["driver_logging"], "native")
-            )
-        except ImportError:
-            pass
-
-        try:
-            import yt_driver_rpc_bindings
-            yt_driver_rpc_bindings.configure_logging(
-                get_environment_driver_logging_config(self.configs["rpc_driver_logging"], "rpc")
-            )
-        except ImportError:
-            pass
+        import yt_driver_bindings
+        yt_driver_bindings.configure_logging(
+            _environment_driver_logging_config or self.configs["driver_logging"]
+        )
 
         import yt.wrapper.native_driver as native_driver
         native_driver.logging_configured = True
+    
+    def _configure_yt_tracing(self):
+        import yt_tracing
+
+        if "JAEGER_COLLECTOR" in os.environ:
+            yt_tracing.initialize_tracer({
+                "service_name": "python",
+                "flush_period": 100,
+                "collector_channel_config": {"address": os.environ["JAEGER_COLLECTOR"]},
+                "enable_pid_tag": True,
+            })
 
     def _write_environment_info_to_file(self):
         info = {}

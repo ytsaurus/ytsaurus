@@ -172,9 +172,8 @@ def init_drivers(clusters):
 
             # Setup driver logging for all instances in the environment as in the primary cluster.
             if instance._cluster_name == "primary":
-                set_environment_driver_logging_config(
-                    instance.configs["driver_logging"], instance._default_driver_backend
-                )
+                set_environment_driver_logging_config(instance.configs["driver_logging"])
+
             secondary_drivers = [
                 create_driver_per_api(instance.configs["driver_secondary_" + str(i)])
                 for i in xrange(instance.secondary_master_cell_count)

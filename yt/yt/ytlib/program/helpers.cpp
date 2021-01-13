@@ -1,5 +1,6 @@
 #include "helpers.h"
 #include "config.h"
+#include "yt/core/tracing/trace_context.h"
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
@@ -9,7 +10,7 @@
 
 #include <yt/core/ytalloc/bindings.h>
 
-#include <yt/core/tracing/trace_manager.h>
+#include <yt/yt/library/tracing/jaeger/tracer.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -77,7 +78,7 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
 
     NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
 
-    NTracing::TTraceManager::Get()->Configure(config->Tracing);
+    NTracing::SetGlobalTracer(New<NTracing::TJaegerTracer>(config->Jaeger));
 
     NProfiling::TProfileManager::Get()->Configure(config->ProfileManager);
     NProfiling::TProfileManager::Get()->Start();

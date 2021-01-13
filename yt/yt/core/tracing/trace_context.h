@@ -9,6 +9,8 @@
 
 #include <yt/core/profiling/public.h>
 
+#include <yt/yt/library/tracing/public.h>
+
 #include <atomic>
 
 namespace NYT::NTracing {
@@ -30,6 +32,10 @@ struct TSpanContext
 
 void FormatValue(TStringBuilderBase* builder, const TSpanContext& context, TStringBuf spec);
 TString ToString(const TSpanContext& context);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SetGlobalTracer(const ITracerPtr& tracer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

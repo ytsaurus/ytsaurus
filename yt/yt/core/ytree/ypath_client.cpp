@@ -200,6 +200,11 @@ NConcurrency::IAsyncZeroCopyInputStreamPtr TYPathRequest::GetResponseAttachments
     YT_ABORT();
 }
 
+bool TYPathRequest::IsLegacyRpcCodecsEnabled()
+{
+    YT_ABORT();
+}
+
 TSharedRefArray TYPathRequest::Serialize()
 {
     auto bodyData = SerializeBody();

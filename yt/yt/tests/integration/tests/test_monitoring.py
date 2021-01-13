@@ -55,23 +55,3 @@ class TestMonitoring(YTEnvSetup):
 
         with pytest.raises(urllib2.HTTPError):
             self.get_json(http_port, "/profiling/logging/backlog_events?from_time=abc")
-
-    @authors("babenko")
-    @pytest.mark.parametrize("component", ["master"])
-    def test_component_http_tracing(self, component):
-        http_port = self.Env.configs[component][0]["monitoring_port"]
-        url = "http://localhost:{}/tracing/traces/v2?start_index=0&limit=1000".format(http_port)
-
-        rsp = requests.get(url)
-        assert rsp.status_code == 200
-        assert "X-YT-Process-Id" in rsp.headers
-        assert "X-YT-Trace-Start-Index" in rsp.headers
-        assert len(rsp.content) > 0
-
-        process_id = rsp.headers["X-YT-Process-Id"]
-
-        rsp = requests.get(url, headers={"X-YT-Check-Process-Id": process_id})
-        assert rsp.status_code == 200
-
-        rsp = requests.get(url, headers={"X-YT-Check-Process-Id": process_id + "-foo"})
-        assert rsp.status_code == 412
