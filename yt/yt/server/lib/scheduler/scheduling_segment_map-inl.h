@@ -192,7 +192,8 @@ void Deserialize(TSchedulingSegmentMap<TValue>& map, const NYTree::INodePtr& nod
 {
     // NB(eshcherbin): This is almost a copy-paste from Deserialize implementation for TEnumIndexedVector.
     // However, we need it here because we have to call the correct Deserialize function for different segments.
-    map.Map_ = {};
+    map = {};
+
     auto mapNode = node->AsMap();
     for (const auto& [stringSegment, child] : mapNode->GetChildren()) {
         auto segment = TEnumTraits<ESchedulingSegment>::FromString(DecodeEnumValue(stringSegment));

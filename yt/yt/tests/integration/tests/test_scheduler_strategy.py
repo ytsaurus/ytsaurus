@@ -3078,6 +3078,9 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_satisfaction_margins(self):
+        # Just to check that it works with no core dump.
+        set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"default": 1.0})
+
         set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 80})
         set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins",
             {
