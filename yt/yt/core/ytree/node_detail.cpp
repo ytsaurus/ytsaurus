@@ -60,14 +60,15 @@ void TNodeBase::GetSelf(
         false,
         attributeKeys);
 
-    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
-        if (resultOrError.IsOK()) {
-            response->set_value(resultOrError.Value().GetData());
-            context->Reply();
-        } else {
-            context->Reply(resultOrError);
-        }
-    }));
+    writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+            if (resultOrError.IsOK()) {
+                response->set_value(resultOrError.Value().GetData());
+                context->Reply();
+            } else {
+                context->Reply(resultOrError);
+            }
+        }));
 }
 
 void TNodeBase::GetKeySelf(
@@ -339,14 +340,15 @@ void TMapNodeMixin::ListSelf(
     }
     writer.OnEndList();
 
-    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
-        if (resultOrError.IsOK()) {
-            response->set_value(resultOrError.Value().GetData());
-            context->Reply();
-        } else {
-            context->Reply(resultOrError);
-        }
-    }));
+    writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+            if (resultOrError.IsOK()) {
+                response->set_value(resultOrError.Value().GetData());
+                context->Reply();
+            } else {
+                context->Reply(resultOrError);
+            }
+        }));
 }
 
 std::pair<TString, INodePtr> TMapNodeMixin::PrepareSetChild(

@@ -100,11 +100,11 @@ void TAsyncYsonWriter::OnRaw(TFuture<TYsonString> asyncStr)
         })));
 }
 
-TFuture<TYsonString> TAsyncYsonWriter::Finish()
+TFuture<TYsonString> TAsyncYsonWriter::Finish(IInvokerPtr invoker)
 {
     FlushCurrentSegment();
 
-    return AllSucceeded(AsyncSegments_).Apply(BIND([type = Type_] (const std::vector<TString>& segments) {
+    auto callback = BIND([type = Type_] (std::vector<TString>&& segments) {
         size_t length = 0;
         for (const auto& segment : segments) {
             length += segment.length();
@@ -117,7 +117,14 @@ TFuture<TYsonString> TAsyncYsonWriter::Finish()
         }
 
         return TYsonString(result, type);
-    }));
+    });
+
+    if (invoker) {
+        return AllSucceeded(AsyncSegments_).ApplyUnique(std::move(callback)
+            .AsyncVia(std::move(invoker)));
+    } else {
+        return AllSucceeded(AsyncSegments_).ApplyUnique(std::move(callback));
+    }
 }
 
 void TAsyncYsonWriter::FlushCurrentSegment()

@@ -2701,14 +2701,15 @@ void TMapNodeProxy::ListSelf(
     }
     writer.OnEndList();
 
-    writer.Finish().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
-        if (resultOrError.IsOK()) {
-            response->set_value(resultOrError.Value().GetData());
-            context->Reply();
-        } else {
-            context->Reply(resultOrError);
-        }
-    }));
+    writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
+            if (resultOrError.IsOK()) {
+                response->set_value(resultOrError.Value().GetData());
+                context->Reply();
+            } else {
+                context->Reply(resultOrError);
+            }
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

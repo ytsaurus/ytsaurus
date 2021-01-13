@@ -1560,7 +1560,19 @@ struct TAsyncViaHelper<R(TArgs...)>
             return;
         }
 
-        NYT::NDetail::TPromiseSetter<TUnderlying, R(TArgs...)>::Do(promise, this_, args...);
+        NYT::NDetail::TPromiseSetter<TUnderlying, R(TArgs...)>::Do(promise, this_, std::forward<TArgs>(args)...);
+    }
+
+    template <class U>
+    static U& WrapToPassed(U& arg)
+    {
+        return arg;
+    }
+
+    template <class U>
+    static auto WrapToPassed(U&& arg)
+    {
+        return Passed(std::move(arg));
     }
 
     static TFuture<TUnderlying> Outer(
@@ -1569,7 +1581,7 @@ struct TAsyncViaHelper<R(TArgs...)>
         TArgs... args)
     {
         auto promise = NewPromise<TUnderlying>();
-        invoker->Invoke(BIND(&Inner, this_, promise, args...));
+        invoker->Invoke(BIND(&Inner, this_, promise, WrapToPassed(std::forward<TArgs>(args))...));
         return promise;
     }
 
@@ -1582,7 +1594,7 @@ struct TAsyncViaHelper<R(TArgs...)>
         auto promise = NewPromise<TUnderlying>();
         GuardedInvoke(
             invoker,
-            BIND(&Inner, this_, promise, args...),
+            BIND(&Inner, this_, promise, WrapToPassed(std::forward<TArgs>(args))...),
             BIND([promise, cancellationError = std::move(cancellationError)] {
                 promise.Set(std::move(cancellationError));
             }));

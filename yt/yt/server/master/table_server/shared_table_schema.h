@@ -23,6 +23,7 @@ public:
     void Clear();
 
     static const NTableClient::TTableSchema EmptyTableSchema;
+    static const TFuture<NYson::TYsonString> EmptyYsonTableSchema;
 
 private:
     void DropSchema(TSharedTableSchema* tableSchema);
@@ -56,10 +57,12 @@ public:
     ~TSharedTableSchema();
 
     const NTableClient::TTableSchema& GetTableSchema() const;
+    const TFuture<NYson::TYsonString>& GetYsonTableSchema() const;
     size_t GetTableSchemaHash() const;
 
 private:
     const NTableClient::TTableSchema TableSchema_;
+    mutable TFuture<NYson::TYsonString> MemoizedYsonTableSchema_;
     const size_t TableSchemaHash_;
     const TSharedTableSchemaRegistryPtr Registry_;
 };

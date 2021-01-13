@@ -1,12 +1,19 @@
 #include "shared_table_schema.h"
 
+#include <yt/core/rpc/dispatcher.h>
+
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NTableServer {
 
 using namespace NTableClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const TTableSchema TSharedTableSchemaRegistry::EmptyTableSchema;
+const TFuture<TYsonString> TSharedTableSchemaRegistry::EmptyYsonTableSchema = MakeFuture(BuildYsonStringFluently().Value(EmptyTableSchema));
 
 size_t TSharedTableSchemaRegistry::GetSize() const
 {
@@ -69,6 +76,19 @@ TSharedTableSchema::~TSharedTableSchema()
 const NTableClient::TTableSchema& TSharedTableSchema::GetTableSchema() const
 {
     return TableSchema_;
+}
+
+const TFuture<NYson::TYsonString>& TSharedTableSchema::GetYsonTableSchema() const
+{
+    if (!MemoizedYsonTableSchema_) {
+        const auto& rpcInvoker = NRpc::TDispatcher::Get()->GetHeavyInvoker();
+        MemoizedYsonTableSchema_ = BIND([this, this_ = MakeStrong(this)] {
+            return BuildYsonStringFluently().Value(GetTableSchema());
+        })
+        .AsyncVia(rpcInvoker)
+        .Run();
+    }
+    return MemoizedYsonTableSchema_;
 }
 
 size_t TSharedTableSchema::GetTableSchemaHash() const
