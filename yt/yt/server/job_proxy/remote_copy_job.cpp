@@ -17,9 +17,9 @@
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/ytlib/chunk_client/erasure_reader.h>
+#include <yt/ytlib/chunk_client/erasure_part_reader.h>
+#include <yt/ytlib/chunk_client/erasure_part_writer.h>
 #include <yt/ytlib/chunk_client/erasure_repair.h>
-#include <yt/ytlib/chunk_client/erasure_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/replication_writer.h>
@@ -341,7 +341,7 @@ private:
         // We do not support node reallocation for erasure chunks.
         auto options = New<TRemoteWriterOptions>();
         options->AllowAllocatingNewTargetNodes = false;
-        auto writers = CreateErasurePartWriters(
+        auto writers = CreateAllErasurePartWriters(
             WriterConfig_,
             New<TRemoteWriterOptions>(),
             outputSessionId,

@@ -26,14 +26,13 @@ using namespace NErasureHelpers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! TODO: think about other name.
 //! Caching chunk reader that assumes monotonic requests for block indexes with possible overlaps.
 //! Also supports functionality to save blocks with given indexes.
-class TMonotonicBlocksReader
+class TSequentialCachingBlocksReader
     : public IBlocksReader
 {
 public:
-    TMonotonicBlocksReader(
+    TSequentialCachingBlocksReader(
         IChunkReaderPtr reader,
         const TClientBlockReadOptions& options,
         const std::vector<int>& blocksToSave = {})
@@ -128,8 +127,8 @@ private:
     std::deque<std::pair<int, TBlock>> CachedBlocks_;
 };
 
-DECLARE_REFCOUNTED_TYPE(TMonotonicBlocksReader)
-DEFINE_REFCOUNTED_TYPE(TMonotonicBlocksReader)
+DECLARE_REFCOUNTED_TYPE(TSequentialCachingBlocksReader)
+DEFINE_REFCOUNTED_TYPE(TSequentialCachingBlocksReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,7 +199,7 @@ private:
         // Prepare erasure part readers.
         std::vector<IPartBlockProducerPtr> blockProducers;
         for (int index = 0; index < Readers_.size(); ++index) {
-            auto monotonicReader = New<TMonotonicBlocksReader>(
+            auto monotonicReader = New<TSequentialCachingBlocksReader>(
                 Readers_[index],
                 BlockReadOptions_);
             blockProducers.push_back(New<TPartReader>(
@@ -437,7 +436,7 @@ public:
                     blocksPlacementInPart.Ranges.begin(),
                     blocksPlacementInPart.Ranges.end());
             } else {
-                auto partReader = New<TMonotonicBlocksReader>(
+                auto partReader = New<TSequentialCachingBlocksReader>(
                     Readers_[readerIndex++],
                     BlockReadOptions_,
                     blocksPlacementInPart.IndexesInPart);
@@ -451,7 +450,7 @@ public:
         // Finish building repair part readers.
         for (auto partIndex : repairIndices) {
             if (partIndex >= dataPartCount) {
-                RepairPartReaders_.push_back(New<TMonotonicBlocksReader>(
+                RepairPartReaders_.push_back(New<TSequentialCachingBlocksReader>(
                     Readers_[readerIndex++],
                     BlockReadOptions_));
             }
@@ -498,8 +497,8 @@ private:
     std::vector<std::vector<i64>> ErasedPartBlockSizes_;
     std::vector<std::vector<i64>> RepairPartBlockSizes_;
 
-    std::vector<TMonotonicBlocksReaderPtr> AllPartReaders_;
-    std::vector<TMonotonicBlocksReaderPtr> RepairPartReaders_;
+    std::vector<TSequentialCachingBlocksReaderPtr> AllPartReaders_;
+    std::vector<TSequentialCachingBlocksReaderPtr> RepairPartReaders_;
     std::vector<TPartBlockSaverPtr> PartBlockSavers_;
 
     std::vector<IPartBlockProducerPtr> BlockProducers_;
@@ -594,7 +593,7 @@ public:
         const TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        std::optional<i64> /* estimatedSize */)
+        std::optional<i64> /* estimatedSize */) override
     {
         // Implement when first needed.
         YT_UNIMPLEMENTED();
