@@ -11,7 +11,7 @@
 #include "query_context.h"
 #include "query_context.h"
 #include "query_registry.h"
-#include "schema.h"
+#include "conversion.h"
 #include "storage_base.h"
 #include "subquery.h"
 #include "table.h"
@@ -695,7 +695,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
     // Underscore indicates that the columns should be ignored, and that schema should be taken from the attributes.
     if (args.columns.getNamesOfPhysical() != std::vector<std::string>{"_"}) {
-        auto schema = ConvertToTableSchema(args.columns, keyColumns);
+        auto schema = ToTableSchema(args.columns, keyColumns);
         YT_LOG_DEBUG("Inferred table schema from columns (Schema: %v)", schema);
         attributes->Set("schema", schema);
     } else if (attributes->Contains("schema")) {

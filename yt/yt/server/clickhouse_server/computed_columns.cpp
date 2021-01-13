@@ -1,6 +1,6 @@
 #include "computed_columns.h"
 
-#include "schema.h"
+#include "conversion.h"
 #include "helpers.h"
 #include "format.h"
 #include "config.h"
@@ -178,8 +178,7 @@ struct TComputedColumnPopulationMatcher
             for (const auto& [fieldIndex, field] : Enumerate(possibleTuple)) {
                 auto& referenceValue = referenceValues[fieldIndex];
                 referenceValue.Id = fieldIndex;
-                referenceValue.Type = ToValueType(field.getType());
-                ConvertToUnversionedValue(field, &referenceValue);
+                ToUnversionedValue(field, &referenceValue);
                 YT_LOG_TRACE(
                     "Converted reference field to YT unversioned value (Value: %v, Field: %v)",
                     field,
@@ -201,7 +200,7 @@ struct TComputedColumnPopulationMatcher
             }
             YT_LOG_TRACE("Calculated expression result (ComputedColumnValue: %v)", resultValue);
 
-            auto resultField = ConvertToField(resultValue);
+            auto resultField = ToField(resultValue);
             YT_LOG_TRACE("Converted to CH field (ComputedColumnValue: %v)", resultField);
             possibleTuple.emplace_back(std::move(resultField));
             ResultTuples.emplace_back(std::move(possibleTuple));

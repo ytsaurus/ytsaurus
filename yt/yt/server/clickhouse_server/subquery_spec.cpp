@@ -1,7 +1,7 @@
 #include "subquery_spec.h"
 
 #include "config.h"
-#include "schema.h"
+#include "conversion.h"
 
 #include <yt/client/table_client/config.h>
 

@@ -12,11 +12,6 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::Names ToNames(const std::vector<TString>& columnNames);
-std::vector<TString> ToVectorString(const DB::Names& columnNames);
-
-////////////////////////////////////////////////////////////////////////////////
-
 // YT logical type system -> CH data type system.
 
 DB::DataTypePtr ToDataType(const NTableClient::TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings);
@@ -29,17 +24,27 @@ DB::Block ToHeaderBlock(const NTableClient::TTableSchema& schema, const TComposi
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// YT physical type system -> CH field type system.
-
-NTableClient::EValueType ToValueType(DB::Field::Types::Which which);
+NTableClient::TTableSchema ToTableSchema(
+    const DB::ColumnsDescription& columns,
+    const NTableClient::TKeyColumns& keyColumns);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// CH logicl type system -> YT type system.
+// TODO(max42): pass logical type.
+DB::Field ToField(const NTableClient::TUnversionedValue& value);
 
-NTableClient::TTableSchema ConvertToTableSchema(
-    const DB::ColumnsDescription& columns,
-    const NTableClient::TKeyColumns& keyColumns);
+// TODO(max42): pass logical type.
+void ToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue* value);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::Block ToBlock(
+    const NTableClient::IUnversionedRowBatchPtr& batch,
+    const NTableClient::TTableSchema& readSchema,
+    const std::vector<int>& idToColumnIndex,
+    const NTableClient::TRowBufferPtr& rowBuffer,
+    const DB::Block& headerBlock,
+    const TCompositeSettingsPtr& compositeSettings);
 
 ////////////////////////////////////////////////////////////////////////////////
 

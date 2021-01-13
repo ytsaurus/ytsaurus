@@ -5,7 +5,7 @@
 #include "helpers.h"
 #include "config.h"
 #include "subquery_spec.h"
-#include "batch_conversion.h"
+#include "conversion.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -317,7 +317,7 @@ DB::Block TBlockInputStream::ConvertRowBatchToBlock(const IUnversionedRowBatchPt
     bool isColumnarBatch = static_cast<bool>(batch->TryAsColumnar());
 
     NProfiling::TWallTimer timer;
-    auto result = NClickHouseServer::ConvertRowBatchToBlock(
+    auto result = ToBlock(
         batch,
         *ReadSchemaWithVirtualColumns_,
         IdToColumnIndex_,

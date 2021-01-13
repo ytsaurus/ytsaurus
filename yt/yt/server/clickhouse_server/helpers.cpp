@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-#include "schema.h"
+#include "conversion.h"
 #include "table.h"
 #include "config.h"
 
@@ -203,59 +203,6 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(dakovalkov): value.Type is a physical type, it's better to pass the desired CH-type.
-DB::Field ConvertToField(const NTableClient::TUnversionedValue& value)
-{
-    switch (value.Type) {
-        case EValueType::Null:
-            return DB::Field();
-        case EValueType::Int64:
-            return DB::Field(static_cast<DB::Int64>(value.Data.Int64));
-        case EValueType::Uint64:
-            return DB::Field(static_cast<DB::UInt64>(value.Data.Uint64));
-        case EValueType::Double:
-            return DB::Field(static_cast<DB::Float64>(value.Data.Double));
-        case EValueType::Boolean:
-            return DB::Field(static_cast<DB::UInt64>(value.Data.Boolean ? 1 : 0));
-        case EValueType::String:
-        case EValueType::Any:
-        case EValueType::Composite:
-            return DB::Field(value.Data.String, value.Length);
-        default:
-            THROW_ERROR_EXCEPTION("Unexpected data type %Qlv", value.Type);
-    }
-}
-
-void ConvertToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
-{
-    switch (value->Type) {
-        case EValueType::Int64:
-        case EValueType::Uint64:
-        case EValueType::Double: {
-            memcpy(&value->Data, &field.reinterpret<ui64>(), sizeof(value->Data));
-            break;
-        }
-        case EValueType::Boolean: {
-            if (field.get<ui64>() > 1) {
-                THROW_ERROR_EXCEPTION("Cannot convert value %v to boolean", field.get<ui64>());
-            }
-            memcpy(&value->Data, &field.get<ui64>(), sizeof(value->Data));
-            break;
-        }
-        case EValueType::String: {
-            const auto& str = field.get<std::string>();
-            value->Data.String = str.data();
-            value->Length = str.size();
-            break;
-        }
-        default: {
-            THROW_ERROR_EXCEPTION("Unexpected data type %Qlv", value->Type);
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TQuerySettingsPtr ParseCustomSettings(
     const TQuerySettingsPtr baseSettings,
     const DB::Settings::Range& customSettings,
@@ -280,21 +227,20 @@ TQuerySettingsPtr ParseCustomSettings(
             }
         }
         auto field = setting.getValue();
-        auto fieldType = ToValueType(field.getType());
         YT_LOG_TRACE("Parsing custom setting (YPath: %v, FieldValue: %v)", ypath, field.dump());
+
+        TUnversionedValue unversionedValue;
+        unversionedValue.Id = 0;
+        ToUnversionedValue(field, &unversionedValue);
 
         auto modifiedNode = FindNodeByYPath(node, ypath);
 
         INodePtr patchNode;
-        if (modifiedNode && fieldType == EValueType::String && modifiedNode->GetType() != ENodeType::String) {
-            // If we expect something diffrent from string, then try to convert it.
+        if (modifiedNode && unversionedValue.Type == EValueType::String && modifiedNode->GetType() != ENodeType::String) {
+            // If we expect something different from string, then try to convert it.
             const auto& stringVal = field.get<std::string>();
             patchNode = ConvertToNode(TYsonStringBuf(stringVal));
         } else {
-            TUnversionedValue unversionedValue;
-            unversionedValue.Id = 0;
-            unversionedValue.Type = fieldType;
-            ConvertToUnversionedValue(field, &unversionedValue);
             patchNode = ConvertToNode(unversionedValue);
         }
 

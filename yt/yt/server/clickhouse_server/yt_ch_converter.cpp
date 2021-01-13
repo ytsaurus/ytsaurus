@@ -1,7 +1,7 @@
-#include "composite.h"
+#include "yt_ch_converter.h"
 
 #include "config.h"
-#include "batch_conversion.h"
+#include "columnar_conversion.h"
 
 #include <yt/client/table_client/helpers.h>
 
@@ -863,7 +863,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCompositeValueToClickHouseColumnConverter::TImpl
+class TYTCHConverter::TImpl
 {
 public:
     TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings)
@@ -1051,46 +1051,46 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeValueToClickHouseColumnConverter::TCompositeValueToClickHouseColumnConverter(
+TYTCHConverter::TYTCHConverter(
     TComplexTypeFieldDescriptor descriptor,
     TCompositeSettingsPtr settings)
     : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings)))
 { }
 
-void TCompositeValueToClickHouseColumnConverter::ConsumeUnversionedValues(TRange<TUnversionedValue> values)
+void TYTCHConverter::ConsumeUnversionedValues(TRange<TUnversionedValue> values)
 {
     return Impl_->ConsumeUnversionedValues(values);
 }
 
-void TCompositeValueToClickHouseColumnConverter::ConsumeYson(TYsonStringBuf yson)
+void TYTCHConverter::ConsumeYson(TYsonStringBuf yson)
 {
     return Impl_->ConsumeYson(yson);
 }
 
-DB::ColumnPtr TCompositeValueToClickHouseColumnConverter::FlushColumn()
+DB::ColumnPtr TYTCHConverter::FlushColumn()
 {
     return Impl_->FlushColumn();
 }
 
-DB::DataTypePtr TCompositeValueToClickHouseColumnConverter::GetDataType() const
+DB::DataTypePtr TYTCHConverter::GetDataType() const
 {
     return Impl_->GetDataType();
 }
 
-void TCompositeValueToClickHouseColumnConverter::ConsumeNulls(int count)
+void TYTCHConverter::ConsumeNulls(int count)
 {
     return Impl_->ConsumeNulls(count);
 }
 
-void TCompositeValueToClickHouseColumnConverter::ConsumeYtColumn(
+void TYTCHConverter::ConsumeYtColumn(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& column)
 {
     return Impl_->ConsumeYtColumn(column);
 }
 
-TCompositeValueToClickHouseColumnConverter::~TCompositeValueToClickHouseColumnConverter() = default;
-TCompositeValueToClickHouseColumnConverter::TCompositeValueToClickHouseColumnConverter(
-    TCompositeValueToClickHouseColumnConverter&& other)
+TYTCHConverter::~TYTCHConverter() = default;
+TYTCHConverter::TYTCHConverter(
+    TYTCHConverter&& other)
     : Impl_(std::move(other.Impl_))
 { }
 

@@ -51,16 +51,6 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::Field ConvertToField(const NTableClient::TUnversionedValue& value);
-
-// TODO(dakovalkov): Working with elements as DB::Field is inefficient. It copies complex values (strings/arrays, etc.).
-// Try to not use this function.
-// TODO(dakovalkov): Remove this function.
-//! `value` should have Type field filled.
-void ConvertToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue* value);
-
-////////////////////////////////////////////////////////////////////////////////
-
 TQuerySettingsPtr ParseCustomSettings(
     TQuerySettingsPtr baseSettings,
     const DB::Settings::Range& customSettings,
