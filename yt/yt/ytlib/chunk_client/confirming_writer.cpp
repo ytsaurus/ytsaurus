@@ -6,6 +6,7 @@
 #include "config.h"
 #include "deferred_chunk_meta.h"
 #include "dispatcher.h"
+#include "erasure_part_writer.h"
 #include "erasure_writer.h"
 #include "helpers.h"
 #include "private.h"
@@ -239,7 +240,7 @@ private:
         auto config = CloneYsonSerializable(Config_);
         // Block reordering is done in erasure writer.
         config->EnableBlockReordering = false;
-        auto writers = CreateErasurePartWriters(
+        auto writers = CreateAllErasurePartWriters(
             config,
             options,
             SessionId_,

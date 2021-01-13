@@ -419,7 +419,7 @@ public:
         , Consumers_(consumers)
     { }
 
-    std::vector<TPartRange> GetSplitRanges(const TPartRange& range)
+    std::vector<TPartRange> GetWindowAlignedRanges(const TPartRange& range)
     {
         std::vector<TPartRange> ranges;
         i64 pos = range.Begin;
@@ -455,22 +455,27 @@ public:
 
     void Run()
     {
+        std::vector<TPartRange> windowAlignedRanges;
         for (const auto& range : EncodeRanges_) {
-            auto windowRanges = GetSplitRanges(range);
-            for (const auto& windowRange : windowRanges) {
-                auto blocks = WaitFor(ProduceBlocks(windowRange))
-                    .ValueOrThrow();
-
-                std::vector<TSharedRef> decodedBlocks;
-                if (GetParityPartIndices(Codec_) == MissingPartIndices_) {
-                    YT_VERIFY(blocks.size() == Codec_->GetDataPartCount());
-                    decodedBlocks = Codec_->Encode(blocks);
-                } else {
-                    decodedBlocks = Codec_->Decode(blocks, MissingPartIndices_);
-                }
-                WaitFor(ConsumeBlocks(windowRange, decodedBlocks))
-                    .ThrowOnError();
+            for (const auto& splitRange : GetWindowAlignedRanges(range)) {
+                windowAlignedRanges.push_back(splitRange);
             }
+        }
+        windowAlignedRanges = Union(windowAlignedRanges);
+
+        for (const auto& range : windowAlignedRanges) {
+            auto blocks = WaitFor(ProduceBlocks(range))
+                .ValueOrThrow();
+
+            std::vector<TSharedRef> decodedBlocks;
+            if (GetParityPartIndices(Codec_) == MissingPartIndices_) {
+                YT_VERIFY(blocks.size() == Codec_->GetDataPartCount());
+                decodedBlocks = Codec_->Encode(blocks);
+            } else {
+                decodedBlocks = Codec_->Decode(blocks, MissingPartIndices_);
+            }
+            WaitFor(ConsumeBlocks(range, decodedBlocks))
+                .ThrowOnError();
         }
     }
 

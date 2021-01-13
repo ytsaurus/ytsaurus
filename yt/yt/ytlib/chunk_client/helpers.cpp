@@ -4,7 +4,7 @@
 #include "input_chunk_slice.h"
 #include "input_chunk.h"
 #include "replication_reader.h"
-#include "repairing_reader.h"
+#include "erasure_reader.h"
 #include "data_slice_descriptor.h"
 
 #include <yt/ytlib/api/native/client.h>
@@ -695,7 +695,7 @@ IChunkReaderPtr CreateRemoteReader(
             readers.push_back(reader);
         }
 
-        return CreateRepairingReader(chunkId, erasureCodec, config, readers, Logger);
+        return CreateAdaptiveRepairingErasureReader(chunkId, erasureCodec, config, readers, Logger);
     } else {
         YT_LOG_DEBUG("Creating regular remote reader");
 

@@ -5,7 +5,7 @@
 #include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/ytlib/chunk_client/erasure_writer.h>
-#include <yt/ytlib/chunk_client/repairing_reader.h>
+#include <yt/ytlib/chunk_client/erasure_reader.h>
 #include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/session_id.h>
@@ -308,7 +308,7 @@ public:
     {
         auto config = CreateErasureConfig();
         config->EnableAutoRepair = false;
-        return CreateRepairingReader(NullChunkId, codec, config, GetFileReaders(codec->GetDataPartCount()));
+        return CreateAdaptiveRepairingErasureReader(NullChunkId, codec, config, GetFileReaders(codec->GetDataPartCount()));
     }
 
     static TErasureReaderConfigPtr CreateErasureConfig()
@@ -318,7 +318,7 @@ public:
 
     static IChunkReaderPtr CreateOkRepairingReader(ICodec *codec)
     {
-        return CreateRepairingReader(NullChunkId, codec, CreateErasureConfig(), GetFileReaders(codec->GetTotalPartCount()));
+        return CreateAdaptiveRepairingErasureReader(NullChunkId, codec, CreateErasureConfig(), GetFileReaders(codec->GetTotalPartCount()));
     }
 
     static void CheckRepairReader(
@@ -803,7 +803,7 @@ TEST_F(TErasureMixture, RepairingReaderSimultaneousFail)
         failingTimes[0] = failingTimes[1] = failingTimes[2] = 1;
         std::shuffle(failingTimes.begin(), failingTimes.end(), Gen_);
         auto readers = CreateFailingReaders(codec, codecId, dataRefs, failingTimes);
-        auto reader = CreateRepairingReader(NullChunkId, codec, config, readers);
+        auto reader = CreateAdaptiveRepairingErasureReader(NullChunkId, codec, config, readers);
 
         CheckRepairResult(reader, dataRefs);
     }
@@ -825,7 +825,7 @@ TEST_P(TErasureMixture, RepairingReaderSequenceFail)
     failingTimes[12] = 3;
 
     auto readers = CreateFailingReaders(codec, codecId, dataRefs, failingTimes);
-    auto reader = CreateRepairingReader(NullChunkId, codec, CreateErasureConfig(), readers);
+    auto reader = CreateAdaptiveRepairingErasureReader(NullChunkId, codec, CreateErasureConfig(), readers);
 
     CheckRepairResult(reader, dataRefs);
 
@@ -847,7 +847,7 @@ TEST_F(TErasureMixture, RepairingReaderUnrecoverable)
     failingTimes[4] = 4;
 
     auto readers = CreateFailingReaders(codec, codecId, dataRefs, failingTimes);
-    auto reader = CreateRepairingReader(NullChunkId, codec, CreateErasureConfig(), readers);
+    auto reader = CreateAdaptiveRepairingErasureReader(NullChunkId, codec, CreateErasureConfig(), readers);
 
     std::vector<int> indexes(dataRefs.size());
     std::iota(indexes.begin(), indexes.end(), 0);
