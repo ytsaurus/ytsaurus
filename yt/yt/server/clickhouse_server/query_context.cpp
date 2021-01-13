@@ -108,7 +108,7 @@ TQueryContext::TQueryContext(
 
 TQueryContext::~TQueryContext()
 {
-    VERIFY_INVOKER_AFFINITY(Host->GetControlInvoker());
+    VERIFY_THREAD_AFFINITY_ANY();
 
     MoveToPhase(EQueryPhase::Finish);
 
