@@ -10,6 +10,7 @@
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <util/stream/file.h>
+#include <util/stream/output.h>
 
 #include <atomic>
 
@@ -138,6 +139,7 @@ public:
         TString writerName,
         TString fileName,
         bool enableCompression = false,
+        ECompressionMethod compressionMethod = ECompressionMethod::Gzip,
         size_t compressionLevel = 6);
     ~TFileLogWriter();
 
@@ -151,14 +153,13 @@ protected:
 private:
     const TString FileName_;
     const bool EnableCompression_;
+    const ECompressionMethod CompressionMethod_;
     const size_t CompressionLevel_;
 
     std::atomic<bool> Disabled_ = false;
 
     std::unique_ptr<TFile> File_;
-    std::unique_ptr<TFixedBufferFileOutput> FileOutput_;
-
-    std::unique_ptr<TRandomAccessGZipFile> CompressedOutput_;
+    std::unique_ptr<IOutputStream> OutputStream_;
 
     void Open();
     void Close();
