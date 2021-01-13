@@ -214,7 +214,7 @@ public class YtClient extends CompoundClient implements Closeable {
 
         final RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(
                 busConnector,
-                builder.builder.credentials,
+                builder.credentials,
                 builder.builder.compression);
 
         if (builder.builder.options.isNewDiscoveryServiceEnabled()) {
