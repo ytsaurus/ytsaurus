@@ -128,7 +128,7 @@ public:
         , QueryContext_(StorageContext_->QueryContext)
         , Client_(QueryContext_->Client())
         , Invoker_(CreateSerializedInvoker(QueryContext_->Host->GetClickHouseFetcherInvoker()))
-        , TableSchemas_(queryAnalysisResult.TableSchemas)
+        , OperandSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
         , RealColumnNames_(realColumnNames)
         , VirtualColumnNames_(virtualColumnNames)
@@ -145,7 +145,7 @@ public:
                 table->OperandIndex = operandIndex;
                 InputTables_.emplace_back(std::move(table));
             }
-            KeyColumnDataTypes_.push_back(ToDataTypes(*TableSchemas_[operandIndex]->ToKeys(), StorageContext_->Settings->Composite));
+            KeyColumnDataTypes_.push_back(ToDataTypes(*OperandSchemas_[operandIndex]->ToKeys(), StorageContext_->Settings->Composite));
         }
 
         CanBeTrueOnTable_.assign(InputTables_.size(), true);
@@ -167,7 +167,7 @@ private:
     IInvokerPtr Invoker_;
 
 
-    std::vector<TTableSchemaPtr> TableSchemas_;
+    std::vector<TTableSchemaPtr> OperandSchemas_;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions_;
 
     std::vector<TString> RealColumnNames_;
@@ -708,7 +708,9 @@ private:
         auto tableIndex = inputChunk->GetTableIndex();
 
         auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
-        InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
+        if (OperandSchemas_[InputTables_[tableIndex]->OperandIndex]->IsSorted()) {
+            InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
+        }
         auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
 
         dataSlice->VirtualRowIndex = dataSliceDescriptor.VirtualRowIndex;
@@ -733,7 +735,7 @@ private:
 
         const auto& keyColumnDataTypes = KeyColumnDataTypes_[operandIndex];
 
-        auto keyColumnCount = TableSchemas_[operandIndex]->GetKeyColumnCount();
+        auto keyColumnCount = OperandSchemas_[operandIndex]->GetKeyColumnCount();
         DB::FieldRef minKey[keyColumnCount];
         DB::FieldRef maxKey[keyColumnCount];
 
