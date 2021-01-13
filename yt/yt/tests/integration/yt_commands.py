@@ -58,6 +58,7 @@ InvalidPartitionedBy = 317
 MisconfiguredPartitions = 318
 ResolveErrorCode = 500
 InvalidInputChunk = 733
+UnsupportedChunkFeature = 734
 AuthorizationErrorCode = 901
 InvalidObjectType = 1006
 TmpfsOverflow = 1124

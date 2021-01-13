@@ -98,6 +98,11 @@ DEFINE_ENUM(EUpdateMode,
     ((Overwrite)                (2))
 );
 
+DEFINE_BIT_ENUM(EChunkFeatures,
+    ((None)                     (0x0000))
+    ((DescendingSortOrder)      (0x0001))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TRemoteReaderOptions)

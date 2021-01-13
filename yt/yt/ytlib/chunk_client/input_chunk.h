@@ -98,6 +98,9 @@ public:
     using TInputChunkHeavyColumnarStatisticsExt = std::unique_ptr<NTableClient::NProto::THeavyColumnStatisticsExt>;
     DEFINE_BYREF_RO_PROPERTY(TInputChunkHeavyColumnarStatisticsExt, HeavyColumnarStatisticsExt);
 
+    // TODO(gritukan): Move it to TInputChunkBase with compatibility loss.
+    DEFINE_BYREF_RO_PROPERTY(EChunkFeatures, ChunkFeatures);
+
 public:
     TInputChunk() = default;
     TInputChunk(TInputChunk&& other) = default;

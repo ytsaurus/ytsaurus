@@ -2753,6 +2753,32 @@ class TestTablesMulticell(TestTables):
             )
         self._wait_until_unlocked("//tmp/input")
 
+    @authors("gritukan")
+    def test_unsupported_chunk_feature(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "chunk_writer": {
+                    "testing_options": {
+                        "add_unsupported_feature": True
+                    },
+                },
+            },
+        )
+        write_table("//tmp/t", [{"foo": "bar"}])
+
+        with raises_yt_error(UnsupportedChunkFeature):
+            read_table("//tmp/t")
+
+        create("table", "//tmp/t_out")
+        with raises_yt_error(UnsupportedChunkFeature):
+            remote_copy(
+                in_="//tmp/t",
+                out="//tmp/t_out",
+                spec={"cluster_connection": self.__class__.Env.configs["driver"]},
+            )
+
 
 ##################################################################
 

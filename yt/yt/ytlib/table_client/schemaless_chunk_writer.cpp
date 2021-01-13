@@ -420,6 +420,25 @@ private:
     {
         meta->set_type(static_cast<int>(EChunkType::Table));
         meta->set_version(static_cast<int>(GetTableChunkFormat()));
+
+        {
+            EChunkFeatures chunkFeatures = EChunkFeatures::None;
+            bool hasDescendingColumns = false;
+            for (const auto& column : Schema_->Columns()) {
+                if (column.SortOrder() == ESortOrder::Descending) {
+                    hasDescendingColumns = true;
+                }
+            }
+            if (hasDescendingColumns) {
+                chunkFeatures |= EChunkFeatures::DescendingSortOrder;
+            }
+
+            meta->set_features(static_cast<ui64>(chunkFeatures));
+        }
+
+        if (Config_->TestingOptions->AddUnsupportedFeature) {
+            meta->set_features(0xFFFF);
+        }
     }
 
     void EmitRandomSamples(TRange<TUnversionedRow> rows)

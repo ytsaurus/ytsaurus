@@ -233,6 +233,8 @@ using TSchemalessWriterFactory = std::function<IUnversionedRowsetWriterPtr(
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 
+DECLARE_REFCOUNTED_CLASS(TChunkWriterTestingOptions)
+
 DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
 

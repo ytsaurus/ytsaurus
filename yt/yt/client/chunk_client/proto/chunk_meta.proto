@@ -111,6 +111,10 @@ message TChunkMeta
     // Format version validated by reader.
     required int32 version = 3;
 
+    // Bitmask of the features that are used in this chunk.
+    // Chunk reader validates that supports all the chunk's features.
+    optional uint64 features = 4;
+
     required NYT.NProto.TExtensionSet extensions = 2;
 }
 

@@ -58,6 +58,7 @@ DEFINE_ENUM(EErrorCode,
     ((NoSpaceLeftOnDevice)                   (731))
     ((ConcurrentChunkUpdate)                 (732))
     ((InvalidInputChunk)                     (733))
+    ((UnsupportedChunkFeature)               (734))
 );
 
 using TChunkId = NObjectClient::TObjectId;
