@@ -27,6 +27,8 @@ using namespace NYT::NTesting;
     UNIT_TEST(LargeSingleTable); \
     UNIT_TEST(LargeSeveralTables); \
     UNIT_TEST(LargeYaMR); \
+    UNIT_TEST(ReadWithProcessor); \
+    UNIT_TEST(ReadWithProcessorError); \
     UNIT_TEST_SUITE_END()
 
 bool operator==(const TTestMessage& left, const TTestMessage& right)
@@ -218,6 +220,112 @@ public:
                 .ThreadCount(3)
                 .MemoryLimit(1 << 20)
                 .RangeCount(10));
+    }
+
+    void ReadWithProcessor()
+    {
+        constexpr int RowCount = 1000;
+        constexpr int ThreadCount = 10;
+
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TVector<TRichYPath> paths = {
+            workingDir + "/table1",
+            workingDir + "/table2",
+        };
+
+        std::atomic<int> index = 0;
+        TVector<TVector<TNode>> batches(paths.size() * ThreadCount);
+
+        TParallelReaderRowProcessor<TNode> processor = [&] (TTableReaderPtr<TNode> reader, int tableIndex) {
+            UNIT_ASSERT(tableIndex == 0 || tableIndex == 1);
+            auto myIndex = index.fetch_add(1);
+            UNIT_ASSERT_LT(myIndex, std::ssize(paths) * ThreadCount);
+            for (; reader->IsValid(); reader->Next()) {
+                batches[myIndex].push_back(reader->MoveRow());
+            }
+        };
+
+        if (Ordered) {
+            UNIT_ASSERT_EXCEPTION(
+                ReadTablesInParallel(client, paths, processor),
+                TApiUsageError);
+            return;
+        }
+
+        for (const auto& path : paths) {
+            auto writer = client->CreateTableWriter<TNode>(path);
+            for (auto i = 0; i < RowCount; ++i) {
+                writer->AddRow(TNode()("key", i));
+            }
+        }
+
+        ReadTablesInParallel(
+            client,
+            paths,
+            processor,
+            TParallelTableReaderOptions()
+                .Ordered(Ordered)
+                .ThreadCount(ThreadCount)
+                .MemoryLimit(1 << 20));
+
+        TVector<TNode> rows;
+        rows.reserve(paths.size() * RowCount);
+        for (const auto& batch : batches) {
+            rows.insert(rows.end(), batch.begin(), batch.end());
+        }
+        SortBy(rows, [] (const TNode& n) {
+            return n["key"].AsInt64();
+        });
+        UNIT_ASSERT_VALUES_EQUAL(rows.size(), paths.size() * RowCount);
+        for (auto i = 0; i < std::ssize(rows); ++i) {
+            UNIT_ASSERT_VALUES_EQUAL(rows[i], TNode()("key", i / std::ssize(paths)));
+        }
+    }
+
+    class TMyTestException
+        : public yexception
+    { };
+
+    void ReadWithProcessorError()
+    {
+        constexpr int RowCount = 100;
+        constexpr int ThreadCount = 10;
+
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto path = workingDir + "/table";
+
+        TParallelReaderRowProcessor<TNode> processor = [&] (TTableReaderPtr<TNode>, int) {
+            throw TMyTestException();
+        };
+
+        if (Ordered) {
+            UNIT_ASSERT_EXCEPTION(
+                ReadTableInParallel(client, path, processor),
+                TApiUsageError);
+            return;
+        }
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(path);
+            for (auto i = 0; i < RowCount; ++i) {
+                writer->AddRow(TNode()("key", i));
+            }
+        }
+
+        UNIT_ASSERT_EXCEPTION(
+            ReadTableInParallel(
+                client,
+                path,
+                processor,
+                TParallelTableReaderOptions()
+                    .Ordered(Ordered)
+                    .ThreadCount(ThreadCount)
+                    .MemoryLimit(1 << 20)),
+            TMyTestException);
     }
 
 private:

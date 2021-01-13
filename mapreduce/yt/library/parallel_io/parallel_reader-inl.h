@@ -360,6 +360,9 @@ public:
         for (auto& thread : Threads_) {
             thread->Join();
         }
+        if (Exception_) {
+            std::rethrow_exception(Exception_);
+        }
     }
 
     TReaderBufferPtr<TRow> GetNextFilledBuffer()
@@ -393,7 +396,7 @@ private:
             LOG_ERROR("Exception in parallel reader thread: %s",
                 exception.what());
             TGuard<TMutex> guard(Lock_);
-            Exception_ = std::make_exception_ptr(exception);
+            Exception_ = std::current_exception();
             DoStop();
         }
         {
@@ -493,6 +496,51 @@ private:
 
     NThreading::TBlockingQueue<TReaderBufferPtr<TRow>> EmptyBuffers_;
     NThreading::TBlockingQueue<TReaderBufferPtr<TRow>> FilledBuffers_;
+};
+
+template <typename TRow>
+class TProcessingUnorderedReadManager
+    : public TReadManagerBase<TRow>
+{
+public:
+    TProcessingUnorderedReadManager(
+        IClientBasePtr client,
+        TVector<TRichYPath> paths,
+        TParallelReaderRowProcessor<TRow> processor,
+        const TUnorderedReadManagerConfig& config,
+        const TTableReaderOptions& options)
+        : TReadManagerBase<TRow>(
+            ::MakeIntrusive<TUnorderedTableReaderFactory<TRow>>(
+                std::move(client),
+                std::move(paths),
+                config,
+                options),
+            config.ThreadCount)
+        , Processor_(std::move(processor))
+    { }
+
+    void OnBufferDrained(TReaderBufferPtr<TRow> /* buffer */) override
+    {
+        Y_FAIL();
+    }
+
+private:
+    bool ProcessEntry(TReaderEntry<TRow> entry, int /* threadIndex */) override
+    {
+        Processor_(entry.Reader, entry.TableIndex);
+        return true;
+    }
+
+    TReaderBufferPtr<TRow> DoGetNextFilledBuffer() override
+    {
+        Y_FAIL();
+    }
+
+    void DoStop() override
+    { }
+
+private:
+    TParallelReaderRowProcessor<TRow> Processor_;
 };
 
 template <typename TRow>
@@ -615,39 +663,9 @@ class TParallelTableReaderBase
 {
 public:
     TParallelTableReaderBase(
-        IClientBasePtr client,
-        TVector<TRichYPath> paths,
-        const TReadManagerConfigVariant& config,
-        const TTableReaderOptions& options)
+        THolder<TReadManagerBase<TRow>> readManager)
+        : ReadManager_(std::move(readManager))
     {
-        if (HoldsAlternative<TUnorderedReadManagerConfig>(config)) {
-            const auto& unorderedConfig = Get<TUnorderedReadManagerConfig>(config);
-            LOG_DEBUG("Starting unordered parallel reader: "
-                "ThreadCount = %d, BatchSize = %d, BatchCount = %d",
-                unorderedConfig.ThreadCount,
-                unorderedConfig.BatchSize,
-                unorderedConfig.BatchCount);
-            ReadManager_ = MakeHolder<TUnorderedReadManager<TRow>>(
-                std::move(client),
-                std::move(paths),
-                unorderedConfig,
-                options);
-        } else if (HoldsAlternative<TOrderedReadManagerConfig>(config)) {
-            const auto& orderedConfig = Get<TOrderedReadManagerConfig>(config);
-            LOG_DEBUG("Starting ordered parallel reader: "
-                "ThreadCount = %d, BatchSize = %d, BatchCount = %d, RangeCount = %d",
-                orderedConfig.ThreadCount,
-                orderedConfig.BatchSize,
-                orderedConfig.BatchCount,
-                orderedConfig.RangeCount);
-            ReadManager_ = MakeHolder<TOrderedReadManager<TRow>>(
-                std::move(client),
-                std::move(paths),
-                orderedConfig,
-                options);
-        } else {
-            Y_FAIL();
-        }
         ReadManager_->Start();
         NextBuffer();
     }
@@ -775,20 +793,22 @@ std::pair<IClientBasePtr, TVector<TRichYPath>> CreateRangeReaderClientAndPaths(
 
 i64 EstimateTableRowWeight(const IClientBasePtr& client, const TVector<TRichYPath>& paths);
 
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename T>
-TTableReaderPtr<T> CreateParallelTableReader(
+template <typename TRow>
+THolder<TReadManagerBase<TRow>> CreateReadManager(
     const IClientBasePtr& client,
     const TVector<TRichYPath>& paths,
+    TParallelReaderRowProcessor<TRow> processor,
     const TParallelTableReaderOptions& options)
 {
-    Y_ENSURE_EX(!paths.empty(), TApiUsageError() << "Parallel table reader: paths should not be empty");
-    Y_ENSURE_EX(options.ThreadCount_ >= 1, TApiUsageError() << "ThreadCount can not be zero");
+    Y_ENSURE_EX(
+        !paths.empty(),
+        TApiUsageError() << "Parallel table reader: paths should not be empty");
+    Y_ENSURE_EX(
+        options.ThreadCount_ >= 1,
+        TApiUsageError() << "ThreadCount can not be zero");
+    Y_ENSURE_EX(
+        !processor || !options.Ordered_,
+        TApiUsageError() << "ReadTableInParallel can be called only in unordered mode");
 
     auto [rangeReaderClient, rangeReaderPaths] = NDetail::CreateRangeReaderClientAndPaths(
         client,
@@ -812,37 +832,114 @@ TTableReaderPtr<T> CreateParallelTableReader(
         1,
         rowCount / batchSize);
 
-    NDetail::TReadManagerConfigVariant config;
-    if (options.Ordered_) {
-        NDetail::TOrderedReadManagerConfig cfg;
-        cfg.ThreadCount = options.ThreadCount_;
-        cfg.BatchSize = batchSize;
-        cfg.BatchCount = batchCount;
-        cfg.RangeCount = options.RangeCount_;
-        config = cfg;
-    } else {
-        NDetail::TUnorderedReadManagerConfig cfg;
-        cfg.ThreadCount = options.ThreadCount_;
-        cfg.BatchSize = batchSize;
-        cfg.BatchCount = batchCount;
-        config = cfg;
+    if (processor) {
+        TUnorderedReadManagerConfig config;
+        config.ThreadCount = options.ThreadCount_;
+        config.BatchSize = batchSize;
+        config.BatchCount = batchCount;
+        LOG_DEBUG("Starting unordered processing parallel reader: "
+            "ThreadCount = %d, BatchSize = %d, BatchCount = %d",
+            config.ThreadCount,
+            config.BatchSize,
+            config.BatchCount);
+        return ::MakeHolder<TProcessingUnorderedReadManager<TRow>>(
+            std::move(rangeReaderClient),
+            std::move(rangeReaderPaths),
+            std::move(processor),
+            config,
+            rangeReaderOptions);
     }
 
-    return ::MakeIntrusive<TTableReader<T>>(
-        new NDetail::TParallelTableReader<T>(
+    THolder<TReadManagerBase<TRow>> readManager;
+    if (options.Ordered_) {
+        TOrderedReadManagerConfig config;
+        config.ThreadCount = options.ThreadCount_;
+        config.BatchSize = batchSize;
+        config.BatchCount = batchCount;
+        config.RangeCount = options.RangeCount_;
+        LOG_DEBUG("Starting ordered parallel reader: "
+            "ThreadCount = %d, BatchSize = %d, BatchCount = %d, RangeCount = %d",
+            config.ThreadCount,
+            config.BatchSize,
+            config.BatchCount,
+            config.RangeCount);
+        return ::MakeHolder<TOrderedReadManager<TRow>>(
             std::move(rangeReaderClient),
             std::move(rangeReaderPaths),
             config,
-            rangeReaderOptions));
+            rangeReaderOptions);
+    } else {
+        TUnorderedReadManagerConfig config;
+        config.ThreadCount = options.ThreadCount_;
+        config.BatchSize = batchSize;
+        config.BatchCount = batchCount;
+        LOG_DEBUG("Starting unordered parallel reader: "
+            "ThreadCount = %d, BatchSize = %d, BatchCount = %d",
+            config.ThreadCount,
+            config.BatchSize,
+            config.BatchCount);
+        return ::MakeHolder<TUnorderedReadManager<TRow>>(
+            std::move(rangeReaderClient),
+            std::move(rangeReaderPaths),
+            config,
+            rangeReaderOptions);
+    }
 }
 
-template <typename T>
-TTableReaderPtr<T> CreateParallelTableReader(
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TRow>
+TTableReaderPtr<TRow> CreateParallelTableReader(
+    const IClientBasePtr& client,
+    const TVector<TRichYPath>& paths,
+    const TParallelTableReaderOptions& options)
+{
+    auto readManager = NDetail::CreateReadManager<TRow>(
+        client,
+        paths,
+        TParallelReaderRowProcessor<TRow>{},
+        options);
+    return ::MakeIntrusive<TTableReader<TRow>>(
+        ::MakeIntrusive<NDetail::TParallelTableReader<TRow>>(std::move(readManager)));
+}
+
+template <typename TRow>
+TTableReaderPtr<TRow> CreateParallelTableReader(
     const IClientBasePtr& client,
     const TRichYPath& path,
     const TParallelTableReaderOptions& options)
 {
-    return CreateParallelTableReader<T>(client, TVector<TRichYPath>{path}, options);
+    return CreateParallelTableReader<TRow>(client, TVector<TRichYPath>{path}, options);
+}
+
+template <typename TRow>
+void ReadTablesInParallel(
+    const IClientBasePtr& client,
+    const TVector<TRichYPath>& paths,
+    TParallelReaderRowProcessor<TRow> processor,
+    const TParallelTableReaderOptions& options)
+{
+    auto readManager = NDetail::CreateReadManager<TRow>(
+        client,
+        paths,
+        std::move(processor),
+        options);
+    readManager->Start();
+    readManager->Stop();
+}
+
+template <typename TRow>
+void ReadTableInParallel(
+    const IClientBasePtr& client,
+    const TRichYPath& path,
+    TParallelReaderRowProcessor<TRow> processor,
+    const TParallelTableReaderOptions& options)
+{
+    ReadTablesInParallel(client, TVector<TRichYPath>{path}, std::move(processor), options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
