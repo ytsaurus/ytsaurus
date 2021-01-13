@@ -82,6 +82,24 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkWriterTestingOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! If true, unsupported chunk feature is added to chunk meta.
+    bool AddUnsupportedFeature;
+
+    TChunkWriterTestingOptions()
+    {
+        RegisterParameter("add_unsupported_feature", AddUnsupportedFeature)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkWriterTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkWriterConfig
     : public NChunkClient::TEncodingWriterConfig
 {
@@ -103,6 +121,8 @@ public:
     double SampleRate;
 
     double KeyFilterFalsePositiveRate;
+
+    TChunkWriterTestingOptionsPtr TestingOptions;
 
     TChunkWriterConfig()
     {
@@ -144,6 +164,8 @@ public:
             .LessThanOrEqual(1.0)
             .Default(0.03);
 
+        RegisterParameter("testing_options", TestingOptions)
+            .DefaultNew();
     }
 };
 

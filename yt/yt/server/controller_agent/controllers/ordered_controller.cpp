@@ -1243,7 +1243,6 @@ private:
             THROW_ERROR_EXCEPTION("Static table cannot be copied into a dynamic table");
         }
 
-
         TOrderedControllerBase::CustomPrepare();
     }
 

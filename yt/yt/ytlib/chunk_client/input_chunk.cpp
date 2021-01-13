@@ -154,6 +154,12 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
         BoundaryKeys_->MinKey = LowerLimit_ && LowerLimit_->HasLegacyKey() ? LowerLimit_->GetLegacyKey() : MinKey();
         BoundaryKeys_->MaxKey = UpperLimit_ && UpperLimit_->HasLegacyKey() ? UpperLimit_->GetLegacyKey() : MaxKey();
     }
+
+    if (!TryEnumCast(chunkSpec.chunk_meta().features(), &ChunkFeatures_)) {
+        THROW_ERROR_EXCEPTION(EErrorCode::UnsupportedChunkFeature,
+            "Processing chunk %v requires feature that is not supported by cluster yet", ChunkId_)
+            << TErrorAttribute("chunk_features", chunkSpec.chunk_meta().features());
+    }
 }
 
 void TInputChunk::Persist(const TStreamPersistenceContext& context)
@@ -169,6 +175,11 @@ void TInputChunk::Persist(const TStreamPersistenceContext& context)
     // COMPAT(gritukan)
     if (context.GetVersion() >= 300303) {
         Persist<TUniquePtrSerializer<>>(context, HeavyColumnarStatisticsExt_);
+    }
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= 300429) {
+        Persist(context, ChunkFeatures_);
     }
 }
 
@@ -311,6 +322,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, ED
 
     chunkSpec->mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
     chunkSpec->mutable_chunk_meta()->set_version(static_cast<int>(inputChunk->TableChunkFormat_));
+    chunkSpec->mutable_chunk_meta()->set_features(static_cast<ui32>(inputChunk->ChunkFeatures_));
     chunkSpec->mutable_chunk_meta()->mutable_extensions();
 }
 

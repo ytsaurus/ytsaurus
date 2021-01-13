@@ -23,6 +23,7 @@ TChunkMeta FilterChunkMetaByExtensionTags(
     TChunkMeta filteredChunkMeta;
     filteredChunkMeta.set_type(chunkMeta.type());
     filteredChunkMeta.set_version(chunkMeta.version());
+    filteredChunkMeta.set_features(chunkMeta.features());
 
     FilterProtoExtensions(
         filteredChunkMeta.mutable_extensions(),

@@ -193,6 +193,7 @@ void BuildChunkSpec(
 
     chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
     chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
+    chunkSpec->mutable_chunk_meta()->set_features(chunk->ChunkMeta().features());
 
     if (fetchAllMetaExtensions) {
         *chunkSpec->mutable_chunk_meta()->mutable_extensions() = chunk->ChunkMeta().extensions();

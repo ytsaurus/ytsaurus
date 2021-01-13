@@ -49,6 +49,12 @@ void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
     ChunkType_ = CheckedEnumCast<EChunkType>(chunkMeta.type());
     ChunkFormat_ = CheckedEnumCast<ETableChunkFormat>(chunkMeta.version());
 
+    if (!TryEnumCast(chunkMeta.features(), &ChunkFeatures_)) {
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::UnsupportedChunkFeature,
+            "Reading chunk requires feature that is not supported by cluster yet")
+            << TErrorAttribute("chunk_features", chunkMeta.features());
+    }
+
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
     BlockMeta_ = New<TRefCountedBlockMeta>(GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions()));
 
