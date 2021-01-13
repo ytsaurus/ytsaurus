@@ -2,6 +2,7 @@
 #include "private.h"
 #include "log.h"
 #include "random_access_gzip.h"
+#include "appendable_zstd.h"
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
@@ -222,10 +223,12 @@ TFileLogWriter::TFileLogWriter(
     TString writerName,
     TString fileName,
     bool enableCompression,
+    ECompressionMethod compressionMethod,
     size_t compressionLevel)
     : TStreamLogWriterBase(std::move(formatter), std::move(writerName))
     , FileName_(std::move(fileName))
     , EnableCompression_(enableCompression)
+    , CompressionMethod_(compressionMethod)
     , CompressionLevel_(compressionLevel)
 {
     Open();
@@ -238,10 +241,7 @@ IOutputStream* TFileLogWriter::GetOutputStream() const noexcept
     if (Y_UNLIKELY(Disabled_.load(std::memory_order_acquire))) {
         return nullptr;
     }
-    if (CompressedOutput_) {
-        return CompressedOutput_.get();
-    }
-    return FileOutput_.get();
+    return OutputStream_.get();
 }
 
 void TFileLogWriter::OnException(const std::exception& ex)
@@ -298,11 +298,14 @@ void TFileLogWriter::Open()
 
         File_.reset(new TFile(FileName_, openMode));
 
-        if (EnableCompression_) {
-            CompressedOutput_.reset(new TRandomAccessGZipFile(File_.get(), CompressionLevel_));
+        if (!EnableCompression_) {
+            auto output = std::make_unique<TFixedBufferFileOutput>(*File_, BufferSize);
+            output->SetFinishPropagateMode(true);
+            OutputStream_ = std::move(output);
+        } else if (CompressionMethod_ == ECompressionMethod::Zstd) {
+            OutputStream_.reset(new TAppendableZstdFile(File_.get(), CompressionLevel_, true));
         } else {
-            FileOutput_.reset(new TFixedBufferFileOutput(*File_, BufferSize));
-            FileOutput_->SetFinishPropagateMode(true);
+            OutputStream_.reset(new TRandomAccessGZipFile(File_.get(), CompressionLevel_));
         }
 
         // Emit a delimiter for ease of navigation.
@@ -324,15 +327,9 @@ void TFileLogWriter::Open()
 void TFileLogWriter::Close()
 {
     try {
-        if (CompressedOutput_) {
-            CompressedOutput_->Finish();
-            CompressedOutput_.reset();
-        }
-
-        if (FileOutput_) {
-            FileOutput_->Flush();
-            FileOutput_->Finish();
-            FileOutput_.reset();
+        if (OutputStream_) {
+            OutputStream_->Finish();
+            OutputStream_.reset();
         }
 
         if (File_) {

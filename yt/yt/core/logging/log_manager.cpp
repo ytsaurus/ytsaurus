@@ -828,6 +828,7 @@ private:
                         name,
                         config->FileName,
                         config->EnableCompression,
+                        config->CompressionMethod,
                         config->CompressionLevel);
                     watch = CreateNotificationWatch(writer, config->FileName);
                     break;

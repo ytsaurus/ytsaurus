@@ -30,6 +30,11 @@ DEFINE_ENUM(EWriterType,
     (Stderr)
 );
 
+DEFINE_ENUM(ECompressionMethod,
+    (Gzip)
+    (Zstd)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TLogManagerConfig)

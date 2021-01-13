@@ -1,5 +1,8 @@
+
+#include "yt/core/misc/string_builder.h"
 #include <yt/core/test_framework/framework.h>
 
+#include <yt/core/logging/appendable_zstd.h>
 #include <yt/core/logging/log.h>
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/writer.h>
@@ -14,6 +17,8 @@
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/range_formatters.h>
+
+#include <library/cpp/streams/zstd/zstd.h>
 
 #include <util/system/fs.h>
 
@@ -76,24 +81,33 @@ protected:
         writer->Flush();
     }
 
-    std::vector<TString> ReadFile(const TString& fileName, bool compressed = false)
+    std::vector<TString> ReadFile(
+        const TString& fileName,
+        bool compressed = false,
+        ECompressionMethod compressionMethod = ECompressionMethod::Gzip)
     {
-        std::vector<TString> lines;
+        auto splitLines = [&] (IInputStream *input) {
+            TString line;
+            std::vector<TString> lines;
+            while (input->ReadLine(line)) {
+                lines.push_back(line + "\n");
+            }
+            return lines;
+        };
 
-        TString line;
-        auto input = TUnbufferedFileInput(fileName);
+        TUnbufferedFileInput rawInput(fileName);
         if (!compressed) {
-            while (input.ReadLine(line)) {
-                lines.push_back(line + "\n");
-            }
+            return splitLines(&rawInput);
+        } else if (compressionMethod == ECompressionMethod::Gzip) {
+            TZLibDecompress input(&rawInput);
+            return splitLines(&input);
+        } else if (compressionMethod == ECompressionMethod::Zstd) {
+            TZstdDecompress input(&rawInput);
+            return splitLines(&input);
         } else {
-            TZLibDecompress decompressor(&input);
-            while (decompressor.ReadLine(line)) {
-                lines.push_back(line + "\n");
-            }
+            EXPECT_TRUE(false);
+            return {};
         }
-
-        return lines;
     }
 
     void Configure(const TString& configYson)
@@ -103,7 +117,7 @@ protected:
         TLogManager::Get()->Configure(config);
     }
 
-    void DoTestCompression(size_t compressionLevel)
+    void DoTestCompression(ECompressionMethod method, int compressionLevel)
     {
         NFs::Remove("test.log.gz");
 
@@ -112,6 +126,7 @@ protected:
             "test_writer",
             "test.log.gz",
             /* enableCompression */ true,
+            method,
             compressionLevel);
         WritePlainTextEvent(writer.Get());
 
@@ -119,7 +134,7 @@ protected:
         WritePlainTextEvent(writer.Get());
 
         {
-            auto lines = ReadFile("test.log.gz", true);
+            auto lines = ReadFile("test.log.gz", true, method);
             EXPECT_EQ(5, lines.size());
             EXPECT_TRUE(lines[0].find("Logging started") != -1);
             EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
@@ -201,13 +216,28 @@ TEST_F(TLoggingTest, FileWriter)
 TEST_F(TLoggingTest, Compression)
 {
     // No compression.
-    DoTestCompression(/* compressionLevel */ 0);
+    DoTestCompression(ECompressionMethod::Gzip, /* compressionLevel */ 0);
 
     // Default compression.
-    DoTestCompression(/* compressionLevel */ 6);
+    DoTestCompression(ECompressionMethod::Gzip, /* compressionLevel */ 6);
 
     // Maximum compression.
-    DoTestCompression(/* compressionLevel */ 9);
+    DoTestCompression(ECompressionMethod::Gzip, /* compressionLevel */ 9);
+}
+
+TEST_F(TLoggingTest, CompressionZstd)
+{
+    // Default compression.
+    DoTestCompression(ECompressionMethod::Zstd, /* compressionLevel */ 0);
+
+    // Fast compression (--fast=<...>).
+    DoTestCompression(ECompressionMethod::Zstd, /* compressionLevel */ -2);
+
+    // Fast compression.
+    DoTestCompression(ECompressionMethod::Zstd, /* compressionLevel */ 1);
+
+    // Maximum compression.
+    DoTestCompression(ECompressionMethod::Zstd, /* compressionLevel */ 22);
 }
 
 TEST_F(TLoggingTest, StreamWriter)
@@ -314,6 +344,71 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
     EXPECT_EQ(contentJson->GetChildOrThrow("category")->AsString()->GetValue(), "category");
 
     NFs::Remove("test.log");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAppendableZstdFileTest
+    : public ::testing::Test
+{
+protected:
+    void WriteTestFile(const TString &filename, i64 addBytes, bool writeTruncateMessage)
+    {
+        NFs::Remove(filename);
+
+        {
+            TFile rawFile(filename, OpenAlways|RdWr|CloseOnExec);
+            TAppendableZstdFile file(&rawFile, DefaultZstdCompressionLevel, writeTruncateMessage);
+            file << "foo\n";
+            file.Flush();
+            file << "bar\n";
+            file.Finish();
+
+            rawFile.Resize(rawFile.GetLength() + addBytes);
+        }
+        {
+            TFile rawFile(filename, OpenAlways|RdWr|CloseOnExec);
+            TAppendableZstdFile file(&rawFile, DefaultZstdCompressionLevel, writeTruncateMessage);
+            file << "zog\n";
+            file.Flush();
+        }
+    }
+};
+
+TEST_F(TAppendableZstdFileTest, Write)
+{
+    WriteTestFile("test.txt.zst", 0, false);
+
+    TUnbufferedFileInput file("test.txt.zst");
+    TZstdDecompress decompress(&file);
+    EXPECT_EQ("foo\nbar\nzog\n", decompress.ReadAll());
+
+    NFs::Remove("test.txt.zst");
+}
+
+TEST_F(TAppendableZstdFileTest, RepairSmall)
+{
+    WriteTestFile("test.txt.zst", -1, false);
+
+    TUnbufferedFileInput file("test.txt.zst");
+    TZstdDecompress decompress(&file);
+    EXPECT_EQ("foo\nzog\n", decompress.ReadAll());
+
+    NFs::Remove("test.txt.zst");
+}
+
+TEST_F(TAppendableZstdFileTest, RepairLarge)
+{
+    WriteTestFile("test.txt.zst", 10_MB, true);
+
+    TUnbufferedFileInput file("test.txt.zst");
+    TZstdDecompress decompress(&file);
+
+    TStringBuilder expected;
+    expected.AppendFormat("foo\nbar\nTruncated %v bytes due to zstd repair.\nzog\n", 10_MB);
+    EXPECT_EQ(expected.Flush(), decompress.ReadAll());
+
+    NFs::Remove("test.txt.zst");
 }
 
 TEST(TRandomAccessGZipTest, Write)

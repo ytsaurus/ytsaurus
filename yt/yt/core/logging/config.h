@@ -18,7 +18,8 @@ public:
     ELogMessageFormat AcceptedMessageFormat;
     std::optional<size_t> RateLimit;
     bool EnableCompression;
-    size_t CompressionLevel;
+    ECompressionMethod CompressionMethod;
+    int CompressionLevel;
     THashMap<TString, NYTree::INodePtr> CommonFields;
     bool EnableSystemMessages;
     bool EnableSourceLocation;
@@ -34,8 +35,9 @@ public:
             .Default();
         RegisterParameter("enable_compression", EnableCompression)
             .Default(false);
+        RegisterParameter("compression_method", CompressionMethod)
+            .Default(ECompressionMethod::Gzip);
         RegisterParameter("compression_level", CompressionLevel)
-            .LessThanOrEqual(9)
             .Default(6);
         RegisterParameter("common_fields", CommonFields)
             .Default();
@@ -50,6 +52,12 @@ public:
                 THROW_ERROR_EXCEPTION("Missing \"file_name\" attribute for \"file\" writer");
             } else if (Type != EWriterType::File && !FileName.empty()) {
                 THROW_ERROR_EXCEPTION("Unused \"file_name\" attribute for %Qlv writer", Type);
+            }
+
+            if (CompressionMethod == ECompressionMethod::Gzip && (CompressionLevel < 0 || CompressionLevel > 9)) {
+                THROW_ERROR_EXCEPTION("Invalid \"compression_level\" attribute for \"gzip\" compression method");
+            } else if (CompressionMethod == ECompressionMethod::Zstd && CompressionLevel > 22) {
+                THROW_ERROR_EXCEPTION("Invalid \"compression_level\" attribute for \"zstd\" compression method");
             }
         });
     }
