@@ -36,4 +36,10 @@ func TestDuplicateFiles(t *testing.T) {
 
 	_, err = os.Stat(yatest.SourcePath("yt/go/ytrecipe/test/files/b.txt"))
 	require.NoError(t, err)
+
+	_, err = os.Stat(yatest.SourcePath("yt/go/ytrecipe/test/files/aba"))
+	require.NoError(t, err)
+
+	_, err = os.Stat(yatest.SourcePath("yt/go/ytrecipe/test/files/abacaba"))
+	require.NoError(t, err)
 }
