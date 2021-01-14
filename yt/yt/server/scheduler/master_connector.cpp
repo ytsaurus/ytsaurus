@@ -40,6 +40,8 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 #include <yt/core/utilex/random.h>
 
 #include <yt/core/actions/cancelable_context.h>
@@ -861,6 +863,65 @@ private:
             YT_LOG_INFO("Finished listing existing operations");
         }
 
+        struct TOperationDataToParse final
+        {
+            TYsonString AttributesYson;
+            TYsonString SecureVaultYson;
+            TOperationId OperationId;
+        };
+
+        std::vector<TOperationPtr> ParseOperationsBatch(
+            const std::vector<TOperationDataToParse>& rspValuesChunk,
+            const int parseOperationAttributesBatchSize,
+            const bool enableScheduleInSingleTree,
+            const bool skipOperationsWithMalformedSpecDuringRevival) 
+        {
+            std::vector<TOperationPtr> result;
+            result.reserve(parseOperationAttributesBatchSize);
+
+            for (const auto& rspValues : rspValuesChunk) {
+                auto attributesNode = ConvertToAttributes(rspValues.AttributesYson);
+
+                IMapNodePtr secureVault;
+
+                if (rspValues.SecureVaultYson) {
+                    auto secureVaultNode = ConvertToNode(rspValues.SecureVaultYson);
+                    // It is a pretty strange situation when the node type different
+                    // from map, but still we should consider it.
+                    if (secureVaultNode->GetType() == ENodeType::Map) {
+                        secureVault = secureVaultNode->AsMap();
+                    } else {
+                        // TODO(max42): (YT-5651) Do not just ignore such a situation!
+                        YT_LOG_WARNING("Invalid secure vault node type (OperationId: %v, ActualType: %v, ExpectedType: %v)",
+                            rspValues.OperationId,
+                            secureVaultNode->GetType(),
+                            ENodeType::Map);
+                    }
+                }
+
+                try {
+                    if (attributesNode->Get<bool>("banned", false)) {
+                        YT_LOG_INFO("Operation manually banned (OperationId: %v)", rspValues.OperationId);
+                        continue;
+                    }
+                    auto operation = TryCreateOperationFromAttributes(
+                        rspValues.OperationId,
+                        *attributesNode,
+                        secureVault, 
+                        enableScheduleInSingleTree);
+                    result.push_back(operation);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex, "Error creating operation from Cypress node (OperationId: %v)",
+                        rspValues.OperationId);
+                    if (!skipOperationsWithMalformedSpecDuringRevival) {
+                        throw;
+                    }
+                }
+            }
+
+            return result;
+        }
+
         // - Request attributes for unfinished operations.
         // - Recreate operation instance from fetched data.
         void RequestOperationAttributes()
@@ -920,53 +981,61 @@ private:
             YT_LOG_INFO("Attributes for unfinished operations fetched");
 
             {
-                for (auto operationId : OperationIds_) {
-                    auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                        "get_op_attr_" + ToString(operationId))
-                        .ValueOrThrow();
+                const auto chunkSize = Owner_->Config_->ParseOperationAttributesBatchSize;
+                const int operationsCount = static_cast<int>(OperationIds_.size());
 
-                    auto secureVaultRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                        "get_op_secure_vault_" + ToString(operationId));
+                std::vector<TFuture<std::vector<TOperationPtr>>> futures;
+                futures.reserve(RoundUp(operationsCount, chunkSize));
+                
+                for (auto startIndex = 0; startIndex < operationsCount; startIndex += chunkSize) {
+                    std::vector<TOperationDataToParse> operationsDataToParseBatch;
 
-                    auto attributesNode = ConvertToAttributes(TYsonString(attributesRsp->value()));
+                    operationsDataToParseBatch.reserve(chunkSize);
+                    for (auto index = startIndex; index < std::min(startIndex + chunkSize, operationsCount); ++index) {
+                        const auto& operationId = OperationIds_[index];
 
-                    IMapNodePtr secureVault;
-                    if (secureVaultRspOrError.IsOK()) {
-                        const auto& secureVaultRsp = secureVaultRspOrError.Value();
-                        auto secureVaultNode = ConvertToNode(TYsonString(secureVaultRsp->value()));
-                        // It is a pretty strange situation when the node type different
-                        // from map, but still we should consider it.
-                        if (secureVaultNode->GetType() == ENodeType::Map) {
-                            secureVault = secureVaultNode->AsMap();
-                        } else {
-                            YT_LOG_WARNING("Invalid secure vault node type (OperationId: %v, ActualType: %v, ExpectedType: %v)",
-                                operationId,
-                                secureVaultNode->GetType(),
-                                ENodeType::Map);
-                            // TODO(max42): (YT-5651) Do not just ignore such a situation!
+                        const auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
+                            "get_op_attr_" + ToString(operationId))
+                            .ValueOrThrow();
+
+                        const auto secureVaultRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(
+                            "get_op_secure_vault_" + ToString(operationId));
+
+                        if (!secureVaultRspOrError.IsOK() && 
+                            secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
+                            THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation (OperationId: %v)",
+                                operationId)
+                                << secureVaultRspOrError;
                         }
-                    } else if (secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
-                        THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation (OperationId: %v)",
-                            operationId)
-                            << secureVaultRspOrError;
+
+                        auto atttibutesNodeStr = TYsonString(attributesRsp->value());
+                        TYsonString secureVaultYson;
+                        if (secureVaultRspOrError.IsOK()) {
+                            secureVaultYson = TYsonString(secureVaultRspOrError.Value()->value());
+                        }
+
+                        operationsDataToParseBatch.push_back({std::move(atttibutesNodeStr), std::move(secureVaultYson), operationId});
                     }
 
-                    try {
-                        if (attributesNode->Get<bool>("banned", false)) {
-                            YT_LOG_INFO("Operation manually banned (OperationId: %v)", operationId);
-                            continue;
-                        }
-                        auto operation = TryCreateOperationFromAttributes(
-                            operationId,
-                            *attributesNode,
-                            secureVault);
-                        Result_.Operations.push_back(operation);
-                    } catch (const std::exception& ex) {
-                        YT_LOG_ERROR(ex, "Error creating operation from Cypress node (OperationId: %v)",
-                            operationId);
-                        if (!Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival) {
-                            throw;
-                        }
+                    futures.push_back(BIND(
+                            &TRegistrationPipeline::ParseOperationsBatch, 
+                            MakeStrong(this), 
+                            std::move(operationsDataToParseBatch), 
+                            chunkSize,
+                            Owner_->Bootstrap_->GetScheduler()->GetConfig()->EnableScheduleInSingleTree,
+                            Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival
+                        )
+                        .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
+                        .Run()
+                    );
+                }
+
+                Result_.Operations.reserve(OperationIds_.size());
+                auto result = WaitFor(AllSucceeded(futures)).ValueOrThrow();
+
+                for (auto& chunk : result) {
+                    for (auto& operation : chunk) {
+                        Result_.Operations.push_back(std::move(operation));
                     }
                 }
             }
@@ -985,7 +1054,8 @@ private:
         TOperationPtr TryCreateOperationFromAttributes(
             TOperationId operationId,
             const IAttributeDictionary& attributes,
-            const IMapNodePtr& secureVault)
+            const IMapNodePtr& secureVault,
+            const bool enableScheduleInSingleTree)
         {
             auto specString = attributes.GetYson("spec");
             auto parseSpecResult = ParseSpec(specString, /* specTemplate */ nullptr, /* operationId */ operationId);
@@ -1029,7 +1099,7 @@ private:
                 attributes.Get<TInstant>("start_time"),
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
                 spec->Alias,
-                spec->ScheduleInSingleTree && scheduler->GetConfig()->EnableScheduleInSingleTree,
+                spec->ScheduleInSingleTree && enableScheduleInSingleTree,
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
                 /* suspended */ attributes.Get<bool>("suspended", false),

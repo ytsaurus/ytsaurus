@@ -668,6 +668,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("scheduling_segments_initialization_timeout", SchedulingSegmentsInitializationTimeout)
         .Default(TDuration::Minutes(5));
+    
+    RegisterParameter("parse_operation_attributes_batch_size", ParseOperationAttributesBatchSize)
+        .Default(100);
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

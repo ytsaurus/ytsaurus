@@ -664,6 +664,9 @@ public:
     //! Increase this value to speedup registration.
     int FetchOperationAttributesSubbatchSize;
 
+    //! The number of operations in batch to parse during connection.
+    int ParseOperationAttributesBatchSize;
+
     //! Config for some resource metering defaults.
     TResourceMeteringConfigPtr ResourceMetering;
 

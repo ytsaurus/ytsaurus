@@ -220,6 +220,7 @@ b"""
         job_revival_abort_timeout = 2000;
 
         validate_node_tags_period = 100;
+        parse_operation_attributes_batch_size = 2;
     };
 }
 """)
