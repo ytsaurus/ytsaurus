@@ -3965,7 +3965,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
         wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 0)
         wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 80)
-        for dc in ["Aggr"] + TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
+        for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
             wait(lambda: fair_resource_amount_large_last.update().get(dc, verbose=True) == 0)
             wait(lambda: current_resource_amount_large_last.update().get(dc, verbose=True) == 0)
 
@@ -3978,7 +3978,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
         wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 80)
         wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 80)
-        for dc in ["Aggr"] + TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
+        for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
             wait(lambda: fair_resource_amount_large_last.update().get(dc, verbose=True) == 0)
             wait(lambda: current_resource_amount_large_last.update().get(dc, verbose=True) == 0)
 
@@ -3997,8 +3997,6 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 80)
         wait(lambda: fair_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
         wait(lambda: current_resource_amount_large_last.update().get(op1_dc, verbose=True) == 0)
-        wait(lambda: fair_resource_amount_large_last.update().get("Aggr", verbose=True) == 8)
-        wait(lambda: current_resource_amount_large_last.update().get("Aggr", verbose=True) == 0)
 
         set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000)
 
@@ -4006,8 +4004,6 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 72)
         wait(lambda: fair_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
         wait(lambda: current_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
-        wait(lambda: fair_resource_amount_large_last.update().get("Aggr", verbose=True) == 8)
-        wait(lambda: current_resource_amount_large_last.update().get("Aggr", verbose=True) == 8)
 
         op2 = run_sleeping_vanilla(
             job_count=2,
@@ -4026,8 +4022,6 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         wait(lambda: current_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
         wait(lambda: fair_resource_amount_large_last.update().get(op2_dc, verbose=True) == 16)
         wait(lambda: current_resource_amount_large_last.update().get(op2_dc, verbose=True) == 16)
-        wait(lambda: fair_resource_amount_large_last.update().get("Aggr", verbose=True) == 24)
-        wait(lambda: current_resource_amount_large_last.update().get("Aggr", verbose=True) == 24)
 
     @authors("eshcherbin")
     def test_fail_large_gpu_operation_started_in_several_trees(self):

@@ -19,10 +19,6 @@ static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString DataCenterAggregateTagLabel = "Aggr";
-
-////////////////////////////////////////////////////////////////////////////////
-
 double GetNodeResourceLimit(const TExecNodeDescriptor& node, EJobResourceType resourceType)
 {
     return node.Online
@@ -217,10 +213,6 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
                         sensorWriter->AddGauge(sensorName, valueAtSegment.GetOrDefaultAt(dataCenter));
                         sensorWriter->PopTag();
                     }
-
-                    sensorWriter->PushTag(TTag{"data_center", DataCenterAggregateTagLabel});
-                    sensorWriter->AddGauge(sensorName, valueAtSegment.GetTotal());
-                    sensorWriter->PopTag();
                 } else {
                     sensorWriter->AddGauge(sensorName, valueAtSegment.GetOrDefault());
                 }
