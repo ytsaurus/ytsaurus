@@ -42,7 +42,7 @@ private:
     TCache Cache_ = TCache(1_MB);
     Py::String EncodingObject_;
     Py::Callable YsonUnicode_;
-    Py::Callable YsonStringProxy_;
+    std::optional<Py::Callable> YsonStringProxy_;
 
     PyObjectPtr BuildResult(const TItem& item);
 };

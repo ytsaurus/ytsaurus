@@ -26,10 +26,12 @@ TPythonStringCache::TPythonStringCache(bool enableCache, const std::optional<TSt
     : CacheEnabled_(enableCache)
     , Encoding_(encoding)
     , YsonUnicode_(GetYsonTypeClass("YsonUnicode"))
-    , YsonStringProxy_(GetYsonTypeClass("YsonStringProxy"))
 {
     if (Encoding_) {
         EncodingObject_ = Py::String(Encoding_->data(), Encoding_->size());
+    }
+    if (auto ysonStringProxyClass = FindYsonTypeClass("YsonStringProxy")) {
+        YsonStringProxy_ = Py::Callable(ysonStringProxyClass);
     }
 }
 
@@ -61,9 +63,13 @@ PyObjectPtr TPythonStringCache::GetPythonString(TStringBuf string)
     if (Encoding_) {
         item.EncodedKey = PyObjectPtr(PyUnicode_FromEncodedObject(item.OriginalKey.get(), Encoding_->data(), "strict"));
         if (!item.EncodedKey) {
+            // COMPAT(levysotsky)
+            if (!YsonStringProxy_) {
+                throw Py::Exception();
+            }
             PyErr_Clear();
             auto tuplePtr = PyObjectPtr(PyTuple_New(0));
-            item.EncodedKey = PyObjectPtr(PyObject_CallObject(YsonStringProxy_.ptr(), tuplePtr.get()));
+            item.EncodedKey = PyObjectPtr(PyObject_CallObject(YsonStringProxy_->ptr(), tuplePtr.get()));
             if (!item.EncodedKey) {
                 throw Py::Exception();
             }
