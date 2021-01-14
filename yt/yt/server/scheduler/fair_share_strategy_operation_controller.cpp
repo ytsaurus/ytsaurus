@@ -43,6 +43,16 @@ void TFairShareStrategyOperationController::IncreaseScheduleJobCallsSinceLastUpd
     ++shard.ScheduleJobCallsSinceLastUpdate;
 }
 
+int TFairShareStrategyOperationController::GetPendingJobCount() const
+{
+    return Controller_->GetPendingJobCount();
+}
+
+TJobResources TFairShareStrategyOperationController::GetNeededResources() const
+{
+    return Controller_->GetNeededResources();
+}
+
 TJobResourcesWithQuotaList TFairShareStrategyOperationController::GetDetailedMinNeededJobResources() const
 {
     return Controller_->GetMinNeededJobResources();
@@ -187,16 +197,6 @@ void TFairShareStrategyOperationController::OnScheduleJobFailed(
         auto guard = WriterGuard(SaturatedTentativeTreesLock_);
         TentativeTreeIdToSaturationTime_[treeId] = now;
     }
-}
-
-int TFairShareStrategyOperationController::GetPendingJobCount() const
-{
-    return Controller_->GetPendingJobCount();
-}
-
-TJobResources TFairShareStrategyOperationController::GetNeededResources() const
-{
-    return Controller_->GetNeededResources();
 }
 
 bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(TCpuInstant now, const TString& treeId, TDuration saturationDeactivationTimeout) const

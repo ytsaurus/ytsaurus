@@ -144,7 +144,6 @@ TOperation::TOperation(
     : MutationId_(mutationId)
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
-    , ControllerData_(New<TOperationControllerData>())
     , SecureVault_(std::move(secureVault))
     , Events_(events)
     , Spec_(std::move(spec))
@@ -495,42 +494,6 @@ void TOperation::EraseTrees(const std::vector<TString>& treeIds)
         RuntimeParameters_->ErasedTrees.push_back(treeId);
         YT_VERIFY(RuntimeParameters_->SchedulingOptionsPerPoolTree.erase(treeId));
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-int TOperationControllerData::GetPendingJobCount() const
-{
-    return PendingJobCount_.load();
-}
-
-void TOperationControllerData::SetPendingJobCount(int value)
-{
-    PendingJobCount_.store(value);
-}
-
-NScheduler::TJobResources TOperationControllerData::GetNeededResources()
-{
-    auto guard = ReaderGuard(NeededResourcesLock_);
-    return NeededResources_;
-}
-
-void TOperationControllerData::SetNeededResources(const NScheduler::TJobResources& value)
-{
-    auto guard = WriterGuard(NeededResourcesLock_);
-    NeededResources_ = value;
-}
-
-TJobResourcesWithQuotaList TOperationControllerData::GetMinNeededJobResources() const
-{
-    auto guard = ReaderGuard(MinNeededResourcesJobLock_);
-    return MinNeededJobResources_;
-}
-
-void TOperationControllerData::SetMinNeededJobResources(const TJobResourcesWithQuotaList& value)
-{
-    auto guard = WriterGuard(MinNeededResourcesJobLock_);
-    MinNeededJobResources_ = value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

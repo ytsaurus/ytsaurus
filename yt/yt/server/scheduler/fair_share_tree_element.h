@@ -334,6 +334,10 @@ protected:
     bool HasSpecifiedResourceLimits_ = false;
 
     int PendingJobCount_ = 0;
+    TJobResourcesWithQuotaList DetailedMinNeededJobResources_;
+    TJobResources AggregatedMinNeededJobResources_;
+    TJobResources TotalNeededResources_;
+
     TInstant StartTime_;
 
     int TreeIndex_ = UnassignedTreeIndex;
@@ -1218,7 +1222,6 @@ private:
 
     virtual TJobResources GetSpecifiedResourceLimits() const override;
     TJobResources ComputeResourceDemand() const;
-    int ComputePendingJobCount() const;
 
     void UpdatePreemptableJobsList();
 

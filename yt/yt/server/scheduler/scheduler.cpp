@@ -1242,8 +1242,8 @@ public:
             shouldFlush = true;
         } else {
             // Operation was revived from snapshot.
-            // NB(eshcherbin): NeededResources was set in DoReviveOperation().
-            neededResources = operation->GetControllerData()->GetNeededResources();
+            // NB(eshcherbin): NeededResources was set during revive.
+            neededResources = operation->GetController()->GetNeededResources();
         }
 
         if (operation->IsScheduledInSingleTree()) {
@@ -2870,8 +2870,6 @@ private:
                         UnregisterOperationFromTree(operation, bannedTreeId);
                     }
                 }
-                // NB(eshcherbin): RuntimeData is used to pass NeededResources to MaterializeOperation().
-                operation->GetControllerData()->SetNeededResources(result.NeededResources);
             }
 
             YT_LOG_INFO("Operation has been revived (OperationId: %v)",

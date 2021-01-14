@@ -206,8 +206,6 @@ public:
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
 
-    DEFINE_BYVAL_RO_PROPERTY(TOperationControllerDataPtr, ControllerData);
-
     DEFINE_BYREF_RW_PROPERTY(TControllerAttributes, ControllerAttributes);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, RevivedFromSnapshot);
@@ -412,33 +410,6 @@ private:
 #undef DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH
 
 DEFINE_REFCOUNTED_TYPE(TOperation)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TOperationControllerData
-    : public TRefCounted
-{
-public:
-    int GetPendingJobCount() const;
-    void SetPendingJobCount(int value);
-
-    TJobResources GetNeededResources();
-    void SetNeededResources(const TJobResources& value);
-
-    TJobResourcesWithQuotaList GetMinNeededJobResources() const;
-    void SetMinNeededJobResources(const TJobResourcesWithQuotaList& value);
-
-private:
-    std::atomic<int> PendingJobCount_ = {0};
-
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, NeededResourcesLock_);
-    TJobResources NeededResources_;
-
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MinNeededResourcesJobLock_);
-    TJobResourcesWithQuotaList MinNeededJobResources_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TOperationControllerData)
 
 ////////////////////////////////////////////////////////////////////////////////
 

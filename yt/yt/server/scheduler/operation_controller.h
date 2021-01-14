@@ -1,12 +1,26 @@
 #pragma once
 
 #include "job.h"
+#include "operation.h"
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TControllerRuntimeData
+    : public TRefCounted
+{
+public:
+    DEFINE_BYVAL_RW_PROPERTY(int, PendingJobCount);
+    DEFINE_BYVAL_RW_PROPERTY(TJobResources, NeededResources);
+    DEFINE_BYREF_RW_PROPERTY(TJobResourcesWithQuotaList, MinNeededJobResources);
+};
+
+DEFINE_REFCOUNTED_TYPE(TControllerRuntimeData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -224,6 +238,9 @@ struct IOperationController
 
     //! Called to notify the controller that the operation commit has finished.
     virtual void OnCommitFinished(const TErrorOr<TOperationControllerCommitResult>& resultOrError) = 0;
+
+    //! Called to update operation controller data at controller agent heartbeat.
+    virtual void SetControllerRuntimeData(const TControllerRuntimeDataPtr& controllerData) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

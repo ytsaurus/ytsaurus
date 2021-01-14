@@ -3122,7 +3122,7 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
     TJobResources* precommittedResourcesOutput,
     TJobResources* availableResourcesOutput)
 {
-    auto minNeededResources = Controller_->GetAggregatedMinNeededJobResources();
+    const auto& minNeededResources = AggregatedMinNeededJobResources_;
 
     auto nodeFreeResources = context.SchedulingContext()->GetNodeFreeResourcesWithDiscount();
     if (!Dominates(nodeFreeResources, minNeededResources)) {
@@ -3258,6 +3258,11 @@ void TOperationElement::DisableNonAliveElements()
 void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
+    
+    PendingJobCount_ = Controller_->GetPendingJobCount();
+    DetailedMinNeededJobResources_ = Controller_->GetDetailedMinNeededJobResources();
+    AggregatedMinNeededJobResources_ = Controller_->GetAggregatedMinNeededJobResources();
+    TotalNeededResources_ = Controller_->GetNeededResources();
 
     UnschedulableReason_ = ComputeUnschedulableReason();
     SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
@@ -3272,7 +3277,7 @@ void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 void TOperationElement::UpdateCumulativeAttributes(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
-
+    
     if (PersistentAttributes_.LastBestAllocationRatioUpdateTime + TreeConfig_->BestAllocationRatioUpdatePeriod > context->Now) {
         auto allocationLimits = GetAdjustedResourceLimits(
             ResourceDemand_,
@@ -3285,11 +3290,9 @@ void TOperationElement::UpdateCumulativeAttributes(TUpdateFairShareContext* cont
             /* oneDivByZero */ 1.0);
         PersistentAttributes_.LastBestAllocationRatioUpdateTime = context->Now;
     }
-
+    
     // This should be called after |BestAllocationShare| update since it is used to compute the limits.
     TSchedulerElement::UpdateCumulativeAttributes(context);
-
-    PendingJobCount_ = ComputePendingJobCount();
 
     if (!IsSchedulable()) {
         ++context->UnschedulableReasons[*UnschedulableReason_];
@@ -3394,7 +3397,7 @@ TResourceVector TOperationElement::DoUpdateFairShare(double suggestion, TUpdateF
 
 bool TOperationElement::HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const
 {
-    for (const auto& jobResources : Controller_->GetDetailedMinNeededJobResources()) {
+    for (const auto& jobResources : DetailedMinNeededJobResources_) {
         if (context.SchedulingContext()->CanStartJob(jobResources)) {
             return true;
         }
@@ -3520,8 +3523,8 @@ TString TOperationElement::GetLoggingString() const
         "DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v}",
         GetTreeId(),
         GetLoggingAttributesString(),
-        Controller_->GetPendingJobCount(),
-        Controller_->GetAggregatedMinNeededJobResources(),
+        PendingJobCount_,
+        AggregatedMinNeededJobResources_,
         SchedulingSegment_,
         PersistentAttributes_.SchedulingSegmentDataCenter,
         GetPreemptableJobCount(),
@@ -3581,17 +3584,16 @@ void TOperationElement::RecordHeartbeat(const TPackingHeartbeatSnapshot& heartbe
 
 bool TOperationElement::CheckPacking(const TPackingHeartbeatSnapshot& heartbeatSnapshot) const
 {
-    auto detailedMinNeededResources = Controller_->GetDetailedMinNeededJobResources();
-    // NB: We expect detailedMinNeededResources to be of size 1 most of the time.
+    // NB: We expect DetailedMinNeededResources_ to be of size 1 most of the time.
     TJobResourcesWithQuota packingJobResourcesWithQuota;
-    if (detailedMinNeededResources.empty()) {
+    if (DetailedMinNeededJobResources_.empty()) {
         // Refuse packing if no information about resource requirements is provided.
         return false;
-    } else if (detailedMinNeededResources.size() == 1) {
-        packingJobResourcesWithQuota = detailedMinNeededResources[0];
+    } else if (DetailedMinNeededJobResources_.size() == 1) {
+        packingJobResourcesWithQuota = DetailedMinNeededJobResources_[0];
     } else {
-        auto idx = RandomNumber<ui32>(static_cast<ui32>(detailedMinNeededResources.size()));
-        packingJobResourcesWithQuota = detailedMinNeededResources[idx];
+        auto idx = RandomNumber<ui32>(static_cast<ui32>(DetailedMinNeededJobResources_.size()));
+        packingJobResourcesWithQuota = DetailedMinNeededJobResources_[idx];
     }
 
     return OperationElementSharedState_->CheckPacking(
@@ -3640,7 +3642,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
             "Address: %v)",
             FormatResources(context->SchedulingContext()->GetNodeFreeResourcesWithoutDiscount()),
             FormatResources(context->SchedulingContext()->ResourceUsageDiscount()),
-            FormatResources(Controller_->GetAggregatedMinNeededJobResources()),
+            FormatResources(AggregatedMinNeededJobResources_),
             MakeFormattableView(
                 Controller_->GetDetailedMinNeededJobResources(),
                 [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
@@ -3652,7 +3654,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         OnMinNeededResourcesUnsatisfied(
             *context,
             context->SchedulingContext()->GetNodeFreeResourcesWithDiscount(),
-            Controller_->GetAggregatedMinNeededJobResources());
+            AggregatedMinNeededJobResources_);
         deactivateOperationElement(EDeactivationReason::MinNeededResourcesUnsatisfied);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
@@ -4178,17 +4180,12 @@ TJobResources TOperationElement::ComputeResourceDemand() const
     if (maybeUnschedulableReason == EUnschedulableReason::IsNotRunning || maybeUnschedulableReason == EUnschedulableReason::Suspended) {
         return ResourceUsageAtUpdate_;
     }
-    return ResourceUsageAtUpdate_ + Controller_->GetNeededResources();
+    return ResourceUsageAtUpdate_ + TotalNeededResources_;
 }
 
 TJobResources TOperationElement::GetSpecifiedResourceLimits() const
 {
     return ToJobResources(RuntimeParameters_->ResourceLimits, TJobResources::Infinite());
-}
-
-int TOperationElement::ComputePendingJobCount() const
-{
-    return Controller_->GetPendingJobCount();
 }
 
 void TOperationElement::UpdatePreemptableJobsList()
