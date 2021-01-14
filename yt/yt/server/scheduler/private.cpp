@@ -12,6 +12,9 @@ const NProfiling::TRegistry SchedulerProfiler{"/scheduler"};
 const TString EventLogPoolTreeKey{"tree_id"};
 const TString ProfilingPoolTreeKey{"tree"};
 
+const NLogging::TLogger NodeShardLogger("NodeShard");
+const NLogging::TLogger StrategyLogger("Strategy");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

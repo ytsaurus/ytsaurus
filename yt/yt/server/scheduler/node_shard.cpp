@@ -110,7 +110,7 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::CalculateResourceStatistics, MakeStrong(this)),
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
-    , Logger(SchedulerLogger.WithTag("NodeShardId: %v", Id_))
+    , Logger(NodeShardLogger.WithTag("NodeShardId: %v", Id_))
     , SubmitJobsToStrategyExecutor_(New<TPeriodicExecutor>(
         GetInvoker(),
         BIND(&TNodeShard::SubmitJobsToStrategy, MakeWeak(this)),

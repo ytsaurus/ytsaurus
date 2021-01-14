@@ -17,7 +17,7 @@ TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     const TFairShareStrategyOperationControllerConfigPtr& config)
     : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
-    , Logger(SchedulerLogger.WithTag("OperationId: %v", OperationId_))
+    , Logger(StrategyLogger.WithTag("OperationId: %v", OperationId_))
     , Config_(config)
     , ScheduleJobControllerThrottlingBackoff_(
         DurationToCpuDuration(config->ControllerThrottling->ScheduleJobStartBackoffTime))

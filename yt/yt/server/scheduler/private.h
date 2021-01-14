@@ -74,6 +74,9 @@ static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;
 extern const TString EventLogPoolTreeKey;
 extern const TString ProfilingPoolTreeKey;
 
+extern const NLogging::TLogger StrategyLogger;
+extern const NLogging::TLogger NodeShardLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
