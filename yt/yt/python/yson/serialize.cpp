@@ -40,11 +40,11 @@ namespace NYTree {
 
 static void ValidateKeyType(const Py::Object& key, TContext* context = nullptr)
 {
-    thread_local auto* YsonStringProxyClass = NPython::GetYsonTypeClass("YsonStringProxy");
+    thread_local auto* YsonStringProxyClass = NPython::FindYsonTypeClass("YsonStringProxy");
 
     if (!PyBytes_Check(key.ptr()) &&
         !PyUnicode_Check(key.ptr()) &&
-        !PyObject_IsInstance(key.ptr(), YsonStringProxyClass))
+        !(YsonStringProxyClass && PyObject_IsInstance(key.ptr(), YsonStringProxyClass)))
     {
         if (context) {
             throw CreateYsonError(Format("Map key should be string, found %Qv", Py::Repr(key)), context);
@@ -235,7 +235,7 @@ void Serialize(
     TContext* context)
 {
     thread_local PyObject* YsonEntityClass = GetYsonTypeClass("YsonEntity");
-    thread_local PyObject* YsonStringProxyClass = NPython::GetYsonTypeClass("YsonStringProxy");
+    thread_local PyObject* YsonStringProxyClass = NPython::FindYsonTypeClass("YsonStringProxy");
 
     std::unique_ptr<TContext> contextHolder;
     if (!context) {
@@ -273,7 +273,7 @@ void Serialize(
         consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (Py::IsInteger(obj)) {
         SerializePythonInteger(obj, consumer, context);
-    } else if (Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject *>(YsonStringProxyClass)) {
+    } else if (YsonStringProxyClass && Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject *>(YsonStringProxyClass)) {
         consumer->OnStringScalar(ConvertToStringBuf(obj.getAttr("_bytes")));
     } else if (obj.hasAttr("to_yson_type") && obj.getAttr("to_yson_type").isCallable()) {
         auto repr = obj.callMemberFunction("to_yson_type");

@@ -58,7 +58,7 @@ private:
     Py::Callable YsonString;
 #if PY_MAJOR_VERSION >= 3
     Py::Callable YsonUnicode;
-    Py::Callable YsonStringProxy;
+    std::optional<Py::Callable> YsonStringProxy;
 #endif
     Py::Callable YsonInt64;
     Py::Callable YsonUint64;

@@ -5,6 +5,7 @@
 namespace NYT::NYTree {
 
 using NPython::GetYsonTypeClass;
+using NPython::FindYsonTypeClass;
 using NPython::PyObjectPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +18,6 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const st
     , YsonString(GetYsonTypeClass("YsonString"), /* owned */ true)
 #if PY_MAJOR_VERSION >= 3
     , YsonUnicode(GetYsonTypeClass("YsonUnicode"), /* owned */ true)
-    , YsonStringProxy(GetYsonTypeClass("YsonStringProxy"), /* owned */ true)
 #endif
     , YsonInt64(GetYsonTypeClass("YsonInt64"), /* owned */ true)
     , YsonUint64(GetYsonTypeClass("YsonUint64"), /* owned */ true)
@@ -31,6 +31,11 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const st
     if (Encoding_) {
         EncodingObject_ = Py::String(Encoding_->data(), Encoding_->size());
     }
+#if PY_MAJOR_VERSION >= 3
+    if (auto ysonStringProxyClass = FindYsonTypeClass("YsonStringProxy")) {
+        YsonStringProxy = Py::Callable(ysonStringProxyClass, /* owned */ true);
+    }
+#endif
 }
 
 void TPythonObjectBuilder::OnStringScalar(TStringBuf value)
@@ -53,8 +58,12 @@ void TPythonObjectBuilder::OnStringScalar(TStringBuf value)
         if (decodedString) {
             auto obj = AddObject(std::move(decodedString), YsonUnicode);
         } else {
+            // COMPAT(levysotsky)
+            if (!YsonStringProxy) {
+                throw Py::Exception();
+            }
             PyErr_Clear();
-            auto obj = AddObject(nullptr, YsonStringProxy);
+            auto obj = AddObject(nullptr, *YsonStringProxy);
             PyObject_SetAttrString(obj.get(), "_bytes", bytes.get());
         }
 #endif

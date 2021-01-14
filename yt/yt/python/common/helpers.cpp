@@ -233,14 +233,26 @@ Py::Callable TPythonClassObject::Get()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PyObject* GetYsonTypeClass(const std::string& name)
+PyObject* FindYsonTypeClass(const std::string& name)
 {
     // TODO(ignat): Make singleton
     static PyObject* ysonTypesModule = PyImport_ImportModuleNoBlock("yt.yson.yson_types");
     if (!ysonTypesModule) {
         throw Py::RuntimeError("Failed to import module yt.yson.yson_types");
     }
+    if (!PyObject_HasAttrString(ysonTypesModule, name.c_str())) {
+        return nullptr;
+    }
     return PyObject_GetAttrString(ysonTypesModule, name.c_str());
+}
+
+PyObject* GetYsonTypeClass(const std::string& name)
+{
+    auto klass = FindYsonTypeClass(name);
+    if (!klass) {
+        throw Py::RuntimeError("Class " + name + " not found in module yt.yson.yson_types");
+    }
+    return klass;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
