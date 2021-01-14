@@ -552,7 +552,7 @@ public:
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Started, job, false, nullptr);
         JobEventsOutbox_->Enqueue(std::move(event));
-        YT_LOG_DEBUG("Job start notification enqueued (JobId: %v)",
+        YT_LOG_TRACE("Job start notification enqueued (JobId: %v)",
             job->GetId());
     }
 
@@ -567,7 +567,7 @@ public:
         event.Abandoned = abandoned;
         event.InterruptReason = job->GetInterruptReason();
         auto result = EnqueueJobEvent(std::move(event));
-        YT_LOG_DEBUG("Job completion notification %v (JobId: %v)",
+        YT_LOG_TRACE("Job completion notification %v (JobId: %v)",
             result ? "enqueued" : "dropped",
             job->GetId());
     }
@@ -580,7 +580,7 @@ public:
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
         auto result = EnqueueJobEvent(std::move(event));
-        YT_LOG_DEBUG("Job failure notification %v (JobId: %v)",
+        YT_LOG_TRACE("Job failure notification %v (JobId: %v)",
             result ? "enqueued" : "dropped",
             job->GetId());
     }
@@ -598,7 +598,7 @@ public:
         event.PreemptedFor = job->GetPreemptedFor();
 
         auto result = EnqueueJobEvent(std::move(event));
-        YT_LOG_DEBUG("Job abort notification %v (JobId: %v, ByScheduler: %v)",
+        YT_LOG_TRACE("Job abort notification %v (JobId: %v, ByScheduler: %v)",
             result ? "enqueued" : "dropped",
             job->GetId(),
             byScheduler);

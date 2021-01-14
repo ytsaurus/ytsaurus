@@ -136,6 +136,8 @@ TNodeShard::TNodeShard(
     HardConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
         .WithTag("limit_type", "hard")
         .Counter("/concurrent_heartbeat_limit_reached");
+    HeartbeatWithScheduleJobsCounter_ = SchedulerProfiler
+        .Counter("/heartbeat_with_schedule_jobs");
 }
 
 int TNodeShard::GetId() const
@@ -492,15 +494,15 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         YT_LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v)",
             node->GetDefaultAddress(),
             Config_->HardConcurrentHeartbeatLimit);
-        SoftConcurrentHeartbeatLimitReachedCounter_.Increment();
+        HardConcurrentHeartbeatLimitReachedCounter_.Increment();
     } else if (ConcurrentHeartbeatCount_ >= Config_->SoftConcurrentHeartbeatLimit &&
         node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
     {
         isThrottlingActive = true;
-        YT_LOG_DEBUG("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v)",
+        YT_LOG_TRACE("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v)",
             node->GetDefaultAddress(),
             Config_->SoftConcurrentHeartbeatLimit);
-        HardConcurrentHeartbeatLimitReachedCounter_.Increment();
+        SoftConcurrentHeartbeatLimitReachedCounter_.Increment();
     }
 
     response->set_enable_job_reporter(Config_->EnableJobReporter);
@@ -586,6 +588,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     if (!skipScheduleJobs) {
         YT_PROFILE_TIMING("/scheduler/schedule_time") {
+            HeartbeatWithScheduleJobsCounter_.Increment();
             Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
         }
 
@@ -607,13 +610,15 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         SubmitJobsToStrategy();
 
         context->SetResponseInfo(
-            "NodeId: %v, NodeAddress: %v, SchedulingSegment: %v, "
+            "NodeId: %v, NodeAddress: %v, IsThrottling: %v, "
+            "SchedulingSegment: %v, "
             "StartedJobs: {All: %v, ByPreemption: %v}, PreemptedJobs: %v, "
             "PreemptableInfo: {Count: %v, Resources: %v}, "
             "ScheduleJobAttempts: {NP: %v, AP: %v, P: %v, C: %v}, "
             "HasAggressivelyStarvingElements: %v",
             nodeId,
             descriptor.GetDefaultAddress(),
+            isThrottlingActive,
             node->GetSchedulingSegment(),
             schedulingContext->StartedJobs().size(),
             statistics.ScheduledDuringPreemption,
@@ -631,9 +636,10 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             /* requestContext */ context);
 
         context->SetResponseInfo(
-            "NodeId: %v, NodeAddress: %v, PreemptedJobs: %v",
+            "NodeId: %v, NodeAddress: %v, IsThrottling: %v, PreemptedJobs: %v",
             nodeId,
             descriptor.GetDefaultAddress(),
+            isThrottlingActive,
             schedulingContext->PreemptedJobs().size());
     }
 
@@ -2047,6 +2053,8 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
     const TScheduler::TCtxNodeHeartbeatPtr& rpcContext)
 {
     auto* response = &rpcContext->Response();
+
+    std::vector<TJobId> startedJobs;
 
     for (const auto& job : schedulingContext->StartedJobs()) {
         auto* operationState = FindOperationState(job->GetOperationId());

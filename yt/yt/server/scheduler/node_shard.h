@@ -247,8 +247,9 @@ private:
     TAbortedJobCounter AbortedJobCounter_;
     TCompletedJobCounter CompletedJobCounter_;
 
-    NProfiling::TCounter SoftConcurrentHeartbeatLimitReachedCounter_;
     NProfiling::TCounter HardConcurrentHeartbeatLimitReachedCounter_;
+    NProfiling::TCounter SoftConcurrentHeartbeatLimitReachedCounter_;
+    NProfiling::TCounter HeartbeatWithScheduleJobsCounter_;
 
     THashMap<TJobId, TJobUpdate> JobsToSubmitToStrategy_;
 
