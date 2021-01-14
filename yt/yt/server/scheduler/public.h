@@ -10,8 +10,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TOperationControllerData)
-
 DECLARE_REFCOUNTED_CLASS(TOperation)
 DECLARE_REFCOUNTED_CLASS(TJob)
 
@@ -52,6 +50,8 @@ DECLARE_REFCOUNTED_CLASS(TPersistentSchedulingSegmentsState)
 
 // TODO(mrkastep) Move to private.h
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationState)
+
+DECLARE_REFCOUNTED_CLASS(TControllerRuntimeData)
 
 ////////////////////////////////////////////////////////////////////////////////
 

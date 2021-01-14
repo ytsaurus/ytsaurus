@@ -20,8 +20,11 @@ public:
     void IncreaseConcurrentScheduleJobCalls(int nodeShardId);
     void IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId);
 
+    int GetPendingJobCount() const;
+    TJobResources GetNeededResources() const;
     TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
     TJobResources GetAggregatedMinNeededJobResources() const;
+    
     void UpdateMinNeededJobResources();
 
     void CheckMaxScheduleJobCallsOverdraft(int maxScheduleJobCalls, bool* isMaxScheduleJobCallsViolated) const;
@@ -45,9 +48,6 @@ public:
         NProfiling::TCpuInstant now,
         const TString& treeId,
         const TControllerScheduleJobResultPtr& scheduleJobResult);
-
-    int GetPendingJobCount() const;
-    TJobResources GetNeededResources() const;
 
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,

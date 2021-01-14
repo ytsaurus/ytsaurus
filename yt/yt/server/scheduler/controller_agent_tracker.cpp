@@ -41,8 +41,6 @@ using namespace NControllerAgent;
 
 using NJobTrackerClient::TReleaseJobFlags;
 
-using std::placeholders::_1;
-
 using NYT::FromProto;
 using NYT::ToProto;
 
@@ -107,87 +105,39 @@ TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(
-    TOperationControllerInitializeResult* result,
-    const NControllerAgent::NProto::TInitializeOperationResult& resultProto,
-    TOperationId operationId,
-    TBootstrap* bootstrap,
-    TDuration operationTransactionPingPeriod)
+struct TOperationInfo
 {
-    try {
-        TForbidContextSwitchGuard contextSwitchGuard;
+    TOperationId OperationId;
+    TOperationJobMetrics JobMetrics;
+    THashMap<EOperationAlertType, TError> AlertMap;
+    TControllerRuntimeDataPtr ControllerRuntimeData;
+    TYsonString SuspiciousJobsYson;
+};
 
-        FromProto(
-            &result->Transactions,
-            resultProto.transaction_ids(),
-            std::bind(&TBootstrap::GetRemoteMasterClient, bootstrap, _1),
-            operationTransactionPingPeriod);
-    } catch (const std::exception& ex) {
-        YT_LOG_INFO(ex, "Failed to attach operation transactions", operationId);
+void FromProto(TOperationInfo* operationInfo, const NProto::TOperationInfo& operationInfoProto)
+{
+    operationInfo->OperationId = FromProto<TOperationId>(operationInfoProto.operation_id());
+    operationInfo->JobMetrics = FromProto<TOperationJobMetrics>(operationInfoProto.job_metrics());
+    if (operationInfoProto.has_alerts()) {
+        THashMap<EOperationAlertType, TError> alertMap;
+        for (const auto& protoAlert : operationInfoProto.alerts().alerts()) {
+            alertMap[EOperationAlertType(protoAlert.type())] = FromProto<TError>(protoAlert.error());
+        }
+        operationInfo->AlertMap = alertMap;
     }
-
-    result->Attributes = TOperationControllerInitializeAttributes{
-        TYsonString(resultProto.mutable_attributes(), EYsonType::MapFragment),
-        TYsonString(resultProto.brief_spec(), EYsonType::MapFragment),
-        TYsonString(resultProto.full_spec(), EYsonType::Node),
-        TYsonString(resultProto.unrecognized_spec(), EYsonType::Node)
-    };
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FromProto(TOperationControllerPrepareResult* result, const NControllerAgent::NProto::TPrepareOperationResult& resultProto)
-{
-    result->Attributes = resultProto.has_attributes()
-        ? TYsonString(resultProto.attributes(), EYsonType::MapFragment)
-        : TYsonString();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FromProto(TOperationControllerMaterializeResult* result, const NControllerAgent::NProto::TMaterializeOperationResult& resultProto)
-{
-    result->Suspend = resultProto.suspend();
-    result->InitialNeededResources = FromProto<TJobResources>(resultProto.initial_needed_resources());
-    result->InitialAggregatedMinNeededResources = FromProto<TJobResources>(resultProto.initial_aggregated_min_needed_resources());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FromProto(
-    TOperationControllerReviveResult* result,
-    const NControllerAgent::NProto::TReviveOperationResult& resultProto,
-    TOperationId operationId,
-    TIncarnationId incarnationId,
-    EPreemptionMode preemptionMode)
-{
-    result->Attributes = TYsonString(resultProto.attributes(), EYsonType::MapFragment);
-    result->RevivedFromSnapshot = resultProto.revived_from_snapshot();
-    for (const auto& jobProto : resultProto.revived_jobs()) {
-        auto job = New<TJob>(
-            FromProto<TJobId>(jobProto.job_id()),
-            static_cast<EJobType>(jobProto.job_type()),
-            operationId,
-            incarnationId,
-            nullptr /* execNode */,
-            FromProto<TInstant>(jobProto.start_time()),
-            FromProto<TJobResources>(jobProto.resource_limits()),
-            jobProto.interruptible(),
-            preemptionMode,
-            jobProto.tree_id(),
-            jobProto.node_id(),
-            jobProto.node_address());
-        job->SetState(EJobState::Running);
-        result->RevivedJobs.push_back(job);
+            
+    if (operationInfoProto.has_suspicious_jobs()) {
+        operationInfo->SuspiciousJobsYson = TYsonString(operationInfoProto.suspicious_jobs(), EYsonType::MapFragment);
+    } else {
+        operationInfo->SuspiciousJobsYson = TYsonString();
     }
-    result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());
-    result->NeededResources = FromProto<TJobResources>(resultProto.needed_resources());
+            
+    auto controllerData = New<TControllerRuntimeData>();
+    controllerData->SetPendingJobCount(operationInfoProto.pending_job_count());
+    controllerData->SetNeededResources(FromProto<TJobResources>(operationInfoProto.needed_resources()));
+    controllerData->MinNeededJobResources() = FromProto<TJobResourcesWithQuotaList>(operationInfoProto.min_needed_job_resources());
+    operationInfo->ControllerRuntimeData = std::move(controllerData);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FromProto(TOperationControllerCommitResult* /* result */, const NControllerAgent::NProto::TCommitOperationResult& /* resultProto */)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,9 +152,9 @@ public:
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
         , OperationId_(operation->GetId())
-        , ControllerData_(operation->GetControllerData())
         , PreemptionMode_(operation->Spec()->PreemptionMode)
         , Logger(SchedulerLogger.WithTag("OperationId: %v", OperationId_))
+        , ControllerRuntimeData_(New<TControllerRuntimeData>())
     { }
 
 
@@ -698,6 +648,9 @@ public:
 
         if (resultOrError.IsOK()) {
             auto result = resultOrError.Value();
+            // NB(eshcherbin): ControllerRuntimeData is used to pass NeededResources to MaterializeOperation().
+            ControllerRuntimeData_->SetNeededResources(result.NeededResources);
+
             YT_LOG_DEBUG(
                 "Successful revival result received "
                 "(RevivedFromSnapshot: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, NeededResources: %v)",
@@ -725,6 +678,11 @@ public:
         }
 
         PendingCommitResult_.TrySet(resultOrError);
+    }
+
+    virtual void SetControllerRuntimeData(const TControllerRuntimeDataPtr& controllerData) override
+    {
+        ControllerRuntimeData_ = controllerData;
     }
 
     virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
@@ -777,13 +735,6 @@ public:
         return nodeShard->BeginScheduleJob(incarnationId, OperationId_, jobId);
     }
 
-    virtual TJobResources GetNeededResources() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return ControllerData_->GetNeededResources();
-    }
-
     virtual void UpdateMinNeededJobResources() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -795,18 +746,25 @@ public:
         YT_LOG_DEBUG("Min needed job resources update request enqueued");
     }
 
+    virtual TJobResources GetNeededResources() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return ControllerRuntimeData_->GetNeededResources();
+    }
+
     virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return ControllerData_->GetMinNeededJobResources();
+        return ControllerRuntimeData_->MinNeededJobResources();
     }
 
     virtual int GetPendingJobCount() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return ControllerData_->GetPendingJobCount();
+        return ControllerRuntimeData_->GetPendingJobCount();
     }
 
     virtual EPreemptionMode GetPreemptionMode() const override
@@ -818,9 +776,10 @@ private:
     TBootstrap* const Bootstrap_;
     TSchedulerConfigPtr Config_;
     const TOperationId OperationId_;
-    const TOperationControllerDataPtr ControllerData_;
     const EPreemptionMode PreemptionMode_;
     const NLogging::TLogger Logger;
+
+    TControllerRuntimeDataPtr ControllerRuntimeData_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
@@ -1302,15 +1261,28 @@ public:
 
         SwitchTo(agent->GetCancelableInvoker());
 
+        auto parseOperationsFuture = BIND([&operationsProto = request->operations()] () {
+                std::vector<TOperationInfo> operationInfos;
+                operationInfos.reserve(operationsProto.size());
+                for (const auto& operationInfoProto : operationsProto) {
+                    operationInfos.emplace_back(FromProto<TOperationInfo>(operationInfoProto));
+                }
+                return operationInfos;
+            })
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run();
+
+        auto operationInfos = WaitFor(parseOperationsFuture)
+            .ValueOrThrow();
+
         TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics;
-        for (const auto& protoOperation : request->operations()) {
-            auto operationId = FromProto<TOperationId>(protoOperation.operation_id());
+        for (const auto& operationInfo : operationInfos) {
+            auto operationId = operationInfo.OperationId;
             auto operation = scheduler->FindOperation(operationId);
-            auto operationJobMetrics = FromProto<TOperationJobMetrics>(protoOperation.job_metrics());
             if (!operation) {
                 // TODO(eshcherbin): This is used for flap diagnostics. Remove when TestPoolMetricsPorto is fixed (YT-12207).
                 THashMap<TString, i64> treeIdToOperationTotalTimeDelta;
-                for (const auto& [treeId, metrics] : operationJobMetrics) {
+                for (const auto& [treeId, metrics] : operationInfo.JobMetrics) {
                     treeIdToOperationTotalTimeDelta.emplace(treeId, metrics.Values()[EJobMetricName::TotalTime]);
                 }
 
@@ -1321,29 +1293,21 @@ public:
                 ToProto(response->add_operation_ids_to_unregister(), operationId);
                 continue;
             }
+            YT_VERIFY(operationIdToOperationJobMetrics.emplace(operationId, std::move(operationInfo.JobMetrics)).second);
 
-            if (protoOperation.has_alerts()) {
-                for (const auto& protoAlert : protoOperation.alerts().alerts()) {
-                    auto alertType = EOperationAlertType(protoAlert.type());
-                    auto alert = FromProto<TError>(protoAlert.error());
-                    if (alert.IsOK()) {
-                        operation->ResetAlert(alertType);
-                    } else {
-                        operation->SetAlert(alertType, alert);
-                    }
+            for (const auto& [alertType, alert] : operationInfo.AlertMap) {
+                if (alert.IsOK()) {
+                    operation->ResetAlert(alertType);
+                } else {
+                    operation->SetAlert(alertType, alert);
                 }
             }
-
-            YT_VERIFY(operationIdToOperationJobMetrics.emplace(operationId, operationJobMetrics).second);
-
-            if (protoOperation.has_suspicious_jobs()) {
-                operation->SetSuspiciousJobs(TYsonString(protoOperation.suspicious_jobs(), EYsonType::MapFragment));
+                
+            if (operationInfo.SuspiciousJobsYson) {
+                operation->SetSuspiciousJobs(operationInfo.SuspiciousJobsYson);
             }
 
-            auto runtimeData = operation->GetControllerData();
-            runtimeData->SetPendingJobCount(protoOperation.pending_job_count());
-            runtimeData->SetNeededResources(FromProto<TJobResources>(protoOperation.needed_resources()));
-            runtimeData->SetMinNeededJobResources(FromProto<TJobResourcesWithQuotaList>(protoOperation.min_needed_job_resources()));
+            operation->GetController()->SetControllerRuntimeData(operationInfo.ControllerRuntimeData);
         }
 
         scheduler->GetStrategy()->ApplyJobMetricsDelta(operationIdToOperationJobMetrics);
