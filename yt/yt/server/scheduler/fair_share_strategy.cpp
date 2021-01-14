@@ -56,7 +56,7 @@ public:
         : Config(std::move(config))
         , Host(host)
         , FeasibleInvokers(std::move(feasibleInvokers))
-        , Logger(SchedulerLogger)
+        , Logger(StrategyLogger)
     {
         FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
             Host->GetFairShareLoggingInvoker(),
