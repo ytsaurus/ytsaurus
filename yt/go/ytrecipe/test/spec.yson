@@ -1,6 +1,6 @@
 {
-    cluster=freud;
-    pool="yt-integration-tests";
-    cypress_root="//home/yt-integration-tests";
+    cluster=hahn;
+    pool="devtools";
+    cypress_root="//home/devtools/ytexec-cache";
     run_as_root = %true;
 }
