@@ -167,4 +167,30 @@ void Serialize(const TKey& key, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUnversionedOwningRow LegacyKeyToKeyFriendlyOwningRow(TUnversionedRow row, int keyLength)
+{
+    if (!row) {
+        return TUnversionedOwningRow();
+    }
+
+    TUnversionedOwningRowBuilder builder;
+    for (int index = 0; index < keyLength; ++index) {
+        TUnversionedValue value;
+        if (index < row.GetCount()) {
+            value = row[index];
+            if (value.Type == EValueType::Min || value.Type == EValueType::Max) {
+                value.Type = EValueType::Null;
+            }
+        } else {
+            value = MakeUnversionedNullValue();
+        }
+        builder.AddValue(value);
+    }
+    auto result = builder.FinishRow();
+    YT_VERIFY(result.GetCount() == keyLength);
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

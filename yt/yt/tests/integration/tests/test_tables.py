@@ -2416,6 +2416,50 @@ class TestTables(YTEnvSetup):
 
         _check(expected_after_shortening if shortened else expected_after_widening)
 
+    @authors("max42")
+    @pytest.mark.parametrize("sort_order", ["descending", "ascending"])
+    def test_append_to_sorted_altered_table(self, sort_order):
+        create("table", "//tmp/single_row")
+        write_table("//tmp/single_row", [{"a": 1}])
+
+        partial_schema = [{"name": "a", "type": "int64", "sort_order": sort_order}]
+        full_schema = [{"name": "a", "type": "int64", "sort_order": sort_order},
+                       {"name": "b", "type": "int64", "sort_order": sort_order}]
+
+        create("table", "//tmp/t", attributes={"schema": partial_schema})
+        write_table("//tmp/t", [{"a": 42}])
+        alter_table("//tmp/t", schema=full_schema)
+
+        def append_via_write_table(dst):
+            write_table("<append=%true>" + dst, [{"a": 42, "b": 23}])
+
+        def append_via_map(dst):
+            map(in_="//tmp/single_row",
+                out="<append=%true>" + dst,
+                command="echo '{a=42;b=23}';")
+
+        def append_via_concatenate(dst):
+            create("table", "//tmp/delta", attributes={"schema": full_schema})
+            write_table("//tmp/delta", [{"a": 42, "b": 23}])
+            concatenate(source_paths=["//tmp/delta"],
+                        destination_path="<append=%true>" + dst)
+
+        def validate_or_expect_error(append_fn, suffix):
+            dst = "//tmp/t_" + suffix
+            copy("//tmp/t", dst)
+            if sort_order == "ascending":
+                append_fn(dst)
+                assert read_table(dst) == [{"a": 42}, {"a": 42, "b": 23}]
+            else:
+                # NB: after table altering last key becomes [42, #], which is greater than
+                # [42, 23] in descending sort order.
+                with raises_yt_error(SortOrderViolation):
+                    append_fn(dst)
+
+        validate_or_expect_error(append_via_write_table, "write_table")
+        validate_or_expect_error(append_via_map, "map")
+        validate_or_expect_error(append_via_concatenate, "concatenate")
+
     @authors("babenko")
     def test_read_with_hedging(self):
         create("table", "//tmp/t")

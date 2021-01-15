@@ -1512,10 +1512,30 @@ private:
             auto comparator = OutputTableSchema_->ToComparator();
 
             auto tableMaxKeyRow = ConvertTo<TUnversionedOwningRow>(tableMaxKeyNode);
+
+            auto fixedTableMaxKeyRow = LegacyKeyToKeyFriendlyOwningRow(tableMaxKeyRow, comparator.GetLength());
+            if (tableMaxKeyRow != fixedTableMaxKeyRow) {
+                YT_LOG_DEBUG(
+                    "Table max key fixed (MaxKey: %v -> %v)",
+                    tableMaxKeyRow,
+                    fixedTableMaxKeyRow);
+                tableMaxKeyRow = fixedTableMaxKeyRow;
+            }
+
             YT_VERIFY(tableMaxKeyRow.GetCount() == comparator.GetLength());
             auto tableMaxKey = TKey::FromRow(tableMaxKeyRow);
 
+            YT_LOG_DEBUG(
+                "Writing to table in sorted append mode (MaxKey: %v)",
+                tableMaxKey);
+
             auto firstChunkMinKey = GetChunkBoundaryKeys(ChunkSpecs_[0].chunk_meta()).first;
+
+            YT_LOG_DEBUG(
+                "Comparing table max key against first chunk min key (MaxKey: %v, MinKey: %v, Comparator: %v)",
+                tableMaxKey,
+                firstChunkMinKey,
+                comparator);
 
             auto comparisionResult = comparator.CompareKeys(tableMaxKey, firstChunkMinKey);
             if (comparisionResult > 0) {
