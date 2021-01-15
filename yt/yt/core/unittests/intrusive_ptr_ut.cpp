@@ -317,6 +317,49 @@ TEST(TIntrusivePtrTest, UpCast)
     EXPECT_TRUE(foo == baz);
 }
 
+TEST(TIntrusivePtrTest, DownCast)
+{
+    class TBaseObject
+        : public TRefCounted
+    { };
+
+    class TDerivedObject
+        : public TBaseObject
+    { };
+
+    //! This is a simple inherited reference-counted object.
+    class TAnotherObject
+        : public TBaseObject
+    { };
+
+    TIntrusivePtr<TBaseObject> foo = New<TDerivedObject>();
+    TIntrusivePtr<TBaseObject> bar = New<TAnotherObject>();
+    {
+        auto baz = StaticPointerCast<TDerivedObject>(foo);
+        EXPECT_TRUE(foo == baz);
+    }
+    {
+        auto baz = StaticPointerCast<TDerivedObject>(TIntrusivePtr<TBaseObject>{foo});
+        EXPECT_TRUE(foo == baz);
+    }
+    {
+        auto baz = DynamicPointerCast<TDerivedObject>(foo);
+        EXPECT_TRUE(foo == baz);
+    }
+    {
+        auto baz = DynamicPointerCast<TDerivedObject>(bar);
+        EXPECT_TRUE(nullptr == baz);
+    }
+    {
+        auto baz = ConstPointerCast<const TBaseObject>(foo);
+        EXPECT_TRUE(foo.Get() == baz.Get());
+    }
+    {
+        auto baz = ConstPointerCast<const TBaseObject>(TIntrusivePtr<TBaseObject>{foo});
+        EXPECT_TRUE(foo.Get() == baz.Get());
+    }
+}
+
 TEST(TIntrusivePtrTest, UnspecifiedBoolType)
 {
     TIntricateObject object;
