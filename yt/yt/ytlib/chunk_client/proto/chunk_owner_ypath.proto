@@ -84,11 +84,7 @@ message TReqFetch
     // Not yet supported.
     repeated int32 extension_tags = 3;
 
-    // Deprecated = 5;
-    // Deprecated = 6;
-    // Deprecated = 7;
-    // Deprecated = 8;
-    // Deprecated = 9;
+    reserved 5, 6, 7, 8, 9;
 
     optional bool fetch_parity_replicas = 10 [default = false];
 
@@ -99,6 +95,11 @@ message TReqFetch
     optional bool omit_dynamic_stores = 13 [default = false];
 
     optional bool throw_on_chunk_views = 14 [default = false];
+
+    // Bitmask of the chunk features that are supported by client.
+    // If requested chunk uses features that are not supported by client,
+    // an error is returned.
+    optional uint64 supported_chunk_features = 15;
 }
 
 message TRspFetch

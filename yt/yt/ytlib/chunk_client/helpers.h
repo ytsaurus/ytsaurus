@@ -257,6 +257,19 @@ TDataSliceSourcePair JoinDataSliceSourcePairs(std::vector<TDataSliceSourcePair> 
 
 ///////////////////////////////////////////////////////////////////////////////
 
+//! Return the list of all the supported chunk features in this binary.
+EChunkFeatures GetSupportedChunkFeatures();
+
+//! Validate whether a client with set of supported features represented by bitmask
+//! #supportedFeatures can process a chunk with features represented by bitmask
+//! #chunkFeatures. Throws an error if client cannot process such a chunk.
+void ValidateChunkFeatures(
+    TChunkId chunkId,
+    ui64 chunkFeatures,
+    ui64 supportedChunkFeatures);
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient
 
 #define HELPERS_INL_H_

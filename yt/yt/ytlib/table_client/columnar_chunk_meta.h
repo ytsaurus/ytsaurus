@@ -29,7 +29,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TSharedRange<TLegacyKey>, BlockLastKeys);
     DEFINE_BYVAL_RO_PROPERTY(TTableSchemaPtr, ChunkSchema);
     DEFINE_BYREF_RO_PROPERTY(TNameTablePtr, ChunkNameTable);
-    DEFINE_BYREF_RO_PROPERTY(NChunkClient::EChunkFeatures, ChunkFeatures);
 
 public:
     explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);

@@ -23,6 +23,8 @@
 
 #include <library/cpp/iterator/functools.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NApi;
@@ -101,6 +103,7 @@ void TMasterChunkSpecFetcher::Add(
             AddCellTagToSyncWith(req, objectId);
             InitializeFetchRequest_(req.Get(), tableIndex);
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TLegacyReadRange>{adjustedRange});
+            req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
             state.BatchReq->AddRequest(req, "fetch");
             ++state.ReqCount;
