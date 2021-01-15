@@ -4,8 +4,6 @@ import json
 
 import pytest
 
-import yt.packages.requests as requests
-
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
