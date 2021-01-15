@@ -127,6 +127,7 @@ private:
     void OnOutputParameters();
 
     void ProcessFormatsInOperationSpec();
+    void ProcessFormatsInParameters();
 
     TFramingConfigPtr GetFramingConfig() const;
 

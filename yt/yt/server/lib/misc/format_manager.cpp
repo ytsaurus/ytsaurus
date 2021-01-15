@@ -162,4 +162,3 @@ TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, const TStrin
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-

@@ -746,10 +746,22 @@ void TContext::ProcessFormatsInOperationSpec()
     FormatManager_->ValidateAndPatchOperationSpec(specNode, operationType);
 }
 
+void TContext::ProcessFormatsInParameters()
+{
+    ProcessFormatsInOperationSpec();
+
+    if (auto inputFormatNode = DriverRequest_.Parameters->FindChild("input_format")) {
+        FormatManager_->ValidateAndPatchFormatNode(inputFormatNode, "input_format");
+    }
+    if (auto outputFormatNode = DriverRequest_.Parameters->FindChild("output_format")) {
+        FormatManager_->ValidateAndPatchFormatNode(outputFormatNode, "output_format");
+    }
+}
+
 void TContext::FinishPrepare()
 {
     CaptureParameters();
-    ProcessFormatsInOperationSpec();
+    ProcessFormatsInParameters();
     SetContentDispositionAndMimeType();
     SetETagRevision();
     LogRequest();
