@@ -587,9 +587,9 @@ TEST_F(TSortedMergingReaderTest, SortedMergingReaderStressTest)
         std::sort(expected.begin(), expected.end(), [&] (auto lhs, auto rhs) {
             auto lhsKey = TKey::FromRow(lhs, KeyColumnCount);
             auto rhsKey = TKey::FromRow(rhs, KeyColumnCount);
-            int comparisionResult = sortComparator.CompareKeys(lhsKey, rhsKey);
-            if (comparisionResult != 0) {
-                return comparisionResult < 0;
+            int comparisonResult = sortComparator.CompareKeys(lhsKey, rhsKey);
+            if (comparisonResult != 0) {
+                return comparisonResult < 0;
             }
             auto lhsTableIndex = lhs[lhs.GetCount() - 1];
             auto rhsTableIndex = rhs[rhs.GetCount() - 1];
@@ -1626,9 +1626,9 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderStressTest)
         std::sort(allPrimaryRows.begin(), allPrimaryRows.end(), [&] (auto lhs, auto rhs) {
             auto lhsKey = TKey::FromRow(lhs, KeyColumnCount);
             auto rhsKey = TKey::FromRow(rhs, KeyColumnCount);
-            int comparisionResult = sortComparator.CompareKeys(lhsKey, rhsKey);
-            if (comparisionResult != 0) {
-                return comparisionResult < 0;
+            int comparisonResult = sortComparator.CompareKeys(lhsKey, rhsKey);
+            if (comparisonResult != 0) {
+                return comparisonResult < 0;
             }
             auto lhsTableIndex = lhs[lhs.GetCount() - 1];
             auto rhsTableIndex = rhs[rhs.GetCount() - 1];
@@ -1654,9 +1654,9 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderStressTest)
         std::stable_sort(allRows.begin(), allRows.end(), [&] (auto lhs, auto rhs) {
             auto lhsKey = TKey::FromRow(lhs, joinComparator.GetLength());
             auto rhsKey = TKey::FromRow(rhs, joinComparator.GetLength());
-            int comparisionResult = joinComparator.CompareKeys(lhsKey, rhsKey);
-            if (comparisionResult != 0) {
-                return comparisionResult < 0;
+            int comparisonResult = joinComparator.CompareKeys(lhsKey, rhsKey);
+            if (comparisonResult != 0) {
+                return comparisonResult < 0;
             }
             auto lhsTableIndex = getTableIndex(lhs);
             auto rhsTableIndex = getTableIndex(rhs);
