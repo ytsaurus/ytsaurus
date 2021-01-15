@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from .configs_provider import init_logging, get_default_provision, create_configs_provider
+from .configs_provider import init_logging, get_default_provision, build_configs
 from .default_configs import get_dynamic_master_config
 from .helpers import (
     read_config, write_config, is_dead_or_zombie, OpenPortIterator,
@@ -9,7 +9,7 @@ from .helpers import (
 from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
 
-from yt.common import YtError, remove_file, makedirp, update, get_value
+from yt.common import YtError, remove_file, makedirp, update, get_value, which
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -54,20 +54,6 @@ def set_environment_driver_logging_config(config):
 class YtEnvRetriableError(YtError):
     pass
 
-# TODO(ignat): replace with 'which' from yt.common after next major release.
-def _which(name, flags=os.X_OK, custom_paths=None):
-    """Return list of files in system paths with given name."""
-    # TODO: check behavior when dealing with symlinks
-    result = []
-    paths = os.environ.get("PATH", "").split(os.pathsep)
-    if custom_paths is not None:
-        paths = custom_paths + paths
-    for dir in paths:
-        path = os.path.join(dir, name)
-        if os.access(path, flags):
-            result.append(path)
-    return result
-
 def _parse_version(s):
     if "version:" in s:
         # "ytserver  version: 0.17.3-unknown~debug~0+local"
@@ -81,7 +67,7 @@ def _parse_version(s):
     return BinaryVersion(abi, literal)
 
 def _get_yt_binary_path(binary, custom_paths):
-    paths = _which(binary, custom_paths=custom_paths)
+    paths = which(binary, custom_paths=custom_paths)
     if paths:
         return paths[0]
     return None
@@ -98,13 +84,6 @@ def _get_yt_versions(custom_paths):
             result[binary] = _parse_version(version_string)
     return result
 
-def _is_ya_package(proxy_binary_path):
-    proxy_binary_path = os.path.realpath(proxy_binary_path)
-    ytnode_node = os.path.join(
-        os.path.dirname(os.path.dirname(proxy_binary_path)),
-        "built_by_ya.txt")
-    return os.path.exists(ytnode_node)
-
 def _configure_logger():
     logger.propagate = False
     if not logger.handlers:
@@ -116,7 +95,6 @@ def _configure_logger():
         logger.handlers[0].setFormatter(logging.Formatter("%(message)s"))
 
 class YTInstance(object):
-    # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0, clock_count=0,
                  node_count=1, defer_node_start=False,
                  scheduler_count=1, defer_scheduler_start=False,
@@ -128,12 +106,12 @@ class YTInstance(object):
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
-                 add_binaries_to_path=True, enable_master_cache=None, enable_permission_cache=None,
+                 enable_master_cache=None, enable_permission_cache=None,
                  enable_structured_master_logging=False, enable_structured_scheduler_logging=False,
                  enable_rpc_driver_proxy_discovery=None,
                  use_native_client=False, run_watcher=True, capture_stderr_to_file=None,
                  ytserver_all_path=None, watcher_binary=None,
-                 stderrs_path=None, validate_component_abi=True):
+                 stderrs_path=None):
         _configure_logger()
 
         if use_porto_for_servers and not porto_avaliable():
@@ -178,18 +156,10 @@ class YTInstance(object):
             self.custom_paths = None
 
         self._binaries = _get_yt_versions(custom_paths=self.custom_paths)
-        if ("ytserver-master" in self._binaries and
-            "ytserver-node" in self._binaries and
-            "ytserver-scheduler" in self._binaries):
-            logger.info("Using multiple YT binaries with the following versions:")
-            for component in self._binaries:
-                logger.info("   %-28s%s", component, self._binaries[component].literal)
+        abi_versions = set(imap(lambda v: v.abi, self._binaries.values()))
+        self.abi_version = abi_versions.pop()
 
-            abi_versions = set(imap(lambda v: v.abi, self._binaries.values()))
-            if len(abi_versions) > 1 and validate_component_abi:
-                raise YtError("Mismatching YT versions. Make sure that all binaries are of compatible versions.")
-            self.abi_version = abi_versions.pop()
-        else:
+        if "ytserver-master" not in self._binaries:
             raise YtError("Failed to find YT binaries (ytserver-*) in $PATH. Make sure that YT is installed.")
 
         if rpc_proxy_count is None:
@@ -210,9 +180,7 @@ class YTInstance(object):
         makedirp(self.runtime_data_path)
 
         self.stderrs_path = stderrs_path or os.path.join(self.path, "stderrs")
-        self.backtraces_path = os.path.join(self.path, "backtraces")
         makedirp(self.stderrs_path)
-        makedirp(self.backtraces_path)
         self._stderr_paths = defaultdict(list)
 
         self._tmpfs_path = tmpfs_path
@@ -383,8 +351,6 @@ class YTInstance(object):
             logger.warning("Master count is zero. Instance is not prepared.")
             return
 
-        configs_provider = create_configs_provider(self.abi_version)
-
         provision = get_default_provision()
         provision["master"]["cell_size"] = self.master_count
         provision["master"]["secondary_cell_count"] = self.secondary_master_cell_count
@@ -423,7 +389,7 @@ class YTInstance(object):
 
         dirs = self._prepare_directories()
 
-        cluster_configuration = configs_provider.build_configs(self._get_ports_generator(port_range_start), dirs, self.logs_path, provision)
+        cluster_configuration = build_configs(self._get_ports_generator(port_range_start), dirs, self.logs_path, provision)
 
         if modify_configs_func:
             modify_configs_func(cluster_configuration, self.abi_version)
@@ -493,14 +459,7 @@ class YTInstance(object):
                 self.start_secondary_master_cells(sync=False)
                 self.synchronize()
 
-            # TODO(asaitgalin): Create this user inside master.
             client = self._create_cluster_client()
-            if not client.exists("//sys/users/application_operations"):
-                user_id = client.create("user", attributes={"name": "application_operations"})
-                # Tests suites that delay secondary master start probably won't need this user anyway.
-                if start_secondary_master_cells:
-                    wait(lambda: client.get("#" + user_id + "/@life_stage") == "creation_committed")
-                    client.add_member("application_operations", "superusers")
 
             if self.has_http_proxy:
                 # NB: it is used to determine proper operation URL in local mode.
@@ -852,13 +811,12 @@ class YTInstance(object):
             self._pid_to_process[p.pid] = (p, args)
             self._append_pid(p.pid)
 
+            name_tag = None
             if self._use_porto_for_servers:
                 name_tag = "name: " + p._portoName
-            else:
-                name_tag = ""
             pid_tag = "pid: {}".format(p.pid)
 
-            logger.debug("Process %s started (%s)", name, ", ".join([pid_tag, name_tag]))
+            logger.debug("Process %s started (%s)", name, ", ".join([pid_tag] + ([name_tag] if name_tag else [])))
 
             return p
 

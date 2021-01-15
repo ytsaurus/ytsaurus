@@ -323,7 +323,6 @@ class YTEnvSetup(object):
             enable_structured_scheduler_logging=True,
             capture_stderr_to_file=capture_stderr_to_file,
             stderrs_path=os.path.join(arcadia_interop.yatest_common.output_path("yt_stderrs"), cls.run_name, str(index)),
-            validate_component_abi=False,
         )
 
         instance._cluster_name = cls.get_cluster_name(index)
