@@ -64,7 +64,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr,
+    int interruptDescriptorKeyLength = 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +87,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr,
+    int interruptDescriptorKeyLength = 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -90,7 +90,8 @@ public:
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),
                 Host_->GetOutRpsThrottler(),
-                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
+                sortColumns.size());
 
             readers.push_back(reader);
         }

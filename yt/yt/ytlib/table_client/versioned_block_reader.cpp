@@ -485,8 +485,8 @@ THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockRe
         meta,
         schema,
         idMapping,
-        chunkKeyColumnCount,
-        keyColumnCount))
+        TComparator(std::vector<ESortOrder>(chunkKeyColumnCount, ESortOrder::Ascending)),
+        TComparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending))))
     , Timestamp_(timestamp)
 { }
 
@@ -507,7 +507,7 @@ bool THorizontalSchemalessVersionedBlockReader::SkipToKey(TLegacyKey key)
 
 TLegacyKey THorizontalSchemalessVersionedBlockReader::GetKey() const
 {
-    return UnderlyingReader_->GetKey();
+    return UnderlyingReader_->GetLegacyKey();
 }
 
 TVersionedRow THorizontalSchemalessVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)

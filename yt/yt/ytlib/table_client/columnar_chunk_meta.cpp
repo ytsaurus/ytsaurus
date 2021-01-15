@@ -92,7 +92,11 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
         blockLastKeys.push_back(wideKey);
     }
 
-    std::tie(BlockLastKeys_, BlockLastKeysSize_) = CaptureRows<TBlockLastKeysBufferTag>(MakeRange(blockLastKeys));
+    std::tie(LegacyBlockLastKeys_, BlockLastKeysSize_) = CaptureRows<TBlockLastKeysBufferTag>(MakeRange(blockLastKeys));
+    BlockLastKeys_.clear();
+    for (const auto& lastKey : LegacyBlockLastKeys_) {
+        BlockLastKeys_.push_back(TKey::FromRow(lastKey));
+    }
 }
 
 void TColumnarChunkMeta::RenameColumns(const TColumnRenameDescriptors& renameDescriptors)
@@ -143,6 +147,7 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
 {
     return
         BlockLastKeysSize_ +
+        sizeof(TKey) * BlockLastKeys_.capacity() + 
         sizeof (Misc_) +
         BlockMeta_->GetSize() +
         (ColumnMeta_ ? ColumnMeta_->GetSize() : 0) +

@@ -195,7 +195,7 @@ protected:
 
     int GetBlockIndex(TLegacyKey key)
     {
-        const auto& blockIndexKeys = ChunkState_->ChunkMeta->BlockLastKeys();
+        const auto& blockIndexKeys = ChunkState_->ChunkMeta->LegacyBlockLastKeys();
 
         typedef decltype(blockIndexKeys.end()) TIter;
         auto rbegin = std::reverse_iterator<TIter>(blockIndexKeys.end());
@@ -681,7 +681,7 @@ private:
         BlockReader_.reset(this->CreateBlockReaderPtr(
             uncompressedBlock,
             blockMeta));
-        this->UpperBoundCheckNeeded_ = (this->UpperBound_ <= this->ChunkState_->ChunkMeta->BlockLastKeys()[BlockIndex_]);
+        this->UpperBoundCheckNeeded_ = (this->UpperBound_ <= this->ChunkState_->ChunkMeta->LegacyBlockLastKeys()[BlockIndex_]);
     }
 };
 

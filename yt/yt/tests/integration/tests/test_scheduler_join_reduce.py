@@ -984,9 +984,10 @@ echo {v = 2} >&7
 
         assert len(read_table("//tmp/t_out")) == 2
 
-    @authors("klyachin")
-    def test_join_reduce_interrupt_job(self):
-        create("table", "//tmp/input1")
+    @authors("klyachin", "gritukan")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_join_reduce_interrupt_job(self, optimize_for):
+        create("table", "//tmp/input1", attributes={"optimize_for": optimize_for})
         write_table(
             "//tmp/input1",
             [
@@ -1000,14 +1001,14 @@ echo {v = 2} >&7
             sorted_by=["key", "value"],
         )
 
-        create("table", "//tmp/input2")
+        create("table", "//tmp/input2", attributes={"optimize_for": optimize_for})
         write_table(
             "//tmp/input2",
             [{"key": "(%08d)" % (i / 2), "value": "(t_2)"} for i in range(14)],
             sorted_by=["key"],
         )
 
-        create("table", "//tmp/output")
+        create("table", "//tmp/output", attributes={"optimize_for": optimize_for})
 
         op = join_reduce(
             track=False,

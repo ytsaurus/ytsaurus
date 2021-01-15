@@ -355,7 +355,7 @@ private:
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
         const auto& blockMetaExt = ChunkMeta_->BlockMeta();
-        const auto& blockIndexKeys = ChunkMeta_->BlockLastKeys();
+        const auto& blockIndexKeys = ChunkMeta_->LegacyBlockLastKeys();
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
 
@@ -406,7 +406,7 @@ private:
     {
         int chunkBlockIndex = BlockIndexes_[NextBlockIndex_];
         CheckBlockUpperKeyLimit(
-            ChunkMeta_->BlockLastKeys()[chunkBlockIndex],
+            ChunkMeta_->LegacyBlockLastKeys()[chunkBlockIndex],
             GetCurrentRangeUpperKey(),
             ChunkMeta_->GetKeyColumnCount());
 
@@ -570,7 +570,7 @@ private:
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
         const auto& blockMetaExt = ChunkMeta_->BlockMeta();
-        const auto& blockIndexKeys = ChunkMeta_->BlockLastKeys();
+        const auto& blockIndexKeys = ChunkMeta_->LegacyBlockLastKeys();
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
 
@@ -638,6 +638,7 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
+        const TSortColumns& sortColumns,
         IBlockCachePtr blockCache,
         const TClientBlockReadOptions& blockReadOptions,
         const TColumnFilter& columnFilter,
@@ -648,6 +649,7 @@ public:
             chunkMeta,
             std::move(config),
             std::move(underlyingReader),
+            sortColumns,
             std::move(blockCache),
             blockReadOptions,
             [] (int) { YT_ABORT(); }, // Rows should not be skipped in versioned reader.
@@ -672,7 +674,8 @@ public:
                 VersionedChunkMeta_->GetChunkSchema()->Columns()[keyColumnIndex],
                 VersionedChunkMeta_->ColumnMeta()->columns(keyColumnIndex),
                 keyColumnIndex,
-                keyColumnIndex);
+                keyColumnIndex,
+                ESortOrder::Ascending);
             KeyColumnReaders_[keyColumnIndex] = columnReader.get();
             TBase::Columns_.emplace_back(std::move(columnReader), keyColumnIndex);
         }
@@ -684,7 +687,8 @@ public:
         {
             auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyColumnIndex,
-                keyColumnIndex);
+                keyColumnIndex,
+                ESortOrder::Ascending);
             KeyColumnReaders_[keyColumnIndex] = columnReader.get();
             TBase::Columns_.emplace_back(std::move(columnReader));
         }
@@ -1009,6 +1013,7 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
+        const TSortColumns& sortColumns,
         IBlockCachePtr blockCache,
         const TClientBlockReadOptions& blockReadOptions,
         TSharedRange<TRowRange> ranges,
@@ -1020,6 +1025,7 @@ public:
             std::move(config),
             chunkMeta,
             std::move(underlyingReader),
+            sortColumns,
             std::move(blockCache),
             blockReadOptions,
             columnFilter,
@@ -1029,8 +1035,11 @@ public:
         , RowBuilder_(chunkMeta, ValueColumnReaders_, SchemaIdMapping_, timestamp)
     {
         YT_VERIFY(ranges.Size() == 1);
-        LowerLimit_.SetLegacyKey(TLegacyOwningKey(ranges[0].first));
-        UpperLimit_.SetLegacyKey(TLegacyOwningKey(ranges[0].second));
+        LegacyLowerLimit_.SetLegacyKey(TLegacyOwningKey(ranges[0].first));
+        LegacyUpperLimit_.SetLegacyKey(TLegacyOwningKey(ranges[0].second));
+
+        LowerLimit_ = ReadLimitFromLegacyReadLimit(LegacyLowerLimit_, /* isUpper */ false, Comparator_.GetLength());
+        UpperLimit_ = ReadLimitFromLegacyReadLimit(LegacyUpperLimit_, /* isUpper */ true, Comparator_.GetLength());
 
         int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta()->columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
@@ -1094,14 +1103,14 @@ public:
             }
 
             YT_VERIFY(RowIndex_ + rowLimit <= HardUpperRowIndex_);
-            if (RowIndex_ + rowLimit > SafeUpperRowIndex_ && UpperLimit_.HasLegacyKey()) {
+            if (RowIndex_ + rowLimit > SafeUpperRowIndex_ && LegacyUpperLimit_.HasLegacyKey()) {
                 i64 index = std::max(SafeUpperRowIndex_ - RowIndex_, i64(0));
                 for (; index < rowLimit; ++index) {
                     if (CompareRows(
                         range[index].BeginKeys(),
                         range[index].EndKeys(),
-                        UpperLimit_.GetLegacyKey().Begin(),
-                        UpperLimit_.GetLegacyKey().End()) >= 0)
+                        LegacyUpperLimit_.GetLegacyKey().Begin(),
+                        LegacyUpperLimit_.GetLegacyKey().End()) >= 0)
                     {
                         Completed_ = true;
                         range = range.Slice(range.Begin(), range.Begin() + index);
@@ -1145,6 +1154,9 @@ private:
     i64 RowIndex_ = 0;
 
     TRowBuilder RowBuilder_;
+
+    TLegacyReadLimit LegacyLowerLimit_;
+    TLegacyReadLimit LegacyUpperLimit_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1389,6 +1401,7 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
+        const TSortColumns& sortColumns,
         IBlockCachePtr blockCache,
         const TClientBlockReadOptions& blockReadOptions,
         const TSharedRange<TLegacyKey>& keys,
@@ -1400,6 +1413,7 @@ public:
             std::move(config),
             chunkMeta,
             std::move(underlyingReader),
+            sortColumns,
             std::move(blockCache),
             blockReadOptions,
             columnFilter,
@@ -1689,6 +1703,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
+                    chunkMeta->GetSchema()->GetSortColumns(),
                     blockCache,
                     blockReadOptions,
                     getCappedBounds(),
@@ -1701,6 +1716,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
+                    chunkMeta->GetSchema()->GetSortColumns(),
                     blockCache,
                     blockReadOptions,
                     getCappedBounds(),
@@ -1858,6 +1874,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
+                    chunkMeta->GetSchema()->GetSortColumns(),
                     blockCache,
                     blockReadOptions,
                     keys,
@@ -1870,6 +1887,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
+                    chunkMeta->GetSchema()->GetSortColumns(),
                     blockCache,
                     blockReadOptions,
                     keys,

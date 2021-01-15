@@ -47,7 +47,7 @@ TEST(TComplexColumnTest, Simple)
     auto columnData = codec->Compress(block.Data);
     auto columnMeta = columnWriter->ColumnMeta();
 
-    auto reader = CreateUnversionedComplexColumnReader(columnMeta, 0, 0);
+    auto reader = CreateUnversionedComplexColumnReader(columnMeta, 0, 0, std::nullopt);
     reader->SetCurrentBlock(columnData, 0);
     reader->Rearm();
     EXPECT_EQ(rows.size(), reader->GetReadyUpperRowIndex());
@@ -99,10 +99,10 @@ void TestCompatibility()
 
     std::unique_ptr<IUnversionedColumnReader> reader;
     if constexpr (ReaderType == EValueType::Composite) {
-        reader = CreateUnversionedComplexColumnReader(columnMeta, 0, 0);
+        reader = CreateUnversionedComplexColumnReader(columnMeta, 0, 0, std::nullopt);
     } else {
         static_assert(ReaderType == EValueType::Any);
-        reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0);
+        reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0, std::nullopt);
     }
     reader->SetCurrentBlock(columnData, 0);
     reader->Rearm();

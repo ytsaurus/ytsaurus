@@ -43,7 +43,8 @@ public:
     using TReaderCreatorFunc = std::function<std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader>(
         const NTableChunkFormat::NProto::TColumnMeta&,
         int,
-        int)>;
+        int,
+        std::optional<ESortOrder>)>;
     explicit TSingleColumnReader(TReaderCreatorFunc readerCreator);
 
     std::vector<TUnversionedOwningRow> ReadBlock(

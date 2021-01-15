@@ -176,11 +176,16 @@ class TUnversionedFloatingPointColumnReader
     : public TUnversionedColumnReaderBase
 {
 public:
-    TUnversionedFloatingPointColumnReader(const TColumnMeta& columnMeta, int columnIndex, int columnId)
+    TUnversionedFloatingPointColumnReader(
+        const TColumnMeta& columnMeta,
+        int columnIndex,
+        int columnId,
+        std::optional<ESortOrder> sortOrder)
         : TUnversionedColumnReaderBase(
             columnMeta,
             columnIndex,
-            columnId)
+            columnId,
+            sortOrder)
     {
         static_assert(std::is_floating_point_v<T>);
     }
@@ -214,12 +219,14 @@ template <typename T>
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnReader(
     const TColumnMeta& columnMeta,
     int columnIndex,
-    int columnId)
+    int columnId,
+    std::optional<ESortOrder> sortOrder)
 {
     return std::make_unique<TUnversionedFloatingPointColumnReader<T>>(
         columnMeta,
         columnIndex,
-        columnId);
+        columnId,
+        sortOrder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -240,13 +247,15 @@ template
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnReader<float>(
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
-    int columnId);
+    int columnId,
+    std::optional<ESortOrder> sortOrder);
 
 template
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnReader<double>(
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
-    int columnId);
+    int columnId,
+    std::optional<ESortOrder> sortOrder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

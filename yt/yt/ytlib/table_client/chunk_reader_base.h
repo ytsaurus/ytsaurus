@@ -6,6 +6,8 @@
 #include <yt/client/chunk_client/reader_base.h>
 #include <yt/client/chunk_client/read_limit.h>
 
+#include <yt/client/table_client/comparator.h>
+
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
 
@@ -61,11 +63,7 @@ protected:
         std::vector<NChunkClient::TBlockFetcher::TBlockInfo> blockSequence,
         const NChunkClient::NProto::TMiscExt& miscExt);
 
-    int GetBlockIndexByKey(
-        TLegacyKey key,
-        const TSharedRange<TLegacyKey>& blockIndexKeys,
-        std::optional<int> keyColumnCount) const;
-
+    //! Used in versioned chunk reader only and thus still uses legacy keys.
     void CheckBlockUpperKeyLimit(
         TLegacyKey blockLastKey,
         TLegacyKey upperLimit,
@@ -73,17 +71,27 @@ protected:
 
     void CheckBlockUpperLimits(
         i64 blockChunkRowCount,
-        TLegacyKey blockLastKey,
-        const NChunkClient::TLegacyReadLimit& upperLimit,
-        std::optional<int> keyColumnCount = std::nullopt);
+        TKey blockLastKey,
+        const NChunkClient::TReadLimit& upperLimit,
+        const TComparator& comparator);
 
     // These methods return min block index, satisfying the lower limit.
-    int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TLegacyReadLimit& lowerLimit) const;
-    int ApplyLowerKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const NChunkClient::TLegacyReadLimit& lowerLimit, std::optional<int> keyColumnCount = std::nullopt) const;
+    int ApplyLowerRowLimit(
+        const NProto::TBlockMetaExt& blockMeta,
+        const NChunkClient::TReadLimit& lowerLimit) const;
+    int ApplyLowerKeyLimit(
+        const std::vector<TKey>& blockLastKeys,
+        const NChunkClient::TReadLimit& lowerLimit,
+        const NTableClient::TComparator& comparator) const;
 
     // These methods return max block index, satisfying the upper limit.
-    int ApplyUpperRowLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TLegacyReadLimit& upperLimit) const;
-    int ApplyUpperKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const NChunkClient::TLegacyReadLimit& upperLimit, std::optional<int> keyColumnCount = std::nullopt) const;
+    int ApplyUpperRowLimit(
+        const NProto::TBlockMetaExt& blockMeta,
+        const NChunkClient::TReadLimit& upperLimit) const;
+    int ApplyUpperKeyLimit(
+        const std::vector<TKey>& blockLastKeys,
+        const NChunkClient::TReadLimit& upperLimit,
+        const TComparator& comparator) const;
 
     virtual void InitFirstBlock() = 0;
     virtual void InitNextBlock() = 0;

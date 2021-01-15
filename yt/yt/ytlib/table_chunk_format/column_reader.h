@@ -6,6 +6,7 @@
 
 #include <yt/client/table_chunk_format/proto/column_meta.pb.h>
 
+#include <yt/client/table_client/comparator.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/versioned_row.h>
@@ -100,7 +101,8 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
     const NTableClient::TColumnSchema& schema,
     const NProto::TColumnMeta& meta,
     int columnIndex,
-    int columnId);
+    int columnId,
+    std::optional<NTableClient::ESortOrder> sortOrder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

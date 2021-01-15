@@ -140,7 +140,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
-    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
+    int interruptDescriptorKeyLength)
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
@@ -228,7 +229,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             readRange,
                             partitionTag,
                             chunkReaderMemoryManager,
-                            dataSliceDescriptor.VirtualRowIndex);
+                            dataSliceDescriptor.VirtualRowIndex,
+                            interruptDescriptorKeyLength);
                     }));
                 });
 
@@ -515,7 +517,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
-    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
+    int interruptDescriptorKeyLength)
 {
     if (!multiReaderMemoryManager) {
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
@@ -548,7 +551,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
                 trafficMeter,
                 std::move(bandwidthThrottler),
                 std::move(rpsThrottler),
-                multiReaderMemoryManager),
+                multiReaderMemoryManager,
+                interruptDescriptorKeyLength),
             multiReaderMemoryManager),
         nameTable,
         dataSliceDescriptors);
@@ -574,7 +578,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
-    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
+    int interruptDescriptorKeyLength)
 {
     if (!multiReaderMemoryManager) {
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
@@ -607,7 +612,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
                 trafficMeter,
                 std::move(bandwidthThrottler),
                 std::move(rpsThrottler),
-                multiReaderMemoryManager),
+                multiReaderMemoryManager,
+                interruptDescriptorKeyLength),
             multiReaderMemoryManager),
         nameTable,
         dataSliceDescriptors);
@@ -1346,7 +1352,8 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 /* trafficMeter */ nullptr,
                 bandwidthThrottler,
                 rpsThrottler,
-                /* multiReaderMemoryManager */ nullptr);
+                /* multiReaderMemoryManager */ nullptr,
+                /* interruptDescriptorKeyLength */ 0);
         }
         default:
             Y_UNREACHABLE();

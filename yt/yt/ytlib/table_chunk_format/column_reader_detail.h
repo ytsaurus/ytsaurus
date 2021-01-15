@@ -7,6 +7,7 @@
 
 #include <yt/client/table_chunk_format/proto/column_meta.pb.h>
 
+#include <yt/client/table_client/comparator.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/logical_type.h>
 
@@ -83,7 +84,8 @@ public:
         const NProto::TSegmentMeta& meta,
         int columnIndex,
         int columnId,
-        NTableClient::EValueType valueType);
+        NTableClient::EValueType valueType,
+        std::optional<NTableClient::ESortOrder> sortOrder);
 
     virtual i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) override;
 
@@ -93,6 +95,7 @@ protected:
     const int ColumnIndex_;
     const int ColumnId_;
     const NTableClient::EValueType ValueType_;
+    const std::optional<NTableClient::ESortOrder> SortOrder_;
 
     const i64 SegmentStartRowIndex_;
 
@@ -124,33 +127,36 @@ public:
         TRef data,
         const NProto::TSegmentMeta& meta,
         int columnIndex,
-        int columnId)
-        : TUnversionedSegmentReaderBase(data, meta, columnIndex, columnId, ValueType)
+        int columnId,
+        std::optional<NTableClient::ESortOrder> sortOrder)
+        : TUnversionedSegmentReaderBase(data, meta, columnIndex, columnId, ValueType, sortOrder)
         , ValueExtractor_(data, meta)
     { }
 
     virtual i64 GetLowerRowIndex(const NTableClient::TUnversionedValue& value, i64 upperRowIndex) const override
     {
+        YT_VERIFY(SortOrder_);
         i64 index = BinarySearch(
             SegmentRowIndex_,
             std::min(GetSegmentRowIndex(upperRowIndex), Meta_.row_count()),
             [&] (i64 segmentRowIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, segmentRowIndex);
-                return CompareValues<ValueType>(currentValue, value) < 0;
+                return CompareValues<ValueType>(currentValue, value, *SortOrder_) < 0;
             });
         return SegmentStartRowIndex_ + index;
     }
 
     virtual i64 GetUpperRowIndex(const NTableClient::TUnversionedValue& value, i64 upperRowIndex) const override
     {
+        YT_VERIFY(SortOrder_);
         i64 index = BinarySearch(
             SegmentRowIndex_,
             std::min(GetSegmentRowIndex(upperRowIndex), Meta_.row_count()),
             [&] (i64 segmentRowIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, segmentRowIndex);
-                return CompareValues<ValueType>(currentValue, value) <= 0;
+                return CompareValues<ValueType>(currentValue, value, *SortOrder_) <= 0;
             });
         return SegmentStartRowIndex_ + index;
     }
@@ -253,8 +259,9 @@ public:
         TRef data,
         const NProto::TSegmentMeta& meta,
         int columnIndex,
-        int columnId)
-        : TUnversionedSegmentReaderBase(data, meta, columnIndex, columnId, ValueType)
+        int columnId,
+        std::optional<NTableClient::ESortOrder> sortOrder)
+        : TUnversionedSegmentReaderBase(data, meta, columnIndex, columnId, ValueType, sortOrder)
         , ValueExtractor_(data, meta)
     { }
 
@@ -283,6 +290,7 @@ public:
 
     virtual i64 GetLowerRowIndex(const NTableClient::TUnversionedValue& value, i64 rowIndexLimit) const override
     {
+        YT_VERIFY(SortOrder_);
         i64 upperValueIndex = GetUpperValueIndex(rowIndexLimit);
         i64 valueIndex = BinarySearch(
             ValueIndex_,
@@ -290,7 +298,7 @@ public:
             [&] (i64 valueIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, valueIndex);
-                return CompareValues<ValueType>(currentValue, value) < 0;
+                return CompareValues<ValueType>(currentValue, value, *SortOrder_) < 0;
             });
 
         return std::min(GetValueLowerRowIndex(valueIndex), rowIndexLimit);
@@ -298,6 +306,7 @@ public:
 
     virtual i64 GetUpperRowIndex(const NTableClient::TUnversionedValue& value, i64 rowIndexLimit) const override
     {
+        YT_VERIFY(SortOrder_);
         i64 upperValueIndex = GetUpperValueIndex(rowIndexLimit);
         i64 valueIndex = BinarySearch(
             ValueIndex_,
@@ -305,7 +314,7 @@ public:
             [&] (i64 valueIndex) {
                 NTableClient::TUnversionedValue currentValue;
                 SetValue(&currentValue, valueIndex);
-                return CompareValues<ValueType>(currentValue, value) <= 0;
+                return CompareValues<ValueType>(currentValue, value, *SortOrder_) <= 0;
             });
 
         return std::min(GetValueLowerRowIndex(valueIndex), rowIndexLimit);
@@ -464,7 +473,8 @@ public:
     TUnversionedColumnReaderBase(
         const NProto::TColumnMeta& columnMeta,
         int columnIndex,
-        int columnId);
+        int columnId,
+        std::optional<NTableClient::ESortOrder> sortOrder);
 
     virtual void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override;
     virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override;
@@ -478,6 +488,7 @@ public:
 protected:
     const int ColumnIndex_;
     const int ColumnId_;
+    const std::optional<NTableClient::ESortOrder> SortOrder_;
 
     std::unique_ptr<IUnversionedSegmentReader> SegmentReader_;
 
@@ -497,7 +508,8 @@ protected:
             TRef(Block_.Begin() + meta.offset(), meta.size()),
             meta,
             ColumnIndex_,
-            ColumnId_);
+            ColumnId_,
+            SortOrder_);
         return std::unique_ptr<IUnversionedSegmentReader>(reader);
     }
 
@@ -521,6 +533,7 @@ protected:
     {
         // Use lookup segment readers while GetEqualRange.
         YT_VERIFY(lowerRowIndex <= upperRowIndex);
+        YT_VERIFY(SortOrder_);
 
         if (lowerRowIndex == upperRowIndex) {
             return std::make_pair(lowerRowIndex, upperRowIndex);
@@ -534,7 +547,7 @@ protected:
         auto lowerSegmentReader = CreateSegmentReader(lowerSegmentIndex, false);
 
         while (lowerSegmentIndex < segmentLimit &&
-            CompareValues<ValueType>(lowerSegmentReader->GetLastValue(), value) < 0)
+            CompareValues<ValueType>(lowerSegmentReader->GetLastValue(), value, *SortOrder_) < 0)
         {
             lowerSegmentReader = CreateSegmentReader(++lowerSegmentIndex, false);
         }
@@ -550,7 +563,7 @@ protected:
         auto upperSegmentReader = CreateSegmentReader(upperSegmentIndex, false);
 
         while (upperSegmentIndex < segmentLimit &&
-            CompareValues<ValueType>(upperSegmentReader->GetLastValue(), value) <= 0)
+            CompareValues<ValueType>(upperSegmentReader->GetLastValue(), value, *SortOrder_) <= 0)
         {
             upperSegmentReader = CreateSegmentReader(++upperSegmentIndex, false);
         }

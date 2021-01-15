@@ -2,6 +2,7 @@
 #include "private.h"
 #include "helpers.h"
 
+#include <yt/client/table_client/key_bound.h>
 #include <yt/client/table_client/schema.h>
 
 #include <yt/core/misc/algorithm_helpers.h>
@@ -15,23 +16,26 @@ THorizontalBlockReader::THorizontalBlockReader(
     const NProto::TBlockMeta& meta,
     const TTableSchemaPtr& schema,
     const std::vector<TColumnIdMapping>& idMapping,
-    int chunkKeyColumnCount,
-    int keyColumnCount,
+    const TComparator& chunkComparator,
+    const TComparator& comparator,
     int extraColumnCount)
     : Block_(block)
     , Meta_(meta)
     , IdMapping_(idMapping)
-    , ChunkKeyColumnCount_(chunkKeyColumnCount)
-    , KeyColumnCount_(std::max(keyColumnCount, ChunkKeyColumnCount_))
+    , ChunkComparator_(chunkComparator)
+    , Comparator_(comparator)
     , ExtraColumnCount_(extraColumnCount)
 {
+    YT_VERIFY(Comparator_.GetLength() >= ChunkComparator_.GetLength());
     YT_VERIFY(Meta_.row_count() > 0);
 
-    auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
+    auto keyDataSize = GetUnversionedRowByteSize(Comparator_.GetLength());
     KeyBuffer_.reserve(keyDataSize);
-    Key_ = TLegacyMutableKey::Create(KeyBuffer_.data(), KeyColumnCount_);
+    Key_ = TMutableUnversionedRow::Create(KeyBuffer_.data(), Comparator_.GetLength());
 
-    for (int index = 0; index < KeyColumnCount_; ++index) {
+    // NB: First key of the block will be initialized below during JumpToRowIndex(0) call.
+    // Nulls here are used to widen chunk's key to comparator length.
+    for (int index = 0; index < Comparator_.GetLength(); ++index) {
         Key_[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
     }
 
@@ -60,27 +64,42 @@ bool THorizontalBlockReader::SkipToRowIndex(i64 rowIndex)
     return JumpToRowIndex(rowIndex);
 }
 
-bool THorizontalBlockReader::SkipToKey(const TLegacyKey key)
+bool THorizontalBlockReader::SkipToKeyBound(const TKeyBound& lowerBound)
 {
-    if (GetKey() >= key) {
-        // We are already further than pivot key.
+    YT_VERIFY(lowerBound);
+    YT_VERIFY(!lowerBound.IsUpper);
+
+    if (Comparator_.TestKey(GetKey(), lowerBound)) {
         return true;
     }
 
+    // BinarySearch returns first element such that !pred(it).
+    // We are looking for the first row such that Comparator_.TestKey(row, lowerBound);
     auto index = BinarySearch(
         RowIndex_,
         Meta_.row_count(),
         [&] (i64 index) {
             YT_VERIFY(JumpToRowIndex(index));
-            return GetKey() < key;
+            return !Comparator_.TestKey(GetKey(), lowerBound);
         });
 
     return JumpToRowIndex(index);
 }
 
-TLegacyKey THorizontalBlockReader::GetKey() const
+bool THorizontalBlockReader::SkipToKey(const TLegacyKey key)
+{
+    auto keyBound = KeyBoundFromLegacyRow(key, /* isUpper */ false, Comparator_.GetLength());
+    return SkipToKeyBound(keyBound);
+}
+
+TLegacyKey THorizontalBlockReader::GetLegacyKey() const
 {
     return Key_;
+}
+
+TKey THorizontalBlockReader::GetKey() const
+{
+    return TKey::FromRowUnchecked(Key_, Comparator_.GetLength());
 }
 
 TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
@@ -122,19 +141,19 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         TUnversionedValue value;
         currentPointer += ReadValue(currentPointer, &value);
 
-        if (IdMapping_[value.Id].ReaderSchemaIndex >= KeyColumnCount_) {
+        if (IdMapping_[value.Id].ReaderSchemaIndex >= Comparator_.GetLength()) {
             ++valueCount;
         }
     }
 
     auto versionedRow = TMutableVersionedRow::Allocate(
         memoryPool,
-        KeyColumnCount_,
+        Comparator_.GetLength(),
         valueCount,
         1,
         0);
 
-    for (int index = 0; index < KeyColumnCount_; ++index) {
+    for (int index = 0; index < Comparator_.GetLength(); ++index) {
         versionedRow.BeginKeys()[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
     }
 
@@ -144,7 +163,7 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         CurrentPointer_ += ReadValue(CurrentPointer_, &value);
 
         int id = IdMapping_[value.Id].ReaderSchemaIndex;
-        if (id >= KeyColumnCount_) {
+        if (id >= Comparator_.GetLength()) {
             value.Id = id;
             if (value.Type == EValueType::Any) {
                 auto data = TStringBuf(value.Data.String, value.Length);
@@ -185,10 +204,10 @@ bool THorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
     CurrentPointer_ = Data_.Begin() + offset;
 
     CurrentPointer_ += ReadVarUint32(CurrentPointer_, &ValueCount_);
-    YT_VERIFY(ValueCount_ >= ChunkKeyColumnCount_);
+    YT_VERIFY(ValueCount_ >= ChunkComparator_.GetLength());
 
     const char* ptr = CurrentPointer_;
-    for (int i = 0; i < ChunkKeyColumnCount_; ++i) {
+    for (int i = 0; i < ChunkComparator_.GetLength(); ++i) {
         auto* currentKeyValue = Key_.Begin() + i;
         ptr += ReadValue(ptr, currentKeyValue);
         if (currentKeyValue->Type == EValueType::Any

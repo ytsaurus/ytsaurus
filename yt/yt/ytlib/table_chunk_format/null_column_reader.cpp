@@ -5,6 +5,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/client/table_client/comparator.h>
 #include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/logical_type.h>
 
@@ -44,8 +45,12 @@ class TUnversionedNullColumnReader
     : public TUnversionedColumnReaderBase
 {
 public:
-    TUnversionedNullColumnReader(const TColumnMeta& columnMeta, int columnIndex, int columnId)
-        : TUnversionedColumnReaderBase(columnMeta, columnIndex, columnId)
+    TUnversionedNullColumnReader(
+        const TColumnMeta& columnMeta,
+        int columnIndex,
+        int columnId,
+        std::optional<ESortOrder> sortOrder)
+        : TUnversionedColumnReaderBase(columnMeta, columnIndex, columnId, sortOrder)
     { }
 
     virtual std::pair<i64, i64> GetEqualRange(
@@ -82,9 +87,10 @@ class TBlocklessUnversionedNullColumnReader
     : public IUnversionedColumnReader
 {
 public:
-    TBlocklessUnversionedNullColumnReader(int columnIndex, int id)
+    TBlocklessUnversionedNullColumnReader(int columnIndex, int id, std::optional<ESortOrder> sortOrder)
         : ColumnIndex_(columnIndex)
         , ColumnId_(id)
+        , SortOrder_(sortOrder)
     { }
 
     virtual void SetCurrentBlock(TSharedRef block, int blockIndex) override
@@ -132,7 +138,14 @@ public:
 
     virtual std::pair<i64, i64> GetEqualRange(const TUnversionedValue& value, i64 lowerRowIndex, i64 upperRowIndex) override
     {
-        if (value.Type < EValueType::Null) {
+        YT_VERIFY(SortOrder_);
+
+        bool less = value.Type < EValueType::Null;
+        if (SortOrder_ == ESortOrder::Descending) {
+            less ^= true;
+        }
+
+        if (less) {
             return std::make_pair(lowerRowIndex, lowerRowIndex);
         } else if (value.Type == EValueType::Null) {
             return std::make_pair(lowerRowIndex, upperRowIndex);
@@ -173,6 +186,7 @@ public:
 private:
     const int ColumnIndex_;
     const int ColumnId_;
+    const std::optional<ESortOrder> SortOrder_;
 
     i64 RowIndex_ = 0;
 
@@ -192,18 +206,20 @@ private:
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedNullColumnReader(
     const TColumnMeta& columnMeta,
     int columnIndex,
-    int columnId)
+    int columnId,
+    std::optional<ESortOrder> sortOrder)
 {
-    return std::make_unique<TUnversionedNullColumnReader>(columnMeta, columnIndex, columnId);
+    return std::make_unique<TUnversionedNullColumnReader>(columnMeta, columnIndex, columnId, sortOrder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IUnversionedColumnReader> CreateBlocklessUnversionedNullColumnReader(
     int columnIndex,
-    int columnId)
+    int columnId,
+    std::optional<ESortOrder> sortOrder)
 {
-    return std::make_unique<TBlocklessUnversionedNullColumnReader>(columnIndex, columnId);
+    return std::make_unique<TBlocklessUnversionedNullColumnReader>(columnIndex, columnId, sortOrder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

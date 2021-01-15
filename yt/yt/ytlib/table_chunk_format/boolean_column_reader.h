@@ -2,6 +2,8 @@
 
 #include "column_reader.h"
 
+#include <yt/client/table_client/comparator.h>
+
 namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +18,8 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedBooleanColumnReader(
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedBooleanColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
-    int columnId);
+    int columnId,
+    std::optional<NTableClient::ESortOrder> sortOrder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

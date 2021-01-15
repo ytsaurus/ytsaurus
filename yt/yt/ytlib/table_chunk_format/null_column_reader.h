@@ -2,6 +2,8 @@
 
 #include "column_reader.h"
 
+#include <yt/client/table_client/comparator.h>
+
 namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -10,10 +12,14 @@ namespace NYT::NTableChunkFormat {
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedNullColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
-    int columnId);
+    int columnId,
+    std::optional<NTableClient::ESortOrder> sortOrder);
 
 /// Creates reader that returns Nulls ifinitlely.
-std::unique_ptr<IUnversionedColumnReader> CreateBlocklessUnversionedNullColumnReader(int columnIndex, int columnId);
+std::unique_ptr<IUnversionedColumnReader> CreateBlocklessUnversionedNullColumnReader(
+    int columnIndex,
+    int columnId,
+    std::optional<NTableClient::ESortOrder> sortOrder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

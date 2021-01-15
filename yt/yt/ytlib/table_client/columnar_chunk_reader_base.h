@@ -14,6 +14,8 @@
 #include <yt/client/chunk_client/reader_base.h>
 #include <yt/client/chunk_client/read_limit.h>
 
+#include <yt/client/table_client/column_sort_schema.h>
+
 #include <yt/library/random/bernoulli_sampler.h>
 
 namespace NYT::NTableClient {
@@ -29,6 +31,7 @@ public:
         TColumnarChunkMetaPtr chunkMeta,
         TChunkReaderConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
+        const TSortColumns& sortColumns,
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         std::function<void(int /*skippedRowCount*/)> onRowsSkipped,
@@ -40,6 +43,20 @@ protected:
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
+
+    //! Chunk is physically sorted by these columns.
+    //! During unsorted read of a sorted chunk we consider
+    //! chunk as unsorted, so this set is empty.
+    TSortColumns ChunkSortColumns_;
+
+    //! Sort columns of the read result.
+    TSortColumns SortColumns_;
+
+    //! Comparator infered from #ChunkSortColumns_;
+    TComparator ChunkComparator_;
+
+    //! Comparator infered from #SortColumns_;
+    TComparator Comparator_;
 
     TBernoulliSampler Sampler_;
 
@@ -70,7 +87,7 @@ protected:
     std::vector<TColumn> Columns_;
 
     std::optional<int> SampledColumnIndex_;
-    std::vector<NChunkClient::TLegacyReadRange> SampledRanges_;
+    std::vector<NChunkClient::TReadRange> SampledRanges_;
     int SampledRangeIndex_ = 0;
     bool SampledRangeIndexChanged_ = false;
 
@@ -87,7 +104,7 @@ protected:
 
     NChunkClient::TBlockFetcher::TBlockInfo CreateBlockInfo(int blockIndex) const;
     i64 GetSegmentIndex(const TColumn& column, i64 rowIndex) const;
-    i64 GetLowerRowIndex(TLegacyKey key) const;
+    i64 GetLowerKeyBoundIndex(TKeyBound lowerBound, const TComparator& comparator) const;
 
     //! Returns |true| if block sampling is enabled and all sampling ranges have been read.
     bool IsSamplingCompleted() const;
@@ -102,8 +119,8 @@ public:
     using TColumnarChunkReaderBase::TColumnarChunkReaderBase;
 
 protected:
-    NChunkClient::TLegacyReadLimit LowerLimit_;
-    NChunkClient::TLegacyReadLimit UpperLimit_;
+    NChunkClient::TReadLimit LowerLimit_;
+    NChunkClient::TReadLimit UpperLimit_;
 
     // Lower limit (both, key and row index) is greater or equal than this row index.
     // No need to read and check keys with lesser row indexes.

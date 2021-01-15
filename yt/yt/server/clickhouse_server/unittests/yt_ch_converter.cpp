@@ -196,7 +196,7 @@ std::pair<TYtColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues va
     auto block = blockWriter.DumpBlock(/* blockIndex */ 0, values.size());
     auto meta = writer->ColumnMeta();
 
-    auto reader = CreateUnversionedColumnReader(columnSchema, meta, /* columnIndex */ 0, /* columnId */ 0);
+    auto reader = CreateUnversionedColumnReader(columnSchema, meta, /* columnIndex */ 0, /* columnId */ 0, /* sortOrder */ std::nullopt);
 
     struct TTag
     { };

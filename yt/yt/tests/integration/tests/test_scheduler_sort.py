@@ -342,16 +342,26 @@ class TestSchedulerSortCommands(YTEnvSetup):
         v4 = {"key": "zfoo", "value": "4"}
         v5 = {"key": "zzz", "value": "3"}
 
-        create("table", "//tmp/t_in")
-        write_table(
-            "<schema=[{name=key; type=string; sort_order=ascending}; {name=value;type=string}]>//tmp/t_in",
-            [v1, v2, v3, v4, v5],
-        )
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "string", "sort_order": sort_order},
+                {"name": "value", "type": "string"},
+            ])})
+
+        rows = [v1, v2, v3, v4, v5]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/t_in", rows)
 
         create("table", "//tmp/t_out")
 
+        if sort_order == "ascending":
+            t_in = "<lower_limit={key=[b]}; upper_limit={key=[z]}>//tmp/t_in"
+        else:
+            t_in = "<lower_limit={key=[bbxx]}; upper_limit={key=[ad]}>//tmp/t_in"
+
         sort(
-            in_="<lower_limit={key=[b]}; upper_limit={key=[z]}>//tmp/t_in",
+            in_=t_in,
             out="//tmp/t_out",
             sort_by=[{"name": "value", "sort_order": sort_order}],
         )
