@@ -7,6 +7,8 @@
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
+#include <yt/core/misc/algorithm_helpers.h>
+
 #include <algorithm>
 
 namespace NYT::NTableClient {
@@ -18,6 +20,7 @@ using namespace NTableClient::NProto;
 using NConcurrency::TAsyncSemaphore;
 
 using NYT::FromProto;
+using NChunkClient::TReadLimit;
 using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,35 +118,6 @@ bool TChunkReaderBase::OnBlockEnded()
     return true;
 }
 
-int TChunkReaderBase::GetBlockIndexByKey(
-    TLegacyKey pivotKey,
-    const TSharedRange<TLegacyKey>& blockIndexKeys,
-    std::optional<int> keyColumnCount) const
-{
-    YT_VERIFY(!blockIndexKeys.Empty());
-    TChunkedMemoryPool pool;
-    auto maxKey = blockIndexKeys.Back();
-    auto wideMaxKey = WidenKey(maxKey, keyColumnCount, &pool);
-    bool overstep = CompareRows(pivotKey, wideMaxKey) > 0;
-    if (overstep) {
-        return blockIndexKeys.Size();
-    }
-
-    typedef decltype(blockIndexKeys.end()) TIter;
-    auto rbegin = std::reverse_iterator<TIter>(blockIndexKeys.end() - 1);
-    auto rend = std::reverse_iterator<TIter>(blockIndexKeys.begin());
-    auto it = std::upper_bound(
-        rbegin,
-        rend,
-        pivotKey,
-        [=, &pool] (TLegacyKey pivot, TLegacyKey key) {
-            auto wideKey = WidenKey(key, keyColumnCount, &pool);
-            return CompareRows(pivot, wideKey) > 0;
-        });
-
-    return (it != rend) ? std::distance(it, rend) : 0;
-}
-
 void TChunkReaderBase::CheckBlockUpperKeyLimit(
     TLegacyKey blockLastKey,
     TLegacyKey upperLimit,
@@ -158,29 +132,29 @@ void TChunkReaderBase::CheckBlockUpperKeyLimit(
 
 void TChunkReaderBase::CheckBlockUpperLimits(
     i64 blockChunkRowCount,
-    TLegacyKey blockLastKey,
-    const TLegacyReadLimit& upperLimit,
-    std::optional<int> keyColumnCount)
+    TKey blockLastKey,
+    const TReadLimit& upperLimit,
+    const TComparator& comparator)
 {
-    if (upperLimit.HasRowIndex()) {
-        CheckRowLimit_ = upperLimit.GetRowIndex() < blockChunkRowCount;
+    if (upperLimit.GetRowIndex()) {
+        CheckRowLimit_ = *upperLimit.GetRowIndex() < blockChunkRowCount;
     }
 
-    if (upperLimit.HasLegacyKey()) {
-        CheckBlockUpperKeyLimit(blockLastKey, upperLimit.GetLegacyKey(), keyColumnCount);
+    if (upperLimit.KeyBound() && blockLastKey) {
+        CheckKeyLimit_ = !comparator.TestKey(blockLastKey, upperLimit.KeyBound());
     }
 }
 
-int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const TLegacyReadLimit& lowerLimit) const
+int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const TReadLimit& lowerLimit) const
 {
-    if (!lowerLimit.HasRowIndex()) {
+    if (!lowerLimit.GetRowIndex()) {
         return 0;
     }
 
     const auto& blockMetaEntries = blockMeta.blocks();
     const auto& lastBlock = *(--blockMetaEntries.end());
 
-    if (lowerLimit.GetRowIndex() >= lastBlock.chunk_row_count()) {
+    if (*lowerLimit.GetRowIndex() >= lastBlock.chunk_row_count()) {
         YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, RowCount: %v)",
             lowerLimit,
             lastBlock.chunk_row_count());
@@ -195,7 +169,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
     auto it = std::upper_bound(
         rbegin,
         rend,
-        lowerLimit.GetRowIndex(),
+        *lowerLimit.GetRowIndex(),
         [] (i64 index, const TBlockMeta& blockMeta) {
             // Global (chunk-wide) index of last row in block.
             auto maxRowIndex = blockMeta.chunk_row_count() - 1;
@@ -205,24 +179,48 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
     return (it != rend) ? std::distance(it, rend) : 0;
 }
 
-int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const TLegacyReadLimit& lowerLimit, std::optional<int> keyColumnCount) const
+int TChunkReaderBase::ApplyLowerKeyLimit(
+    const std::vector<TKey>& blockLastKeys,
+    const TReadLimit& lowerLimit,
+    const TComparator& comparator) const
 {
-    if (!lowerLimit.HasLegacyKey()) {
+    const auto& lowerBound = lowerLimit.KeyBound();
+    if (!lowerBound) {
         return 0;
     }
 
-    int blockIndex = GetBlockIndexByKey(lowerLimit.GetLegacyKey(), blockIndexKeys, keyColumnCount);
-    if (blockIndex == blockIndexKeys.Size()) {
-        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v)",
+    YT_VERIFY(!lowerBound.IsUpper);
+
+    if (!comparator.TestKey(blockLastKeys.back(), lowerBound)) {
+        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v, Comparator: %v)",
             lowerLimit,
-            blockIndexKeys.Back());
+            blockLastKeys.back(),
+            comparator);
     }
-    return blockIndex;
+
+    // BinarySearch returns first iterator such that !pred(it).
+    // We are looking for the first block such that comparator.TestKey(blockLastKey, lowerBound).
+    auto it = BinarySearch(
+        blockLastKeys.begin(),
+        blockLastKeys.end(),
+        [&] (const TKey* blockLastKey) {
+            return !comparator.TestKey(*blockLastKey, lowerBound);
+        });
+
+    if (it == blockLastKeys.end()) {
+        YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v, Comparator: %v)",
+            lowerLimit,
+            blockLastKeys.back(),
+            comparator);
+        return blockLastKeys.size();
+    }
+
+    return std::distance(blockLastKeys.begin(), it);
 }
 
-int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const TLegacyReadLimit& upperLimit) const
+int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const TReadLimit& upperLimit) const
 {
-    if (!upperLimit.HasRowIndex()) {
+    if (!upperLimit.GetRowIndex()) {
         return blockMeta.blocks_size();
     }
 
@@ -231,7 +229,7 @@ int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const T
     auto it = std::lower_bound(
         begin,
         end,
-        upperLimit.GetRowIndex(),
+        *upperLimit.GetRowIndex(),
         [] (const TBlockMeta& blockMeta, i64 index) {
             auto maxRowIndex = blockMeta.chunk_row_count() - 1;
             return maxRowIndex < index;
@@ -240,26 +238,33 @@ int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const T
     return  (it != end) ? std::distance(begin, it) + 1 : blockMeta.blocks_size();
 }
 
-int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const TLegacyReadLimit& upperLimit, std::optional<int> keyColumnCount) const
+int TChunkReaderBase::ApplyUpperKeyLimit(
+    const std::vector<TKey>& blockLastKeys,
+    const TReadLimit& upperLimit,
+    const TComparator& comparator) const
 {
-    YT_VERIFY(!blockIndexKeys.Empty());
-    if (!upperLimit.HasLegacyKey()) {
-        return blockIndexKeys.Size();
+    const auto& upperBound = upperLimit.KeyBound();
+    if (!upperBound) {
+        return blockLastKeys.size();
     }
 
-    TChunkedMemoryPool pool;
-    auto begin = blockIndexKeys.begin();
-    auto end = blockIndexKeys.end() - 1;
-    auto it = std::lower_bound(
-        begin,
-        end,
-        upperLimit.GetLegacyKey(),
-        [=, &pool] (TLegacyKey key, TLegacyKey pivot) {
-            auto wideKey = WidenKey(key, keyColumnCount, &pool);
-            return CompareRows(pivot, wideKey) > 0;
+    YT_VERIFY(upperBound.IsUpper);
+
+    // BinarySearch returns first iterator such that !pred(it).
+    // We are looking for the first block such that !comparator.TestKey(blockLastKey, upperBound).
+    auto it = BinarySearch(
+        blockLastKeys.begin(),
+        blockLastKeys.end(),
+        [&] (const TKey* blockLastKey) {
+            return comparator.TestKey(*blockLastKey, upperBound);
         });
 
-    return  (it != end) ? std::distance(begin, it) + 1 : blockIndexKeys.Size();
+    // TODO(gritukan): Probably half-opened intervals here is not that great idea.
+    if (it == blockLastKeys.end()) {
+        return blockLastKeys.size();
+    } else {
+        return std::distance(blockLastKeys.begin(), it) + 1;
+    }
 }
 
 TDataStatistics TChunkReaderBase::GetDataStatistics() const

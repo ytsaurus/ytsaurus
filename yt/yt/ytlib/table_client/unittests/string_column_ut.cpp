@@ -108,7 +108,7 @@ protected:
 
     virtual std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
-        return CreateUnversionedStringColumnReader(ColumnMeta_, ColumnIndex, ColumnId);
+        return CreateUnversionedStringColumnReader(ColumnMeta_, ColumnIndex, ColumnId, ESortOrder::Ascending);
     }
 
     virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override

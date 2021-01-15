@@ -19,38 +19,39 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
     const TColumnSchema& schema,
     const TColumnMeta& meta,
     int columnIndex,
-    int columnId)
+    int columnId,
+    std::optional<ESortOrder> sortOrder)
 {
     switch (schema.GetPhysicalType()) {
         case EValueType::Int64:
-            return CreateUnversionedInt64ColumnReader(meta, columnIndex, columnId);
+            return CreateUnversionedInt64ColumnReader(meta, columnIndex, columnId, sortOrder);
 
         case EValueType::Uint64:
-            return CreateUnversionedUint64ColumnReader(meta, columnIndex, columnId);
+            return CreateUnversionedUint64ColumnReader(meta, columnIndex, columnId, sortOrder);
 
         case EValueType::Double:
             switch (auto simplifiedLogicalType = schema.CastToV1Type()) {
                 case ESimpleLogicalValueType::Float:
-                    return CreateUnversionedFloatingPointColumnReader<float>(meta, columnIndex, columnId);
+                    return CreateUnversionedFloatingPointColumnReader<float>(meta, columnIndex, columnId, sortOrder);
                 default:
                     YT_VERIFY(simplifiedLogicalType == ESimpleLogicalValueType::Double);
-                    return CreateUnversionedFloatingPointColumnReader<double>(meta, columnIndex, columnId);
+                    return CreateUnversionedFloatingPointColumnReader<double>(meta, columnIndex, columnId, sortOrder);
             }
         case EValueType::String:
-            return CreateUnversionedStringColumnReader(meta, columnIndex, columnId);
+            return CreateUnversionedStringColumnReader(meta, columnIndex, columnId, sortOrder);
 
         case EValueType::Boolean:
-            return CreateUnversionedBooleanColumnReader(meta, columnIndex, columnId);
+            return CreateUnversionedBooleanColumnReader(meta, columnIndex, columnId, sortOrder);
 
         case EValueType::Any:
             if (schema.IsOfV1Type()) {
-                return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId);
+                return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId, sortOrder);
             } else {
-                return CreateUnversionedComplexColumnReader(meta, columnIndex, columnId);
+                return CreateUnversionedComplexColumnReader(meta, columnIndex, columnId, sortOrder);
             }
 
         case EValueType::Null:
-            return CreateUnversionedNullColumnReader(meta, columnIndex, columnId);
+            return CreateUnversionedNullColumnReader(meta, columnIndex, columnId, sortOrder);
 
         default:
             ThrowUnexpectedValueType(schema.GetPhysicalType());

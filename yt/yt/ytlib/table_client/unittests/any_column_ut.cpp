@@ -71,7 +71,7 @@ TEST(TAnyColumnTest, Simple)
     auto columnData = codec->Compress(block.Data);
     auto columnMeta = columnWriter->ColumnMeta();
 
-    auto reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0);
+    auto reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0, std::nullopt);
     reader->SetCurrentBlock(columnData, 0);
     reader->Rearm();
 

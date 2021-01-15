@@ -14,12 +14,14 @@ TUnversionedSegmentReaderBase::TUnversionedSegmentReaderBase(
     const TSegmentMeta& meta,
     int columnIndex,
     int columnId,
-    EValueType valueType)
+    EValueType valueType,
+    std::optional<ESortOrder> sortOrder)
     : Data_(data)
     , Meta_(meta)
     , ColumnIndex_(columnIndex)
     , ColumnId_(columnId)
     , ValueType_(valueType)
+    , SortOrder_(sortOrder)
     , SegmentStartRowIndex_(meta.chunk_row_count() - meta.row_count())
 { }
 
@@ -329,10 +331,15 @@ void TColumnReaderBase::RearmSegmentReader()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedColumnReaderBase::TUnversionedColumnReaderBase(const NProto::TColumnMeta& columnMeta, int columnIndex, int columnId)
+TUnversionedColumnReaderBase::TUnversionedColumnReaderBase(
+    const NProto::TColumnMeta& columnMeta,
+    int columnIndex,
+    int columnId,
+    std::optional<ESortOrder> sortOrder)
     : TColumnReaderBase(columnMeta)
     , ColumnIndex_(columnIndex)
     , ColumnId_(columnId)
+    , SortOrder_(sortOrder)
 { }
 
 void TUnversionedColumnReaderBase::ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows)

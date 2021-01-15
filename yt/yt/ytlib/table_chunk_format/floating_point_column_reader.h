@@ -2,6 +2,8 @@
 
 #include "column_reader.h"
 
+#include <yt/client/table_client/comparator.h>
+
 namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +20,8 @@ template <typename T>
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
-    int columnId);
+    int columnId,
+    std::optional<NTableClient::ESortOrder> sortOrder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

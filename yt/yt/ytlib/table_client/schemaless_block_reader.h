@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
+#include <yt/client/table_client/comparator.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/unversioned_row.h>
 
@@ -27,18 +28,20 @@ public:
         const NProto::TBlockMeta& meta,
         const TTableSchemaPtr& schema,
         const std::vector<TColumnIdMapping>& idMapping,
-        int chunkKeyColumnCount,
-        int keyColumnCount,
+        const TComparator& chunkComparator,
+        const TComparator& comparator,
         int extraColumnCount = 0);
 
     bool NextRow();
 
     bool SkipToRowIndex(i64 rowIndex);
+    bool SkipToKeyBound(const TKeyBound& lowerBound);
     bool SkipToKey(const TLegacyKey key);
 
     bool JumpToRowIndex(i64 rowIndex);
 
-    TLegacyKey GetKey() const;
+    TLegacyKey GetLegacyKey() const;
+    TKey GetKey() const;
     TMutableUnversionedRow GetRow(TChunkedMemoryPool* memoryPool);
     TMutableVersionedRow GetVersionedRow(TChunkedMemoryPool* memoryPool, TTimestamp timestamp);
 
@@ -55,8 +58,8 @@ private:
 
     // If chunk key column count is smaller than key column count, key is extended with Nulls.
     // If chunk key column count is larger than key column count, key is trimmed.
-    const int ChunkKeyColumnCount_;
-    const int KeyColumnCount_;
+    const TComparator ChunkComparator_;
+    const TComparator Comparator_;
 
     // Count of extra row values, that are allocated and reserved
     // to be filled by upper levels (e.g. table_index).
@@ -72,7 +75,7 @@ private:
     constexpr static size_t DefaultKeyBufferCapacity = 512;
 
     SmallVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
-    TLegacyMutableKey Key_;
+    TMutableUnversionedRow Key_;
 
     NYson::TStatelessLexer Lexer_;
 };

@@ -555,20 +555,33 @@ print row + table_index
         assert_items_equal(read_table("//tmp/out"), expected)
 
     @authors("ignat")
-    def test_range_index(self):
-        create("table", "//tmp/t_in")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_range_index(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "string", "sort_order": sort_order},
+                {"name": "value", "type": "string", "sort_order": sort_order},
+            ])})
         create("table", "//tmp/out")
 
-        for i in xrange(1, 3):
+        rows = [0, 1, 2]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        for row in rows:
             write_table(
                 "<append=true>//tmp/t_in",
                 [
-                    {"key": "%05d" % i, "value": "value"},
+                    {"key": "%05d" % row, "value": "value"},
                 ],
-                sorted_by=["key", "value"],
             )
 
-        t_in = '<ranges=[{lower_limit={key=["00002"]};upper_limit={key=["00003"]}};{lower_limit={key=["00002"]};upper_limit={key=["00003"]}}]>//tmp/t_in'
+        if sort_order == "ascending":
+            t_in = '<ranges=[{lower_limit={key=["00002"]};upper_limit={key=["00003"]}};{lower_limit={key=["00002"]};upper_limit={key=["00003"]}}]>//tmp/t_in'
+        else:
+            t_in = '<ranges=[{lower_limit={key=["00002"]};upper_limit={key=["00001"]}};{lower_limit={key=["00002"]};upper_limit={key=["00001"]}}]>//tmp/t_in'
 
         op = map(
             track=False,

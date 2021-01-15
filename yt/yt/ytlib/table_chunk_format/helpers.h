@@ -1,7 +1,9 @@
 #pragma once
 
+#include <yt/client/table_client/comparator.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/versioned_row.h>
+
 #include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/core/misc/chunked_output_stream.h>
@@ -65,7 +67,9 @@ inline ui32 GetUnversionedValueCount(const NTableClient::TVersionedRow row)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
-int CompareTypedValues(const NTableClient::TUnversionedValue& lhs, const NTableClient::TUnversionedValue& rhs)
+int CompareTypedValues(
+    const NTableClient::TUnversionedValue& lhs,
+    const NTableClient::TUnversionedValue& rhs)
 {
     if (Y_UNLIKELY(lhs.Type != rhs.Type)) {
         return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
@@ -90,9 +94,10 @@ int CompareTypedValues(const NTableClient::TUnversionedValue& lhs, const NTableC
     }
 }
 
-//! Compare two unversioned values of the same type (or null).
 template <NTableClient::EValueType valueType>
-int CompareValues(const NTableClient::TUnversionedValue& lhs, const NTableClient::TUnversionedValue& rhs)
+int DoCompareValues(
+    const NTableClient::TUnversionedValue& lhs,
+    const NTableClient::TUnversionedValue& rhs)
 {
     using namespace NTableClient;
     if constexpr (valueType == EValueType::Int64) {
@@ -114,6 +119,21 @@ int CompareValues(const NTableClient::TUnversionedValue& lhs, const NTableClient
         // Poor man static_assert(false, ...).
         static_assert(valueType == EValueType::Int64, "Unexpected value type");
     }
+}
+
+//! Compare two unversioned values of the same type (or null).
+template <NTableClient::EValueType valueType>
+int CompareValues(
+    const NTableClient::TUnversionedValue& lhs,
+    const NTableClient::TUnversionedValue& rhs,
+    NTableClient::ESortOrder sortOrder)
+{
+    int comparisonResult = DoCompareValues<valueType>(lhs, rhs);
+    if (sortOrder == NTableClient::ESortOrder::Descending) {
+        comparisonResult = -comparisonResult;
+    }
+
+    return comparisonResult;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

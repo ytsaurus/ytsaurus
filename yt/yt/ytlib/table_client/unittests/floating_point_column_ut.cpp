@@ -205,9 +205,9 @@ protected:
     {
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
-                return CreateUnversionedFloatingPointColumnReader<float>(ColumnMeta_, ColumnIndex, ColumnId);
+                return CreateUnversionedFloatingPointColumnReader<float>(ColumnMeta_, ColumnIndex, ColumnId, ESortOrder::Ascending);
             case ESimpleLogicalValueType::Double:
-                return CreateUnversionedFloatingPointColumnReader<double>(ColumnMeta_, ColumnIndex, ColumnId);
+                return CreateUnversionedFloatingPointColumnReader<double>(ColumnMeta_, ColumnIndex, ColumnId, ESortOrder::Ascending);
             default:
                 YT_ABORT();
         }

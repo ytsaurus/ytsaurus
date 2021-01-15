@@ -112,8 +112,8 @@ void TPartitionChunkReader::InitFirstBlock()
         BlockMetaExt_.blocks(CurrentBlockIndex_),
         schema,
         IdMapping_,
-        schema->GetKeyColumnCount(),
-        schema->GetKeyColumnCount());
+        schema->ToComparator(),
+        schema->ToComparator());
 
     BlockReaders_.emplace_back(BlockReader_);
 }

@@ -547,11 +547,16 @@ class TUnversionedStringColumnReader
     : public TUnversionedColumnReaderBase
 {
 public:
-    TUnversionedStringColumnReader(const TColumnMeta& columnMeta, int columnIndex, int columnId)
+    TUnversionedStringColumnReader(
+        const TColumnMeta& columnMeta,
+        int columnIndex,
+        int columnId,
+        std::optional<ESortOrder> sortOrder)
         : TUnversionedColumnReaderBase(
             columnMeta,
             columnIndex,
-            columnId)
+            columnId,
+            sortOrder)
     { }
 
     virtual std::pair<i64, i64> GetEqualRange(
@@ -650,34 +655,40 @@ private:
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedStringColumnReader(
     const TColumnMeta& columnMeta,
     int columnIndex,
-    int columnId)
+    int columnId,
+    std::optional<ESortOrder> sortOrder)
 {
     return std::make_unique<TUnversionedStringColumnReader<EValueType::String>>(
         columnMeta,
         columnIndex,
-        columnId);
+        columnId,
+        sortOrder);
 }
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
     const TColumnMeta& columnMeta,
     int columnIndex,
-    int columnId)
+    int columnId,
+    std::optional<ESortOrder> sortOrder)
 {
     return std::make_unique<TUnversionedStringColumnReader<EValueType::Any>>(
         columnMeta,
         columnIndex,
-        columnId);
+        columnId,
+        sortOrder);
 }
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedComplexColumnReader(
     const TColumnMeta& columnMeta,
     int columnIndex,
-    int columnId)
+    int columnId,
+    std::optional<ESortOrder> sortOrder)
 {
     return std::make_unique<TUnversionedStringColumnReader<EValueType::Composite>>(
         columnMeta,
         columnIndex,
-        columnId);
+        columnId,
+        sortOrder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

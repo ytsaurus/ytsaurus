@@ -96,8 +96,8 @@ protected:
             Meta,
             New<TTableSchema>(columns),
             idMapping,
-            0,
-            0);
+            TComparator(),
+            TComparator());
 
         CheckResult(blockReader, std::vector<TUnversionedRow>{expectedRow});
     }
@@ -138,8 +138,8 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
         Meta,
         New<TTableSchema>(),
         idMapping,
-        0,
-        0);
+        TComparator(),
+        TComparator());
 
     CheckResult(blockReader, rows);
 }
@@ -157,13 +157,14 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
         {6, 6},
         {7, 7}};
 
+    TComparator comparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
     THorizontalBlockReader blockReader(
         Data,
         Meta,
         New<TTableSchema>(),
         idMapping,
-        2,
-        2);
+        comparator,
+        comparator);
 
     {
         TUnversionedOwningRowBuilder builder;
@@ -225,13 +226,14 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
     // Reorder value columns in reading schema.
     std::vector<TColumnIdMapping> idMapping = {{0, 0}, {1, 1}};
 
+    TComparator comparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
     THorizontalBlockReader blockReader(
         Data,
         Meta,
         New<TTableSchema>(),
         idMapping,
-        2,
-        2);
+        comparator,
+        comparator);
 
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(42));
@@ -245,13 +247,15 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
     // Reorder value columns in reading schema.
     std::vector<TColumnIdMapping> idMapping = {{0, 0}, {1, 1}};
 
+    TComparator chunkComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
+    TComparator tableComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
     THorizontalBlockReader blockReader(
         Data,
         Meta,
         New<TTableSchema>(),
         idMapping,
-        1,
-        2);
+        chunkComparator,
+        tableComparator);
 
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(42));

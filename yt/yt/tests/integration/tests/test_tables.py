@@ -683,6 +683,51 @@ class TestTables(YTEnvSetup):
         # limits of different types
         assert read_table("//tmp/table[#0:c]") == [v1, v2, v3, v4]
 
+    @authors("panin", "ignat", "gritukan")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_row_key_selector_descending(self, optimize_for):
+        skip_if_no_descending(self.Env)
+
+        create("table", "//tmp/table", attributes={
+            "optimize_for": optimize_for,
+            "schema": make_schema([
+                {"name": "s", "type": "string", "sort_order": "descending"},
+                {"name": "i", "type": "int64", "sort_order": "descending"},
+                {"name": "d", "type": "double", "sort_order": "descending"},
+            ])})
+
+        v1 = {"s": "a", "i": 0, "d": 15.5}
+        v2 = {"s": "a", "i": 10, "d": 15.2}
+        v3 = {"s": "b", "i": 5, "d": 20.0}
+        v4 = {"s": "b", "i": 20, "d": 20.0}
+        v5 = {"s": "c", "i": -100, "d": 10.0}
+
+        values = [v5, v4, v3, v2, v1]
+        write_table("//tmp/table", values)
+
+        # possible empty ranges
+        assert read_table("//tmp/table[a : a]") == []
+        assert read_table("//tmp/table[(a, 9) : (a, 0)]") == []
+        assert read_table("//tmp/table[a : b]") == []
+        assert read_table("//tmp/table[(a, 9) : (c, 10)]") == []
+        assert read_table("//tmp/table[(a, 10, 16) : (a, 0)]") == []
+
+        # some typical cases
+        assert read_table("//tmp/table[:b]") == [v5]
+        assert read_table("//tmp/table[(a, 10):]") == [v2, v1]
+        assert read_table("//tmp/table[(a, 11):]") == [v2, v1]
+        assert read_table("//tmp/table[:]") == [v5, v4, v3, v2, v1]
+        assert read_table("//tmp/table[c : b , b : a]") == [v5, v4, v3]
+        assert read_table("//tmp/table[a]") == [v2, v1]
+        assert read_table("//tmp/table[(a,10)]") == [v2]
+        assert read_table("//tmp/table[a,c]") == [v2, v1, v5]
+
+        # combination of row and key selectors
+        assert read_table("//tmp/table{s, d}[(b, 10):aa]") == [{"s": "b", "d": 20.0}]
+
+        # limits of different types
+        assert read_table("//tmp/table[#0:b]") == [v5]
+
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_row_key_selector_types(self, optimize_for):
