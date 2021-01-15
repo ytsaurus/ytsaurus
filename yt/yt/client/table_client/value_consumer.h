@@ -84,8 +84,9 @@ class TBuildingValueConsumer
     : public TValueConsumerBase
 {
 public:
-    explicit TBuildingValueConsumer(
+   TBuildingValueConsumer(
         TTableSchemaPtr schema,
+        NLogging::TLogger logger,
         TTypeConversionConfigPtr typeConversionConfig = New<TTypeConversionConfig>());
 
     std::vector<TUnversionedRow> GetRows() const;
@@ -96,6 +97,7 @@ public:
     void SetTreatMissingAsNull(bool value);
 
 private:
+    const NLogging::TLogger Logger;
     TUnversionedOwningRowBuilder Builder_;
     std::vector<TUnversionedOwningRow> Rows_;
 
@@ -107,6 +109,8 @@ private:
     bool TreatMissingAsNull_ = false;
 
     TBlobOutput ValueBuffer_;
+
+    bool LogNullToEntity_ = true;
 
     virtual bool GetAllowUnknownColumns() const override;
 

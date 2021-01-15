@@ -11,7 +11,6 @@
 #include <yt/client/table_client/adapters.h>
 #include <yt/client/table_client/table_output.h>
 #include <yt/client/table_client/blob_reader.h>
-#include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/versioned_writer.h>
@@ -40,6 +39,12 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NApi;
 
+////////////////////////////////////////////////////////////////////////////////
+
+static NLogging::TLogger WithCommandTag(NLogging::TLogger& logger, ICommandContextPtr context)
+{
+    return logger.WithTag("Command: %v", context->Request().CommandName);
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadTableCommand::TReadTableCommand()
@@ -702,6 +707,7 @@ void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
     // Parse input data.
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schemas[ETableSchemaKind::Write],
+        WithCommandTag(Logger, context),
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     valueConsumer.SetAggregate(Aggregate);
     valueConsumer.SetTreatMissingAsNull(!Update);
@@ -768,6 +774,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
     // Parse input data.
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schemas[ETableSchemaKind::Lookup],
+        WithCommandTag(Logger, context),
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag());
@@ -867,6 +874,7 @@ void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
     // Parse input data.
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schemas[ETableSchemaKind::Lookup],
+        WithCommandTag(Logger, context),
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TInSyncBufferTag());
@@ -921,6 +929,7 @@ void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
     // Parse input data.
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schemas[ETableSchemaKind::Delete],
+        WithCommandTag(Logger, context),
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag());
@@ -980,6 +989,7 @@ void TLockRowsCommand::DoExecute(ICommandContextPtr context)
     // Parse input data.
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schemas[ETableSchemaKind::Write],
+        WithCommandTag(Logger, context),
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TLockRowsBufferTag());
