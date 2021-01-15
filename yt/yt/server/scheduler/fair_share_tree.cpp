@@ -380,7 +380,7 @@ public:
         int minScheduleJobCallAttempts,
         const THashSet<EDeactivationReason>& deactivationReasons,
         TDuration limitingAncestorSafeTimeout,
-        const TJobResources& minNeededResources)
+        const TJobResourcesWithQuotaList& minNeededResources)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -412,9 +412,16 @@ public:
 
         // We only want to find the operations that are hanged due to poorly configured resource limits or a custom
         // scheduling tag filter. Node shortage, e.g. due to a bulk restart, shouldn't fail the operation. See: YT-13329.
+        bool hasMinNeededResources = !minNeededResources.empty();
+        auto aggregatedMinNeededResources = TJobResources::Infinite();
+        for (const auto& jobResources : minNeededResources) {
+            aggregatedMinNeededResources = Min(aggregatedMinNeededResources, jobResources.ToJobResources());
+        }
+
         bool canFitIntoTotalResources = RootElementSnapshot_ &&
-            Dominates(RootElementSnapshot_->RootElement->GetTotalResourceLimits(), minNeededResources);
-        bool shouldCheckLimitingAncestor = canFitIntoTotalResources &&
+            Dominates(RootElementSnapshot_->RootElement->GetTotalResourceLimits(), aggregatedMinNeededResources);
+        bool shouldCheckLimitingAncestor = hasMinNeededResources &&
+            canFitIntoTotalResources &&
             Config_->EnableLimitingAncestorCheck &&
             element->IsLimitingAncestorCheckEnabled();
         if (shouldCheckLimitingAncestor) {
@@ -422,7 +429,7 @@ public:
 
             // NB(eshcherbin): Here we rely on the fact that |element->ResourceLimits_| is infinite
             // if the element is not in the fair share tree snapshot yet.
-            if (auto* limitingAncestor = FindAncestorWithInsufficientResourceLimits(element, minNeededResources)) {
+            if (auto* limitingAncestor = FindAncestorWithInsufficientResourceLimits(element, aggregatedMinNeededResources)) {
                 TInstant firstFoundLimitingAncestorTime;
                 if (it == OperationIdToFirstFoundLimitingAncestorTime_.end()) {
                     firstFoundLimitingAncestorTime = now;
