@@ -137,6 +137,7 @@ public:
             ProxiedRequestHeaders_ = Request_->GetHeaders()->Duplicate();
             ProxiedRequestHeaders_->Remove("Authorization");
             ProxiedRequestHeaders_->Add("X-Clickhouse-User", User_);
+            ProxiedRequestHeaders_->Add("X-Clique-Id", ToString(OperationId_));
 
             CgiParameters_.EraseAll("database");
             CgiParameters_.EraseAll("query_id");
