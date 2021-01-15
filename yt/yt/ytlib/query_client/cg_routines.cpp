@@ -1195,7 +1195,7 @@ void RegexReplaceFirst(
     YT_VERIFY(string->Type == EValueType::String);
     YT_VERIFY(rewrite->Type == EValueType::String);
 
-    re2::string str(string->Data.String, string->Length);
+    std::string str(string->Data.String, string->Length);
     re2::RE2::Replace(
         &str,
         *re2,
@@ -1214,7 +1214,7 @@ void RegexReplaceAll(
     YT_VERIFY(string->Type == EValueType::String);
     YT_VERIFY(rewrite->Type == EValueType::String);
 
-    re2::string str(string->Data.String, string->Length);
+    std::string str(string->Data.String, string->Length);
     re2::RE2::GlobalReplace(
         &str,
         *re2,
@@ -1233,7 +1233,7 @@ void RegexExtract(
     YT_VERIFY(string->Type == EValueType::String);
     YT_VERIFY(rewrite->Type == EValueType::String);
 
-    re2::string str;
+    std::string str;
     re2::RE2::Extract(
         re2::StringPiece(string->Data.String, string->Length),
         *re2,
