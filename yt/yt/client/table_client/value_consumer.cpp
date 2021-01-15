@@ -210,8 +210,10 @@ void TValueConsumerBase::ThrowConversionException(const TUnversionedValue& value
 
 TBuildingValueConsumer::TBuildingValueConsumer(
     TTableSchemaPtr schema,
+    NLogging::TLogger logger,
     TTypeConversionConfigPtr typeConversionConfig)
     : TValueConsumerBase(std::move(schema), std::move(typeConversionConfig))
+    , Logger(std::move(logger))
     , NameTable_(TNameTable::FromSchema(*Schema_))
     , WrittenFlags_(NameTable_->GetSize(), false)
 {
@@ -299,6 +301,10 @@ void TBuildingValueConsumer::OnMyValue(const TUnversionedValue& value)
         valueCopy.Aggregate = Aggregate_;
     }
     if (columnSchema.GetPhysicalType() == EValueType::Any && valueCopy.Type != EValueType::Any) {
+        if (valueCopy.Type == EValueType::Null && LogNullToEntity_) {
+            YT_LOG_DEBUG("Detected conversion null to yson entity");
+            LogNullToEntity_ = false;
+        }
         Builder_.AddValue(MakeAnyFromScalar(valueCopy));
         ValueBuffer_.Clear();
     } else {
