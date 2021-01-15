@@ -845,29 +845,6 @@ void TSchedulerElement::PrepareFairShareFunctions(TUpdateFairShareContext* conte
     }
     NDetail::VerifyNondecreasing(*FairShareBySuggestion_, Logger);
 
-    auto sampleFairShareBySuggestion = [&] (double suggestion) -> TResourceVector {
-        const TResourceVector suggestedVector = GetVectorSuggestion(suggestion);
-
-        double maxFitFactor;
-        if (Dominates(suggestedVector, FairShareByFitFactor_->ValueAt(0.0))) {
-            maxFitFactor = FloatingPointInverseLowerBound(
-                /* lo */ 0.0,
-                /* hi */ FairShareByFitFactor_->RightFunctionBound(),
-                /* predicate */ [&] (double mid) {
-                    return Dominates(suggestedVector, FairShareByFitFactor_->ValueAt(mid));
-                });
-        } else {
-            maxFitFactor = 0.0;
-        }
-
-        return FairShareByFitFactor_->ValueAt(maxFitFactor);
-    };
-
-    // TODO(ignat): Fix randomized checks.
-    // TODO(ignat): This function is not continuous
-    // FairShareBySuggestion_->DoRandomizedCheckContinuous(sampleFairShareBySuggestion, Logger, 20, NLogging::ELogLevel::Fatal);
-    std::ignore = sampleFairShareBySuggestion;
-
     AreFairShareFunctionsPrepared_ = true;
 }
 
@@ -911,66 +888,6 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
         MaxFitFactorBySuggestion_ = PointwiseMin(mffForComponents);
         context->PointwiseMinTotalTime += timer.GetElapsedCpuTime();
     }
-
-    auto precisionAdjustedRecursiveStrongGuaranteeShare = FairShareByFitFactor_->ValueAt(0.0);
-    YT_VERIFY(Dominates(
-        Attributes().GetGuaranteeShare() + TResourceVector::Epsilon(),
-        precisionAdjustedRecursiveStrongGuaranteeShare));
-
-    auto sampleMaxFitFactor = [&] (double suggestion) -> double {
-        const auto suggestedVector = TResourceVector::Max(
-            GetVectorSuggestion(suggestion),
-            precisionAdjustedRecursiveStrongGuaranteeShare);
-
-        return FloatingPointInverseLowerBound(
-            /* lo */ 0,
-            /* hi */ FairShareByFitFactor_->RightFunctionBound(),
-            /* predicate */ [&] (double mid) {
-                return Dominates(suggestedVector, FairShareByFitFactor_->ValueAt(mid));
-            });
-    };
-
-    auto errorHandler = [&] (const auto& /* sample */, double arg) {
-        auto mffSegment = MaxFitFactorBySuggestion_->SegmentAt(arg);
-
-        // We are checking the function as if it is continuous.
-        // The chance of hitting a discontinuity point by randomized check is close to zero.
-        if (mffSegment.IsVertical()) {
-            return;
-        }
-
-        auto expectedFitFactor = sampleMaxFitFactor(arg);
-        auto actualFitFactor = mffSegment.ValueAt(arg);
-
-        auto expectedFairShare = FairShareByFitFactor_->ValueAt(expectedFitFactor);
-        auto actualFairShare = FairShareByFitFactor_->ValueAt(actualFitFactor);
-
-        YT_LOG_FATAL(
-            "Invalid MaxFitFactorBySuggestio: "
-            "Arg: %.16v, "
-            "FitFactorDiff: %.16v,"
-            "ExpectedFitFactor: %.16v, "
-            "ActualFitFactor: %.16v, "
-            "FairShareDiff: %.16v, "
-            "ExpectedFairShare: %.16v, "
-            "ActualFairShare: %.16v, "
-            "FitFactorSegmentBounds: {%.16v, %.16v}, "
-            "FitFactorSegmentValues: {%.16v, %.16v}",
-            arg,
-            expectedFitFactor - actualFitFactor,
-            expectedFitFactor,
-            actualFitFactor,
-            expectedFairShare - actualFairShare,
-            expectedFairShare,
-            actualFairShare,
-            mffSegment.LeftBound(), mffSegment.RightBound(),
-            mffSegment.LeftValue(), mffSegment.RightValue());
-    };
-
-    // TODO(ignat): Fix randomized checks.
-    // MaxFitFactorBySuggestion_->DoRandomizedCheckContinuous(sampleMaxFitFactor, 20, errorHandler);
-    std::ignore = sampleMaxFitFactor;
-    std::ignore = errorHandler;
 }
 
 std::optional<TMeteringKey> TSchedulerElement::GetMeteringKey() const
@@ -1852,38 +1769,22 @@ void TCompositeSchedulerElement::PrepareFairShareByFitFactorNormal(TUpdateFairSh
 
     if (EnabledChildren_.empty()) {
         FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Constant(0.0, 1.0, TResourceVector::Zero());
-    } else {
-        std::vector<TVectorPiecewiseLinearFunction> childrenFunctions;
-
-        double minWeight = GetMinChildWeight(EnabledChildren_);
-        for (const auto& child : EnabledChildren_) {
-            const auto& childFSBS = *child->FairShareBySuggestion_;
-
-            auto childFunction = childFSBS
-                .ScaleArgument(child->GetWeight() / minWeight)
-                .ExtendRight(/* newRightBound */ 1.0);
-
-            childrenFunctions.push_back(std::move(childFunction));
-        }
-
-        FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
+        return;
     }
 
-    // TODO(ignat): Fix randomized checks.
-    // TODO(ignat): This function is not continuous
-    // FairShareByFitFactor_->DoRandomizedCheckContinuous(
-    //     [&] (double fitFactor) {
-    //         return std::accumulate(
-    //             begin(EnabledChildren_),
-    //             end(EnabledChildren_),
-    //             TResourceVector::Zero(),
-    //             [&] (TResourceVector sum, const auto& child) {
-    //                 return sum + child->FairShareBySuggestion()->ValueAt(std::min(1.0, fitFactor * (child->GetWeight() / minWeight)));
-    //             });
-    //     },
-    //     /* logger */ Logger,
-    //     /* sampleCount */ 20,
-    //     /* logLevel */ NLogging::ELogLevel::Fatal);
+    std::vector<TVectorPiecewiseLinearFunction> childrenFunctions;
+    double minWeight = GetMinChildWeight(EnabledChildren_);
+    for (const auto& child : EnabledChildren_) {
+        const auto& childFSBS = *child->FairShareBySuggestion_;
+
+        auto childFunction = childFSBS
+            .ScaleArgument(child->GetWeight() / minWeight)
+            .ExtendRight(/* newRightBound */ 1.0);
+
+        childrenFunctions.push_back(std::move(childFunction));
+    }
+
+    FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
 }
 
 // Returns a vector of suggestions for children from |SortedEnabledChildren_| based on the given fit factor.
