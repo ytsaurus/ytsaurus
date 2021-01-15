@@ -1,13 +1,13 @@
 #pragma once
 
-#include "skiff_schema.h"
+#include <library/cpp/skiff/skiff_schema.h>
 
 #include <yt/core/concurrency/coroutine.h>
 #include <yt/core/misc/coro_pipe.h>
 
 #include <util/generic/buffer.h>
 
-namespace NYT::NSkiff {
+namespace NYT::NSkiffExt {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +17,7 @@ class TSkiffMultiTableParser
 public:
     TSkiffMultiTableParser(
         TConsumer* consumer,
-        TSkiffSchemaList schemaList,
+        NSkiff::TSkiffSchemaList schemaList,
         const std::vector<TSkiffTableColumnIds>& tablesColumnIds,
         const TString& rangeIndexColumnName,
         const TString& rowIndexColumnName);
@@ -38,7 +38,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSkiff
+} // namespace NYT::NSkiffExt
 
 #define PARSER_INL_H_
 #include "parser-inl.h"

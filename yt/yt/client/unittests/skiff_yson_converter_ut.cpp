@@ -6,8 +6,9 @@
 
 #include <yt/core/yson/pull_parser.h>
 #include <yt/core/yson/token_writer.h>
-#include <yt/library/skiff/skiff.h>
-#include <yt/library/skiff/skiff_schema.h>
+
+#include <library/cpp/skiff/skiff.h>
+#include <library/cpp/skiff/skiff_schema.h>
 
 #include <util/string/hex.h>
 
@@ -20,7 +21,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSkiffSchemaPtr SkiffOptional(TSkiffSchemaPtr skiffSchema)
+std::shared_ptr<TSkiffSchema> SkiffOptional(std::shared_ptr<TSkiffSchema> skiffSchema)
 {
     return CreateVariant8Schema({
         CreateSimpleTypeSchema(EWireType::Nothing),
@@ -30,7 +31,7 @@ TSkiffSchemaPtr SkiffOptional(TSkiffSchemaPtr skiffSchema)
 
 TString ConvertYsonHex(
     const TLogicalTypePtr& logicalType,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     TStringBuf ysonString,
     const TYsonToSkiffConverterConfig& config = {})
 {
@@ -63,7 +64,7 @@ TString ConvertYsonHex(
 
 TString ConvertHexToTextYson(
     const TLogicalTypePtr& logicalType,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     TStringBuf hexString,
     const TSkiffToYsonConverterConfig& config = {})
 {
@@ -619,7 +620,7 @@ public:
         }
     }
 
-    TSkiffSchemaPtr VariantSkiffSchema(std::vector<TSkiffSchemaPtr> elements)
+    std::shared_ptr<TSkiffSchema> VariantSkiffSchema(std::vector<std::shared_ptr<TSkiffSchema>> elements)
     {
         for (size_t i = 0; i < elements.size(); ++i) {
             elements[i]->SetName(Format("field%v", i));

@@ -4,9 +4,9 @@
 #include <yt/client/table_client/row_base.h>
 
 #include <yt/library/decimal/decimal.h>
-#include <yt/library/skiff/public.h>
-#include <yt/library/skiff/skiff.h>
 #include <yt/core/yson/public.h>
+
+#include <library/cpp/skiff/skiff.h>
 
 namespace NYT::NFormats {
 
@@ -31,7 +31,7 @@ struct TYsonToSkiffConverterConfig
 
 TYsonToSkiffConverter CreateYsonToSkiffConverter(
     const NTableClient::TComplexTypeFieldDescriptor& descriptor,
-    const NSkiff::TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<NSkiff::TSkiffSchema>& skiffSchema,
     const TYsonToSkiffConverterConfig& config = {});
 
 struct TSkiffToYsonConverterConfig
@@ -42,7 +42,7 @@ struct TSkiffToYsonConverterConfig
 
 TSkiffToYsonConverter CreateSkiffToYsonConverter(
     const NTableClient::TComplexTypeFieldDescriptor& descriptor,
-    const NSkiff::TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<NSkiff::TSkiffSchema>& skiffSchema,
     const TSkiffToYsonConverterConfig& config = {});
 
 ////////////////////////////////////////////////////////////////////////////////

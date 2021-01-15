@@ -3,24 +3,24 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/library/skiff/skiff.h>
+#include <library/cpp/skiff/skiff.h>
 
 namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IParser> CreateParserForSkiff(
-    NSkiff::TSkiffSchemaPtr skiffSchema,
+    std::shared_ptr<NSkiff::TSkiffSchema> skiffSchema,
     NTableClient::IValueConsumer* consumer);
 
 std::unique_ptr<IParser> CreateParserForSkiff(
-    NSkiff::TSkiffSchemaPtr skiffSchema,
+    std::shared_ptr<NSkiff::TSkiffSchema> skiffSchema,
     const NTableClient::TTableSchemaPtr& tableSchema,
     NTableClient::IValueConsumer* consumer);
 
 std::unique_ptr<IParser> CreateParserForSkiff(
     NTableClient::IValueConsumer* consumer,
-    const std::vector<NSkiff::TSkiffSchemaPtr>& skiffSchemas,
+    const std::vector<std::shared_ptr<NSkiff::TSkiffSchema>>& skiffSchemas,
     const TSkiffFormatConfigPtr& config,
     int tableIndex);
 

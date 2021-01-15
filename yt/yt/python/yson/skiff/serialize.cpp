@@ -2,15 +2,19 @@
 #include "schema.h"
 #include "record.h"
 #include "switch.h"
-#include "../serialize.h"
-#include "../helpers.h"
+
+#include <yt/yt/python/common/helpers.h>
+#include <yt/yt/python/common/stream.h>
+
+#include <yt/yt/python/yson/helpers.h>
+#include <yt/yt/python/yson/serialize.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/ref_counted_tracker.h>
 
-#include <yt/library/skiff/skiff.h>
+#include <library/cpp/skiff/skiff.h>
 
 namespace NYT::NPython {
 

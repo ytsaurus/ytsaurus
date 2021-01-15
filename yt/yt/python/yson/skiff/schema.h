@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/library/skiff/public.h>
-#include <yt/library/skiff/schema_match.h>
+#include <yt/library/skiff_ext/public.h>
+#include <yt/library/skiff_ext/schema_match.h>
 
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx
@@ -20,7 +20,7 @@ class TSkiffSchema
 {
 public:
     TSkiffSchema(
-        const NSkiff::TSkiffSchemaPtr& skiffSchema,
+        const std::shared_ptr<NSkiff::TSkiffSchema>& skiffSchema,
         const TString& rangeIndexColumnName,
         const TString& rowIndexColumnName);
 
@@ -35,18 +35,18 @@ public:
 
     TIntrusivePtr<TSkiffRecord> CreateNewRecord();
 
-    NSkiff::TFieldDescription GetDenseField(ui16 index);
-    NSkiff::TFieldDescription GetSparseField(ui16 index);
+    NSkiffExt::TFieldDescription GetDenseField(ui16 index);
+    NSkiffExt::TFieldDescription GetSparseField(ui16 index);
     ui16 GetFieldIndex(const TString& name);
     bool HasField(const TString& name);
 
-    NSkiff::TSkiffSchemaPtr GetSkiffSchema();
+    std::shared_ptr<NSkiff::TSkiffSchema> GetSkiffSchema();
 
 private:
     THashMap<TString, ui16> FieldIndeces_;
-    NSkiff::TSkiffTableDescription TableDescription_;
+    NSkiffExt::TSkiffTableDescription TableDescription_;
 
-    NSkiff::TSkiffSchemaPtr SkiffSchema_;
+    std::shared_ptr<NSkiff::TSkiffSchema> SkiffSchema_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

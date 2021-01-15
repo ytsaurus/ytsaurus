@@ -5,11 +5,13 @@
 #include "parser.h"
 #endif
 
-#include "skiff.h"
+#include <library/cpp/skiff/skiff.h>
 
 #include <yt/core/concurrency/coroutine.h>
 
-namespace NYT::NSkiff {
+namespace NYT::NSkiffExt {
+
+using namespace NSkiff;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,4 +223,4 @@ ui64 TSkiffMultiTableParser<TConsumer>::GetReadBytesCount()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSkiff
+} // namespace NYT::NSkiffExt
