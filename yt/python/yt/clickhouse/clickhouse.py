@@ -1,7 +1,7 @@
 from .defaults import patch_defaults
 from .spec_builder import get_clique_spec_builder
 from .log_tailer import prepare_log_tailer_tables
-from .compatibility import validate_ytserver_clickhouse_version, LAUNCHER_VERSION
+from .compatibility import extract_version_tuple, validate_ytserver_clickhouse_version, LAUNCHER_VERSION
 from .helpers import get_alias_from_env_or_raise
 
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
@@ -55,6 +55,8 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
                        enable_monitoring=None,
                        client=None):
 
+    version = extract_version_tuple(cypress_ytserver_clickhouse_path or "0.0.0")
+
     description = {}
     if cypress_ytserver_clickhouse_path is not None:
         description = update(description, {"ytserver-clickhouse": get(cypress_ytserver_clickhouse_path + "/@user_attributes", client=client)})
@@ -81,12 +83,18 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
 
     # Put link to monitoring.
     if cluster is not None and operation_alias is not None and enable_monitoring:
+        # Trunk version has 0 in first two components, so compare only revision number.
+        use_new_dashboard = (version[2] >= 7704556)
+
+        solomon_dashboard = ("chyt_v2" if use_new_dashboard else "chyt")
+        solomon_service = ("clickhouse" if use_new_dashboard else "yt_clickhouse")
+
         description["solomon_root_url"] = _format_url(
-            "https://solomon.yandex-team.ru/?project=yt&cluster={}&service=yt_clickhouse&operation_alias={}"
-                .format(cluster, operation_alias[1:]))
+            "https://solomon.yandex-team.ru/?project=yt&cluster={}&service={}&operation_alias={}"
+                .format(cluster, solomon_service, operation_alias[1:]))
         description["solomon_dashboard_url"] = _format_url(
-            "https://solomon.yandex-team.ru/?project=yt&cluster={}&service=yt_clickhouse&cookie=Aggr&dashboard=chyt&l.operation_alias={}"
-                .format(cluster, operation_alias[1:]))
+            "https://solomon.yandex-team.ru/?project=yt&cluster={}&service={}&cookie=Aggr&dashboard={}&l.operation_alias={}"
+                .format(cluster, solomon_service, solomon_dashboard, operation_alias[1:]))
 
     return description
 

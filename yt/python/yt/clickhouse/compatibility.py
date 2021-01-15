@@ -10,8 +10,8 @@ MIN_YT_VERSION = (19, 8)
 MIN_CHYT_VERSION = (0, 0)
 
 
-def _extract_version_tuple(version):
-    occurrences = re.findall("^([0-9]+\.[0-9]+\.[0-9]+)", version)
+def extract_version_tuple(version):
+    occurrences = re.findall("[0-9]+\.[0-9]+\.[0-9]+", version)
     if not occurrences:
         return (0, 0, 0)
     assert len(occurrences) == 1
@@ -24,14 +24,14 @@ def validate_ytserver_clickhouse_version(ytserver_clickhouse_attributes):
     errors = []
 
     # YT native code version.
-    yt_version = _extract_version_tuple(ytserver_clickhouse_attributes.get("yt_version", "0.0.0"))
+    yt_version = extract_version_tuple(ytserver_clickhouse_attributes.get("yt_version", "0.0.0"))
     logger.info("YT native code version: %s", yt_version)
     if yt_version < MIN_YT_VERSION:
         errors.append(
             YtError("YT native code is too old: expected {} or newer, found {}".format(MIN_YT_VERSION, yt_version)))
 
     # CHYT version.
-    chyt_version = _extract_version_tuple(ytserver_clickhouse_attributes.get("version", "0.0.0"))
+    chyt_version = extract_version_tuple(ytserver_clickhouse_attributes.get("version", "0.0.0"))
     logger.info("CHYT version: %s", chyt_version)
     if chyt_version < MIN_CHYT_VERSION:
         errors.append(
