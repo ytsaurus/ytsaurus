@@ -1,12 +1,16 @@
 #include "schema_match.h"
 
+#include "serialize.h"
+
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/serialize.h>
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT::NSkiff {
+namespace NYT::NSkiffExt {
 
+using namespace NYson;
 using namespace NYTree;
+using namespace NSkiff;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,7 +20,7 @@ const TString SparseColumnsName = "$sparse_columns";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ThrowInvalidSkiffTypeError(const TString& columnName, TSkiffSchemaPtr expectedType, TSkiffSchemaPtr actualType)
+static void ThrowInvalidSkiffTypeError(const TString& columnName, std::shared_ptr<TSkiffSchema> expectedType, std::shared_ptr<TSkiffSchema> actualType)
 {
     THROW_ERROR_EXCEPTION("Column %Qv has unexpected Skiff type: expected %Qv, found type %Qv",
         columnName,
@@ -24,7 +28,7 @@ static void ThrowInvalidSkiffTypeError(const TString& columnName, TSkiffSchemaPt
         GetShortDebugString(actualType));
 }
 
-static ERowRangeIndexMode GetRowRangeIndexMode(const TSkiffSchemaPtr& skiffSchema, TStringBuf columnName)
+static ERowRangeIndexMode GetRowRangeIndexMode(const std::shared_ptr<TSkiffSchema>& skiffSchema, TStringBuf columnName)
 {
     auto throwRowRangeIndexError = [&] {
         THROW_ERROR_EXCEPTION("Column %Qv has unsupported Skiff type: %Qv",
@@ -63,7 +67,7 @@ static bool IsSkiffSpecialColumn(
     return specialColumns.contains(columnName) || columnName == rangeIndexColumnName || columnName == rowIndexColumnName;
 }
 
-static std::pair<TSkiffSchemaPtr, bool> DeoptionalizeSchema(TSkiffSchemaPtr skiffSchema)
+static std::pair<std::shared_ptr<TSkiffSchema>, bool> DeoptionalizeSchema(std::shared_ptr<TSkiffSchema> skiffSchema)
 {
     if (skiffSchema->GetWireType() != EWireType::Variant8) {
         return std::make_pair(skiffSchema, true);
@@ -80,14 +84,14 @@ static std::pair<TSkiffSchemaPtr, bool> DeoptionalizeSchema(TSkiffSchemaPtr skif
 }
 
 static TSkiffTableDescription CreateTableDescription(
-    const NSkiff::TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TString& rangeIndexColumnName,
     const TString& rowIndexColumnName)
 {
     TSkiffTableDescription result;
     THashSet<TString> topLevelNames;
-    TSkiffSchemaPtr otherColumnsField;
-    TSkiffSchemaPtr sparseColumnsField;
+    std::shared_ptr<TSkiffSchema> otherColumnsField;
+    std::shared_ptr<TSkiffSchema> sparseColumnsField;
 
     if (skiffSchema->GetWireType() != EWireType::Tuple) {
         THROW_ERROR_EXCEPTION("Invalid wire type for table row: expected %Qlv, found %Qlv",
@@ -181,7 +185,7 @@ static TSkiffTableDescription CreateTableDescription(
 }
 
 std::vector<TSkiffTableDescription> CreateTableDescriptionList(
-    const std::vector<NSkiff::TSkiffSchemaPtr>& skiffSchemas,
+    const std::vector<std::shared_ptr<TSkiffSchema>>& skiffSchemas,
     const TString& rangeIndexColumnName,
     const TString& rowIndexColumnName)
 {
@@ -208,7 +212,7 @@ class TSkiffSchemaRepresentation
 {
 public:
     TString Name;
-    NSkiff::EWireType WireType;
+    EWireType WireType;
     std::optional<std::vector<INodePtr>> Children;
 
     TSkiffSchemaRepresentation()
@@ -225,10 +229,10 @@ DEFINE_REFCOUNTED_TYPE(TSkiffSchemaRepresentation);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NSkiff::TSkiffSchemaPtr ParseSchema(
+std::shared_ptr<TSkiffSchema> ParseSchema(
     const INodePtr& schemaNode,
     const IMapNodePtr& registry,
-    THashMap<TString, TSkiffSchemaPtr>* parsedRegistry,
+    THashMap<TString, std::shared_ptr<TSkiffSchema>>* parsedRegistry,
     THashSet<TString>* parseInProgressNames)
 {
     auto schemaNodeType = schemaNode->GetType();
@@ -272,7 +276,7 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
                     "Complex type %Qlv lacks children",
                     schemaRepresentation->WireType);
             }
-            std::vector<TSkiffSchemaPtr> childSchemaList;
+            std::vector<std::shared_ptr<TSkiffSchema>> childSchemaList;
             for (const auto& childNode : *schemaRepresentation->Children) {
                 auto childSchema = ParseSchema(childNode, registry, parsedRegistry, parseInProgressNames);
                 childSchemaList.push_back(childSchema);
@@ -303,12 +307,12 @@ NSkiff::TSkiffSchemaPtr ParseSchema(
     }
 }
 
-std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(
+std::vector<std::shared_ptr<TSkiffSchema>> ParseSkiffSchemas(
     const NYTree::IMapNodePtr& skiffSchemaRegistry,
     const NYTree::IListNodePtr& tableSkiffSchemas)
 {
-    THashMap<TString, TSkiffSchemaPtr> parsedRegistry;
-    std::vector<NSkiff::TSkiffSchemaPtr> result;
+    THashMap<TString, std::shared_ptr<TSkiffSchema>> parsedRegistry;
+    std::vector<std::shared_ptr<TSkiffSchema>> result;
     for (const auto& node : tableSkiffSchemas->GetChildren()) {
         THashSet<TString> parseInProgressNames;
         auto skiffSchema = ParseSchema(node, skiffSchemaRegistry, &parsedRegistry, &parseInProgressNames);
@@ -320,7 +324,7 @@ std::vector<NSkiff::TSkiffSchemaPtr> ParseSkiffSchemas(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFieldDescription::TFieldDescription(TString name, NSkiff::TSkiffSchemaPtr schema)
+TFieldDescription::TFieldDescription(TString name, std::shared_ptr<TSkiffSchema> schema)
     : Name_(std::move(name))
     , Schema_(std::move(schema))
 { }
@@ -350,7 +354,7 @@ std::optional<EWireType> TFieldDescription::Simplify() const
 {
     const auto& [deoptionalized, required] = DeoptionalizeSchema(Schema_);
     auto wireType = deoptionalized->GetWireType();
-    if (NSkiff::IsSimpleType(wireType)) {
+    if (IsSimpleType(wireType)) {
         if (wireType != EWireType::Nothing || required) {
             return wireType;
         }
@@ -360,4 +364,4 @@ std::optional<EWireType> TFieldDescription::Simplify() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSkiff
+} // namespace NYT::NSkiffExt

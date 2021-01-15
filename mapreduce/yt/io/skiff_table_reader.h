@@ -4,7 +4,6 @@
 
 #include <mapreduce/yt/interface/io.h>
 
-#include <mapreduce/yt/skiff/public.h>
 #include <mapreduce/yt/skiff/wire_type.h>
 #include <mapreduce/yt/skiff/unchecked_parser.h>
 
@@ -21,7 +20,7 @@ class TSkiffTableReader
 public:
     TSkiffTableReader(
         ::TIntrusivePtr<TRawTableReader> input,
-        const NSkiff::TSkiffSchemaPtr& schema);
+        const std::shared_ptr<NSkiff::TSkiffSchema>& schema);
     ~TSkiffTableReader() override;
 
     virtual const TNode& GetRow() const override;
@@ -42,7 +41,7 @@ private:
 private:
     void EnsureValidity() const;
     void ReadRow();
-    static TVector<TSkiffTableSchema> CreateSkiffTableSchemas(const NSkiff::TSkiffSchemaPtr& schema);
+    static TVector<TSkiffTableSchema> CreateSkiffTableSchemas(const std::shared_ptr<NSkiff::TSkiffSchema>& schema);
 
 private:
     NDetail::TCountingRawTableReader Input_;

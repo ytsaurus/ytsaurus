@@ -9,15 +9,15 @@
 #include <yt/client/formats/format.h>
 #include <yt/client/table_client/name_table.h>
 
-#include <yt/library/skiff/schema_match.h>
-
-#include <yt/library/skiff/skiff.h>
-#include <yt/library/skiff/skiff_schema.h>
+#include <yt/library/skiff_ext/schema_match.h>
 
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/tree_visitor.h>
+
+#include <library/cpp/skiff/skiff.h>
+#include <library/cpp/skiff/skiff_schema.h>
 
 #include <util/stream/null.h>
 #include <util/string/hex.h>
@@ -27,6 +27,7 @@ namespace {
 
 using namespace NFormats;
 using namespace NSkiff;
+using namespace NSkiffExt;
 using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
@@ -63,7 +64,7 @@ TString ConvertToYsonTextStringStable(const INodePtr& node)
 TEST(TSkiffSchemaParse, TestAllowedTypes)
 {
     EXPECT_EQ(
-        "{Uint64,}",
+        "{uint64,}",
 
         ConvertToSkiffSchemaShortDebugString(
             BuildYsonNodeFluently()
@@ -79,7 +80,7 @@ TEST(TSkiffSchemaParse, TestAllowedTypes)
                 .EndMap()));
 
     EXPECT_EQ(
-        "{String32,}",
+        "{string32,}",
 
         ConvertToSkiffSchemaShortDebugString(
             BuildYsonNodeFluently()
@@ -95,7 +96,7 @@ TEST(TSkiffSchemaParse, TestAllowedTypes)
                 .EndMap()));
 
     EXPECT_EQ(
-        "{Variant8<String32;Int64;>,}",
+        "{variant8<string32;int64;>,}",
 
         ConvertToSkiffSchemaShortDebugString(
             BuildYsonNodeFluently()
@@ -124,7 +125,7 @@ TEST(TSkiffSchemaParse, TestAllowedTypes)
                 .EndMap()));
 
     EXPECT_EQ(
-        "{Variant8<Int64;String32;>,}",
+        "{variant8<int64;string32;>,}",
 
         ConvertToSkiffSchemaShortDebugString(
             BuildYsonNodeFluently()
@@ -315,7 +316,7 @@ TEST(TSkiffSchemaDescription, TestOtherColumnsWrongPlace)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessFormatWriterPtr CreateSkiffWriter(
-    NSkiff::TSkiffSchemaPtr skiffSchema,
+    std::shared_ptr<TSkiffSchema> skiffSchema,
     TNameTablePtr nameTable,
     IOutputStream* outputStream,
     const std::vector<TTableSchemaPtr>& tableSchemaList,
@@ -1203,7 +1204,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
         return MakeRow(values);
     };
 
-    auto skiffWrite = [generateUnversionedRow] (const std::vector<TRow>& rows, const TSkiffSchemaPtr& skiffSchema) {
+    auto skiffWrite = [generateUnversionedRow] (const std::vector<TRow>& rows, const std::shared_ptr<TSkiffSchema>& skiffSchema) {
         std::vector<TTableSchemaPtr> tableSchemas;
         {
             THashSet<int> tableIndices;
@@ -1932,7 +1933,7 @@ TEST(TSkiffParser, TestBadYsonWireType)
 
 TEST(TSkiffParser, TestSpecialColumns)
 {
-    TSkiffSchemaPtr skiffSchemaList[] = {
+    std::shared_ptr<TSkiffSchema> skiffSchemaList[] = {
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::Yson32)->SetName("yson"),
             CreateSimpleTypeSchema(EWireType::Boolean)->SetName("$key_switch"),

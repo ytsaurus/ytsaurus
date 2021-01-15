@@ -10,12 +10,12 @@
 namespace NYT::NPython {
 
 using namespace NYTree;
-using namespace NSkiff;
+using namespace NSkiffExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSkiffSchema::TSkiffSchema(
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<NSkiff::TSkiffSchema>& skiffSchema,
     const TString& rangeIndexColumnName,
     const TString& rowIndexColumnName)
     : SkiffSchema_(skiffSchema)
@@ -78,7 +78,7 @@ bool TSkiffSchema::HasField(const TString& name)
     return FieldIndeces_.find(name) != FieldIndeces_.end();
 }
 
-TSkiffSchemaPtr TSkiffSchema::GetSkiffSchema()
+std::shared_ptr<NSkiff::TSkiffSchema> TSkiffSchema::GetSkiffSchema()
 {
     return SkiffSchema_;
 }

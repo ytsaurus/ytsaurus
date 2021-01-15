@@ -3,7 +3,6 @@
 #include <mapreduce/yt/interface/fwd.h>
 #include <mapreduce/yt/interface/common.h>
 
-#include <mapreduce/yt/skiff/public.h>
 #include <mapreduce/yt/skiff/wire_type.h>
 #include <mapreduce/yt/skiff/skiff_schema.h>
 

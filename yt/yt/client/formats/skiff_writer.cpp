@@ -11,13 +11,13 @@
 
 #include <yt/core/misc/finally.h>
 
-#include <yt/library/skiff/skiff.h>
-#include <yt/library/skiff/skiff_schema.h>
-
-#include <yt/library/skiff/schema_match.h>
+#include <yt/library/skiff_ext/schema_match.h>
 
 #include <yt/core/yson/pull_parser.h>
 #include <yt/core/yson/writer.h>
+
+#include <library/cpp/skiff/skiff.h>
+#include <library/cpp/skiff/skiff_schema.h>
 
 #include <util/generic/buffer.h>
 
@@ -32,6 +32,7 @@ namespace NYT::NFormats {
 using NYTree::ConvertTo;
 
 using namespace NSkiff;
+using namespace NSkiffExt;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -325,7 +326,7 @@ TUnversionedValueToSkiffConverter CreateSimpleValueConverter(EWireType wireType,
 
 TUnversionedValueToSkiffConverter CreateComplexValueConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     bool isSparse)
 {
     TYsonToSkiffConverterConfig config;
@@ -499,13 +500,13 @@ public:
             keyColumnCount)
     { }
 
-    void Init(const std::vector<TTableSchemaPtr>& schemas, const std::vector<TSkiffSchemaPtr>& tableSkiffSchemas)
+    void Init(const std::vector<TTableSchemaPtr>& schemas, const std::vector<std::shared_ptr<TSkiffSchema>>& tableSkiffSchemas)
     {
         for (const auto& schema : schemas) {
             UnversionedValueToYsonConverter_.emplace_back(NameTable_, schema, EComplexTypeMode::Named, /* skipNullValues */ false);
         }
 
-        TSkiffSchemaPtr streamSchema;
+        std::shared_ptr<TSkiffSchema> streamSchema;
         if (ControlAttributesConfig_->EnableEndOfStream) {
             streamSchema = CreateRepeatedVariant16Schema(tableSkiffSchemas);
         } else {
@@ -936,7 +937,7 @@ ISchemalessFormatWriterPtr CreateWriterForSkiff(
 }
 
 ISchemalessFormatWriterPtr CreateWriterForSkiff(
-    const std::vector<TSkiffSchemaPtr>& tableSkiffSchemas,
+    const std::vector<std::shared_ptr<TSkiffSchema>>& tableSkiffSchemas,
     NTableClient::TNameTablePtr nameTable,
     const std::vector<NTableClient::TTableSchemaPtr>& schemas,
     NConcurrency::IAsyncOutputStreamPtr output,

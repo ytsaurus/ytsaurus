@@ -649,10 +649,10 @@ while True:
         format = make_skiff_format(
             skiff_tuple(skiff_simple("int64", name="column"))
         )
-        with raises_yt_error("Skiff type Int64 cannot represent"):
+        with raises_yt_error("Skiff type int64 cannot represent"):
             read_table("//tmp/table", is_raw=True, output_format=format)
 
-        with raises_yt_error("Skiff type Int64 cannot represent"):
+        with raises_yt_error("Skiff type int64 cannot represent"):
             write_table("//tmp/table", "", is_raw=True, input_format=format)
 
 

@@ -4,12 +4,13 @@
 #include <yt/client/table_client/logical_type.h>
 
 #include <yt/library/decimal/decimal.h>
-#include <yt/library/skiff/skiff.h>
-#include <yt/library/skiff/skiff_schema.h>
 
 #include <yt/core/yson/pull_parser.h>
 #include <yt/core/yson/parser.h>
 #include <yt/core/yson/token_writer.h>
+
+#include <library/cpp/skiff/skiff.h>
+#include <library/cpp/skiff/skiff_schema.h>
 
 #include <util/stream/zerocopy.h>
 
@@ -55,19 +56,19 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTypePair = std::pair<TComplexTypeFieldDescriptor, TSkiffSchemaPtr>;
+using TTypePair = std::pair<TComplexTypeFieldDescriptor, std::shared_ptr<TSkiffSchema>>;
 
 struct TConverterCreationContext;
 
 TYsonToSkiffConverter CreateYsonToSkiffConverterImpl(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config);
 
 TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TSkiffToYsonConverterConfig& config);
 
@@ -78,7 +79,7 @@ struct TConverterCreationContext
     int NestingLevel = 0;
 };
 
-std::vector<TErrorAttribute> SkiffYsonErrorAttributes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
+std::vector<TErrorAttribute> SkiffYsonErrorAttributes(const TComplexTypeFieldDescriptor& descriptor, const std::shared_ptr<TSkiffSchema>& skiffSchema)
 {
     return {
         TErrorAttribute("complex_type_field", descriptor.GetDescription()),
@@ -87,7 +88,7 @@ std::vector<TErrorAttribute> SkiffYsonErrorAttributes(const TComplexTypeFieldDes
     };
 }
 
-TSkiffSchemaPtr GetOptionalChild(const TSkiffSchemaPtr& skiffSchema)
+std::shared_ptr<TSkiffSchema> GetOptionalChild(const std::shared_ptr<TSkiffSchema>& skiffSchema)
 {
     if (skiffSchema->GetWireType() != EWireType::Variant8) {
         return nullptr;
@@ -105,7 +106,7 @@ TSkiffSchemaPtr GetOptionalChild(const TSkiffSchemaPtr& skiffSchema)
 struct TSkiffStructField
 {
     TString Name;
-    TSkiffSchemaPtr Type;
+    std::shared_ptr<TSkiffSchema> Type;
 };
 
 template<EWireType wireType>
@@ -144,7 +145,7 @@ struct TOptionalTypesMatch
 
 [[noreturn]] void RethrowCannotMatchField(
     const TComplexTypeFieldDescriptor& descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const std::exception& ex)
 {
     THROW_ERROR_EXCEPTION("Cannot match field %Qv to skiff schema",
@@ -197,7 +198,7 @@ template <typename... Args>
 
 TOptionalTypesMatch MatchOptionalTypes(
     const TComplexTypeFieldDescriptor& descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     bool allowOmitOptional)
 {
     // NB. Here we have a problem:
@@ -260,7 +261,7 @@ TOptionalTypesMatch MatchOptionalTypes(
         // This chain should match to logical relaxed chain.
         int skiffNestingRelaxed = 0;
         {
-            TSkiffSchemaPtr innerSkiffSchema = skiffSchema;
+            std::shared_ptr<TSkiffSchema> innerSkiffSchema = skiffSchema;
             while (auto child = GetOptionalChild(innerSkiffSchema)) {
                 ++skiffNestingRelaxed;
                 innerSkiffSchema = child;
@@ -300,7 +301,7 @@ TOptionalTypesMatch MatchOptionalTypes(
     }
 }
 
-TTypePair MatchListTypes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
+TTypePair MatchListTypes(const TComplexTypeFieldDescriptor& descriptor, const std::shared_ptr<TSkiffSchema>& skiffSchema)
 {
     try {
         if (skiffSchema->GetWireType() != EWireType::RepeatedVariant8) {
@@ -321,7 +322,7 @@ TTypePair MatchListTypes(const TComplexTypeFieldDescriptor& descriptor, const TS
 
 std::vector<std::optional<TTypePair>> MatchStructTypes(
     const TComplexTypeFieldDescriptor& descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     bool allowUnknownSkiffFields)
 {
     try {
@@ -401,7 +402,7 @@ std::vector<std::optional<TTypePair>> MatchStructTypes(
     }
 }
 
-std::vector<TTypePair> MatchTupleTypes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
+std::vector<TTypePair> MatchTupleTypes(const TComplexTypeFieldDescriptor& descriptor, const std::shared_ptr<TSkiffSchema>& skiffSchema)
 {
     try {
         if (skiffSchema->GetWireType() != EWireType::Tuple) {
@@ -428,7 +429,7 @@ std::vector<TTypePair> MatchTupleTypes(const TComplexTypeFieldDescriptor& descri
     }
 }
 
-std::vector<TTypePair> MatchVariantTupleTypes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
+std::vector<TTypePair> MatchVariantTupleTypes(const TComplexTypeFieldDescriptor& descriptor, const std::shared_ptr<TSkiffSchema>& skiffSchema)
 {
     try {
         if (skiffSchema->GetWireType() != EWireType::Variant8 && skiffSchema->GetWireType() != EWireType::Variant16) {
@@ -455,7 +456,7 @@ std::vector<TTypePair> MatchVariantTupleTypes(const TComplexTypeFieldDescriptor&
     }
 }
 
-std::vector<TTypePair> MatchVariantStructTypes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
+std::vector<TTypePair> MatchVariantStructTypes(const TComplexTypeFieldDescriptor& descriptor, const std::shared_ptr<TSkiffSchema>& skiffSchema)
 {
     try {
         if (skiffSchema->GetWireType() != EWireType::Variant8 && skiffSchema->GetWireType() != EWireType::Variant16) {
@@ -489,7 +490,7 @@ std::vector<TTypePair> MatchVariantStructTypes(const TComplexTypeFieldDescriptor
     }
 }
 
-std::pair<TTypePair, TTypePair> MatchDictTypes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
+std::pair<TTypePair, TTypePair> MatchDictTypes(const TComplexTypeFieldDescriptor& descriptor, const std::shared_ptr<TSkiffSchema>& skiffSchema)
 {
     try {
         if (skiffSchema->GetWireType() != EWireType::RepeatedVariant8) {
@@ -610,7 +611,7 @@ private:
 
 TYsonToSkiffConverter CreateSimpleYsonToSkiffConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema)
+    const std::shared_ptr<TSkiffSchema>& skiffSchema)
 {
     const auto& logicalType = descriptor.GetType()->AsSimpleTypeRef();
     const auto valueType = logicalType.GetElement();
@@ -641,7 +642,7 @@ TYsonToSkiffConverter CreateSimpleYsonToSkiffConverter(
 
 TYsonToSkiffConverter CreateDecimalYsonToSkiffConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema)
+    const std::shared_ptr<TSkiffSchema>& skiffSchema)
 {
     const auto& logicalType = descriptor.GetType();
     const int precision = logicalType->AsDecimalTypeRef().GetPrecision();
@@ -832,7 +833,7 @@ private:
 
 TYsonToSkiffConverter CreateOptionalYsonToSkiffConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
@@ -864,7 +865,7 @@ TYsonToSkiffConverter CreateOptionalYsonToSkiffConverter(
 
 TYsonToSkiffConverter CreateListYsonToSkiffConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
@@ -942,7 +943,7 @@ private:
 
 TYsonToSkiffConverter CreateStructYsonToSkiffConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
@@ -1000,7 +1001,7 @@ TYsonToSkiffConverter CreateStructYsonToSkiffConverter(
 
 TYsonToSkiffConverter CreateTupleYsonToSkiffConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
@@ -1074,7 +1075,7 @@ private:
 
 TYsonToSkiffConverter CreateVariantYsonToSkiffConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
@@ -1102,7 +1103,7 @@ TYsonToSkiffConverter CreateVariantYsonToSkiffConverter(
 
 TYsonToSkiffConverter CreateDictYsonToSkiffConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
@@ -1139,7 +1140,7 @@ TYsonToSkiffConverter CreateDictYsonToSkiffConverter(
 
 TYsonToSkiffConverter CreateYsonToSkiffConverterImpl(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
@@ -1221,7 +1222,7 @@ public:
 
 TSkiffToYsonConverter CreateSimpleSkiffToYsonConverter(
     const TComplexTypeFieldDescriptor& descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TSkiffToYsonConverterConfig& config)
 {
@@ -1403,7 +1404,7 @@ private:
 
 TSkiffToYsonConverter CreateOptionalSkiffToYsonConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TSkiffToYsonConverterConfig& config)
 {
@@ -1431,7 +1432,7 @@ TSkiffToYsonConverter CreateOptionalSkiffToYsonConverter(
 
 TSkiffToYsonConverter CreateListSkiffToYsonConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TSkiffToYsonConverterConfig& config)
 {
@@ -1460,7 +1461,7 @@ TSkiffToYsonConverter CreateListSkiffToYsonConverter(
 
 TSkiffToYsonConverter CreateStructSkiffToYsonConverter(
     const TComplexTypeFieldDescriptor& descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TSkiffToYsonConverterConfig& config)
 {
@@ -1498,7 +1499,7 @@ TSkiffToYsonConverter CreateStructSkiffToYsonConverter(
 
 TSkiffToYsonConverter CreateTupleSkiffToYsonConverter(
     const TComplexTypeFieldDescriptor& descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TSkiffToYsonConverterConfig& config)
 {
@@ -1557,7 +1558,7 @@ private:
 
 TSkiffToYsonConverter CreateVariantSkiffToYsonConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TSkiffToYsonConverterConfig& config)
 {
@@ -1584,7 +1585,7 @@ TSkiffToYsonConverter CreateVariantSkiffToYsonConverter(
 
 TSkiffToYsonConverter CreateDictSkiffToYsonConverter(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TSkiffToYsonConverterConfig& config)
 {
@@ -1625,7 +1626,7 @@ TSkiffToYsonConverter CreateDictSkiffToYsonConverter(
 
 TSkiffToYsonConverter CreateDecimalSkiffToYsonConverter(
     const TComplexTypeFieldDescriptor& descriptor,
-    const TSkiffSchemaPtr& skiffSchema)
+    const std::shared_ptr<TSkiffSchema>& skiffSchema)
 {
     const auto& logicalType = descriptor.GetType();
     int precision = logicalType->AsDecimalTypeRef().GetPrecision();
@@ -1646,7 +1647,7 @@ TSkiffToYsonConverter CreateDecimalSkiffToYsonConverter(
 
 TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
     TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TConverterCreationContext& context,
     const TSkiffToYsonConverterConfig& config)
 {
@@ -1686,7 +1687,7 @@ TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
 
 TYsonToSkiffConverter CreateYsonToSkiffConverter(
     const TComplexTypeFieldDescriptor& descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TYsonToSkiffConverterConfig& config)
 {
     TConverterCreationContext context;
@@ -1697,7 +1698,7 @@ TYsonToSkiffConverter CreateYsonToSkiffConverter(
 
 TSkiffToYsonConverter CreateSkiffToYsonConverter(
     const TComplexTypeFieldDescriptor& descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const TSkiffToYsonConverterConfig& config)
 {
     TConverterCreationContext context;

@@ -6,7 +6,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-#include <yt/library/skiff/public.h>
+#include <yt/library/skiff_ext/public.h>
 
 #include <yt/core/ytree/public.h>
 
@@ -24,7 +24,7 @@ ISchemalessFormatWriterPtr CreateWriterForSkiff(
     int keyColumnCount);
 
 ISchemalessFormatWriterPtr CreateWriterForSkiff(
-    const std::vector<NSkiff::TSkiffSchemaPtr>& tableSkiffSchemas,
+    const std::vector<std::shared_ptr<NSkiff::TSkiffSchema>>& tableSkiffSchemas,
     NTableClient::TNameTablePtr nameTable,
     const std::vector<NTableClient::TTableSchemaPtr>& schemas,
     NConcurrency::IAsyncOutputStreamPtr output,

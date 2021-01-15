@@ -7,8 +7,7 @@
 #include <yt/python/common/helpers.h>
 #include <yt/python/common/stream.h>
 
-#include <yt/library/skiff/parser.h>
-#include <yt/library/skiff/skiff_schema.h>
+#include <yt/library/skiff_ext/parser.h>
 
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx
@@ -47,7 +46,7 @@ private:
     TStreamReader InputStream_;
 
     std::unique_ptr<TPythonSkiffRawRecordBuilder> Consumer_;
-    std::unique_ptr<NSkiff::TSkiffMultiTableParser<TPythonSkiffRawRecordBuilder>> Parser_;
+    std::unique_ptr<NSkiffExt::TSkiffMultiTableParser<TPythonSkiffRawRecordBuilder>> Parser_;
 
     std::unique_ptr<IInputStream> InputStreamHolder_;
     bool IsStreamFinished_ = false;

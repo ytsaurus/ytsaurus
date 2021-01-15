@@ -12,19 +12,19 @@ namespace NYT::NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TConsumer>
-std::unique_ptr<NSkiff::TSkiffMultiTableParser<TConsumer>> CreateSkiffMultiTableParser(
+std::unique_ptr<NSkiffExt::TSkiffMultiTableParser<TConsumer>> CreateSkiffMultiTableParser(
     TConsumer* consumer,
     const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& pythonSkiffSchemaList,
     const TString& rangeIndexColumnName,
     const TString& rowIndexColumnName)
 {
     NSkiff::TSkiffSchemaList skiffSchemaList;
-    std::vector<NSkiff::TSkiffTableColumnIds> tablesColumnIds;
+    std::vector<NSkiffExt::TSkiffTableColumnIds> tablesColumnIds;
     for (auto schema : pythonSkiffSchemaList) {
         auto skiffSchema = schema.getCxxObject()->GetSchemaObject();
         skiffSchemaList.push_back(skiffSchema->GetSkiffSchema());
 
-        NSkiff::TSkiffTableColumnIds tableColumnIds;
+        NSkiffExt::TSkiffTableColumnIds tableColumnIds;
         tableColumnIds.DenseFieldColumnIds.assign(skiffSchema->GetDenseFieldsCount(), 0);
         std::iota(tableColumnIds.DenseFieldColumnIds.begin(), tableColumnIds.DenseFieldColumnIds.end(), 0);
 
@@ -33,7 +33,7 @@ std::unique_ptr<NSkiff::TSkiffMultiTableParser<TConsumer>> CreateSkiffMultiTable
         tablesColumnIds.push_back(tableColumnIds);
     }
 
-    return std::make_unique<NSkiff::TSkiffMultiTableParser<TConsumer>>(
+    return std::make_unique<NSkiffExt::TSkiffMultiTableParser<TConsumer>>(
         consumer,
         skiffSchemaList,
         tablesColumnIds,

@@ -1,9 +1,16 @@
 #pragma once
 
 #include "public.h"
-#include "skiff_schema.h"
 
-namespace NYT::NSkiff {
+#include <yt/core/misc/property.h>
+
+#include <yt/core/yson/public.h>
+
+#include <yt/core/ytree/public.h>
+
+#include <library/cpp/skiff/skiff_schema.h>
+
+namespace NYT::NSkiffExt {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,22 +22,22 @@ extern const TString KeySwitchColumnName;
 
 DEFINE_ENUM(ERowRangeIndexMode,
     (Incremental)
-        (IncrementalWithError)
+    (IncrementalWithError)
 )
 
 class TFieldDescription
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(TString, Name);
-    DEFINE_BYREF_RO_PROPERTY(TSkiffSchemaPtr, Schema);
+    DEFINE_BYREF_RO_PROPERTY(std::shared_ptr<NSkiff::TSkiffSchema>, Schema);
 
 public:
-    TFieldDescription(TString name, TSkiffSchemaPtr schema);
+    TFieldDescription(TString name, std::shared_ptr<NSkiff::TSkiffSchema> schema);
 
     bool IsRequired() const;
     bool IsNullable() const;
-    std::optional<EWireType> Simplify() const;
-    EWireType ValidatedSimplify() const;
+    std::optional<NSkiff::EWireType> Simplify() const;
+    NSkiff::EWireType ValidatedSimplify() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,14 +75,14 @@ struct TSkiffTableColumnIds
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TSkiffTableDescription> CreateTableDescriptionList(
-    const std::vector<TSkiffSchemaPtr>& skiffSchema,
+    const std::vector<std::shared_ptr<NSkiff::TSkiffSchema>>& skiffSchema,
     const TString& rangeIndexColumnName,
     const TString& rowIndexColumnName);
 
-std::vector<TSkiffSchemaPtr> ParseSkiffSchemas(
+std::vector<std::shared_ptr<NSkiff::TSkiffSchema>> ParseSkiffSchemas(
     const NYTree::IMapNodePtr& skiffSchemaRegistry,
     const NYTree::IListNodePtr& tableSkiffSchemas);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSkiff
+} // namespace NYT::NSkiffExt

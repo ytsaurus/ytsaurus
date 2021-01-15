@@ -6,8 +6,8 @@
 #include "yson_map_to_unversioned_value.h"
 
 #include <yt/library/decimal/decimal.h>
-#include <yt/library/skiff/schema_match.h>
-#include <yt/library/skiff/parser.h>
+#include <yt/library/skiff_ext/schema_match.h>
+#include <yt/library/skiff_ext/parser.h>
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/table_consumer.h>
@@ -26,6 +26,7 @@ namespace NYT::NFormats {
 
 using namespace NTableClient;
 using namespace NSkiff;
+using namespace NSkiffExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,7 +238,7 @@ private:
 
 TSkiffToUnversionedValueConverter CreateComplexValueConverter(
     NTableClient::TComplexTypeFieldDescriptor descriptor,
-    const TSkiffSchemaPtr& skiffSchema,
+    const std::shared_ptr<TSkiffSchema>& skiffSchema,
     ui16 columnId,
     bool sparseColumn)
 {
@@ -254,7 +255,7 @@ class TSkiffParserImpl
 
 public:
     TSkiffParserImpl(
-        TSkiffSchemaPtr skiffSchema,
+        std::shared_ptr<TSkiffSchema> skiffSchema,
         const TTableSchemaPtr& tableSchema,
         IValueConsumer* valueConsumer)
         : SkiffSchemaList_({std::move(skiffSchema)})
@@ -434,7 +435,7 @@ class TSkiffPushParser
 {
 public:
     TSkiffPushParser(
-        TSkiffSchemaPtr skiffSchema,
+        std::shared_ptr<TSkiffSchema> skiffSchema,
         const TTableSchemaPtr& tableSchema,
         IValueConsumer* consumer)
         : ParserImpl_(std::make_unique<TSkiffParserImpl>(
@@ -472,7 +473,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IParser> CreateParserForSkiff(
-    TSkiffSchemaPtr skiffSchema,
+    std::shared_ptr<TSkiffSchema> skiffSchema,
     const TTableSchemaPtr& tableSchema,
     IValueConsumer* consumer)
 {
@@ -489,7 +490,7 @@ std::unique_ptr<IParser> CreateParserForSkiff(
 
 std::unique_ptr<IParser> CreateParserForSkiff(
     IValueConsumer* consumer,
-    const std::vector<TSkiffSchemaPtr>& skiffSchemas,
+    const std::vector<std::shared_ptr<TSkiffSchema>>& skiffSchemas,
     const TSkiffFormatConfigPtr& config,
     int tableIndex)
 {
@@ -514,7 +515,7 @@ std::unique_ptr<IParser> CreateParserForSkiff(
 }
 
 std::unique_ptr<IParser> CreateParserForSkiff(
-    TSkiffSchemaPtr skiffSchema,
+    std::shared_ptr<TSkiffSchema> skiffSchema,
     IValueConsumer* consumer)
 {
     return CreateParserForSkiff(std::move(skiffSchema), consumer->GetSchema(), consumer);

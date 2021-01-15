@@ -22,7 +22,7 @@
 
 #include <yt/client/table_client/table_consumer.h>
 
-#include <yt/library/skiff/schema_match.h>
+#include <yt/library/skiff_ext/schema_match.h>
 
 #include <yt/core/misc/error.h>
 
@@ -42,7 +42,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NJson;
 using namespace NTableClient;
-using namespace NSkiff;
+using namespace NSkiffExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
