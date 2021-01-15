@@ -427,7 +427,7 @@ public:
                     Config->OperationHangupMinScheduleJobAttempts,
                     Config->OperationHangupDeactivationReasons,
                     Config->OperationHangupDueToLimitingAncestorSafeTimeout,
-                    operationState->GetController()->GetAggregatedMinNeededJobResources());
+                    operationState->GetController()->GetDetailedMinNeededJobResources());
                 if (error.IsOK()) {
                     hasNonHungTree = true;
                     break;
