@@ -54,6 +54,10 @@
 
 #include <yt/core/misc/statistics.h>
 
+#include <library/cpp/ytalloc/core/misc/enum.h>
+
+#include <util/generic/cast.h>
+
 #include <array>
 
 namespace NYT::NChunkClient {
@@ -333,6 +337,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
             req->set_address_type(static_cast<int>(addressType));
             initializeFetchRequest(req.Get());
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TLegacyReadRange>{adjustedRange});
+            req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
             batchReq->AddRequest(req);
         }
     }
@@ -904,6 +909,44 @@ TDataSliceSourcePair JoinDataSliceSourcePairs(std::vector<TDataSliceSourcePair> 
     }
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+EChunkFeatures GetSupportedChunkFeatures()
+{
+    EChunkFeatures features = EChunkFeatures::None;
+    for (auto chunkFeature : TEnumTraits<EChunkFeatures>::GetDomainValues()) {
+        features |= chunkFeature;
+    }
+
+    return features;
+}
+
+void ValidateChunkFeatures(TChunkId chunkId, ui64 chunkFeatures, ui64 supportedChunkFeatures)
+{
+    if ((chunkFeatures & supportedChunkFeatures) != chunkFeatures) {
+        for (auto chunkFeature : TEnumTraits<EChunkFeatures>::GetDomainValues()) {
+            ui64 chunkFeatureMask = ToUnderlying(chunkFeature);
+            if ((chunkFeatures & chunkFeatureMask) && !(supportedChunkFeatures & chunkFeatureMask)) {
+                THROW_ERROR_EXCEPTION(EErrorCode::UnsupportedChunkFeature,
+                    "Processing chunk %v requires feature %Qv that is not supported by cluster yet",
+                    chunkId,
+                    TEnumTraits<EChunkFeatures>::FindLiteralByValue(chunkFeature))
+                    << TErrorAttribute("chunk_features", chunkFeatures)
+                    << TErrorAttribute("supported_chunk_features", supportedChunkFeatures);
+            }
+        }
+
+        // NB: Unsupported feature can be unsupported by the chunk storage too.
+        // That's why we cannot cast bitmasks to enums and show unsupported feature
+        // name in some cases.
+        THROW_ERROR_EXCEPTION(EErrorCode::UnsupportedChunkFeature,
+            "Processing chunk %v requires feature that is not supported by cluster yet",
+            chunkId)
+            << TErrorAttribute("chunk_features", chunkFeatures)
+            << TErrorAttribute("supported_chunk_features", supportedChunkFeatures);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -52,6 +52,7 @@
 #include <yt/core/rpc/hedging_channel.h>
 
 #include <util/generic/algorithm.h>
+#include <util/generic/cast.h>
 #include <util/generic/ymath.h>
 
 #include <util/random/shuffle.h>
@@ -2000,6 +2001,7 @@ private:
             ToProto(req->mutable_extension_tags(), *ExtensionTags_);
         }
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
+        req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
         NProfiling::TWallTimer dataWaitTimer;
         auto rspOrError = WaitFor(req->Invoke());

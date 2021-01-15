@@ -3,12 +3,15 @@
 #include "config.h"
 #include "input_chunk.h"
 #include "data_node_service_proxy.h"
+#include "helpers.h"
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <yt/core/rpc/public.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NChunkClient {
 
@@ -62,6 +65,7 @@ TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> 
         auto chunkId = EncodeChunkId(chunk, nodeId);
         ToProto(req->mutable_chunk_id(), chunkId);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
+        req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
         InitializeRequest_(*req);
 
         asyncResults.emplace_back(req->Invoke());

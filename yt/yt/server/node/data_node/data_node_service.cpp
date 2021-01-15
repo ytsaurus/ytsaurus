@@ -908,6 +908,12 @@ private:
                 throw TFiberCanceledException();
             }
 
+            {
+                ui64 chunkFeatures = meta->features();
+                ui64 supportedChunkFeatures = request->supported_chunk_features();
+                ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
+            }
+
             if (partitionTag) {
                 const auto& blockMetaCache = Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache();
                 auto cachedBlockMeta = blockMetaCache->Find(chunkId);

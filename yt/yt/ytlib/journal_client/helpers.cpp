@@ -23,6 +23,7 @@
 #include <yt/library/erasure/codec.h>
 
 #include <util/generic/algorithm.h>
+#include <util/generic/cast.h>
 
 namespace NYT::NJournalClient {
 
@@ -598,6 +599,7 @@ private:
                 ToProto(req->mutable_chunk_id(), partChunkId);
                 req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
                 ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
+                req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
                 futures.push_back(req->Invoke().Apply(
                     BIND(&TComputeQuorumInfoSession::OnGetChunkMetaResponse, MakeStrong(this), replica)

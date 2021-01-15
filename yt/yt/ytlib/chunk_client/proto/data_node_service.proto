@@ -283,6 +283,11 @@ message TReqGetChunkMeta
 
     // COMPAT(psushin).
     optional bool enable_throttling = 6 [default = false];
+
+    // Bitmask of the chunk features that are supported by client.
+    // If requested chunk uses features that are not supported by client,
+    // an error is returned.
+    optional uint64 supported_chunk_features = 8;
 }
 
 message TRspGetChunkMeta
