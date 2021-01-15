@@ -62,6 +62,19 @@ void Serialize(const TKey& key, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Helper interop function for fixing master's last_key returned from BeginUpload() RPC call
+//! and some other places.
+//!
+//! This is closely related to TKey since original key returned by master may contain sentinels
+//! or be of wrong length, so it is not suitable for TKey construction. We fix it by
+//! replacing all sentinels to <null> and by padding row with nulls or shortening it so that
+//! row length is exactly keyLength.
+//!
+//! NB: this method is inefficient (as it deals with owning rows), do not use it on hot path.
+TUnversionedOwningRow LegacyKeyToKeyFriendlyOwningRow(TUnversionedRow row, int keyLength);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
 
 //! A hasher for TKey.

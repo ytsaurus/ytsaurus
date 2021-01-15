@@ -2102,19 +2102,29 @@ void TOperationControllerBase::VerifySortedOutput(TOutputTablePtr table)
         table->TableUploadOptions.UpdateMode == EUpdateMode::Append &&
         table->LastKey)
     {
+        YT_LOG_DEBUG(
+            "Comparing table last key against first chunk min key (LastKey: %v, MinKey: %v, Comparator: %v)",
+            table->LastKey,
+            table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey,
+            comparator);
+
         int cmp = comparator.CompareKeys(
             table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey,
             table->LastKey);
 
         if (cmp < 0) {
-            THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs overlap with original table",
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::SortOrderViolation,
+                "Output table %v is not sorted: job outputs overlap with original table",
                 table->GetPath())
                 << TErrorAttribute("table_max_key", table->LastKey)
                 << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
         }
 
         if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
-            THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs overlap with original table",
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::SortOrderViolation,
+                "Output table %v contains duplicate keys: job outputs overlap with original table",
                 table->GetPath())
                 << TErrorAttribute("table_max_key", table->LastKey)
                 << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
@@ -5953,11 +5963,26 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                     table->PivotKeys = FromProto<std::vector<TLegacyOwningKey>>(rsp->pivot_keys());
                     table->TabletChunkListIds = FromProto<std::vector<TChunkListId>>(rsp->tablet_chunk_list_ids());
                 } else {
+                    const auto& schema = table->TableUploadOptions.TableSchema;
                     table->OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-                    if (table->TableUploadOptions.TableSchema->IsSorted() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
-                        TUnversionedRow row;
-                        FromProto(&row, rsp->last_key(), RowBuffer);
-                        table->LastKey = TKey::FromRowUnchecked(row, table->TableUploadOptions.TableSchema->GetKeyColumnCount());
+                    if (schema->IsSorted() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
+                        TUnversionedOwningRow row;
+                        FromProto(&row, rsp->last_key());
+                        auto fixedRow = LegacyKeyToKeyFriendlyOwningRow(row, schema->GetKeyColumnCount());
+                        if (row != fixedRow) {
+                            YT_LOG_DEBUG(
+                                "Table last key fixed (Path: %v, LastKey: %v -> %v)",
+                                table->GetPath(),
+                                row,
+                                fixedRow);
+                            row = fixedRow;
+                        }
+                        auto capturedRow = RowBuffer->Capture(row);
+                        table->LastKey = TKey::FromRowUnchecked(capturedRow, schema->GetKeyColumnCount());
+                        YT_LOG_DEBUG(
+                            "Writing to table in sorted append mode (Path: %v, LastKey: %v)",
+                            table->GetPath(),
+                            table->LastKey);
                     }
                 }
 

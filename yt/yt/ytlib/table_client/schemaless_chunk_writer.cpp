@@ -1035,7 +1035,13 @@ public:
         }
 
         if (LastKeyHolder_) {
+            auto lastKeyHolderFixed = LegacyKeyToKeyFriendlyOwningRow(LastKeyHolder_, Options_->TableSchema->GetKeyColumnCount());
+            if (LastKeyHolder_ != lastKeyHolderFixed) {
+                YT_LOG_DEBUG("Table last key fixed (LastKey: %v -> %v)", LastKeyHolder_, lastKeyHolderFixed);
+                LastKeyHolder_ = lastKeyHolderFixed;
+            }
             LastKey_ = TKey::FromRow(LastKeyHolder_);
+            YT_LOG_DEBUG("Writer is in sorted append mode (LastKey: %v)", LastKey_);
         }
 
         if (Options_->TableSchema) {
