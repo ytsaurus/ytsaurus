@@ -17,8 +17,8 @@ _FILE_457MB_MD5 = 'd3a36ef8dfdd275f6c047b525230ceb4'
 _FILE_0B_MD5 = 'd41d8cd98f00b204e9800998ecf8427e'
 
 
-@pytest.fixture(scope='module')  # noqa
-def prepare_yt(yt_stuff):
+@pytest.fixture(scope='module')
+def prepare_yt(yt_stuff):  # noqa
     yt_client = yt_stuff.get_yt_client()
     yt_client.create('map_node', '//tmp/yt_wrapper', recursive=True, ignore_existing=True)
 
