@@ -487,7 +487,7 @@ private:
 
         RegisteredMasterCellTags_.resize(RegisteredMasterMap_.size());
 
-        const auto& hiveManager  = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
         for (auto& [cellTag, entry] : RegisteredMasterMap_) {
             if (!IsValidCellTag(cellTag)) {
                 THROW_ERROR_EXCEPTION("Unknown master cell tag %v", cellTag);
@@ -1047,7 +1047,7 @@ private:
                 return;
             }
 
-            YT_VERIFY(RoleMasterCellsMap_.emplace(role, TCellTagList(GetPrimaryCellTag())).second);
+            YT_VERIFY(RoleMasterCellsMap_.emplace(role, TCellTagList(1, GetPrimaryCellTag())).second);
 
             auto& primaryCellRoles = MasterCellRolesMap_[GetPrimaryCellTag()];
             YT_VERIFY(None(primaryCellRoles & role));
