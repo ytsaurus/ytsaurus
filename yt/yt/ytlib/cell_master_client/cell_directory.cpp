@@ -167,7 +167,7 @@ public:
             YT_VERIFY(cellAddresses.emplace(cellTag, std::move(addresses)).second);
 
             if (cellTag == PrimaryMasterCellTag_) {
-                YT_VERIFY(cellId = PrimaryMasterCellId_);
+                YT_VERIFY(cellId == PrimaryMasterCellId_);
                 primaryCellFound = true;
             } else {
                 secondaryCellTags.push_back(cellTag);
