@@ -85,6 +85,10 @@ class TestLayers(YTEnvSetup):
                 },
             )
 
+        # YT-14186: Corrupted user layer should not disable jobs on node.
+        for node in ls("//sys/cluster_nodes"):
+            assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
     @authors("psushin")
     def test_one_layer(self):
         self.setup_files()

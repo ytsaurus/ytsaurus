@@ -1089,7 +1089,12 @@ private:
             if (!volumeOrError.IsOK()) {
                 auto error = TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
                     << volumeOrError;
-                Bootstrap_->GetExecSlotManager()->Disable(error);
+
+                // Corrupted user layers should not disable scheduler jobs.
+                if (!error.FindMatching(NDataNode::EErrorCode::LayerUnpackingFailed)) {
+                    Bootstrap_->GetExecSlotManager()->Disable(error);
+                }
+
                 THROW_ERROR error;
             }
 
