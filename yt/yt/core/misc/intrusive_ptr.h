@@ -224,6 +224,38 @@ Y_FORCE_INLINE TIntrusivePtr<T> DangerousGetPtr(T* object)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T, class U>
+TIntrusivePtr<T> StaticPointerCast(const TIntrusivePtr<U>& ptr)
+{
+    return {static_cast<T*>(ptr.Get())};
+}
+
+template <class T, class U>
+TIntrusivePtr<T> StaticPointerCast(TIntrusivePtr<U>&& ptr)
+{
+    return {static_cast<T*>(ptr.Release()), false};
+}
+
+template <class T, class U>
+TIntrusivePtr<T> ConstPointerCast(const TIntrusivePtr<U>& ptr)
+{
+    return {const_cast<T*>(ptr.Get())};
+}
+
+template <class T, class U>
+TIntrusivePtr<T> ConstPointerCast(TIntrusivePtr<U>&& ptr)
+{
+    return {const_cast<T*>(ptr.Release()), false};
+}
+
+template <class T, class U>
+TIntrusivePtr<T> DynamicPointerCast(const TIntrusivePtr<U>& ptr)
+{
+    return {dynamic_cast<T*>(ptr.Get())};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 bool operator<(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<T>& rhs)
 {
