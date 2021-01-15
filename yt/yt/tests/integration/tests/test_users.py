@@ -85,7 +85,7 @@ class TestUsers(YTEnvSetup):
         assert_items_equal(get("//sys/groups/everyone/@members"), ["users", "guest"])
         assert_items_equal(
             get("//sys/groups/users/@members"),
-            ["superusers", "owner", "application_operations"],
+            ["superusers", "owner"],
         )
         assert_items_equal(
             get("//sys/groups/superusers/@members"),
@@ -95,7 +95,6 @@ class TestUsers(YTEnvSetup):
                 "job",
                 "replicator",
                 "file_cache",
-                "application_operations",
                 "operations_cleaner",
                 "operations_client",
                 "tablet_cell_changelogger",
@@ -110,10 +109,6 @@ class TestUsers(YTEnvSetup):
         assert_items_equal(get("//sys/users/job/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/replicator/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/file_cache/@member_of"), ["superusers"])
-        assert_items_equal(
-            get("//sys/users/application_operations/@member_of"),
-            ["superusers", "users"],
-        )
         assert_items_equal(get("//sys/users/operations_cleaner/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/tablet_cell_changelogger/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/tablet_cell_snapshotter/@member_of"), ["superusers"])
@@ -138,10 +133,6 @@ class TestUsers(YTEnvSetup):
         )
         assert_items_equal(
             get("//sys/users/file_cache/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
-        assert_items_equal(
-            get("//sys/users/application_operations/@member_of_closure"),
             ["superusers", "users", "everyone"],
         )
         assert_items_equal(

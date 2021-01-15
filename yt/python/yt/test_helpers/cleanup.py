@@ -68,8 +68,6 @@ def cleanup_objects(list_multiple_action, remove_multiple_action, exists_multipl
         for object in objects:
             if object.attributes["builtin"]:
                 continue
-            if type == "users" and str(object) == "application_operations":
-                continue
 
             object_id = object.attributes["id"]
             if object_ids_to_ignore is not None and object_id in object_ids_to_ignore:
