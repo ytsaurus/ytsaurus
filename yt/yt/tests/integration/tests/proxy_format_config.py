@@ -4,6 +4,7 @@ import yt.yson
 
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
+import json
 import tempfile
 
 
@@ -29,6 +30,14 @@ class _TestProxyFormatConfigBase:
                     "enable": True,
                 },
                 "bad_user": {
+                    "enable": False,
+                },
+            },
+        },
+        "json": {
+            "enable": True,
+            "user_overrides": {
+                "no_json_user": {
                     "enable": False,
                 },
             },
@@ -89,11 +98,18 @@ class _TestProxyFormatConfigBase:
         return
 
     @staticmethod
-    def _parse_format(format, data):
+    def _parse_format(format, data, tabular=True):
         format_name = str(format)
         if format_name == "yson":
-            return list(yt.yson.loads(data, yson_type="list_fragment"))
+            yson_type = "list_fragment" if tabular else "node"
+            return list(yt.yson.loads(data, yson_type=yson_type))
+        elif format_name == "json":
+            if tabular:
+                return [yt.yson.convert.json_to_yson(json.loads(line)) for line in data.split('\n')]
+            else:
+                return yt.yson.convert.json_to_yson(json.loads(data))
         elif format_name in ("yamr", "yamred_dsv"):
+            assert tabular
             result = []
             for line in data.strip().split("\n"):
                 k, v = line.strip().split()
@@ -106,14 +122,22 @@ class _TestProxyFormatConfigBase:
             assert False
 
     @staticmethod
-    def _write_format(format, rows):
+    def _write_format(format, data, tabular=True):
         format_name = str(format)
         if format_name == "yson":
-            return yt.yson.dumps(rows, yson_type="list_fragment")
+            yson_type = "list_fragment" if tabular else "node"
+            return yt.yson.dumps(data, yson_type=yson_type)
+        elif format_name == "json":
+            if tabular:
+                return "\n".join(json.dumps(yt.yson.convert.yson_to_json(row)) for row in data)
+            else:
+                return json.dumps(yt.yson.convert.yson_to_json(data))
         elif format_name == "yamr":
-            return "\n".join("\t".join([r["key"], r["value"]]) for r in rows)
+            assert tabular
+            return "\n".join("\t".join([row["key"], row["value"]]) for row in data)
         elif format_name == "yamred_dsv":
-            return "\n".join("{}\tvalue={}".format(r["key"], r["value"]) for r in rows)
+            assert tabular
+            return "\n".join("{}\tvalue={}".format(row["key"], row["value"]) for row in data)
         else:
             assert False
 

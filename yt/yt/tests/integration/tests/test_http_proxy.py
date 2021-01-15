@@ -387,10 +387,10 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
                          header_format="yson", input_format="yson", output_format="yson",
                          api_version="v4"):
         headers = {
-            "X-YT-Parameters": yson.dumps(params),
-            "X-YT-Header-Format": yson.dumps(header_format),
-            "X-YT-Output-Format": yson.dumps(output_format),
-            "X-YT-Input-Format": yson.dumps(input_format),
+            "X-YT-Parameters": self._write_format(header_format, params, tabular=False),
+            "X-YT-Header-Format": self._write_format("yson", header_format, tabular=False),
+            "X-YT-Output-Format": self._write_format(header_format, output_format, tabular=False),
+            "X-YT-Input-Format": self._write_format(header_format, input_format, tabular=False),
             "X-YT-Testing-User-Name": user,
         }
         rsp = requests.request(
@@ -440,6 +440,15 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
             assert self._parse_format(format, rsp.content) == content
 
         with manager():
+            rsp = self._execute_command(
+                "get",
+                "read_table",
+                {"path": "//tmp/t", "output_format": format},
+                user=user,
+            )
+            assert self._parse_format(format, rsp.content) == content
+
+        with manager():
             self._execute_command(
                 "put",
                 "write_table",
@@ -450,9 +459,33 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
             )
             assert read_table("//tmp/t") == content
 
+        with manager():
+            self._execute_command(
+                "put",
+                "write_table",
+                {"path": "//tmp/t", "input_format": format},
+                user=user,
+                data=self._write_format(format, content),
+            )
+            assert read_table("//tmp/t") == content
+
     def _test_format_enable(self, format, user, enable):
         self._test_format_enable_general(format, user, enable)
         self._test_format_enable_operations(format, user, enable)
+
+    @authors("levysotsky")
+    def test_header_format_enable(self):
+        create_user("no_json_user")
+        manager = self._get_context_manager(enable=False)
+        with manager():
+            self._execute_command(
+                "get",
+                "get",
+                {"path": "//tmp/t/@type"},
+                user="no_json_user",
+                header_format="json",
+                output_format=self.YSON,
+            )
 
     def _test_format_defaults_cypress(self, format, user, content, expected_content):
         set("//tmp/list_node", content)
@@ -463,6 +496,15 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
             {"path": "//tmp/list_node"},
             user=user,
             output_format=format,
+        )
+        actual_content = rsp.content
+        assert actual_content == expected_content
+
+        rsp = self._execute_command(
+            "GET",
+            "get",
+            {"path": "//tmp/list_node", "output_format": format},
+            user=user,
         )
         actual_content = rsp.content
         assert actual_content == expected_content
