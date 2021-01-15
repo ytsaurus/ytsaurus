@@ -89,6 +89,22 @@ public class YtClientDynamicTableTest extends YtClientTestBase {
     }
 
     @Test(timeout = 10000)
+    public void testWaitForModifyRows() {
+        var tx = yt.startTransaction(
+                new ApiServiceTransactionOptions(ETransactionType.TT_TABLET)
+                        .setSticky(true)
+        ).join();
+        try (tx) {
+            var modifyRows =
+                    new ModifyRowsRequest(keyValueTablePath.toString(), keyValueTableSchema)
+                            .addInsert(Arrays.asList(2L, "two"));
+
+            tx.modifyRows(modifyRows);
+            tx.commit().join();
+        }
+    }
+
+    @Test(timeout = 10000)
     public void testKeepMissingRowUnversionedRow() {
         var tx = yt.startTransaction(
                 new ApiServiceTransactionOptions(ETransactionType.TT_TABLET)

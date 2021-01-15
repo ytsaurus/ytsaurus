@@ -1,16 +1,22 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
+import java.util.AbstractQueue;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
@@ -49,6 +55,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
         COMMITTED,
         CLOSED,
     }
+    private static final Logger logger = LoggerFactory.getLogger(ApiServiceTransaction.class);
 
     private final ApiServiceClient client;
     private final GUID id;
@@ -60,6 +67,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
     private final ScheduledExecutorService executor;
     private final CompletableFuture<Void> transactionCompleteFuture = new CompletableFuture<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.ACTIVE);
+    private final AbstractQueue<CompletableFuture<Void>> modifyRowsResults = new ConcurrentLinkedQueue<>();
 
     @Override
     public String toString() {
@@ -137,6 +145,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
         return transactionCompleteFuture;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean isPingableState() {
         State currentState = state.get();
         return currentState == State.ACTIVE || currentState == State.COMMITTING;
@@ -188,15 +197,30 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
     public CompletableFuture<Void> commit() {
         updateState(State.ACTIVE, State.COMMITTING);
 
-        return client.commitTransaction(id).whenComplete((result, error) -> {
-            if (error == null) {
-                updateState(State.COMMITTING, State.COMMITTED);
-            } else {
-                state.set(State.CLOSED);
-            }
+        List<CompletableFuture<Void>> allModifyRowsResults = new ArrayList<>();
+        CompletableFuture<Void> current;
+        while ((current = modifyRowsResults.poll()) != null) {
+            allModifyRowsResults.add(current);
+        }
 
-            transactionCompleteFuture.complete(null);
-        });
+        CompletableFuture<Void> allModifiesCompleted = CompletableFuture.allOf(
+                allModifyRowsResults.toArray(new CompletableFuture[0])
+        );
+
+        return allModifiesCompleted.whenComplete((unused, error) -> {
+            if (error != null) {
+                logger.warn("Cannot commit transaction since modify rows failed:", error);
+                abortImpl(false);
+            }
+        }).thenCompose(unused -> client.commitTransaction(id)
+                .whenComplete((result, error) -> {
+                    if (error == null) {
+                        updateState(State.COMMITTING, State.COMMITTED);
+                    } else {
+                        state.set(State.CLOSED);
+                    }
+                    transactionCompleteFuture.complete(null);
+                }));
     }
 
     public CompletableFuture<Void> abort() {
@@ -205,7 +229,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
 
     private CompletableFuture<Void> abortImpl(boolean complainWrongState) {
         State oldState = state.getAndSet(State.CLOSED);
-        if (oldState == State.ACTIVE) {
+        if (oldState == State.ACTIVE || oldState == State.COMMITTING && !complainWrongState) {
             // dont wait for answer
             return client.abortTransaction(id)
                     .whenComplete((result, error) -> transactionCompleteFuture.complete(null));
@@ -265,7 +289,9 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
 
     public CompletableFuture<Void> modifyRows(AbstractModifyRowsRequest<?> request) {
         // TODO: hide id to request
-        return client.modifyRows(id, request);
+        CompletableFuture<Void> result = client.modifyRows(id, request);
+        modifyRowsResults.add(result);
+        return result;
     }
 
     /* nodes */
