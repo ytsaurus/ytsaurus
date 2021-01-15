@@ -1472,15 +1472,15 @@ private:
             auto currentChunkMaxKey = GetChunkBoundaryKeys(currentChunkSpec.chunk_meta()).second;
             auto nextChunkMinKey = GetChunkBoundaryKeys(nextChunkSpec.chunk_meta()).first;
 
-            int comparisionResult = comparator.CompareKeys(currentChunkMaxKey, nextChunkMinKey);
-            if (comparisionResult > 0) {
+            int comparisonResult = comparator.CompareKeys(currentChunkMaxKey, nextChunkMinKey);
+            if (comparisonResult > 0) {
                 THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SortOrderViolation, "Chunks ranges are overlapping")
                     << TErrorAttribute("current_chunk_id", FromProto<TChunkId>(currentChunkSpec.chunk_id()))
                     << TErrorAttribute("next_chunk_id", FromProto<TChunkId>(nextChunkSpec.chunk_id()))
                     << TErrorAttribute("current_chunk_max_key", currentChunkMaxKey)
                     << TErrorAttribute("next_chunk_min_key", nextChunkMinKey)
                     << TErrorAttribute("comparator", comparator);
-            } else if (comparisionResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
+            } else if (comparisonResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "Key appears in two chunks but output table schema requires unique keys")
@@ -1537,8 +1537,8 @@ private:
                 firstChunkMinKey,
                 comparator);
 
-            auto comparisionResult = comparator.CompareKeys(tableMaxKey, firstChunkMinKey);
-            if (comparisionResult > 0) {
+            auto comparisonResult = comparator.CompareKeys(tableMaxKey, firstChunkMinKey);
+            if (comparisonResult > 0) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::SortOrderViolation,
                     "First key of chunk to append is less than last key in table")
@@ -1546,7 +1546,7 @@ private:
                     << TErrorAttribute("table_max_key", tableMaxKey)
                     << TErrorAttribute("first_chunk_min_key", firstChunkMinKey)
                     << TErrorAttribute("comparator", comparator);
-            } else if (comparisionResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
+            } else if (comparisonResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "First key of chunk to append equals to last key in table")

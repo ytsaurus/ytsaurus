@@ -411,9 +411,9 @@ IUnversionedRowBatchPtr TSortedMergingReader::Read(const TRowBatchReadOptions& o
             // If #interruptAtKeyEdge is false, reader can be interrupted everywhere.
             bool canInterrupt = true;
             if (InterruptAtKeyEdge_ && LastKey_) {
-                auto comparisionResult = ReduceComparator_.CompareKeys(*LastKey_, key);
-                YT_VERIFY(comparisionResult <= 0);
-                canInterrupt = (comparisionResult < 0);
+                auto comparisonResult = ReduceComparator_.CompareKeys(*LastKey_, key);
+                YT_VERIFY(comparisonResult <= 0);
+                canInterrupt = (comparisonResult < 0);
             }
 
             if (canInterrupt) {
@@ -610,9 +610,9 @@ IUnversionedRowBatchPtr TSortedJoiningReader::Read(const TRowBatchReadOptions& o
                 // If #interruptAtKeyEdge is true, primary reader can be extracted from heap at key switch only.
                 auto key = TKey::FromRow(row, ReduceComparator_.GetLength());
                 if (InterruptAtKeyEdge_ && LastKey_) {
-                    int comparisionResult = ReduceComparator_.CompareKeys(*LastKey_, key);
-                    YT_VERIFY(comparisionResult <= 0);
-                    if (comparisionResult < 0) {
+                    int comparisonResult = ReduceComparator_.CompareKeys(*LastKey_, key);
+                    YT_VERIFY(comparisonResult <= 0);
+                    if (comparisonResult < 0) {
                         extractCurrentSession = true;
                     }
                 } else {
@@ -629,8 +629,8 @@ IUnversionedRowBatchPtr TSortedJoiningReader::Read(const TRowBatchReadOptions& o
                 auto key = TKey::FromRow(row, ForeignComparator_.GetLength());
                 if (LastKey_) {
                     auto lastKey = TKey::FromRow(LastKeyHolder_, ForeignComparator_.GetLength());
-                    int comparisionResult = ForeignComparator_.CompareKeys(lastKey, key);
-                    if (comparisionResult < 0) {
+                    int comparisonResult = ForeignComparator_.CompareKeys(lastKey, key);
+                    if (comparisonResult < 0) {
                         extractCurrentSession = true;
                     }
                 } else {
