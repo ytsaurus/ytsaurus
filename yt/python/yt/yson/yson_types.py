@@ -76,18 +76,19 @@ class NotUnicodeError(YtError):
     pass
 
 
-def truncate(s, length=50):
+def _truncate(s, length=50):
     assert isinstance(s, bytes)
     if len(s) < length:
         return s
     return s[:length] + b"..."
 
 
-def make_raise_not_unicode_error(name):
+def _make_raise_not_unicode_error(name):
     def fun(self, *args, **kwargs):
         raise NotUnicodeError('Method "{}" is not allowed: YSON string "{}" '
                               "could not be decoded to Unicode, "
-                              "see THE DOC".format(name, truncate(self._bytes)))
+                              "see https://yt.yandex-team.ru/docs/api/python/python_wrapper#python-3"
+                              .format(name, _truncate(self._bytes)))
     return fun
 
 
@@ -108,6 +109,8 @@ def proxy(cls):
         "__getattr__",
         "__setattr__",
         "__getattribute__",
+        "__copy__",
+        "__deepcopy__",
     ]
 
     ADDITIONAL_METHODS = [
@@ -117,9 +120,9 @@ def proxy(cls):
     for name in dir(text_type):
         attr = getattr(text_type, name)
         if callable(attr) and name not in ALLOWED_METHODS:
-            setattr(cls, name, make_raise_not_unicode_error(name))
+            setattr(cls, name, _make_raise_not_unicode_error(name))
     for name in ADDITIONAL_METHODS:
-        setattr(cls, name, make_raise_not_unicode_error(name))
+        setattr(cls, name, _make_raise_not_unicode_error(name))
     return cls
 
 
@@ -133,6 +136,12 @@ class YsonStringProxy(YsonType):
         if self.has_attributes():
             return repr({"attributes": self.attributes, "value": value})
         return value
+
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo):
+        return self
 
     def __hash__(self):
         return hash(self._bytes)
@@ -163,6 +172,12 @@ def get_bytes(x, encoding="utf8"):
     else:
         raise TypeError("get_bytes() expected str, bytes or YsonStringProxy, got <{}>{!r}"
                         .format(type(x), x))
+
+
+def make_byte_key(s):
+    proxy = YsonStringProxy()
+    proxy._bytes = s
+    return proxy
 
 
 if PY3:

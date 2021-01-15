@@ -6,7 +6,7 @@ import pytest
 
 import yt.yson.writer
 from yt.yson import YsonUint64, YsonInt64, YsonEntity, YsonMap, YsonDouble, YsonError
-from yt.yson.yson_types import YsonStringProxy
+from yt.yson.yson_types import YsonStringProxy, make_byte_key
 import yt.subprocess_wrapper as subprocess
 from yt.packages.six import b, PY3
 from yt.packages.six.moves import map as imap
@@ -243,6 +243,8 @@ class YsonWriterTestBase(object):
         assert self.dumps(d).lower() == b'{"\\xfa"="a";}'
         d = {"b": value}
         assert self.dumps(d).lower() == b'{"b"="\\xfb";}'
+        d = {make_byte_key(b"\xFF"): "x"}
+        assert self.dumps(d).lower() == b'{"\\xff"="x";}'
 
 
 class TestWriterDefault(YsonWriterTestBase):

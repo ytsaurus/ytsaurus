@@ -3,16 +3,15 @@
 from __future__ import absolute_import
 
 from yt.yson.yson_types import (YsonEntity, YsonBoolean, YsonUnicode, YsonString,
-                                is_unicode, get_bytes)
+                                YsonStringProxy, is_unicode, get_bytes, NotUnicodeError,
+                                make_byte_key)
 
 from yt.packages.six import PY3 # noqa
 
 import pytest
 
+import copy
 import re
-
-if PY3:
-    from yt.yson.yson_types import YsonStringProxy, NotUnicodeError
 
 
 def test_entity():
@@ -97,3 +96,31 @@ def test_string_proxy():
 
     with pytest.raises(TypeError):
         re.findall("a", a)
+
+
+@pytest.mark.skipif("not PY3")
+def test_string_proxy_copy():
+    a = YsonStringProxy()
+    a._bytes = b"\xFFabc"
+    a_copy = copy.copy(a)
+    a_deepcopy = copy.deepcopy(a)
+    assert a_copy == a == a_deepcopy
+    d = {
+        make_byte_key("key\xF1"): [a],
+    }
+    assert copy.deepcopy(d) == d
+
+
+@pytest.mark.skipif("not PY3")
+def test_make_byte_key():
+    key1 = make_byte_key(b"key\xF1")
+    key2 = make_byte_key(b"key\xF2")
+    d = {key1: "value1", key2: "value2"}
+    assert isinstance(key1, YsonStringProxy)
+    assert isinstance(key2, YsonStringProxy)
+    assert d == {
+        b"key\xF1": "value1",
+        b"key\xF2": "value2",
+    }
+    with pytest.raises(NotUnicodeError):
+        key1 + "abc"
