@@ -136,7 +136,6 @@ TOperation::TOperation(
     TInstant startTime,
     IInvokerPtr controlInvoker,
     const std::optional<TString>& alias,
-    bool isScheduledInSingleTree,
     EOperationState state,
     const std::vector<TOperationEvent>& events,
     bool suspended,
@@ -161,7 +160,6 @@ TOperation::TOperation(
     , ControlInvoker_(std::move(controlInvoker))
     , State_(state)
     , RuntimeParameters_(std::move(runtimeParameters))
-    , IsScheduledInSingleTree_(isScheduledInSingleTree)
 {
     // COMPAT(gritukan)
     auto annotations = Spec_->Annotations;
@@ -478,11 +476,6 @@ TControllerAgentPtr TOperation::GetAgentOrThrow()
             Id_);
     }
     return agent;
-}
-
-bool TOperation::IsScheduledInSingleTree() const
-{
-    return IsScheduledInSingleTree_;
 }
 
 void TOperation::EraseTrees(const std::vector<TString>& treeIds)

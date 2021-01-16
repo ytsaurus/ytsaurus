@@ -350,8 +350,6 @@ public:
     TControllerAgentPtr FindAgent();
     TControllerAgentPtr GetAgentOrThrow();
 
-    bool IsScheduledInSingleTree() const;
-
     virtual void EraseTrees(const std::vector<TString>& treeIds) override;
 
     TOperation(
@@ -369,7 +367,6 @@ public:
         TInstant startTime,
         IInvokerPtr controlInvoker,
         const std::optional<TString>& alias,
-        bool isScheduledInSingleTree,
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
         bool suspended = false,
@@ -402,8 +399,6 @@ private:
     TPromise<void> FinishedPromise_ = NewPromise<void>();
 
     TWeakPtr<TControllerAgent> Agent_;
-
-    bool IsScheduledInSingleTree_ = false;
 };
 
 #undef DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH

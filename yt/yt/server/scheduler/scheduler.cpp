@@ -640,8 +640,7 @@ public:
             user,
             TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
-            spec->Alias,
-            spec->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree);
+            spec->Alias);
 
         IdToStartingOperation_.emplace(operationId, operation);
 
@@ -1191,7 +1190,8 @@ public:
             futures.push_back(ResetOperationRevival(operation));
         }
 
-        if (operation->IsScheduledInSingleTree()) {
+        auto scheduleOperationInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
+        if (scheduleOperationInSingleTree) {
             // NB(eshcherbin): We need to make sure that all necessary information is in fair share tree snapshots
             // before choosing the best single tree for this operation during |FinishOperationMaterialization| later.
             futures.push_back(Strategy_->GetFullFairShareUpdateFinished());
@@ -1221,7 +1221,7 @@ public:
                     maybeMaterializeResult = asyncMaterializeResult.Get().Value();
                 }
 
-                FinishOperationMaterialization(operation, maybeMaterializeResult);
+                FinishOperationMaterialization(operation, maybeMaterializeResult, scheduleOperationInSingleTree);
             })
             .Via(operation->GetCancelableControlInvoker()));
     }
@@ -1229,7 +1229,9 @@ public:
 
     void FinishOperationMaterialization(
         const TOperationPtr& operation,
-        std::optional<TOperationControllerMaterializeResult> maybeMaterializeResult)
+        std::optional<TOperationControllerMaterializeResult> maybeMaterializeResult,
+        // This option must have the same value as at materialization start.
+        bool scheduleOperationInSingleTree)
     {
         bool shouldFlush = false;
         bool shouldSuspend = false;
@@ -1246,7 +1248,7 @@ public:
             neededResources = operation->GetController()->GetNeededResources();
         }
 
-        if (operation->IsScheduledInSingleTree()) {
+        if (scheduleOperationInSingleTree) {
             auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources);
 
             std::vector<TString> treeIdsToUnregister;

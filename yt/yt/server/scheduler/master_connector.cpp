@@ -873,7 +873,6 @@ private:
         std::vector<TOperationPtr> ParseOperationsBatch(
             const std::vector<TOperationDataToParse>& rspValuesChunk,
             const int parseOperationAttributesBatchSize,
-            const bool enableScheduleInSingleTree,
             const bool skipOperationsWithMalformedSpecDuringRevival) 
         {
             std::vector<TOperationPtr> result;
@@ -907,8 +906,7 @@ private:
                     auto operation = TryCreateOperationFromAttributes(
                         rspValues.OperationId,
                         *attributesNode,
-                        secureVault, 
-                        enableScheduleInSingleTree);
+                        secureVault);
                     result.push_back(operation);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex, "Error creating operation from Cypress node (OperationId: %v)",
@@ -1022,7 +1020,6 @@ private:
                             MakeStrong(this), 
                             std::move(operationsDataToParseBatch), 
                             chunkSize,
-                            Owner_->Bootstrap_->GetScheduler()->GetConfig()->EnableScheduleInSingleTree,
                             Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival
                         )
                         .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
@@ -1054,8 +1051,7 @@ private:
         TOperationPtr TryCreateOperationFromAttributes(
             TOperationId operationId,
             const IAttributeDictionary& attributes,
-            const IMapNodePtr& secureVault,
-            const bool enableScheduleInSingleTree)
+            const IMapNodePtr& secureVault)
         {
             auto specString = attributes.GetYson("spec");
             auto parseSpecResult = ParseSpec(specString, /* specTemplate */ nullptr, /* operationId */ operationId);
@@ -1099,7 +1095,6 @@ private:
                 attributes.Get<TInstant>("start_time"),
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
                 spec->Alias,
-                spec->ScheduleInSingleTree && enableScheduleInSingleTree,
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
                 /* suspended */ attributes.Get<bool>("suspended", false),
