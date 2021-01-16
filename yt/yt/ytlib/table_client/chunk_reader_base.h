@@ -80,7 +80,7 @@ protected:
         const NProto::TBlockMetaExt& blockMeta,
         const NChunkClient::TReadLimit& lowerLimit) const;
     int ApplyLowerKeyLimit(
-        const std::vector<TKey>& blockLastKeys,
+        const TSharedRange<TKey>& blockLastKeys,
         const NChunkClient::TReadLimit& lowerLimit,
         const NTableClient::TComparator& comparator) const;
 
@@ -89,7 +89,7 @@ protected:
         const NProto::TBlockMetaExt& blockMeta,
         const NChunkClient::TReadLimit& upperLimit) const;
     int ApplyUpperKeyLimit(
-        const std::vector<TKey>& blockLastKeys,
+        const TSharedRange<TKey>& blockLastKeys,
         const NChunkClient::TReadLimit& upperLimit,
         const TComparator& comparator) const;
 
