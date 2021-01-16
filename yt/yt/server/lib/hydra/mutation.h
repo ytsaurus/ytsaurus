@@ -10,6 +10,8 @@
 
 #include <yt/core/logging/public.h>
 
+#include <yt/core/tracing/public.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +29,8 @@ public:
     void SetHandler(TCallback<void(TMutationContext*)> handler);
     void SetAllowLeaderForwarding(bool value);
     void SetMutationId(NRpc::TMutationId mutationId, bool retry);
+    void SetTraceContext(NTracing::TTraceContextPtr traceContext);
+    void SetCurrentTraceContext();
 
     const TString& GetType() const;
     const TSharedRef& GetData() const;

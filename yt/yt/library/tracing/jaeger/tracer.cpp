@@ -13,8 +13,10 @@
 #include <yt/core/misc/serialize.h>
 
 #include <util/string/cast.h>
+
 #include <util/system/getpid.h>
 #include <util/system/env.h>
+#include <util/system/byteorder.h>
 
 namespace NYT::NTracing {
 
@@ -50,7 +52,7 @@ TJaegerTracerConfig::TJaegerTracerConfig()
     RegisterPostprocessor([this] {
         if (ServiceName && !CollectorChannelConfig) {
             THROW_ERROR_EXCEPTION("\"collector_channel_config\" is required");
-        } 
+        }
     });
 }
 
@@ -67,6 +69,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 void ToProtoGuid(TString* proto, const TGuid& guid)
 {
     *proto = TString{reinterpret_cast<const char*>(&guid.Parts32[0]), 16};
@@ -74,6 +78,7 @@ void ToProtoGuid(TString* proto, const TGuid& guid)
 
 void ToProtoUInt64(TString* proto, i64 i)
 {
+    i = SwapBytes64(i);
     *proto = TString{reinterpret_cast<char*>(&i), 8};
 }
 
@@ -97,14 +102,16 @@ void ToProto(NProto::Span* proto, const TTraceContextPtr& traceContext)
         protoTag->set_v_str(value);
     }
 
-    if (auto parent = traceContext->GetParentSpanId(); parent != InvalidSpanId) {
+    if (auto parentSpanId = traceContext->GetParentSpanId(); parentSpanId != InvalidSpanId) {
         auto* ref = proto->add_references();
 
         ToProtoGuid(ref->mutable_trace_id(), traceContext->GetTraceId());
-        ToProtoUInt64(ref->mutable_span_id(), parent);
+        ToProtoUInt64(ref->mutable_span_id(), parentSpanId);
         ref->set_ref_type(NProto::CHILD_OF);
     }
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

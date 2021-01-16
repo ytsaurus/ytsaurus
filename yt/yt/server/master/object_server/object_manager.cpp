@@ -575,6 +575,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto mutation = objectManager->CreateExecuteMutation(context, context->GetAuthenticationIdentity());
         mutation->SetAllowLeaderForwarding(true);
+        mutation->SetCurrentTraceContext();
         mutation->Commit()
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
                 if (!result.IsOK()) {
@@ -1221,7 +1222,7 @@ std::unique_ptr<TMutation> TObjectManager::TImpl::CreateExecuteMutation(
     }
 
     auto mutation = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request);
-    mutation->SetHandler(BIND(
+    mutation->SetHandler(BIND_DONT_CAPTURE_TRACE_CONTEXT(
         &TImpl::HydraExecuteLeader,
         MakeStrong(this),
         identity,
@@ -1664,6 +1665,13 @@ void TObjectManager::TImpl::HydraExecuteLeader(
             mutationId);
 
         return;
+    }
+
+    std::optional<NTracing::TChildTraceContextGuard> traceContextGuard;
+    if (auto* traceContext = NTracing::GetCurrentTraceContext()) {
+        traceContextGuard.emplace(
+            traceContext,
+            ConcatToString(TStringBuf("YPathWrite:"), rpcContext->GetService(), TStringBuf("."), rpcContext->GetMethod()));
     }
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();

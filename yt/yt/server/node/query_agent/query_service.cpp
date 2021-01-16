@@ -290,9 +290,9 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
-        TServiceProfilerGuard profilerGuard;
+        context->SetRequestInfo();
 
-        YT_LOG_DEBUG("Deserializing subfragment");
+        TServiceProfilerGuard profilerGuard;
 
         auto query = FromProto<TConstQueryPtr>(request->query());
         context->SetIncrementalResponseInfo("FragmentId: %v", query->Id);
@@ -307,7 +307,7 @@ private:
 
         auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
 
-        YT_LOG_DEBUG("Deserialized subfragment (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
+        YT_LOG_DEBUG("Subfragment deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
             "ReadSesisonId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v)",
             query->Id,

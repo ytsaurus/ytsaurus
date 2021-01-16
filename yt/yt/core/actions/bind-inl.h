@@ -441,9 +441,9 @@ public:
         : TraceContext_(NTracing::GetCurrentTraceContext())
     { }
 
-    NTracing::TTraceContextGuard GetTraceContextGuard()
+    NTracing::TCurrentTraceContextGuard GetTraceContextGuard()
     {
-        return NTracing::TTraceContextGuard(TraceContext_);
+        return NTracing::TCurrentTraceContextGuard(TraceContext_);
     }
 
 private:

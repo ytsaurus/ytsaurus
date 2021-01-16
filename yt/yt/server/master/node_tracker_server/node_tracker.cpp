@@ -203,12 +203,13 @@ public:
                 builder->AppendFormat("%v", group->Id);
             }));
 
-        CreateMutation(
+        auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
             &TImpl::HydraRegisterNode,
-            this)
-            ->CommitAndReply(context);
+            this);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
     }
 
     void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context)
@@ -218,6 +219,7 @@ public:
             context,
             &TImpl::HydraFullHeartbeat,
             this);
+        mutation->SetCurrentTraceContext();
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), FullHeartbeatSemaphore_);
    }
 
@@ -228,6 +230,7 @@ public:
             context,
             &TImpl::HydraIncrementalHeartbeat,
             this);
+        mutation->SetCurrentTraceContext();
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), IncrementalHeartbeatSemaphore_);
     }
 

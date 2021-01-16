@@ -134,7 +134,7 @@ public:
             pendingMutation.PrevRandomSeed,
             pendingMutation.Request.Type,
             pendingMutation.Request.MutationId,
-            pendingMutation.TraceContext ? pendingMutation.TraceContext->GetTraceId() : NTracing::TTraceId());
+            pendingMutation.Request.TraceContext ? pendingMutation.Request.TraceContext->GetTraceId() : NTracing::TTraceId());
     }
 
     TFuture<TVersion> GetQuorumFlushFuture() const
@@ -402,15 +402,13 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(TMutationRequest&& request)
     if (LoggingSuspended_) {
         auto& pendingMutation = PendingMutations_.emplace_back(
             timestamp,
-            std::move(request),
-            traceContextGuard.GetOldTraceContext());
+            std::move(request));
         return pendingMutation.CommitPromise;
     }
 
     auto commitFuture = LogLeaderMutation(
         timestamp,
-        std::move(request),
-        traceContextGuard.GetOldTraceContext());
+        std::move(request));
 
     if (DecoratedAutomaton_->GetRecordCountSinceLastCheckpoint() >= Config_->MaxChangelogRecordCount) {
         YT_LOG_INFO("Requesting checkpoint due to record count limit (RecordCountSinceLastCheckpoint: %v, MaxChangelogRecordCount: %v)",
@@ -465,8 +463,7 @@ void TLeaderCommitter::DoResumeLogging()
     for (auto& pendingMutation : PendingMutations_) {
         auto commitFuture = LogLeaderMutation(
             pendingMutation.Timestamp,
-            std::move(pendingMutation.Request),
-            std::move(pendingMutation.TraceContext));
+            std::move(pendingMutation.Request));
         pendingMutation.CommitPromise.SetFrom(commitFuture);
     }
     PendingMutations_.clear();
@@ -486,15 +483,13 @@ void TLeaderCommitter::Stop()
 
 TFuture<TMutationResponse> TLeaderCommitter::LogLeaderMutation(
     TInstant timestamp,
-    TMutationRequest&& request,
-    NTracing::TTraceContextPtr traceContext)
+    TMutationRequest&& request)
 {
     TSharedRef recordData;
     TFuture<void> localFlushFuture;
     const auto& loggedMutation = DecoratedAutomaton_->LogLeaderMutation(
         timestamp,
         std::move(request),
-        std::move(traceContext),
         &recordData,
         &localFlushFuture);
 

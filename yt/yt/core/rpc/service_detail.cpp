@@ -670,7 +670,7 @@ private:
         });
 
         try {
-            TTraceContextGuard guard(TraceContext_);
+            TCurrentTraceContextGuard guard(TraceContext_);
             DoGuardedRun(handler);
         } catch (const std::exception& ex) {
             Reply(ex);
@@ -1106,7 +1106,7 @@ void TServiceBase::HandleRequest(
         traceContext->AddTag(EndpointAnnotation, replyBus->GetEndpointDescription());
     }
 
-    TTraceContextGuard traceContextGuard(traceContext);
+    TCurrentTraceContextGuard traceContextGuard(traceContext);
 
     // NOTE: Do not use replyError() after this line.
     TAcceptedRequest acceptedRequest{

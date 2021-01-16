@@ -832,6 +832,8 @@ private:
                 cellIdsToSyncWith);
 
             auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
+            mutation->SetCurrentTraceContext();
+
             auto callback = [mutation = std::move(mutation), context] {
                 mutation->CommitAndReply(context);
             };
@@ -866,8 +868,9 @@ private:
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
 
             auto owner = GetOwnerOrThrow();
-            CreateMutation(owner->HydraManager_, hydraRequest)
-                ->CommitAndReply(context);
+            auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
+            mutation->SetCurrentTraceContext();
+            mutation->CommitAndReply(context);
         }
 
         DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionParticipant, AbortTransaction)
@@ -884,8 +887,9 @@ private:
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
 
             auto owner = GetOwnerOrThrow();
-            CreateMutation(owner->HydraManager_, hydraRequest)
-                ->CommitAndReply(context);
+            auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
+            mutation->SetCurrentTraceContext();
+            mutation->CommitAndReply(context);
         }
     };
 
@@ -990,8 +994,10 @@ private:
         request.set_coordinator_commit_mode(ToProto<int>(commit->GetCoordinatorCommitMode()));
         request.set_prepare_timestamp(prepareTimestamp);
         WriteAuthenticationIdentityToProto(&request, commit->AuthenticationIdentity());
-        CreateMutation(HydraManager_, request)
-            ->CommitAndLog(Logger);
+
+        auto mutation = CreateMutation(HydraManager_, request);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndLog(Logger);
     }
 
     TFuture<TSharedRefArray> CoordinatorAbortTransaction(
@@ -1029,8 +1035,10 @@ private:
         ToProto(request.mutable_transaction_id(), transactionId);
         ToProto(request.mutable_mutation_id(), mutationId);
         request.set_force(force);
-        CreateMutation(HydraManager_, request)
-            ->CommitAndLog(Logger);
+
+        auto mutation = CreateMutation(HydraManager_, request);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndLog(Logger);
 
         return asyncResponseMessage;
     }
@@ -1739,16 +1747,20 @@ private:
             NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo request;
             ToProto(request.mutable_transaction_id(), transactionId);
             ToProto(request.mutable_commit_timestamps(), commitTimestamps);
-            CreateMutation(HydraManager_, request)
-                ->CommitAndLog(Logger);
+
+            auto mutation = CreateMutation(HydraManager_, request);
+            mutation->SetCurrentTraceContext();
+            mutation->CommitAndLog(Logger);
         } else {
             NHiveServer::NProto::TReqCoordinatorCommitSimpleTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             ToProto(request.mutable_mutation_id(), commit->GetMutationId());
             ToProto(request.mutable_commit_timestamps(), commitTimestamps);
             WriteAuthenticationIdentityToProto(&request, commit->AuthenticationIdentity());
-            CreateMutation(HydraManager_, request)
-                ->CommitAndLog(Logger);
+
+            auto mutation = CreateMutation(HydraManager_, request);
+            mutation->SetCurrentTraceContext();
+            mutation->CommitAndLog(Logger);
         }
     }
 
@@ -1826,16 +1838,20 @@ private:
                 NHiveServer::NProto::TReqCoordinatorAbortDistributedTransactionPhaseTwo request;
                 ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
                 ToProto(request.mutable_error(), error);
-                CreateMutation(HydraManager_, request)
-                    ->CommitAndLog(Logger);
+
+                auto mutation = CreateMutation(HydraManager_, request);
+                mutation->SetCurrentTraceContext();
+                mutation->CommitAndLog(Logger);
                 break;
             }
 
             case ECommitState::Finishing: {
                 NHiveServer::NProto::TReqCoordinatorFinishDistributedTransaction request;
                 ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
-                CreateMutation(HydraManager_, request)
-                    ->CommitAndLog(Logger);
+
+                auto mutation = CreateMutation(HydraManager_, request);
+                mutation->SetCurrentTraceContext();
+                mutation->CommitAndLog(Logger);
                 break;
             }
 

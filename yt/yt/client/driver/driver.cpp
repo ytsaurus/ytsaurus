@@ -420,7 +420,7 @@ private:
     {
         const auto& request = context->Request();
 
-        NTracing::TChildTraceContextGuard span(
+        NTracing::TChildTraceContextGuard traceContextGuard(
             ConcatToString(TStringBuf("Driver:"), request.CommandName),
             context->GetConfig()->ForceTracing);
         NTracing::AddTag("user", request.AuthenticatedUser);

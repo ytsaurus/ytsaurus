@@ -24,6 +24,7 @@ struct TMutationRequest
     bool AllowLeaderForwarding = false;
     NRpc::TMutationId MutationId;
     bool Retry = false;
+    NTracing::TTraceContextPtr TraceContext;
 };
 
 DEFINE_ENUM(EMutationResponseOrigin,

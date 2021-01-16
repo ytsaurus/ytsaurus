@@ -468,8 +468,9 @@ private:
             SelfCellId_,
             messageCount);
 
-        CreateSendMessagesMutation(context)
-            ->CommitAndReply(context);
+        auto mutation = CreateSendMessagesMutation(context);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SyncWithOthers)
@@ -855,6 +856,8 @@ private:
         YT_LOG_DEBUG("Sending periodic ping (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
+
+        NTracing::TNullTraceContextGuard guard;
 
         THiveServiceProxy proxy(std::move(channel));
 
@@ -1417,12 +1420,13 @@ private:
             return;
         }
 
-        auto traceContext = message.has_tracing_ext()
-            ? NTracing::CreateChildTraceContext(
+        std::optional<TTraceContextGuard> traceContextGuard;
+        if (message.has_tracing_ext() && IsLeader()) {
+            auto traceContext = NTracing::CreateChildTraceContext(
                 message.tracing_ext(),
-                ConcatToString(TStringBuf("HiveManager:"), message.type()))
-            : nullptr;
-        TTraceContextGuard traceContextGuard(std::move(traceContext));
+                ConcatToString(TStringBuf("HiveManager:"), message.type()));
+            traceContextGuard.emplace(std::move(traceContext));
+        }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying reliable incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
             mailbox->GetCellId(),

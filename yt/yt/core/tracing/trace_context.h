@@ -140,13 +140,13 @@ void AddErrorTag();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! TTraceContextGuard installs trace into the current fiber implicit trace slot.
-class TTraceContextGuard
+//! Installs the given trace into the current fiber implicit trace slot.
+class TCurrentTraceContextGuard
 {
 public:
-    explicit TTraceContextGuard(TTraceContextPtr traceContext);
-    TTraceContextGuard(TTraceContextGuard&& other);
-    ~TTraceContextGuard();
+    explicit TCurrentTraceContextGuard(TTraceContextPtr traceContext);
+    TCurrentTraceContextGuard(TCurrentTraceContextGuard&& other);
+    ~TCurrentTraceContextGuard();
 
     bool IsActive() const;
     void Release();
@@ -160,6 +160,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Installs null trace into the current fiber implicit trace slot.
 class TNullTraceContextGuard
 {
 public:
@@ -179,6 +180,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Invokes TTraceContext::Finish upon destruction.
 class TTraceContextFinishGuard
 {
 public:
@@ -197,21 +199,39 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChildTraceContextGuard
+//! Installs the given trace into the current fiber implicit trace slot.
+//! Finishes the trace context upon destruction.
+class TTraceContextGuard
 {
 public:
-    explicit TChildTraceContextGuard(const TString& spanName, bool forceTracing = false);
-    TChildTraceContextGuard(TChildTraceContextGuard&& other) = default;
+    explicit TTraceContextGuard(TTraceContextPtr traceContext);
+    TTraceContextGuard(TTraceContextGuard&& other) = default;
 
 private:
-    TTraceContextGuard TraceContextGuard_;
+    TCurrentTraceContextGuard TraceContextGuard_;
     TTraceContextFinishGuard FinishGuard_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// For internal use only.
 
-TTraceContextPtr SwitchTraceContext(TTraceContextPtr traceContext);
+//! Constructs a child trace context and installs it into the current fiber implicit trace slot.
+//! Finishes the child trace context upon destruction.
+class TChildTraceContextGuard
+{
+public:
+    TChildTraceContextGuard(
+        const TTraceContextPtr& traceContext,
+        const TString& spanName,
+        bool forceTracing = false);
+    explicit TChildTraceContextGuard(
+        const TString& spanName,
+        bool forceTracing = false);
+    TChildTraceContextGuard(TChildTraceContextGuard&& other) = default;
+
+private:
+    TCurrentTraceContextGuard TraceContextGuard_;
+    TTraceContextFinishGuard FinishGuard_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

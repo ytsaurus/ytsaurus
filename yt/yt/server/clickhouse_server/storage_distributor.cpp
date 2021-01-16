@@ -495,7 +495,7 @@ public:
 
     virtual void startup() override
     {
-        TTraceContextGuard guard(QueryContext_->TraceContext);
+        TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
         YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
         if (Schema_->GetColumnCount() == 0) {
@@ -575,7 +575,7 @@ public:
         size_t /* maxBlockSize */,
         unsigned /* numStreams */) override
     {
-        TTraceContextGuard guard(QueryContext_->TraceContext);
+        TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
         auto* queryContext = GetQueryContext(context);
         auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
@@ -602,7 +602,7 @@ public:
 
     virtual DB::BlockOutputStreamPtr write(const DB::ASTPtr& /* ptr */, const DB::StorageMetadataPtr& /*metadata_snapshot*/, const DB::Context& /* context */) override
     {
-        TTraceContextGuard guard(QueryContext_->TraceContext);
+        TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
         if (Tables_.size() != 1) {
             THROW_ERROR_EXCEPTION("Cannot write to many tables simultaneously")
@@ -656,7 +656,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     const auto& client = queryContext->Client();
     const auto& Logger = queryContext->Logger;
 
-    TTraceContextGuard guard(queryContext->TraceContext);
+    TCurrentTraceContextGuard guard(queryContext->TraceContext);
 
     TKeyColumns keyColumns;
 

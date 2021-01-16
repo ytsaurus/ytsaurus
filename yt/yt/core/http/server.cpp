@@ -188,7 +188,6 @@ private:
 
                 auto traceContext = GetOrCreateTraceContext(request);
                 NTracing::TTraceContextGuard guard(traceContext);
-                NTracing::TTraceContextFinishGuard finishGuard(traceContext);
                 SetTraceId(response, traceContext->GetTraceId());
 
                 handler->HandleRequest(request, response);

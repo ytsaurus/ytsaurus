@@ -65,12 +65,9 @@ public:
         size_t /* maxBlockSize */,
         unsigned maxStreamCount) override
     {
-        auto preparePipesTraceContext = NTracing::CreateChildTraceContext(
+        NTracing::TChildTraceContextGuard traceContextGuard(
             QueryContext_->TraceContext,
             "ClickHouseYt.PreparePipes");
-
-        TTraceContextGuard traceContextGuard(preparePipesTraceContext);
-        TTraceContextFinishGuard finishTraceContextGuard(preparePipesTraceContext);
 
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
 

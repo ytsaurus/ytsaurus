@@ -324,8 +324,10 @@ public:
         request.set_signature(signature);
         request.mutable_actions()->Swap(&actions);
         NRpc::WriteAuthenticationIdentityToProto(&request, NRpc::GetCurrentAuthenticationIdentity());
-        return CreateMutation(HydraManager_, request)
-            ->CommitAndLog(Logger).AsVoid();
+
+        auto mutation = CreateMutation(HydraManager_, request);
+        mutation->SetCurrentTraceContext();
+        return mutation->CommitAndLog(Logger).AsVoid();
     }
 
     IYPathServicePtr GetOrchidService()

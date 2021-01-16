@@ -125,8 +125,7 @@ private:
 
     TFuture<TMutationResponse> LogLeaderMutation(
         TInstant timestamp,
-        TMutationRequest&& request,
-        NTracing::TTraceContextPtr traceContext);
+        TMutationRequest&& request);
 
     void OnBatchCommitted(const TErrorOr<TVersion>& errorOrVersion);
     TIntrusivePtr<TBatch> GetOrCreateBatch(TVersion version);
@@ -149,16 +148,13 @@ private:
     {
         TPendingMutation(
             TInstant timestamp,
-            TMutationRequest&& request,
-            NTracing::TTraceContextPtr traceContext)
+            TMutationRequest&& request)
             : Timestamp(timestamp)
             , Request(request)
-            , TraceContext(std::move(traceContext))
         { }
 
         TInstant Timestamp;
         TMutationRequest Request;
-        NTracing::TTraceContextPtr TraceContext;
         TPromise<TMutationResponse> CommitPromise = NewPromise<TMutationResponse>();
     };
 
