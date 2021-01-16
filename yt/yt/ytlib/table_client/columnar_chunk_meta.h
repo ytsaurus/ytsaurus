@@ -27,7 +27,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TRefCountedColumnMetaPtr, ColumnMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(TSharedRange<TLegacyKey>, LegacyBlockLastKeys);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TKey>, BlockLastKeys);
+    DEFINE_BYREF_RO_PROPERTY(TSharedRange<TKey>, BlockLastKeys);
     DEFINE_BYVAL_RO_PROPERTY(TTableSchemaPtr, ChunkSchema);
     DEFINE_BYREF_RO_PROPERTY(TNameTablePtr, ChunkNameTable);
 

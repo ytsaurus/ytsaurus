@@ -180,7 +180,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
 }
 
 int TChunkReaderBase::ApplyLowerKeyLimit(
-    const std::vector<TKey>& blockLastKeys,
+    const TSharedRange<TKey>& blockLastKeys,
     const TReadLimit& lowerLimit,
     const TComparator& comparator) const
 {
@@ -191,10 +191,11 @@ int TChunkReaderBase::ApplyLowerKeyLimit(
 
     YT_VERIFY(!lowerBound.IsUpper);
 
-    if (!comparator.TestKey(blockLastKeys.back(), lowerBound)) {
+    const auto& maxKey = blockLastKeys[blockLastKeys.size() - 1];
+    if (!comparator.TestKey(maxKey, lowerBound)) {
         YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v, Comparator: %v)",
             lowerLimit,
-            blockLastKeys.back(),
+            maxKey,
             comparator);
     }
 
@@ -210,7 +211,7 @@ int TChunkReaderBase::ApplyLowerKeyLimit(
     if (it == blockLastKeys.end()) {
         YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v, Comparator: %v)",
             lowerLimit,
-            blockLastKeys.back(),
+            maxKey,
             comparator);
         return blockLastKeys.size();
     }
@@ -239,7 +240,7 @@ int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const T
 }
 
 int TChunkReaderBase::ApplyUpperKeyLimit(
-    const std::vector<TKey>& blockLastKeys,
+    const TSharedRange<TKey>& blockLastKeys,
     const TReadLimit& upperLimit,
     const TComparator& comparator) const
 {

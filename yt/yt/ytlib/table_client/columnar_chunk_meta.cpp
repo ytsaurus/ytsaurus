@@ -78,8 +78,8 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
     struct TBlockLastKeysBufferTag { };
     auto tempBuffer = New<TRowBuffer>(TBlockLastKeysBufferTag());
 
-    std::vector<TLegacyKey> blockLastKeys;
-    blockLastKeys.reserve(BlockMeta_->blocks_size());
+    std::vector<TLegacyKey> legacyBlockLastKeys;
+    legacyBlockLastKeys.reserve(BlockMeta_->blocks_size());
     for (const auto& block : BlockMeta_->blocks()) {
         TLegacyKey key;
         if (ChunkSchema_->GetKeyColumnCount() > 0) {
@@ -89,14 +89,16 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
             key = tempBuffer->AllocateUnversioned(0);
         }
         auto wideKey = WidenKeyPrefix(key, prefixLength, keyColumns.size(), tempBuffer);
-        blockLastKeys.push_back(wideKey);
+        legacyBlockLastKeys.push_back(wideKey);
     }
 
-    std::tie(LegacyBlockLastKeys_, BlockLastKeysSize_) = CaptureRows<TBlockLastKeysBufferTag>(MakeRange(blockLastKeys));
-    BlockLastKeys_.clear();
+    std::tie(LegacyBlockLastKeys_, BlockLastKeysSize_) = CaptureRows<TBlockLastKeysBufferTag>(MakeRange(legacyBlockLastKeys));
+    std::vector<TKey> blockLastKeys;
+    blockLastKeys.reserve(LegacyBlockLastKeys_.size());
     for (const auto& lastKey : LegacyBlockLastKeys_) {
-        BlockLastKeys_.push_back(TKey::FromRow(lastKey));
+        blockLastKeys.push_back(TKey::FromRow(lastKey));
     }
+    BlockLastKeys_ = MakeSharedRange(blockLastKeys, LegacyBlockLastKeys_.GetHolder());
 }
 
 void TColumnarChunkMeta::RenameColumns(const TColumnRenameDescriptors& renameDescriptors)
@@ -147,7 +149,7 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
 {
     return
         BlockLastKeysSize_ +
-        sizeof(TKey) * BlockLastKeys_.capacity() + 
+        sizeof(TKey) * BlockLastKeys_.Size() + 
         sizeof (Misc_) +
         BlockMeta_->GetSize() +
         (ColumnMeta_ ? ColumnMeta_->GetSize() : 0) +
