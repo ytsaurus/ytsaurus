@@ -363,7 +363,7 @@ public:
                 NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, identity);
 
                 auto mutation = CreateMutation(Slot_->GetHydraManager(), hydraRequest);
-                mutation->SetHandler(BIND(
+                mutation->SetHandler(BIND_DONT_CAPTURE_TRACE_CONTEXT(
                     &TImpl::HydraLeaderWriteRows,
                     MakeStrong(this),
                     transactionId,
@@ -372,6 +372,7 @@ public:
                     lockless,
                     writeRecord,
                     identity));
+                mutation->SetCurrentTraceContext();
                 *commitResult = mutation->Commit().As<void>();
 
                 auto counters = tablet->GetTableProfiler()->GetWriteCounters(GetCurrentProfilingUser());
@@ -423,9 +424,10 @@ public:
             ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
             hydraRequest.set_mount_revision(tablet->GetMountRevision());
             hydraRequest.set_trimmed_row_count(trimmedRowCount);
-            return CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-                ->Commit()
-                .As<void>();
+
+            auto mutation = CreateMutation(Slot_->GetHydraManager(), hydraRequest);
+            mutation->SetCurrentTraceContext();
+            return mutation->Commit().As<void>();
         } catch (const std::exception& ex) {
             return MakeFuture(TError(ex));
         }

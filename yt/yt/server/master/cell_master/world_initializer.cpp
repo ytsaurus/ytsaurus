@@ -162,8 +162,8 @@ private:
 
         auto traceContext = NTracing::CreateRootTraceContext("WorldInitializer");
         traceContext->SetSampled();
+
         NTracing::TTraceContextGuard contextGuard(traceContext);
-        NTracing::TTraceContextFinishGuard finishGuard(traceContext);
 
         TTransactionId transactionId;
 

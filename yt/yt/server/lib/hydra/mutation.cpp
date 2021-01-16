@@ -2,6 +2,8 @@
 
 #include <yt/core/rpc/service.h>
 
+#include <yt/core/tracing/trace_context.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,6 +72,16 @@ void TMutation::SetMutationId(NRpc::TMutationId mutationId, bool retry)
 {
     Request_.MutationId = mutationId;
     Request_.Retry = retry;
+}
+
+void TMutation::SetTraceContext(NTracing::TTraceContextPtr traceContext)
+{
+    Request_.TraceContext = std::move(traceContext);
+}
+
+void TMutation::SetCurrentTraceContext()
+{
+    SetTraceContext(NTracing::GetCurrentTraceContext());
 }
 
 const TString& TMutation::GetType() const

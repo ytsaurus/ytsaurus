@@ -342,9 +342,9 @@ private:
         SyncWithTransactionCoordinatorCell(context, transactionId);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager
-            ->CreateExportChunksMutation(context)
-            ->CommitAndReply(context);
+        auto mutation = chunkManager->CreateExportChunksMutation(context);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ImportChunks)
@@ -360,9 +360,9 @@ private:
         SyncWithTransactionCoordinatorCell(context, transactionId);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager
-            ->CreateImportChunksMutation(context)
-            ->CommitAndReply(context);
+        auto mutation = chunkManager->CreateImportChunksMutation(context);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkOwningNodes)

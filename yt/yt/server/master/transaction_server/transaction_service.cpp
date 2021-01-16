@@ -77,9 +77,9 @@ private:
         NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, context->GetAuthenticationIdentity());
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager
-            ->CreateStartTransactionMutation(context, hydraRequest)
-            ->CommitAndReply(context);
+        auto mutation = transactionManager->CreateStartTransactionMutation(context, hydraRequest);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, RegisterTransactionActions)
@@ -105,9 +105,9 @@ private:
             .ThrowOnError();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager
-            ->CreateRegisterTransactionActionsMutation(context)
-            ->CommitAndReply(context);
+        auto mutation = transactionManager->CreateRegisterTransactionActionsMutation(context);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, ReplicateTransactions)
@@ -132,9 +132,9 @@ private:
         ValidateTransactionsAreCoordinatedByThisCell(transactionIds);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager
-            ->CreateReplicateTransactionsMutation(context)
-            ->CommitAndReply(context);
+        auto mutation = transactionManager->CreateReplicateTransactionsMutation(context);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
     }
 
     void ValidateTransactionsAreCoordinatedByThisCell(const std::vector<TTransactionId>& transactionIds)

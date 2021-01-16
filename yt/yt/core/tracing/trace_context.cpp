@@ -369,30 +369,5 @@ void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChildTraceContextGuard::TChildTraceContextGuard(
-    const TString& spanName,
-    bool forceTracing)
-    : TraceContextGuard_(CreateChildTraceContext(
-        GetCurrentTraceContext(),
-        spanName,
-        forceTracing))
-    , FinishGuard_(GetCurrentTraceContext())
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTraceContextFinishGuard::TTraceContextFinishGuard(TTraceContextPtr traceContext)
-    : TraceContext_(std::move(traceContext))
-{ }
-
-TTraceContextFinishGuard::~TTraceContextFinishGuard()
-{
-    if (TraceContext_) {
-        TraceContext_->Finish();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NTracing
 

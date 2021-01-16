@@ -289,6 +289,7 @@ public:
         TCtxExecutePtr rpcContext)
         : Owner_(std::move(owner))
         , RpcContext_(std::move(rpcContext))
+        , TraceContext_(NTracing::GetCurrentTraceContext())
         , Bootstrap_(Owner_->Bootstrap_)
         , TotalSubrequestCount_(RpcContext_->Request().part_counts_size())
         , UserName_(RpcContext_->GetAuthenticationIdentity().User)
@@ -395,6 +396,7 @@ public:
 private:
     const TObjectServicePtr Owner_;
     const TCtxExecutePtr RpcContext_;
+    const NTracing::TTraceContextPtr TraceContext_;
 
     NCellMaster::TBootstrap* const Bootstrap_;
     const int TotalSubrequestCount_;
@@ -602,9 +604,6 @@ private:
             }
 
             subrequest.RequestMessage = SetRequestHeader(subrequest.RequestMessage, requestHeader);
-            subrequest.TraceContext = NRpc::CreateCallTraceContext(
-                requestHeader.service(),
-                requestHeader.method());
 
             if (subrequest.YPathExt->mutating()) {
                 subrequest.ProfilingCounters->TotalWriteRequestCounter.Increment();
@@ -836,6 +835,7 @@ private:
             const auto& objectManager = Bootstrap_->GetObjectManager();
             subrequest->Mutation = objectManager->CreateExecuteMutation(subrequest->RpcContext, subrequest->RpcContext->GetAuthenticationIdentity());
             subrequest->Mutation->SetMutationId(subrequest->RpcContext->GetMutationId(), subrequest->RpcContext->IsRetry());
+            subrequest->Mutation->SetTraceContext(TraceContext_);
             subrequest->Type = EExecutionSessionSubrequestType::LocalWrite;
             subrequest->ProfilingCounters->LocalWriteRequestCounter.Increment();
         } else {
@@ -1485,10 +1485,6 @@ private:
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         subrequest.Revision = hydraManager->GetAutomatonVersion().ToRevision();
 
-        if (subrequest.TraceContext) {
-            subrequest.TraceContext->ResetStartTime();
-        }
-
         switch (subrequest.Type) {
             case EExecutionSessionSubrequestType::LocalRead:
             case EExecutionSessionSubrequestType::LocalWrite:
@@ -1642,13 +1638,19 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, User_);
 
-        NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
+        const auto& rpcContext = subrequest->RpcContext;
 
-        const auto& context = subrequest->RpcContext;
+        if (TraceContext_) {
+            subrequest->TraceContext = NTracing::CreateChildTraceContext(
+                TraceContext_,
+                ConcatToString(TStringBuf("YPathRead:"), rpcContext->GetService(), TStringBuf("."), rpcContext->GetMethod()));
+        }
+        NTracing::TCurrentTraceContextGuard traceContextGuard(subrequest->TraceContext);
+
         try {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
-            ExecuteVerb(rootService, context);
+            ExecuteVerb(rootService, rpcContext);
 
             WaitForSubresponse(subrequest);
         } catch (const TLeaderFallbackException&) {

@@ -1348,7 +1348,6 @@ public:
             std::move(requestMessage),
             std::move(logger),
             logLevel)
-        , TraceContext_(MakeTraceContext())
     { }
 
     TYPathServiceContext(
@@ -1361,26 +1360,12 @@ public:
             std::move(requestMessage),
             std::move(logger),
             logLevel)
-        , TraceContext_(MakeTraceContext())
     { }
 
 protected:
-    const NTracing::TTraceContextPtr TraceContext_;
-
     std::optional<NProfiling::TWallTimer> Timer_;
     const NProto::TYPathHeaderExt* YPathExt_ = nullptr;
 
-
-    NTracing::TTraceContextPtr MakeTraceContext()
-    {
-        auto traceContext = NTracing::GetCurrentTraceContext();
-        if (!traceContext) {
-            return nullptr;
-        }
-        return NTracing::CreateChildTraceContext(
-            std::move(traceContext),
-            ConcatToString(TStringBuf("YPath:"), GetService(), TStringBuf("."), GetMethod()));
-    }
 
     const NProto::TYPathHeaderExt& GetYPathExt()
     {
@@ -1392,11 +1377,7 @@ protected:
 
 
     virtual void DoReply() override
-    {
-        if (TraceContext_) {
-            TraceContext_->Finish();
-        }
-    }
+    { }
 
     virtual void LogRequest() override
     {

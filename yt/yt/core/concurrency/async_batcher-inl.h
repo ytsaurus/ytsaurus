@@ -37,6 +37,7 @@ TFuture<T> TAsyncBatcher<T>::Run()
             DeadlineReached_ = true;
 
             if (!ActivePromise_) {
+                NTracing::TNullTraceContextGuard traceContextGuard;
                 DoRun(guard);
                 return ActivePromise_;
             }

@@ -109,13 +109,12 @@ void TServiceContextBase::ReplyEpilogue()
         asyncResponseMessage = AsyncResponseMessage_;
     }
 
-    DoReply();
-
-    Replied_.store(true);
-
     if (Logger.IsLevelEnabled(LogLevel_)) {
         LogResponse();
     }
+
+    DoReply();
+    Replied_.store(true);
 
     if (asyncResponseMessage) {
         asyncResponseMessage.Set(std::move(responseMessage));

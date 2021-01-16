@@ -194,15 +194,13 @@ public:
             TInstant timestamp,
             ui64 randomSeed,
             ui64 prevRandomSeed,
-            i64 sequenceNumber,
-            NTracing::TTraceContextPtr traceContext)
+            i64 sequenceNumber)
             : Version(version)
             , Request(request)
             , Timestamp(timestamp)
             , RandomSeed(randomSeed)
             , PrevRandomSeed(prevRandomSeed)
             , SequenceNumber(sequenceNumber)
-            , TraceContext(std::move(traceContext))
         { }
 
         TVersion Version;
@@ -211,14 +209,12 @@ public:
         ui64 RandomSeed;
         ui64 PrevRandomSeed;
         i64 SequenceNumber;
-        NTracing::TTraceContextPtr TraceContext;
         TPromise<TMutationResponse> LocalCommitPromise = NewPromise<TMutationResponse>();
     };
 
     const TPendingMutation& LogLeaderMutation(
         TInstant timestamp,
         TMutationRequest&& request,
-        NTracing::TTraceContextPtr traceContext,
         TSharedRef* recordData,
         TFuture<void>* localFlushFuture);
     const TPendingMutation& LogFollowerMutation(

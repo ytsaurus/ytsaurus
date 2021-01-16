@@ -61,7 +61,10 @@ Y_FORCE_INLINE NProfiling::TCpuDuration TTraceContext::GetElapsedCpuTime() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE TTraceContextGuard::TTraceContextGuard(TTraceContextPtr traceContext)
+// For internal use only.
+TTraceContextPtr SwitchTraceContext(TTraceContextPtr traceContext);
+
+Y_FORCE_INLINE TCurrentTraceContextGuard::TCurrentTraceContextGuard(TTraceContextPtr traceContext)
     : Active_(static_cast<bool>(traceContext))
 {
     if (Active_) {
@@ -69,24 +72,24 @@ Y_FORCE_INLINE TTraceContextGuard::TTraceContextGuard(TTraceContextPtr traceCont
     }
 }
 
-Y_FORCE_INLINE TTraceContextGuard::TTraceContextGuard(TTraceContextGuard&& other)
+Y_FORCE_INLINE TCurrentTraceContextGuard::TCurrentTraceContextGuard(TCurrentTraceContextGuard&& other)
     : Active_(other.Active_)
     , OldTraceContext_(std::move(other.OldTraceContext_))
 {
     other.Active_ = false;
 }
 
-Y_FORCE_INLINE TTraceContextGuard::~TTraceContextGuard()
+Y_FORCE_INLINE TCurrentTraceContextGuard::~TCurrentTraceContextGuard()
 {
     Release();
 }
 
-Y_FORCE_INLINE bool TTraceContextGuard::IsActive() const
+Y_FORCE_INLINE bool TCurrentTraceContextGuard::IsActive() const
 {
     return Active_;
 }
 
-Y_FORCE_INLINE void TTraceContextGuard::Release()
+Y_FORCE_INLINE void TCurrentTraceContextGuard::Release()
 {
     if (Active_) {
         SwitchTraceContext(std::move(OldTraceContext_));
@@ -94,7 +97,7 @@ Y_FORCE_INLINE void TTraceContextGuard::Release()
     }
 }
 
-Y_FORCE_INLINE const TTraceContextPtr& TTraceContextGuard::GetOldTraceContext() const
+Y_FORCE_INLINE const TTraceContextPtr& TCurrentTraceContextGuard::GetOldTraceContext() const
 {
     return OldTraceContext_;
 }
@@ -134,6 +137,48 @@ Y_FORCE_INLINE void TNullTraceContextGuard::Release()
 Y_FORCE_INLINE const TTraceContextPtr& TNullTraceContextGuard::GetOldTraceContext() const
 {
     return OldTraceContext_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TTraceContextGuard::TTraceContextGuard(TTraceContextPtr traceContext)
+    : TraceContextGuard_(std::move(traceContext))
+    , FinishGuard_(GetCurrentTraceContext())
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TChildTraceContextGuard::TChildTraceContextGuard(
+    const TTraceContextPtr& traceContext,
+    const TString& spanName,
+    bool forceTracing)
+    : TraceContextGuard_(CreateChildTraceContext(
+        traceContext,
+        spanName,
+        forceTracing))
+    , FinishGuard_(GetCurrentTraceContext())
+{ }
+
+inline TChildTraceContextGuard::TChildTraceContextGuard(
+    const TString& spanName,
+    bool forceTracing)
+    : TChildTraceContextGuard(
+        GetCurrentTraceContext(),
+        spanName,
+        forceTracing)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TTraceContextFinishGuard::TTraceContextFinishGuard(TTraceContextPtr traceContext)
+    : TraceContext_(std::move(traceContext))
+{ }
+
+inline TTraceContextFinishGuard::~TTraceContextFinishGuard()
+{
+    if (TraceContext_) {
+        TraceContext_->Finish();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

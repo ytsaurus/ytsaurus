@@ -813,7 +813,6 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogLeaderMutation(
     TInstant timestamp,
     TMutationRequest&& request,
-    NTracing::TTraceContextPtr traceContext,
     TSharedRef* recordData,
     TFuture<void>* localFlushFuture)
 {
@@ -830,8 +829,7 @@ const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogLeaderMutat
         timestamp,
         RandomNumber<ui64>(),
         GetLastLoggedRandomSeed(),
-        GetLastLoggedSequenceNumber() + 1,
-        std::move(traceContext));
+        GetLastLoggedSequenceNumber() + 1);
 
     MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
     MutationHeader_.set_reign(pendingMutation.Request.Reign);
@@ -905,8 +903,7 @@ const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogFollowerMut
         FromProto<TInstant>(MutationHeader_.timestamp()),
         MutationHeader_.random_seed(),
         MutationHeader_.prev_random_seed(),
-        MutationHeader_.sequence_number(),
-        nullptr);
+        MutationHeader_.sequence_number());
 
     if (Changelog_) {
         // XXX(babenko): append multiple records a time.
@@ -1083,11 +1080,14 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
             StateHash_);
 
         {
-            auto traceContext = pendingMutation.TraceContext
+            auto traceContext = pendingMutation.Request.TraceContext
                 ? NTracing::CreateChildTraceContext(
-                    pendingMutation.TraceContext,
-                    ConcatToString(TStringBuf("HydraManager:"), pendingMutation.Request.Type))
+                    pendingMutation.Request.TraceContext,
+                    ConcatToString(TStringBuf("HydraMutation:"), pendingMutation.Request.Type))
                 : nullptr;
+            if (traceContext && traceContext->IsSampled() && pendingMutation.Request.MutationId) {
+                traceContext->AddTag("mutation_id", ToString(pendingMutation.Request.MutationId));
+            }
             NTracing::TTraceContextGuard traceContextGuard(std::move(traceContext));
             DoApplyMutation(&mutationContext);
         }

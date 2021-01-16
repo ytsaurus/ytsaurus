@@ -177,7 +177,7 @@ DB::Block TBlockInputStream::getHeader() const
 
 void TBlockInputStream::readPrefixImpl()
 {
-    TTraceContextGuard guard(TraceContext_);
+    TCurrentTraceContextGuard guard(TraceContext_);
     YT_LOG_DEBUG("readPrefixImpl() is called");
 
     IdleTimer_.Start();
@@ -185,7 +185,7 @@ void TBlockInputStream::readPrefixImpl()
 
 void TBlockInputStream::readSuffixImpl()
 {
-    TTraceContextGuard guard(TraceContext_);
+    TCurrentTraceContextGuard guard(TraceContext_);
     YT_LOG_DEBUG("readSuffixImpl() is called");
 
     IdleTimer_.Stop();
@@ -224,11 +224,9 @@ void TBlockInputStream::readSuffixImpl()
 
 DB::Block TBlockInputStream::readImpl()
 {
-    TTraceContextGuard guard(TraceContext_);
-
-    TNullTraceContextGuard nullGuard;
+    std::optional<TCurrentTraceContextGuard> guard;
     if (Settings_->EnableReaderTracing) {
-        nullGuard.Release();
+        guard.emplace(TraceContext_);
     }
 
     IdleTimer_.Stop();
@@ -376,11 +374,9 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         traceContext,
         "ClickHouseYt.BlockInputStream");
 
-    NTracing::TTraceContextGuard guard(blockInputStreamTraceContext);
-    // Readers capture context implicitly, so create NullTraceContextGuard if tracing is disabled.
-    NTracing::TNullTraceContextGuard nullGuard;
+    std::optional<NTracing::TCurrentTraceContextGuard> guard;
     if (storageContext->Settings->EnableReaderTracing) {
-        nullGuard.Release();
+        guard.emplace(blockInputStreamTraceContext);
     }
 
     ISchemalessMultiChunkReaderPtr reader;
