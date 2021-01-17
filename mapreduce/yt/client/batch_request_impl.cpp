@@ -3,7 +3,6 @@
 #include "lock.h"
 
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/helpers.h>
 
 #include <mapreduce/yt/http/retry_request.h>

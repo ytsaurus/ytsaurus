@@ -9,7 +9,6 @@
 #include <mapreduce/yt/tests/native/ydl_lib/all_types.ydl.h>
 
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/common/finally_guard.h>
 
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/io.h>
@@ -22,6 +21,8 @@
 #include <library/cpp/yson/node/node_io.h>
 
 #include <library/cpp/testing/unittest/registar.h>
+
+#include <util/generic/scope.h>
 
 #include <util/random/fast.h>
 
@@ -374,9 +375,9 @@ Y_UNIT_TEST_SUITE(TableIo) {
         TConfig::Get()->NodeReaderFormat = format;
 
         auto path = workingDir + "/table";
-        NYT::NDetail::TFinallyGuard finally([&]{
+        Y_DEFER {
             client->Remove(path, TRemoveOptions().Force(true));
-        });
+        };
 
         auto row = TNode()
             ("int64", 1 - (1LL << 62))
