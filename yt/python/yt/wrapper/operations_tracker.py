@@ -10,6 +10,7 @@ from .run_operation_commands import run_operation
 from .batch_helpers import batch_apply
 
 import yt.logger as logger
+from yt.packages.six import PY3
 from yt.packages.six.moves import xrange, zip
 
 from collections import namedtuple
@@ -17,6 +18,8 @@ from time import sleep
 from collections import deque, defaultdict
 from threading import Thread, RLock
 from copy import deepcopy
+
+import sys
 
 def copy_client(client):
     from .client import YtClient
@@ -135,7 +138,8 @@ class _OperationsTrackingThread(Thread):
 
     def stop(self):
         self.finished = True
-        self.join()
+        if not PY3 or not sys.is_finalizing():
+            self.join()
 
 
 class OperationsTrackerBase(object):
