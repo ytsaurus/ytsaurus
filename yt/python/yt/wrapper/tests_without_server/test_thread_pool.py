@@ -1,4 +1,4 @@
-from .conftest import authors
+from yt.testlib import authors
 
 from yt.wrapper.thread_pool import ThreadPool
 

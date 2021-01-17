@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from .conftest import authors
-from .helpers import yatest_common # noqa
+from yt.testlib import authors, yatest_common
 
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.common import (update, unlist, parse_bool, dict_depth, bool_to_string,
