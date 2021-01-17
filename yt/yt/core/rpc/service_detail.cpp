@@ -772,6 +772,10 @@ private:
         PerformanceCounters_->ResponseMessageAttachmentSizeCounter.Increment(
             GetTotalMessageAttachmentSize(responseMessage));
 
+        if (!Error_.IsOK() && TraceContext_ && TraceContext_->IsSampled()) {
+            TraceContext_->AddErrorTag();
+        }
+
         Finalize();
     }
 
@@ -831,7 +835,7 @@ private:
         }
 
         auto logMessage = builder.Flush();
-        if (TraceContext_) {
+        if (TraceContext_ && TraceContext_->IsSampled()) {
             TraceContext_->AddTag(RequestInfoAnnotation, logMessage);
         }
         YT_LOG_EVENT(Logger, LogLevel_, logMessage);
@@ -874,7 +878,7 @@ private:
             TotalTime_);
 
         auto logMessage = builder.Flush();
-        if (TraceContext_) {
+        if (TraceContext_ && TraceContext_->IsSampled()) {
             TraceContext_->AddTag(ResponseInfoAnnotation, logMessage);
         }
         YT_LOG_EVENT(Logger, LogLevel_, logMessage);
@@ -1156,8 +1160,6 @@ void TServiceBase::ReplyError(
     const NProto::TRequestHeader& header,
     const IBusPtr& replyBus)
 {
-    NTracing::AddErrorTag();
-
     auto requestId = FromProto<TRequestId>(header.request_id());
     auto richError = std::move(error)
         << TErrorAttribute("request_id", requestId)

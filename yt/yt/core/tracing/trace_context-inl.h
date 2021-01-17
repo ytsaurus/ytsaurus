@@ -11,37 +11,27 @@ namespace NYT::NTracing {
 
 Y_FORCE_INLINE bool TTraceContext::IsSampled() const
 {
-    return SpanContext_.Sampled;
+    return Sampled_.load();
 }
 
 Y_FORCE_INLINE bool TTraceContext::IsDebug() const
 {
-    return SpanContext_.Debug;
-}
-
-Y_FORCE_INLINE TSpanContext TTraceContext::GetSpanContext() const
-{
-    return SpanContext_;
+    return Debug_;
 }
 
 Y_FORCE_INLINE TTraceId TTraceContext::GetTraceId() const
 {
-    return SpanContext_.TraceId;
+    return TraceId_;
 }
 
 Y_FORCE_INLINE TSpanId TTraceContext::GetSpanId() const
 {
-    return SpanContext_.SpanId;
+    return SpanId_;
 }
 
 Y_FORCE_INLINE TSpanId TTraceContext::GetParentSpanId() const
 {
     return ParentSpanId_;
-}
-
-Y_FORCE_INLINE TSpanId TTraceContext::GetFollowsFromSpanId() const
-{
-    return FollowsFromSpanId_;
 }
 
 Y_FORCE_INLINE TRequestId TTraceContext::GetRequestId() const
@@ -54,9 +44,21 @@ Y_FORCE_INLINE const TString& TTraceContext::GetSpanName() const
     return SpanName_;
 }
 
+Y_FORCE_INLINE const TString& TTraceContext::GetLoggingTag() const
+{
+    return LoggingTag_;
+}
+
 Y_FORCE_INLINE NProfiling::TCpuDuration TTraceContext::GetElapsedCpuTime() const
 {
     return ElapsedCpuTime_.load(std::memory_order_relaxed);
+}
+
+template <class T>
+void TTraceContext::AddTag(const TString& tagName, const T& tagValue)
+{
+    using ::ToString;
+    AddTag(tagName, ToString(tagValue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,21 +152,25 @@ inline TTraceContextGuard::TTraceContextGuard(TTraceContextPtr traceContext)
 
 inline TChildTraceContextGuard::TChildTraceContextGuard(
     const TTraceContextPtr& traceContext,
-    const TString& spanName,
+    TString spanName,
+    TString loggingTag,
     bool forceTracing)
     : TraceContextGuard_(CreateChildTraceContext(
         traceContext,
-        spanName,
+        std::move(spanName),
+        std::move(loggingTag),
         forceTracing))
     , FinishGuard_(GetCurrentTraceContext())
 { }
 
 inline TChildTraceContextGuard::TChildTraceContextGuard(
-    const TString& spanName,
+    TString spanName,
+    TString loggingTag,
     bool forceTracing)
     : TChildTraceContextGuard(
         GetCurrentTraceContext(),
-        spanName,
+        std::move(spanName),
+        std::move(loggingTag),
         forceTracing)
 { }
 
@@ -188,19 +194,6 @@ extern thread_local TTraceContext* CurrentTraceContext;
 Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
 {
     return CurrentTraceContext;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-void AddTag(const TString& tagName, const T& tagValue)
-{
-    auto context = GetCurrentTraceContext();
-    if (!context) {
-        return;
-    }
-
-    context->AddTag(tagName, ToString(tagValue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

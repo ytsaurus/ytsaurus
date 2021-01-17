@@ -123,50 +123,49 @@ private:
     {
         const auto& Logger = logger;
 
-        TSpanContext parentSpan;
-        auto requestTraceId = request.get("X-Yt-Trace-Id", "");
-        auto requestSpanId = request.get("X-Yt-Span-Id", "");
-        if (!TTraceId::FromString(requestTraceId, &parentSpan.TraceId) ||
-            !TryIntFromString<16>(requestSpanId, parentSpan.SpanId))
-        {
-            parentSpan = TSpanContext{TTraceId::Create(), InvalidSpanId, false, false};
-            YT_LOG_INFO(
-                "Parent span context is absent or not parseable, generating our own trace id aka query id "
-                "(RequestTraceId: %Qv, RequestSpanId: %Qv, GeneratedTraceId: %v)",
-                requestTraceId,
-                requestSpanId,
-                parentSpan.TraceId);
-        } else {
-            YT_LOG_INFO("Parsed parent span context (RequestTraceId: %Qv, RequestSpanId: %Qv)",
-                requestTraceId,
-                requestSpanId);
-        }
-
-        auto requestSampled = TString(request.get("X-Yt-Sampled", ""));
-        int sampled;
-        if (int intValue; TryIntFromString<10>(requestSampled, intValue) && intValue >= 0 && intValue <= 1) {
-            YT_LOG_INFO("Parsed X-Yt-Sampled (RequestSampled: %Qv)", requestSampled);
-            sampled = intValue;
-        } else if (bool boolValue; TryFromString<bool>(requestSampled, boolValue)) {
-            YT_LOG_INFO("Parsed X-Yt-Sampled (RequestSampled: %Qv)", requestSampled);
-            sampled = boolValue;
-        } else {
-            YT_LOG_INFO("Cannot parse X-Yt-Sampled, assuming false (RequestSampled: %Qv)", requestSampled);
-            sampled = 0;
-        }
-
-        auto traceContext = New<TTraceContext>(parentSpan, "HttpHandler");
-        if (sampled == 1) {
-            traceContext->SetSampled();
-        }
-
         auto maybeDataLensRequestId = request.get("X-Request-Id", "");
         if (maybeDataLensRequestId.starts_with("dl.")) {
             YT_LOG_INFO("Request contains DataLens request id (RequestId: %v)", maybeDataLensRequestId);
             DataLensRequestId_ = TString(maybeDataLensRequestId);
         }
 
-        return traceContext;
+        TSpanContext parentSpan;
+        auto requestTraceId = request.get("X-Yt-Trace-Id", "");
+        auto requestSpanId = request.get("X-Yt-Span-Id", "");
+        if (!TTraceId::FromString(requestTraceId, &parentSpan.TraceId) ||
+            !TryIntFromString<16>(requestSpanId, parentSpan.SpanId))
+        {
+            parentSpan = TSpanContext{
+                .TraceId = TTraceId::Create()
+            };
+            YT_LOG_INFO(
+                "Parent span context is absent or not parseable, generating our own trace id aka query id "
+                "(RequestTraceId: %v, RequestSpanId: %v, GeneratedTraceId: %v)",
+                requestTraceId,
+                requestSpanId,
+                parentSpan.TraceId);
+        } else {
+            YT_LOG_INFO("Parsed parent span context (RequestTraceId: %v, RequestSpanId: %v)",
+                requestTraceId,
+                requestSpanId);
+        }
+
+        auto requestSampled = TString(request.get("X-Yt-Sampled", ""));
+        if (int intValue; TryIntFromString<10>(requestSampled, intValue) && intValue >= 0 && intValue <= 1) {
+            YT_LOG_INFO("Parsed X-Yt-Sampled (RequestSampled: %v)",
+                requestSampled);
+            parentSpan.Sampled = (intValue == 1);
+        } else if (bool boolValue; TryFromString<bool>(requestSampled, boolValue)) {
+            YT_LOG_INFO("Parsed X-Yt-Sampled (RequestSampled: %v)",
+                requestSampled);
+            parentSpan.Sampled = boolValue;
+        } else {
+            YT_LOG_INFO("Cannot parse X-Yt-Sampled, assuming false (RequestSampled: %v)",
+                requestSampled);
+            parentSpan.Sampled = false;
+        }
+
+        return New<TTraceContext>(parentSpan, "HttpHandler");
     }
 };
 

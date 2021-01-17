@@ -596,10 +596,8 @@ private:
             }
 
             if (subrequest.YPathExt->mutating()) {
-                auto mutationId = FromProto<TMutationId>(requestHeader.mutation_id());
-                if (!mutationId) {
-                    mutationId = NRpc::GenerateMutationId();
-                    ToProto(requestHeader.mutable_mutation_id(), mutationId);
+                if (!FromProto<TMutationId>(requestHeader.mutation_id())) {
+                    ToProto(requestHeader.mutable_mutation_id(), NRpc::GenerateMutationId());
                 }
             }
 

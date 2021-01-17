@@ -221,10 +221,13 @@ public:
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const TQueryBaseOptions& options) override
     {
-        NTracing::TChildTraceContextGuard guard("QueryClient.Evaluate");
-        NTracing::AddTag("fragment_id", ToString(query->Id));
         auto queryFingerprint = InferName(query, true);
-        NTracing::AddTag("query_fingerprint", queryFingerprint);
+
+        NTracing::TChildTraceContextGuard guard("QueryClient.Evaluate");
+        if (auto* traceContext = NTracing::GetCurrentTraceContext(); traceContext && traceContext->IsSampled()) {
+            traceContext->AddTag("fragment_id", query->Id);
+            traceContext->AddTag("query_fingerprint", queryFingerprint);
+        }
 
         auto Logger = MakeQueryLogger(query);
 

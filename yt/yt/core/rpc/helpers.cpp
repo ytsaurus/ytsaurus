@@ -441,6 +441,7 @@ TTraceContextPtr GetOrCreateHandlerTraceContext(
         ext,
         ConcatToString(TStringBuf("RpcServer:"), header.service(), TStringBuf("."), header.method()),
         requestId,
+        /* loggingTag */ {},
         forceTracing);
 }
 

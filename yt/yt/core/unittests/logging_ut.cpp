@@ -546,6 +546,57 @@ TEST_F(TLoggingTest, RequestSuppression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLoggingTagsTest
+    : public ::testing::TestWithParam<std::tuple<bool, bool, bool, TString>>
+{ };
+
+TEST_P(TLoggingTagsTest, All)
+{
+    auto hasMessageTag = std::get<0>(GetParam());
+    auto hasLoggerTag = std::get<1>(GetParam());
+    auto hasTraceContext = std::get<2>(GetParam());
+    auto expected = std::get<3>(GetParam());
+
+    auto traceContext = hasTraceContext
+        ? NTracing::CreateRootTraceContext("Test", /* requestId */ {}, "TraceContextTag")
+        : NTracing::TTraceContextPtr();
+
+    auto logger = TLogger("Test");
+    if (hasLoggerTag) {
+        logger = logger.WithTag("LoggerTag");
+    }
+
+    if (hasMessageTag) {
+        EXPECT_EQ(
+            expected,
+            ToString(NLogging::NDetail::BuildLogMessage(
+                traceContext.Get(),
+                logger,
+                "Log message (Value: %v)",
+                123)));
+    } else {
+        EXPECT_EQ(
+            expected,
+            ToString(NLogging::NDetail::BuildLogMessage(
+                traceContext.Get(),
+                logger,
+                "Log message")));
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(ValueParametrized, TLoggingTagsTest,
+    ::testing::Values(
+        std::make_tuple(false, false, false, "Log message"),
+        std::make_tuple(false, false,  true, "Log message (TraceContextTag)"),
+        std::make_tuple(false,  true, false, "Log message (LoggerTag)"),
+        std::make_tuple(false,  true,  true, "Log message (LoggerTag, TraceContextTag)"),
+        std::make_tuple( true, false, false, "Log message (Value: 123)"),
+        std::make_tuple( true, false,  true, "Log message (Value: 123, TraceContextTag)"),
+        std::make_tuple( true,  true, false, "Log message (Value: 123, LoggerTag)"),
+        std::make_tuple( true,  true,  true, "Log message (Value: 123, LoggerTag, TraceContextTag)")));
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLongMessagesTest
     : public TLoggingTest
 {

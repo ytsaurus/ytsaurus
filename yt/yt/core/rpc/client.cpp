@@ -413,7 +413,7 @@ const IInvokerPtr& TClientRequest::GetInvoker() const
 
 void TClientRequest::TraceRequest(const NTracing::TTraceContextPtr& traceContext)
 {
-    traceContext->AddTag(RequestIdAnnotation, ToString(GetRequestId()));
+    traceContext->AddTag(RequestIdAnnotation, GetRequestId());
     traceContext->AddTag(EndpointAnnotation, Channel_->GetEndpointDescription());
 }
 

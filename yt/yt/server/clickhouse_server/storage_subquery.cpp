@@ -128,11 +128,11 @@ public:
 
 
         auto tableIndexSuffix = Format(".%v", SubquerySpec_.TableIndex);
-        traceContext->AddTag("chyt.row_count" + tableIndexSuffix, ToString(totalRowCount));
-        traceContext->AddTag("chyt.data_weight" + tableIndexSuffix, ToString(totalDataWeight));
-        traceContext->AddTag("chyt.data_slice_count" + tableIndexSuffix, ToString(totalDataSliceCount));
+        traceContext->AddTag("chyt.row_count" + tableIndexSuffix, totalRowCount);
+        traceContext->AddTag("chyt.data_weight" + tableIndexSuffix, totalDataWeight);
+        traceContext->AddTag("chyt.data_slice_count" + tableIndexSuffix, totalDataSliceCount);
         if (SubquerySpec_.TableIndex == 0) {
-            traceContext->AddTag("chyt.subquery_index", ToString(SubquerySpec_.SubqueryIndex));
+            traceContext->AddTag("chyt.subquery_index", SubquerySpec_.SubqueryIndex);
         }
 
         YT_LOG_DEBUG(

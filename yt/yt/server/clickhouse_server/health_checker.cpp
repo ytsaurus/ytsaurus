@@ -68,13 +68,7 @@ DB::Context PrepareContextForQuery(
 
     contextForQuery.makeQueryContext();
 
-    NTracing::TSpanContext spanContext{NTracing::TTraceId::Create(),
-        NTracing::InvalidSpanId,
-        /*sampled =*/false,
-        /*debug =*/false};
-
-    auto traceContext =
-        New<NTracing::TTraceContext>(spanContext, /*spanName =*/"HealthCheckerQuery");
+    auto traceContext = NTracing::CreateRootTraceContext("HealthCheckerQuery");
 
     SetupHostContext(host, contextForQuery, queryId, std::move(traceContext));
 

@@ -12,6 +12,11 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline bool TLogger::IsPositionUpToDate(const TLoggingPosition& position) const
+{
+    return !Category_ || position.CurrentVersion == Category_->ActualVersion->load(std::memory_order_relaxed);
+}
+
 template <class... TArgs>
 void TLogger::AddTag(const char* format, TArgs&&... args)
 {
@@ -71,82 +76,134 @@ private:
     static constexpr size_t ChunkSize = 64_KB;
 };
 
-template <class... TArgs>
-void AppendLogMessage(TStringBuilderBase* builder, TStringBuf context, TRef message)
+inline bool HasMessageTags(
+    const NTracing::TTraceContext* traceContext,
+    const TLogger& logger)
 {
-    if (context) {
+    if (logger.GetTag()) {
+        return true;
+    }
+    if (traceContext && traceContext->GetLoggingTag()) {
+        return true;
+    }
+    return false;
+}
+
+inline void AppendMessageTags(
+    TStringBuilderBase* builder,
+    const NTracing::TTraceContext* traceContext,
+    const TLogger& logger)
+{
+    bool printComma = false;
+    if (const auto& loggerTag = logger.GetTag()) {
+        builder->AppendString(loggerTag);
+        printComma = true;
+    }
+    if (traceContext) {
+        if (const auto& traceContextTag = traceContext->GetLoggingTag()) {
+            if (printComma) {
+                builder->AppendString(TStringBuf(", "));
+            }
+            builder->AppendString(traceContextTag);
+        }
+    }
+}
+
+template <class... TArgs>
+void AppendLogMessage(
+    TStringBuilderBase* builder,
+    const NTracing::TTraceContext* traceContext,
+    const TLogger& logger,
+    TRef message)
+{
+    if (HasMessageTags(traceContext, logger)) {
         if (message.Size() >= 1 && message[message.Size() - 1] == ')') {
             builder->AppendString(TStringBuf(message.Begin(), message.Size() - 1));
             builder->AppendString(TStringBuf(", "));
-            builder->AppendString(context);
-            builder->AppendChar(')');
         } else {
             builder->AppendString(TStringBuf(message.Begin(), message.Size()));
             builder->AppendString(TStringBuf(" ("));
-            builder->AppendString(context);
-            builder->AppendChar(')');
         }
+        AppendMessageTags(builder, traceContext, logger);
+        builder->AppendChar(')');
     } else {
         builder->AppendString(TStringBuf(message.Begin(), message.Size()));
     }
 }
 
 template <class... TArgs, size_t FormatLength>
-void AppendLogMessageWithFormat(TStringBuilderBase* builder, TStringBuf context, const char (&format)[FormatLength], TArgs&&... args)
+void AppendLogMessageWithFormat(
+    TStringBuilderBase* builder,
+    const NTracing::TTraceContext* traceContext,
+    const TLogger& logger,
+    const char (&format)[FormatLength],
+    TArgs&&... args)
 {
-    if (context) {
+    if (HasMessageTags(traceContext, logger)) {
         if (FormatLength >= 2 && format[FormatLength - 2] == ')') {
             builder->AppendFormat(TStringBuf(format, FormatLength - 2), std::forward<TArgs>(args)...);
             builder->AppendString(TStringBuf(", "));
-            builder->AppendString(context);
-            builder->AppendChar(')');
         } else {
             builder->AppendFormat(format, std::forward<TArgs>(args)...);
             builder->AppendString(TStringBuf(" ("));
-            builder->AppendString(context);
-            builder->AppendChar(')');
         }
+        AppendMessageTags(builder, traceContext, logger);
+        builder->AppendChar(')');
     } else {
         builder->AppendFormat(format, std::forward<TArgs>(args)...);
     }
 }
 
 template <class... TArgs, size_t FormatLength>
-TSharedRef BuildLogMessage(TStringBuf context, const char (&format)[FormatLength], TArgs&&... args)
+TSharedRef BuildLogMessage(
+    const NTracing::TTraceContext* traceContext,
+    const TLogger& logger,
+    const char (&format)[FormatLength],
+    TArgs&&... args)
 {
     TMessageStringBuilder builder;
-    AppendLogMessageWithFormat(&builder, context, format, std::forward<TArgs>(args)...);
+    AppendLogMessageWithFormat(&builder, traceContext, logger, format, std::forward<TArgs>(args)...);
     return builder.Flush();
 }
 
 template <class... TArgs, size_t FormatLength>
-TSharedRef BuildLogMessage(TStringBuf context, const TError& error, const char (&format)[FormatLength], TArgs&&... args)
+TSharedRef BuildLogMessage(
+    const NTracing::TTraceContext* traceContext,
+    const TLogger& logger,
+    const TError& error,
+    const char (&format)[FormatLength], TArgs&&... args)
 {
     TMessageStringBuilder builder;
-    AppendLogMessageWithFormat(&builder, context, format, std::forward<TArgs>(args)...);
+    AppendLogMessageWithFormat(&builder, traceContext, logger, format, std::forward<TArgs>(args)...);
     builder.AppendChar('\n');
     FormatValue(&builder, error, TStringBuf());
     return builder.Flush();
 }
 
 template <class T>
-TSharedRef BuildLogMessage(TStringBuf context, const T& obj)
+TSharedRef BuildLogMessage(
+    const NTracing::TTraceContext* traceContext,
+    const TLogger& logger,
+    const T& obj)
 {
     TMessageStringBuilder builder;
     FormatValue(&builder, obj, TStringBuf());
-    if (context) {
+    if (HasMessageTags(traceContext, logger)) {
         builder.AppendString(TStringBuf(" ("));
-        builder.AppendString(context);
+        AppendMessageTags(&builder, traceContext, logger);
         builder.AppendChar(')');
     }
     return builder.Flush();
 }
 
-inline TSharedRef BuildLogMessage(TStringBuf context, TSharedRef&& message)
+inline TSharedRef BuildLogMessage(
+    const NTracing::TTraceContext* traceContext,
+    const TLogger& logger,
+    TSharedRef&& message)
 {
-    if (context) {
+    if (HasMessageTags(traceContext, logger)) {
         TMessageStringBuilder builder;
-        AppendLogMessage(&builder, context, message);
+        AppendLogMessage(&builder, traceContext, logger, message);
         return builder.Flush();
     } else {
         return std::move(message);
@@ -163,7 +220,10 @@ void CacheThreadName();
 
 #endif
 
-inline TLogEvent CreateLogEvent(const TLogger& logger, ELogLevel level)
+inline TLogEvent CreateLogEvent(
+    const NTracing::TTraceContext* traceContext,
+    const TLogger& logger,
+    ELogLevel level)
 {
 #ifndef __APPLE__
     if (!CachedThreadNameInitialized) {
@@ -181,7 +241,7 @@ inline TLogEvent CreateLogEvent(const TLogger& logger, ELogLevel level)
     event.ThreadNameLength = CachedThreadNameLength;
 #endif
     event.FiberId = NConcurrency::GetCurrentFiberId();
-    if (const auto* traceContext = NTracing::GetCurrentTraceContext()) {
+    if (traceContext) {
         event.TraceId = traceContext->GetTraceId();
         event.RequestId = traceContext->GetRequestId();
     }
@@ -189,12 +249,13 @@ inline TLogEvent CreateLogEvent(const TLogger& logger, ELogLevel level)
 }
 
 inline void LogEventImpl(
+    const NTracing::TTraceContext* traceContext,
     const TLogger& logger,
     ELogLevel level,
     ::TSourceLocation sourceLocation,
     TSharedRef message)
 {
-    auto event = CreateLogEvent(logger, level);
+    auto event = CreateLogEvent(traceContext, logger, level);
     event.Message = std::move(message);
     event.MessageFormat = ELogMessageFormat::PlainText;
     event.SourceFile = sourceLocation.File;
@@ -212,7 +273,10 @@ inline void LogStructuredEvent(
     ELogLevel level)
 {
     YT_VERIFY(message.GetType() == NYson::EYsonType::MapFragment);
-    TLogEvent event = NDetail::CreateLogEvent(logger, level);
+    auto event = NDetail::CreateLogEvent(
+        NTracing::GetCurrentTraceContext(),
+        logger,
+        level);
     event.StructuredMessage = std::move(message);
     event.MessageFormat = ELogMessageFormat::Structured;
     logger.Write(std::move(event));
