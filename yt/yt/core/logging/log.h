@@ -72,9 +72,11 @@ struct TLogEvent
 class TLogger
 {
 public:
-    TLogger();
-    explicit TLogger(TStringBuf categoryName, bool essential = false);
+    TLogger() = default;
     TLogger(const TLogger& other) = default;
+    explicit TLogger(
+        TStringBuf categoryName,
+        bool essential = false);
 
     explicit operator bool() const;
 
@@ -97,17 +99,17 @@ public:
     template <class... TArgs>
     TLogger WithTag(const char* format, TArgs&&... args) const;
 
-    const TString& GetContext() const;
+    const TString& GetTag() const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
 private:
-    TLogManager* LogManager_;
-    const TLoggingCategory* Category_;
-    bool Essential_;
+    TLogManager* LogManager_ = nullptr;
+    const TLoggingCategory* Category_ = nullptr;
+    bool Essential_ = false;
 
-    TString Context_;
+    TString Tag_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,13 +185,15 @@ void LogStructuredEvent(const TLogger& logger,
             break; \
         } \
         \
-        auto message__##__LINE__ = ::NYT::NLogging::NDetail::BuildLogMessage(logger.GetContext(), __VA_ARGS__); \
+        const auto* traceContext__##__LINE__ = ::NYT::NTracing::GetCurrentTraceContext(); \
+        auto message__##__LINE__ = ::NYT::NLogging::NDetail::BuildLogMessage(traceContext__##__LINE__, logger, __VA_ARGS__); \
         if (!positionUpToDate__##__LINE__) { \
             logger.UpdatePosition(&position__##__LINE__, TStringBuf(message__##__LINE__.Begin(), message__##__LINE__.Size())); \
         } \
         \
         if (position__##__LINE__.Enabled) { \
             ::NYT::NLogging::NDetail::LogEventImpl( \
+                traceContext__##__LINE__, \
                 logger, \
                 level, \
                 __LOCATION__, \

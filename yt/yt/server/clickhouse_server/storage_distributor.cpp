@@ -348,7 +348,7 @@ public:
         const DB::SelectQueryInfo& queryInfo,
         const DB::Context& context)
     {
-        NTracing::GetCurrentTraceContext()->AddTag("chyt.subquery_count", ToString(subqueryCount));
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.subquery_count", subqueryCount);
         NTracing::GetCurrentTraceContext()->AddTag(
             "chyt.real_column_names",
             Format("%v", MakeFormattableView(RealColumnNames_, TDefaultFormatter())));
@@ -450,8 +450,8 @@ public:
             }
         }
 
-        NTracing::GetCurrentTraceContext()->AddTag("chyt.total_input_data_weight", ToString(totalInputDataWeight));
-        NTracing::GetCurrentTraceContext()->AddTag("chyt.total_chunk_count", ToString(totalChunkCount));
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.total_input_data_weight", totalInputDataWeight);
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.total_chunk_count", totalChunkCount);
     }
 
 private:

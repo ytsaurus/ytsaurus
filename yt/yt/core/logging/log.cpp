@@ -101,12 +101,6 @@ void CacheThreadName()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger::TLogger()
-    : LogManager_(nullptr)
-    , Category_(nullptr)
-    , Essential_(false)
-{ }
-
 TLogger::TLogger(TStringBuf categoryName, bool essential)
     : LogManager_(TLogManager::Get())
     , Category_(LogManager_->GetCategory(categoryName))
@@ -146,11 +140,6 @@ bool TLogger::IsEssential() const
     return Essential_;
 }
 
-bool TLogger::IsPositionUpToDate(const TLoggingPosition& position) const
-{
-    return !Category_ || position.CurrentVersion == Category_->ActualVersion->load(std::memory_order_relaxed);
-}
-
 void TLogger::UpdatePosition(TLoggingPosition* position, TStringBuf message) const
 {
     LogManager_->UpdatePosition(position, message);
@@ -163,10 +152,10 @@ void TLogger::Write(TLogEvent&& event) const
 
 void TLogger::AddRawTag(const TString& tag)
 {
-    if (!Context_.empty()) {
-        Context_ += ", ";
+    if (!Tag_.empty()) {
+        Tag_ += ", ";
     }
-    Context_ += tag;
+    Tag_ += tag;
 }
 
 TLogger TLogger::WithRawTag(const TString& tag) const
@@ -176,9 +165,9 @@ TLogger TLogger::WithRawTag(const TString& tag) const
     return result;
 }
 
-const TString& TLogger::GetContext() const
+const TString& TLogger::GetTag() const
 {
-    return Context_;
+    return Tag_;
 }
 
 void TLogger::Save(TStreamSaveContext& context) const
@@ -186,7 +175,7 @@ void TLogger::Save(TStreamSaveContext& context) const
     using NYT::Save;
 
     Save(context, TString(Category_->Name));
-    Save(context, Context_);
+    Save(context, Tag_);
 }
 
 void TLogger::Load(TStreamLoadContext& context)
@@ -197,7 +186,7 @@ void TLogger::Load(TStreamLoadContext& context)
     Load(context, categoryName);
     LogManager_ = TLogManager::Get();
     Category_ = LogManager_->GetCategory(categoryName.data());
-    Load(context, Context_);
+    Load(context, Tag_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

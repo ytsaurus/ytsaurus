@@ -26,8 +26,6 @@ struct TSpanContext
     TSpanId SpanId = InvalidSpanId;
     bool Sampled = false;
     bool Debug = false;
-
-    TSpanContext CreateChild();
 };
 
 void FormatValue(TStringBuilderBase* builder, const TSpanContext& context, TStringBuf spec);
@@ -39,72 +37,85 @@ void SetGlobalTracer(const ITracerPtr& tracer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFollowsFrom {};
-
-//! TTraceContext accumulates information associated with single tracing span.
-class TTraceContext
+//! Accumulates information associated with a single tracing span.
+/*!
+ *  \note Thread affininty: any unless noted otherwise.
+ */
+ class TTraceContext
     : public TRefCounted
 {
 public:
     TTraceContext(
         TSpanContext parentSpanContext,
         TString spanName,
-        TTraceContextPtr parentTraceContext = nullptr);
-    TTraceContext(
-        TSpanContext parentSpanContext,
-        TString spanName,
-        TRequestId requestId);
-    TTraceContext(
-        TFollowsFrom,
-        TSpanContext parent,
-        TString spanName,
+        TRequestId requestId = {},
+        TString loggingTag = {},
         TTraceContextPtr parentTraceContext = nullptr);
 
+    //! Finalizes and publishes the context (if sampling is enabled).
+    /*!
+     *  Safe to call multiple times from arbitrary threads; only the first call matters.
+     */
     void Finish();
 
     bool IsSampled() const;
+    void SetSampled(bool value = true);
+
     bool IsDebug() const;
 
     TSpanContext GetSpanContext() const;
     TTraceId GetTraceId() const;
     TSpanId GetSpanId() const;
     TSpanId GetParentSpanId() const;
-    TSpanId GetFollowsFromSpanId() const;
     TRequestId GetRequestId() const;
-
     const TString& GetSpanName() const;
-
+    const TString& GetLoggingTag() const;
     TInstant GetStartTime() const;
+
+    //! Returns the wall time from the context's construction to #Finish call.
+    /*!
+     *  Not thread-safe; can only be called after #Finish is complete.
+     */
     TDuration GetDuration() const;
 
     using TTagList = SmallVector<std::pair<TString, TString>, 4>;
     TTagList GetTags() const;
 
-    void SetSampled(bool value = true);
     void AddTag(const TString& tagKey, const TString& tagValue);
-    void ResetStartTime();
 
-    TTraceContextPtr CreateChild(const TString& spanName);
+    template <class T>
+    void AddTag(const TString& tagName, const T& tagValue);
+
+    //! Adds error tag. Spans containing errors are highlited in Jaeger UI.
+    void AddErrorTag();
+
+    TTraceContextPtr CreateChild(
+        TString spanName,
+        TString loggingTag = {});
 
     void IncrementElapsedCpuTime(NProfiling::TCpuDuration delta);
     NProfiling::TCpuDuration GetElapsedCpuTime() const;
     TDuration GetElapsedTime() const;
 
 private:
-    const TSpanId ParentSpanId_ = InvalidSpanId;
-    const TSpanId FollowsFromSpanId_ = InvalidSpanId;
-    const TRequestId RequestId_;
+    const TTraceId TraceId_;
+    const TSpanId SpanId_;
+    const TSpanId ParentSpanId_;
+    std::atomic<bool> Sampled_;
+    const bool Debug_;
     const TTraceContextPtr ParentContext_;
     const TString SpanName_;
+    const TRequestId RequestId_;
+    const TString LoggingTag_;
+    const NProfiling::TCpuInstant StartTime_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
-    NProfiling::TCpuInstant StartTime_;
+    std::atomic<bool> Finished_ = false;
     NProfiling::TCpuDuration Duration_;
-    TSpanContext SpanContext_;
-    TTagList Tags_;
-    bool Finished_ = false;
 
     std::atomic<NProfiling::TCpuDuration> ElapsedCpuTime_ = 0;
+
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, TagsLock_);
+    TTagList Tags_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTraceContext)
@@ -120,23 +131,22 @@ void FlushCurrentTraceContextTime();
 void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context);
 
 TTraceContextPtr CreateRootTraceContext(
-    const TString& spanName,
-    TRequestId requestId = {});
+    TString spanName,
+    TRequestId requestId = {},
+    TString loggingTag = {},
+    bool sampled = false,
+    bool debug = false);
 TTraceContextPtr CreateChildTraceContext(
     const TTraceContextPtr& parentContext,
-    const TString& spanName,
+    TString spanName,
+    TString loggingTag = {},
     bool forceTracing = false);
 TTraceContextPtr CreateChildTraceContext(
     const NProto::TTracingExt& ext,
-    const TString& spanName,
+    TString spanName,
     TRequestId requestId = {},
+    TString loggingTag = {},
     bool forceTracing = false);
-
-template <class T>
-void AddTag(const TString& tagName, const T& tagValue);
-
-// Add error tag to current span. Spans containing errors are highlited in jaeger UI.
-void AddErrorTag();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,10 +231,12 @@ class TChildTraceContextGuard
 public:
     TChildTraceContextGuard(
         const TTraceContextPtr& traceContext,
-        const TString& spanName,
+        TString spanName,
+        TString loggingTag = {},
         bool forceTracing = false);
     explicit TChildTraceContextGuard(
-        const TString& spanName,
+        TString spanName,
+        TString loggingTag = {},
         bool forceTracing = false);
     TChildTraceContextGuard(TChildTraceContextGuard&& other) = default;
 

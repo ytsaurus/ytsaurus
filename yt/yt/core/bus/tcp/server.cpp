@@ -83,7 +83,7 @@ public:
     // IPollable implementation.
     virtual const TString& GetLoggingTag() const override
     {
-        return Logger.GetContext();
+        return Logger.GetTag();
     }
 
     virtual void OnEvent(EPollControl /*control*/) override

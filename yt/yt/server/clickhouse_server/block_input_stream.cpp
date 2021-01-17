@@ -200,23 +200,23 @@ void TBlockInputStream::readSuffixImpl()
         ReadCount_);
 
     if (TraceContext_) {
-        TraceContext_->AddTag("chyt.reader.data_statistics", ToString(Reader_->GetDataStatistics()));
-        TraceContext_->AddTag("chyt.reader.codec_statistics", ToString(Reader_->GetDecompressionStatistics()));
-        TraceContext_->AddTag("chyt.reader.timing_statistics", ToString(Reader_->GetTimingStatistics()));
-        TraceContext_->AddTag("chyt.reader.idle_time", ToString(IdleTimer_.GetElapsedTime()));
+        TraceContext_->AddTag("chyt.reader.data_statistics", Reader_->GetDataStatistics());
+        TraceContext_->AddTag("chyt.reader.codec_statistics", Reader_->GetDecompressionStatistics());
+        TraceContext_->AddTag("chyt.reader.timing_statistics", Reader_->GetTimingStatistics());
+        TraceContext_->AddTag("chyt.reader.idle_time", IdleTimer_.GetElapsedTime());
         if (ColumnarConversionCpuTime_ != TDuration::Zero()) {
-            TraceContext_->AddTag("chyt.reader.columnar_conversion_cpu_time", ToString(ColumnarConversionCpuTime_));
+            TraceContext_->AddTag("chyt.reader.columnar_conversion_cpu_time", ColumnarConversionCpuTime_);
         }
         if (NonColumnarConversionCpuTime_ != TDuration::Zero()) {
-            TraceContext_->AddTag("chyt.reader.non_columnar_conversion_cpu_time", ToString(NonColumnarConversionCpuTime_));
+            TraceContext_->AddTag("chyt.reader.non_columnar_conversion_cpu_time", NonColumnarConversionCpuTime_);
         }
         if (ConversionSyncWaitTime_ != TDuration::Zero()) {
-            TraceContext_->AddTag("chyt.reader.conversion_sync_wait_time", ToString(ConversionSyncWaitTime_));
+            TraceContext_->AddTag("chyt.reader.conversion_sync_wait_time", ConversionSyncWaitTime_);
         }
         // TODO(dakovalkov): https://st.yandex-team.ru/YT-14032
         // Delete this statistics when GetTimingStatistics() works properly for TSchemalessMergingMultiChunkReader.
         if (WaitReadyEventTime_ != TDuration::Zero()) {
-            TraceContext_->AddTag("chyt.reader.wait_ready_event_time", ToString(WaitReadyEventTime_));
+            TraceContext_->AddTag("chyt.reader.wait_ready_event_time", WaitReadyEventTime_);
         }
         TraceContext_->Finish();
     }

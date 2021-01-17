@@ -146,7 +146,7 @@ public:
             auto* traceContext = GetCurrentTraceContext();
             YT_VERIFY(traceContext);
             traceContext->AddTag("user", User_);
-            traceContext->AddTag("clique_id", ToString(OperationId_));
+            traceContext->AddTag("clique_id", OperationId_);
             if (OperationAlias_) {
                 traceContext->AddTag("clique_alias", *OperationAlias_);
             }
@@ -162,7 +162,7 @@ public:
                 } else {
                     auto* sampler = Bootstrap_->GetCoordinator()->GetTraceSampler();
                     if (sampler->IsTraceSampled(User_)) {
-                        traceContext->SetSampled(true);
+                        traceContext->SetSampled();
                     }
                 }
             }
