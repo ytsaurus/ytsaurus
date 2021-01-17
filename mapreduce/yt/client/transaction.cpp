@@ -3,7 +3,6 @@
 #include <mapreduce/yt/interface/error_codes.h>
 
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 #include <mapreduce/yt/common/retry_lib.h>
 
@@ -13,6 +12,8 @@
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
 #include <util/datetime/base.h>
+
+#include <util/generic/scope.h>
 
 #include <util/random/random.h>
 
@@ -176,12 +177,12 @@ void TPingableTransaction::Stop(EStopAction action)
         return;
     }
 
-    NDetail::TFinallyGuard g([&] {
+    Y_DEFER {
         Running_ = false;
         if (Thread_) {
             Thread_->Join();
         }
-    });
+    };
 
     switch (action) {
         case EStopAction::Commit:

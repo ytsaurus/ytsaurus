@@ -21,7 +21,6 @@
 
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/retry_lib.h>
 
 #include <mapreduce/yt/http/http.h>

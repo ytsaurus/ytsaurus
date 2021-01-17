@@ -3,7 +3,6 @@
 #include "raw_requests.h"
 #include "rpc_parameters_serialization.h"
 
-#include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/retry_lib.h>
 

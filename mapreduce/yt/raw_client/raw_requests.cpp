@@ -5,7 +5,6 @@
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
@@ -16,6 +15,8 @@
 #include <mapreduce/yt/interface/serialize.h>
 
 #include <library/cpp/yson/node/node_io.h>
+
+#include <util/generic/scope.h>
 
 namespace NYT::NDetail::NRawClient {
 
@@ -30,9 +31,9 @@ void ExecuteBatch(
     if (batchRequest.IsExecuted()) {
         ythrow yexception() << "Cannot execute batch request since it is already executed";
     }
-    NDetail::TFinallyGuard g([&] {
+    Y_DEFER {
         batchRequest.MarkExecuted();
-    });
+    };
 
     const auto concurrency = options.Concurrency_.GetOrElse(50);
     const auto batchPartMaxSize = options.BatchPartMaxSize_.GetOrElse(concurrency * 5);

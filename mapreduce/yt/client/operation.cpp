@@ -13,7 +13,6 @@
 
 #include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/common/finally_guard.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
@@ -56,6 +55,7 @@
 #include <util/folder/path.h>
 
 #include <util/generic/hash_set.h>
+#include <util/generic/scope.h>
 
 #include <util/stream/buffer.h>
 #include <util/stream/file.h>
@@ -753,11 +753,11 @@ private:
         LOG_INFO("Uploading file (FileName: %s; PreparationId: %s)",
             itemToUpload.GetDescription().c_str(),
             OperationPreparer_.GetPreparationId().c_str());
-        TFinallyGuard g([&] {
+        Y_DEFER {
             LOG_INFO("Complete uploading file (FileName: %s; PreparationId: %s)",
                 itemToUpload.GetDescription().c_str(),
                 OperationPreparer_.GetPreparationId().c_str());
-        });
+        };
         switch (Options_.FileCacheMode_) {
             case TOperationOptions::EFileCacheMode::ApiCommandBased:
                 Y_ENSURE_EX(Options_.FileStorageTransactionId_.IsEmpty(), TApiUsageError() <<

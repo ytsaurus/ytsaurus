@@ -19,7 +19,6 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/debug_metrics.h>
 #include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/finally_guard.h>
 
 #include <mapreduce/yt/http/abortable_http_response.h>
 
@@ -1972,11 +1971,11 @@ Y_UNIT_TEST_SUITE(Operations)
 
         TVector<IOperationPtr> operations;
 
-        NYT::NDetail::TFinallyGuard finally([&]{
+        Y_DEFER {
             for (auto& operation : operations) {
                 operation->AbortOperation();
             }
-        });
+        };
 
         try {
             for (size_t i = 0; i < maxOperationCount + 1; ++i) {
@@ -2038,9 +2037,9 @@ Y_UNIT_TEST_SUITE(Operations)
 
         TString inputPath = workingDir + "/input";
         TString outputPath = workingDir + "/input";
-        NYT::NDetail::TFinallyGuard finally([&]{
+        Y_DEFER {
             client->Remove(inputPath, TRemoveOptions().Force(true));
-        });
+        };
 
         auto row = TNode()
             ("int64", 1 - (1LL << 62))
