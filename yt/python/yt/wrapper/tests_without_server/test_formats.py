@@ -1,7 +1,8 @@
-from .conftest import authors
+from yt.testlib import authors
+
+import yt.yson as yson
 
 from yt.wrapper.string_iter_io import StringIterIO
-import yt.yson as yson
 from yt.wrapper.format import extract_key, create_format
 
 from yt.packages.six import byte2int, iterbytes, PY3

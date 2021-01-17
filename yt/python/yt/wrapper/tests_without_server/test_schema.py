@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
-
 from yandex.type_info import typing
+
+from yt.testlib import authors
+
 from yt.wrapper.schema import ColumnSchema, TableSchema
 from yt import yson
 
 import copy
-
-from .conftest import authors
 
 
 @authors("levysotsky")
