@@ -1174,7 +1174,8 @@ private:
 
             auto operations = FetchOperationsFromCypressForCleaner(
                 OperationIdsToArchive_,
-                createBatchRequest);
+                createBatchRequest,
+                Owner_->Config_->OperationsCleaner->ParseOperationAttributesBatchSize);
 
             for (auto& operation : operations) {
                 operationsCleaner->SubmitForArchivation(std::move(operation));

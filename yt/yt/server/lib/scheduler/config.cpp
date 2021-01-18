@@ -405,6 +405,8 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
         .Default(500);
     RegisterParameter("finished_operations_archive_lookup_timeout", FinishedOperationsArchiveLookupTimeout)
         .Default(TDuration::Seconds(30));
+    RegisterParameter("parse_operation_attributes_batch_size", ParseOperationAttributesBatchSize)
+        .Default(100);
 
     RegisterPostprocessor([&] {
         if (MaxArchivationRetrySleepDelay <= MinArchivationRetrySleepDelay) {

@@ -28,7 +28,11 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/async_semaphore.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 #include <yt/core/profiling/profiler.h>
+
+#include <yt/core/rpc/dispatcher.h>
 
 #include <yt/core/utilex/random.h>
 
@@ -1199,7 +1203,8 @@ private:
 
         auto operations = FetchOperationsFromCypressForCleaner(
             listOperationsResult.OperationsToArchive,
-            createBatchRequest);
+            createBatchRequest, 
+            Config_->ParseOperationAttributesBatchSize);
 
         // Controller agent reports brief_progress only to archive,
         // but it is necessary to fill ordered_by_start_time table,
@@ -1297,9 +1302,16 @@ DELEGATE_SIGNAL(TOperationsCleaner, void(const std::vector<TArchiveOperationRequ
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationDataToParse final
+{
+    TYsonString AttrbutesYson;
+    TOperationId OperationId;
+};
+
 std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
     const std::vector<TOperationId>& operationIds,
-    TCallback<TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest)
+    TCallback<TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest,
+    const int parseOperationAttributesBatchSize)
 {
     using NYT::ToProto;
 
@@ -1322,20 +1334,57 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
     auto rsps = rspOrError.Value()->GetResponses<TYPathProxy::TRspGet>("get_op_attributes");
     YT_VERIFY(operationIds.size() == rsps.size());
 
-    for (int index = 0; index < operationIds.size(); ++index) {
-        auto attributes = ConvertToAttributes(TYsonString(rsps[index].Value()->value()));
-        auto operationId = TOperationId::FromString(attributes->Get<TString>("key"));
-        YT_VERIFY(operationId == operationIds[index]);
+    {
+        const auto process_batch = BIND([parseOperationAttributesBatchSize](
+            const std::vector<TOperationDataToParse>& operationDataToParseBatch) {
+            std::vector<TArchiveOperationRequest> result;
+            result.reserve(parseOperationAttributesBatchSize);
 
-        try {
-            TArchiveOperationRequest req;
-            req.InitializeFromAttributes(*attributes);
-            result.push_back(req);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error initializing operation archivation request")
-                << TErrorAttribute("operation_id", operationId)
-                << TErrorAttribute("attributes", ConvertToYsonString(*attributes, EYsonFormat::Text))
-                << ex;
+            for (const auto& operationDataToParse : operationDataToParseBatch) {
+                const auto attributes = ConvertToAttributes(operationDataToParse.AttrbutesYson);
+                const auto operationId = TOperationId::FromString(attributes->Get<TString>("key"));
+                YT_VERIFY(operationId == operationDataToParse.OperationId);
+
+                try {
+                    TArchiveOperationRequest req;
+                    req.InitializeFromAttributes(*attributes);
+                    result.push_back(std::move(req));
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error initializing operation archivation request")
+                        << TErrorAttribute("operation_id", operationId)
+                        << TErrorAttribute("attributes", ConvertToYsonString(*attributes, EYsonFormat::Text))
+                        << ex;
+                }
+            }
+
+            return result;
+        });
+
+        const int operationCount{static_cast<int>(operationIds.size())};
+        std::vector<TFuture<std::vector<TArchiveOperationRequest>>> futures;
+        futures.reserve(RoundUp(operationCount, parseOperationAttributesBatchSize));
+
+        for (int startIndex = 0; startIndex < operationCount; startIndex += parseOperationAttributesBatchSize) {
+            std::vector<TOperationDataToParse> operationDataToParseBatch;
+            operationDataToParseBatch.reserve(parseOperationAttributesBatchSize);
+
+            for (int index = startIndex; index < std::min(operationCount, startIndex + parseOperationAttributesBatchSize); ++index) {
+                operationDataToParseBatch.push_back({TYsonString(rsps[index].Value()->value()), operationIds[index]});
+            }
+            
+            futures.push_back(process_batch
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .Run(std::move(operationDataToParseBatch))
+            );
+        }
+
+        auto operationRequestsArray = WaitFor(AllSucceeded(futures)).ValueOrThrow();
+
+        result.reserve(operationCount);
+        for (auto& operationRequests : operationRequestsArray) {
+            for (auto& operationRequest : operationRequests) {
+                result.push_back(std::move(operationRequest));
+            }
         }
     }
 
