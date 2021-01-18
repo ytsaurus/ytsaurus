@@ -2325,6 +2325,37 @@ TEST_F(TFairShareTreeTest, TestAccumulatedResourceVolumeRatioBeforeFairShareUpda
     EXPECT_EQ(0.0, relaxedPool->GetAccumulatedResourceRatioVolume());
 }
 
+TEST_F(TFairShareTreeTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolume)
+{
+    auto host = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    relaxedPool->AttachParent(rootElement.Get());
+
+
+    TJobResources aLotOfResources;
+    aLotOfResources.SetCpu(10000000000);
+    aLotOfResources.SetUserSlots(10000000000);
+    aLotOfResources.SetMemory(10000000000_MB);
+
+    relaxedPool->InitAccumulatedResourceVolume(aLotOfResources);
+    {
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Seconds(1);  // enable refill of volume
+        rootElement->PreUpdate(&updateContext);
+        rootElement->Update(&updateContext);
+
+        auto updatedVolume = relaxedPool->GetAccumulatedResourceVolume();
+        EXPECT_EQ(aLotOfResources.GetCpu(), updatedVolume.GetCpu());
+        EXPECT_EQ(aLotOfResources.GetMemory(), updatedVolume.GetMemory());
+        EXPECT_EQ(aLotOfResources.GetUserSlots(), updatedVolume.GetUserSlots());
+        EXPECT_EQ(aLotOfResources.GetGpu(), updatedVolume.GetGpu());
+        EXPECT_EQ(aLotOfResources.GetNetwork(), updatedVolume.GetNetwork());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
