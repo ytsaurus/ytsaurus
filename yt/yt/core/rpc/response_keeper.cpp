@@ -144,6 +144,12 @@ public:
             return;
         }
 
+        if (!response) {
+            YT_LOG_ALERT("Null response passed to response keeper (MutationId: %v, Remember: %v)",
+                id,
+                remember);
+        }
+
         auto pendingIt = PendingResponses_.find(id);
 
         TPromise<TSharedRefArray> promise;

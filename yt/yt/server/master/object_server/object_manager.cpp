@@ -1658,8 +1658,14 @@ void TObjectManager::TImpl::HydraExecuteLeader(
         // interval. If the boomerang's "begin" has been lost due to a recent
         // leader change, we get here.
 
-        rpcContext->Reply(TError("Mutation is already applied")
-            << TErrorAttribute("mutation_id", mutationId));
+        auto errorResponse = TError("Mutation is already applied")
+            << TErrorAttribute("mutation_id", mutationId);
+
+        rpcContext->Reply(errorResponse);
+
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        const auto& responseKeeper = hydraFacade->GetResponseKeeper();
+        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(errorResponse));
 
         YT_LOG_WARNING("Duplicate mutation application skipped (MutationId: %v)",
             mutationId);
