@@ -6,6 +6,7 @@
 
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/serialize.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/library/erasure/codec.h>
 
@@ -148,6 +149,7 @@ TInputSliceLimit::TInputSliceLimit(
     const NProto::TReadLimit& other,
     const TRowBufferPtr& rowBuffer,
     TRange<TLegacyKey> keySet,
+    TRange<TLegacyKey> keyBoundPrefixSet,
     int keyLength,
     bool isUpper)
 {
@@ -156,24 +158,31 @@ TInputSliceLimit::TInputSliceLimit(
     if (other.has_row_index()) {
         RowIndex = other.row_index();
     }
-    TUnversionedRow row;
 
-    if (other.has_key_bound_prefix()) {
-        NTableClient::FromProto(&KeyBound.Prefix, other.key_bound_prefix(), rowBuffer);
-        KeyBound.IsInclusive = other.key_bound_is_inclusive();
-        KeyBound.IsUpper = isUpper;
-    } else {
-        // Build from legacy-serialized read limit.
-        if (other.has_legacy_key()) {
-            NTableClient::FromProto(&row, other.legacy_key(), rowBuffer);
-        }
-        if (other.has_key_index()) {
-            row = rowBuffer->Capture(keySet[other.key_index()]);
-        }
-        if (row) {
+    if (other.has_key_index()) {
+        // COMPAT(gritukan)
+        if (keyBoundPrefixSet.empty()) {
+            auto row = rowBuffer->Capture(keySet[other.key_index()]);
             KeyBound = KeyBoundFromLegacyRow(row, isUpper, keyLength, rowBuffer);
         } else {
-            KeyBound = TKeyBound::MakeUniversal(isUpper);
+            auto row = rowBuffer->Capture(keyBoundPrefixSet[other.key_index()]);
+            KeyBound = TKeyBound::FromRowUnchecked(
+                row,
+                other.key_bound_is_inclusive(),
+                isUpper);
+        }
+    } else {
+        KeyBound = TKeyBound::MakeUniversal(isUpper);
+        if (other.has_key_bound_prefix()) {
+            TUnversionedOwningRow row;
+            NTableClient::FromProto(&row, other.key_bound_prefix());
+            KeyBound.Prefix = row;
+            KeyBound.IsUpper = isUpper;
+            KeyBound.IsInclusive = other.has_key_bound_is_inclusive();
+        } else if (other.has_legacy_key()) {
+            TUnversionedOwningRow row;
+            NTableClient::FromProto(&row, other.legacy_key());
+            KeyBound = KeyBoundFromLegacyRow(row, isUpper, keyLength, rowBuffer);
         }
     }
 }
@@ -431,15 +440,16 @@ TInputChunkSlice::TInputChunkSlice(
     const TComparator& comparator,
     const TRowBufferPtr& rowBuffer,
     const NProto::TChunkSlice& protoChunkSlice,
-    TRange<TLegacyKey> keySet)
+    TRange<TLegacyKey> keySet,
+    TRange<TLegacyKey> keyBoundPrefixes)
     : InputChunk_(chunkSlice.GetInputChunk())
-    , LegacyLowerLimit_(chunkSlice.LegacyLowerLimit())
-    , LegacyUpperLimit_(chunkSlice.LegacyUpperLimit())
+    , LowerLimit_(chunkSlice.LowerLimit())
+    , UpperLimit_(chunkSlice.UpperLimit())
     , IsLegacy(chunkSlice.IsLegacy)
 {
     YT_VERIFY(!chunkSlice.IsLegacy);
-    LowerLimit_.MergeLower(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer, keySet, comparator.GetLength(), /* isUpper */ false), comparator);
-    UpperLimit_.MergeUpper(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer, keySet, comparator.GetLength(), /* isUpper */ true), comparator);
+    LowerLimit_.MergeLower(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer, keySet, keyBoundPrefixes, comparator.GetLength(), /* isUpper */ false), comparator);
+    UpperLimit_.MergeUpper(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer, keySet, keyBoundPrefixes, comparator.GetLength(), /* isUpper */ true), comparator);
 
     PartIndex_ = DefaultPartIndex;
 
@@ -746,15 +756,35 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
     return slices;
 }
 
-void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr& chunkSlice, const TRowBufferPtr& rowBuffer, std::optional<int> keyColumnCount)
+void InferLimitsFromBoundaryKeys(
+    const TInputChunkSlicePtr& chunkSlice,
+    const TRowBufferPtr& rowBuffer,
+    std::optional<int> keyColumnCount,
+    std::optional<TComparator> comparator)
 {
-    if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
-        if (keyColumnCount) {
-            chunkSlice->LegacyLowerLimit().MergeLowerKey(GetStrictKey(boundaryKeys->MinKey, *keyColumnCount, rowBuffer));
-            chunkSlice->LegacyUpperLimit().MergeUpperKey(GetStrictKeySuccessor(boundaryKeys->MaxKey, *keyColumnCount, rowBuffer));
-        } else {
-            chunkSlice->LegacyLowerLimit().MergeLowerKey(boundaryKeys->MinKey);
-            chunkSlice->LegacyUpperLimit().MergeUpperKey(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer));
+    if (chunkSlice->IsLegacy) {
+        if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+            if (keyColumnCount) {
+                chunkSlice->LegacyLowerLimit().MergeLowerKey(GetStrictKey(boundaryKeys->MinKey, *keyColumnCount, rowBuffer));
+                chunkSlice->LegacyUpperLimit().MergeUpperKey(GetStrictKeySuccessor(boundaryKeys->MaxKey, *keyColumnCount, rowBuffer));
+            } else {
+                chunkSlice->LegacyLowerLimit().MergeLowerKey(boundaryKeys->MinKey);
+                chunkSlice->LegacyUpperLimit().MergeUpperKey(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer));
+            }
+        }
+    } else {
+        if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+            YT_VERIFY(comparator);
+            auto chunkLowerBound = KeyBoundFromLegacyRow(boundaryKeys->MinKey, /* isUpper */ false, comparator->GetLength(), rowBuffer);
+            auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /* isUpper */ true, comparator->GetLength(), rowBuffer);
+            if (comparator->StrongerKeyBound(chunkSlice->LowerLimit().KeyBound, chunkLowerBound) == chunkLowerBound) {
+                chunkLowerBound.Prefix = rowBuffer->Capture(chunkLowerBound.Prefix);
+                chunkSlice->LowerLimit().KeyBound = chunkLowerBound;
+            }
+            if (comparator->StrongerKeyBound(chunkSlice->UpperLimit().KeyBound, chunkUpperBound) == chunkUpperBound) {
+                chunkUpperBound.Prefix = rowBuffer->Capture(chunkUpperBound.Prefix);
+                chunkSlice->UpperLimit().KeyBound = chunkUpperBound;
+            }
         }
     }
 }

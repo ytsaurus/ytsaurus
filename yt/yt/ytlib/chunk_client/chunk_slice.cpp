@@ -27,121 +27,13 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkSlice::TChunkSlice(
-    const NProto::TSliceRequest& sliceReq,
-    const NProto::TChunkMeta& meta,
-    const TLegacyOwningKey& lowerKey,
-    const TLegacyOwningKey& upperKey,
-    std::optional<i64> dataWeight,
-    std::optional<i64> rowCount)
-{
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta.extensions());
-    DataWeight_ = miscExt.has_data_weight()
-        ? miscExt.data_weight()
-        : miscExt.uncompressed_data_size();
-
-    RowCount_ = miscExt.row_count();
-
-    if (rowCount && dataWeight && (DataWeight_ != *dataWeight || RowCount_ != *rowCount)) {
-        DataWeight_ = *dataWeight;
-        RowCount_ = *rowCount;
-        SizeOverridden_ = true;
-    }
-
-    if (sliceReq.has_lower_limit()) {
-        LowerLimit_ = sliceReq.lower_limit();
-    }
-
-    if (sliceReq.has_upper_limit()) {
-        UpperLimit_ = sliceReq.upper_limit();
-    }
-
-    if (lowerKey) {
-        LowerLimit_.MergeLowerLegacyKey(lowerKey);
-    }
-
-    if (upperKey) {
-        UpperLimit_.MergeUpperLegacyKey(upperKey);
-    }
-}
-
-TChunkSlice::TChunkSlice(
-    const TChunkSlice& chunkSlice,
-    i64 lowerRowIndex,
-    i64 upperRowIndex,
-    i64 dataWeight)
-    : LowerLimit_(chunkSlice.LowerLimit())
-    , UpperLimit_(chunkSlice.UpperLimit())
-    , DataWeight_(dataWeight)
-    , RowCount_(upperRowIndex - lowerRowIndex)
-    , SizeOverridden_(true)
-{
-    LowerLimit_.SetRowIndex(lowerRowIndex);
-    UpperLimit_.SetRowIndex(upperRowIndex);
-}
-
-TChunkSlice::TChunkSlice(
-    const NProto::TSliceRequest& sliceReq,
-    const NProto::TChunkMeta& meta,
-    i64 lowerRowIndex,
-    i64 upperRowIndex,
-    i64 dataWeight)
-    : DataWeight_(dataWeight)
-    , SizeOverridden_(true)
-{
-    if (sliceReq.has_lower_limit()) {
-        LowerLimit_ = sliceReq.lower_limit();
-    }
-    LowerLimit_.MergeLowerRowIndex(lowerRowIndex);
-
-    if (sliceReq.has_upper_limit()) {
-        UpperLimit_ = sliceReq.upper_limit();
-    }
-    UpperLimit_.MergeUpperRowIndex(upperRowIndex);
-
-    RowCount_ = UpperLimit_.GetRowIndex() - LowerLimit_.GetRowIndex();
-}
-
-void TChunkSlice::SliceEvenly(
-    std::vector<TChunkSlice>& result,
-    i64 sliceDataWeight) const
-{
-    YT_VERIFY(sliceDataWeight > 0);
-
-    i64 lowerRowIndex = LowerLimit_.HasRowIndex() ? LowerLimit_.GetRowIndex() : 0;
-    i64 upperRowIndex = UpperLimit_.HasRowIndex() ? UpperLimit_.GetRowIndex() : RowCount_;
-
-    i64 rowCount = upperRowIndex - lowerRowIndex;
-    int count = std::max(std::min(DataWeight_ / sliceDataWeight, rowCount), i64(1));
-
-    for (int i = 0; i < count; ++i) {
-        i64 sliceLowerRowIndex = lowerRowIndex + rowCount * i / count;
-        i64 sliceUpperRowIndex = lowerRowIndex + rowCount * (i + 1) / count;
-        if (sliceLowerRowIndex < sliceUpperRowIndex) {
-            result.emplace_back(
-                *this,
-                sliceLowerRowIndex,
-                sliceUpperRowIndex,
-                (DataWeight_ + count - 1) / count);
-        }
-    }
-}
-
-void TChunkSlice::SetKeys(const NTableClient::TLegacyOwningKey& lowerKey, const NTableClient::TLegacyOwningKey& upperKey)
-{
-    LowerLimit_.MergeLowerLegacyKey(lowerKey);
-    UpperLimit_.MergeUpperLegacyKey(upperKey);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TString ToString(const TChunkSlice& slice)
 {
     return Format("LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v",
-        slice.LowerLimit(),
-        slice.UpperLimit(),
-        slice.GetRowCount(),
-        slice.GetDataWeight());
+        slice.LowerLimit,
+        slice.UpperLimit,
+        slice.RowCount,
+        slice.DataWeight);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -277,32 +169,16 @@ public:
             YT_VERIFY(sliceStarted);
             sliceStarted = false;
 
-            i64 sliceRowCount = sliceEndRowIndex - currentSliceStartRowIndex;
-            i64 sliceDataWeight = sliceRowCount * DataWeightPerRow_;
-            if (sliceByKeys) {
-                TChunkSlice slice(
-                    /* sliceReq */SliceReq_,
-                    /* meta */Meta_,
-                    /* lowerKeyPrefix */KeyBoundToLegacyRow(currentSliceLowerBound),
-                    /* upperKeyPrefix */KeyBoundToLegacyRow(sliceUpperBound),
-                    /* dataWeight */sliceDataWeight,
-                    /* rowCount */sliceRowCount);
-
-                slices.push_back(std::move(slice));
-            } else {
-                TChunkSlice slice(
-                    /* sliceReq */SliceReq_,
-                    /* meta */Meta_,
-                    /* lowerRowIndex */currentSliceStartRowIndex,
-                    /* upperRowIndex */sliceEndRowIndex,
-                    /* dataWeight */sliceDataWeight);
-
-                slice.SetKeys(
-                    /* lowerKey */KeyBoundToLegacyRow(currentSliceLowerBound),
-                    /* upperKey */KeyBoundToLegacyRow(sliceUpperBound));
-
-                slices.push_back(std::move(slice));
+            TChunkSlice slice;
+            slice.LowerLimit.KeyBound() = currentSliceLowerBound;
+            slice.UpperLimit.KeyBound() = sliceUpperBound;
+            slice.RowCount = sliceEndRowIndex - currentSliceStartRowIndex;
+            slice.DataWeight = slice.RowCount * DataWeightPerRow_;
+            if (!sliceByKeys) {
+                slice.LowerLimit.SetRowIndex(currentSliceStartRowIndex);
+                slice.UpperLimit.SetRowIndex(sliceEndRowIndex);
             }
+            slices.push_back(std::move(slice));
         };
 
         // Upper bounds of intersection of last block and request.
@@ -450,45 +326,46 @@ std::vector<TChunkSlice> SliceChunk(
 
 void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice)
 {
-    if (!IsTrivial(chunkSlice.LowerLimit())) {
-        ToProto(protoChunkSlice->mutable_lower_limit(), chunkSlice.LowerLimit());
+    if (!chunkSlice.LowerLimit.IsTrivial()) {
+        ToProto(protoChunkSlice->mutable_lower_limit(), chunkSlice.LowerLimit);
     }
-    if (!IsTrivial(chunkSlice.UpperLimit())) {
-        ToProto(protoChunkSlice->mutable_upper_limit(), chunkSlice.UpperLimit());
+    if (!chunkSlice.UpperLimit.IsTrivial()) {
+        ToProto(protoChunkSlice->mutable_upper_limit(), chunkSlice.UpperLimit);
     }
-    if (chunkSlice.GetSizeOverridden()) {
-        protoChunkSlice->set_data_weight_override(chunkSlice.GetDataWeight());
-        protoChunkSlice->set_row_count_override(chunkSlice.GetRowCount());
-    }
+    protoChunkSlice->set_data_weight_override(chunkSlice.DataWeight);
+    protoChunkSlice->set_row_count_override(chunkSlice.RowCount);
 }
 
 void ToProto(
     const TKeySetWriterPtr& keysWriter,
+    const TKeySetWriterPtr& keyBoundsWriter,
     NProto::TChunkSlice* protoChunkSlice,
     const TChunkSlice& chunkSlice)
 {
-    if (chunkSlice.LowerLimit().HasLegacyKey()) {
-        int index = keysWriter->WriteKey(chunkSlice.LowerLimit().GetLegacyKey());
+    if (chunkSlice.LowerLimit.KeyBound()) {
+        int index = keyBoundsWriter->WriteKey(chunkSlice.LowerLimit.KeyBound().Prefix);
+        protoChunkSlice->mutable_lower_limit()->set_key_bound_is_inclusive(chunkSlice.LowerLimit.KeyBound().IsInclusive);
+        YT_VERIFY(keysWriter->WriteKey(KeyBoundToLegacyRow(chunkSlice.LowerLimit.KeyBound())) == index);
         protoChunkSlice->mutable_lower_limit()->set_key_index(index);
     }
 
-    if (chunkSlice.LowerLimit().HasRowIndex()) {
-        protoChunkSlice->mutable_lower_limit()->set_row_index(chunkSlice.LowerLimit().GetRowIndex());
+    if (chunkSlice.LowerLimit.GetRowIndex()) {
+        protoChunkSlice->mutable_lower_limit()->set_row_index(*chunkSlice.LowerLimit.GetRowIndex());
     }
 
-    if (chunkSlice.UpperLimit().HasLegacyKey()) {
-        int index = keysWriter->WriteKey(chunkSlice.UpperLimit().GetLegacyKey());
+    if (chunkSlice.UpperLimit.KeyBound()) {
+        int index = keyBoundsWriter->WriteKey(chunkSlice.UpperLimit.KeyBound().Prefix);
+        protoChunkSlice->mutable_upper_limit()->set_key_bound_is_inclusive(chunkSlice.UpperLimit.KeyBound().IsInclusive);
+        YT_VERIFY(keysWriter->WriteKey(KeyBoundToLegacyRow(chunkSlice.UpperLimit.KeyBound())) == index);
         protoChunkSlice->mutable_upper_limit()->set_key_index(index);
     }
 
-    if (chunkSlice.UpperLimit().HasRowIndex()) {
-        protoChunkSlice->mutable_upper_limit()->set_row_index(chunkSlice.UpperLimit().GetRowIndex());
+    if (chunkSlice.UpperLimit.GetRowIndex()) {
+        protoChunkSlice->mutable_upper_limit()->set_row_index(*chunkSlice.UpperLimit.GetRowIndex());
     }
 
-    if (chunkSlice.GetSizeOverridden()) {
-        protoChunkSlice->set_data_weight_override(chunkSlice.GetDataWeight());
-        protoChunkSlice->set_row_count_override(chunkSlice.GetRowCount());
-    }
+    protoChunkSlice->set_data_weight_override(chunkSlice.DataWeight);
+    protoChunkSlice->set_row_count_override(chunkSlice.RowCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

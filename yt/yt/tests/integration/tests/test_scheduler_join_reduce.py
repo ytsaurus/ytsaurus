@@ -2,6 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt_helpers import skip_if_no_descending
 from yt.yson import YsonEntity
 
 
@@ -37,29 +38,42 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         }
     }
 
+    def skip_if_legacy_sorted_pool(self):
+        if not isinstance(self, TestSchedulerJoinReduceCommandsNewSortedPool):
+            pytest.skip("This test requires new sorted pool")
+
     @authors("klyachin")
-    def test_join_reduce_tricky_chunk_boundaries(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_tricky_chunk_boundaries(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
+        def write(path, rows):
+            if sort_order == "descending":
+                rows = rows[::-1]
+            write_table(
+                path,
+                rows,
+                sorted_by=[
+                    {"name": "key", "sort_order": sort_order},
+                    {"name": "value", "sort_order": sort_order},
+                ]
+            )
+
         create("table", "//tmp/in1")
-        write_table(
-            "//tmp/in1",
-            [{"key": "0", "value": 1}, {"key": "2", "value": 2}],
-            sorted_by=["key", "value"],
-        )
+        write("//tmp/in1", [{"key": "0", "value": 1}, {"key": "2", "value": 2}])
 
         create("table", "//tmp/in2")
-        write_table(
-            "//tmp/in2",
-            [{"key": "2", "value": 6}, {"key": "5", "value": 8}],
-            sorted_by=["key", "value"],
-        )
+        write("//tmp/in2", [{"key": "2", "value": 6}, {"key": "5", "value": 8}])
 
         create("table", "//tmp/out")
 
         join_reduce(
             in_=["//tmp/in1{key}", "<foreign=true>//tmp/in2{key}"],
-            out=["<sorted_by=[key]>//tmp/out"],
+            out=["<sorted_by=[{{name=key;sort_order={}}}]>//tmp/out".format(sort_order)],
             command="cat",
-            join_by="key",
+            join_by=[{"name": "key", "sort_order": sort_order}],
             spec={
                 "reducer": {"format": yson.loads("<line_prefix=tskv;enable_table_index=true>dsv")},
                 "data_size_per_job": 1,
@@ -68,18 +82,35 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         rows = read_table("//tmp/out")
         assert len(rows) == 3
-        assert rows == [
-            {"key": "0", "@table_index": "0"},
-            {"key": "2", "@table_index": "0"},
-            {"key": "2", "@table_index": "1"},
-        ]
+        if sort_order == "ascending":
+            assert rows == [
+                {"key": "0", "@table_index": "0"},
+                {"key": "2", "@table_index": "0"},
+                {"key": "2", "@table_index": "1"},
+            ]
+        else:
+            assert rows == [
+                {"key": "2", "@table_index": "0"},
+                {"key": "2", "@table_index": "1"},
+                {"key": "0", "@table_index": "0"},
+            ]
 
         assert get("//tmp/out/@sorted")
 
     @authors("klyachin")
-    def test_join_reduce_cat_simple(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_cat_simple(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
+        def write(path, rows):
+            if sort_order == "descending":
+                rows = rows[::-1]
+            write_table(path, rows, sorted_by=[{"name": "key", "sort_order": sort_order}])
+
         create("table", "//tmp/in1")
-        write_table(
+        write(
             "//tmp/in1",
             [
                 {"key": 0, "value": 1},
@@ -87,11 +118,10 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 {"key": 3, "value": 3},
                 {"key": 7, "value": 4},
             ],
-            sorted_by="key",
         )
 
         create("table", "//tmp/in2")
-        write_table(
+        write(
             "//tmp/in2",
             [
                 {"key": -1, "value": 5},
@@ -99,57 +129,82 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 {"key": 3, "value": 7},
                 {"key": 5, "value": 8},
             ],
-            sorted_by="key",
         )
 
         create("table", "//tmp/out")
 
         join_reduce(
             in_=["<foreign=true>//tmp/in1", "//tmp/in2"],
-            out="<sorted_by=[key]>//tmp/out",
-            join_by="key",
+            out="<sorted_by=[{{name=key;sort_order={}}}]>//tmp/out".format(sort_order),
+            join_by={"name": "key", "sort_order": sort_order},
             command="cat",
             spec={"reducer": {"format": "dsv"}},
         )
 
-        assert read_table("//tmp/out") == [
-            {"key": "-1", "value": "5"},
-            {"key": "1", "value": "2"},
-            {"key": "1", "value": "6"},
-            {"key": "3", "value": "3"},
-            {"key": "3", "value": "7"},
-            {"key": "5", "value": "8"},
-        ]
+        if sort_order == "ascending":
+            assert read_table("//tmp/out") == [
+                {"key": "-1", "value": "5"},
+                {"key": "1", "value": "2"},
+                {"key": "1", "value": "6"},
+                {"key": "3", "value": "3"},
+                {"key": "3", "value": "7"},
+                {"key": "5", "value": "8"},
+            ]
+        else:
+            assert read_table("//tmp/out") == [
+                {"key": "5", "value": "8"},
+                {"key": "3", "value": "3"},
+                {"key": "3", "value": "7"},
+                {"key": "1", "value": "2"},
+                {"key": "1", "value": "6"},
+                {"key": "-1", "value": "5"},
+            ]
 
         assert get("//tmp/out/@sorted")
 
     @authors("psushin")
-    def test_join_reduce_split_further(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_split_further(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
+        def write(path, rows):
+            if sort_order == "descending":
+                rows = rows[::-1]
+            write_table(
+                "<append=true>{}".format(path),
+                rows,
+                sorted_by=[{"name": "key", "sort_order": sort_order}])
+
         create("table", "//tmp/primary")
-        write_table(
+        write(
             "//tmp/primary",
             [{"key": 0, "value": 0}, {"key": 9, "value": 0}],
-            sorted_by="key",
         )
+
+        first_foreign_chunk = [{"key": 0, "value": 1}, {"key": 4, "value": 1}]
+        second_foreign_chunk = [{"key": 5, "value": 1}, {"key": 9, "value": 1}]
+        if sort_order == "descending":
+            first_foreign_chunk, second_foreign_chunk = second_foreign_chunk, first_foreign_chunk
 
         create("table", "//tmp/foreign")
-        write_table(
+        write(
             "//tmp/foreign",
-            [{"key": 0, "value": 1}, {"key": 4, "value": 1}],
-            sorted_by="key",
+            first_foreign_chunk,
         )
 
-        write_table(
-            "<append=true; sorted_by=[key]>//tmp/foreign",
-            [{"key": 5, "value": 1}, {"key": 9, "value": 1}],
+        write(
+            "//tmp/foreign",
+            second_foreign_chunk,
         )
 
         create("table", "//tmp/out")
 
         join_reduce(
             in_=["<foreign=true>//tmp/foreign", "//tmp/primary"],
-            out="<sorted_by=[key]>//tmp/out",
-            join_by="key",
+            out=["<sorted_by=[{{name=key;sort_order={}}}]>//tmp/out".format(sort_order)],
+            join_by=[{"name": "key", "sort_order": sort_order}],
             command="cat",
             spec={"data_size_per_job": 1, "reducer": {"format": "dsv"}},
         )
@@ -257,18 +312,28 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
     @authors("klyachin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_join_reduce_cat_two_output(self, optimize_for):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_cat_two_output(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         schema = [
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "int64", "sort_order": "ascending"},
+            {"name": "key", "type": "int64", "sort_order": sort_order},
+            {"name": "value", "type": "int64", "sort_order": sort_order},
         ]
+
+        def write(path, rows):
+            if sort_order == "descending":
+                rows = rows[::-1]
+            write_table(path, rows)
 
         create(
             "table",
             "//tmp/in1",
             attributes={"schema": schema, "optimize_for": optimize_for},
         )
-        write_table(
+        write(
             "//tmp/in1",
             [
                 {"key": 0, "value": 1},
@@ -283,7 +348,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             "//tmp/in2",
             attributes={"schema": schema, "optimize_for": optimize_for},
         )
-        write_table(
+        write(
             "//tmp/in2",
             [
                 {"key": 2, "value": 5},
@@ -296,7 +361,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             "//tmp/in3",
             attributes={"schema": schema, "optimize_for": optimize_for},
         )
-        write_table(
+        write(
             "//tmp/in3",
             [
                 {"key": 2, "value": 1},
@@ -308,7 +373,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             "//tmp/in4",
             attributes={"schema": schema, "optimize_for": optimize_for},
         )
-        write_table(
+        write(
             "//tmp/in4",
             [
                 {"key": 3, "value": 7},
@@ -325,27 +390,47 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 "<foreign=true>//tmp/in3",
                 "<foreign=true>//tmp/in4",
             ],
-            out=["<sorted_by=[key]>//tmp/out1", "<sorted_by=[key]>//tmp/out2"],
+            out=[
+                "<sorted_by=[{{name=key;sort_order={}}}]>//tmp/out1".format(sort_order),
+                "<sorted_by=[{{name=key;sort_order={}}}]>//tmp/out2".format(sort_order)
+            ],
             command="cat | tee /dev/fd/4 | grep @table_index=0",
-            join_by="key",
+            join_by=[{"name": "key", "sort_order": sort_order}],
             spec={"reducer": {"format": yson.loads("<enable_table_index=true>dsv")}},
         )
 
-        assert read_table("//tmp/out1") == [
-            {"key": "0", "value": "1", "@table_index": "0"},
-            {"key": "2", "value": "2", "@table_index": "0"},
-            {"key": "4", "value": "3", "@table_index": "0"},
-            {"key": "8", "value": "4", "@table_index": "0"},
-        ]
+        if sort_order == "ascending":
+            assert read_table("//tmp/out1") == [
+                {"key": "0", "value": "1", "@table_index": "0"},
+                {"key": "2", "value": "2", "@table_index": "0"},
+                {"key": "4", "value": "3", "@table_index": "0"},
+                {"key": "8", "value": "4", "@table_index": "0"},
+            ]
 
-        assert read_table("//tmp/out2") == [
-            {"key": "0", "value": "1", "@table_index": "0"},
-            {"key": "2", "value": "2", "@table_index": "0"},
-            {"key": "2", "value": "5", "@table_index": "1"},
-            {"key": "2", "value": "1", "@table_index": "2"},
-            {"key": "4", "value": "3", "@table_index": "0"},
-            {"key": "8", "value": "4", "@table_index": "0"},
-        ]
+            assert read_table("//tmp/out2") == [
+                {"key": "0", "value": "1", "@table_index": "0"},
+                {"key": "2", "value": "2", "@table_index": "0"},
+                {"key": "2", "value": "5", "@table_index": "1"},
+                {"key": "2", "value": "1", "@table_index": "2"},
+                {"key": "4", "value": "3", "@table_index": "0"},
+                {"key": "8", "value": "4", "@table_index": "0"},
+            ]
+        else:
+            assert read_table("//tmp/out1") == [
+                {"key": "8", "value": "4", "@table_index": "0"},
+                {"key": "4", "value": "3", "@table_index": "0"},
+                {"key": "2", "value": "2", "@table_index": "0"},
+                {"key": "0", "value": "1", "@table_index": "0"},
+            ]
+
+            assert read_table("//tmp/out2") == [
+                {"key": "8", "value": "4", "@table_index": "0"},
+                {"key": "4", "value": "3", "@table_index": "0"},
+                {"key": "2", "value": "2", "@table_index": "0"},
+                {"key": "2", "value": "5", "@table_index": "1"},
+                {"key": "2", "value": "1", "@table_index": "2"},
+                {"key": "0", "value": "1", "@table_index": "0"},
+            ]
 
         assert get("//tmp/out1/@sorted")
         assert get("//tmp/out2/@sorted")
@@ -441,6 +526,24 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 command="cat",
             )
 
+    @authors("gritukan")
+    def test_join_reduce_different_sort_order(self):
+        skip_if_no_descending(self.Env)
+        self.skip_if_legacy_sorted_pool()
+
+        create("table", "//tmp/in1")
+        write_table("//tmp/in1", {"foo": "bar"}, sorted_by=["foo"])
+        create("table", "//tmp/in2")
+        write_table("//tmp/in2", {"foo": "bar"}, sorted_by=["foo"])
+
+        with pytest.raises(YtError):
+            join_reduce(
+                in_=["//tmp/in1", "<foreign=true>//tmp/in2"],
+                out="//tmp/out",
+                join_by=[{"name": "key", "sort_order": "descending"}],
+                command="cat",
+            )
+
     @authors("klyachin")
     def test_join_reduce_non_prefix(self):
         create("table", "//tmp/in")
@@ -458,10 +561,15 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
     @authors("klyachin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_join_reduce_short_limits(self, optimize_for):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_short_limits(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         schema = [
-            {"name": "key", "type": "string", "sort_order": "ascending"},
-            {"name": "subkey", "type": "string", "sort_order": "ascending"},
+            {"name": "key", "type": "string", "sort_order": sort_order},
+            {"name": "subkey", "type": "string", "sort_order": sort_order},
         ]
         create(
             "table",
@@ -474,27 +582,44 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             attributes={"schema": schema, "optimize_for": optimize_for},
         )
         create("table", "//tmp/out")
-        write_table("//tmp/in1", [{"key": "1", "subkey": "2"}, {"key": "3"}, {"key": "5"}])
-        write_table(
-            "//tmp/in2",
-            [{"key": "1", "subkey": "3"}, {"key": "3", "subkey": "3"}, {"key": "4"}],
-        )
+
+        def write(path, rows):
+            if sort_order == "descending":
+                rows = rows[::-1]
+            write_table(path, rows)
+
+        write("//tmp/in1", [{"key": "1", "subkey": "2"}, {"key": "3"}, {"key": "5"}])
+        write("//tmp/in2", [{"key": "1", "subkey": "3"}, {"key": "3", "subkey": "3"}, {"key": "4"}])
+
+        if sort_order == "ascending":
+            in_=['//tmp/in1["1":"4"]', "<foreign=true>//tmp/in2"]
+        else:
+            in_=['//tmp/in1["3":"0"]', "<foreign=true>//tmp/in2"]
 
         join_reduce(
-            in_=['//tmp/in1["1":"4"]', "<foreign=true>//tmp/in2"],
-            out="<sorted_by=[key; subkey]>//tmp/out",
+            in_=in_,
+            out="<sorted_by=[{{name=key;sort_order={0}}}; {{name=subkey;sort_order={0}}}]>//tmp/out".format(sort_order),
             command="cat",
-            join_by=["key", "subkey"],
+            join_by=[
+                {"name": "key", "sort_order": sort_order},
+                {"name": "subkey", "sort_order": sort_order},
+            ],
             spec={
                 "reducer": {"format": yson.loads("<line_prefix=tskv>dsv")},
                 "data_size_per_job": 1,
             },
         )
 
-        assert read_table("//tmp/out") == [
-            {"key": "1", "subkey": "2"},
-            {"key": "3", "subkey": YsonEntity()},
-        ]
+        if sort_order == "ascending":
+            assert read_table("//tmp/out") == [
+                {"key": "1", "subkey": "2"},
+                {"key": "3", "subkey": YsonEntity()},
+            ]
+        else:
+            assert read_table("//tmp/out") == [
+                {"key": "3", "subkey": YsonEntity()},
+                {"key": "1", "subkey": "2"},
+            ]
 
     @authors("klyachin")
     def test_join_reduce_many_output_tables(self):
@@ -528,12 +653,17 @@ echo {v = 2} >&7
         assert read_table(output_tables[2]) == [{"v": 2}]
 
     @authors("klyachin")
-    def test_join_reduce_job_count(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_job_count(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/in1", attributes={"compression_codec": "none"})
         create(
             "table",
             "//tmp/in2",
-            attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]},
+            attributes={"schema": [{"name": "key", "type": "string", "sort_order": sort_order}]},
         )
         create("table", "//tmp/out")
 
@@ -541,17 +671,23 @@ echo {v = 2} >&7
 
         # Job count works only if we have enough splits in input chunks.
         # Its default rate 0.0001, so we should have enough rows in input table
+        rows = [{"key": "%.010d" % num} for num in xrange(count)]
+        if sort_order == "descending":
+            rows = rows[::-1]
         write_table(
             "//tmp/in1",
-            [{"key": "%.010d" % num} for num in xrange(count)],
-            sorted_by=["key"],
+            rows,
+            sorted_by=[{"name": "key", "sort_order": sort_order}],
             table_writer={"block_size": 1024},
         )
         # write secondary table as one row per chunk
+        rows = [{"key": "%.010d" % num} for num in xrange(0, count, 20)]
+        if sort_order == "descending":
+            rows = rows[::-1]
         write_table(
             "//tmp/in2",
-            [{"key": "%.010d" % num} for num in xrange(0, count, 20)],
-            sorted_by=["key"],
+            rows,
+            sorted_by=[{"name": "key", "sort_order": sort_order}],
             max_row_buffer_size=1,
             table_writer={"desired_chunk_size": 1},
         )
@@ -562,7 +698,7 @@ echo {v = 2} >&7
             in_=["//tmp/in1", "<foreign=true>//tmp/in2"],
             out="//tmp/out",
             command='echo "key=`wc -l`"',
-            join_by=["key"],
+            join_by=[{"name": "key", "sort_order": sort_order}],
             spec={
                 "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
                 "data_size_per_job": 250,
@@ -620,47 +756,59 @@ echo {v = 2} >&7
         )
 
     @authors("klyachin")
-    def test_join_reduce_with_small_block_size(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_with_small_block_size(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/in1", attributes={"compression_codec": "none"})
         create("table", "//tmp/in2")
         create("table", "//tmp/out")
 
+        def write(path, rows1, rows2):
+            if sort_order == "descending":
+                rows1 = rows1[::-1]
+                rows2 = rows2[::-1]
+                rows1, rows2 = rows2, rows1
+            for rows in [rows1, rows2]:
+                write_table(
+                    path,
+                    rows,
+                    sorted_by=[{"name": "key", "sort_order": sort_order}],
+                    table_writer={"block_size": 1024}
+                )
+
         count = 300
 
-        write_table(
+        write(
             "<append=true>//tmp/in1",
             [{"key": "%05d" % (10000 + num / 2), "val1": num} for num in xrange(count)],
-            sorted_by=["key"],
-            table_writer={"block_size": 1024},
-        )
-        write_table(
-            "<append=true>//tmp/in1",
             [{"key": "%05d" % (10000 + num / 2), "val1": num} for num in xrange(count, 2 * count)],
-            sorted_by=["key"],
-            table_writer={"block_size": 1024},
         )
 
-        write_table(
+        write(
             "<append=true>//tmp/in2",
             [{"key": "%05d" % (10000 + num / 2), "val2": num} for num in xrange(count)],
-            sorted_by=["key"],
-            table_writer={"block_size": 1024},
-        )
-        write_table(
-            "<append=true>//tmp/in2",
             [{"key": "%05d" % (10000 + num / 2), "val2": num} for num in xrange(count, 2 * count)],
-            sorted_by=["key"],
-            table_writer={"block_size": 1024},
         )
 
-        join_reduce(
+        if sort_order == "ascending":
             in_=[
                 '<ranges=[{lower_limit={row_index=100;key=["10010"]};upper_limit={row_index=540;key=["10280"]}}];primary=true>//tmp/in1',
                 "<foreign=true>//tmp/in2",
-            ],
+            ]
+        else:
+            in_=[
+                '<ranges=[{lower_limit={row_index=60;key=["10280"]};upper_limit={row_index=500;key=["10010"]}}];primary=true>//tmp/in1',
+                "<foreign=true>//tmp/in2",
+            ]
+
+        join_reduce(
+            in_=in_,
             out="//tmp/out",
             command="""awk '{print $0"\tji="ENVIRON["YT_JOB_INDEX"]"\tsi="ENVIRON["YT_START_ROW_INDEX"]}' """,
-            join_by=["key"],
+            join_by=[{"name": "key", "sort_order": sort_order}],
             spec={
                 "reducer": {"format": yson.loads("<enable_table_index=true;table_index_column=ti>dsv")},
                 "data_size_per_job": 500,
@@ -670,22 +818,39 @@ echo {v = 2} >&7
         assert get("//tmp/out/@row_count") > 800
 
     @authors("renadeen", "klyachin")
-    def test_join_reduce_skewed_key_distribution(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_skewed_key_distribution(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
         create("table", "//tmp/out")
 
-        data1 = [{"key": "a"}] * 8000 + [{"key": "b"}] * 2000
-        write_table("//tmp/in1", data1, sorted_by=["key"], table_writer={"block_size": 1024})
+        if sort_order == "ascending":
+            data1 = [{"key": "a"}] * 8000 + [{"key": "b"}] * 2000
+        else:
+            data1 = [{"key": "b"}] * 8000 + [{"key": "a"}] * 2000
+        write_table(
+            "//tmp/in1",
+            data1,
+            sorted_by=[{"name": "key", "sort_order": sort_order}],
+            table_writer={"block_size": 1024})
 
         data2 = [{"key": "a"}, {"key": "b"}]
-        write_table("//tmp/in2", data2, sorted_by=["key"])
+        if sort_order == "descending":
+            data2 = data2[::-1]
+        write_table(
+            "//tmp/in2",
+            data2,
+            sorted_by=[{"name": "key", "sort_order": sort_order}])
 
         op = join_reduce(
             in_=["//tmp/in1", "<foreign=true>//tmp/in2"],
             out=["//tmp/out"],
             command="uniq",
-            join_by="key",
+            join_by=[{"name": "key", "sort_order": sort_order}],
             spec={
                 "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
                 "job_count": 2,
@@ -694,17 +859,30 @@ echo {v = 2} >&7
 
         assert get("//tmp/out/@chunk_count") == 2
 
-        assert sorted(read_table("//tmp/out")) == sorted(
-            [
-                {"key": "a", "@table_index": "0"},
-                {"key": "a", "@table_index": "1"},
-                # ------partition boundary-------
-                {"key": "a", "@table_index": "0"},
-                {"key": "a", "@table_index": "1"},
-                {"key": "b", "@table_index": "0"},
-                {"key": "b", "@table_index": "1"},
-            ]
-        )
+        if sort_order == "ascending":
+            assert sorted(read_table("//tmp/out")) == sorted(
+                [
+                    {"key": "a", "@table_index": "0"},
+                    {"key": "a", "@table_index": "1"},
+                    # ------partition boundary-------
+                    {"key": "a", "@table_index": "0"},
+                    {"key": "a", "@table_index": "1"},
+                    {"key": "b", "@table_index": "0"},
+                    {"key": "b", "@table_index": "1"},
+                ]
+            )
+        else:
+            assert sorted(read_table("//tmp/out")) == sorted(
+                [
+                    {"key": "b", "@table_index": "0"},
+                    {"key": "b", "@table_index": "1"},
+                    # ------partition boundary-------
+                    {"key": "b", "@table_index": "0"},
+                    {"key": "b", "@table_index": "1"},
+                    {"key": "a", "@table_index": "0"},
+                    {"key": "a", "@table_index": "1"},
+                ]
+            )
 
         histogram = get(op.get_path() + "/@progress/tasks/0/input_data_weight_histogram")
         assert sum(histogram["count"]) == 2
@@ -791,31 +969,54 @@ echo {v = 2} >&7
         assert len(read_table("//tmp/out")) == 6
 
     @authors("klyachin")
-    def test_join_reduce_short_range(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_short_range(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         count = 300
 
         create("table", "//tmp/in1")
+        rows = [{"key": "%05d" % num, "subkey": "", "value": num} for num in xrange(count)]
+        if sort_order == "descending":
+            rows = rows[::-1]
         write_table(
             "<append=true>//tmp/in1",
-            [{"key": "%05d" % num, "subkey": "", "value": num} for num in xrange(count)],
-            sorted_by=["key", "subkey"],
+            rows,
+            sorted_by=[
+                {"name": "key", "sort_order": sort_order},
+                {"name": "subkey", "sort_order": sort_order},
+            ],
             table_writer={"block_size": 1024},
         )
 
         create("table", "//tmp/in2")
         write_table(
             "<append=true>//tmp/in2",
-            [{"key": "%05d" % num, "subkey": "", "value": num} for num in xrange(count)],
-            sorted_by=["key", "subkey"],
+            rows,
+            sorted_by=[
+                {"name": "key", "sort_order": sort_order},
+                {"name": "subkey", "sort_order": sort_order},
+            ],
             table_writer={"block_size": 1024},
         )
 
         create("table", "//tmp/out")
+
+        if sort_order == "ascending":
+            in_=['//tmp/in1["00100":"00200"]', "<foreign=true>//tmp/in2"]
+        else:
+            in_=['//tmp/in1["00199":"00099"]', "<foreign=true>//tmp/in2"]
+
         join_reduce(
-            in_=['//tmp/in1["00100":"00200"]', "<foreign=true>//tmp/in2"],
+            in_=in_,
             out="//tmp/out",
             command="cat",
-            join_by=["key", "subkey"],
+            join_by=[
+                {"name": "key", "sort_order": sort_order},
+                {"name": "subkey", "sort_order": sort_order},
+            ],
             spec={
                 "reducer": {"format": "dsv"},
                 "data_size_per_job": 512,
@@ -986,26 +1187,41 @@ echo {v = 2} >&7
 
     @authors("klyachin", "gritukan")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_join_reduce_interrupt_job(self, optimize_for):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_interrupt_job(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/input1", attributes={"optimize_for": optimize_for})
+        rows = [
+            {
+                "key": "(%08d)" % (i * 2 + 1),
+                "value": "(t_1)",
+                "data": "a" * (2 * 1024 * 1024),
+            }
+            for i in range(3)
+        ]
+        if sort_order == "descending":
+            rows = rows[::-1]
+
         write_table(
             "//tmp/input1",
-            [
-                {
-                    "key": "(%08d)" % (i * 2 + 1),
-                    "value": "(t_1)",
-                    "data": "a" * (2 * 1024 * 1024),
-                }
-                for i in range(3)
+            rows,
+            sorted_by=[
+                {"name": "key", "sort_order": sort_order},
+                {"name": "value", "sort_order": sort_order},
             ],
-            sorted_by=["key", "value"],
         )
 
         create("table", "//tmp/input2", attributes={"optimize_for": optimize_for})
+        rows = [{"key": "(%08d)" % (i / 2), "value": "(t_2)"} for i in range(14)]
+        if sort_order == "descending":
+            rows = rows[::-1]
         write_table(
             "//tmp/input2",
-            [{"key": "(%08d)" % (i / 2), "value": "(t_2)"} for i in range(14)],
-            sorted_by=["key"],
+            rows,
+            sorted_by=[{"name": "key", "sort_order": sort_order}],
         )
 
         create("table", "//tmp/output", attributes={"optimize_for": optimize_for})
@@ -1014,9 +1230,9 @@ echo {v = 2} >&7
             track=False,
             label="interrupt_job",
             in_=["<foreign=true>//tmp/input2", "//tmp/input1"],
-            out="<sorted_by=[key]>//tmp/output",
+            out="<sorted_by=[{{name=key;sort_order={}}}]>//tmp/output".format(sort_order),
             command=with_breakpoint("""read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"; BREAKPOINT ; cat """),
-            join_by=["key"],
+            join_by=[{"name": "key", "sort_order": sort_order}],
             spec={
                 "reducer": {"format": "dsv"},
                 "max_failed_job_count": 1,
@@ -1057,20 +1273,29 @@ echo {v = 2} >&7
         )
 
     @authors("psushin")
-    def test_join_reduce_job_splitter(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_job_splitter(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/in_1")
         for j in range(20):
+            x = j if sort_order == "ascending" else 19 - j
+            rows = [
+                {
+                    "key": "%08d" % (x * 4 + i),
+                    "value": "(t_1)",
+                    "data": "a" * (1024 * 1024),
+                }
+                for i in range(4)
+            ]
+            if sort_order == "descending":
+                rows = rows[::-1]
             write_table(
                 "<append=true>//tmp/in_1",
-                [
-                    {
-                        "key": "%08d" % (j * 4 + i),
-                        "value": "(t_1)",
-                        "data": "a" * (1024 * 1024),
-                    }
-                    for i in range(4)
-                ],
-                sorted_by=["key"],
+                rows,
+                sorted_by=[{"name": "key", "sort_order": sort_order}],
                 table_writer={
                     "block_size": 1024,
                 },
@@ -1078,10 +1303,14 @@ echo {v = 2} >&7
 
         create("table", "//tmp/in_2")
         for j in range(20):
+            x = j if sort_order == "ascending" else 19 - j
+            rows = [{"key": "(%08d)" % ((j * 10 + i) / 2), "value": "(t_2)"} for i in range(10)]
+            if sort_order == "descending":
+                rows = rows[::-1]
             write_table(
                 "//tmp/in_2",
-                [{"key": "(%08d)" % ((j * 10 + i) / 2), "value": "(t_2)"} for i in range(10)],
-                sorted_by=["key"],
+                rows,
+                sorted_by=[{"name": "key", "sort_order": sort_order}],
                 table_writer={
                     "block_size": 1024,
                 },
@@ -1111,7 +1340,7 @@ done
             in_=input_,
             out=output,
             command=command,
-            join_by="key",
+            join_by=[{"name": "key", "sort_order": sort_order}],
             spec={
                 "reducer": {
                     "format": "dsv",

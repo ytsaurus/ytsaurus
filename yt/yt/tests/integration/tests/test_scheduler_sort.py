@@ -213,6 +213,10 @@ class TestSchedulerSortCommands(YTEnvSetup):
         }
     }
 
+    def skip_if_legacy_sorted_pool(self):
+        if not isinstance(self, TestSchedulerSortCommandsNewSortedPool):
+            pytest.skip("This test requires new sorted pool")
+
     @authors("ignat")
     def test_simple(self):
         v1 = {"key": "aaa"}
@@ -585,7 +589,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
             )
 
     @authors("dakovalkov")
-    def test_append_different_key_columns_2(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_append_different_key_columns_2(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t_in")
         create(
             "table",
@@ -593,8 +601,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "key", "type": "int64", "sort_order": "ascending"},
-                        {"name": "subkey", "type": "int64", "sort_order": "ascending"},
+                        {"name": "key", "type": "int64", "sort_order": sort_order},
+                        {"name": "subkey", "type": "int64", "sort_order": sort_order},
                     ],
                     unique_keys=False,
                 )
@@ -602,10 +610,16 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
 
         write_table("//tmp/t_in", {"key": 2, "subkey": 2})
-        write_table("//tmp/t_out", {"key": 1, "subkey": 1})
+        if sort_order == "ascending":
+            write_table("//tmp/t_out", {"key": 1, "subkey": 1})
+        else:
+            write_table("//tmp/t_out", {"key": 3, "subkey": 3})
 
         with pytest.raises(YtError):
-            sort(in_="//tmp/t_in", out="<append=true>//tmp/t_out", sort_by="key")
+            sort(
+                in_="//tmp/t_in",
+                out="<append=true>//tmp/t_out",
+                sort_by=[{"name": "key", "sort_order": sort_order}])
 
     @authors("gritukan", "dakovalkov")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -671,7 +685,12 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert len(read_table("//tmp/t_out")) == 50
 
     @authors("psushin", "ignat")
-    def test_many_merge(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_many_merge(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         v1 = {"key": "aaa"}
         v2 = {"key": "bb"}
         v3 = {"key": "bbxx"}
@@ -689,7 +708,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            sort_by="key",
+            sort_by=[{"name": "key", "sort_order": sort_order}],
             spec={
                 "partition_count": 5,
                 "partition_job_count": 2,
@@ -701,9 +720,16 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert len(read_table("//tmp/t_out")) == 50
 
     @authors("max42")
-    def test_several_merge_jobs_per_partition(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_several_merge_jobs_per_partition(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/t_in")
         rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]
+        if sort_order == "descending":
+            rows = rows[::-1]
         shuffled_rows = rows[::]
         shuffle(shuffled_rows)
         write_table("//tmp/t_in", shuffled_rows)
@@ -713,7 +739,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            sort_by="key",
+            sort_by=[{"name": "key", "sort_order": sort_order}],
             spec={
                 "partition_count": 2,
                 "partition_job_count": 10,
@@ -919,8 +945,13 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_one_partition_with_merge(self, optimize_for):
-        self.sort_with_options(optimize_for, "ascending", spec={"data_weight_per_sort_job": 1})
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_one_partition_with_merge(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
+        self.sort_with_options(optimize_for, sort_order, spec={"data_weight_per_sort_job": 1})
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -942,10 +973,15 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_two_partitions_with_merge(self, optimize_for):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_two_partitions_with_merge(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         self.sort_with_options(
             optimize_for,
-            "ascending",
+            sort_order,
             spec={
                 "partition_count": 2,
                 "partition_data_size": 1,
@@ -2066,11 +2102,17 @@ class TestSchedulerSortCommands(YTEnvSetup):
             assert read_table("//tmp/t_out") == expected
 
     @authors("gritukan")
-    @pytest.mark.parametrize("sort_type", ["simple_sort_1_phase", "2_phase", "2_phase_hierarchical"])
+    @pytest.mark.parametrize("sort_type", [
+        "simple_sort_1_phase",
+        "simple_sort_2_phase",
+        "2_phase",
+        "2_phase_hierarchical",
+        "3_phase",
+        "3_phase_hierarchical"])
     def test_descending_sort_order(self, sort_type):
         skip_if_no_descending(self.Env)
 
-        rows = [{"x": str(x), "y": str(y)} for x in range(5, 0, -1) for y in range(5)]
+        rows = [{"x": str(x), "y": str(y), "z": "A" * 1000} for x in range(7, 0, -1) for y in range(8)]
         expected = deepcopy(rows)
         random.shuffle(rows)
 
@@ -2089,7 +2131,15 @@ class TestSchedulerSortCommands(YTEnvSetup):
             op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by)
             op.track()
             assert check_operation_tasks(op, ["simple_sort"])
+        elif sort_type == "simple_sort_2_phase":
+            self.skip_if_legacy_sorted_pool()
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec={
+                "data_weight_per_sort_job": 5000,
+            })
+            op.track()
+            assert check_operation_tasks(op, ["simple_sort", "sorted_merge"])
         elif sort_type == "2_phase":
+            self.skip_if_legacy_sorted_pool()
             op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec={
                 "partition_count": 3,
                 "data_weight_per_sort_job": 10 ** 8,
@@ -2104,6 +2154,35 @@ class TestSchedulerSortCommands(YTEnvSetup):
             })
             op.track()
             assert check_operation_tasks(op, ["partition(0)", "partition(1)", "final_sort"])
+        elif sort_type == "3_phase":
+            self.skip_if_legacy_sorted_pool()
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec={
+                "partition_count": 2,
+                "data_weight_per_sort_job": 5000,
+                "partition_job_io": {
+                    "table_writer": {
+                        "desired_chunk_size": 1,
+                        "block_size": 1024,
+                    }
+                },
+            })
+            op.track()
+            assert check_operation_tasks(op, ["partition(0)", "intermediate_sort", "sorted_merge"])
+        elif sort_type == "3_phase_hierarchical":
+            self.skip_if_legacy_sorted_pool()
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec={
+                "partition_count": 3,
+                "max_partition_factor": 2,
+                "data_weight_per_sort_job": 5000,
+                "partition_job_io": {
+                    "table_writer": {
+                        "desired_chunk_size": 1,
+                        "block_size": 1024,
+                    }
+                },
+            })
+            op.track()
+            assert check_operation_tasks(op, ["partition(0)", "partition(1)", "intermediate_sort", "sorted_merge"])
 
         output_schema = make_schema(
             [

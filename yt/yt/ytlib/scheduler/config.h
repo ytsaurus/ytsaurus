@@ -1123,7 +1123,7 @@ public:
     EMergeMode Mode;
     bool CombineChunks;
     bool ForceTransform;
-    NTableClient::TKeyColumns MergeBy;
+    NTableClient::TSortColumns MergeBy;
 
     ESchemaInferenceMode SchemaInferenceMode;
 
@@ -1206,9 +1206,9 @@ public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
 
-    NTableClient::TKeyColumns ReduceBy;
-    NTableClient::TKeyColumns SortBy;
-    NTableClient::TKeyColumns JoinBy;
+    NTableClient::TSortColumns ReduceBy;
+    NTableClient::TSortColumns SortBy;
+    NTableClient::TSortColumns JoinBy;
 
     std::optional<bool> EnableKeyGuarantee;
 
@@ -1305,6 +1305,8 @@ public:
     bool UseNewPartitionsHeuristic;
 
     double PartitionSizeFactor;
+
+    bool UseNewSortedPool;
 
     TSortOperationSpecBase();
 

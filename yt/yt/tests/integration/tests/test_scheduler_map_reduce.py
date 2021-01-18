@@ -81,6 +81,10 @@ for l in sys.stdin:
     sys.stdout.write(json.dumps(row) + "\\n")
 """
 
+    def skip_if_legacy_sorted_pool(self):
+        if not isinstance(self, TestSchedulerMapReduceCommandsNewSortedPool):
+            pytest.skip("This test requires new sorted pool")
+
     @pytest.mark.parametrize(
         "method",
         [
@@ -337,7 +341,11 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         )
 
     @authors("psushin")
-    def test_reduce_with_sort(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_reduce_with_sort(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -350,14 +358,13 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
 
         reducer = """
 import sys
-y = 0
 for l in sys.stdin:
   l = l.strip('\\n')
   pairs = l.split('\\t')
   pairs = [a.split("=") for a in pairs]
   d = dict([(a[0], int(a[1])) for a in pairs])
   x = d['x']
-  y += d['y']
+  y = d['y']
   print l
 print "x={0}\ty={1}".format(x, y)
 """
@@ -365,27 +372,42 @@ print "x={0}\ty={1}".format(x, y)
         create("file", "//tmp/reducer.py")
         write_file("//tmp/reducer.py", reducer)
 
+        sorted_by = "[{{name=x; sort_order={0}}};{{name=y; sort_order={0}}}]".format(sort_order)
+        sort_by = [{"name": name, "sort_order": sort_order} for name in ["x", "y"]]
         map_reduce(
             in_="//tmp/t_in",
-            out="<sorted_by=[x; y]>//tmp/t_out",
+            out="<sorted_by={}>//tmp/t_out".format(sorted_by),
             reduce_by="x",
-            sort_by=["x", "y"],
+            sort_by=sort_by,
             reducer_file=["//tmp/reducer.py"],
             reducer_command="python reducer.py",
             spec={"partition_count": 2, "reducer": {"format": "dsv"}},
         )
 
-        assert read_table("//tmp/t_out") == [
-            {"x": "1", "y": "1"},
-            {"x": "1", "y": "2"},
-            {"x": "1", "y": "3"},
-            {"x": "1", "y": "6"},
-            {"x": "2", "y": "2"},
-            {"x": "2", "y": "3"},
-            {"x": "2", "y": "4"},
-            {"x": "2", "y": "9"},
-        ]
+        if sort_order == "ascending":
+            expected = [
+                {"x": "1", "y": "1"},
+                {"x": "1", "y": "2"},
+                {"x": "1", "y": "3"},
+                {"x": "1", "y": "3"},
+                {"x": "2", "y": "2"},
+                {"x": "2", "y": "3"},
+                {"x": "2", "y": "4"},
+                {"x": "2", "y": "4"},
+            ]
+        else:
+            expected = [
+                {"x": "2", "y": "4"},
+                {"x": "2", "y": "3"},
+                {"x": "2", "y": "2"},
+                {"x": "2", "y": "2"},
+                {"x": "1", "y": "3"},
+                {"x": "1", "y": "2"},
+                {"x": "1", "y": "1"},
+                {"x": "1", "y": "1"},
+            ]
 
+        assert read_table("//tmp/t_out") == expected
         assert get("//tmp/t_out/@sorted")
 
     @authors("babenko")
@@ -1290,9 +1312,14 @@ print "x={0}\ty={1}".format(x, y)
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [2, 6, 42]
 
     @authors("levysotsky")
-    def test_intermediate_schema(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_intermediate_schema(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         schema = [
-            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
                 "name": "struct",
                 "type_v3": struct_type(
@@ -1341,7 +1368,7 @@ for l in sys.stdin:
             mapper_command="python mapper.py",
             reducer_command="cat",
             reduce_combiner_command="cat",
-            sort_by="a",
+            sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "mapper": {
                     "output_streams": [
@@ -1363,9 +1390,14 @@ for l in sys.stdin:
         assert sorted(expected_rows) == sorted(result_rows)
 
     @authors("levysotsky")
-    def test_several_intermediate_schemas_trivial_mapper(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_several_intermediate_schemas_trivial_mapper(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         first_schema = [
-            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
                 "name": "struct",
                 "type_v3": struct_type(
@@ -1377,7 +1409,7 @@ for l in sys.stdin:
             },
         ]
         second_schema = [
-            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
                 "name": "struct1",
                 "type_v3": struct_type(
@@ -1406,8 +1438,12 @@ for l in sys.stdin:
 
         row_count = 50
         rows1 = [{"a": i, "struct": {"a": i ** 2, "b": str(i) * 3}} for i in range(row_count)]
+        if sort_order == "descending":
+            rows1 = rows1[::-1]
         write_table("//tmp/in1", rows1)
         rows2 = [{"a": i, "struct1": {"a1": i ** 3}} for i in range(row_count)]
+        if sort_order == "descending":
+            rows2 = rows2[::-1]
         write_table("//tmp/in2", rows2)
 
         create("file", "//tmp/reducer.py")
@@ -1418,7 +1454,7 @@ for l in sys.stdin:
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
             reducer_command="python reducer.py",
-            sort_by=["a"],
+            sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "reduce_job_io": {
                     "control_attributes": {
@@ -1438,9 +1474,14 @@ for l in sys.stdin:
         assert sorted(expected_rows) == sorted(result_rows)
 
     @authors("levysotsky")
-    def test_several_intermediate_schemas(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_several_intermediate_schemas(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         first_schema = [
-            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
                 "name": "struct",
                 "type_v3": struct_type(
@@ -1452,7 +1493,7 @@ for l in sys.stdin:
             },
         ]
         second_schema = [
-            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
                 "name": "struct1",
                 "type_v3": struct_type(
@@ -1507,7 +1548,7 @@ for l in sys.stdin:
             mapper_command="python mapper.py",
             reducer_file=["//tmp/reducer.py"],
             reducer_command="python reducer.py",
-            sort_by=["a"],
+            sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "mapper": {
                     "output_streams": [
@@ -1654,9 +1695,14 @@ for l in sys.stdin:
         assert sorted(expected_rows) == sorted(result_rows)
 
     @authors("levysotsky")
-    def test_identical_intermediate_schemas(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_identical_intermediate_schemas(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         schema = [
-            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
                 "name": "struct",
                 "type_v3": struct_type(
@@ -1710,7 +1756,7 @@ for l in sys.stdin:
             mapper_command="python mapper.py",
             reducer_file=["//tmp/reducer.py"],
             reducer_command="python reducer.py",
-            sort_by=["a"],
+            sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "mapper": {
                     "output_streams": [
@@ -1732,9 +1778,14 @@ for l in sys.stdin:
         assert sorted(expected_rows) == sorted(result_rows)
 
     @authors("levysotsky")
-    def test_identical_intermediate_schemas_trivial_mapper(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_identical_intermediate_schemas_trivial_mapper(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         input_schema = [
-            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "a", "type_v3": "int64", "sort_order": sort_order},
             {
                 "name": "struct",
                 "type_v3": struct_type(
@@ -1764,8 +1815,12 @@ for l in sys.stdin:
 
         row_count = 50
         rows1 = [{"a": i, "struct": {"a": i ** 2, "b": str(i) * 3}} for i in range(row_count)]
+        if sort_order == "descending":
+            rows1 = rows1[::-1]
         write_table("//tmp/in1", rows1)
         rows2 = [{"a": i, "struct": {"a": i ** 3, "b": str(i) * 5}} for i in range(row_count)]
+        if sort_order == "descending":
+            rows2 = rows2[::-1]
         write_table("//tmp/in2", rows2)
 
         create("file", "//tmp/reducer.py")
@@ -1776,7 +1831,7 @@ for l in sys.stdin:
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
             reducer_command="python reducer.py",
-            sort_by=["a"],
+            sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "reduce_job_io": {
                     "control_attributes": {

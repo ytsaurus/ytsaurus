@@ -452,27 +452,51 @@ TLegacyDataSlicePtr CreateInputDataSlice(
 
 void InferLimitsFromBoundaryKeys(
     const TLegacyDataSlicePtr& dataSlice,
-    const TRowBufferPtr& rowBuffer)
+    const TRowBufferPtr& rowBuffer,
+    const std::optional<TComparator>& comparator)
 {
-    TLegacyKey minKey;
-    TLegacyKey maxKey;
-    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-        if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
-            if (!minKey || minKey > boundaryKeys->MinKey) {
-                minKey = boundaryKeys->MinKey;
-            }
-            if (!maxKey || maxKey < boundaryKeys->MaxKey) {
-                maxKey = boundaryKeys->MaxKey;
+    if (dataSlice->IsLegacy) {
+        TLegacyKey minKey;
+        TLegacyKey maxKey;
+        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+            if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+                if (!minKey || minKey > boundaryKeys->MinKey) {
+                    minKey = boundaryKeys->MinKey;
+                }
+                if (!maxKey || maxKey < boundaryKeys->MaxKey) {
+                    maxKey = boundaryKeys->MaxKey;
+                }
             }
         }
-    }
 
-    YT_VERIFY(dataSlice->IsLegacy);
-    if (minKey) {
-        dataSlice->LegacyLowerLimit().MergeLowerKey(rowBuffer->Capture(minKey));
-    }
-    if (maxKey) {
-        dataSlice->LegacyUpperLimit().MergeUpperKey(rowBuffer->Capture(GetKeySuccessor(maxKey, rowBuffer)));
+        if (minKey) {
+            dataSlice->LegacyLowerLimit().MergeLowerKey(rowBuffer->Capture(minKey));
+        }
+        if (maxKey) {
+            dataSlice->LegacyUpperLimit().MergeUpperKey(rowBuffer->Capture(GetKeySuccessor(maxKey, rowBuffer)));
+        }
+    } else {
+        YT_VERIFY(comparator);
+
+        auto lowerBound = TKeyBound::MakeUniversal(/* isUpper */ false);
+        auto upperBound = TKeyBound::MakeUniversal(/* isUpper */ true);
+        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+            if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+                auto chunkLowerBound = KeyBoundFromLegacyRow(boundaryKeys->MinKey, /* isUpper */ false, comparator->GetLength(), rowBuffer);
+                auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /* isUpper */ true, comparator->GetLength(), rowBuffer);
+                comparator->ReplaceIfStrongerKeyBound(lowerBound, chunkLowerBound);
+                comparator->ReplaceIfStrongerKeyBound(upperBound, chunkUpperBound);
+            }
+        }
+
+        if (comparator->StrongerKeyBound(dataSlice->LowerLimit().KeyBound, lowerBound) == lowerBound) {
+            lowerBound.Prefix = rowBuffer->Capture(lowerBound.Prefix);
+            dataSlice->LowerLimit().KeyBound = lowerBound;
+        }
+        if (comparator->StrongerKeyBound(dataSlice->UpperLimit().KeyBound, upperBound) == upperBound) {
+            upperBound.Prefix = rowBuffer->Capture(upperBound.Prefix);
+            dataSlice->UpperLimit().KeyBound = upperBound;
+        }
     }
 }
 
@@ -488,7 +512,7 @@ void SetLimitsFromShortenedBoundaryKeys(
         dataSlice->LowerLimit().KeyBound = TKeyBound::FromRow(
             rowBuffer->Capture(boundaryKeys->MinKey.Begin(), prefixLength), /* isInclusive */ true, /* isUpper */ false);
         dataSlice->UpperLimit().KeyBound = TKeyBound::FromRow(
-            rowBuffer->Capture(boundaryKeys->MinKey.Begin(), prefixLength), /* isInclusive */ true, /* isUpper */ true);
+            rowBuffer->Capture(boundaryKeys->MaxKey.Begin(), prefixLength), /* isInclusive */ true, /* isUpper */ true);
     }
 }
 

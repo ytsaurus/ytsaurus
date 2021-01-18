@@ -18,6 +18,7 @@
 
 #include <yt/client/api/transaction.h>
 
+#include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
@@ -362,11 +363,15 @@ protected:
             int versionedSlices = 0;
             // TODO(max42): use CollectPrimaryInputDataSlices() here?
             for (auto& chunk : CollectPrimaryUnversionedChunks()) {
-                const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-                InferLimitsFromBoundaryKeys(dataSlice, RowBuffer);
+                const auto& comparator = InputTables_[chunk->GetTableIndex()]->Comparator;
 
-                const auto& inputTable = InputTables_[dataSlice->GetTableIndex()];
-                dataSlice->TransformToNew(RowBuffer, inputTable->Comparator);
+                const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+                if (comparator) {
+                    dataSlice->TransformToNew(RowBuffer, comparator->GetLength());
+                    InferLimitsFromBoundaryKeys(dataSlice, RowBuffer, comparator);
+                } else {
+                    dataSlice->TransformToNewKeyless();
+                }
 
                 UnorderedTask_->AddInput(New<TChunkStripe>(std::move(dataSlice)));
                 ++unversionedSlices;

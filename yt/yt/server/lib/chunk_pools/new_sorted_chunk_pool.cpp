@@ -114,7 +114,7 @@ public:
                 YT_VERIFY(!dataSlice->UpperLimit().KeyBound.IsUniversal());
             }
 
-            YT_LOG_TRACE_IF(
+            YT_LOG_DEBUG_IF(
                 SortedJobOptions_.LogDetails,
                 "Data slice added (LowerLimit: %v, UpperLimit: %v, InputStreamIndex: %v)",
                 dataSlice->LowerLimit(),
@@ -373,28 +373,28 @@ private:
                 if (dataSlice->Type == EDataSourceType::UnversionedTable) {
                     auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
                     auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary();
+                    auto comparator = isPrimary
+                        ? PrimaryComparator_
+                        : ForeignComparator_;
                     auto sliceSize = isPrimary
                         ? primarySliceSize
                         : foreignSliceSize;
-                    auto keyColumnCount = isPrimary
-                        ? PrimaryPrefixLength_
-                        : ForeignPrefixLength_;
                     auto sliceByKeys = isPrimary
                         ? ShouldSlicePrimaryTableByKeys_
                         : false;
 
                     if (chunkSliceFetcher && (isPrimary || SliceForeignChunks_)) {
                         if (SortedJobOptions_.LogDetails) {
-                            YT_LOG_DEBUG("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, SliceSize: %v, KeyColumnCount: %v, SliceByKeys: %v)",
+                            YT_LOG_DEBUG("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, Comparator: %v, SliceSize: %v, SliceByKeys: %v)",
                                 inputChunk->ChunkId(),
                                 inputChunk->GetDataWeight(),
                                 isPrimary,
+                                comparator,
                                 sliceSize,
-                                keyColumnCount,
                                 sliceByKeys);
                         }
 
-                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, sliceSize, keyColumnCount, sliceByKeys);
+                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, sliceByKeys);
                     } else if (!isPrimary) {
                         // Take foreign slice as-is.
                         processDataSlice(dataSlice, inputCookie);

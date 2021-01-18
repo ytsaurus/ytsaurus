@@ -393,10 +393,14 @@ message TMergeJobSpecExt
     }
 
     // For EJobType::SortedMerge, contains columns used for comparison.
+    // COMPAT(gritukan)
     repeated string key_columns = 1;
 
     // COMPAT(gritukan)
     optional int32 partition_tag = 2;
+
+    // For EJobType::SortedMerge, used for row comparison.
+    optional NTableClient.NProto.TSortColumnsExt sort_columns = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

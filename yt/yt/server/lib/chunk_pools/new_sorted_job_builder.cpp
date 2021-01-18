@@ -1094,7 +1094,7 @@ private:
                 "PrimarySliceCount: %v, PreliminaryForeignDataSize: %v, PreliminaryForeignRowCount: %v, "
                 "PreliminaryForeignSliceCount: %v, PrimaryLowerBound: %v, PrimaryUpperBound: %v)",
                 JobIndex_,
-                static_cast<int>(Jobs_.size()) - 1,
+                Jobs_.size(),
                 job.GetPrimaryDataWeight(),
                 job.GetPrimaryRowCount(),
                 job.GetPrimarySliceCount(),
@@ -1109,7 +1109,7 @@ private:
             if (Options_.LogDetails) {
                 YT_LOG_DEBUG("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
                     JobIndex_,
-                    static_cast<int>(Jobs_.size()),
+                    Jobs_.size(),
                     job.GetDebugString());
             }
 

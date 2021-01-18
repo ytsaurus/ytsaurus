@@ -10,6 +10,8 @@ struct TColumnSortSchema
 {
     TString Name;
     ESortOrder SortOrder;
+
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 void Serialize(const TColumnSortSchema& schema, NYson::IYsonConsumer* consumer);

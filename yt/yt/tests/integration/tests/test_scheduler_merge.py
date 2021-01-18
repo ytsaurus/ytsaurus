@@ -3,7 +3,7 @@ import yt.yson as yson
 
 from yt_env_setup import YTEnvSetup, parametrize_external
 from yt_commands import *
-from yt_helpers import filter_tests
+from yt_helpers import skip_if_no_descending
 
 from yt.environment.helpers import assert_items_equal
 from time import sleep
@@ -51,6 +51,10 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = {"scheduler_connector": {"heartbeat_period": 100}}  # 100 msec
+
+    def skip_if_legacy_sorted_pool(self):
+        if not isinstance(self, TestSchedulerMergeCommandsNewSortedPool):
+            pytest.skip("This test requires new sorted pool")
 
     def _prepare_tables(self):
         t1 = "//tmp/t1"
@@ -133,19 +137,34 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
     @authors("dakovalkov")
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
-    def test_rename_columns(self, merge_mode):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_rename_columns(self, merge_mode, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
+        if sort_order == "descending" and merge_mode != "sorted":
+            pytest.skip("Descending sort order is interesting only with sorted merge")
+
         create(
             "table",
             "//tmp/t1",
-            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": sort_order}]},
         )
         create(
             "table",
             "//tmp/t2",
-            attributes={"schema": [{"name": "a2", "type": "int64", "sort_order": "ascending"}]},
+            attributes={"schema": [{"name": "a2", "type": "int64", "sort_order": sort_order}]},
         )
-        write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
-        write_table("//tmp/t2", [{"a2": 3}, {"a2": 4}])
+
+        rows = [{"a": 1}, {"a": 2}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/t1", rows)
+        rows = [{"a2": 3}, {"a2": 4}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/t2", rows)
 
         create("table", "//tmp/t_out")
         merge(
@@ -185,17 +204,33 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@chunk_count") == 1
 
     @authors("ignat")
-    def test_sorted(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @pytest.mark.parametrize("combine_chunks", [False, True])
+    def test_sorted(self, sort_order, combine_chunks):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
 
-        write_table("//tmp/t1", [{"a": 1}, {"a": 10}, {"a": 100}], sorted_by="a")
-        write_table("//tmp/t2", [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by="a")
+        rows = [{"a": 1}, {"a": 10}, {"a": 100}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/t1", rows, sorted_by=[{"name": "a", "sort_order": sort_order}])
+        rows = [{"a": 2}, {"a": 3}, {"a": 15}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/t2", rows, sorted_by=[{"name": "a", "sort_order": sort_order}])
 
         create("table", "//tmp/t_out")
-        merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out")
+        merge(
+            combine_chunks=combine_chunks,
+            mode="sorted",
+            in_=["//tmp/t1", "//tmp/t2"],
+            out="//tmp/t_out")
 
-        assert read_table("//tmp/t_out") == [
+        expected = [
             {"a": 1},
             {"a": 2},
             {"a": 3},
@@ -203,6 +238,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             {"a": 15},
             {"a": 100},
         ]
+        if sort_order == "descending":
+            expected = expected[::-1]
+        assert read_table("//tmp/t_out") == expected
         assert (
             get("//tmp/t_out/@chunk_count") == 1
         )  # resulting number of chunks is always equal to 1 (as long as they are small)
@@ -229,6 +267,29 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         with pytest.raises(YtError):
             merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/out")
 
+    @authors("gritukan")
+    def test_sorted_different_directions(self):
+        skip_if_no_descending(self.Env)
+        self.skip_if_legacy_sorted_pool()
+
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "descending"}]},
+        )
+        create("table", "//tmp/out")
+
+        write_table("//tmp/t1", [{"key": 1}])
+        write_table("//tmp/t2", [{"key": 1}])
+
+        with pytest.raises(YtError):
+            merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/out")
+
     @authors("psushin")
     def test_sorted_column_filter(self):
         create("table", "//tmp/t")
@@ -243,46 +304,45 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             merge(mode="sorted", in_=["<columns=[b]>//tmp/t"], out="//tmp/t_out")
 
     @authors("klyachin")
-    def test_sorted_merge_result_is_sorted(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_merge_result_is_sorted(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/t1")
 
         count = 100
-        write_table(
-            "<append=true>//tmp/t1",
-            [
-                {
-                    "key": "%05d" % (i if i < count / 2 else count / 2),
-                    "value": "%05d" % i,
-                }
-                for i in range(count)
-            ],
-            sorted_by="key",
-            table_writer={"block_size": 1024},
-        )
-        write_table(
-            "<append=true>//tmp/t1",
-            [{"key": "%05d" % (count / 2), "value": "%05d" % (i + count)} for i in range(count)],
-            sorted_by="key",
-            table_writer={"block_size": 1024},
-        )
-        write_table(
-            "<append=true>//tmp/t1",
-            [{"key": "%05d" % (count / 2), "value": "%05d" % (i + 2 * count)} for i in range(count)],
-            sorted_by="key",
-            table_writer={"block_size": 1024},
-        )
-        write_table(
-            "<append=true>//tmp/t1",
-            [
-                {
-                    "key": "%05d" % (count / 2 if i < count / 2 else i),
-                    "value": "%05d" % (i + 3 * count),
-                }
-                for i in range(count)
-            ],
-            sorted_by="key",
-            table_writer={"block_size": 1024},
-        )
+
+        chunks = []
+        chunks.append([
+            {
+                "key": "%05d" % (i if i < count / 2 else count / 2),
+                "value": "%05d" % i,
+            }
+            for i in range(count)
+        ])
+        chunks.append([{"key": "%05d" % (count / 2), "value": "%05d" % (i + count)} for i in range(count)])
+        chunks.append([{"key": "%05d" % (count / 2), "value": "%05d" % (i + 2 * count)} for i in range(count)])
+        chunks.append([
+            {
+                "key": "%05d" % (count / 2 if i < count / 2 else i),
+                "value": "%05d" % (i + 3 * count),
+            }
+            for i in range(count)
+        ])
+
+        if sort_order == "descending":
+            chunks = chunks[::-1]
+        for chunk in chunks:
+            if sort_order == "descending":
+                chunk = chunk[::-1]
+            write_table(
+                "<append=%true>//tmp/t1",
+                chunk,
+                sorted_by=[{"name": "key", "sort_order": sort_order}],
+                table_writer={"block_size": 1024},
+            )
 
         create("table", "//tmp/t_out")
         merge(
@@ -295,18 +355,29 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         result = read_table("//tmp/t_out")
         assert len(result) == 4 * count
         for i in range(len(result) - 1):
-            assert result[i]["key"] <= result[i + 1]["key"]
+            if sort_order == "ascending":
+                assert result[i]["key"] <= result[i + 1]["key"]
+            else:
+                assert result[i]["key"] >= result[i + 1]["key"]
 
     @authors("psushin", "ignat")
-    def test_sorted_trivial(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_trivial(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/t1")
 
-        write_table("//tmp/t1", [{"a": 1}, {"a": 10}, {"a": 100}], sorted_by="a")
+        rows = [{"a": 1}, {"a": 10}, {"a": 100}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/t1", rows, sorted_by=[{"name": "a", "sort_order": sort_order}])
 
         create("table", "//tmp/t_out")
         merge(combine_chunks=True, mode="sorted", in_=["//tmp/t1"], out="//tmp/t_out")
 
-        assert read_table("//tmp/t_out") == [{"a": 1}, {"a": 10}, {"a": 100}]
+        assert read_table("//tmp/t_out") == rows
         assert (
             get("//tmp/t_out/@chunk_count") == 1
         )  # resulting number of chunks is always equal to 1 (as long as they are small)
@@ -326,14 +397,19 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert not get("//tmp/t_out/@sorted")
 
     @authors("ignat")
-    def test_sorted_with_same_chunks(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_with_same_chunks(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         t1 = "//tmp/t1"
         t2 = "//tmp/t2"
         v = [{"key1": "value1"}]
 
         create("table", t1)
         write_table(t1, v[0])
-        sort(in_=t1, out=t1, sort_by="key1")
+        sort(in_=t1, out=t1, sort_by=[{"name": "key1", "sort_order": sort_order}])
         copy(t1, t2)
 
         create("table", "//tmp/t_out")
@@ -342,34 +418,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["key1"]
-
-    @authors("ignat")
-    def test_sorted_combine(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-
-        write_table("//tmp/t1", [{"a": 1}, {"a": 10}, {"a": 100}], sorted_by="a")
-        write_table("//tmp/t2", [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by="a")
-
-        create("table", "//tmp/t_out")
-        merge(
-            combine_chunks=True,
-            mode="sorted",
-            in_=["//tmp/t1", "//tmp/t2"],
-            out="//tmp/t_out",
-        )
-
-        assert read_table("//tmp/t_out") == [
-            {"a": 1},
-            {"a": 2},
-            {"a": 3},
-            {"a": 10},
-            {"a": 15},
-            {"a": 100},
-        ]
-        assert get("//tmp/t_out/@chunk_count") == 1
-        assert get("//tmp/t_out/@sorted")
-        assert get("//tmp/t_out/@sorted_by") == ["a"]
 
     @authors("dakovalkov")
     def test_sorted_row_count_limit(self):
@@ -419,22 +467,48 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/out") == [{"k": "a", "s": 0}, {"k": "b", "s": 1}]
 
     @authors("ignat")
-    def test_sorted_teleport(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_teleport(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
 
-        write_table("//tmp/t1", [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=["k", "s"])
-        write_table("//tmp/t2", [{"k": "b", "s": 2}, {"k": "c", "s": 0}], sorted_by=["k", "s"])
-        write_table("//tmp/t3", [{"k": "b", "s": 0}, {"k": "b", "s": 3}], sorted_by=["k", "s"])
+        sorted_by = [
+            {"name": "k", "sort_order": sort_order},
+            {"name": "s", "sort_order": sort_order},
+        ]
+        rows = [{"k": "a", "s": 0}, {"k": "b", "s": 1}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/t1", rows, sorted_by=sorted_by)
+        rows = [{"k": "b", "s": 2}, {"k": "c", "s": 0}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/t2", rows, sorted_by=sorted_by)
+        rows = [{"k": "b", "s": 0}, {"k": "b", "s": 3}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        write_table("//tmp/t3", rows, sorted_by=sorted_by)
 
         create("table", "//tmp/t_out")
-        merge(
-            mode="sorted",
-            in_=["//tmp/t1", "//tmp/t2", "//tmp/t3", "//tmp/t2[(b, 3) : (b, 7)]"],
-            out="//tmp/t_out",
-            merge_by="k",
-        )
+        if sort_order == "ascending":
+            merge(
+                mode="sorted",
+                in_=["//tmp/t1", "//tmp/t2", "//tmp/t3", "//tmp/t2[(b, 3) : (b, 7)]"],
+                out="//tmp/t_out",
+                merge_by="k",
+            )
+        else:
+            merge(
+                mode="sorted",
+                in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
+                out="//tmp/t_out",
+                merge_by=[{"name": "k", "sort_order": "descending"}]
+            )
 
         res = read_table("//tmp/t_out")
         expected = [
@@ -445,6 +519,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             {"k": "b", "s": 2},
             {"k": "c", "s": 0},
         ]
+        if sort_order == "descending":
+            expected = expected[::-1]
 
         assert_items_equal(res, expected)
 
@@ -456,7 +532,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             mode="sorted",
             in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
             out="//tmp/t_out",
-            merge_by="k",
+            merge_by=[{"name": "k", "sort_order": sort_order}],
         )
 
         res = read_table("//tmp/t_out")
@@ -470,7 +546,10 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             mode="sorted",
             in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
             out="//tmp/t_out",
-            merge_by=["k", "s"],
+            merge_by=[
+                {"name": "k", "sort_order": sort_order},
+                {"name": "s", "sort_order": sort_order}
+            ],
         )
 
         res = read_table("//tmp/t_out")
@@ -482,6 +561,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             {"k": "b", "s": 3},
             {"k": "c", "s": 0},
         ]
+        if sort_order == "descending":
+            expected = expected[::-1]
 
         for i, j in zip(res, expected):
             assert i == j
@@ -491,14 +572,24 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted_by") == ["k", "s"]
 
     @authors("ignat")
-    def test_sorted_with_maniacs(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_with_maniacs(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
 
-        write_table("//tmp/t1", [{"a": 3}, {"a": 3}, {"a": 3}], sorted_by="a")
-        write_table("//tmp/t2", [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by="a")
-        write_table("//tmp/t3", [{"a": 1}, {"a": 3}], sorted_by="a")
+        def write(table, rows):
+            if sort_order == "descending":
+                rows = rows[::-1]
+            write_table(table, rows, sorted_by=[{"name": "a", "sort_order": sort_order}])
+
+        write("//tmp/t1", [{"a": 3}, {"a": 3}, {"a": 3}])
+        write("//tmp/t2", [{"a": 2}, {"a": 3}, {"a": 15}])
+        write("//tmp/t3", [{"a": 1}, {"a": 3}])
 
         create("table", "//tmp/t_out")
         merge(
@@ -509,7 +600,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        assert read_table("//tmp/t_out") == [
+        expected = [
             {"a": 1},
             {"a": 2},
             {"a": 3},
@@ -519,36 +610,59 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             {"a": 3},
             {"a": 15},
         ]
+        if sort_order == "descending":
+            expected = expected[::-1]
+        assert read_table("//tmp/t_out") == expected
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["a"]
 
     @authors("psushin")
-    def test_sorted_with_row_limits(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_with_row_limits(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/t1")
 
-        write_table("//tmp/t1", [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by="a")
+        rows = [{"a": 2}, {"a": 3}, {"a": 15}]
+        if sort_order == "descending":
+            rows = rows[::-1]
+
+        write_table("//tmp/t1", rows, sorted_by=[{"name": "a", "sort_order": sort_order}])
 
         create("table", "//tmp/t_out")
         merge(combine_chunks=False, mode="sorted", in_="//tmp/t1[:#2]", out="//tmp/t_out")
 
-        assert read_table("//tmp/t_out") == [{"a": 2}, {"a": 3}]
+        assert read_table("//tmp/t_out") == rows[:2]
         assert get("//tmp/t_out/@chunk_count") == 1
 
     @authors("ignat")
-    def test_sorted_by(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_by(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
 
-        a1 = {"a": 1, "b": 20}
-        a2 = {"a": 10, "b": 1}
-        a3 = {"a": 10, "b": 2}
+        mul = 1 if sort_order == "ascending" else -1
 
-        b1 = {"a": 2, "c": 10}
-        b2 = {"a": 10, "c": 0}
-        b3 = {"a": 15, "c": 5}
+        a1 = {"a": 1 * mul, "b": 20 * mul}
+        a2 = {"a": 10 * mul, "b": 1 * mul}
+        a3 = {"a": 10 * mul, "b": 2 * mul}
 
-        write_table("//tmp/t1", [a1, a2, a3], sorted_by=["a", "b"])
-        write_table("//tmp/t2", [b1, b2, b3], sorted_by=["a", "c"])
+        b1 = {"a": 2 * mul, "c": 10 * mul}
+        b2 = {"a": 10 * mul, "c": 0 * mul}
+        b3 = {"a": 15 * mul, "c": 5 * mul}
+
+        write_table("//tmp/t1", [a1, a2, a3], sorted_by=[
+            {"name": "a", "sort_order": sort_order},
+            {"name": "b", "sort_order": sort_order}])
+        write_table("//tmp/t2", [b1, b2, b3], sorted_by=[
+            {"name": "a", "sort_order": sort_order},
+            {"name": "c", "sort_order": sort_order}])
 
         create("table", "//tmp/t_out")
 
@@ -557,7 +671,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out")
 
         # now merge_by is set
-        merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", merge_by="a")
+        merge(
+            mode="sorted",
+            in_=["//tmp/t1", "//tmp/t2"],
+            out="//tmp/t_out",
+            merge_by=[{"name": "a", "sort_order": sort_order}])
 
         result = read_table("//tmp/t_out")
         assert result[:2] == [a1, b1]
@@ -569,7 +687,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_sorted_unique_simple(self, optimize_for):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_unique_simple(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
@@ -580,7 +703,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 "optimize_for": optimize_for,
                 "schema": make_schema(
                     [
-                        {"name": "a", "type": "int64", "sort_order": "ascending"},
+                        {"name": "a", "type": "int64", "sort_order": sort_order},
                         {"name": "b", "type": "int64"},
                     ],
                     unique_keys=True,
@@ -588,20 +711,29 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        a1 = {"a": 1, "b": 1}
-        a2 = {"a": 2, "b": 2}
-        a3 = {"a": 3, "b": 3}
+        mul = 1 if sort_order == "ascending" else -1
+        a1 = {"a": 1 * mul, "b": 1 * mul}
+        a2 = {"a": 2 * mul, "b": 2 * mul}
+        a3 = {"a": 3 * mul, "b": 3 * mul}
 
-        write_table("//tmp/t1", [a1, a2], sorted_by=["a", "b"])
-        write_table("//tmp/t2", [a3], sorted_by=["a"])
-        write_table("//tmp/t3", [a3, a3], sorted_by=["a", "b"])
+        write_table("//tmp/t1", [a1, a2], sorted_by=[
+            {"name": "a", "sort_order": sort_order},
+            {"name": "b", "sort_order": sort_order}
+        ])
+        write_table("//tmp/t2", [a3], sorted_by=[
+            {"name": "a", "sort_order": sort_order},
+        ])
+        write_table("//tmp/t3", [a3, a3], sorted_by=[
+            {"name": "a", "sort_order": sort_order},
+            {"name": "b", "sort_order": sort_order}
+        ])
 
         with pytest.raises(YtError):
             merge(
                 mode="sorted",
                 in_="//tmp/t3",
                 out="//tmp/t_out",
-                merge_by="a",
+                merge_by=[{"name": "a", "sort_order": sort_order}],
                 spec={"schema_inference_mode": "from_output"},
             )
 
@@ -609,7 +741,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             mode="sorted",
             in_=["//tmp/t1", "//tmp/t2"],
             out="//tmp/t_out",
-            merge_by="a",
+            merge_by=[{"name": "a", "sort_order": sort_order}],
             spec={"schema_inference_mode": "from_output"},
         )
 
@@ -621,14 +753,19 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t_out/@schema/@unique_keys")
 
     @authors("psushin")
-    def test_sorted_unique_teleport(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_unique_teleport(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create(
             "table",
             "//tmp/t1",
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "a", "type": "int64", "sort_order": "ascending"},
+                        {"name": "a", "type": "int64", "sort_order": sort_order},
                         {"name": "b", "type": "int64"},
                     ],
                     unique_keys=True,
@@ -641,7 +778,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "a", "type": "int64", "sort_order": "ascending"},
+                        {"name": "a", "type": "int64", "sort_order": sort_order},
                         {"name": "b", "type": "int64"},
                     ],
                     unique_keys=True,
@@ -649,19 +786,29 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        a1 = {"a": 1, "b": 1}
-        a2 = {"a": 2, "b": 2}
+        rows = [{"a": 1, "b": 1}, {"a": 2, "b": 2}]
+        if sort_order == "descending":
+            rows = rows[::-1]
 
-        write_table("//tmp/t1", [a1, a2])
+        write_table("//tmp/t1", rows)
 
-        merge(mode="sorted", in_="//tmp/t1", out="//tmp/t_out", merge_by="a")
+        merge(
+            mode="sorted",
+            in_="//tmp/t1",
+            out="//tmp/t_out",
+            merge_by=[{"name": "a", "sort_order": sort_order}])
 
-        assert read_table("//tmp/t_out") == [a1, a2]
+        assert read_table("//tmp/t_out") == rows
         assert get("//tmp/t_out/@schema/@unique_keys")
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_sorted_unique_with_wider_key_columns(self, optimize_for):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_unique_with_wider_key_columns(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/t1")
         create(
             "table",
@@ -670,18 +817,24 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 "optimize_for": optimize_for,
                 "schema": make_schema(
                     [
-                        {"name": "key1", "type": "int64", "sort_order": "ascending"},
-                        {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                        {"name": "key1", "type": "int64", "sort_order": sort_order},
+                        {"name": "key2", "type": "int64", "sort_order": sort_order},
                     ],
                     unique_keys=True,
                 ),
             },
         )
 
+        rows = [{"key1": 1, "key2": 1}, {"key1": 1, "key2": 2}]
+        if sort_order == "descending":
+            rows = rows[::-1]
         write_table(
             "//tmp/t1",
-            [{"key1": 1, "key2": 1}, {"key1": 1, "key2": 2}],
-            sorted_by=["key1", "key2"],
+            rows,
+            sorted_by=[
+                {"name": "key1", "sort_order": sort_order},
+                {"name": "key2", "sort_order": sort_order}
+            ],
         )
 
         with pytest.raises(YtError):
@@ -689,7 +842,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 mode="sorted",
                 in_="//tmp/t1",
                 out="//tmp/t_out",
-                merge_by="key1",
+                merge_by=[{"name": "key1", "sort_order": sort_order}],
                 spec={"schema_inference_mode": "from_output"},
             )
 
@@ -697,7 +850,10 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             mode="sorted",
             in_="//tmp/t1",
             out="//tmp/t_out",
-            merge_by=["key1", "key2"],
+            merge_by=[
+                {"name": "key1", "sort_order": sort_order},
+                {"name": "key2", "sort_order": sort_order}
+            ],
             spec={"schema_inference_mode": "from_output"},
         )
 
@@ -809,15 +965,20 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
     @authors("savrus", "ermolovd")
     @pytest.mark.parametrize("mode", ["ordered", "unordered", "sorted"])
-    def test_column_selectors_schema_inference(self, mode):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_column_selectors_schema_inference(self, mode, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create(
             "table",
             "//tmp/t",
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "k1", "type": "int64", "sort_order": "ascending"},
-                        {"name": "k2", "type": "int64", "sort_order": "ascending"},
+                        {"name": "k1", "type": "int64", "sort_order": sort_order},
+                        {"name": "k2", "type": "int64", "sort_order": sort_order},
                         {"name": "v1", "type": "int64"},
                         {"name": "v2", "type": "int64"},
                     ],
@@ -827,6 +988,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
         create("table", "//tmp/t_out")
         rows = [{"k1": i, "k2": i + 1, "v1": i + 2, "v2": i + 3} for i in xrange(2)]
+        if sort_order == "descending":
+            rows = rows[::-1]
         write_table("//tmp/t", rows)
 
         if mode != "sorted":
@@ -846,7 +1009,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 strict=True,
             )
             if mode != "unordered":
-                schema[0]["sort_order"] = "ascending"
+                schema[0]["sort_order"] = sort_order
             assert normalize_schema(get("//tmp/t_out/@schema")) == schema
 
             remove("//tmp/t_out")
@@ -890,8 +1053,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
         if mode != "unordered":
             schema.attributes["unique_keys"] = True
-            schema[0]["sort_order"] = "ascending"
-            schema[1]["sort_order"] = "ascending"
+            schema[0]["sort_order"] = sort_order
+            schema[1]["sort_order"] = sort_order
         assert normalize_schema(get("//tmp/t_out/@schema")) == schema
 
     @authors("savrus")
@@ -1371,7 +1534,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
     @authors("psushin")
-    def test_sort_order_validation_failure(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sort_order_validation_failure(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create("table", "//tmp/input")
         create(
             "table",
@@ -1379,7 +1547,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "key", "type": "int64", "sort_order": "ascending"},
+                        {"name": "key", "type": "int64", "sort_order": sort_order},
                         {"name": "value", "type": "string"},
                     ]
                 )
@@ -1431,15 +1599,24 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
     @authors("max42")
     @pytest.mark.parametrize("mode", ["sorted", "ordered"])
-    def test_merge_interrupt(self, mode):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_merge_interrupt(self, mode, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create(
             "table",
             "//tmp/t_in",
-            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": sort_order}]},
         )
         create("table", "//tmp/t_out")
-        for i in range(25):
-            write_table("<append=%true>//tmp/t_in", {"a": i})
+
+        rows = [{"a": i} for i in range(25)]
+        if sort_order == "descending":
+            rows = rows[::-1]
+        for row in rows:
+            write_table("<append=%true>//tmp/t_in", row)
         op = merge(
             track=False,
             in_=["//tmp/t_in"],
@@ -1467,29 +1644,35 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
         interrupt_job(job_id)
         op.track()
-        rows = read_table("//tmp/t_out")
+        assert read_table("//tmp/t_out") == rows
         assert get(op.get_path() + "/@progress/jobs/completed/total") == 2
-        assert rows == [{"a": i} for i in range(25)]
 
     @authors("max42")
     @pytest.mark.parametrize("mode", ["sorted", "ordered"])
-    def test_merge_job_splitter(self, mode):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_merge_job_splitter(self, mode, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create(
             "table",
             "//tmp/t_in",
             attributes={
                 "schema": [
-                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "a", "type": "int64", "sort_order": sort_order},
                     {"name": "b", "type": "string"},
                 ]
             },
         )
         create("table", "//tmp/t_out")
-        expected = []
+        rows = []
         for i in range(20):
-            row = {"a": i, "b": "x" * 10 ** 4}
+            rows.append({"a": i, "b": "x" * 10 ** 4})
+        if sort_order == "descending":
+            rows = rows[::-1]
+        for row in rows:
             write_table("<append=%true>//tmp/t_in", row)
-            expected.append(row)
 
         op = merge(
             track=False,
@@ -1513,8 +1696,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         interrupted = completed["interrupted"]
         assert completed["total"] >= 2
         assert interrupted["job_split"] >= 1
-        rows = read_table("//tmp/t_out", verbose=False)
-        assert rows == expected
+        assert read_table("//tmp/t_out", verbose=False) == rows
 
     @authors("max42")
     @pytest.mark.parametrize("mode", ["sorted", "ordered", "unordered"])
@@ -1683,23 +1865,35 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert 0 <= get("//tmp/t2/@chunk_count") <= 20
 
     @authors("max42", "psushin")
-    def test_overlapping_ranges_in_sorted_merge(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_overlapping_ranges_in_sorted_merge(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
         create(
             "table",
             "//tmp/t1",
-            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": sort_order}]},
         )
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"key": 0}, {"key": 1}])
+        if sort_order == "ascending":
+            write_table("//tmp/t1", [{"key": 0}, {"key": 1}])
+        else:
+            write_table("//tmp/t1", [{"key": 1}, {"key": 0}])
 
         merge(in_="<ranges=[{};{}]>//tmp/t1", out="//tmp/t2", mode="sorted")
 
-        assert read_table("//tmp/t2") == [
+        expected = [
             {"key": 0},
             {"key": 0},
             {"key": 1},
             {"key": 1},
         ]
+        if sort_order == "descending":
+            expected = expected[::-1]
+
+        assert read_table("//tmp/t2") == expected
 
     @authors("ermolovd")
     def test_schema_compatibility(self):
@@ -2204,7 +2398,6 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert read_table("//tmp/out") == [{"value": i} for i in xrange(m, n)]
 
 
-@filter_tests(name_pred=lambda name: "sorted" in name)
 class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -2219,6 +2412,15 @@ class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
             "operations_update_period": 10,
             "max_chunks_per_fetch": 10,
             "sorted_merge_operation_options": {
+                "job_splitter": {
+                    "min_job_time": 3000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                },
+            },
+            "ordered_merge_operation_options": {
                 "job_splitter": {
                     "min_job_time": 3000,
                     "min_total_data_size": 1024,
