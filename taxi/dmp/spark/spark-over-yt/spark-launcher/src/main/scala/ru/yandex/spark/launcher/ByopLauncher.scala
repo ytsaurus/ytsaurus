@@ -2,6 +2,7 @@ package ru.yandex.spark.launcher
 
 import java.io.{ByteArrayInputStream, File}
 import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path, Paths}
 
 import com.google.common.net.HostAndPort
 import com.twitter.scalding.Args
@@ -41,7 +42,7 @@ trait ByopLauncher {
     val ytRpc = YtWrapper.createRpcClient("byop", ytConf.copy(byop = ByopConfiguration.DISABLED))
 
     try {
-      val binaryAbsolutePath = path(config.binaryPath)
+      val binaryAbsolutePath = ByopLauncher.prepareBinary(Paths.get(path(config.binaryPath)))
       val configTemplatePath = path(config.configPath)
       val configFile = createFromTemplate(new File(configTemplatePath)) { content =>
         val replacedAliases = replaceHome(content)
@@ -118,6 +119,17 @@ object ByopLauncher {
 
     inner(Seq(node -> patch))
     node
+  }
+
+  private[launcher] def prepareBinary(path: Path): Path = {
+    val binaryName = "ytserver-proxy"
+    if (path.getFileName.toString == binaryName) {
+      path
+    } else {
+      val newPath = Paths.get(path.getParent.toString, binaryName)
+      Files.move(path, newPath)
+      newPath
+    }
   }
 
   case class ByopConfig(binaryPath: String,
