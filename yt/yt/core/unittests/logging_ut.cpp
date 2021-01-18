@@ -148,8 +148,12 @@ protected:
 
 TEST_F(TLoggingTest, ReloadOnSighup)
 {
+    Cerr << "Removing files" << Endl;
+
     NFs::Remove("reload-on-sighup.log");
     NFs::Remove("reload-on-sighup.log.1");
+
+    Cerr << "Configuring logging" << Endl;
 
     Configure(R"({
         rules = [
@@ -166,19 +170,29 @@ TEST_F(TLoggingTest, ReloadOnSighup)
         };
     })");
 
+    Cerr << "Waiting for message 1" << Endl;
+
     WaitForPredicate([&] {
         YT_LOG_INFO("Message1");
         return NFs::Exists("reload-on-sighup.log");
     });
 
+    Cerr << "Renaming logfile" << Endl;
+
     NFs::Rename("reload-on-sighup.log", "reload-on-sighup.log.1");
 
+    Cerr << "Sending SIGHUP" << Endl;
+
     ::kill(::getpid(), SIGHUP);
+
+    Cerr << "Waiting for message 2" << Endl;
 
     WaitForPredicate([&] {
         YT_LOG_INFO("Message2");
         return NFs::Exists("reload-on-sighup.log");
     });
+
+    Cerr << "Success" << Endl;
 }
 
 #endif
