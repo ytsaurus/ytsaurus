@@ -101,11 +101,11 @@ public:
                 return false;
             }
 
-            if (!TryCheckMethod()) {
+            if (!TryAuthenticate()) {
                 return false;
             }
 
-            if (!TryAuthenticate()) {
+            if (!TryCheckMethod()) {
                 return false;
             }
 
@@ -494,6 +494,14 @@ private:
                 i64 version = 0;
                 YT_PROFILE_TIMING("/clickhouse_proxy/query_time/create_discovery") {
                     auto nodeOrError = WaitFor(Client_->GetNode(path + "/@", options));
+
+                    if (!nodeOrError.IsOK() && nodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                        auto error = TError("Clique dirrectory does not exist; perhaps the clique is still starting, wait for up to 5 minutes")
+                            << nodeOrError;
+                        PushError(error);
+                        cookie.Cancel(error);
+                        return false;
+                    }
                     auto node = ConvertToNode(nodeOrError.ValueOrThrow())->AsMap()->FindChild("discovery_version");
                     if (node) {
                         version = node->GetValue<i64>();
