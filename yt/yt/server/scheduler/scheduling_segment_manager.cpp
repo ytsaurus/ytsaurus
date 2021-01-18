@@ -618,6 +618,7 @@ void TStrategySchedulingSegmentManager::ResetOperationDataCenterAssignmentsInTre
 
                 // NB: We will abort all jobs that are running in the wrong data center.
                 dataCenter.reset();
+                operation.FailingToScheduleAtDataCenterSince.reset();
             }
         } else {
             operation.FailingToScheduleAtDataCenterSince.reset();
