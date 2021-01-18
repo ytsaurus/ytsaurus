@@ -16,110 +16,66 @@ import abc
 import os
 from copy import deepcopy
 
-"""
-Configs for YT are generated the following way:
-    1. For each version of ytserver ConfigsProvider_* is created
-    2. ConfigsProvider takes provision (defines how many masters cells, nodes etc. to start and so on),
-       directories where to store files for each service replica and ports generator in its build_configs()
-       method and returns dict with cluster configuration.
 
-       By default each config for each service replica is built from default config (see default_configs.py)
-       by applying some patches and filling necessary (version specific) fields.
-
-       Cluster configuration is formed by calling _build_*_configs methods and then
-       storing results in the dict with the following structure:
-       {
-           "master": {
-               "primary_cell_tag": "123",
-               "secondary_cell_tags": ["1", "2", "3"]  <-- only for ytserver 18.x (empty for older versions)
-               "1": [
-                   ...      <-- configs for master cell with tag "1"
-               ],
-               ...
-           },
-           "scheduler": [
-                ...         <-- configs for each scheduler replica
-           ],
-           "node": [
-                ...         <-- configs for each node replica
-           ],
-           "proxy": ...     <-- config for proxy
-           "driver": {
-                "1": ...    <-- connection config for cell with tag "1"
-           }
-       }
-
-    3. Cluster configuration dict also can be modified before YT startup with modify_configs_func (see yt_env.py)
-    3*. Local mode uses the same config providers but applies patches actual only for local mode by
-        defining its own modify_configs_func.
-"""
-
-_default_provision = {
-    "master": {
-        "primary_cell_tag": 0,
-        "secondary_cell_count": 0,
-        "cell_size": 1,
-        "cell_nonvoting_master_count": 0
-    },
-    "clock": {
-        "cell_tag": 1000,
-        "cell_size": 1,
-    },
-    "scheduler": {
-        "count": 1
-    },
-    "controller_agent": {
-        "count": 0
-    },
-    "node": {
-        "count": 1,
-        "jobs_resource_limits": {
-            "user_slots": 1,
-            "cpu": 1,
-            "memory": 4 * GB
-        },
-        "memory_limit_addition": None,
-        "chunk_store_quota": None,
-        "allow_chunk_storage_in_tmpfs": False,
-        "port_set_size": None,
-    },
-    "http_proxy": {
-        "enable": False,
-        "count": 0,
-        "http_ports": None
-    },
-    "rpc_proxy": {
-        "count": 0,
-        "rpc_ports": None,
-    },
-    "rpc_driver": {
-        "enable_proxy_discovery": None,
-    },
-    "driver": {
-    },
-    "enable_debug_logging": True,
-    "enable_structured_master_logging": False,
-    "enable_structured_scheduler_logging": False,
-    "fqdn": socket.getfqdn(),
-    "enable_master_cache": False,
-    "enable_permission_cache": True,
-    "enable_logging_compression": True,
-}
-
-def get_default_provision():
-    return VerifiedDict(deepcopy(_default_provision))
-
-def _get_timestamp_provider_addresses(provision, master_connection_configs, clock_connection_configs):
-    if provision["clock"]["cell_size"] == 0:
+def _get_timestamp_provider_addresses(yt_config, master_connection_configs, clock_connection_configs):
+    if yt_config.clock_count == 0:
         return master_connection_configs[master_connection_configs["primary_cell_tag"]]["addresses"]
     else:
         return clock_connection_configs[clock_connection_configs["cell_tag"]]["addresses"]
 
-def build_configs(ports_generator, dirs, logs_dir=None, provision=None):
-    provision = get_value(provision, get_default_provision())
 
+def _get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging):
+    suffix = ".gz" if enable_compression else ""
+    config = {
+        "abort_on_alert": True,
+        "rules": [
+            {"min_level": "info", "writers": ["info"]},
+        ],
+        "writers": {
+            "info": {
+                "type": "file",
+                "file_name": "{path}/{name}.log" + suffix,
+                "enable_compression": enable_compression,
+            }
+        }
+    }
+    if log_errors_to_stderr:
+        config["rules"].append(
+            {"min_level": "error", "writers": ["stderr"]}
+        )
+        config["writers"]["stderr"] = {
+            "type": "stderr",
+        }
+
+    if enable_debug_logging:
+        config["rules"].append({
+            "min_level": "debug",
+            "exclude_categories": ["Bus"],
+            "writers": ["debug"],
+        })
+        config["writers"]["debug"] = {
+            "type": "file",
+            "file_name": "{path}/{name}.debug.log"  + suffix,
+            "enable_compression": enable_compression,
+        }
+    if enable_structured_logging:
+        config["rules"].append({
+            "min_level": "debug",
+            "writers": ["json"],
+            "message_format": "structured",
+        })
+        config["writers"]["json"] = {
+            "type": "file",
+            "file_name": "{path}/{name}.json.log",
+            "accepted_message_format": "structured",
+        }
+
+    return to_yson_type(config)
+
+
+def build_configs(ports_generator, dirs, logs_dir=None, yt_config=None):
     clock_configs, clock_connection_configs = _build_clock_configs(
-        provision,
+        yt_config,
         dirs["clock"],
         dirs["clock_tmpfs"],
         ports_generator,
@@ -128,43 +84,43 @@ def build_configs(ports_generator, dirs, logs_dir=None, provision=None):
     # XXX(asaitgalin): All services depend on master so it is useful to make
     # connection configs with addresses and other useful info about all master cells.
     master_configs, master_connection_configs = _build_master_configs(
-        provision,
+        yt_config,
         dirs["master"],
         dirs["master_tmpfs"],
         clock_connection_configs,
         ports_generator,
         logs_dir)
 
-    scheduler_configs = _build_scheduler_configs(provision, dirs["scheduler"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-                                                        ports_generator, logs_dir)
+    scheduler_configs = _build_scheduler_configs(dirs["scheduler"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
+                                                 ports_generator, logs_dir, yt_config)
 
-    controller_agent_configs = _build_controller_agent_configs(provision, dirs["controller_agent"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-                                                                    ports_generator, logs_dir)
+    controller_agent_configs = _build_controller_agent_configs(dirs["controller_agent"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
+                                                               ports_generator, logs_dir, yt_config)
 
     node_configs, node_addresses = _build_node_configs(
-        provision,
         dirs["node"],
         dirs["node_tmpfs"],
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_configs),
         ports_generator,
-        logs_dir)
+        logs_dir,
+        yt_config)
 
     http_proxy_configs = []
     http_proxy_url = None
-    if provision["http_proxy"]["count"] > 0:
-        http_proxy_configs = _build_proxy_config(provision, dirs["http_proxy"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-                                                        ports_generator, logs_dir, master_cache_nodes=node_addresses)
-        http_proxy_url = "{0}:{1}".format(provision["fqdn"], http_proxy_configs[0]["port"])
+    if yt_config.http_proxy_count > 0:
+        http_proxy_configs = _build_http_proxy_config(dirs["http_proxy"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
+                                                      ports_generator, logs_dir, master_cache_nodes=node_addresses, yt_config=yt_config)
+        http_proxy_url = "{0}:{1}".format(yt_config.fqdn, http_proxy_configs[0]["port"])
 
     rpc_proxy_configs = []
     rpc_client_config = None
     rpc_proxy_addresses = None
-    if provision["rpc_proxy"]["count"] > 0:
-        rpc_proxy_configs = _build_rpc_proxy_configs(provision, logs_dir, deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-                                                     node_addresses, ports_generator)
+    if yt_config.rpc_proxy_count > 0:
+        rpc_proxy_configs = _build_rpc_proxy_configs(logs_dir, deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
+                                                     node_addresses, ports_generator, yt_config)
         rpc_proxy_addresses = [
-            "{0}:{1}".format(provision["fqdn"], rpc_proxy_config["rpc_port"])
+            "{0}:{1}".format(yt_config.fqdn, rpc_proxy_config["rpc_port"])
             for rpc_proxy_config in rpc_proxy_configs
         ]
         rpc_client_config = {
@@ -173,13 +129,15 @@ def build_configs(ports_generator, dirs, logs_dir=None, provision=None):
         }
 
     driver_configs = _build_native_driver_configs(
-        provision, deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
+        deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
         master_cache_nodes=node_addresses,
+        yt_config=yt_config,
     )
 
     rpc_driver_config = _build_rpc_driver_config(
-        provision, deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
+        deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
         master_cache_nodes=node_addresses, rpc_proxy_addresses=rpc_proxy_addresses, http_proxy_url=http_proxy_url,
+        yt_config=yt_config,
     )
 
     cluster_configuration = {
@@ -197,27 +155,27 @@ def build_configs(ports_generator, dirs, logs_dir=None, provision=None):
 
     return cluster_configuration
 
-def _build_master_configs(provision, master_dirs, master_tmpfs_dirs, clock_connection_configs,
+def _build_master_configs(yt_config, master_dirs, master_tmpfs_dirs, clock_connection_configs,
                           ports_generator, master_logs_dir):
     ports = []
 
-    cell_tags = [str(provision["master"]["primary_cell_tag"] + index)
-                 for index in xrange(provision["master"]["secondary_cell_count"] + 1)]
+    cell_tags = [str(yt_config.primary_cell_tag + index)
+                 for index in xrange(yt_config.secondary_cell_count + 1)]
     random_part = random.randint(0, 2 ** 32 - 1)
     cell_ids = [canonize_uuid("%x-ffffffff-%x0259-ffffffff" % (random_part, int(tag)))
                 for tag in cell_tags]
 
-    nonvoting_master_count = provision["master"]["cell_nonvoting_master_count"]
+    nonvoting_master_count = yt_config.nonvoting_master_count
 
     connection_configs = {}
-    for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
+    for cell_index in xrange(yt_config.secondary_cell_count + 1):
         cell_ports = []
         cell_addresses = []
 
-        for i in xrange(provision["master"]["cell_size"]):
+        for i in xrange(yt_config.master_count):
             rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
-            address = to_yson_type("{0}:{1}".format(provision["fqdn"], rpc_port))
-            if i >= provision["master"]["cell_size"] - nonvoting_master_count:
+            address = to_yson_type("{0}:{1}".format(yt_config.fqdn, rpc_port))
+            if i >= yt_config.master_count - nonvoting_master_count:
                 address.attributes["voting"] = False
             cell_addresses.append(address)
             cell_ports.append((rpc_port, monitoring_port))
@@ -234,13 +192,13 @@ def _build_master_configs(provision, master_dirs, master_tmpfs_dirs, clock_conne
     connection_configs["secondary_cell_tags"] = cell_tags[1:]
 
     configs = {}
-    for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
+    for cell_index in xrange(yt_config.secondary_cell_count + 1):
         cell_configs = []
 
-        for master_index in xrange(provision["master"]["cell_size"]):
+        for master_index in xrange(yt_config.master_count):
             config = default_configs.get_master_config()
 
-            init_singletons(config, provision, "master", {
+            init_singletons(config, yt_config.fqdn, "master", {
                 "cell_role": "primary" if cell_index == 0 else "secondary",
                 "master_index": str(master_index),
             })
@@ -253,10 +211,10 @@ def _build_master_configs(provision, master_dirs, master_tmpfs_dirs, clock_conne
             config["secondary_masters"] = [connection_configs[tag]
                                            for tag in connection_configs["secondary_cell_tags"]]
 
-            config["enable_timestamp_manager"] = (provision["clock"]["cell_size"] == 0)
+            config["enable_timestamp_manager"] = (yt_config.clock_count == 0)
 
             set_at(config, "timestamp_provider/addresses",
-                   _get_timestamp_provider_addresses(provision, connection_configs, clock_connection_configs))
+                   _get_timestamp_provider_addresses(yt_config, connection_configs, clock_connection_configs))
 
             set_at(config, "snapshots/path",
                    os.path.join(master_dirs[cell_index][master_index], "snapshots"))
@@ -271,9 +229,9 @@ def _build_master_configs(provision, master_dirs, master_tmpfs_dirs, clock_conne
             config["logging"] = init_logging(config.get("logging"), master_logs_dir,
                                              "master-{0}-{1}".format(cell_index, master_index),
                                              log_errors_to_stderr=True,
-                                             enable_debug_logging=provision["enable_debug_logging"],
-                                             enable_compression=provision["enable_logging_compression"],
-                                             enable_structured_logging=provision["enable_structured_master_logging"])
+                                             enable_debug_logging=yt_config.enable_debug_logging,
+                                             enable_compression=yt_config.enable_log_compression,
+                                             enable_structured_logging=yt_config.enable_structured_master_logging)
 
             _set_bind_retry_options(config, key="bus_server")
 
@@ -314,17 +272,17 @@ def _build_master_configs(provision, master_dirs, master_tmpfs_dirs, clock_conne
 
     return configs, connection_configs
 
-def _build_clock_configs(provision, clock_dirs, clock_tmpfs_dirs, ports_generator, clock_logs_dir):
-    cell_tag = str(provision["clock"]["cell_tag"])
+def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generator, clock_logs_dir):
+    cell_tag = 1000
     random_part = random.randint(0, 2 ** 32 - 1)
     cell_id = canonize_uuid("%x-ffffffff-%x0259-ffffffff" % (random_part, int(cell_tag)))
 
     ports = []
     cell_addresses = []
 
-    for i in xrange(provision["clock"]["cell_size"]):
+    for i in xrange(yt_config.clock_count):
         rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
-        address = to_yson_type("{0}:{1}".format(provision["fqdn"], rpc_port))
+        address = to_yson_type("{0}:{1}".format(yt_config.fqdn, rpc_port))
         cell_addresses.append(address)
         ports.append((rpc_port, monitoring_port))
 
@@ -340,10 +298,10 @@ def _build_clock_configs(provision, clock_dirs, clock_tmpfs_dirs, ports_generato
 
     instance_configs = []
 
-    for clock_index in xrange(provision["clock"]["cell_size"]):
+    for clock_index in xrange(yt_config.clock_count):
         config = default_configs.get_clock_config()
 
-        init_singletons(config, provision, "clock", {"clock_index": str(clock_index)})
+        init_singletons(config, yt_config.fqdn, "clock", {"clock_index": str(clock_index)})
 
         config["hydra_manager"] = _get_hydra_manager_config()
 
@@ -365,8 +323,8 @@ def _build_clock_configs(provision, clock_dirs, clock_tmpfs_dirs, ports_generato
         config["logging"] = init_logging(config.get("logging"), clock_logs_dir,
                                          "clock-{0}".format(clock_index),
                                          log_errors_to_stderr=True,
-                                         enable_debug_logging=provision["enable_debug_logging"],
-                                         enable_compression=provision["enable_logging_compression"])
+                                         enable_debug_logging=yt_config.enable_debug_logging,
+                                         enable_compression=yt_config.enable_log_compression)
 
         _set_bind_retry_options(config, key="bus_server")
 
@@ -379,29 +337,29 @@ def _build_clock_configs(provision, clock_dirs, clock_tmpfs_dirs, ports_generato
 
     return configs, connection_configs
 
-def _build_scheduler_configs(provision, scheduler_dirs, master_connection_configs, clock_connection_configs,
-                                ports_generator, scheduler_logs_dir):
+def _build_scheduler_configs(scheduler_dirs, master_connection_configs, clock_connection_configs,
+                                ports_generator, scheduler_logs_dir, yt_config):
     configs = []
 
-    for index in xrange(provision["scheduler"]["count"]):
+    for index in xrange(yt_config.scheduler_count):
         config = default_configs.get_scheduler_config()
 
-        init_singletons(config, provision, "scheduler", {"scheduler_index": str(index)})
+        init_singletons(config, yt_config.fqdn, "scheduler", {"scheduler_index": str(index)})
         config["cluster_connection"] = \
             _build_cluster_connection_config(
-                provision,
                 master_connection_configs,
                 clock_connection_configs,
-                config_template=config["cluster_connection"])
+                config_template=config["cluster_connection"],
+                yt_config=yt_config)
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
         config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                             "scheduler-" + str(index),
                                             log_errors_to_stderr=False,
-                                            enable_debug_logging=provision["enable_debug_logging"],
-                                            enable_compression=provision["enable_logging_compression"],
-                                            enable_structured_logging=provision["enable_structured_scheduler_logging"])
+                                            enable_debug_logging=yt_config.enable_debug_logging,
+                                            enable_compression=yt_config.enable_log_compression,
+                                            enable_structured_logging=yt_config.enable_structured_scheduler_logging)
 
         _set_bind_retry_options(config, key="bus_server")
 
@@ -413,29 +371,29 @@ def _build_scheduler_configs(provision, scheduler_dirs, master_connection_config
 
     return configs
 
-def _build_controller_agent_configs(provision, controller_agent_dirs, master_connection_configs, clock_connection_configs,
-                                    ports_generator, controller_agent_logs_dir):
+def _build_controller_agent_configs(controller_agent_dirs, master_connection_configs, clock_connection_configs,
+                                    ports_generator, controller_agent_logs_dir, yt_config):
     configs = []
 
-    for index in xrange(provision["controller_agent"]["count"]):
+    for index in xrange(yt_config.controller_agent_count):
         config = default_configs.get_controller_agent_config()
 
-        init_singletons(config, provision, "controller_agent", {"controller_agent_index": str(index)})
+        init_singletons(config, yt_config.fqdn, "controller_agent", {"controller_agent_index": str(index)})
         config["cluster_connection"] = \
             _build_cluster_connection_config(
-                provision,
                 master_connection_configs,
                 clock_connection_configs,
-                config_template=config["cluster_connection"])
+                config_template=config["cluster_connection"],
+                yt_config=yt_config)
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
         config["logging"] = init_logging(config.get("logging"), controller_agent_logs_dir,
-                                            "controller-agent-" + str(index),
-                                            log_errors_to_stderr=False,
-                                            enable_debug_logging=provision["enable_debug_logging"],
-                                            enable_compression=provision["enable_logging_compression"],
-                                            enable_structured_logging=provision["enable_structured_scheduler_logging"])
+                                         "controller-agent-" + str(index),
+                                         log_errors_to_stderr=False,
+                                         enable_debug_logging=yt_config.enable_debug_logging,
+                                         enable_compression=yt_config.enable_log_compression,
+                                         enable_structured_logging=yt_config.enable_structured_scheduler_logging)
 
         _set_bind_retry_options(config, key="bus_server")
 
@@ -443,35 +401,35 @@ def _build_controller_agent_configs(provision, controller_agent_dirs, master_con
     
     return configs
 
-def _build_node_configs(provision, node_dirs, node_tmpfs_dirs, master_connection_configs, clock_connection_configs,
-                        ports_generator, node_logs_dir):
+def _build_node_configs(node_dirs, node_tmpfs_dirs, master_connection_configs, clock_connection_configs,
+                        ports_generator, node_logs_dir, yt_config):
     configs = []
     addresses = []
 
     current_user = 10000
 
-    for index in xrange(provision["node"]["count"]):
+    for index in xrange(yt_config.node_count):
         config = default_configs.get_node_config()
 
-        init_singletons(config, provision, "node", {"node_index": str(index)})
+        init_singletons(config, yt_config.fqdn, "node", {"node_index": str(index)})
 
         config["addresses"] = [
-            ("interconnect", provision["fqdn"]),
-            ("default", provision["fqdn"])
+            ("interconnect", yt_config.fqdn),
+            ("default", yt_config.fqdn)
         ]
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
         config["skynet_http_port"] = next(ports_generator)
 
-        addresses.append("{0}:{1}".format(provision["fqdn"], config["rpc_port"]))
+        addresses.append("{0}:{1}".format(yt_config.fqdn, config["rpc_port"]))
 
         config["cluster_connection"] = \
             _build_cluster_connection_config(
-                provision,
                 master_connection_configs,
                 clock_connection_configs,
-                config_template=config["cluster_connection"])
+                config_template=config["cluster_connection"],
+                yt_config=yt_config)
 
         set_at(config, "data_node/multiplexed_changelog/path", os.path.join(node_dirs[index], "multiplexed"))
 
@@ -479,7 +437,7 @@ def _build_node_configs(provision, node_dirs, node_tmpfs_dirs, master_connection
             "quota": 256 * MB
         }
 
-        if node_tmpfs_dirs is not None and provision["node"]["allow_chunk_storage_in_tmpfs"]:
+        if node_tmpfs_dirs is not None and yt_config.allow_chunk_storage_in_tmpfs:
             cache_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_cache")
         else:
             cache_location_config["path"] = os.path.join(node_dirs[index], "chunk_cache")
@@ -506,27 +464,23 @@ def _build_node_configs(provision, node_dirs, node_tmpfs_dirs, master_connection
             "location_is_absolute": False,
         }
 
-        if provision["node"]["chunk_store_quota"] is not None:
-            store_location_config["quota"] = provision["node"]["chunk_store_quota"]
+        if yt_config.node_chunk_store_quota is not None:
+            store_location_config["quota"] = yt_config.node_chunk_store_quota
 
-        if node_tmpfs_dirs is not None and provision["node"]["allow_chunk_storage_in_tmpfs"]:
+        if node_tmpfs_dirs is not None and yt_config.allow_chunk_storage_in_tmpfs:
             store_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_store")
             layer_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "layers")
         else:
             store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store")
             layer_location_config["path"] = os.path.join(node_dirs[index], "layers")
 
-        ytrecipe_host_sandbox_path = os.environ.get("YTRECIPE_HOST_SANDBOX_PATH")
-        if ytrecipe_host_sandbox_path is not None:
-            layer_location_config["path"] = os.path.join(ytrecipe_host_sandbox_path, "layers", str(index))
-
         set_at(config, "data_node/store_locations", [store_location_config])
         set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 
         config["logging"] = init_logging(config.get("logging"), node_logs_dir, "node-{0}".format(index),
                                          log_errors_to_stderr=False,
-                                         enable_debug_logging=provision["enable_debug_logging"],
-                                         enable_compression=provision["enable_logging_compression"])
+                                         enable_debug_logging=yt_config.enable_debug_logging,
+                                         enable_compression=yt_config.enable_log_compression)
 
         job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
         log_name = "job_proxy-{0}-slot-%slot_index%".format(index)
@@ -535,8 +489,8 @@ def _build_node_configs(provision, node_dirs, node_tmpfs_dirs, master_connection
             "exec_agent/job_proxy_logging",
             init_logging(job_proxy_logging, node_logs_dir, log_name,
                             log_errors_to_stderr=False,
-                            enable_debug_logging=provision["enable_debug_logging"],
-                            enable_compression=provision["enable_logging_compression"])
+                            enable_debug_logging=yt_config.enable_debug_logging,
+                            enable_compression=yt_config.enable_log_compression)
         )
         set_at(
             config,
@@ -546,10 +500,8 @@ def _build_node_configs(provision, node_dirs, node_tmpfs_dirs, master_connection
 
         set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
         set_at(config, "tablet_node/hydra_manager/restart_backoff_time", 100)
-
-        set_at(config, "exec_agent/job_controller/resource_limits",
-                deepcopy(provision["node"]["jobs_resource_limits"]), merge=True)
-        set_at(config, "resource_limits", _get_node_resource_limits_config(provision), merge=True)
+        set_at(config, "exec_agent/job_controller/resource_limits", yt_config.jobs_resource_limits, merge=True)
+        set_at(config, "resource_limits", _get_node_resource_limits_config(yt_config), merge=True)
 
         _set_bind_retry_options(config, key="bus_server")
 
@@ -569,44 +521,44 @@ def _build_node_configs(provision, node_dirs, node_tmpfs_dirs, master_connection
         port_start = USER_PORT_START + (index * (USER_PORT_END - USER_PORT_START)) // node_count
         port_end = USER_PORT_START + ((index + 1) * (USER_PORT_END - USER_PORT_START)) // node_count
 
-        if provision["node"]["port_set_size"] is None:
+        if yt_config.node_port_set_size is None:
             set_at(config, "exec_agent/job_controller/start_port", port_start)
             set_at(config, "exec_agent/job_controller/port_count", port_end - port_start)
         else:
-            ports = [next(ports_generator) for _ in xrange(provision["node"]["port_set_size"])]
+            ports = [next(ports_generator) for _ in xrange(yt_config.node_port_set_size)]
             set_at(config, "exec_agent/job_controller/port_set", ports)
 
     return configs, addresses
 
-def _build_proxy_config(provision, proxy_dir, master_connection_configs, clock_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
+def _build_http_proxy_config(proxy_dir, master_connection_configs, clock_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes, yt_config):
     driver_config = default_configs.get_driver_config()
     update_inplace(driver_config, _build_cluster_connection_config(
-        provision,
         master_connection_configs,
         clock_connection_configs,
         master_cache_nodes=master_cache_nodes,
-        enable_master_cache=provision["enable_master_cache"],
-        enable_permission_cache=provision["enable_permission_cache"]))
+        enable_master_cache=yt_config.enable_master_cache,
+        enable_permission_cache=yt_config.enable_permission_cache,
+        yt_config=yt_config))
 
     proxy_configs = []
 
-    for index in xrange(provision["http_proxy"]["count"]):
+    for index in xrange(yt_config.http_proxy_count):
         proxy_config = default_configs.get_proxy_config()
-        proxy_config["port"] = provision["http_proxy"]["http_ports"][index] if provision["http_proxy"]["http_ports"] else next(ports_generator)
+        proxy_config["port"] = yt_config.http_proxy_ports[index] if yt_config.http_proxy_ports else next(ports_generator)
         proxy_config["monitoring_port"] = next(ports_generator)
         proxy_config["rpc_port"] = next(ports_generator)
 
-        fqdn = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
+        fqdn = "{0}:{1}".format(yt_config.fqdn, proxy_config["port"])
         set_at(proxy_config, "coordinator/public_fqdn", fqdn)
-        init_singletons(proxy_config, provision, "http_proxy", {"http_proxy_index": str(index)})
+        init_singletons(proxy_config, yt_config.fqdn, "http_proxy", {"http_proxy_index": str(index)})
 
         proxy_config["logging"] = init_logging(
             proxy_config.get("logging"),
             proxy_logs_dir,
             "http-proxy-{}".format(index),
             log_errors_to_stderr=False,
-            enable_debug_logging=provision["enable_debug_logging"],
-            enable_compression=provision["enable_logging_compression"],
+            enable_debug_logging=yt_config.enable_debug_logging,
+            enable_compression=yt_config.enable_log_compression,
             enable_structured_logging=True)
 
         proxy_config["driver"] = driver_config
@@ -618,23 +570,23 @@ def _build_proxy_config(provision, proxy_dir, master_connection_configs, clock_c
 
     return proxy_configs
 
-def _build_native_driver_configs(provision, master_connection_configs, clock_connection_configs, master_cache_nodes):
+def _build_native_driver_configs(master_connection_configs, clock_connection_configs, master_cache_nodes, yt_config):
     secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
     primary_cell_tag = master_connection_configs["primary_cell_tag"]
 
     configs = {}
-    for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
+    for cell_index in xrange(yt_config.secondary_cell_count + 1):
         config = default_configs.get_driver_config()
 
         if cell_index == 0:
             tag = primary_cell_tag
             update_inplace(config, _build_cluster_connection_config(
-                provision,
                 master_connection_configs,
                 clock_connection_configs,
                 master_cache_nodes=master_cache_nodes,
-                enable_master_cache=provision["enable_master_cache"],
-                enable_permission_cache=provision["enable_permission_cache"]))
+                enable_master_cache=yt_config.enable_master_cache,
+                enable_permission_cache=yt_config.enable_permission_cache,
+                yt_config=yt_config))
         else:
             tag = secondary_cell_tags[cell_index - 1]
             cell_connection_config = {
@@ -642,7 +594,7 @@ def _build_native_driver_configs(provision, master_connection_configs, clock_con
                 "master_cell_directory_synchronizer": {"sync_period": None},
                 "timestamp_provider": {
                     "addresses": _get_timestamp_provider_addresses(
-                        provision,
+                        yt_config,
                         master_connection_configs,
                         clock_connection_configs
                     ),
@@ -658,7 +610,7 @@ def _build_native_driver_configs(provision, master_connection_configs, clock_con
 
         configs[tag] = config
 
-    if provision["clock"]["cell_size"] > 0:
+    if yt_config.clock_count > 0:
         tag = clock_connection_configs["cell_tag"]
         config = deepcopy(configs[primary_cell_tag])
         update_inplace(config["timestamp_provider"], clock_connection_configs[tag])
@@ -666,41 +618,34 @@ def _build_native_driver_configs(provision, master_connection_configs, clock_con
 
     return configs
 
-def _build_rpc_driver_config(provision, master_connection_configs, clock_connection_configs, master_cache_nodes,
-                             rpc_proxy_addresses, http_proxy_url):
+def _build_rpc_driver_config(master_connection_configs, clock_connection_configs, master_cache_nodes,
+                             rpc_proxy_addresses, http_proxy_url, yt_config):
     config = default_configs.get_driver_config()
     config["connection_type"] = "rpc"
 
-    if provision["rpc_driver"]["enable_proxy_discovery"] is None:
-        enable_proxy_discovery = http_proxy_url is not None
-    else:
-        enable_proxy_discovery = provision["rpc_driver"]["enable_proxy_discovery"]
-        if enable_proxy_discovery and http_proxy_url is None:
-            raise YtError("RPC proxy discovery enabled but no HTTP proxies configured")
-
-    if enable_proxy_discovery:
+    if http_proxy_url is not None:
         config["cluster_url"] = http_proxy_url
     else:
         config["addresses"] = rpc_proxy_addresses
 
     update_inplace(config, _build_cluster_connection_config(
-        provision,
         master_connection_configs,
         clock_connection_configs,
         master_cache_nodes=master_cache_nodes,
-        enable_master_cache=provision["enable_master_cache"],
-        enable_permission_cache=provision["enable_permission_cache"]))
+        enable_master_cache=yt_config.enable_master_cache,
+        enable_permission_cache=yt_config.enable_permission_cache,
+        yt_config=yt_config))
 
     return config
 
-def _build_rpc_proxy_configs(provision, proxy_logs_dir, master_connection_configs, clock_connection_configs, master_cache_nodes, ports_generator):
+def _build_rpc_proxy_configs(proxy_logs_dir, master_connection_configs, clock_connection_configs, master_cache_nodes, ports_generator, yt_config):
     configs = []
 
-    for rpc_proxy_index in xrange(provision["rpc_proxy"]["count"]):
+    for rpc_proxy_index in xrange(yt_config.rpc_proxy_count):
         grpc_server_config = {
             "addresses": [
                 {
-                    "address": "{}:{}".format(provision["fqdn"], next(ports_generator))
+                    "address": "{}:{}".format(yt_config.fqdn, next(ports_generator))
                 }
             ]
         }
@@ -727,30 +672,30 @@ def _build_rpc_proxy_configs(provision, proxy_logs_dir, master_connection_config
                 }
             }
         }
-        init_singletons(config, provision, "rpc_proxy", {"rpc_proxy_index": str(rpc_proxy_index)})
+        init_singletons(config, yt_config.fqdn, "rpc_proxy", {"rpc_proxy_index": str(rpc_proxy_index)})
         config["cluster_connection"] = _build_cluster_connection_config(
-            provision,
             master_connection_configs,
             clock_connection_configs,
             master_cache_nodes=master_cache_nodes,
-            enable_master_cache=provision["enable_master_cache"],
-            enable_permission_cache=provision["enable_permission_cache"])
+            enable_master_cache=yt_config.enable_master_cache,
+            enable_permission_cache=yt_config.enable_permission_cache,
+            yt_config=yt_config)
         config["logging"] = init_logging(
             config.get("logging"),
             proxy_logs_dir,
             "rpc-proxy-{}".format(rpc_proxy_index),
             log_errors_to_stderr=False,
-            enable_debug_logging=provision["enable_debug_logging"],
-            enable_compression=provision["enable_logging_compression"])
+            enable_debug_logging=yt_config.enable_debug_logging,
+            enable_compression=yt_config.enable_log_compression)
 
-        config["rpc_port"] = provision["rpc_proxy"]["rpc_ports"][rpc_proxy_index] if provision["rpc_proxy"]["rpc_ports"] else next(ports_generator)
+        config["rpc_port"] = yt_config.rpc_proxy_ports[rpc_proxy_index] if yt_config.rpc_proxy_ports else next(ports_generator)
 
         configs.append(config)
 
     return configs
 
-def _build_cluster_connection_config(provision, master_connection_configs, clock_connection_configs, master_cache_nodes=None,
-                                        config_template=None, enable_master_cache=False, enable_permission_cache=True):
+def _build_cluster_connection_config(master_connection_configs, clock_connection_configs, master_cache_nodes=None,
+                                     config_template=None, enable_master_cache=False, enable_permission_cache=True, yt_config=None):
     primary_cell_tag = master_connection_configs["primary_cell_tag"]
     secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
 
@@ -761,7 +706,7 @@ def _build_cluster_connection_config(provision, master_connection_configs, clock
             "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
         },
         "timestamp_provider": {
-            "addresses": _get_timestamp_provider_addresses(provision, master_connection_configs, clock_connection_configs),
+            "addresses": _get_timestamp_provider_addresses(yt_config, master_connection_configs, clock_connection_configs),
             "update_period": 500,
             "soft_backoff_time": 100,
             "hard_backoff_time": 100
@@ -833,7 +778,7 @@ def _build_cluster_connection_config(provision, master_connection_configs, clock
 
 def init_logging(node, path, name, log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging=False):
     if not node:
-        node = default_configs.get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging)
+        node = _get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging)
 
     def process(node, key, value):
         if isinstance(value, str):
@@ -866,8 +811,8 @@ def set_at(config, path, value, merge=False):
             else:
                 config[part] = value
 
-def init_singletons(config, provision, name, process_tags={}):
-    set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
+def init_singletons(config, fqdn, name, process_tags={}):
+    set_at(config, "address_resolver/localhost_fqdn", fqdn)
     set_at(config, "solomon_exporter/enable_core_profiling_compatibility", True)
 
     if "JAEGER_COLLECTOR" in os.environ:
@@ -925,15 +870,15 @@ def _get_rpc_config():
         "rpc_timeout": 25000
     }
 
-def _get_node_resource_limits_config(provision):
+def _get_node_resource_limits_config(yt_config):
     FOOTPRINT_MEMORY = 1 * GB
     CHUNK_META_CACHE_MEMORY = 1 * GB
     BLOB_SESSIONS_MEMORY = 2 * GB
 
     memory = 0
-    memory += provision["node"]["jobs_resource_limits"]["memory"]
-    if provision["node"]["memory_limit_addition"] is not None:
-        memory += provision["node"]["memory_limit_addition"]
+    memory += yt_config.jobs_resource_limits.get("memory", 0)
+    if yt_config.node_memory_limit_addition is not None:
+        memory += yt_config.node_memory_limit_addition
 
     memory += FOOTPRINT_MEMORY
     memory += CHUNK_META_CACHE_MEMORY

@@ -9,7 +9,6 @@
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/program_setsid_mixin.h>
-#include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/helpers.h>
 
 #include <yt/library/phdr_cache/phdr_cache.h>
@@ -31,7 +30,6 @@ class TClickHouseServerProgram
     : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
-    , public TProgramCgroupMixin
     , public TProgramConfigMixin<TClickHouseServerBootstrapConfig>
 {
 private:
@@ -47,7 +45,6 @@ public:
         : TProgram(true /* suppressVersion */)
         , TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
-        , TProgramCgroupMixin(Opts_)
         , TProgramConfigMixin(Opts_)
     {
         Opts_.AddLongOption("instance-id", "ClickHouse instance id")
@@ -95,9 +92,6 @@ private:
         NYTAlloc::MlockFileMappings();
 
         if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandleCgroupOptions()) {
             return;
         }
         if (HandlePdeathsigOptions()) {

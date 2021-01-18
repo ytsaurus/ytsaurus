@@ -3,7 +3,6 @@
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
-#include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/program_tool_mixin.h>
 #include <yt/ytlib/program/helpers.h>
 
@@ -31,12 +30,10 @@ using namespace NUserJobExecutor;
 class TExecProgram
     : public TProgram
     , public TProgramConfigMixin<TUserJobExecutorConfig>
-    , public TProgramCgroupMixin
 {
 public:
     TExecProgram()
         : TProgramConfigMixin(Opts_, false)
-        , TProgramCgroupMixin(Opts_)
     { }
 
 protected:
@@ -59,10 +56,6 @@ protected:
         // Don't start any other singleton or parse config in executor mode.
         // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
         NLogging::TLogManager::StaticShutdown();
-
-        if (HandleCgroupOptions()) {
-            return;
-        }
 
         if (config->Uid > 0) {
             SetUid(config->Uid);

@@ -1,58 +1,5 @@
 import yt.yson as yson
-try:
-    import yt.json_wrapper as json
-except ImportError:
-    import yt.json as json
 
-"""This module provides default ytserver configs"""
-
-def get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging):
-    suffix = ".gz" if enable_compression else ""
-    config = {
-        "abort_on_alert": True,
-        "rules": [
-            {"min_level": "info", "writers": ["info"]},
-        ],
-        "writers": {
-            "info": {
-                "type": "file",
-                "file_name": "{path}/{name}.log" + suffix,
-                "enable_compression": enable_compression,
-            }
-        }
-    }
-    if log_errors_to_stderr:
-        config["rules"].append(
-            {"min_level": "error", "writers": ["stderr"]}
-        )
-        config["writers"]["stderr"] = {
-            "type": "stderr",
-        }
-
-    if enable_debug_logging:
-        config["rules"].append({
-            "min_level": "debug",
-            "exclude_categories": ["Bus"],
-            "writers": ["debug"],
-        })
-        config["writers"]["debug"] = {
-            "type": "file",
-            "file_name": "{path}/{name}.debug.log"  + suffix,
-            "enable_compression": enable_compression,
-        }
-    if enable_structured_logging:
-        config["rules"].append({
-            "min_level": "debug",
-            "writers": ["json"],
-            "message_format": "structured",
-        })
-        config["writers"]["json"] = {
-            "type": "file",
-            "file_name": "{path}/{name}.json.log",
-            "accepted_message_format": "structured",
-        }
-
-    return yson.to_yson_type(config)
 
 # TODO(babenko): drop settings mirrored in get_dynamic_master_config below
 def get_master_config():

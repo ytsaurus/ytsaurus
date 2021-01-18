@@ -6,9 +6,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString ClusterMasterProgramName("ytserver-master");
-const TString ClusterNodeProgramName("ytserver-node");
-const TString ClusterSchedulerProgramName("ytserver-scheduler");
 const TString ExecProgramName("ytserver-exec");
 const TString JobProxyProgramName("ytserver-job-proxy");
 

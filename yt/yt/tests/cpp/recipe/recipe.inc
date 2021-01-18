@@ -1,6 +1,6 @@
 DEPENDS(
-    ${YT_ROOT}/yt/tests/cpp/recipe
-    ${YT_ROOT}/yt/packages/tests_package
+    yt/yt/tests/cpp/recipe
+    yt/yt/packages/tests_package
 )
 
 REQUIREMENTS(
@@ -9,5 +9,5 @@ REQUIREMENTS(
 )
 
 USE_RECIPE(
-    ${YT_ROOT}/yt/tests/cpp/recipe/recipe --cluster-config config.yson
+    yt/yt/tests/cpp/recipe/recipe --cluster-config config.yson
 )
