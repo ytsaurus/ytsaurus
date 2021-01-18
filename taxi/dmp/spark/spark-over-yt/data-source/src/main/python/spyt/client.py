@@ -301,7 +301,7 @@ def connect(num_executors=5,
 def stop(spark, exception=None):
     is_client_mode = spark.conf.get("spark.submit.deployMode") == "client"
     _try_with_safe_finally(
-        lambda:  spark.stop(),
+        lambda: spark.stop(),
         lambda e1: _try_with_safe_finally(
             lambda: _shutdown_jvm(spark) if is_client_mode else _close_yt_client(spark),
             lambda e2: _try_with_safe_finally(
