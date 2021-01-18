@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from .configs_provider import init_logging, get_default_provision, build_configs
+from .configs_provider import init_logging, build_configs
 from .default_configs import get_dynamic_master_config
 from .helpers import (
     read_config, write_config, is_dead_or_zombie, OpenPortIterator,
@@ -15,6 +15,8 @@ from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
 
 from yt.test_helpers import wait
+
+from yt.environment.api import LocalYtConfig
 
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
@@ -351,45 +353,48 @@ class YTInstance(object):
             logger.warning("Master count is zero. Instance is not prepared.")
             return
 
-        provision = get_default_provision()
-        provision["master"]["cell_size"] = self.master_count
-        provision["master"]["secondary_cell_count"] = self.secondary_master_cell_count
-        provision["master"]["primary_cell_tag"] = self._cell_tag
-        provision["master"]["cell_nonvoting_master_count"] = self.nonvoting_master_count
-        provision["clock"]["cell_size"] = self.clock_count
-        provision["scheduler"]["count"] = self.scheduler_count
-        provision["controller_agent"]["count"] = self.controller_agent_count
-        provision["node"]["count"] = self.node_count
-        if jobs_resource_limits is not None:
-            provision["node"]["jobs_resource_limits"] = jobs_resource_limits
-        if jobs_memory_limit is not None:
-            provision["node"]["jobs_resource_limits"]["memory"] = jobs_memory_limit
-        if jobs_cpu_limit is not None:
-            provision["node"]["jobs_resource_limits"]["cpu"] = jobs_cpu_limit
-        if jobs_user_slot_count is not None:
-            provision["node"]["jobs_resource_limits"]["user_slots"] = jobs_user_slot_count
-        provision["node"]["memory_limit_addition"] = node_memory_limit_addition
-        provision["node"]["chunk_store_quota"] = node_chunk_store_quota
-        provision["node"]["allow_chunk_storage_in_tmpfs"] = allow_chunk_storage_in_tmpfs
-        provision["node"]["port_set_size"] = node_port_set_size
-        provision["http_proxy"]["count"] = self.http_proxy_count
-        provision["http_proxy"]["http_ports"] = self.http_proxy_ports
-        provision["rpc_proxy"]["count"] = self.rpc_proxy_count
-        provision["rpc_proxy"]["rpc_ports"] = self.rpc_proxy_ports
-        provision["rpc_driver"]["enable_proxy_discovery"] = enable_rpc_driver_proxy_discovery
-        provision["fqdn"] = self._hostname
-        provision["enable_debug_logging"] = self._enable_debug_logging
-        provision["enable_logging_compression"] = self._enable_logging_compression
+        yt_config = LocalYtConfig()
+        yt_config.master_count = self.master_count
+        yt_config.secondary_cell_count = self.secondary_master_cell_count
+        yt_config.primary_cell_tag = self._cell_tag
+        yt_config.nonvoting_master_count = self.nonvoting_master_count
+        yt_config.clock_count = self.clock_count
+        yt_config.scheduler_count = self.scheduler_count
+        yt_config.controller_agent_count = self.controller_agent_count
+        yt_config.http_proxy_count = self.http_proxy_count
+        yt_config.http_proxy_ports = self.http_proxy_ports
+        yt_config.rpc_proxy_count = self.rpc_proxy_count
+        yt_config.rpc_proxy_ports = self.rpc_proxy_ports
+
+        yt_config.enable_debug_logging = self._enable_debug_logging
+        yt_config.enable_log_compression = self._enable_logging_compression
+        yt_config.enable_structured_master_logging = enable_structured_master_logging
+        yt_config.enable_structured_scheduler_logging = enable_structured_scheduler_logging
         if enable_master_cache is not None:
-            provision["enable_master_cache"] = enable_master_cache
+            yt_config.enable_master_cache = enable_master_cache
         if enable_permission_cache is not None:
-            provision["enable_permission_cache"] = enable_permission_cache
-        provision["enable_structured_master_logging"] = enable_structured_master_logging
-        provision["enable_structured_scheduler_logging"] = enable_structured_scheduler_logging
+            yt_config.enable_permission_cache = enable_permission_cache
+        yt_config.fqdn = self._hostname
+
+        yt_config.node_count = self.node_count
+
+        if jobs_resource_limits is not None:
+            yt_config.jobs_resouce_limits = jobs_resource_limits
+        if jobs_cpu_limit is not None:
+            yt_config.job_resource_limits["cpu"] = jobs_cpu_limit
+        if jobs_memory_limit is not None:
+            yt_config.job_resource_limits["memory"] = jobs_memory_limit
+        if jobs_user_slot_count is not None:
+            yt_config.job_resource_limits["user_slots"] = jobs_user_slot_count
+
+        yt_config.node_memory_limit_addition = node_memory_limit_addition
+        yt_config.node_chunk_store_quota = node_chunk_store_quota
+        yt_config.allow_chunk_storage_in_tmpfs = allow_chunk_storage_in_tmpfs
+        yt_config.node_port_set_size = node_port_set_size
 
         dirs = self._prepare_directories()
 
-        cluster_configuration = build_configs(self._get_ports_generator(port_range_start), dirs, self.logs_path, provision)
+        cluster_configuration = build_configs(self._get_ports_generator(port_range_start), dirs, self.logs_path, yt_config)
 
         if modify_configs_func:
             modify_configs_func(cluster_configuration, self.abi_version)
@@ -829,14 +834,11 @@ class YTInstance(object):
         logger.info("Starting %s", name)
 
         for index in xrange(len(self.configs[name])):
-            args = None
-            if self.abi_version[0] >= 19:
-                args = [_get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)]
-                if self._kill_child_processes:
-                    args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
-            else:
-                raise YtError("Unsupported YT ABI version {0}".format(self.abi_version))
+            args = [_get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)]
+            if self._kill_child_processes:
+                args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
             args.extend([config_option, self.config_paths[name][index]])
+
             number = None if len(self.configs[name]) == 1 else index
             self._run(args, name, number=number)
 

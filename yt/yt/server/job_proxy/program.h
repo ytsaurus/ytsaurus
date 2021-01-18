@@ -4,7 +4,6 @@
 #include <yt/server/lib/exec_agent/config.h>
 
 #include <yt/ytlib/program/program.h>
-#include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/program_setsid_mixin.h>
@@ -27,14 +26,12 @@ static const auto& Logger = JobProxyLogger;
 class TJobProxyProgram
     : public TProgram
     , public TProgramConfigMixin<TJobProxyConfig>
-    , public TProgramCgroupMixin
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
 {
 public:
     TJobProxyProgram()
         : TProgramConfigMixin(Opts_, false)
-        , TProgramCgroupMixin(Opts_)
         , TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
     {
@@ -79,10 +76,6 @@ protected:
 
         ConfigureSingletons(config);
         StartDiagnosticDump(config);
-
-        if (HandleCgroupOptions()) {
-            return;
-        }
 
         auto jobProxy = New<TJobProxy>(std::move(config), OperationId_, JobId_);
         jobProxy->Run();

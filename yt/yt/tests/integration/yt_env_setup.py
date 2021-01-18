@@ -204,11 +204,9 @@ class YTEnvSetup(object):
     DEFER_CONTROLLER_AGENT_START = False
     ENABLE_HTTP_PROXY = False
     NUM_HTTP_PROXIES = 1
-    HTTP_PROXY_PORTS = None
     ENABLE_RPC_PROXY = None
     NUM_RPC_PROXIES = 2
     DRIVER_BACKEND = "native"
-    ENABLE_RPC_DRIVER_PROXY_DISCOVERY = None
     NODE_PORT_SET_SIZE = None
     ARTIFACT_COMPONENTS = {}
 
@@ -305,7 +303,6 @@ class YTEnvSetup(object):
             http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index)
             if cls.get_param("ENABLE_HTTP_PROXY", index)
             else 0,
-            http_proxy_ports=cls.get_param("HTTP_PROXY_PORTS", index),
             rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
             watcher_config={"disable_logrotate": True},
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
@@ -318,7 +315,6 @@ class YTEnvSetup(object):
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             modify_configs_func=modify_configs_func,
             cell_tag=index * 10,
-            enable_rpc_driver_proxy_discovery=cls.get_param("ENABLE_RPC_DRIVER_PROXY_DISCOVERY", index),
             enable_structured_master_logging=True,
             enable_structured_scheduler_logging=True,
             capture_stderr_to_file=capture_stderr_to_file,

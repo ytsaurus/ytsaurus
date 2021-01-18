@@ -9,7 +9,6 @@
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/program_setsid_mixin.h>
-#include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/helpers.h>
 
 #include <yt/core/json/json_parser.h>
@@ -30,14 +29,12 @@ class THttpProxyProgram
     : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
-    , public TProgramCgroupMixin
     , public TProgramConfigMixin<NHttpProxy::TProxyConfig>
 {
 public:
     THttpProxyProgram()
         : TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
-        , TProgramCgroupMixin(Opts_)
         , TProgramConfigMixin(Opts_, false)
     {
         Opts_
@@ -72,9 +69,6 @@ protected:
         NYTAlloc::MlockFileMappings();
 
         if (HandleSetsidOptions()) {
-            return;
-        }
-        if (HandleCgroupOptions()) {
             return;
         }
         if (HandlePdeathsigOptions()) {

@@ -511,8 +511,9 @@ class TestModifyRowsRpcProxy(TestRpcProxyBase):
 
 class TestRpcProxyWithoutDiscovery(TestRpcProxyBase):
     NUM_RPC_PROXIES = 1
+    ENABLE_HTTP_PROXY = False
+    NUM_HTTP_PROXIES = 0
     DELTA_RPC_PROXY_CONFIG = {"discovery_service": {"enable": False}}
-    ENABLE_RPC_DRIVER_PROXY_DISCOVERY = False
 
     @authors("sashbel")
     def test_proxy_without_discovery(self):
