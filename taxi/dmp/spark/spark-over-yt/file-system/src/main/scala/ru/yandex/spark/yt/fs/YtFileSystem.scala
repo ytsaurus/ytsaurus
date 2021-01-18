@@ -39,7 +39,9 @@ class YtFileSystem extends YtFileSystemBase {
     } else {
       val pathType = YtWrapper.pathType(path)
       pathType match {
-        case PathType.File => new FileStatus(YtWrapper.fileSize(path), false, 1, 0, 0, f)
+        case PathType.File => new FileStatus(
+          YtWrapper.fileSize(path), false, 1, 0, YtWrapper.modificationTimeTs(path), f
+        )
         case PathType.Directory => new FileStatus(0, true, 1, 0, 0, f)
         case PathType.None => null
       }

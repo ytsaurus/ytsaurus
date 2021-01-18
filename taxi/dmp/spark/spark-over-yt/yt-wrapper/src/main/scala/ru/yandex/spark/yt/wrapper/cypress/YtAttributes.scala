@@ -8,4 +8,5 @@ object YtAttributes {
   val sortedBy = "sorted_by"
   val compressedDataSize = "compressed_data_size"
   val dynamic = "dynamic"
+  val modificationTime = "modification_time"
 }
