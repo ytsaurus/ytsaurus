@@ -243,13 +243,14 @@ void TFairShareContext::LogStageStatistics()
 
     YT_VERIFY(StageState_);
 
-    YT_LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v)",
+    YT_LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v, SchedulingSegment: %v)",
         StageState_->SchedulingStage->LoggingName,
         StageState_->ActiveTreeSize,
         StageState_->ActiveOperationCount,
         StageState_->DeactivationReasons,
         SchedulingContext_->CanStartMoreJobs(),
-        SchedulingContext_->GetNodeDescriptor().Address);
+        SchedulingContext_->GetNodeDescriptor().Address,
+        SchedulingContext_->GetSchedulingSegment());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
