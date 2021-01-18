@@ -2488,26 +2488,28 @@ double TPool::GetSpecifiedResourceFlowRatio() const
 void TPool::UpdateAccumulatedResourceVolume(TDuration periodSinceLastUpdate)
 {
     if (TotalResourceLimits_ == TJobResources()) {
-        YT_ELEMENT_LOG_DETAILED(this, "Skip update of accumulated resource volume");
+        YT_LOG_DEBUG("Skip update of accumulated resource volume");
         return;
     }
-    YT_ELEMENT_LOG_DETAILED(this,
-        "Updating accumulated resource volume "
+    auto oldVolume = PersistentAttributes_.AccumulatedResourceVolume;
+    auto upperLimit = Max(oldVolume, GetIntegralPoolCapacity());
+
+    PersistentAttributes_.AccumulatedResourceVolume += TotalResourceLimits_ * Attributes_.ResourceFlowRatio * periodSinceLastUpdate.SecondsFloat();
+    PersistentAttributes_.AccumulatedResourceVolume -= TotalResourceLimits_ * PersistentAttributes_.LastIntegralShareRatio * periodSinceLastUpdate.SecondsFloat();
+    PersistentAttributes_.AccumulatedResourceVolume = Max(PersistentAttributes_.AccumulatedResourceVolume, TJobResources());
+    PersistentAttributes_.AccumulatedResourceVolume = Min(PersistentAttributes_.AccumulatedResourceVolume, upperLimit);
+
+    YT_LOG_DEBUG(
+        "Accumulated resource volume updated "
         "(ResourceFlowRatio: %v, PeriodSinceLastUpdateInSeconds: %v, TotalResourceLimits: %v, "
-        "LastIntegralShareRatio: %v, PoolCapacity: %v, VolumeBeforeUpdate: %v)",
+        "LastIntegralShareRatio: %v, PoolCapacity: %v, OldVolume: %v, UpdatedVolume: %v)",
         Attributes_.ResourceFlowRatio,
         periodSinceLastUpdate.SecondsFloat(),
         TotalResourceLimits_,
         PersistentAttributes_.LastIntegralShareRatio,
         GetIntegralPoolCapacity(),
+        oldVolume,
         PersistentAttributes_.AccumulatedResourceVolume);
-
-    PersistentAttributes_.AccumulatedResourceVolume += TotalResourceLimits_ * Attributes_.ResourceFlowRatio * periodSinceLastUpdate.SecondsFloat();
-    PersistentAttributes_.AccumulatedResourceVolume -= TotalResourceLimits_ * PersistentAttributes_.LastIntegralShareRatio * periodSinceLastUpdate.SecondsFloat();
-    PersistentAttributes_.AccumulatedResourceVolume = Max(PersistentAttributes_.AccumulatedResourceVolume, TJobResources());
-    PersistentAttributes_.AccumulatedResourceVolume = Min(PersistentAttributes_.AccumulatedResourceVolume, GetIntegralPoolCapacity());
-
-    YT_ELEMENT_LOG_DETAILED(this, "Accumulated resource volume updated (Volume: %v)", PersistentAttributes_.AccumulatedResourceVolume);
 }
 
 void TPool::ApplyLimitsForRelaxedPool()
