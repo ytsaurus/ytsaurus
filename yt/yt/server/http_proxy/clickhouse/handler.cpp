@@ -496,7 +496,7 @@ private:
                     auto nodeOrError = WaitFor(Client_->GetNode(path + "/@", options));
 
                     if (!nodeOrError.IsOK() && nodeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                        auto error = TError("Clique dirrectory does not exist; perhaps the clique is still starting, wait for up to 5 minutes")
+                        auto error = TError("Clique directory does not exist; perhaps the clique is still starting, wait for up to 5 minutes")
                             << nodeOrError;
                         PushError(error);
                         cookie.Cancel(error);
