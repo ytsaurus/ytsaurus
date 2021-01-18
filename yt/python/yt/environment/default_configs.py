@@ -221,6 +221,10 @@ b"""
 
         validate_node_tags_period = 100;
         parse_operation_attributes_batch_size = 2;
+
+        operations_cleaner = {
+            parse_operation_attributes_batch_size = 2;
+        };
     };
 }
 """)

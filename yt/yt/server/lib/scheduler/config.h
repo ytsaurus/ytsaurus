@@ -423,6 +423,9 @@ public:
     //! Timeout to wait for finished operations information from archive.
     TDuration FinishedOperationsArchiveLookupTimeout;
 
+    //! The number of operations in batch to parse.
+    int ParseOperationAttributesBatchSize;
+
     TOperationsCleanerConfig();
 };
 
