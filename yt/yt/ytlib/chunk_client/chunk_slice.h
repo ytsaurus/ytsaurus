@@ -18,45 +18,13 @@ namespace NYT::NChunkClient {
 
 // ToDo(psushin): move to NTableClient.
 
-class TChunkSlice
+struct TChunkSlice
 {
-    DEFINE_BYREF_RO_PROPERTY(TLegacyReadLimit, LowerLimit);
-    DEFINE_BYREF_RO_PROPERTY(TLegacyReadLimit, UpperLimit);
+    TReadLimit LowerLimit;
+    TReadLimit UpperLimit;
 
-    DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
-    DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
-
-    DEFINE_BYVAL_RO_PROPERTY(bool, SizeOverridden);
-
-public:
-    TChunkSlice() = default;
-    TChunkSlice(TChunkSlice&& other) = default;
-
-    TChunkSlice(
-        const NProto::TSliceRequest& sliceReq,
-        const NProto::TChunkMeta& meta,
-        const NTableClient::TLegacyOwningKey& lowerKey,
-        const NTableClient::TLegacyOwningKey& upperKey,
-        std::optional<i64> dataWeight = std::nullopt,
-        std::optional<i64> rowCount = std::nullopt);
-
-    TChunkSlice(
-        const TChunkSlice& chunkSlice,
-        i64 lowerRowIndex,
-        i64 upperRowIndex,
-        i64 dataWeight);
-
-    TChunkSlice(
-        const NProto::TSliceRequest& sliceReq,
-        const NProto::TChunkMeta& meta,
-        i64 lowerRowIndex,
-        i64 upperRowIndex,
-        i64 dataWeight);
-
-    //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
-    void SliceEvenly(std::vector<TChunkSlice>& result, i64 sliceDataWeight) const;
-
-    void SetKeys(const NTableClient::TLegacyOwningKey& lowerKey, const NTableClient::TLegacyOwningKey& upperKey);
+    i64 DataWeight;
+    i64 RowCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,9 +37,9 @@ std::vector<TChunkSlice> SliceChunk(
     const NProto::TSliceRequest& sliceReq,
     const NProto::TChunkMeta& meta);
 
-void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice);
 void ToProto(
-    const TKeySetWriterPtr& keysWireWriter,
+    const TKeySetWriterPtr& keysWriter,
+    const TKeySetWriterPtr& keyBoundsWriter,
     NProto::TChunkSlice* protoChunkSlice,
     const TChunkSlice& chunkSlice);
 

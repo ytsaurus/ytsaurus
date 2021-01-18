@@ -60,8 +60,6 @@ using namespace NScheduler;
 using NYT::FromProto;
 using NYT::ToProto;
 
-using NChunkClient::TLegacyReadRange;
-using NChunkClient::TLegacyReadLimit;
 using NTableClient::TLegacyKey;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,8 +101,8 @@ public:
         Persist(context, JobSizeConstraints_);
         Persist(context, InputSliceDataWeight_);
         Persist(context, SortedTask_);
-        Persist(context, PrimaryKeyColumns_);
-        Persist(context, ForeignKeyColumns_);
+        Persist(context, PrimarySortColumns_);
+        Persist(context, ForeignSortColumns_);
     }
 
 protected:
@@ -212,8 +210,8 @@ protected:
             auto inputStreamDescriptor = Controller_->GetInputStreamDirectory().GetDescriptor(dataSlice->InputStreamIndex);
 
             auto prefixLength = inputStreamDescriptor.IsPrimary()
-                ? Controller_->PrimaryKeyColumns_.size()
-                : Controller_->ForeignKeyColumns_.size();
+                ? Controller_->PrimarySortColumns_.size()
+                : Controller_->ForeignSortColumns_.size();
 
             dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, prefixLength, TaskHost_->GetRowBuffer());
             dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, prefixLength, TaskHost_->GetRowBuffer());
@@ -331,9 +329,9 @@ protected:
 
     TSortedTaskPtr SortedTask_;
 
-    //! The (adjusted) key columns that define the sort order inside sorted chunk pool.
-    std::vector<TString> PrimaryKeyColumns_;
-    std::vector<TString> ForeignKeyColumns_;
+    //! The (adjusted) sort columns that define the sort order inside sorted chunk pool.
+    TSortColumns PrimarySortColumns_;
+    TSortColumns ForeignSortColumns_;
 
     // TODO(max42): YT-14081.
     // New sorted pool performs unwanted cuts even for small tests. In order to overcome that,
@@ -407,20 +405,20 @@ protected:
             InputSliceDataWeight_);
     }
 
-    void CheckInputTableKeyColumnTypes(
-        const TKeyColumns& keyColumns,
+    void CheckInputTableSortColumnTypes(
+        const TSortColumns& sortColumns,
         std::function<bool(const TInputTablePtr& table)> inputTableFilter = [] (const TInputTablePtr& /* table */) { return true; })
     {
         YT_VERIFY(!InputTables_.empty());
 
-        for (const auto& columnName : keyColumns) {
+        for (const auto& sortColumn : sortColumns) {
             const TColumnSchema* referenceColumn = nullptr;
             TInputTablePtr referenceTable;
             for (const auto& table : InputTables_) {
                 if (!inputTableFilter(table)) {
                     continue;
                 }
-                const auto& column = table->Schema->GetColumnOrThrow(columnName);
+                const auto& column = table->Schema->GetColumnOrThrow(sortColumn.Name);
                 if (column.IsOfV1Type(ESimpleLogicalValueType::Any)) {
                     continue;
                 }
@@ -434,12 +432,20 @@ protected:
                         ok = false;
                     }
                     if (!ok) {
-                        THROW_ERROR_EXCEPTION("Key columns have different types in input tables")
-                                << TErrorAttribute("column_name", columnName)
+                        THROW_ERROR_EXCEPTION("Sort columns have different types in input tables")
+                                << TErrorAttribute("column_name", sortColumn.Name)
                                 << TErrorAttribute("input_table_1", referenceTable->GetPath())
                                 << TErrorAttribute("type_1", ToString(*referenceColumn->LogicalType()))
                                 << TErrorAttribute("input_table_2", table->GetPath())
                                 << TErrorAttribute("type_2", ToString(*column.LogicalType()));
+                    }
+                    if (referenceColumn->SortOrder() != column.SortOrder()) {
+                        THROW_ERROR_EXCEPTION("Sort columns have different sort orders in input tables")
+                                << TErrorAttribute("column_name", sortColumn.Name)
+                                << TErrorAttribute("input_table_1", referenceTable->GetPath())
+                                << TErrorAttribute("sort_order_1", *referenceColumn->SortOrder())
+                                << TErrorAttribute("input_table_2", table->GetPath())
+                                << TErrorAttribute("sort_order_2", *column.SortOrder());
                     }
                 } else {
                     referenceColumn = &column;
@@ -472,13 +478,16 @@ protected:
             int foreignSlices = 0;
             // TODO(max42): use CollectPrimaryInputDataSlices() here?
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
+                const auto& comparator = InputTables_[chunk->GetTableIndex()]->Comparator;
+                YT_VERIFY(comparator);
+
                 const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-                InferLimitsFromBoundaryKeys(dataSlice, RowBuffer);
-
-                const auto& inputTable = InputTables_[dataSlice->GetTableIndex()];
-                YT_VERIFY(inputTable->Comparator);
-
-                dataSlice->TransformToNew(RowBuffer, inputTable->Comparator->GetLength());
+                if (comparator) {
+                    dataSlice->TransformToNew(RowBuffer, comparator->GetLength());
+                    InferLimitsFromBoundaryKeys(dataSlice, RowBuffer, comparator);
+                } else {
+                    dataSlice->TransformToNewKeyless();
+                }
 
                 TotalPrimaryInputDataSliceWeight_ += dataSlice->GetDataWeight();
 
@@ -494,7 +503,7 @@ protected:
                 ++primaryVersionedSlices;
                 yielder.TryYield();
             }
-            for (const auto& tableSlices : CollectForeignInputDataSlices(ForeignKeyColumns_.size())) {
+            for (const auto& tableSlices : CollectForeignInputDataSlices(ForeignSortColumns_.size())) {
                 for (const auto& slice : tableSlices) {
                     SortedTask_->AddInput(CreateChunkStripe(slice));
 
@@ -563,14 +572,14 @@ protected:
 
     virtual i64 GetMinTeleportChunkSize()  = 0;
 
-    virtual void AdjustKeyColumns() = 0;
+    virtual void AdjustSortColumns() = 0;
 
     virtual i64 GetForeignInputDataWeight() const = 0;
 
     virtual void PrepareOutputTables() override
     {
         // NB: we need to do this after locking input tables but before preparing ouput tables.
-        AdjustKeyColumns();
+        AdjustSortColumns();
     }
 
     virtual TUserJobSpecPtr GetUserJobSpec() const = 0;
@@ -661,10 +670,10 @@ protected:
         TSortedChunkPoolOptions chunkPoolOptions;
         TSortedJobOptions jobOptions;
         jobOptions.EnableKeyGuarantee = IsKeyGuaranteeEnabled();
-        jobOptions.PrimaryComparator = TComparator(std::vector<ESortOrder>(PrimaryKeyColumns_.size(), ESortOrder::Ascending));
-        jobOptions.ForeignComparator = TComparator(std::vector<ESortOrder>(ForeignKeyColumns_.size(), ESortOrder::Ascending));
-        jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
-        jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
+        jobOptions.PrimaryComparator = GetComparator(PrimarySortColumns_);
+        jobOptions.ForeignComparator = GetComparator(ForeignSortColumns_);
+        jobOptions.PrimaryPrefixLength = PrimarySortColumns_.size();
+        jobOptions.ForeignPrefixLength = ForeignSortColumns_.size();
         jobOptions.ShouldSlicePrimaryTableByKeys = ShouldSlicePrimaryTableByKeys();
         jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
         jobOptions.EnablePeriodicYielder = true;
@@ -779,13 +788,15 @@ public:
             ->DesiredChunkSize;
     }
 
-    virtual void AdjustKeyColumns() override
+    virtual void AdjustSortColumns() override
     {
-        const auto& specKeyColumns = Spec_->MergeBy;
-        YT_LOG_INFO("Spec key columns are %v", specKeyColumns);
+        const auto& specSortColumns = Spec_->MergeBy;
+        YT_LOG_INFO("Spec sort columns obtained (SortColumns: %v)",
+            specSortColumns);
 
-        PrimaryKeyColumns_ = CheckInputTablesSorted(specKeyColumns);
-        YT_LOG_INFO("Adjusted key columns are %v", PrimaryKeyColumns_);
+        PrimarySortColumns_ = CheckInputTablesSorted(specSortColumns);
+        YT_LOG_INFO("Sort columns adjusted (SortColumns: %v)",
+            PrimarySortColumns_);
     }
 
     virtual bool IsKeyGuaranteeEnabled() override
@@ -823,7 +834,8 @@ public:
         SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
 
-        ToProto(mergeJobSpecExt->mutable_key_columns(), PrimaryKeyColumns_);
+        ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(PrimarySortColumns_));
+        ToProto(mergeJobSpecExt->mutable_sort_columns(), PrimarySortColumns_);
     }
 
     virtual std::optional<int> GetOutputTeleportTableIndex() const override
@@ -843,39 +855,39 @@ public:
 
         ValidateSchemaInferenceMode(Spec_->SchemaInferenceMode);
 
-        auto prepareOutputKeyColumns = [&] () {
+        auto prepareOutputSortColumns = [&] {
             if (table->TableUploadOptions.TableSchema->IsSorted()) {
-                if (table->TableUploadOptions.TableSchema->GetKeyColumns() != PrimaryKeyColumns_) {
-                    THROW_ERROR_EXCEPTION("Merge key columns do not match output table schema in \"strong\" schema mode")
+                if (table->TableUploadOptions.TableSchema->GetSortColumns() != PrimarySortColumns_) {
+                    THROW_ERROR_EXCEPTION("Merge sort columns do not match output table schema in \"strong\" schema mode")
                         << TErrorAttribute("output_schema", *table->TableUploadOptions.TableSchema)
-                        << TErrorAttribute("merge_by", PrimaryKeyColumns_)
+                        << TErrorAttribute("merge_by", PrimarySortColumns_)
                         << TErrorAttribute("schema_inference_mode", Spec_->SchemaInferenceMode);
                 }
             } else {
                 table->TableUploadOptions.TableSchema =
-                    table->TableUploadOptions.TableSchema->ToSorted(PrimaryKeyColumns_);
+                    table->TableUploadOptions.TableSchema->ToSorted(PrimarySortColumns_);
             }
         };
 
         switch (Spec_->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    InferSchemaFromInput(PrimaryKeyColumns_);
+                    InferSchemaFromInput(PrimarySortColumns_);
                 } else {
-                    prepareOutputKeyColumns();
+                    prepareOutputSortColumns();
                     ValidateOutputSchemaCompatibility(true);
                 }
                 break;
 
             case ESchemaInferenceMode::FromInput:
-                InferSchemaFromInput(PrimaryKeyColumns_);
+                InferSchemaFromInput(PrimarySortColumns_);
                 break;
 
             case ESchemaInferenceMode::FromOutput:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    table->TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(PrimaryKeyColumns_);
+                    table->TableUploadOptions.TableSchema = TTableSchema::FromSortColumns(PrimarySortColumns_);
                 } else {
-                    prepareOutputKeyColumns();
+                    prepareOutputSortColumns();
                 }
                 break;
 
@@ -1014,7 +1026,7 @@ public:
 
     virtual void InitJobSpecTemplate() override
     {
-        YT_VERIFY(!PrimaryKeyColumns_.empty());
+        YT_VERIFY(!PrimarySortColumns_.empty());
 
         JobSpecTemplate_.set_type(static_cast<int>(GetJobType()));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -1031,9 +1043,10 @@ public:
             Spec_->JobNodeAccount);
 
         auto* reduceJobSpecExt = JobSpecTemplate_.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        ToProto(reduceJobSpecExt->mutable_key_columns(), SortKeyColumns_);
-        reduceJobSpecExt->set_reduce_key_column_count(PrimaryKeyColumns_.size());
-        reduceJobSpecExt->set_join_key_column_count(ForeignKeyColumns_.size());
+        ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(SortColumns_));
+        ToProto(reduceJobSpecExt->mutable_sort_columns(), SortColumns_);
+        reduceJobSpecExt->set_reduce_key_column_count(PrimarySortColumns_.size());
+        reduceJobSpecExt->set_join_key_column_count(ForeignSortColumns_.size());
     }
 
     virtual void DoInitialize() override
@@ -1079,33 +1092,6 @@ public:
 
         if (foreignInputCount != 0 && Spec_->JoinBy.empty()) {
             THROW_ERROR_EXCEPTION("It is required to specify join_by when using foreign tables");
-        }
-
-        if (!Spec_->PivotKeys.empty()) {
-            if (!*Spec_->EnableKeyGuarantee) {
-                THROW_ERROR_EXCEPTION("Pivot keys are not supported in disabled key guarantee mode.");
-            }
-
-            TLegacyKey previousKey;
-            for (const auto& key : Spec_->PivotKeys) {
-                if (key < previousKey) {
-                    THROW_ERROR_EXCEPTION("Pivot keys should be sorted")
-                        << TErrorAttribute("previous", previousKey)
-                        << TErrorAttribute("current", key);
-                }
-                previousKey = key;
-
-                if (key.GetCount() > Spec_->ReduceBy.size()) {
-                    THROW_ERROR_EXCEPTION("Pivot key cannot be longer than reduce key column count")
-                        << TErrorAttribute("key", key)
-                        << TErrorAttribute("reduce_by", Spec_->ReduceBy);
-                }
-            }
-            for (const auto& table : InputTables_) {
-                if (table->Path.GetTeleport()) {
-                    THROW_ERROR_EXCEPTION("Chunk teleportation is not supported when pivot keys are specified");
-                }
-            }
         }
     }
 
@@ -1178,9 +1164,9 @@ public:
         return *Spec_->EnableKeyGuarantee;
     }
 
-    virtual void AdjustKeyColumns() override
+    virtual void AdjustSortColumns() override
     {
-        YT_LOG_INFO("Adjusting key columns (EnableKeyGuarantee: %v, ReduceBy: %v, SortBy: %v, JoinBy: %v)",
+        YT_LOG_INFO("Adjusting sort columns (EnableKeyGuarantee: %v, ReduceBy: %v, SortBy: %v, JoinBy: %v)",
             *Spec_->EnableKeyGuarantee,
             Spec_->ReduceBy,
             Spec_->SortBy,
@@ -1188,12 +1174,12 @@ public:
 
         if (*Spec_->EnableKeyGuarantee) {
             auto specKeyColumns = Spec_->SortBy.empty() ? Spec_->ReduceBy : Spec_->SortBy;
-            SortKeyColumns_ = CheckInputTablesSorted(specKeyColumns, &TInputTable::IsPrimary);
+            SortColumns_ = CheckInputTablesSorted(specKeyColumns, &TInputTable::IsPrimary);
 
-            if (!CheckKeyColumnsCompatible(SortKeyColumns_, Spec_->ReduceBy)) {
-                THROW_ERROR_EXCEPTION("Reduce key columns are not compatible with sort key columns")
+            if (!CheckSortColumnsCompatible(SortColumns_, Spec_->ReduceBy)) {
+                THROW_ERROR_EXCEPTION("Reduce sort columns are not compatible with sort columns")
                     << TErrorAttribute("reduce_by", Spec_->ReduceBy)
-                    << TErrorAttribute("sort_by", SortKeyColumns_);
+                    << TErrorAttribute("sort_by", SortColumns_);
             }
 
             if (Spec_->ReduceBy.empty()) {
@@ -1201,14 +1187,14 @@ public:
                     << TErrorAttribute("operation_type", OperationType);
             }
 
-            PrimaryKeyColumns_ = Spec_->ReduceBy;
-            ForeignKeyColumns_ = Spec_->JoinBy;
-            if (!ForeignKeyColumns_.empty()) {
-                CheckInputTablesSorted(ForeignKeyColumns_, &TInputTable::IsForeign);
-                if (!CheckKeyColumnsCompatible(PrimaryKeyColumns_, ForeignKeyColumns_)) {
-                    THROW_ERROR_EXCEPTION("Join key columns are not compatible with reduce key columns")
-                        << TErrorAttribute("join_by", ForeignKeyColumns_)
-                        << TErrorAttribute("reduce_by", PrimaryKeyColumns_);
+            PrimarySortColumns_ = Spec_->ReduceBy;
+            ForeignSortColumns_ = Spec_->JoinBy;
+            if (!ForeignSortColumns_.empty()) {
+                CheckInputTablesSorted(ForeignSortColumns_, &TInputTable::IsForeign);
+                if (!CheckSortColumnsCompatible(PrimarySortColumns_, ForeignSortColumns_)) {
+                    THROW_ERROR_EXCEPTION("Join sort columns are not compatible with reduce sort columns")
+                        << TErrorAttribute("join_by", ForeignSortColumns_)
+                        << TErrorAttribute("reduce_by", PrimarySortColumns_);
                 }
             }
         } else {
@@ -1218,32 +1204,62 @@ public:
             if (Spec_->ReduceBy.empty() && Spec_->JoinBy.empty()) {
                 THROW_ERROR_EXCEPTION("At least one of reduce_by or join_by is required for this operation");
             }
-            PrimaryKeyColumns_ = CheckInputTablesSorted(!Spec_->ReduceBy.empty() ? Spec_->ReduceBy : Spec_->JoinBy);
-            if (PrimaryKeyColumns_.empty()) {
+            PrimarySortColumns_ = CheckInputTablesSorted(!Spec_->ReduceBy.empty() ? Spec_->ReduceBy : Spec_->JoinBy);
+            if (PrimarySortColumns_.empty()) {
                 THROW_ERROR_EXCEPTION("At least one of reduce_by and join_by should be specified when key guarantee is disabled")
                     << TErrorAttribute("operation_type", OperationType);
             }
-            SortKeyColumns_ = ForeignKeyColumns_ = PrimaryKeyColumns_;
+            SortColumns_ = ForeignSortColumns_ = PrimarySortColumns_;
 
             if (!Spec_->SortBy.empty()) {
-                if (!CheckKeyColumnsCompatible(Spec_->SortBy, Spec_->JoinBy)) {
-                    THROW_ERROR_EXCEPTION("Join key columns are not compatible with sort key columns")
+                if (!CheckSortColumnsCompatible(Spec_->SortBy, Spec_->JoinBy)) {
+                    THROW_ERROR_EXCEPTION("Join sort columns are not compatible with sort columns")
                         << TErrorAttribute("join_by", Spec_->JoinBy)
                         << TErrorAttribute("sort_by", Spec_->SortBy);
                 }
-                SortKeyColumns_ = Spec_->SortBy;
+                SortColumns_ = Spec_->SortBy;
             }
         }
         if (Spec_->ValidateKeyColumnTypes) {
-            CheckInputTableKeyColumnTypes(ForeignKeyColumns_);
-            CheckInputTableKeyColumnTypes(PrimaryKeyColumns_, [] (const auto& table) {
+            CheckInputTableSortColumnTypes(ForeignSortColumns_);
+            CheckInputTableSortColumnTypes(PrimarySortColumns_, [] (const auto& table) {
                 return table->IsPrimary();
             });
         }
-        YT_LOG_INFO("Key columns adjusted (PrimaryKeyColumns: %v, ForeignKeyColumns: %v, SortKeyColumns: %v)",
-            PrimaryKeyColumns_,
-            ForeignKeyColumns_,
-            SortKeyColumns_);
+        YT_LOG_INFO("Sort columns adjusted (PrimarySortColumns: %v, ForeignSortColumns: %v, SortColumns: %v)",
+            PrimarySortColumns_,
+            ForeignSortColumns_,
+            SortColumns_);
+
+        if (!Spec_->PivotKeys.empty()) {
+            if (!*Spec_->EnableKeyGuarantee) {
+                THROW_ERROR_EXCEPTION("Pivot keys are not supported in disabled key guarantee mode");
+            }
+
+            auto comparator = GetComparator(SortColumns_);
+            TKeyBound previousUpperBound;
+            for (const auto& key : Spec_->PivotKeys) {
+                if (key.GetCount() > Spec_->ReduceBy.size()) {
+                    THROW_ERROR_EXCEPTION("Pivot key cannot be longer than reduce key column count")
+                        << TErrorAttribute("key", key)
+                        << TErrorAttribute("reduce_by", Spec_->ReduceBy);
+                }
+
+                auto upperBound = TKeyBound::FromRow() < key;
+                if (previousUpperBound && comparator.CompareKeyBounds(upperBound, previousUpperBound) <= 0) {
+                    THROW_ERROR_EXCEPTION("Pivot keys should should form a strictly increasing sequence")
+                        << TErrorAttribute("previous", previousUpperBound)
+                        << TErrorAttribute("current", upperBound)
+                        << TErrorAttribute("comparator", comparator);
+                }
+                previousUpperBound = upperBound;
+            }
+            for (const auto& table : InputTables_) {
+                if (table->Path.GetTeleport()) {
+                    THROW_ERROR_EXCEPTION("Chunk teleportation is not supported when pivot keys are specified");
+                }
+            }
+        }
     }
 
     virtual bool HasStaticJobDistribution() const override
@@ -1261,7 +1277,7 @@ private:
 
     i64 StartRowIndex_ = 0;
 
-    std::vector<TString> SortKeyColumns_;
+    TSortColumns SortColumns_;
 
     std::optional<int> OutputTeleportTableIndex_;
 

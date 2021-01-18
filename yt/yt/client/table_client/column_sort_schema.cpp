@@ -2,6 +2,8 @@
 
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
 
+#include <yt/core/misc/serialize.h>
+
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT::NTableClient {
@@ -10,6 +12,14 @@ using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void TColumnSortSchema::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Name);
+    Persist(context, SortOrder);
+}
 
 void Serialize(const TColumnSortSchema& schema, IYsonConsumer* consumer)
 {

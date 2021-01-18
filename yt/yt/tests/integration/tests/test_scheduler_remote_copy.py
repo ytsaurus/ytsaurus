@@ -11,6 +11,8 @@ from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
 
+from yt_helpers import skip_if_no_descending
+
 import time
 
 import __builtin__
@@ -556,7 +558,11 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             )
 
     @authors("asaitgalin", "savrus")
-    def test_copy_strict_schema(self):
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_copy_strict_schema(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+
         create(
             "table",
             "//tmp/t1",
@@ -564,7 +570,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             attributes={
                 "schema": make_schema(
                     [
-                        {"name": "a", "type": "string", "sort_order": "ascending"},
+                        {"name": "a", "type": "string", "sort_order": sort_order},
                         {"name": "b", "type": "string"},
                     ],
                     unique_keys=True,
@@ -576,6 +582,8 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         create("table", "//tmp/t2")
 
         rows = [{"a": "x", "b": "v"}, {"a": "y", "b": "v"}]
+        if sort_order == "descending":
+            rows = rows[::-1]
         write_table("//tmp/t1", rows, driver=self.remote_driver)
 
         assert get("//tmp/t1/@schema_mode", driver=self.remote_driver) == "strong"

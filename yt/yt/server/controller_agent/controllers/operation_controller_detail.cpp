@@ -2118,7 +2118,8 @@ void TOperationControllerBase::VerifySortedOutput(TOutputTablePtr table)
                 "Output table %v is not sorted: job outputs overlap with original table",
                 table->GetPath())
                 << TErrorAttribute("table_max_key", table->LastKey)
-                << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
+                << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey)
+                << TErrorAttribute("comparator", comparator);
         }
 
         if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
@@ -2127,7 +2128,8 @@ void TOperationControllerBase::VerifySortedOutput(TOutputTablePtr table)
                 "Output table %v contains duplicate keys: job outputs overlap with original table",
                 table->GetPath())
                 << TErrorAttribute("table_max_key", table->LastKey)
-                << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey);
+                << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey)
+                << TErrorAttribute("comparator", comparator);
         }
     }
 
@@ -2140,14 +2142,16 @@ void TOperationControllerBase::VerifySortedOutput(TOutputTablePtr table)
                 THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs have overlapping key ranges",
                     table->GetPath())
                     << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
-                    << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey);
+                    << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey)
+                    << TErrorAttribute("comparator", comparator);
             }
 
             if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
                 THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs have overlapping key ranges",
                     table->GetPath())
                     << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
-                    << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey);
+                    << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey)
+                    << TErrorAttribute("comparator", comparator);
             }
         }
     }
@@ -2607,7 +2611,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     YT_LOG_DEBUG("Job completed (JobId: %v)", jobId);
 
     if (jobSummary->InterruptReason != EInterruptReason::None) {
-        ExtractInterruptDescriptor(*jobSummary);
+        ExtractInterruptDescriptor(*jobSummary, joblet);
     }
 
     ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->StatisticsYson);
@@ -6636,8 +6640,6 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                 RowBuffer,
                 Logger);
 
-            auto keyColumnCount = table->Schema->GetKeyColumns().size();
-
             YT_VERIFY(table->Comparator);
 
             for (const auto& chunk : table->Chunks) {
@@ -6651,7 +6653,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                 InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer);
                 auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
                 dataSlice->TransformToNew(RowBuffer, table->Comparator->GetLength());
-                fetcher->AddDataSliceForSlicing(dataSlice, sliceSize, keyColumnCount, true);
+                fetcher->AddDataSliceForSlicing(dataSlice, *table->Comparator, sliceSize, true);
             }
 
             fetcher->SetCancelableContext(GetCancelableContext());
@@ -6856,7 +6858,7 @@ TString TOperationControllerBase::GetLoggingProgress() const
         GetUnavailableInputChunkCount());
 }
 
-void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const
+void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary, const TJobletPtr& joblet) const
 {
     std::vector<TLegacyDataSlicePtr> dataSliceList;
 
@@ -6883,6 +6885,14 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
     auto extractDataSlice = [&] (const TDataSliceDescriptor& dataSliceDescriptor) {
         std::vector<TInputChunkSlicePtr> chunkSliceList;
         chunkSliceList.reserve(dataSliceDescriptor.ChunkSpecs.size());
+
+        // TODO(gritukan): One day we will do interrupts in non-input tasks.
+        std::optional<TComparator> comparator;
+        if (joblet->Task->GetIsInput()) {
+            comparator = GetInputTable(dataSliceDescriptor.GetDataSourceIndex())->Comparator;
+        }
+
+        bool dynamic = InputTables_[dataSliceDescriptor.GetDataSourceIndex()]->Dynamic;
         for (const auto& protoChunkSpec : dataSliceDescriptor.ChunkSpecs) {
             auto chunkId = FromProto<TChunkId>(protoChunkSpec.chunk_id());
             const auto& inputChunks = GetOrCrash(InputChunkMap, chunkId).InputChunks;
@@ -6894,17 +6904,36 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
                 });
             YT_VERIFY(chunkIt != inputChunks.end());
             auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);
-            InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer);
+            // NB: Dynamic tables use legacy slices for now, so we do not convert dynamic table
+            // slices into new.
+            if (!dynamic) {
+                if (comparator) {
+                    chunkSlice->TransformToNew(RowBuffer, comparator->GetLength());
+                    InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer, std::nullopt, comparator);
+                } else {
+                    chunkSlice->TransformToNewKeyless();
+                }
+            }
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
         TLegacyDataSlicePtr dataSlice;
-        if (InputTables_[dataSliceDescriptor.GetDataSourceIndex()]->Dynamic) {
+        if (dynamic) {
             dataSlice = CreateVersionedInputDataSlice(chunkSliceList);
+            if (comparator) {
+                dataSlice->TransformToNew(RowBuffer, comparator->GetLength());
+            } else {
+                dataSlice->TransformToNewKeyless();
+            }
         } else {
             YT_VERIFY(chunkSliceList.size() == 1);
             dataSlice = CreateUnversionedInputDataSlice(chunkSliceList[0]);
         }
-        InferLimitsFromBoundaryKeys(dataSlice, RowBuffer);
+
+        YT_VERIFY(!dataSlice->IsLegacy);
+        if (comparator) {
+            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer, comparator);
+        }
+
         dataSlice->Tag = dataSliceDescriptor.GetTag();
         return dataSlice;
     };
@@ -6917,8 +6946,8 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
     }
 }
 
-TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
-    const TKeyColumns& keyColumns,
+TSortColumns TOperationControllerBase::CheckInputTablesSorted(
+    const TSortColumns& sortColumns,
     std::function<bool(const TInputTablePtr& table)> inputTableFilter)
 {
     YT_VERIFY(!InputTables_.empty());
@@ -6930,38 +6959,38 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
         }
     }
 
-    auto validateColumnFilter = [] (const TInputTablePtr& table, const TKeyColumns& keyColumns) {
+    auto validateColumnFilter = [] (const TInputTablePtr& table, const TSortColumns& sortColumns) {
         auto columns = table->Path.GetColumns();
         if (!columns) {
             return;
         }
 
         auto columnSet = THashSet<TString>(columns->begin(), columns->end());
-        for (const auto& keyColumn : keyColumns) {
-            if (columnSet.find(keyColumn) == columnSet.end()) {
+        for (const auto& sortColumn : sortColumns) {
+            if (columnSet.find(sortColumn.Name) == columnSet.end()) {
                 THROW_ERROR_EXCEPTION("Column filter for input table %v must include key column %Qv",
                     table->GetPath(),
-                    keyColumn);
+                    sortColumn.Name);
             }
         }
     };
 
-    if (!keyColumns.empty()) {
+    if (!sortColumns.empty()) {
         for (const auto& table : InputTables_) {
             if (!inputTableFilter(table)) {
                 continue;
             }
 
-            if (!CheckKeyColumnsCompatible(table->Schema->GetKeyColumns(), keyColumns)) {
+            if (!CheckSortColumnsCompatible(table->Schema->GetSortColumns(), sortColumns)) {
                 THROW_ERROR_EXCEPTION("Input table %v is sorted by columns %v that are not compatible "
                     "with the requested columns %v",
                     table->GetPath(),
-                    table->Schema->GetKeyColumns(),
-                    keyColumns);
+                    table->Schema->GetSortColumns(),
+                    sortColumns);
             }
-            validateColumnFilter(table, keyColumns);
+            validateColumnFilter(table, sortColumns);
         }
-        return keyColumns;
+        return sortColumns;
     } else {
         for (const auto& referenceTable : InputTables_) {
             if (inputTableFilter(referenceTable)) {
@@ -6970,17 +6999,17 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
                         continue;
                     }
 
-                    if (table->Schema->GetKeyColumns() != referenceTable->Schema->GetKeyColumns()) {
-                        THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns %v "
+                    if (table->Schema->GetSortColumns() != referenceTable->Schema->GetSortColumns()) {
+                        THROW_ERROR_EXCEPTION("Sort columns do not match: input table %v is sorted by columns %v "
                             "while input table %v is sorted by columns %v",
                             table->GetPath(),
-                            table->Schema->GetKeyColumns(),
+                            table->Schema->GetSortColumns(),
                             referenceTable->GetPath(),
-                            referenceTable->Schema->GetKeyColumns());
+                            referenceTable->Schema->GetSortColumns());
                     }
-                    validateColumnFilter(table, referenceTable->Schema->GetKeyColumns());
+                    validateColumnFilter(table, referenceTable->Schema->GetSortColumns());
                 }
-                return referenceTable->Schema->GetKeyColumns();
+                return referenceTable->Schema->GetSortColumns();
             }
         }
     }
@@ -6995,13 +7024,18 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
         return false;
     }
 
-    for (int index = 0; index < prefixColumns.size(); ++index) {
-        if (fullColumns[index] != prefixColumns[index]) {
-            return false;
-        }
+    return std::equal(prefixColumns.begin(), prefixColumns.end(), fullColumns.begin());
+}
+
+bool TOperationControllerBase::CheckSortColumnsCompatible(
+    const TSortColumns& fullColumns,
+    const TSortColumns& prefixColumns)
+{
+    if (fullColumns.size() < prefixColumns.size()) {
+        return false;
     }
 
-    return true;
+    return std::equal(prefixColumns.begin(), prefixColumns.end(), fullColumns.begin());
 }
 
 bool TOperationControllerBase::ShouldVerifySortedOutput() const
@@ -8519,20 +8553,6 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
     }
 
     return false;
-}
-
-void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumns)
-{
-    TSortColumns sortColumns;
-    sortColumns.reserve(keyColumns.size());
-    for (const auto& keyColumn : keyColumns) {
-        sortColumns.push_back(TColumnSortSchema{
-            .Name = keyColumn,
-            .SortOrder = ESortOrder::Ascending
-        });
-    }
-
-    InferSchemaFromInput(sortColumns);
 }
 
 void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColumns)

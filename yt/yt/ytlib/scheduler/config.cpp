@@ -1091,7 +1091,6 @@ TReduceOperationSpec::TReduceOperationSpec()
     RegisterParameter("enable_key_guarantee", EnableKeyGuarantee)
         .Default();
 
-    // XXX(max42): validate pivot keys!
     RegisterParameter("pivot_keys", PivotKeys)
         .Default();
 
@@ -1105,11 +1104,9 @@ TReduceOperationSpec::TReduceOperationSpec()
         .Default(false);
 
     RegisterPostprocessor([&] () {
-        if (!JoinBy.empty()) {
-            NTableClient::ValidateKeyColumns(JoinBy);
-        }
-        NTableClient::ValidateKeyColumns(ReduceBy);
-        NTableClient::ValidateKeyColumns(SortBy);
+        NTableClient::ValidateSortColumns(JoinBy);
+        NTableClient::ValidateSortColumns(ReduceBy);
+        NTableClient::ValidateSortColumns(SortBy);
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
@@ -1188,8 +1185,10 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .GreaterThan(0)
         .LessThanOrEqual(1)
         .Default(0.7);
+    RegisterParameter("use_new_sorted_pool", UseNewSortedPool)
+        .Default(false);
 
-    RegisterPostprocessor([&] () {
+    RegisterPostprocessor([&] {
         NTableClient::ValidateSortColumns(SortBy);
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);

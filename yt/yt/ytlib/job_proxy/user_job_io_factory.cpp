@@ -331,11 +331,13 @@ public:
 
         const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
+        auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
 
-        // TODO(gritukan): Descending!
-        TSortColumns sortColumns;
-        for (const auto& keyColumn : keyColumns) {
-            sortColumns.push_back({keyColumn, ESortOrder::Ascending});
+        // COMPAT(gritukan)
+        if (sortColumns.empty()) {
+            for (const auto& keyColumn : keyColumns) {
+                sortColumns.push_back({keyColumn, ESortOrder::Ascending});
+            }
         }
 
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
@@ -348,15 +350,6 @@ public:
         options->EnableTableIndex = true;
 
         auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
-
-        // Schema of any input primary table. It is used to infer comparators for readers.
-        TTableSchemaPtr primaryTableSchema;
-        for (const auto& dataSource : dataSourceDirectory->DataSources()) {
-            if (!dataSource.GetForeign()) {
-                primaryTableSchema = dataSource.Schema();
-            }
-        }
-        YT_VERIFY(primaryTableSchema);
 
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
@@ -418,14 +411,9 @@ public:
             foreignReaders.emplace_back(reader);
         }
 
-        auto inputTableComparator = primaryTableSchema->ToComparator();
-        // TODO(gritukan): Pass correct schema in MapReduce operations.
-        if (inputTableComparator.GetLength() == 0) {
-            inputTableComparator = TComparator(std::vector<ESortOrder>(reduceJobSpecExt.key_columns_size(), ESortOrder::Ascending));
-        }
-        auto sortComparator = inputTableComparator.Trim(reduceJobSpecExt.key_columns_size());
-        auto reduceComparator = inputTableComparator.Trim(reduceJobSpecExt.reduce_key_column_count());
-        auto joinComparator = inputTableComparator.Trim(foreignKeyColumnCount);
+        auto sortComparator = GetComparator(sortColumns);
+        auto reduceComparator = sortComparator.Trim(reduceJobSpecExt.reduce_key_column_count());
+        auto joinComparator = sortComparator.Trim(foreignKeyColumnCount);
         return CreateSortedJoiningReader(
             primaryReaders,
             sortComparator,
@@ -613,6 +601,15 @@ public:
 
         const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
+        auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
+
+        // COMPAT(gritukan)
+        if (sortColumns.empty()) {
+            for (const auto& keyColumn : keyColumns) {
+                sortColumns.push_back({keyColumn, ESortOrder::Ascending});
+            }
+        }
+
         nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         std::optional<int> partitionTag;
@@ -625,17 +622,12 @@ public:
 
         auto comparator = GetComparator(FromProto<TSortColumns>(reduceJobSpecExt.sort_columns()));
 
-        // COMPAT(gritukan)
-        if (comparator.GetLength() == 0) {
-            comparator = TComparator(std::vector<ESortOrder>(keyColumns.size(), ESortOrder::Ascending));
-        }
-
         return CreatePartitionSortReader(
             JobSpecHelper_->GetJobIOConfig()->TableReader,
             std::move(client),
             GetNullBlockCache(),
             JobSpecHelper_->GetInputNodeDirectory(),
-            comparator,
+            GetComparator(sortColumns),
             nameTable,
             onNetworkReleased,
             dataSourceDirectory,

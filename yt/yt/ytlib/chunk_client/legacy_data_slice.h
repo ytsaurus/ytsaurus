@@ -150,7 +150,8 @@ TLegacyDataSlicePtr CreateVersionedInputDataSlice(
 
 void InferLimitsFromBoundaryKeys(
     const TLegacyDataSlicePtr& dataSlice,
-    const NTableClient::TRowBufferPtr& rowBuffer);
+    const NTableClient::TRowBufferPtr& rowBuffer,
+    const std::optional<NTableClient::TComparator>& comparator = std::nullopt);
 
 //! Set data slice limits to be equal to chunk boundary keys shortened to given prefix length.
 //! Works only for new data slices.

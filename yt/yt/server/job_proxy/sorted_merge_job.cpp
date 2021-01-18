@@ -46,12 +46,15 @@ public:
         YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
 
+    
         auto keyColumns = FromProto<TKeyColumns>(MergeJobSpecExt_.key_columns());
+        auto sortColumns = FromProto<TSortColumns>(MergeJobSpecExt_.sort_columns());
 
-        // TODO(gritukan): Descending!
-        TSortColumns sortColumns;
-        for (const auto& keyColumn : keyColumns) {
-            sortColumns.push_back({keyColumn, ESortOrder::Ascending});
+        // COMPAT(gritukan)
+        if (sortColumns.empty()) {
+            for (const auto& keyColumn : keyColumns) {
+                sortColumns.push_back({keyColumn, ESortOrder::Ascending});
+            }
         }
 
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
@@ -62,9 +65,6 @@ public:
         auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(SchedulerJobSpecExt_.table_reader_options()));
 
         YT_VERIFY(!dataSourceDirectory->DataSources().empty());
-
-        // Schema of any input table. It is used to infer comparators for readers.
-        auto inputTableSchema = dataSourceDirectory->DataSources().front().Schema();
 
         for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
@@ -96,15 +96,8 @@ public:
             readers.push_back(reader);
         }
 
-        TComparator inputTableComparator;
-        // TODO(gritukan): Pass correct schema in Sort operations.
-        if (inputTableSchema) {
-            inputTableComparator = inputTableSchema->ToComparator();
-        } else {
-            inputTableComparator = TComparator(std::vector<ESortOrder>(keyColumns.size(), ESortOrder::Ascending));
-        }
 
-        auto sortComparator = inputTableComparator.Trim(keyColumns.size());
+        auto sortComparator = GetComparator(sortColumns);
         Reader_ = CreateSortedMergingReader(
             readers,
             sortComparator,

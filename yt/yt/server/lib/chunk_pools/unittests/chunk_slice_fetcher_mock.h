@@ -19,7 +19,7 @@ class TMockChunkSliceFetcher
 {
 public:
     MOCK_METHOD1(AddChunk, void(NChunkClient::TInputChunkPtr));
-    MOCK_METHOD4(AddDataSliceForSlicing, void(NChunkClient::TLegacyDataSlicePtr, i64, int, bool));
+    MOCK_METHOD4(AddDataSliceForSlicing, void(NChunkClient::TLegacyDataSlicePtr, const TComparator& comparator, i64, bool));
     MOCK_CONST_METHOD0(GetChunkCount, int());
     MOCK_METHOD0(Fetch, TFuture<void>());
     MOCK_METHOD0(GetChunkSlices, std::vector<NChunkClient::TInputChunkSlicePtr>());

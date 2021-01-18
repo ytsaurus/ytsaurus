@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/table_client/public.h>
 
+#include <yt/client/table_client/comparator.h>
+
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT::NTableClient {
@@ -25,8 +27,8 @@ struct IChunkSliceFetcher
     // should hold a pointer to a physical data registry.
     virtual void AddDataSliceForSlicing(
         NChunkClient::TLegacyDataSlicePtr dataSlice,
+        const TComparator& comparator,
         i64 sliceDataWeight,
-        int keyColumnCount,
         bool sliceByKeys) = 0;
 };
 

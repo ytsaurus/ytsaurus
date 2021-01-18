@@ -78,9 +78,9 @@ void ValidateCovering(const std::vector<TChunkSlice>& slices, bool sliceByRows)
         const auto& nextSlice = slices[index + 1];
 
         if (sliceByRows) {
-            EXPECT_TRUE(slice.UpperLimit().GetRowIndex() == nextSlice.LowerLimit().GetRowIndex());
+            EXPECT_TRUE(slice.UpperLimit.GetRowIndex() == nextSlice.LowerLimit.GetRowIndex());
         } else {
-            EXPECT_TRUE(slice.UpperLimit().GetLegacyKey() == nextSlice.LowerLimit().GetLegacyKey());
+            EXPECT_TRUE(slice.UpperLimit.KeyBound().Invert() == nextSlice.LowerLimit.KeyBound());
         }
     }
 }
@@ -190,26 +190,26 @@ TEST(TChunkSlicerTest, SliceByRowsOneBlock)
     ValidateCovering(slices, /* sliceByRows */true);
     ASSERT_EQ(slices.size(), 3);
 
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 0);
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 34);
-    EXPECT_EQ(slices[0].GetDataWeight(), 34 * DataWeightPerRow);
-    EXPECT_EQ(slices[0].GetRowCount(), 34);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 0);
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
+    EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 34);
+    EXPECT_EQ(slices[0].DataWeight, 34 * DataWeightPerRow);
+    EXPECT_EQ(slices[0].RowCount, 34);
 
-    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 34);
-    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 68);
-    EXPECT_EQ(slices[1].GetDataWeight(), 34 * DataWeightPerRow);
-    EXPECT_EQ(slices[1].GetRowCount(), 34);
+    EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 34);
+    EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
+    EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 68);
+    EXPECT_EQ(slices[1].DataWeight, 34 * DataWeightPerRow);
+    EXPECT_EQ(slices[1].RowCount, 34);
 
-    EXPECT_EQ(slices[2].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[2].LowerLimit().GetRowIndex(), 68);
-    EXPECT_EQ(slices[2].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[2].UpperLimit().GetRowIndex(), 100);
-    EXPECT_EQ(slices[2].GetDataWeight(), 32 * DataWeightPerRow);
-    EXPECT_EQ(slices[2].GetRowCount(), 32);
+    EXPECT_EQ(slices[2].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[2].LowerLimit.GetRowIndex(), 68);
+    EXPECT_EQ(slices[2].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
+    EXPECT_EQ(slices[2].UpperLimit.GetRowIndex(), 100);
+    EXPECT_EQ(slices[2].DataWeight, 32 * DataWeightPerRow);
+    EXPECT_EQ(slices[2].RowCount, 32);
 }
 
 TEST(TChunkSlicerTest, SliceByRowsThreeBlocks)
@@ -242,26 +242,26 @@ TEST(TChunkSlicerTest, SliceByRowsThreeBlocks)
     ValidateCovering(slices, /* sliceByRows */true);
     ASSERT_EQ(slices.size(), 3);
 
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 0);
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({4}, true));
-    EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 200);
-    EXPECT_EQ(slices[0].GetDataWeight(), 200);
-    EXPECT_EQ(slices[0].GetRowCount(), 200);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 0);
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({4}));
+    EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 200);
+    EXPECT_EQ(slices[0].DataWeight, 200);
+    EXPECT_EQ(slices[0].RowCount, 200);
 
-    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 200);
-    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({4}, true));
-    EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 400);
-    EXPECT_EQ(slices[1].GetDataWeight(), 200);
-    EXPECT_EQ(slices[1].GetRowCount(), 200);
+    EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({2}));
+    EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 200);
+    EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({4}));
+    EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 400);
+    EXPECT_EQ(slices[1].DataWeight, 200);
+    EXPECT_EQ(slices[1].RowCount, 200);
 
-    EXPECT_EQ(slices[2].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[2].LowerLimit().GetRowIndex(), 400);
-    EXPECT_EQ(slices[2].UpperLimit().GetLegacyKey(), MakeRow({6}, true));
-    EXPECT_EQ(slices[2].UpperLimit().GetRowIndex(), 600);
-    EXPECT_EQ(slices[2].GetDataWeight(), 200);
-    EXPECT_EQ(slices[2].GetRowCount(), 200);
+    EXPECT_EQ(slices[2].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({2}));
+    EXPECT_EQ(slices[2].LowerLimit.GetRowIndex(), 400);
+    EXPECT_EQ(slices[2].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({6}));
+    EXPECT_EQ(slices[2].UpperLimit.GetRowIndex(), 600);
+    EXPECT_EQ(slices[2].DataWeight, 200);
+    EXPECT_EQ(slices[2].RowCount, 200);
 }
 
 TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
@@ -307,19 +307,19 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
         ValidateCovering(slices, /* sliceByRows */true);
         ASSERT_EQ(slices.size(), 2);
 
-        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
-        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 150);
-        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({6}, true));
-        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 250);
-        EXPECT_EQ(slices[0].GetDataWeight(), 100);
-        EXPECT_EQ(slices[0].GetRowCount(), 100);
+        EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({2}));
+        EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 150);
+        EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({6}));
+        EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 250);
+        EXPECT_EQ(slices[0].DataWeight, 100);
+        EXPECT_EQ(slices[0].RowCount, 100);
 
-        EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({4}, true));
-        EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 250);
-        EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({8}, true));
-        EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 350);
-        EXPECT_EQ(slices[1].GetDataWeight(), 100);
-        EXPECT_EQ(slices[1].GetRowCount(), 100);
+        EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({4}));
+        EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 250);
+        EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({8}));
+        EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 350);
+        EXPECT_EQ(slices[1].DataWeight, 100);
+        EXPECT_EQ(slices[1].RowCount, 100);
     }
     {
         NProto::TSliceRequest req;
@@ -333,12 +333,12 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
         ValidateCovering(slices, /* sliceByRows */true);
         ASSERT_EQ(slices.size(), 1);
 
-        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
-        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 150);
-        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({8}, true));
-        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 350);
-        EXPECT_EQ(slices[0].GetDataWeight(), 200);
-        EXPECT_EQ(slices[0].GetRowCount(), 200);
+        EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({2}));
+        EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 150);
+        EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({8}));
+        EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 350);
+        EXPECT_EQ(slices[0].DataWeight, 200);
+        EXPECT_EQ(slices[0].RowCount, 200);
     }
 }
 
@@ -364,12 +364,12 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits2)
     ValidateCovering(slices, /* sliceByRows */true);
     ASSERT_EQ(slices.size(), 1);
 
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 23);
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 34);
-    EXPECT_EQ(slices[0].GetDataWeight(), 11);
-    EXPECT_EQ(slices[0].GetRowCount(), 11);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 23);
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
+    EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 34);
+    EXPECT_EQ(slices[0].DataWeight, 11);
+    EXPECT_EQ(slices[0].RowCount, 11);
 }
 
 TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits3)
@@ -404,19 +404,19 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits3)
     ValidateCovering(slices, /* sliceByRows */true);
     ASSERT_EQ(slices.size(), 2);
 
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 100);
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({4}, true));
-    EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 190);
-    EXPECT_EQ(slices[0].GetDataWeight(), 90);
-    EXPECT_EQ(slices[0].GetRowCount(), 90);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({2}));
+    EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 100);
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({4}));
+    EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 190);
+    EXPECT_EQ(slices[0].DataWeight, 90);
+    EXPECT_EQ(slices[0].RowCount, 90);
 
-    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 190);
-    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({4}, true));
-    EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 200);
-    EXPECT_EQ(slices[1].GetDataWeight(), 10);
-    EXPECT_EQ(slices[1].GetRowCount(), 10);
+    EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({2}));
+    EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 190);
+    EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({4}));
+    EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 200);
+    EXPECT_EQ(slices[1].DataWeight, 10);
+    EXPECT_EQ(slices[1].RowCount, 10);
 }
 
 TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
@@ -462,33 +462,33 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
         ValidateCovering(slices, /* sliceByRows */true);
         ASSERT_EQ(slices.size(), 4);
 
-        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({6}));
-        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 100);
-        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({7}, true));
-        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 190);
-        EXPECT_EQ(slices[0].GetDataWeight(), 90);
-        EXPECT_EQ(slices[0].GetRowCount(), 90);
+        EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
+        EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 100);
+        EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({7}));
+        EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 190);
+        EXPECT_EQ(slices[0].DataWeight, 90);
+        EXPECT_EQ(slices[0].RowCount, 90);
 
-        EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({6}));
-        EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 190);
-        EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({11}, true));
-        EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 280);
-        EXPECT_EQ(slices[1].GetDataWeight(), 90);
-        EXPECT_EQ(slices[1].GetRowCount(), 90);
+        EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
+        EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 190);
+        EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({11}));
+        EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 280);
+        EXPECT_EQ(slices[1].DataWeight, 90);
+        EXPECT_EQ(slices[1].RowCount, 90);
 
-        EXPECT_EQ(slices[2].LowerLimit().GetLegacyKey(), MakeRow({7}, true));
-        EXPECT_EQ(slices[2].LowerLimit().GetRowIndex(), 280);
-        EXPECT_EQ(slices[2].UpperLimit().GetLegacyKey(), MakeRow({14}));
-        EXPECT_EQ(slices[2].UpperLimit().GetRowIndex(), 370);
-        EXPECT_EQ(slices[2].GetDataWeight(), 90);
-        EXPECT_EQ(slices[2].GetRowCount(), 90);
+        EXPECT_EQ(slices[2].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({7}));
+        EXPECT_EQ(slices[2].LowerLimit.GetRowIndex(), 280);
+        EXPECT_EQ(slices[2].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({14}));
+        EXPECT_EQ(slices[2].UpperLimit.GetRowIndex(), 370);
+        EXPECT_EQ(slices[2].DataWeight, 90);
+        EXPECT_EQ(slices[2].RowCount, 90);
 
-        EXPECT_EQ(slices[3].LowerLimit().GetLegacyKey(), MakeRow({11}, true));
-        EXPECT_EQ(slices[3].LowerLimit().GetRowIndex(), 370);
-        EXPECT_EQ(slices[3].UpperLimit().GetLegacyKey(), MakeRow({14}));
-        EXPECT_EQ(slices[3].UpperLimit().GetRowIndex(), 400);
-        EXPECT_EQ(slices[3].GetDataWeight(), 30);
-        EXPECT_EQ(slices[3].GetRowCount(), 30);
+        EXPECT_EQ(slices[3].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({11}));
+        EXPECT_EQ(slices[3].LowerLimit.GetRowIndex(), 370);
+        EXPECT_EQ(slices[3].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({14}));
+        EXPECT_EQ(slices[3].UpperLimit.GetRowIndex(), 400);
+        EXPECT_EQ(slices[3].DataWeight, 30);
+        EXPECT_EQ(slices[3].RowCount, 30);
     }
 
     {
@@ -503,12 +503,12 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
         ValidateCovering(slices, /* sliceByRows */true);
         ASSERT_EQ(slices.size(), 1);
 
-        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({6}));
-        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 100);
-        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({14}));
-        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 400);
-        EXPECT_EQ(slices[0].GetDataWeight(), 300);
-        EXPECT_EQ(slices[0].GetRowCount(), 300);
+        EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
+        EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 100);
+        EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({14}));
+        EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 400);
+        EXPECT_EQ(slices[0].DataWeight, 300);
+        EXPECT_EQ(slices[0].RowCount, 300);
     }
 }
 
@@ -535,19 +535,19 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits2)
         ValidateCovering(slices, /* sliceByRows */true);
         ASSERT_EQ(slices.size(), 2);
 
-        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({2}));
-        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 0);
-        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}));
-        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 90);
-        EXPECT_EQ(slices[0].GetDataWeight(), 90);
-        EXPECT_EQ(slices[0].GetRowCount(), 90);
+        EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
+        EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 0);
+        EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({2}));
+        EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 90);
+        EXPECT_EQ(slices[0].DataWeight, 90);
+        EXPECT_EQ(slices[0].RowCount, 90);
 
-        EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({2}));
-        EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 90);
-        EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({2}));
-        EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 100);
-        EXPECT_EQ(slices[1].GetDataWeight(), 10);
-        EXPECT_EQ(slices[1].GetRowCount(), 10);
+        EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
+        EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 90);
+        EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({2}));
+        EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 100);
+        EXPECT_EQ(slices[1].DataWeight, 10);
+        EXPECT_EQ(slices[1].RowCount, 10);
     }
     {
         NProto::TSliceRequest req;
@@ -561,19 +561,19 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits2)
         ValidateCovering(slices, /* sliceByRows */true);
         ASSERT_EQ(slices.size(), 2);
 
-        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 0);
-        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({3}, true));
-        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 90);
-        EXPECT_EQ(slices[0].GetDataWeight(), 90);
-        EXPECT_EQ(slices[0].GetRowCount(), 90);
+        EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+        EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 0);
+        EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
+        EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 90);
+        EXPECT_EQ(slices[0].DataWeight, 90);
+        EXPECT_EQ(slices[0].RowCount, 90);
 
-        EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({1}));
-        EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 90);
-        EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({3}, true));
-        EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 100);
-        EXPECT_EQ(slices[1].GetDataWeight(), 10);
-        EXPECT_EQ(slices[1].GetRowCount(), 10);
+        EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+        EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 90);
+        EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
+        EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 100);
+        EXPECT_EQ(slices[1].DataWeight, 10);
+        EXPECT_EQ(slices[1].RowCount, 10);
     }
 }
 
@@ -620,19 +620,19 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexAndKeyLimits)
         ValidateCovering(slices, /* sliceByRows */true);
         ASSERT_EQ(slices.size(), 2);
 
-        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({6}));
-        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 100);
-        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({11}, true));
-        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 210);
-        EXPECT_EQ(slices[0].GetDataWeight(), 110);
-        EXPECT_EQ(slices[0].GetRowCount(), 110);
+        EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
+        EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 100);
+        EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({11}));
+        EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 210);
+        EXPECT_EQ(slices[0].DataWeight, 110);
+        EXPECT_EQ(slices[0].RowCount, 110);
 
-        EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({7}, true));
-        EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 210);
-        EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({15}, true));
-        EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 320);
-        EXPECT_EQ(slices[1].GetDataWeight(), 110);
-        EXPECT_EQ(slices[1].GetRowCount(), 110);
+        EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({7}));
+        EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 210);
+        EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({15}));
+        EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 320);
+        EXPECT_EQ(slices[1].DataWeight, 110);
+        EXPECT_EQ(slices[1].RowCount, 110);
     }
 }
 
@@ -655,10 +655,10 @@ TEST(TChunkSlicerTest, SliceByKeysOneBlock)
     ValidateCovering(slices, /* sliceByRows */false);
     ASSERT_EQ(slices.size(), 1);
 
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[0].GetDataWeight(), 100);
-    EXPECT_EQ(slices[0].GetRowCount(), 100);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
+    EXPECT_EQ(slices[0].DataWeight, 100);
+    EXPECT_EQ(slices[0].RowCount, 100);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysTwoBlocks)
@@ -685,17 +685,17 @@ TEST(TChunkSlicerTest, SliceByKeysTwoBlocks)
     ValidateCovering(slices, /* sliceByRows */false);
     ASSERT_EQ(slices.size(), 2);
 
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[0].GetDataWeight(), 100);
-    EXPECT_EQ(slices[0].GetRowCount(), 100);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
+    EXPECT_EQ(slices[0].DataWeight, 100);
+    EXPECT_EQ(slices[0].RowCount, 100);
 
     // NB: Second block actually contains key 2, however we don't know about it
     // since only block last keys are stored in meta.
-    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({3}, true));
-    EXPECT_EQ(slices[1].GetDataWeight(), 100);
-    EXPECT_EQ(slices[1].GetRowCount(), 100);
+    EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({2}));
+    EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
+    EXPECT_EQ(slices[1].DataWeight, 100);
+    EXPECT_EQ(slices[1].RowCount, 100);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysManiac1)
@@ -722,10 +722,10 @@ TEST(TChunkSlicerTest, SliceByKeysManiac1)
     ValidateCovering(slices, /* sliceByRows */false);
     ASSERT_EQ(slices.size(), 1);
 
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({1}, true));
-    EXPECT_EQ(slices[0].GetDataWeight(), 200);
-    EXPECT_EQ(slices[0].GetRowCount(), 200);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({1}));
+    EXPECT_EQ(slices[0].DataWeight, 200);
+    EXPECT_EQ(slices[0].RowCount, 200);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysManiac2)
@@ -762,15 +762,15 @@ TEST(TChunkSlicerTest, SliceByKeysManiac2)
     ValidateCovering(slices, /* sliceByRows */false);
     ASSERT_EQ(slices.size(), 2);
 
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[0].GetDataWeight(), 300);
-    EXPECT_EQ(slices[0].GetRowCount(), 300);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
+    EXPECT_EQ(slices[0].DataWeight, 300);
+    EXPECT_EQ(slices[0].RowCount, 300);
 
-    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
-    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({3}, true));
-    EXPECT_EQ(slices[1].GetDataWeight(), 100);
-    EXPECT_EQ(slices[1].GetRowCount(), 100);
+    EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({2}));
+    EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
+    EXPECT_EQ(slices[1].DataWeight, 100);
+    EXPECT_EQ(slices[1].RowCount, 100);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysManiac3)
@@ -801,10 +801,10 @@ TEST(TChunkSlicerTest, SliceByKeysManiac3)
     ASSERT_EQ(slices.size(), 1);
 
     // We can take first block only since there is no key 2 in second block.
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}));
-    EXPECT_EQ(slices[0].GetDataWeight(), 100);
-    EXPECT_EQ(slices[0].GetRowCount(), 100);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({2}));
+    EXPECT_EQ(slices[0].DataWeight, 100);
+    EXPECT_EQ(slices[0].RowCount, 100);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysManiac4)
@@ -832,10 +832,10 @@ TEST(TChunkSlicerTest, SliceByKeysManiac4)
     ValidateCovering(slices, /* sliceByRows */false);
     ASSERT_EQ(slices.size(), 1);
 
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({1}, true));
-    EXPECT_EQ(slices[0].GetDataWeight(), 200);
-    EXPECT_EQ(slices[0].GetRowCount(), 200);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({1}));
+    EXPECT_EQ(slices[0].DataWeight, 200);
+    EXPECT_EQ(slices[0].RowCount, 200);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits1)
@@ -870,15 +870,15 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits1)
     ValidateCovering(slices, /* sliceByRows */false);
     ASSERT_EQ(slices.size(), 2);
 
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({4}, true));
-    EXPECT_EQ(slices[0].GetDataWeight(), 150);
-    EXPECT_EQ(slices[0].GetRowCount(), 150);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({4}));
+    EXPECT_EQ(slices[0].DataWeight, 150);
+    EXPECT_EQ(slices[0].RowCount, 150);
 
-    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({4}, true));
-    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({6}, true));
-    EXPECT_EQ(slices[1].GetDataWeight(), 40);
-    EXPECT_EQ(slices[1].GetRowCount(), 40);
+    EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({4}));
+    EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({6}));
+    EXPECT_EQ(slices[1].DataWeight, 40);
+    EXPECT_EQ(slices[1].RowCount, 40);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits2)
@@ -911,11 +911,11 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits2)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 1);  
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({1}, true));
-    EXPECT_EQ(slices[0].GetDataWeight(), 1);
-    EXPECT_EQ(slices[0].GetRowCount(), 1);
+    ASSERT_EQ(slices.size(), 1);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({1}));
+    EXPECT_EQ(slices[0].DataWeight, 1);
+    EXPECT_EQ(slices[0].RowCount, 1);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits1)
@@ -958,11 +958,11 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits1)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 1);  
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({6}));
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({12}));
-    EXPECT_EQ(slices[0].GetDataWeight(), 300);
-    EXPECT_EQ(slices[0].GetRowCount(), 300);
+    ASSERT_EQ(slices.size(), 1);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({12}));
+    EXPECT_EQ(slices[0].DataWeight, 300);
+    EXPECT_EQ(slices[0].RowCount, 300);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits2)
@@ -995,14 +995,13 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits2)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 1);  
-    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({6}));
-    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({6}));
-    EXPECT_EQ(slices[0].GetDataWeight(), 100);
-    EXPECT_EQ(slices[0].GetRowCount(), 100);
+    ASSERT_EQ(slices.size(), 1);
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({6}));
+    EXPECT_EQ(slices[0].DataWeight, 100);
+    EXPECT_EQ(slices[0].RowCount, 100);
 }
 
-// TODO(gritukan): This test now checks only that slicing does not crash. Add more checks.
 TEST(TChunkSlicerTest, StressTest)
 {
     static std::mt19937 rng(42);
@@ -1101,7 +1100,7 @@ TEST(TChunkSliceLimitTest, LegacyNewInterop)
     NProto::TReadLimit protoLimit;
     ToProto(&protoLimit, legacyLimit);
 
-    TInputSliceLimit newLimit(protoLimit, rowBuffer, TRange<TLegacyKey>(), KeyLength, /* isUpper */ true);
+    TInputSliceLimit newLimit(protoLimit, rowBuffer, TRange<TLegacyKey>(), TRange<TLegacyKey>(), KeyLength, /* isUpper */ true);
 
     EXPECT_EQ(std::make_optional(42), newLimit.RowIndex);
     EXPECT_EQ(MakeKeyBound({intValue}, /* isInclusive */ true, /* isUpper */ true), newLimit.KeyBound);

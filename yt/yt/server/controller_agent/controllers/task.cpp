@@ -835,23 +835,10 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
 
-    auto transformToNew = [&] (const TLegacyDataSlicePtr& dataSlice) {
-        if (IsInput_) {
-            const auto& inputTable = TaskHost_->GetInputTable(dataSlice->GetTableIndex());
-            if (inputTable->Comparator) {
-                dataSlice->TransformToNew(TaskHost_->GetRowBuffer(), inputTable->Comparator->GetLength());
-                return;
-            }
-        }
-        dataSlice->TransformToNewKeyless();
-    };
-
     for (const auto& dataSlice : jobSummary.ReadInputDataSlices) {
-        transformToNew(dataSlice);
         AdjustInputKeyBounds(dataSlice);
     }
     for (const auto& dataSlice : jobSummary.UnreadInputDataSlices) {
-        transformToNew(dataSlice);
         AdjustInputKeyBounds(dataSlice);
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
@@ -1087,7 +1074,8 @@ std::unique_ptr<TNodeDirectoryBuilder> TTask::MakeNodeDirectoryBuilder(
 
 void TTask::AddSequentialInputSpec(
     TJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet,
+    std::optional<TComparator> comparator)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -1096,14 +1084,19 @@ void TTask::AddSequentialInputSpec(
     auto* inputSpec = schedulerJobSpecExt->add_input_table_specs();
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
-        AddChunksToInputSpec(directoryBuilder.get(), inputSpec, GetChunkMapping()->GetMappedStripe(stripe));
+        AddChunksToInputSpec(
+            directoryBuilder.get(),
+            inputSpec,
+            GetChunkMapping()->GetMappedStripe(stripe),
+            comparator);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
 
 void TTask::AddParallelInputSpec(
     TJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet,
+    std::optional<TComparator> comparator)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -1114,7 +1107,11 @@ void TTask::AddParallelInputSpec(
         auto* inputSpec = stripe->Foreign
             ? schedulerJobSpecExt->add_foreign_input_table_specs()
             : schedulerJobSpecExt->add_input_table_specs();
-        AddChunksToInputSpec(directoryBuilder.get(), inputSpec, GetChunkMapping()->GetMappedStripe(stripe));
+        AddChunksToInputSpec(
+            directoryBuilder.get(),
+            inputSpec,
+            GetChunkMapping()->GetMappedStripe(stripe),
+            comparator);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -1122,7 +1119,8 @@ void TTask::AddParallelInputSpec(
 void TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
-    TChunkStripePtr stripe)
+    TChunkStripePtr stripe,
+    std::optional<TComparator> comparator)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -1144,10 +1142,15 @@ void TTask::AddChunksToInputSpec(
             // Issue happens only for (operation) input data slices in sorted controller.
             // So, we have to pass comparator only if we are an input task and comparator is actually
             // present on the input table.
-            std::optional<TComparator> comparator;
             if (IsInput_) {
                 const auto& inputTable = TaskHost_->GetInputTable(dataSlice->GetTableIndex());
+                // For input tasks comparator is infered from the input table schema.
+                // For non-input tasks comparator is passed from the controller. Actually
+                // it's now used for sorted merge task in sort controller only.
                 comparator = inputTable->Comparator;
+            }
+
+            if (comparator) {
                 chunkSlice->LowerLimit().MergeLower(dataSlice->LowerLimit(), comparator);
                 chunkSlice->UpperLimit().MergeUpper(dataSlice->UpperLimit(), comparator);
             }

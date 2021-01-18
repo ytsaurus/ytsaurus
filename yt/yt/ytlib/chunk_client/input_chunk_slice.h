@@ -63,6 +63,7 @@ struct TInputSliceLimit
         const NProto::TReadLimit& other,
         const NTableClient::TRowBufferPtr& rowBuffer,
         TRange<NTableClient::TLegacyKey> keySet,
+        TRange<NTableClient::TLegacyKey> keyBoundPrefixes,
         int keyLength,
         bool isUpper);
 
@@ -130,7 +131,7 @@ public:
     TInputChunkSlice(
         const TInputChunkSlice& inputSlice,
         const NTableClient::TComparator& comparator,
-        NTableClient::TKeyBound lowerKeyBound,
+        NTableClient::TKeyBound lowerKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ false),
         NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ true));
 
     TInputChunkSlice(
@@ -163,7 +164,8 @@ public:
         const NTableClient::TComparator& comparator,
         const NTableClient::TRowBufferPtr& rowBuffer,
         const NProto::TChunkSlice& protoChunkSlice,
-        TRange<NTableClient::TLegacyKey> keySet);
+        TRange<NTableClient::TLegacyKey> keySet,
+        TRange<NTableClient::TLegacyKey> keyBoundPrefixes);
 
     TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
@@ -231,7 +233,7 @@ TInputChunkSlicePtr CreateInputChunkSlice(
 TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkSlice& inputSlice,
     const NTableClient::TComparator& comparator,
-    NTableClient::TKeyBound lowerKeyBound,
+    NTableClient::TKeyBound lowerKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ false),
     NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ true));
 
 //! Constructs a new chunk slice based on inputChunk with limits from protoChunkSpec.
@@ -248,7 +250,8 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
 void InferLimitsFromBoundaryKeys(
     const TInputChunkSlicePtr& chunkSlice,
     const NTableClient::TRowBufferPtr& rowBuffer,
-    std::optional<int> keyColumnCount = std::nullopt);
+    std::optional<int> keyColumnCount = std::nullopt,
+    std::optional<NTableClient::TComparator> comparator = std::nullopt);
 
 std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     const TInputChunkPtr& inputChunk,

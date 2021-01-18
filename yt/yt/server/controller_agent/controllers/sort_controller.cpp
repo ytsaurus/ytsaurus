@@ -18,6 +18,7 @@
 
 #include <yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
 #include <yt/server/lib/chunk_pools/multi_chunk_pool.h>
 #include <yt/server/lib/chunk_pools/ordered_chunk_pool.h>
 #include <yt/server/lib/chunk_pools/shuffle_chunk_pool.h>
@@ -1164,9 +1165,12 @@ protected:
 
                 for (const auto& dataSlice : stripe->DataSlices) {
                     // NB: intermediate sort uses sort_by as a prefix, while pool expects reduce_by as a prefix.
-                    SetLimitsFromShortenedBoundaryKeys(dataSlice, Controller_->GetSortedMergeKeyColumnCount(), Controller_->RowBuffer);
-                    // We currently use legacy sorted pool here, so transform to legacy.
-                    dataSlice->TransformToLegacy(Controller_->RowBuffer);
+                    auto keyColumnCount = Controller_->GetSortedMergeSortColumns().size();
+                    SetLimitsFromShortenedBoundaryKeys(dataSlice, keyColumnCount, Controller_->RowBuffer);
+                    // Transform data slice to legacy if legacy sorted pool is used in sorted merge.
+                    if (!Controller_->Spec->UseNewSortedPool) {
+                        dataSlice->TransformToLegacy(Controller_->RowBuffer);
+                    }
                     dataSlice->InputStreamIndex = inputStreamIndex;
                 }
 
@@ -1738,7 +1742,8 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller_->SortedMergeJobSpecTemplate);
-            AddParallelInputSpec(jobSpec, joblet);
+            auto comparator = GetComparator(Controller_->GetSortedMergeSortColumns());
+            AddParallelInputSpec(jobSpec, joblet, comparator);
             AddOutputTableSpecs(jobSpec, joblet);
         }
 
@@ -2534,11 +2539,15 @@ protected:
         int versionedSlices = 0;
         // TODO(max42): use CollectPrimaryInputDataSlices() here?
         for (auto& chunk : CollectPrimaryUnversionedChunks()) {
-            const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer);
+            const auto& comparator = InputTables_[chunk->GetTableIndex()]->Comparator;
 
-            const auto& inputTable = InputTables_[dataSlice->GetTableIndex()];
-            dataSlice->TransformToNew(RowBuffer, inputTable->Comparator);
+            const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            if (comparator) {
+                dataSlice->TransformToNew(RowBuffer, comparator->GetLength());
+                InferLimitsFromBoundaryKeys(dataSlice, RowBuffer, comparator);
+            } else {
+                dataSlice->TransformToNewKeyless();
+            }
 
             inputTask->AddInput(New<TChunkStripe>(std::move(dataSlice)));
             ++unversionedSlices;
@@ -2831,7 +2840,8 @@ protected:
         TSortedChunkPoolOptions chunkPoolOptions;
         TSortedJobOptions jobOptions;
         jobOptions.EnableKeyGuarantee = GetSortedMergeJobType() == EJobType::SortedReduce;
-        jobOptions.PrimaryPrefixLength = GetSortedMergeKeyColumnCount();
+        jobOptions.PrimaryComparator = GetComparator(GetSortedMergeSortColumns());
+        jobOptions.PrimaryPrefixLength = jobOptions.PrimaryComparator.GetLength();
         jobOptions.ShouldSlicePrimaryTableByKeys = GetSortedMergeJobType() == EJobType::SortedReduce;
         jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
 
@@ -2847,7 +2857,14 @@ protected:
             Logger,
             GetOutputTablePaths().size());
         chunkPoolOptions.Task = taskId;
-        return CreateLegacySortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
+
+        if (Spec->UseNewSortedPool) {
+            YT_LOG_DEBUG("Creating new sorted pool");
+            return CreateNewSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
+        } else {
+            YT_LOG_DEBUG("Creating legacy sorted pool");
+            return CreateLegacySortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
+        }
     }
 
     void AccountRows(const std::optional<TStatistics>& statistics)
@@ -2956,7 +2973,7 @@ protected:
     virtual TUserJobSpecPtr GetSortUserJobSpec(bool isFinalSort) const = 0;
     virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const = 0;
 
-    virtual int GetSortedMergeKeyColumnCount() const = 0;
+    virtual TSortColumns GetSortedMergeSortColumns() const = 0;
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TPartitionTask);
@@ -3448,6 +3465,7 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).GetData());
 
             ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
+            ToProto(mergeJobSpecExt->mutable_sort_columns(), Spec->SortBy);
         }
 
         {
@@ -3637,9 +3655,9 @@ private:
         return EJobType::Partition;
     }
 
-    virtual int GetSortedMergeKeyColumnCount() const override
+    virtual TSortColumns GetSortedMergeSortColumns() const override
     {
-        return Spec->SortBy.size();
+        return Spec->SortBy;
     }
 
     virtual TYsonSerializablePtr GetTypedSpec() const override
@@ -4479,9 +4497,11 @@ private:
         }
     }
 
-    virtual int GetSortedMergeKeyColumnCount() const override
+    virtual TSortColumns GetSortedMergeSortColumns() const override
     {
-        return Spec->ReduceBy.size();
+        auto sortColumns = Spec->SortBy;
+        sortColumns.resize(Spec->ReduceBy.size());
+        return sortColumns;
     }
 
     virtual TYsonSerializablePtr GetTypedSpec() const override

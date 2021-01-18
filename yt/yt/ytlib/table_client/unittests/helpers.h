@@ -113,7 +113,7 @@ inline void ResolveRleEncoding(
     if (!column->Rle) {
         return;
     }
-    
+
     YT_ASSERT(column->Values->BitWidth == 64);
     YT_ASSERT(!column->Values->ZigZagEncoded);
     auto rleIndexes = GetTypedData<ui64>(*column->Values);

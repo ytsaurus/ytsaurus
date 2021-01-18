@@ -984,17 +984,20 @@ private:
                 const auto& results = resultsError.Value();
                 YT_VERIFY(results.size() == requestCount);
 
-                auto keySetWriter = New<TKeySetWriter>();
+                auto keysWriter = New<TKeySetWriter>();
+                auto keyBoundsWriter = New<TKeySetWriter>();
 
                 for (int requestIndex = 0; requestIndex < requestCount; ++requestIndex) {
                     ProcessSlice(
                         request->slice_requests(requestIndex),
                         response->add_slice_responses(),
-                        keySetWriter,
+                        keysWriter,
+                        keyBoundsWriter,
                         results[requestIndex]);
                 }
 
-                response->Attachments().push_back(keySetWriter->Finish());
+                response->Attachments().push_back(keysWriter->Finish());
+                response->Attachments().push_back(keyBoundsWriter->Finish());
                 context->Reply();
             }).Via(Bootstrap_->GetStorageHeavyInvoker()));
     }
@@ -1002,7 +1005,8 @@ private:
     void ProcessSlice(
         const TSliceRequest& sliceRequest,
         TRspGetChunkSlices::TSliceResponse* sliceResponse,
-        const TKeySetWriterPtr& keySetWriter,
+        const TKeySetWriterPtr& keysWriter,
+        const TKeySetWriterPtr& keyBoundsWriter,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(sliceRequest.chunk_id());
@@ -1029,7 +1033,7 @@ private:
                 *chunkMeta);
 
             for (const auto& slice : slices) {
-                ToProto(keySetWriter, sliceResponse->add_chunk_slices(), slice);
+                ToProto(keysWriter, keyBoundsWriter, sliceResponse->add_chunk_slices(), slice);
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);

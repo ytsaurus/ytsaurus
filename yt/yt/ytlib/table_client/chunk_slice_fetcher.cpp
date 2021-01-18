@@ -74,8 +74,8 @@ public:
 
     virtual void AddDataSliceForSlicing(
         TLegacyDataSlicePtr dataSlice,
+        const TComparator& comparator,
         i64 sliceDataWeight,
-        int keyColumnCount,
         bool sliceByKeys)
     {
         YT_VERIFY(sliceDataWeight > 0);
@@ -105,8 +105,8 @@ public:
         auto dataSliceCopy = CreateUnversionedInputDataSlice(chunkSliceCopy);
 
         TChunkSliceRequest chunkSliceRequest {
+            .Comparator = comparator,
             .ChunkSliceDataWeight = sliceDataWeight,
-            .KeyColumnCount = keyColumnCount,
             .SliceByKeys = sliceByKeys,
             .DataSlice = dataSliceCopy,
         };
@@ -142,8 +142,8 @@ private:
 
     struct TChunkSliceRequest
     {
+        TComparator Comparator;
         i64 ChunkSliceDataWeight;
-        int KeyColumnCount;
         bool SliceByKeys;
         TLegacyDataSlicePtr DataSlice;
     };
@@ -206,16 +206,17 @@ private:
             if (!chunk->BoundaryKeys()) {
                 THROW_ERROR_EXCEPTION("Missing boundary keys in chunk %v", chunk->ChunkId());
             }
-            const auto& minKey = chunk->BoundaryKeys()->MinKey;
-            const auto& maxKey = chunk->BoundaryKeys()->MaxKey;
+            const auto& comparator = sliceRequest.Comparator;
+            auto minKey = chunk->BoundaryKeys()->MinKey;
+            auto maxKey = chunk->BoundaryKeys()->MaxKey;
             auto chunkSliceDataWeight = sliceRequest.ChunkSliceDataWeight;
             auto sliceByKeys = sliceRequest.SliceByKeys;
-            auto keyColumnCount = sliceRequest.KeyColumnCount;
             auto chunkType = TypeFromId(chunk->ChunkId());
 
+            // TODO(gritukan): Comparing rows using == here is ok, but quite ugly.
             if (chunkDataSize < chunkSliceDataWeight ||
                 IsDynamicTabletStoreType(chunkType) ||
-                (sliceByKeys && CompareRows(minKey, maxKey, keyColumnCount) == 0))
+                (sliceByKeys && minKey == maxKey))
             {
                 YT_VERIFY(chunkIndex < SlicesByChunkIndex_.size());
                 auto chunkSlice = sliceRequest.DataSlice->ChunkSlices[0];
@@ -242,7 +243,7 @@ private:
                 protoSliceRequest->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
                 protoSliceRequest->set_slice_data_weight(chunkSliceDataWeight);
                 protoSliceRequest->set_slice_by_keys(sliceByKeys);
-                protoSliceRequest->set_key_column_count(keyColumnCount);
+                protoSliceRequest->set_key_column_count(comparator.GetLength());
             }
 
             if (req->slice_requests_size() >= Config_->MaxSlicesPerFetch) {
@@ -276,9 +277,17 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
-        YT_VERIFY(rsp->Attachments().size() == 1);
         TKeySetReader keysReader(rsp->Attachments()[0]);
+        std::unique_ptr<TKeySetReader> keyBoundsReader;
+        // COMPAT(gritukan)
+        if (rsp->Attachments().size() == 2) {
+            keyBoundsReader.reset(new TKeySetReader(rsp->Attachments()[1]));
+        }
         auto keys = keysReader.GetKeys();
+        TRange<TLegacyKey> keyBoundPrefixes;
+        if (keyBoundsReader) {
+            keyBoundPrefixes = keyBoundsReader->GetKeys();
+        }
 
         for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
             int index = requestedChunkIndexes[i];
@@ -304,8 +313,6 @@ private:
 
             YT_VERIFY(index < SlicesByChunkIndex_.size());
 
-            auto comparator = TComparator(std::vector<ESortOrder>(sliceRequest.KeyColumnCount, ESortOrder::Ascending));
-
             const auto& originalChunkSlice = sliceRequest.DataSlice->ChunkSlices[0];
 
             for (const auto& protoChunkSlice : sliceResponse.chunk_slices()) {
@@ -313,7 +320,7 @@ private:
                 if (sliceRequest.DataSlice->IsLegacy) {
                     chunkSlice = New<TInputChunkSlice>(*originalChunkSlice, RowBuffer_, protoChunkSlice, keys);
                 } else {
-                    chunkSlice = New<TInputChunkSlice>(*originalChunkSlice, comparator, RowBuffer_, protoChunkSlice, keys);
+                    chunkSlice = New<TInputChunkSlice>(*originalChunkSlice, sliceRequest.Comparator, RowBuffer_, protoChunkSlice, keys, keyBoundPrefixes);
                     InferLimitsFromBoundaryKeys(chunkSlice);
                 }
                 SlicesByChunkIndex_[index].push_back(chunkSlice);

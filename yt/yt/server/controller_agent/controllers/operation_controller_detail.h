@@ -732,7 +732,7 @@ protected:
     //! `TOperationSpecBase::Spec`.
     virtual NYTree::TYsonSerializablePtr GetTypedSpec() const = 0;
 
-    void ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const;
+    void ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary, const TJobletPtr& joblet) const;
 
     struct TStripeDescriptor
     {
@@ -831,13 +831,17 @@ protected:
 
     typedef std::function<bool(const TInputTablePtr& table)> TInputTableFilter;
 
-    NTableClient::TKeyColumns CheckInputTablesSorted(
-        const NTableClient::TKeyColumns& keyColumns,
+    NTableClient::TSortColumns CheckInputTablesSorted(
+        const NTableClient::TSortColumns& sortColumns,
         TInputTableFilter inputTableFilter = [](const TInputTablePtr& /* table */) { return true; });
 
     static bool CheckKeyColumnsCompatible(
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
+
+    static bool CheckSortColumnsCompatible(
+        const NTableClient::TSortColumns& fullColumns,
+        const NTableClient::TSortColumns& prefixColumns);
 
     NApi::ITransactionPtr AttachTransaction(
         NTransactionClient::TTransactionId transactionId,
@@ -897,8 +901,7 @@ protected:
     const TExecNodeDescriptorMap& GetExecNodeDescriptors();
     const TExecNodeDescriptorMap& GetOnlineExecNodeDescriptors();
 
-    void InferSchemaFromInput(const NTableClient::TKeyColumns& keyColumns = NTableClient::TKeyColumns());
-    void InferSchemaFromInput(const NTableClient::TSortColumns& sortColumns);
+    void InferSchemaFromInput(const NTableClient::TSortColumns& sortColumns = NTableClient::TSortColumns());
     void InferSchemaFromInputOrdered();
     void FilterOutputSchemaByInputColumnSelectors();
     void ValidateOutputSchemaOrdered() const;

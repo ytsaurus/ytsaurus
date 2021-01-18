@@ -67,6 +67,12 @@ public:
         , Task_(options.Task)
         , RowBuffer_(options.RowBuffer)
     {
+        if (options.SortedJobOptions.PrimaryComparator.HasDescendingSortOrder() ||
+            options.SortedJobOptions.ForeignComparator.HasDescendingSortOrder())
+        {
+            THROW_ERROR_EXCEPTION("Legacy sorted chunk pool does not support descending sort order");
+        }
+
         ForeignDataSlicesByStreamIndex_.resize(InputStreamDirectory_.GetDescriptorCount());
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
@@ -393,7 +399,8 @@ private:
                                 keyColumnCount,
                                 sliceByKeys);
                         }
-                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, sliceSize, keyColumnCount, sliceByKeys);
+                        TComparator comparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
+                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, sliceByKeys);
                     } else if (!isPrimary) {
                         // Take foreign slice as-is.
                         processDataSlice(dataSlice, inputCookie);
