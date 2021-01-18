@@ -1163,7 +1163,11 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
     context->CombineStateHash(context->GetRandomSeed());
     StateHash_ = context->GetStateHash();
 
-    if (Options_.ResponseKeeper && mutationId && !context->GetResponseKeeperSuppressed()) {
+    if (Options_.ResponseKeeper &&
+        mutationId &&
+        !context->GetResponseKeeperSuppressed() &&
+        context->GetResponseData()) // Null when mutation idempotizer kicks in.
+    {
         Options_.ResponseKeeper->EndRequest(mutationId, context->GetResponseData());
     }
 
