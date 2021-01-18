@@ -2537,7 +2537,7 @@ private:
             .Item("strong_guarantee_share").Value(attributes.StrongGuaranteeShare)
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("min_share_resources").Value(element->GetStrongGuaranteeResources())
-            .Item("strong_guarantee_resources").Value(attributes.StrongGuaranteeShare)
+            .Item("strong_guarantee_resources").Value(element->GetStrongGuaranteeResources())
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("min_share_ratio").Value(MaxComponent(attributes.StrongGuaranteeShare))
 
