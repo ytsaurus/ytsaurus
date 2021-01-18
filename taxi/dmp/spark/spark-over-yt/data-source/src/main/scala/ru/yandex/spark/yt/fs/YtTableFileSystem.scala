@@ -28,7 +28,9 @@ class YtTableFileSystem extends YtFileSystemBase {
     val attributes = YtWrapper.attributes(path, transaction)
 
     PathType.fromAttributes(attributes) match {
-      case PathType.File => Array(new FileStatus(YtWrapper.fileSize(attributes), false, 1, 0, 0, f))
+      case PathType.File => Array(new FileStatus(
+        YtWrapper.fileSize(attributes), false, 1, 0, YtWrapper.modificationTimeTs(path), f
+      ))
       case PathType.Table =>
         YtWrapper.tableType(attributes) match {
           case TableType.Static => listStaticTableAsFiles(f, path, transaction, attributes)

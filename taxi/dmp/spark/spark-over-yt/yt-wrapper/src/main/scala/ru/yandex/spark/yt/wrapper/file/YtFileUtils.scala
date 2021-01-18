@@ -1,6 +1,8 @@
 package ru.yandex.spark.yt.wrapper.file
 
 import java.io.OutputStream
+import java.time.format.DateTimeFormatter
+import java.time.{LocalDateTime, ZoneOffset}
 import java.util.concurrent.CompletableFuture
 
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
@@ -57,6 +59,17 @@ trait YtFileUtils {
 
   def fileSize(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Long = {
     attribute(path, YtAttributes.compressedDataSize, transaction).longValue()
+  }
+
+  def modificationTime(path: String, transaction: Option[String] = None)(implicit yt: YtClient): String = {
+    attribute(path, YtAttributes.modificationTime, transaction).stringValue()
+  }
+
+  def modificationTimeTs(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Long = {
+    val str = modificationTime(path, transaction)
+    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'")
+    val zdt = LocalDateTime.parse(str, formatter).atZone(ZoneOffset.UTC)
+    zdt.toEpochSecond * 1000 + zdt.getNano / 1000000
   }
 
   def fileSize(attrs: Map[String, YTreeNode]): Long = {
