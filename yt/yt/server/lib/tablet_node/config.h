@@ -847,7 +847,7 @@ public:
         RegisterParameter("partition_balancer", PartitionBalancer)
             .DefaultNew();
 
-        RegisterParameter("column_evaulator_cache", ColumnEvaluatorCache)
+        RegisterParameter("column_evaluator_cache", ColumnEvaluatorCache)
             .DefaultNew();
     }
 };
@@ -921,9 +921,6 @@ public:
     //! Interval between slots examination.
     TDuration SlotScanPeriod;
 
-    //! Toggles background partition balancing (disabling is useful for debugging purposes).
-    bool EnablePartitionBalancer;
-
     //! Time to keep retired tablet snapshots hoping for a rapid Hydra restart.
     TDuration TabletSnapshotEvictionTimeout;
 
@@ -994,13 +991,10 @@ public:
         RegisterParameter("slot_scan_period", SlotScanPeriod)
             .Default(TDuration::Seconds(1));
 
-        RegisterParameter("enable_partition_balancer", EnablePartitionBalancer)
-            .Default(true);
-
         RegisterParameter("tablet_snapshot_eviction_timeout", TabletSnapshotEvictionTimeout)
             .Default(TDuration::Seconds(5));
 
-        RegisterParameter("column_evaulator_cache", ColumnEvaluatorCache)
+        RegisterParameter("column_evaluator_cache", ColumnEvaluatorCache)
             .DefaultNew();
 
         RegisterPreprocessor([&] {
