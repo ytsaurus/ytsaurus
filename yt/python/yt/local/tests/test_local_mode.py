@@ -18,10 +18,8 @@ import yt.json_wrapper as json
 
 import yt.wrapper as yt
 
-try:
-    import yatest.common as yatest_common
-except ImportError:
-    yatest_common = None
+import yatest.common
+import yatest.common.network
 
 import os
 import sys
@@ -42,10 +40,7 @@ TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 
 def _get_tests_location():
-    if yatest_common is None:
-        return os.path.dirname(os.path.abspath(__file__))
-    else:
-        return yatest_common.source_path("yt/python/yt/local/tests")
+    return yatest.common.source_path("yt/python/yt/local/tests")
 
 def _get_tests_sandbox():
     return get_tests_sandbox(TESTS_SANDBOX)
@@ -54,10 +49,8 @@ def _get_local_mode_tests_sandbox():
     return os.path.join(_get_tests_sandbox(), "TestLocalMode")
 
 def _get_yt_local_binary():
-    if yatest_common is not None:
-        _, python_root, _ = arcadia_interop.get_root_paths()
-        return yatest_common.binary_path(python_root + "/yt/local/bin/yt_local_make/yt_local")
-    return os.path.join(os.path.dirname(_get_tests_location()), "bin", "yt_local")
+    _, python_root, _ = arcadia_interop.get_root_paths()
+    return yatest.common.binary_path(python_root + "/yt/local/bin/yt_local_make/yt_local")
 
 def _get_instance_path(instance_id):
     return os.path.join(_get_local_mode_tests_sandbox(), instance_id)
@@ -90,17 +83,16 @@ def _wait_instance_to_become_ready(process, instance_id):
 
     raise yt.YtError("Local YT is not started")
 
-if yatest_common is not None:
-    @pytest.fixture(scope="session", autouse=True)
-    def prepare_path():
-        try:
-            from yt.environment import arcadia_interop
-            destination = os.path.join(yatest_common.work_path(), "build")
-            os.makedirs(destination)
-            path = arcadia_interop.prepare_yt_environment(destination, copy_ytserver_all=True)
-            os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
-        except ImportError:
-            pass
+@pytest.fixture(scope="session", autouse=True)
+def prepare_path():
+    try:
+        from yt.environment import arcadia_interop
+        destination = os.path.join(yatest.common.work_path(), "build")
+        os.makedirs(destination)
+        path = arcadia_interop.prepare_yt_environment(destination, copy_ytserver_all=True)
+        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+    except ImportError:
+        pass
 
 @contextlib.contextmanager
 def local_yt(*args, **kwargs):
@@ -116,15 +108,11 @@ def local_yt(*args, **kwargs):
             stop(environment.id)
 
 class YtLocalBinary(object):
-    def __init__(self, root_path, port_locks_path):
+    def __init__(self, root_path):
         self.root_path = root_path
-        self.port_locks_path = port_locks_path
 
     def _prepare_binary_command_and_env(self, *args, **kwargs):
-        if yatest_common:
-            command = [_get_yt_local_binary()]
-        else:
-            command = [sys.executable, _get_yt_local_binary()]
+        command = [_get_yt_local_binary()]
         command += list(args)
 
         for key, value in iteritems(kwargs):
@@ -138,7 +126,6 @@ class YtLocalBinary(object):
 
         env = {
             "YT_LOCAL_ROOT_PATH": self.root_path,
-            "YT_LOCAL_PORT_LOCKS_PATH": self.port_locks_path,
             "PYTHONPATH": os.environ["PYTHONPATH"],
             "PATH": os.environ["PATH"],
         }
@@ -161,17 +148,13 @@ class TestLocalMode(object):
     def setup_class(cls):
         cls.old_yt_local_root_path = os.environ.get("YT_LOCAL_ROOT_PATH", None)
         os.environ["YT_LOCAL_ROOT_PATH"] = _get_local_mode_tests_sandbox()
-        # Add ports_lock_path argument to YTEnvironment for parallel testing.
-        os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = os.path.join(_get_tests_sandbox(), "ports")
-        cls.yt_local = YtLocalBinary(os.environ["YT_LOCAL_ROOT_PATH"],
-                                     os.environ["YT_LOCAL_PORT_LOCKS_PATH"])
+        cls.yt_local = YtLocalBinary(os.environ["YT_LOCAL_ROOT_PATH"])
         cls.env_path = os.environ.get("PATH")
 
     @classmethod
     def teardown_class(cls):
         if cls.old_yt_local_root_path is not None:
             os.environ["YT_LOCAL_ROOT_PATH"] = cls.old_yt_local_root_path
-        del os.environ["YT_LOCAL_PORT_LOCKS_PATH"]
         if cls.env_path is None:
             if "PATH" in os.environ:
                 del os.environ["PATH"]
@@ -592,11 +575,9 @@ class TestLocalMode(object):
             client.run_map("cat", "//tmp/test_table", "//tmp/test_table", format=yt.JsonFormat())
 
     def test_ports(self):
-        if not os.path.exists(os.environ.get("YT_LOCAL_PORT_LOCKS_PATH")):
-            os.mkdir(os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"))
-        open_port_iterator = OpenPortIterator(os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"), (20000, 30000))
-        http_proxy_port = next(open_port_iterator)
-        rpc_proxy_port = next(open_port_iterator)
-        with local_yt(id=_get_id("test_ports"), rpc_proxy_count=1, http_proxy_ports=[http_proxy_port], rpc_proxy_ports=[rpc_proxy_port]) as environment:
-            assert environment.configs["http_proxy"][0]["port"] == http_proxy_port
-            assert environment.configs["rpc_proxy"][0]["rpc_port"] == rpc_proxy_port
+        with yatest.common.network.PortManager() as port_manager:
+            http_proxy_port = port_manager.get_port()
+            rpc_proxy_port = port_manager.get_port()
+            with local_yt(id=_get_id("test_ports"), rpc_proxy_count=1, http_proxy_ports=[http_proxy_port], rpc_proxy_ports=[rpc_proxy_port]) as environment:
+                assert environment.configs["http_proxy"][0]["port"] == http_proxy_port
+                assert environment.configs["rpc_proxy"][0]["rpc_port"] == rpc_proxy_port

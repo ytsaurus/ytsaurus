@@ -302,8 +302,6 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
                              port_range_start=port_range_start,
                              listen_port_pool=listen_port_pool,
                              fqdn=fqdn,
-                             # XXX(asaitgalin): For parallel testing purposes.
-                             port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"),
                              preserve_working_dir=True,
                              node_memory_limit_addition=NODE_MEMORY_LIMIT_ADDITION,
                              tmpfs_path=sandbox_tmpfs_path,
