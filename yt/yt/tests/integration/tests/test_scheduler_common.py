@@ -17,9 +17,10 @@ from yt.common import date_string_to_timestamp
 import pytest
 
 import json
-import gzip
+import io
 import time
 import sys
+import zstd
 
 import __builtin__
 
@@ -2046,9 +2047,13 @@ class TestConnectToMaster(YTEnvSetup):
         wait(lambda: self.has_safe_mode_error_in_log())
 
     def has_safe_mode_error_in_log(self):
-        for line in gzip.open(self.path_to_run + "/logs/scheduler-0.log.gz"):
-            if "Error connecting to master" in line and "Cluster is in safe mode" in line:
-                return True
+        with open(self.path_to_run + "/logs/scheduler-0.log.zst") as file:
+            decompressor = zstd.ZstdDecompressor()
+            binary_reader = decompressor.stream_reader(file, read_size=8192)
+            text_stream = io.TextIOWrapper(binary_reader, encoding='utf-8')
+            for line in text_stream:
+                if "Error connecting to master" in line and "Cluster is in safe mode" in line:
+                    return True
         return False
 
     @authors("renadeen")

@@ -113,7 +113,7 @@ class YTInstance(object):
                  enable_rpc_driver_proxy_discovery=None,
                  use_native_client=False, run_watcher=True, capture_stderr_to_file=None,
                  ytserver_all_path=None, watcher_binary=None,
-                 stderrs_path=None):
+                 stderrs_path=None, log_compression_method="gzip"):
         _configure_logger()
 
         if use_porto_for_servers and not porto_avaliable():
@@ -233,6 +233,7 @@ class YTInstance(object):
         self.rpc_proxy_ports = rpc_proxy_ports
         self._enable_debug_logging = enable_debug_logging
         self._enable_logging_compression = enable_logging_compression
+        self._log_compression_method = log_compression_method
         self._cell_tag = cell_tag
         self._kill_child_processes = kill_child_processes
         self._started = False
@@ -368,6 +369,7 @@ class YTInstance(object):
 
         yt_config.enable_debug_logging = self._enable_debug_logging
         yt_config.enable_log_compression = self._enable_logging_compression
+        yt_config.log_compression_method = self._log_compression_method
         yt_config.enable_structured_master_logging = enable_structured_master_logging
         yt_config.enable_structured_scheduler_logging = enable_structured_scheduler_logging
         if enable_master_cache is not None:
@@ -696,7 +698,7 @@ class YTInstance(object):
 
         import yt.wrapper.native_driver as native_driver
         native_driver.logging_configured = True
-    
+
     def _configure_yt_tracing(self):
         import yt_tracing
 
@@ -1267,7 +1269,8 @@ class YTInstance(object):
                 None, self.logs_path, "driver",
                 log_errors_to_stderr=False,
                 enable_debug_logging=self._enable_debug_logging,
-                enable_compression=self._enable_logging_compression)
+                enable_compression=self._enable_logging_compression,
+                log_compression_method=self._log_compression_method)
 
             write_config(config, config_path)
 

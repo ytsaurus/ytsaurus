@@ -24,8 +24,24 @@ def _get_timestamp_provider_addresses(yt_config, master_connection_configs, cloc
         return clock_connection_configs[clock_connection_configs["cell_tag"]]["addresses"]
 
 
-def _get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging):
-    suffix = ".gz" if enable_compression else ""
+def _get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compression,
+                        enable_structured_logging, log_compression_method):
+    if enable_compression and log_compression_method == "zstd":
+        suffix = ".zst"
+        compression_options = {
+            "enable_compression": True,
+            "compression_method": "zstd",
+            "compression_level": 1,
+        }
+    elif enable_compression and log_compression_method == "gzip":
+        suffix = ".gz"
+        compression_options = {
+            "enable_compression": True,
+        }
+    else:
+        suffix = ""
+        compression_options = {}
+
     config = {
         "abort_on_alert": True,
         "rules": [
@@ -35,10 +51,11 @@ def _get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compr
             "info": {
                 "type": "file",
                 "file_name": "{path}/{name}.log" + suffix,
-                "enable_compression": enable_compression,
             }
         }
     }
+    config["writers"]["info"].update(compression_options)
+
     if log_errors_to_stderr:
         config["rules"].append(
             {"min_level": "error", "writers": ["stderr"]}
@@ -56,8 +73,9 @@ def _get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compr
         config["writers"]["debug"] = {
             "type": "file",
             "file_name": "{path}/{name}.debug.log"  + suffix,
-            "enable_compression": enable_compression,
         }
+        config["writers"]["debug"].update(compression_options)
+
     if enable_structured_logging:
         config["rules"].append({
             "min_level": "debug",
@@ -231,6 +249,7 @@ def _build_master_configs(yt_config, master_dirs, master_tmpfs_dirs, clock_conne
                                              log_errors_to_stderr=True,
                                              enable_debug_logging=yt_config.enable_debug_logging,
                                              enable_compression=yt_config.enable_log_compression,
+                                             log_compression_method=yt_config.log_compression_method,
                                              enable_structured_logging=yt_config.enable_structured_master_logging)
 
             _set_bind_retry_options(config, key="bus_server")
@@ -324,7 +343,8 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
                                          "clock-{0}".format(clock_index),
                                          log_errors_to_stderr=True,
                                          enable_debug_logging=yt_config.enable_debug_logging,
-                                         enable_compression=yt_config.enable_log_compression)
+                                         enable_compression=yt_config.enable_log_compression,
+                                         log_compression_method=yt_config.log_compression_method)
 
         _set_bind_retry_options(config, key="bus_server")
 
@@ -359,6 +379,7 @@ def _build_scheduler_configs(scheduler_dirs, master_connection_configs, clock_co
                                             log_errors_to_stderr=False,
                                             enable_debug_logging=yt_config.enable_debug_logging,
                                             enable_compression=yt_config.enable_log_compression,
+                                            log_compression_method=yt_config.log_compression_method,
                                             enable_structured_logging=yt_config.enable_structured_scheduler_logging)
 
         _set_bind_retry_options(config, key="bus_server")
@@ -393,12 +414,13 @@ def _build_controller_agent_configs(controller_agent_dirs, master_connection_con
                                          log_errors_to_stderr=False,
                                          enable_debug_logging=yt_config.enable_debug_logging,
                                          enable_compression=yt_config.enable_log_compression,
+                                         log_compression_method=yt_config.log_compression_method,
                                          enable_structured_logging=yt_config.enable_structured_scheduler_logging)
 
         _set_bind_retry_options(config, key="bus_server")
 
         configs.append(config)
-    
+
     return configs
 
 def _build_node_configs(node_dirs, node_tmpfs_dirs, master_connection_configs, clock_connection_configs,
@@ -480,7 +502,8 @@ def _build_node_configs(node_dirs, node_tmpfs_dirs, master_connection_configs, c
         config["logging"] = init_logging(config.get("logging"), node_logs_dir, "node-{0}".format(index),
                                          log_errors_to_stderr=False,
                                          enable_debug_logging=yt_config.enable_debug_logging,
-                                         enable_compression=yt_config.enable_log_compression)
+                                         enable_compression=yt_config.enable_log_compression,
+                                         log_compression_method=yt_config.log_compression_method)
 
         job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
         log_name = "job_proxy-{0}-slot-%slot_index%".format(index)
@@ -490,7 +513,8 @@ def _build_node_configs(node_dirs, node_tmpfs_dirs, master_connection_configs, c
             init_logging(job_proxy_logging, node_logs_dir, log_name,
                             log_errors_to_stderr=False,
                             enable_debug_logging=yt_config.enable_debug_logging,
-                            enable_compression=yt_config.enable_log_compression)
+                            enable_compression=yt_config.enable_log_compression,
+                            log_compression_method=yt_config.log_compression_method)
         )
         set_at(
             config,
@@ -559,6 +583,7 @@ def _build_http_proxy_config(proxy_dir, master_connection_configs, clock_connect
             log_errors_to_stderr=False,
             enable_debug_logging=yt_config.enable_debug_logging,
             enable_compression=yt_config.enable_log_compression,
+            log_compression_method=yt_config.log_compression_method,
             enable_structured_logging=True)
 
         proxy_config["driver"] = driver_config
@@ -686,7 +711,8 @@ def _build_rpc_proxy_configs(proxy_logs_dir, master_connection_configs, clock_co
             "rpc-proxy-{}".format(rpc_proxy_index),
             log_errors_to_stderr=False,
             enable_debug_logging=yt_config.enable_debug_logging,
-            enable_compression=yt_config.enable_log_compression)
+            enable_compression=yt_config.enable_log_compression,
+            log_compression_method=yt_config.log_compression_method)
 
         config["rpc_port"] = yt_config.rpc_proxy_ports[rpc_proxy_index] if yt_config.rpc_proxy_ports else next(ports_generator)
 
@@ -776,9 +802,11 @@ def _build_cluster_connection_config(master_connection_configs, clock_connection
 
     return cluster_connection
 
-def init_logging(node, path, name, log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging=False):
+def init_logging(node, path, name, log_errors_to_stderr, enable_debug_logging, enable_compression,
+                 enable_structured_logging=False, log_compression_method="gzip"):
     if not node:
-        node = _get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging)
+        node = _get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compression,
+                                   enable_structured_logging, log_compression_method)
 
     def process(node, key, value):
         if isinstance(value, str):
