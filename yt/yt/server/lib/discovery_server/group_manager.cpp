@@ -41,6 +41,7 @@ void TGroupManager::ProcessGossip(const std::vector<TGossipMemberInfo>& membersB
 
     auto groups = GetOrCreateGroups(groupIds);
     for (const auto& member : membersBatch) {
+        // All group ids in gossip should be correct.
         auto group = GetOrCrash(groups, member.GroupId);
         group->AddOrUpdateMember(member.MemberInfo, member.LeaseDeadline - TInstant::Now());
     }
@@ -55,7 +56,20 @@ void TGroupManager::ProcessHeartbeat(
         groupId,
         memberInfo.Id);
 
-    auto group = GetOrCrash(GetOrCreateGroups({groupId}), groupId);
+    if (memberInfo.Id.empty()) {
+        THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::InvalidMemberId,
+            "Member id should not be emtpy");
+    }
+
+    auto groups = GetOrCreateGroups({groupId});
+    // If groupId is incorect, GetOrCreateGroups will omit it in result groups. 
+    if (groups.empty()) {
+        THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::InvalidGroupId,
+            "Group id %v is incorrect",
+            groupId);
+    }
+
+    auto group = GetOrCrash(groups, groupId); 
     auto member = group->AddOrUpdateMember(memberInfo, leaseTimeout);
 
     {
@@ -73,7 +87,7 @@ TGroupPtr TGroupManager::GetGroupOrThrow(const TGroupId& id)
 {
     auto group = FindGroup(id);
     if (!group) {
-        THROW_ERROR_EXCEPTION(NDiscoveryServer::EErrorCode::NoSuchGroup,
+        THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::NoSuchGroup,
             "No such group %v",
             id);
     }

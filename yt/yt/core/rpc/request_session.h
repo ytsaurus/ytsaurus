@@ -74,6 +74,7 @@ private:
     std::vector<TString> UpAddresses_;
     int CurrentUpAddressIndex_ = 0;
 
+    bool HasExtraProbationRequest_ = false;
     std::vector<TString> ProbationAddresses_;
     int CurrentProbationAddressIndex_ = 0;
 

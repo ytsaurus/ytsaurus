@@ -47,6 +47,7 @@ TFuture<TResponse> TRequestSession<TResponse>::Run()
     Shuffle(ProbationAddresses_.begin(), ProbationAddresses_.end());
 
     if (!ProbationAddresses_.empty()) {
+        HasExtraProbationRequest_ = true;
         TryMakeNextRequest(true);
     }
 
@@ -84,6 +85,9 @@ void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
         } else if (CurrentProbationAddressIndex_ < ProbationAddresses_.size()) {
             address = ProbationAddresses_[CurrentProbationAddressIndex_++];
             YT_LOG_DEBUG("Sending request to probation address (Address: %v)", address);
+        } else if (HasExtraProbationRequest_) {
+            HasExtraProbationRequest_ = false;
+            return;
         } else {
             addressesGuard.Release();
 

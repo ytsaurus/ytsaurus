@@ -12,18 +12,31 @@ namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemberClientConfig
-    : public NYTree::TYsonSerializable
+class TDiscoveryClientBaseConfig
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     std::vector<TString> ServerAddresses;
     TDuration RpcTimeout;
+    TDuration ServerBanTimeout;
+
+    TDiscoveryClientBaseConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiscoveryClientBaseConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMemberClientConfig
+    : public virtual TDiscoveryClientBaseConfig
+{
+public:
     TDuration HeartbeatPeriod;
     TDuration AttributeUpdatePeriod;
     TDuration LeaseTimeout;
+    int MaxFailedHeartbeatsOnStartup;
 
     int WriteQuorum;
-    TDuration ServerBanTimeout;
 
     TMemberClientConfig();
 };
@@ -34,13 +47,10 @@ DEFINE_REFCOUNTED_TYPE(TMemberClientConfig)
 
 class TDiscoveryClientConfig
     : public NRpc::TRetryingChannelConfig
+    , public virtual TDiscoveryClientBaseConfig
 {
 public:
-    std::vector<TString> ServerAddresses;
-    TDuration RpcTimeout;
-
     int ReadQuorum;
-    TDuration ServerBanTimeout;
 
     TDiscoveryClientConfig();
 };

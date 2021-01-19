@@ -58,14 +58,20 @@ TFuture<void> TListMembersRequestSession::MakeRequest(const TString& address)
     req->set_group_id(GroupId_);
     ToProto(req->mutable_options(), Options_);
 
-    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TDiscoveryClientServiceProxy::TRspListMembersPtr& rsp) {
+    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspListMembersPtr>& rspOrError){
+        if (!rspOrError.IsOK() && !rspOrError.FindMatching(NDiscoveryClient::EErrorCode::NoSuchGroup)) {
+            return TError(rspOrError);
+        }
         auto guard = Guard(Lock_);
-        for (const auto& protoMemberInfo : rsp->members()) {
-            auto member = FromProto<TMemberInfo>(protoMemberInfo);
-            if (auto it = IdToMember_.find(member.Id); it == IdToMember_.end()) {
-                YT_VERIFY(IdToMember_.emplace(member.Id, std::move(member)).second);
-            } else if (it->second.Revision < member.Revision) {
-                it->second = std::move(member);
+        if (rspOrError.IsOK()) {
+            const auto& rsp = rspOrError.Value();
+            for (const auto& protoMemberInfo : rsp->members()) {
+                auto member = FromProto<TMemberInfo>(protoMemberInfo);
+                if (auto it = IdToMember_.find(member.Id); it == IdToMember_.end()) {
+                    YT_VERIFY(IdToMember_.emplace(member.Id, std::move(member)).second);
+                } else if (it->second.Revision < member.Revision) {
+                    it->second = std::move(member);
+                }
             }
         }
         if (++SuccessCount_ == RequiredSuccessCount_) {
@@ -80,8 +86,14 @@ TFuture<void> TListMembersRequestSession::MakeRequest(const TString& address)
                 }
                 return lhs.Id < rhs.Id;
             });
-            Promise_.TrySet(std::move(members));
+
+            if (members.empty()) {
+                Promise_.TrySet(TError(NDiscoveryClient::EErrorCode::NoSuchGroup, "Group %Qv does not exist", GroupId_));
+            } else {
+                Promise_.TrySet(std::move(members));
+            }
         }
+        return TError();
     }));
 }
 
@@ -92,7 +104,7 @@ TGetGroupMetaRequestSession::TGetGroupMetaRequestSession(
     TDiscoveryClientConfigPtr config,
     IChannelFactoryPtr channelFactory,
     const NLogging::TLogger& logger,
-    TString groupId)
+    TGroupId groupId)
     : TRequestSession<TGroupMeta>(
         config->ReadQuorum,
         std::move(addressPool),
@@ -108,16 +120,28 @@ TFuture<void> TGetGroupMetaRequestSession::MakeRequest(const TString& address)
 
     auto req = proxy.GetGroupMeta();
     req->set_group_id(GroupId_);
-    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TDiscoveryClientServiceProxy::TRspGetGroupMetaPtr& rsp) {
+    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspGetGroupMetaPtr>& rspOrError) {
+        if (!rspOrError.IsOK() && !rspOrError.FindMatching(NDiscoveryClient::EErrorCode::NoSuchGroup)) {
+            return TError(rspOrError);
+        }
+
         auto guard = Guard(Lock_);
 
-        auto groupMeta = FromProto<TGroupMeta>(rsp->meta());
-        GroupMeta_.MemberCount = std::max(GroupMeta_.MemberCount, groupMeta.MemberCount);
+        if (rspOrError.IsOK()) {
+            auto groupMeta = FromProto<TGroupMeta>(rspOrError.Value()->meta());
+            GroupMeta_.MemberCount = std::max(GroupMeta_.MemberCount, groupMeta.MemberCount);
+        }
 
         if (++SuccessCount_ == RequiredSuccessCount_) {
+            auto groupMeta = GroupMeta_;
             guard.Release();
-            Promise_.TrySet(GroupMeta_);
+            if (groupMeta.MemberCount == 0) {
+                Promise_.TrySet(TError(NDiscoveryClient::EErrorCode::NoSuchGroup, "Group %Qv does not exist", GroupId_));
+            } else {
+                Promise_.TrySet(GroupMeta_);
+            }
         }
+        return TError();
     }));
 }
 
@@ -164,10 +188,22 @@ TFuture<void> THeartbeatSession::MakeRequest(const TString& address)
     }
     req->set_lease_timeout(ToProto<i64>(Config_->LeaseTimeout));
 
-    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TDiscoveryClientServiceProxy::TRspHeartbeatPtr& rsp) {
+    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspHeartbeatPtr>& rspOrError) {
+        if (!rspOrError.IsOK()) {
+            if (rspOrError.FindMatching(NDiscoveryClient::EErrorCode::InvalidGroupId) ||
+                rspOrError.FindMatching(NDiscoveryClient::EErrorCode::InvalidMemberId))
+            {
+                Promise_.TrySet(rspOrError);
+                return TError();
+            } else {
+                return TError(rspOrError);
+            }
+        }
+
         if (++SuccessCount_ == RequiredSuccessCount_) {
             Promise_.TrySet();
         }
+        return TError();
     }));
 }
 

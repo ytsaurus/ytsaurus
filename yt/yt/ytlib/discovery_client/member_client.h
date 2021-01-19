@@ -15,8 +15,8 @@ namespace NYT::NDiscoveryClient {
 struct IMemberClient
     : public virtual TRefCounted
 {
-    virtual void Start() = 0;
-    virtual void Stop() = 0;
+    virtual TFuture<void> Start() = 0;
+    virtual TFuture<void> Stop() = 0;
 
     virtual void Reconfigure(TMemberClientConfigPtr config) = 0;
 
