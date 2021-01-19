@@ -152,6 +152,10 @@ bool UseLocalModeOptimization(const TAuth& auth, const IClientRetryPolicyPtr& cl
             TGetOptions()
         ).AsString();
         isLocalMode = (fqdn == TProcessState::Get()->HostName);
+        LOG_DEBUG("Checking local mode; LocalModeFqdn: %s HostName: %s IsLocalMode: %s",
+            fqdn.c_str(),
+            TProcessState::Get()->HostName.c_str(),
+            isLocalMode ? "true" : "false");
     }
 
     {
@@ -651,6 +655,15 @@ private:
         }
     };
 
+    int GetFileCacheReplicationFactor() const
+    {
+        if (IsLocalMode()) {
+            return 1;
+        } else {
+            return TConfig::Get()->FileCacheReplicationFactor;
+        }
+    }
+
     TString UploadToRandomPath(const IItemToUpload& itemToUpload) const
     {
         TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
@@ -667,7 +680,9 @@ private:
             NT_FILE,
             TCreateOptions()
                 .IgnoreExisting(true)
-                .Recursive(true));
+                .Recursive(true)
+		.Attributes(TNode()("replication_factor", GetFileCacheReplicationFactor()))
+        );
         {
             TFileWriter writer(
                 uniquePath,
@@ -715,7 +730,9 @@ private:
             NT_FILE,
             TCreateOptions()
                 .IgnoreExisting(true)
-                .Recursive(true));
+                .Recursive(true)
+		.Attributes(TNode()("replication_factor", GetFileCacheReplicationFactor()))
+        );
 
         {
             TFileWriter writer(
@@ -863,6 +880,11 @@ private:
         }
     }
 
+    bool IsLocalMode() const
+    {
+        return UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy());
+    }
+
     void PrepareJobBinary(const IJob& job, int outputTableCount, bool hasState)
     {
         auto jobBinary = TJobBinaryConfig();
@@ -875,7 +897,7 @@ private:
                 ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
             }
 
-            const bool isLocalMode = UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy());
+            const bool isLocalMode = IsLocalMode();
             const TMaybe<TString> md5 = !isLocalMode ? MakeMaybe(GetPersistentExecPathMd5()) : Nothing();
             jobBinary = TJobBinaryLocalPath{GetPersistentExecPath(), md5};
 
@@ -883,7 +905,8 @@ private:
                 binaryPathInsideJob = GetExecPath();
             }
         } else if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
-            if (UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy())) {
+            const bool isLocalMode = IsLocalMode();
+            if (isLocalMode) {
                 binaryPathInsideJob = TFsPath(::Get<TJobBinaryLocalPath>(jobBinary).Path).RealPath();
             }
         }
