@@ -18,7 +18,7 @@ public:
 
     void Reload(const TBooleanFormula& formula);
 
-    bool CanSchedule(const THashSet<TString>& nodeTags) const;
+    bool CanSchedule(const TBooleanFormulaTags& nodeTags) const;
 
     bool IsEmpty() const;
 

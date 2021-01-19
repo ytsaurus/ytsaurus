@@ -829,11 +829,11 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         }
 
         auto oldState = execNode->GetMasterState();
-        auto tags = attributes.Get<THashSet<TString>>("tags");
+        auto tags = TBooleanFormulaTags(attributes.Get<THashSet<TString>>("tags"));
 
         if (oldState == NNodeTrackerClient::ENodeState::Online && newState != NNodeTrackerClient::ENodeState::Online) {
             // NOTE: Tags will be validated when node become online, no need in additional check here.
-            execNode->Tags() = tags;
+            execNode->Tags() = std::move(tags);
             SubtractNodeResources(execNode);
             AbortAllJobsAtNode(execNode, EAbortReason::NodeOffline);
             UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
@@ -863,7 +863,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
                 if (oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) {
                     AddNodeResources(execNode);
                 }
-                execNode->Tags() = tags;
+                execNode->Tags() = std::move(tags);
                 UpdateNodeState(execNode, /* newMasterState */ newState, /* newSchedulerState */ execNode->GetSchedulerState());
             }
             ++nodeChangesCount;

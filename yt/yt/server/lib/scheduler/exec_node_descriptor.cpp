@@ -33,7 +33,7 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     bool online,
     const TJobResources& resourceUsage,
     const TJobResources& resourceLimits,
-    const THashSet<TString>& tags,
+    const TBooleanFormulaTags& tags,
     const TRunningJobStatistics& runningJobStatistics,
     ESchedulingSegment schedulingSegment,
     bool schedulingSegmentFrozen)
@@ -74,7 +74,7 @@ void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NSc
     protoDescriptor->set_io_weight(descriptor.IOWeight);
     protoDescriptor->set_online(descriptor.Online);
     ToProto(protoDescriptor->mutable_resource_limits(), descriptor.ResourceLimits);
-    for (const auto& tag : descriptor.Tags) {
+    for (const auto& tag : descriptor.Tags.GetSourceTags()) {
         protoDescriptor->add_tags(tag);
     }
 }
@@ -86,9 +86,11 @@ void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NP
     descriptor->IOWeight = protoDescriptor.io_weight();
     descriptor->Online = protoDescriptor.online();
     FromProto(&descriptor->ResourceLimits, protoDescriptor.resource_limits());
+    THashSet<TString> tags;
     for (const auto& tag : protoDescriptor.tags()) {
-        descriptor->Tags.insert(tag);
+        tags.insert(tag);
     }
+    descriptor->Tags = TBooleanFormulaTags(std::move(tags));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

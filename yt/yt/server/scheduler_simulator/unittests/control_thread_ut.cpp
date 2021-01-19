@@ -194,7 +194,7 @@ protected:
             TNodeDescriptor(Format("node%02d", NextNodeId_)),
             NScheduler::ENodeState::Online);
         NextNodeId_ += 1;
-        node->Tags().insert("internal");
+        node->Tags() = TBooleanFormulaTags(THashSet<TString>{"internal"});
         node->SetResourceLimits(resourceLimits);
 
         NNodeTrackerClient::NProto::TDiskResources diskResources;

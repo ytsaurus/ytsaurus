@@ -1453,7 +1453,7 @@ public:
     virtual TFuture<void> RegisterOrUpdateNode(
         TNodeId nodeId,
         const TString& nodeAddress,
-        const THashSet<TString>& tags) override
+        const TBooleanFormulaTags& tags) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1543,7 +1543,7 @@ public:
     void DoRegisterOrUpdateNode(
         TNodeId nodeId,
         const TString& nodeAddress,
-        const THashSet<TString>& tags)
+        const TBooleanFormulaTags& tags)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1812,7 +1812,7 @@ private:
 
     struct TExecNodeSchedulerDescriptor
     {
-        THashSet<TString> Tags;
+        TBooleanFormulaTags Tags;
         TString Address;
         std::optional<TString> TreeId;
         TCancelableContextPtr CancelableContext;

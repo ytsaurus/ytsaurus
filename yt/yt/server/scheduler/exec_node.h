@@ -57,7 +57,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TJobMap, IdToJob);
 
     //! A set of scheduling tags assigned to this node.
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TString>, Tags);
+    DEFINE_BYREF_RW_PROPERTY(TBooleanFormulaTags, Tags);
 
     //! Last time when logging of jobs on node took place.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastJobsLogTime);
