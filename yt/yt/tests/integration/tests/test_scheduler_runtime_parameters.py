@@ -9,8 +9,10 @@ from yt.test_helpers import are_almost_equal
 from yt_commands import *
 from yt_helpers import create_custom_pool_tree_with_one_node
 
+import io
 import pytest
 import gzip
+import zstd
 
 
 class TestRuntimeParameters(YTEnvSetup):
@@ -423,7 +425,12 @@ class TestOperationDetailedLogs(YTEnvSetup):
     def get_scheduled_job_log_entries(self):
         scheduler_debug_logs_filename = self.Env.configs["scheduler"][0]["logging"]["writers"]["debug"]["file_name"]
 
-        if scheduler_debug_logs_filename.endswith(".gz"):
+        if scheduler_debug_logs_filename.endswith(".zst"):
+            compressed_file = open(scheduler_debug_logs_filename, "r")
+            decompressor = zstd.ZstdDecompressor()
+            binary_reader = decompressor.stream_reader(compressed_file, read_size=8192)
+            logfile = io.TextIOWrapper(binary_reader, encoding='utf-8')
+        elif scheduler_debug_logs_filename.endswith(".gz"):
             logfile = gzip.open(scheduler_debug_logs_filename, "r")
         else:
             logfile = open(scheduler_debug_logs_filename, "r")

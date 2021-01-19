@@ -260,7 +260,8 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
           node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
           init_operations_archive=False,
           meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0,
-          ytserver_all_path=None, driver_backend=None, secondary_master_cell_count=None):
+          ytserver_all_path=None, driver_backend=None, secondary_master_cell_count=None,
+          log_compression_method=None):
     options = {}
     for name in _START_DEFAULTS:
         options[name] = get_value(locals()[name], _START_DEFAULTS[name])
@@ -299,6 +300,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
                              rpc_proxy_ports=rpc_proxy_ports,
                              enable_debug_logging=enable_debug_logging,
                              enable_logging_compression=enable_logging_compression,
+                             log_compression_method=log_compression_method,
                              port_range_start=port_range_start,
                              listen_port_pool=listen_port_pool,
                              fqdn=fqdn,
