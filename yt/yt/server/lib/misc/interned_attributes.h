@@ -220,6 +220,7 @@
     XX(MaxUnpreemptableRunningJobCount, max_unpreemptable_running_job_count) \
     XX(MD5, md5) \
     XX(Media, media) \
+    XX(MemberCount, member_count) \
     XX(MemberOf, member_of) \
     XX(MemberOfClosure, member_of_closure) \
     XX(Members, members) \

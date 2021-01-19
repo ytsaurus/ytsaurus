@@ -19,6 +19,8 @@
 
 #include <yt/core/yson/string.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NDiscoveryServer {
 namespace {
 
@@ -115,7 +117,9 @@ public:
             memberClientConfig->ServerAddresses = Addresses_;
         }
         memberClientConfig->HeartbeatPeriod = TDuration::MilliSeconds(500);
+        memberClientConfig->LeaseTimeout = TDuration::Seconds(1);
         memberClientConfig->AttributeUpdatePeriod = TDuration::Seconds(1);
+
         const auto& actionQueue = New<TActionQueue>("MemberClient");
         ActionQueues_.push_back(actionQueue);
         return NDiscoveryClient::CreateMemberClient(
@@ -149,14 +153,16 @@ private:
 
 TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 {
-    TString groupId = "/sample_group";
-    TString memberId1 = "sample_member1";
-    TString memberId2 = "sample_member2";
+    const TString groupId = "/sample_group";
+    const TString memberId1 = "sample_member1";
+    const TString memberId2 = "sample_member2";
     auto memberClient1 = CreateMemberClient(groupId, memberId1);
-    memberClient1->Start();
+    WaitFor(memberClient1->Start())
+        .ThrowOnError();
 
     auto memberClient2 = CreateMemberClient(groupId, memberId2);
-    memberClient2->Start();
+    WaitFor(memberClient2->Start())
+        .ThrowOnError();
 
     Sleep(TDuration::Seconds(5));
 
@@ -187,14 +193,15 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 
 TEST_F(TDiscoveryServiceTestSuite, TestGossip)
 {
-    TString groupId = "/sample_group";
-    TString memberId = "sample_member";
+    const TString groupId = "/sample_group";
+    const TString memberId = "sample_member";
     const auto& addresses = GetDiscoveryServersAddresses();
 
     auto memberClientConfig = New<TMemberClientConfig>();
     memberClientConfig->ServerAddresses = {addresses[0], addresses[1], addresses[2]};
     auto memberClient = CreateMemberClient(groupId, memberId, memberClientConfig);
-    memberClient->Start();
+    WaitFor(memberClient->Start())
+        .ThrowOnError();
 
     Sleep(TDuration::Seconds(5));
 
@@ -212,18 +219,19 @@ TEST_F(TDiscoveryServiceTestSuite, TestGossip)
 
 TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
 {
-    TString groupId = "/sample_group";
-    TString memberId = "sample_member";
+    const TString groupId = "/sample_group";
+    const TString memberId = "sample_member";
 
-    TString key = "key";
-    TString value = "value";
+    const TString key = "key";
+    const TString value = "value";
 
     const auto& addresses = GetDiscoveryServersAddresses();
 
     auto memberClientConfig = New<TMemberClientConfig>();
     memberClientConfig->ServerAddresses = {addresses[0], addresses[1], addresses[2]};
     auto memberClient = CreateMemberClient(groupId, memberId, memberClientConfig);
-    memberClient->Start();
+    WaitFor(memberClient->Start())
+        .ThrowOnError();
 
     Sleep(TDuration::Seconds(5));
 
@@ -257,19 +265,22 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
 
 TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 {
-    TString groupId = "/sample_group";
-    TString memberId = "sample_member";
+    const TString groupId = "/sample_group";
+    const TString memberId = "sample_member";
 
     std::vector<IMemberClientPtr> memberClients;
+    std::vector<TFuture<void>> memberStartFutures;
     int membersNum = 10;
     for (int i = 0; i < membersNum; ++i) {
         memberClients.push_back(CreateMemberClient(groupId, memberId + ToString(i)));
-        memberClients.back()->Start();
-
         memberClients.back()->SetPriority(i);
+
+        memberStartFutures.push_back(memberClients.back()->Start());
     }
 
-    Sleep(TDuration::Seconds(10));
+    WaitFor(AllSucceeded(memberStartFutures))
+        .ThrowOnError();
+    Sleep(TDuration::Seconds(2));
 
     auto discoveryClient = CreateDiscoveryClient();
 
@@ -297,8 +308,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
 TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
 {
-    TString groupId = "/sample_group";
-    TString memberId = "sample_member";
+    const TString groupId = "/sample_group";
+    const TString memberId = "sample_member";
     const auto& addresses = GetDiscoveryServersAddresses();
 
     auto memberClientConfig = New<TMemberClientConfig>();
@@ -306,7 +317,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
     memberClientConfig->ServerAddresses = {addresses[0], addresses[1], addresses[2]};
     memberClientConfig->HeartbeatPeriod = TDuration::Seconds(1);
     auto memberClient = CreateMemberClient(groupId, memberId, memberClientConfig);
-    memberClient->Start();
+    WaitFor(memberClient->Start())
+        .ThrowOnError();
 
     auto discoveryClientConfig = New<TDiscoveryClientConfig>();
     discoveryClientConfig->ServerAddresses = {addresses[3], addresses[4]};
@@ -328,19 +340,93 @@ TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
     }
 }
 
+TEST_F(TDiscoveryServiceTestSuite, TestWrongParameters)
+{
+    auto memberClient = CreateMemberClient("incorrect_group_id", "sample_member");
+    EXPECT_THROW(WaitFor(memberClient->Start()).ThrowOnError(), std::exception);
+
+    memberClient = CreateMemberClient("/incorrect_group/", "sample_member");
+    EXPECT_THROW(WaitFor(memberClient->Start()).ThrowOnError(), std::exception);
+
+    memberClient = CreateMemberClient("/incorrect@group", "sample_member");
+    EXPECT_THROW(WaitFor(memberClient->Start()).ThrowOnError(), std::exception);
+
+    memberClient = CreateMemberClient("/", "sample_member");
+    EXPECT_THROW(WaitFor(memberClient->Start()).ThrowOnError(), std::exception);
+
+    memberClient = CreateMemberClient("/sample_group", "");
+    EXPECT_THROW(WaitFor(memberClient->Start()).ThrowOnError(), std::exception);
+}
+
+TEST_F(TDiscoveryServiceTestSuite, TestNestedGroups)
+{
+    const std::vector<std::pair<TString, TString>> testMembers = {
+        {"/sample_group", "sample_member_1"},
+        {"/sample_group/subgroup", "sample_member_2"},
+        {"/sample_group/subgroup/subgroup", "sample_member_3"},
+    };
+
+    std::vector<IMemberClientPtr> memberClients;
+    std::vector<TFuture<void>> memberStartFutures;
+
+    for (const auto& [groupId, memberId] : testMembers) {
+        auto memberClient = CreateMemberClient(groupId, memberId);
+        memberClients.push_back(memberClient);
+        memberStartFutures.push_back(memberClient->Start());
+    }
+
+    WaitFor(AllSucceeded(memberStartFutures))
+        .ThrowOnError();
+    Sleep(TDuration::Seconds(1.5));
+
+    auto discoveryClient = CreateDiscoveryClient();
+    
+    for (const auto& [groupId, memberId] : testMembers) {
+        auto membersFuture = discoveryClient->ListMembers(groupId, {});
+        const auto& members = membersFuture.Get().ValueOrThrow();
+        EXPECT_EQ(1, members.size());
+        EXPECT_EQ(memberId, members[0].Id);
+    }
+
+    // Deleting the middle group.
+    WaitFor(memberClients[1]->Stop())
+        .ThrowOnError();
+    Sleep(TDuration::Seconds(1.5));
+
+    for (int index = 0; index < testMembers.size(); ++index) {
+        const auto& [groupId, memberId] = testMembers[index];
+        auto groupMetaFuture = discoveryClient->GetGroupMeta(groupId);
+        auto membersFuture = discoveryClient->ListMembers(groupId, {});
+        if (index == 1) {
+            EXPECT_THROW_WITH_SUBSTRING(groupMetaFuture.Get().ThrowOnError(), "does not exist");    
+            EXPECT_THROW_WITH_SUBSTRING(membersFuture.Get().ThrowOnError(), "does not exist");    
+        } else {
+            auto groupMeta = groupMetaFuture.Get().ValueOrThrow();
+            EXPECT_EQ(1, groupMeta.MemberCount);
+
+            auto members = membersFuture.Get().ValueOrThrow();
+            EXPECT_EQ(1, members.size());
+            EXPECT_EQ(memberId, members[0].Id);
+        }
+    }
+}
+
 TEST_F(TDiscoveryServiceTestSuite, TestYPath)
 {
-    TString groupId1 = "/sample_group1";
-    TString groupId2 = "/test/sample_group2";
+    const TString groupId1 = "/sample_group1";
+    const TString groupId2 = "/test/sample_group2";
 
-    TString memberId1 = "sample_member1";
-    TString memberId2 = "sample_member2";
+    const TString memberId1 = "sample_member1";
+    const TString memberId2 = "sample_member2";
 
     auto memberClient1 = CreateMemberClient(groupId1, memberId1);
-    memberClient1->Start();
+    memberClient1->SetPriority(3);
+    WaitFor(memberClient1->Start())
+        .ThrowOnError();
 
     auto memberClient2 = CreateMemberClient(groupId2, memberId2);
-    memberClient2->Start();
+    WaitFor(memberClient2->Start())
+        .ThrowOnError();
 
     Sleep(TDuration::Seconds(5));
 
@@ -349,15 +435,16 @@ TEST_F(TDiscoveryServiceTestSuite, TestYPath)
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1"));
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@"));
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/test/sample_group2"));
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1"));
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/test/sample_group2/sample_member2"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/test/sample_group2/@members/sample_member2"));
 
     EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group2"));
     EXPECT_EQ(false, SyncYPathExists(ypathService, "/test/sample_group1"));
 
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@"));
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@priority"));
-    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@priority/aa"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@priority"));
+    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@priority/aa"));
 
     {
         auto result = SyncYPathList(ypathService, "/");
@@ -368,77 +455,216 @@ TEST_F(TDiscoveryServiceTestSuite, TestYPath)
     {
         auto result = SyncYPathList(ypathService, "/@");
         std::sort(result.begin(), result.end());
-        EXPECT_EQ((std::vector<TString>{"child_count", "id", "type"}), result);
+        EXPECT_EQ((std::vector<TString>{"child_count", "type"}), result);
     }
 
     {
         auto result = SyncYPathList(ypathService, "/sample_group1/@");
         std::sort(result.begin(), result.end());
-        EXPECT_EQ((std::vector<TString>{"child_count", "id", "type"}), result);
+        EXPECT_EQ((std::vector<TString>{"child_count", "member_count", "members", "type"}), result);
     }
 
-    EXPECT_EQ((std::vector<TString>{"sample_member1"}), SyncYPathList(ypathService, "/sample_group1"));
+    EXPECT_EQ((std::vector<TString>{"sample_member1"}), SyncYPathList(ypathService, "/sample_group1/@members"));
     {
-        auto result = SyncYPathList(ypathService, "/sample_group1/sample_member1/@");
+        auto result = SyncYPathList(ypathService, "/sample_group1/@members/sample_member1/@");
         std::vector<TString> expected{"priority", "revision", "last_heartbeat_time", "last_attributes_update_time"};
         EXPECT_EQ(expected, result);
     }
 
     EXPECT_THROW(SyncYPathList(ypathService, "/sample_group1/ttt"), std::exception);
-    EXPECT_THROW(SyncYPathList(ypathService, "/sample_group1/sample_member1/@priority"), std::exception);
+    EXPECT_THROW(SyncYPathList(ypathService, "/sample_group1/@members/ttt"), std::exception);
+    EXPECT_THROW(SyncYPathList(ypathService, "/sample_group1/@members/sample_member1/@priority"), std::exception);
 
-    EXPECT_THROW(SyncYPathGet(ypathService, "/sample_group1/sample_member1/@priority/qq"), std::exception);
+    EXPECT_THROW(SyncYPathGet(ypathService, "/sample_group1/@members/sample_member1/@priority/qq"), std::exception);
 
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@priority"));
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@revision"));
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@last_heartbeat_time"));
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@last_attributes_update_time"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@priority"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@revision"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@last_heartbeat_time"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@last_attributes_update_time"));
 
-    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@test"));
+    EXPECT_EQ(ConvertToYsonString(3, EYsonFormat::Binary),
+        SyncYPathGet(ypathService, "/sample_group1/@members/sample_member1/@priority"));
+
+    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@test"));
 
     auto* attributes = memberClient1->GetAttributes();
     attributes->Set("test", 123);
 
     Sleep(TDuration::Seconds(5));
 
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@test"));
-    EXPECT_EQ(ConvertToYsonString(123, EYsonFormat::Binary), SyncYPathGet(ypathService, "/sample_group1/sample_member1/@test"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@test"));
+    EXPECT_EQ(ConvertToYsonString(123, EYsonFormat::Binary),
+        SyncYPathGet(ypathService, "/sample_group1/@members/sample_member1/@test"));
 
-    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@test/abc"));
-    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@qq/abc"));
-    EXPECT_THROW(SyncYPathGet(ypathService, "/sample_group1/sample_member1/@test/abc"), std::exception);
-    EXPECT_THROW(SyncYPathGet(ypathService, "/sample_group1/sample_member1/@qq/abc"), std::exception);
+    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@test/abc"));
+    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@qq/abc"));
+    EXPECT_THROW(SyncYPathGet(ypathService, "/sample_group1/@members/sample_member1/@test/abc"), std::exception);
+    EXPECT_THROW(SyncYPathGet(ypathService, "/sample_group1/@members/sample_member1/@qq/abc"), std::exception);
 
     attributes->Set("q1", TYsonString("{q=w}"));
     attributes->Set("q2", TYsonString("{q={w=e}}"));
 
     Sleep(TDuration::Seconds(5));
 
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@q1/q"));
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@q2/q"));
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@q2/q/w"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@q1/q"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@q2/q"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members/sample_member1/@q2/q/w"));
 
-    EXPECT_EQ(ConvertToYsonString("e", EYsonFormat::Binary), SyncYPathGet(ypathService, "/sample_group1/sample_member1/@q2/q/w"));
+    EXPECT_EQ(ConvertToYsonString("e", EYsonFormat::Binary),
+        SyncYPathGet(ypathService, "/sample_group1/@members/sample_member1/@q2/q/w"));
+    
+    EXPECT_EQ(std::vector<TString>{"q"},
+        SyncYPathList(ypathService, "/sample_group1/@members/sample_member1/@q2"));
+    EXPECT_EQ(std::vector<TString>{"w"},
+        SyncYPathList(ypathService, "/sample_group1/@members/sample_member1/@q2/q"));
 
-    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@id"));
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@child_count"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@members"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@member_count"));
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@type"));
     EXPECT_EQ(ConvertToYsonString("group", EYsonFormat::Binary), SyncYPathGet(ypathService, "/sample_group1/@type"));
+
+    EXPECT_TRUE(
+        AreNodesEqual(
+            ConvertToNode(
+                SyncYPathGet(
+                    ypathService,
+                    "",
+                    std::vector<TString> {
+                        "child_count",
+                        "type",
+                        "member_count",
+                        "wrong_attribute",
+                    })),
+            BuildYsonNodeFluently()
+                .BeginAttributes()
+                    .Item("child_count").Value(2)
+                    .Item("type").Value("node")
+                .EndAttributes()
+                .BeginMap()
+                    .Item("sample_group1")
+                        .BeginAttributes()
+                            .Item("child_count").Value(0)
+                            .Item("type").Value("group")
+                            .Item("member_count").Value(1)
+                        .EndAttributes()
+                        .BeginMap()
+                        .EndMap()
+                    .Item("test")
+                        .BeginAttributes()
+                            .Item("child_count").Value(1)
+                            .Item("type").Value("node")
+                        .EndAttributes()
+                        .BeginMap()
+                            .Item("sample_group2")
+                                .BeginAttributes()
+                                .Item("child_count").Value(0)
+                                .Item("type").Value("group")
+                                .Item("member_count").Value(1)
+                            .EndAttributes()
+                            .BeginMap()
+                            .EndMap()
+                        .EndMap()
+                .EndMap()));
+
+    EXPECT_TRUE(
+        AreNodesEqual(
+            ConvertToNode(
+                SyncYPathGet(
+                    ypathService,
+                    "/sample_group1",
+                    std::vector<TString> {
+                        "child_count",
+                        "type",
+                        "member_count",
+                        "members",
+                        "wrong_attribute",
+                        "priority",
+                    })),
+            BuildYsonNodeFluently()
+                .BeginAttributes()
+                    .Item("child_count").Value(0)
+                    .Item("type").Value("group")
+                    .Item("member_count").Value(1)
+                    .Item("members")
+                        .BeginMap()
+                            .Item("sample_member1")
+                                .BeginAttributes()
+                                    .Item("priority").Value(3)
+                                .EndAttributes()
+                                .Entity()
+                        .EndMap()
+                .EndAttributes()
+                .BeginMap()
+                .EndMap()));
+
+    EXPECT_TRUE(
+        AreNodesEqual(
+            ConvertToNode(
+                SyncYPathGet(
+                    ypathService,
+                    "/sample_group1/@members",
+                    std::vector<TString> {
+                        "priority",
+                        "test",
+                        "q1",
+                        "wrong_attribute",
+                    })),
+            BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("sample_member1")
+                        .BeginAttributes()
+                            .Item("priority").Value(3)
+                            .Item("test").Value(123)
+                            .Item("q1")
+                                .BeginMap()
+                                    .Item("q").Value("w")
+                                .EndMap()
+                        .EndAttributes()
+                        .Entity()
+                .EndMap()));
+
+    {
+        auto sampleMemberNode = ConvertToNode(SyncYPathGet(
+            ypathService,
+            "/sample_group1/@members/sample_member1",
+            std::nullopt));
+
+        EXPECT_EQ(sampleMemberNode->GetType(), ENodeType::Entity);
+
+        auto attributeKeys = sampleMemberNode->Attributes().ListKeys();
+        std::sort(attributeKeys.begin(), attributeKeys.end());
+
+        std::vector<TString> correctAttributeKeys = {
+            "priority",
+            "revision",
+            "last_heartbeat_time",
+            "last_attributes_update_time",
+            "test",
+            "q1",
+            "q2",
+        };
+        std::sort(correctAttributeKeys.begin(), correctAttributeKeys.end());
+
+        EXPECT_EQ(attributeKeys, correctAttributeKeys);
+    }
 }
 
 TEST_F(TDiscoveryServiceTestSuite, TestGroupRemoval)
 {
-    TString groupId1 = "/sample_group1";
-    TString memberId1 = "sample_member1";
+    const TString groupId1 = "/sample_group1";
+    const TString memberId1 = "sample_member1";
 
-    TString groupId2 = "/sample_group2";
-    TString memberId2 = "sample_member2";
+    const TString groupId2 = "/sample_group2";
+    const TString memberId2 = "sample_member2";
 
     auto memberClient1 = CreateMemberClient(groupId1, memberId1);
-    memberClient1->Start();
+    WaitFor(memberClient1->Start())
+        .ThrowOnError();
 
     auto memberClient2 = CreateMemberClient(groupId2, memberId2);
-    memberClient2->Start();
+    WaitFor(memberClient2->Start())
+        .ThrowOnError();
 
     Sleep(TDuration::Seconds(5));
 

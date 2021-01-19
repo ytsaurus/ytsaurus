@@ -28,7 +28,7 @@ public:
         TDiscoveryClientConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
         const NLogging::TLogger& logger,
-        TString groupId,
+        TGroupId groupId,
         TListMembersOptions options);
 
 private:
@@ -57,12 +57,12 @@ public:
         TDiscoveryClientConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
         const NLogging::TLogger& logger,
-        TString groupId);
+        TGroupId groupId);
 
 private:
     const TDiscoveryClientConfigPtr Config_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-    const TString GroupId_;
+    const TGroupId GroupId_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     TGroupMeta GroupMeta_;

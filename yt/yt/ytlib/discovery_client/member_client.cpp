@@ -112,16 +112,17 @@ public:
         Priority_ = value;
     }
 
-    virtual void Start() override
+    virtual TFuture<void> Start() override
     {
         YT_LOG_INFO("Starting member client");
         PeriodicExecutor_->Start();
+        return FirstSuccessPromise_;
     }
 
-    virtual void Stop() override
+    virtual TFuture<void> Stop() override
     {
         YT_LOG_INFO("Stopping member client");
-        PeriodicExecutor_->Stop();
+        return PeriodicExecutor_->Stop();
     }
 
     virtual void Reconfigure(TMemberClientConfigPtr config) override
@@ -159,11 +160,11 @@ private:
     NYTree::IAttributeDictionaryPtr ThreadSafeAttributes_;
     TInstant LastAttributesUpdateTime_;
 
+    const TPromise<void> FirstSuccessPromise_ = NewPromise<void>();
+
     void OnHeartbeat()
     {
-        YT_LOG_DEBUG("Started sending heartbeat (Revision: %v)",
-            Revision_,
-            Id_);
+        YT_LOG_DEBUG("Started sending heartbeat (Revision: %v)", Revision_);
 
         ++Revision_;
 
@@ -189,16 +190,23 @@ private:
         }
         auto rspOrError = WaitFor(session->Run());
         if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG(rspOrError, "Error reporting heartbeat (Revision: %v)",
-                Revision_,
-                Id_);
-            return;
-        }
-        YT_LOG_DEBUG("Successfully reported heartbeat (Revision: %v)",
-            Revision_,
-            Id_);
-        if (attributes) {
-            LastAttributesUpdateTime_ = now;
+            YT_LOG_DEBUG(rspOrError, "Error reporting heartbeat (Revision: %v)", Revision_);
+
+            if (rspOrError.FindMatching(NDiscoveryClient::EErrorCode::InvalidGroupId) ||
+                rspOrError.FindMatching(NDiscoveryClient::EErrorCode::InvalidMemberId))
+            {
+                FirstSuccessPromise_.TrySet(rspOrError);
+            } else if (!FirstSuccessPromise_.IsSet() && Revision_ > Config_->MaxFailedHeartbeatsOnStartup) {
+                FirstSuccessPromise_.TrySet(
+                    TError("Error reporting heartbeat %v times on startup", Config_->MaxFailedHeartbeatsOnStartup)
+                        << rspOrError);
+            }
+        } else {
+            YT_LOG_DEBUG("Successfully reported heartbeat (Revision: %v)", Revision_);
+            if (attributes) {
+                LastAttributesUpdateTime_ = now;
+            }
+            FirstSuccessPromise_.TrySet();
         }
     }
 };

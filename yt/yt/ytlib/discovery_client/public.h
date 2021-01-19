@@ -25,6 +25,7 @@ class TRspHeartbeat;
 
 } // namespace NProto
 
+DECLARE_REFCOUNTED_CLASS(TDiscoveryClientBaseConfig)
 DECLARE_REFCOUNTED_CLASS(TMemberClientConfig)
 DECLARE_REFCOUNTED_CLASS(TDiscoveryClientConfig)
 
@@ -42,6 +43,15 @@ static const TString PriorityAttribute = "priority";
 static const TString RevisionAttribute = "revision";
 static const TString LastHeartbeatTimeAttribute = "last_heartbeat_time";
 static const TString LastAttributesUpdateTimeAttribute = "last_attributes_update_time";
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EErrorCode,
+    ((NoSuchGroup)     (2300))
+    ((NoSuchMember)    (2301))
+    ((InvalidGroupId)  (2302))
+    ((InvalidMemberId) (2303))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

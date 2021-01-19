@@ -148,7 +148,7 @@ TMemberPtr TGroup::GetMemberOrThrow(const TMemberId& memberId)
 {
     auto member = FindMember(memberId);
     if (!member) {
-        THROW_ERROR_EXCEPTION(NDiscoveryServer::EErrorCode::NoSuchMember,
+        THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::NoSuchMember,
             "No member %Qv in group %v",
             memberId,
             Id_);
