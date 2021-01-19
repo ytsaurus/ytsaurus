@@ -211,7 +211,7 @@ struct ISchedulerStrategy
 
     virtual bool IsInitialized() = 0;
 
-    virtual std::vector<TString> GetNodeTreeIds(const THashSet<TString>& tags) = 0;
+    virtual std::vector<TString> GetNodeTreeIds(const TBooleanFormulaTags& tags) = 0;
 
     virtual void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) = 0;
 

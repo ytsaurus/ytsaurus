@@ -59,7 +59,7 @@ private:
     const TSchedulerConfigPtr Config_;
     const TExecNodePtr Node_;
     const TExecNodeDescriptor NodeDescriptor_;
-    const THashSet<TString> NodeTags_;
+    const TBooleanFormulaTags NodeTags_;
     const NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 
     std::vector<TDiskQuota> DiskRequests_;

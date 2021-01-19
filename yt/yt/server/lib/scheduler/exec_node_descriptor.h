@@ -48,7 +48,7 @@ struct TExecNodeDescriptor
         bool online,
         const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
-        const THashSet<TString>& tags,
+        const TBooleanFormulaTags& tags,
         const TRunningJobStatistics& runningJobStatistics,
         ESchedulingSegment schedulingSegment,
         bool schedulingSegmentFrozen);
@@ -62,7 +62,7 @@ struct TExecNodeDescriptor
     bool Online = false;
     TJobResources ResourceUsage;
     TJobResources ResourceLimits;
-    THashSet<TString> Tags;
+    TBooleanFormulaTags Tags;
     TRunningJobStatistics RunningJobStatistics;
     ESchedulingSegment SchedulingSegment;
     bool SchedulingSegmentFrozen;

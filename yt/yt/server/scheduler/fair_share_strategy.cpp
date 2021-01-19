@@ -893,7 +893,7 @@ public:
         }
     }
 
-    virtual std::vector<TString> GetNodeTreeIds(const THashSet<TString>& tags) override
+    virtual std::vector<TString> GetNodeTreeIds(const TBooleanFormulaTags& tags) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 

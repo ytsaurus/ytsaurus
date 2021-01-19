@@ -885,6 +885,64 @@ void TArithmeticFormula::Load(TStreamLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBooleanFormulaTags::TBooleanFormulaTags(THashSet<TString> tags)
+    : Tags_(std::move(tags))
+{
+    for (const auto& key: Tags_) {
+        PreparedTags_[key] = 1;
+    }
+}
+
+const THashSet<TString>& TBooleanFormulaTags::GetSourceTags() const
+{
+    return Tags_;
+}
+
+void TBooleanFormulaTags::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, Tags_);
+}
+
+void TBooleanFormulaTags::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+    *this = TBooleanFormulaTags(Load<THashSet<TString>>(context));
+}
+
+bool TBooleanFormulaTags::operator==(const TBooleanFormulaTags& other) const
+{
+    return Tags_ == other.Tags_;
+}
+
+bool TBooleanFormulaTags::operator!=(const TBooleanFormulaTags& other) const
+{
+    return !operator==(other);
+}
+
+void Serialize(const TBooleanFormulaTags& tags, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .Value(tags.GetSourceTags());
+}
+
+void Deserialize(TBooleanFormulaTags& tags, NYTree::INodePtr node)
+{
+    tags = TBooleanFormulaTags(ConvertTo<THashSet<TString>>(node));
+}
+
+TString ToString(const TBooleanFormulaTags& tags)
+{
+    return ToStringViaBuilder(tags);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TBooleanFormulaTags& tags, TStringBuf /* format */)
+{
+    builder->AppendFormat("%v", tags.GetSourceTags());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBooleanFormula::TBooleanFormula()
     : Impl_(MakeGenericFormulaImpl(TString(), EEvaluationContext::Boolean))
 { }
@@ -936,6 +994,11 @@ bool TBooleanFormula::IsSatisfiedBy(const std::vector<TString>& value) const
 bool TBooleanFormula::IsSatisfiedBy(const THashSet<TString>& value) const
 {
     return IsSatisfiedBy(std::vector<TString>(value.begin(), value.end()));
+}
+
+bool TBooleanFormula::IsSatisfiedBy(const TBooleanFormulaTags& tags) const
+{
+    return Impl_->Eval(tags.PreparedTags_, EEvaluationContext::Boolean);
 }
 
 TBooleanFormula MakeBooleanFormula(const TString& formula)

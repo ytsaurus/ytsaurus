@@ -50,7 +50,7 @@ struct INodeShardHost
     virtual TFuture<void> RegisterOrUpdateNode(
         NNodeTrackerClient::TNodeId nodeId,
         const TString& nodeAddress,
-        const THashSet<TString>& tags) = 0;
+        const TBooleanFormulaTags& tags) = 0;
 
     virtual void UnregisterNode(
         NNodeTrackerClient::TNodeId nodeId,

@@ -74,6 +74,35 @@ void Deserialize(TArithmeticFormula& arithmeticFormula, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBooleanFormulaTags
+{
+public:
+    TBooleanFormulaTags() = default;
+    explicit TBooleanFormulaTags(THashSet<TString> tags);
+
+    const THashSet<TString>& GetSourceTags() const;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
+
+    bool operator==(const TBooleanFormulaTags& other) const;
+    bool operator!=(const TBooleanFormulaTags& other) const;
+
+private:
+    THashSet<TString> Tags_;
+    THashMap<TString, i64> PreparedTags_;
+
+    friend class TBooleanFormula;
+};
+
+void Serialize(const TBooleanFormulaTags& tags, NYson::IYsonConsumer* consumer);
+void Deserialize(TBooleanFormulaTags& tags, NYTree::INodePtr node);
+
+TString ToString(const TBooleanFormulaTags& tags);
+void FormatValue(TStringBuilderBase* builder, const TBooleanFormulaTags& tags, TStringBuf /* format */);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBooleanFormula
 {
 public:
@@ -101,6 +130,7 @@ public:
     //! Check that a given set of true-variables satisfies the formula.
     bool IsSatisfiedBy(const std::vector<TString>& value) const;
     bool IsSatisfiedBy(const THashSet<TString>& value) const;
+    bool IsSatisfiedBy(const TBooleanFormulaTags& tags) const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
