@@ -53,8 +53,6 @@ class YtTestEnvironment(object):
         # To use correct version of bindings we must reset it before start environment.
         yt.native_driver.driver_bindings = None
 
-        port_locks_path = os.path.join(sandbox_path, "ports")
-
         self.test_name = test_name
 
         if config is None:
@@ -159,7 +157,6 @@ class YtTestEnvironment(object):
                               scheduler_count=1,
                               http_proxy_count=1 if has_http_proxy else 0,
                               rpc_proxy_count=1,
-                              port_locks_path=port_locks_path,
                               fqdn="localhost",
                               modify_configs_func=modify_configs,
                               kill_child_processes=True,
@@ -236,8 +233,6 @@ class YtTestEnvironment(object):
         # To avoid using user-defined proxy in tests.
         if "YT_PROXY" in os.environ:
             del os.environ["YT_PROXY"]
-
-        os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = port_locks_path
 
         # NB: temporary hack
         if arcadia_interop.yatest_common is not None:
