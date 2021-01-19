@@ -92,6 +92,10 @@ struct TConfig
 
     int ConnectionPoolSize;
 
+    /// Defines replication factor that is used for files that are uploaded to YT
+    /// to use them in operations.
+    int FileCacheReplicationFactor = 10;
+
     bool MountSandboxInTmpfs;
 
     // Testing options, should never be used in user programs.

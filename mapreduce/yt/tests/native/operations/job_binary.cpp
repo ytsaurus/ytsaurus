@@ -122,6 +122,9 @@ Y_UNIT_TEST_SUITE(JobBinary)
         auto workingDir = fixture.GetWorkingDir();
 
         TConfig::Get()->EnableLocalModeOptimization = enableLocalModeOptimization;
+        if (!enableLocalModeOptimization) {
+            TConfig::Get()->FileCacheReplicationFactor = 1;
+        }
 
         WriteTestTable(client, workingDir);
 
