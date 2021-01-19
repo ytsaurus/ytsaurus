@@ -469,7 +469,7 @@ public:
             asyncResults.push_back(throttler->Throttle(count));
         }
 
-        return AllSucceeded(asyncResults).Apply(BIND([weakThis = MakeWeak(this), count] {
+        return AllSucceeded(asyncResults).Apply(BIND([weakThis = MakeWeak(this), count] (const TError& /* error */ ) {
             if (auto this_ = weakThis.Lock()) {
                 this_->QueueTotalCount_ -= count;
             }
