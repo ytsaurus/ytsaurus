@@ -523,6 +523,9 @@ public:
     //! Desired number of chunks to release in one batch.
     int DesiredChunkListsPerRelease;
 
+    //! Number of the master cells to use for intermediate data storage.
+    int IntermediateOutputMasterCellCount;
+
     //! If |true|, snapshots are periodically constructed and uploaded into the system.
     bool EnableSnapshotBuilding;
 

@@ -537,7 +537,9 @@ void TTask::ScheduleJob(
     SetStreamDescriptors(joblet);
 
     for (const auto& streamDescriptor : joblet->StreamDescriptors) {
-        joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(streamDescriptor.CellTag));
+        int cellTagIndex = RandomNumber<size_t>() % streamDescriptor.CellTags.size();
+        auto cellTag = streamDescriptor.CellTags[cellTagIndex];
+        joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(cellTag));
     }
 
     if (TaskHost_->StderrTable() && IsStderrTableEnabled()) {

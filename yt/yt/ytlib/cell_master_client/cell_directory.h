@@ -52,6 +52,8 @@ public:
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellId cellId);
 
+    NObjectClient::TCellTagList GetMasterCellTagsWithRole(EMasterCellRoles role) const;
+
     NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRoles role) const;
 
 private:

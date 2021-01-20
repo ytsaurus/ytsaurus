@@ -379,6 +379,9 @@ TControllerAgentConfig::TControllerAgentConfig()
         .GreaterThan(1.0);
     RegisterParameter("desired_chunk_lists_per_release", DesiredChunkListsPerRelease)
         .Default(10 * 1000);
+    RegisterParameter("intermediate_output_master_cell_count", IntermediateOutputMasterCellCount)
+        .GreaterThanOrEqual(1)
+        .Default(4);
 
     RegisterParameter("enable_snapshot_building", EnableSnapshotBuilding)
         .Default(true);

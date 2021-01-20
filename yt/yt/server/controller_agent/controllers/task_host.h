@@ -78,8 +78,6 @@ struct ITaskHost
     virtual bool IsRowCountPreserved() const = 0;
     virtual bool ShouldSkipSanityCheck() = 0;
 
-    virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const = 0;
-
     virtual const TChunkListPoolPtr& GetOutputChunkListPool() const = 0;
     virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) = 0;
     virtual NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) = 0;

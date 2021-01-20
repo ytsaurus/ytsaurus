@@ -115,6 +115,21 @@ public:
         return GetMasterChannelOrThrow(kind, CellTagFromId(cellId));
     }
 
+    TCellTagList GetMasterCellTagsWithRole(EMasterCellRoles role) const
+    {
+        TCellTagList result;
+
+        {
+            auto guard = ReaderGuard(SpinLock_);
+            auto range = RoleCellsMap_.equal_range(role);
+            for (auto it = range.first; it != range.second; ++it) {
+                result.emplace_back(it->second);
+            }
+        }
+
+        return result;
+    }
+
     TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRoles role)
     {
         auto candidateCellTags = GetMasterCellTagsWithRole(role);
@@ -280,21 +295,6 @@ private:
 
     std::vector<IServicePtr> CachingObjectServices_;
 
-    TCellTagList GetMasterCellTagsWithRole(EMasterCellRoles role) const
-    {
-        TCellTagList result;
-
-        {
-            auto guard = ReaderGuard(SpinLock_);
-            auto range = RoleCellsMap_.equal_range(role);
-            for (auto it = range.first; it != range.second; ++it) {
-                result.emplace_back(it->second);
-            }
-        }
-
-        return result;
-    }
-
     IChannelPtr GetCellChannelOrThrow(TCellTag cellTag, EMasterChannelKind kind) const
     {
         auto it = CellChannelMap_.find(cellTag);
@@ -459,6 +459,11 @@ IChannelPtr TCellDirectory::GetMasterChannelOrThrow(EMasterChannelKind kind, TCe
 IChannelPtr TCellDirectory::GetMasterChannelOrThrow(EMasterChannelKind kind, TCellId cellId)
 {
     return Impl_->GetMasterChannelOrThrow(kind, cellId);
+}
+
+TCellTagList TCellDirectory::GetMasterCellTagsWithRole(EMasterCellRoles role) const
+{
+    return Impl_->GetMasterCellTagsWithRole(role);
 }
 
 TCellId TCellDirectory::GetRandomMasterCellWithRoleOrThrow(EMasterCellRoles role) const
