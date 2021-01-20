@@ -88,7 +88,7 @@ TStreamDescriptor TOutputTable::GetStreamDescriptorTemplate(int tableIndex)
     // Output tables never lose data (hopefully), so we do not need to store
     // recovery info for chunks that get there.
     descriptor.RequiresRecoveryInfo = false;
-    descriptor.CellTag = ExternalCellTag;
+    descriptor.CellTags = {ExternalCellTag};
     descriptor.ImmediatelyUnstageChunkLists = false;
     descriptor.IsOutputTableDynamic = Dynamic;
     descriptor.PartitionTag = TableIndex;

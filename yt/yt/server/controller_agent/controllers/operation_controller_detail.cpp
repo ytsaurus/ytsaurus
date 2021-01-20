@@ -40,6 +40,8 @@
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
+#include <yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/core_dump/proto/core_info.pb.h>
@@ -935,7 +937,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         FetchUserFiles();
         ValidateUserFileSizes();
 
-        PickIntermediateDataCell();
+        PickIntermediateDataCells();
         InitChunkListPools();
 
         SuppressLivePreviewIfNeeded();
@@ -1379,14 +1381,30 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     }));
 }
 
-void TOperationControllerBase::PickIntermediateDataCell()
+void TOperationControllerBase::PickIntermediateDataCells()
 {
-    IntermediateOutputCellTag = PickChunkHostingCell(
-        OutputClient->GetNativeConnection(),
-        Logger);
+    IntermediateOutputCellTagList = OutputClient
+        ->GetNativeConnection()
+        ->GetMasterCellDirectory()
+        ->GetMasterCellTagsWithRole(NCellMasterClient::EMasterCellRoles::ChunkHost);
+    if (IntermediateOutputCellTagList.empty()) {
+        THROW_ERROR_EXCEPTION("No master cells with chunk host role found");
+    }
 
-    YT_LOG_DEBUG("Intermediate data cell picked (CellTag: %v)",
-        IntermediateOutputCellTag);
+    int intermediateDataCellCount = std::min<int>(Config->IntermediateOutputMasterCellCount, IntermediateOutputCellTagList.size());
+    // TODO(max42, gritukan): Remove it when new live preview will be ready.
+    if (IsIntermediateLivePreviewSupported()) {
+        intermediateDataCellCount = 1;
+    }
+
+    PartialShuffle(
+        IntermediateOutputCellTagList.begin(),
+        IntermediateOutputCellTagList.begin() + intermediateDataCellCount,
+        IntermediateOutputCellTagList.end());
+    IntermediateOutputCellTagList.resize(intermediateDataCellCount);
+
+    YT_LOG_DEBUG("Intermediate data cells picked (CellTags: %v)",
+        IntermediateOutputCellTagList);
 }
 
 void TOperationControllerBase::InitChunkListPools()
@@ -1404,7 +1422,9 @@ void TOperationControllerBase::InitChunkListPools()
             ++CellTagToRequiredOutputChunkListCount_[table->ExternalCellTag];
         }
 
-        ++CellTagToRequiredOutputChunkListCount_[IntermediateOutputCellTag];
+        for (auto cellTag : IntermediateOutputCellTagList) {
+            ++CellTagToRequiredOutputChunkListCount_[cellTag];
+        }
     }
 
     DebugChunkListPool_ = New<TChunkListPool>(
@@ -5109,9 +5129,10 @@ void TOperationControllerBase::CreateLivePreviewTables()
                 std::vector<TString>{UsersGroupName},
                 EPermissionSet(EPermission::Read));
         }
+        YT_VERIFY(IntermediateOutputCellTagList.size() == 1);
         addRequest(
             path,
-            IntermediateOutputCellTag,
+            IntermediateOutputCellTagList.front(),
             1,
             Spec_->IntermediateCompressionCodec,
             Spec_->IntermediateDataAccount,
@@ -8108,11 +8129,6 @@ EOperationType TOperationControllerBase::GetOperationType() const
     return OperationType;
 }
 
-TCellTag TOperationControllerBase::GetIntermediateOutputCellTag() const
-{
-    return IntermediateOutputCellTag;
-}
-
 const TChunkListPoolPtr& TOperationControllerBase::GetOutputChunkListPool() const
 {
     return OutputChunkListPool_;
@@ -8727,7 +8743,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, LivePreviewChunks_);
     Persist(context, Tasks);
     Persist(context, InputChunkMap);
-    Persist(context, IntermediateOutputCellTag);
+    Persist(context, IntermediateOutputCellTagList);
     Persist(context, CellTagToRequiredOutputChunkListCount_);
     Persist(context, CellTagToRequiredDebugChunkListCount_);
     Persist(context, CachedPendingJobCount);
@@ -8874,7 +8890,7 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
 TStreamDescriptor TOperationControllerBase::GetIntermediateStreamDescriptorTemplate() const
 {
     TStreamDescriptor descriptor;
-    descriptor.CellTag = GetIntermediateOutputCellTag();
+    descriptor.CellTags = IntermediateOutputCellTagList;
     descriptor.TableWriterOptions = GetIntermediateTableWriterOptions();
     descriptor.TableWriterConfig = BuildYsonStringFluently()
         .BeginMap()

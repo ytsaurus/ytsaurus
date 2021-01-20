@@ -315,8 +315,6 @@ public:
     virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate(int tableIndex) const override;
     virtual TAutoMergeDirector* GetAutoMergeDirector() override;
 
-    virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const override;
-
     virtual const TChunkListPoolPtr& GetOutputChunkListPool() const override;
     virtual NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
     virtual NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
@@ -641,7 +639,7 @@ protected:
         NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt);
     virtual void PrepareInputQuery();
 
-    void PickIntermediateDataCell();
+    void PickIntermediateDataCells();
     void InitChunkListPools();
 
     // Completion.
@@ -970,7 +968,7 @@ private:
     TOperationSpecBasePtr Spec_;
     TOperationOptionsPtr Options;
 
-    NObjectClient::TCellTag IntermediateOutputCellTag = NObjectClient::InvalidCellTag;
+    NObjectClient::TCellTagList IntermediateOutputCellTagList;
     TChunkListPoolPtr OutputChunkListPool_;
     TChunkListPoolPtr DebugChunkListPool_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkListCount_;

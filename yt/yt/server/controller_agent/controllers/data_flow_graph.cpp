@@ -52,7 +52,7 @@ void TStreamDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, TableUploadOptions);
     Persist(context, TableWriterConfig);
     Persist(context, Timestamp);
-    Persist(context, CellTag);
+    Persist(context, CellTags);
     Persist(context, ImmediatelyUnstageChunkLists);
     Persist(context, IsOutputTableDynamic);
     Persist(context, IsFinalOutput);
@@ -71,7 +71,7 @@ TStreamDescriptor& TStreamDescriptor::operator =(const TStreamDescriptor& other)
     TableUploadOptions = other.TableUploadOptions;
     TableWriterConfig = other.TableWriterConfig;
     Timestamp = other.Timestamp;
-    CellTag = other.CellTag;
+    CellTags = other.CellTags;
     ImmediatelyUnstageChunkLists = other.ImmediatelyUnstageChunkLists;
     IsFinalOutput = other.IsFinalOutput;
     IsOutputTableDynamic = other.IsOutputTableDynamic;

@@ -89,8 +89,9 @@ struct TStreamDescriptor
     NTableClient::TTableUploadOptions TableUploadOptions;
     NYson::TYsonString TableWriterConfig;
     std::optional<NTransactionClient::TTimestamp> Timestamp;
-    // Cell tag to allocate chunk lists.
-    NObjectClient::TCellTag CellTag;
+    // Cell tags to allocate chunk lists. For each job cell tag is chosen
+    // randomly.
+    NObjectClient::TCellTagList CellTags;
     bool ImmediatelyUnstageChunkLists = false;
     bool IsFinalOutput = false;
     bool IsOutputTableDynamic = false;
