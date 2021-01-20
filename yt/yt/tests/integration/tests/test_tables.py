@@ -2904,9 +2904,3 @@ class TestTablesRpcProxy(TestTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
-
-
-class TestTablesMulticellRpcProxy(TestTablesMulticell):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_HTTP_PROXY = True
-    ENABLE_RPC_PROXY = True
