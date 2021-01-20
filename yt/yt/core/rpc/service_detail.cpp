@@ -618,10 +618,6 @@ private:
         }
         FinalizeLatch_ = true;
 
-        if (TraceContext_) {
-            TraceContext_->Finish();
-        }
-
         if (IsRegistrable()) {
             Service_->UnregisterRequest(this);
         }
@@ -777,6 +773,13 @@ private:
         }
 
         Finalize();
+    }
+
+    virtual void DoFlush() override
+    {
+        if (TraceContext_) {
+            TraceContext_->Finish();
+        }
     }
 
     void HandleLoggingSuppression()

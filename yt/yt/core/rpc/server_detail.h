@@ -117,13 +117,13 @@ protected:
         TSharedRefArray requestMessage,
         NLogging::TLogger logger,
         NLogging::ELogLevel logLevel);
-
     TServiceContextBase(
         TSharedRefArray requestMessage,
         NLogging::TLogger logger,
         NLogging::ELogLevel logLevel);
 
     virtual void DoReply() = 0;
+    virtual void DoFlush();
 
     virtual void LogRequest() = 0;
     virtual void LogResponse() = 0;

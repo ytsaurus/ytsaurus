@@ -47,6 +47,9 @@ TServiceContextBase::TServiceContextBase(
     Initialize();
 }
 
+void TServiceContextBase::DoFlush()
+{ }
+
 void TServiceContextBase::Initialize()
 {
     RequestId_ = FromProto<TRequestId>(RequestHeader_->request_id());
@@ -109,16 +112,19 @@ void TServiceContextBase::ReplyEpilogue()
         asyncResponseMessage = AsyncResponseMessage_;
     }
 
+    DoReply();
+
     if (Logger.IsLevelEnabled(LogLevel_)) {
         LogResponse();
     }
 
-    DoReply();
-    Replied_.store(true);
+    DoFlush();
 
     if (asyncResponseMessage) {
         asyncResponseMessage.Set(std::move(responseMessage));
     }
+
+    Replied_.store(true);
 }
 
 void TServiceContextBase::SetComplete()
