@@ -232,10 +232,10 @@ def yt_env_with_rpc(request, test_environment_with_rpc):
     return _yt_env(request, test_environment_with_rpc)
 
 @pytest.fixture(scope="function")
-def test_dynamic_library(request, yt_env):
+def test_dynamic_library(request, yt_env_with_increased_memory):
     if not which("g++"):
         raise RuntimeError("g++ not found")
-    libs_dir = os.path.join(yt_env.env.path, "yt_test_dynamic_library")
+    libs_dir = os.path.join(yt_env_with_increased_memory.env.path, "yt_test_dynamic_library")
     makedirp(libs_dir)
 
     get_number_lib = get_test_file_path("getnumber.cpp")

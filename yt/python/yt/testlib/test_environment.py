@@ -214,7 +214,7 @@ class YtTestEnvironment(object):
         self.config["enable_logging_for_params_changes"] = True
         self.config["allow_fallback_to_native_driver"] = False
 
-        if yatest_common.context.sanitize == "address":
+        if yatest_common is not None and yatest_common.context.sanitize == "address":
             self.config["user_job_spec_defaults"] = {"memory_limit": ASAN_USER_JOB_MEMORY_LIMIT}
 
         # Interrupt main in tests is unrelaible and can cause 'Test crashed' or other errors in case of flaps.

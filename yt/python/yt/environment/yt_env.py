@@ -271,11 +271,11 @@ class YTInstance(object):
         if jobs_resource_limits is not None:
             yt_config.jobs_resouce_limits = jobs_resource_limits
         if jobs_cpu_limit is not None:
-            yt_config.job_resource_limits["cpu"] = jobs_cpu_limit
+            yt_config.jobs_resource_limits["cpu"] = jobs_cpu_limit
         if jobs_memory_limit is not None:
-            yt_config.job_resource_limits["memory"] = jobs_memory_limit
+            yt_config.jobs_resource_limits["memory"] = jobs_memory_limit
         if jobs_user_slot_count is not None:
-            yt_config.job_resource_limits["user_slots"] = jobs_user_slot_count
+            yt_config.jobs_resource_limits["user_slots"] = jobs_user_slot_count
 
         yt_config.node_memory_limit_addition = node_memory_limit_addition
         yt_config.node_chunk_store_quota = node_chunk_store_quota
@@ -688,7 +688,10 @@ class YTInstance(object):
         native_driver.logging_configured = True
 
     def _configure_yt_tracing(self):
-        import yt_tracing
+        try:
+            import yt_tracing
+        except ImportError:
+            return
 
         if "JAEGER_COLLECTOR" in os.environ:
             yt_tracing.initialize_tracer({
