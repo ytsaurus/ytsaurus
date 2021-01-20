@@ -11,18 +11,20 @@
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_state.h>
-#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/versioned_chunk_writer.h>
+
+#include <yt/ytlib/tablet_client/config.h>
+
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_batch.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/versioned_writer.h>
-
-#include <yt/ytlib/tablet_client/config.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -577,20 +579,21 @@ public:
         return VoidFuture;
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        YT_ASSERT(rows->capacity() > 0);
-        rows->clear();
+        YT_ASSERT(options.MaxRowsPerRead > 0);
+        std::vector<TVersionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
         Pool_.Clear();
 
         if (!Iterator_.IsValid()) {
-            return false;
+            return nullptr;
         }
 
         const auto& keyComparer = Store_->GetRowKeyComparer();
 
         i64 dataWeight = 0;
-        while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
+        while (Iterator_.IsValid() && rows.size() < rows.capacity()) {
             if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperBound_}) >= 0) {
                 UpdateLimits();
                 if (!Iterator_.IsValid()) {
@@ -600,21 +603,21 @@ public:
 
             auto row = ProduceRow(Iterator_.GetCurrent());
             if (row) {
-                rows->push_back(row);
+                rows.push_back(row);
                 dataWeight += GetDataWeight(row);
             }
 
             Iterator_.MoveNext();
         }
 
-        i64 rowCount = rows->size();
+        i64 rowCount = rows.size();
 
         RowCount_ += rowCount;
         DataWeight_ += dataWeight;
         Store_->PerformanceCounters_->DynamicRowReadCount += rowCount;
         Store_->PerformanceCounters_->DynamicRowReadDataWeightCount += dataWeight;
 
-        return true;
+        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override
@@ -727,19 +730,20 @@ public:
         return VoidFuture;
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        YT_ASSERT(rows->capacity() > 0);
-        rows->clear();
+        YT_ASSERT(options.MaxRowsPerRead > 0);
+        std::vector<TVersionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
         Pool_.Clear();
 
         if (Finished_) {
-            return false;
+            return nullptr;
         }
 
         i64 dataWeight = 0;
 
-        while (rows->size() < rows->capacity()) {
+        while (rows.size() < rows.capacity()) {
             if (RowCount_ == Keys_.Size())
                 break;
 
@@ -755,22 +759,22 @@ public:
                     row = ProduceRow(iterator.GetCurrent());
                 }
             }
-            rows->push_back(row);
+            rows.push_back(row);
 
             ++RowCount_;
             dataWeight += GetDataWeight(row);
         }
 
-        if (rows->empty()) {
+        if (rows.empty()) {
             Finished_ = true;
-            return false;
+            return nullptr;
         }
 
         DataWeight_ += dataWeight;
-        Store_->PerformanceCounters_->DynamicRowLookupCount += rows->size();
+        Store_->PerformanceCounters_->DynamicRowLookupCount += rows.size();
         Store_->PerformanceCounters_->DynamicRowLookupDataWeightCount += dataWeight;
 
-        return true;
+        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
     virtual TDataStatistics GetDataStatistics() const override
@@ -1946,22 +1950,23 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             Schema_,
             chunkWriter);
 
-        std::vector<TVersionedRow> rows;
-        rows.reserve(SnapshotRowsPerRead);
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = SnapshotRowsPerRead
+        };
 
         YT_LOG_DEBUG("Serializing store snapshot");
 
         i64 rowCount = 0;
-        while (tableReader->Read(&rows)) {
-            if (rows.empty()) {
+        while (auto batch = tableReader->Read(options)) {
+            if (batch->IsEmpty()) {
                 YT_LOG_DEBUG("Waiting for table reader");
                 WaitFor(tableReader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
             }
 
-            rowCount += rows.size();
-            if (!tableWriter->Write(rows)) {
+            rowCount += batch->GetRowCount();
+            if (!tableWriter->Write(batch->MaterializeRows())) {
                 YT_LOG_DEBUG("Waiting for table writer");
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
@@ -2044,20 +2049,21 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         WaitFor(tableReader->Open())
             .ThrowOnError();
 
-        std::vector<TVersionedRow> rows;
-        rows.reserve(SnapshotRowsPerRead);
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = SnapshotRowsPerRead
+        };
 
         TLoadScratchData scratchData;
         scratchData.WriteRevisions.resize(ColumnLockCount_);
 
-        while (tableReader->Read(&rows)) {
-            if (rows.empty()) {
+        while (auto batch = tableReader->Read(options)) {
+            if (batch->IsEmpty()) {
                 WaitFor(tableReader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
             }
 
-            for (auto row : rows) {
+            for (auto row : batch->MaterializeRows()) {
                 LoadRow(row, &scratchData);
             }
         }

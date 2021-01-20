@@ -12,16 +12,11 @@
 
 #include <yt/server/lib/tablet_node/config.h>
 
-#include <yt/client/api/client.h>
-
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/client/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/ref_counted_proto.h>
-
-#include <yt/client/misc/workload.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -32,11 +27,18 @@
 #include <yt/ytlib/table_client/lookup_reader.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/client/chunk_client/read_limit.h>
+
+#include <yt/client/api/client.h>
+
+#include <yt/client/misc/workload.h>
+
 #include <yt/client/table_client/versioned_reader.h>
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -127,23 +129,21 @@ public:
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         if (CurrentReaderIndex_ == Readers_.size()) {
-            return false;
+            return nullptr;
         }
 
-        rows->clear();
-
-        if (Readers_[CurrentReaderIndex_]->Read(rows)) {
+        if (auto batch = Readers_[CurrentReaderIndex_]->Read(options)) {
             if (Readers_[CurrentReaderIndex_].Get() != UnderlyingReader_) {
-                FakeRowsRead_ += rows->size();
+                FakeRowsRead_ += batch->GetRowCount();
             }
+            return batch;
         } else {
             ++CurrentReaderIndex_;
+            return CreateEmptyVersionedRowBatch();
         }
-
-        return true;
     }
 
 private:

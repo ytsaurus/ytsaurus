@@ -1,5 +1,5 @@
 #include "adapters.h"
-#include "unversioned_row_batch.h"
+#include "row_batch.h"
 
 #include <yt/client/api/table_writer.h>
 

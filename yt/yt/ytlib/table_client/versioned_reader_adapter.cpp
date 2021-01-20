@@ -7,7 +7,7 @@
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -38,22 +38,23 @@ public:
         return UnderlyingReader_->GetReadyEvent();
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        rows->clear();
         MemoryPool_.Clear();
-        Rows_.resize(rows->capacity());
-        Rows_.shrink_to_fit();
 
-        auto batch = UnderlyingReader_->Read();
+        auto batch = UnderlyingReader_->Read(options);
         if (!batch) {
-            return false;
+            return nullptr;
         }
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(batch->GetRowCount());
 
         for (auto row : batch->MaterializeRows()) {
-            rows->push_back(MakeVersionedRow(row));
+            rows.push_back(MakeVersionedRow(row));
         }
-        return true;
+
+        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override
@@ -86,7 +87,6 @@ private:
     const int KeyColumnCount_;
     const TTimestamp Timestamp_;
     TChunkedMemoryPool MemoryPool_;
-    std::vector<TUnversionedRow> Rows_;
 
     TVersionedRow MakeVersionedRow(TUnversionedRow row)
     {
@@ -167,23 +167,20 @@ public:
         return UnderlyingReader_->GetReadyEvent();
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        rows->clear();
-        auto hasMore = UnderlyingReader_->Read(rows);
-        if (rows->empty()) {
-            return hasMore;
+        auto batch = UnderlyingReader_->Read(options);
+        if (!batch) {
+            return nullptr;
         }
 
-        YT_VERIFY(hasMore);
-
-        for (auto row : *rows) {
+        for (auto row : batch->MaterializeRows()) {
             if (row) {
                 ResetTimestamp(row);
             }
         }
 
-        return true;
+        return batch;
     }
 
     virtual TFuture<void> GetReadyEvent() const override

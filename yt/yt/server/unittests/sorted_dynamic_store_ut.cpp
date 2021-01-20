@@ -1243,10 +1243,15 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
     std::vector<TVersionedRow> rows;
     rows.reserve(10);
 
-    EXPECT_TRUE(reader->Read(&rows));
-    EXPECT_EQ(1, rows.size());
+    TRowBatchReadOptions options{
+        .MaxRowsPerRead = 10
+    };
 
-    EXPECT_FALSE(reader->Read(&rows));
+    auto batch = reader->Read(options);
+    EXPECT_TRUE(batch);
+    EXPECT_EQ(1, batch->GetRowCount());
+
+    EXPECT_FALSE(reader->Read(options));
 }
 
 TEST_F(TSingleLockSortedDynamicStoreTest, SerializeEmpty)
@@ -1820,12 +1825,14 @@ TEST_F(TMultiLockSortedDynamicStoreTest, OutOfOrderWrites)
             .Get()
             .ThrowOnError();
 
-        std::vector<TVersionedRow> rows;
-        rows.reserve(1);
-        EXPECT_TRUE(reader->Read(&rows));
-        EXPECT_EQ(1, rows.size());
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = 1
+        };
+        auto batch = reader->Read(options);
+        EXPECT_TRUE(batch);
+        EXPECT_EQ(1, batch->GetRowCount());
 
-        auto row = rows[0];
+        auto row = batch->MaterializeRows()[0];
         EXPECT_EQ(1, row.GetKeyCount());
         EXPECT_EQ(2, row.GetValueCount());
         EXPECT_EQ(2, row.GetWriteTimestampCount());
@@ -1833,8 +1840,7 @@ TEST_F(TMultiLockSortedDynamicStoreTest, OutOfOrderWrites)
         EXPECT_EQ(ts2, row.BeginWriteTimestamps()[1]);
         EXPECT_EQ(0, row.GetDeleteTimestampCount());
 
-        EXPECT_FALSE(reader->Read(&rows));
-        EXPECT_TRUE(rows.empty());
+        EXPECT_FALSE(reader->Read(options));
     }
 }
 

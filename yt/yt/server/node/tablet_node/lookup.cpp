@@ -271,9 +271,7 @@ private:
     public:
         explicit TReadSession(IVersionedReaderPtr reader)
             : Reader_(std::move(reader))
-        {
-            Rows_.reserve(RowBufferCapacity);
-        }
+        { }
 
         TReadSession(const TReadSession& otherSession) = delete;
         TReadSession(TReadSession&& otherSession) = default;
@@ -289,18 +287,22 @@ private:
         TVersionedRow FetchRow()
         {
             ++RowIndex_;
-            if (RowIndex_ >= Rows_.size()) {
+            if (!RowBatch_ || RowIndex_ >= RowBatch_->GetRowCount()) {
                 RowIndex_ = 0;
                 while (true) {
-                    YT_VERIFY(Reader_->Read(&Rows_));
-                    if (!Rows_.empty()) {
+                    TRowBatchReadOptions options{
+                        .MaxRowsPerRead = RowBufferCapacity
+                    };
+                    RowBatch_ = Reader_->Read(options);
+                    YT_VERIFY(RowBatch_);
+                    if (!RowBatch_->IsEmpty()) {
                         break;
                     }
                     WaitFor(Reader_->GetReadyEvent())
                         .ThrowOnError();
                 }
             }
-            return Rows_[RowIndex_];
+            return RowBatch_->MaterializeRows()[RowIndex_];
         }
 
         NChunkClient::NProto::TDataStatistics GetDataStatistics() const
@@ -316,7 +318,7 @@ private:
     private:
         const IVersionedReaderPtr Reader_;
 
-        std::vector<TVersionedRow> Rows_;
+        IVersionedRowBatchPtr RowBatch_;
 
         int RowIndex_ = -1;
 

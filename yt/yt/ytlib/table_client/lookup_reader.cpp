@@ -63,32 +63,32 @@ public:
         return GetReadyEvent();
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        YT_VERIFY(rows->capacity() > 0);
-
-        rows->clear();
+        YT_VERIFY(options.MaxRowsPerRead > 0);
 
         if (!BeginRead()) {
-            return true;
+            return CreateEmptyVersionedRowBatch();
         }
 
         if (RowCount_ == LookupKeys_.size()) {
-            return false;
+            return nullptr;
         }
 
         YT_VERIFY(FetchedRows_.size() == LookupKeys_.size());
 
-        while (rows->size() < rows->capacity()) {
-            if (RowCount_ == LookupKeys_.size()) {
-                break;
-            }
+        std::vector<TVersionedRow> rows;
+        int batchSize = std::min(
+            options.MaxRowsPerRead,
+            static_cast<i64>(LookupKeys_.size()) - RowCount_);
+        rows.reserve(batchSize);
 
-            rows->push_back(FetchedRows_[RowCount_++]);
-            DataWeight_ += GetDataWeight(rows->back());
+        for (int index = 0; index < batchSize; ++index) {
+            rows.push_back(FetchedRows_[RowCount_++]);
+            DataWeight_ += GetDataWeight(rows.back());
         }
 
-        return true;
+        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override

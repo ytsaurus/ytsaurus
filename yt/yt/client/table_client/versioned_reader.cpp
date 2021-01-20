@@ -21,21 +21,22 @@ public:
         return VoidFuture;
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        rows->clear();
-
         if (RowCount_ == 0) {
-            return false;
+            return nullptr;
         }
 
-        int count = std::min(static_cast<int>(rows->capacity()), RowCount_);
+        std::vector<TVersionedRow> rows;
+        int count = std::min<i64>(options.MaxRowsPerRead, RowCount_);
+        rows.reserve(count);
         for (int index = 0; index < count; ++index) {
-            rows->push_back(TVersionedRow());
+            rows.push_back(TVersionedRow());
         }
 
         RowCount_ -= count;
-        return true;
+
+        return CreateBatchFromVersionedRows(MakeSharedRange(rows));
     }
 
     virtual TFuture<void> GetReadyEvent() const override

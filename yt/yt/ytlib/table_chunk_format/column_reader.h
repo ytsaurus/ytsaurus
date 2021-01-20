@@ -8,7 +8,7 @@
 
 #include <yt/client/table_client/comparator.h>
 #include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 #include <yt/client/table_client/versioned_row.h>
 
 #include <yt/core/misc/range.h>

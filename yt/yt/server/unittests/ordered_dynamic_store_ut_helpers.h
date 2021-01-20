@@ -3,7 +3,7 @@
 #include "dynamic_store_ut_helpers.h"
 
 #include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 
 namespace NYT::NTabletNode {
 namespace {

@@ -242,36 +242,40 @@ public:
         SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        YT_VERIFY(rows->capacity() > 0);
+        YT_VERIFY(options.MaxRowsPerRead > 0);
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
 
         MemoryPool_.Clear();
-        rows->clear();
 
         if (RangeIndex_ >= Ranges_.Size()) {
-            return false;
+            return nullptr;
         }
 
         if (!BeginRead()) {
             // Not ready yet.
-            return true;
+            return CreateEmptyVersionedRowBatch();
         }
 
         if (!BlockReader_) {
             // Nothing to read from chunk.
-            return false;
+            return nullptr;
         }
 
         if (BlockEnded_) {
             BlockReader_.reset();
-            return OnBlockEnded();
+            return OnBlockEnded()
+                ? CreateEmptyVersionedRowBatch()
+                : nullptr;
         }
 
         i64 rowCount = 0;
         i64 dataWeight = 0;
 
-        while (rows->size() < rows->capacity()) {
+        while (rows.size() < rows.capacity()) {
             if (CheckKeyLimit_ && KeyComparer_(
                 BlockReader_->GetKey(), GetCurrentRangeUpperKey()) >= 0)
             {
@@ -291,13 +295,13 @@ public:
             auto row = BlockReader_->GetRow(&MemoryPool_);
             if (row) {
                 YT_ASSERT(
-                    rows->empty() ||
-                    !rows->back() ||
+                    rows.empty() ||
+                    !rows.back() ||
                     CompareRows(
-                        rows->back().BeginKeys(), rows->back().EndKeys(),
+                        rows.back().BeginKeys(), rows.back().EndKeys(),
                         row.BeginKeys(), row.EndKeys()) < 0);
             }
-            rows->push_back(row);
+            rows.push_back(row);
             ++rowCount;
             dataWeight += GetDataWeight(row);
 
@@ -312,7 +316,7 @@ public:
         PerformanceCounters_->StaticChunkRowReadCount += rowCount;
         PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeight;
 
-        return true;
+        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
 private:
@@ -475,18 +479,20 @@ public:
         SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         auto readGuard = AcquireReadGuard();
 
-        YT_VERIFY(rows->capacity() > 0);
+        YT_VERIFY(options.MaxRowsPerRead > 0);
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
 
         MemoryPool_.Clear();
-        rows->clear();
 
         if (!BeginRead()) {
             // Not ready yet.
-            return true;
+            return CreateEmptyVersionedRowBatch();
         }
 
         i64 dataWeight = 0;
@@ -494,34 +500,34 @@ public:
         if (!BlockReader_) {
             // Nothing to read from chunk.
             if (RowCount_ == Keys_.Size()) {
-                return false;
+                return nullptr;
             }
 
-            while (rows->size() < rows->capacity() && RowCount_ < Keys_.Size()) {
-                rows->push_back(TVersionedRow());
+            while (rows.size() < rows.capacity() && RowCount_ < Keys_.Size()) {
+                rows.push_back(TVersionedRow());
                 ++RowCount_;
             }
 
-            PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+            PerformanceCounters_->StaticChunkRowLookupCount += rows.size();
             PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
 
-            return true;
+            return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
         }
 
         if (BlockEnded_) {
             BlockReader_.reset();
             OnBlockEnded();
-            return true;
+            return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
         }
 
-        while (rows->size() < rows->capacity()) {
+        while (rows.size() < rows.capacity()) {
             if (RowCount_ == Keys_.Size()) {
                 BlockEnded_ = true;
                 break;
             }
 
             if (!KeyFilterTest_[RowCount_]) {
-                rows->push_back(TVersionedRow());
+                rows.push_back(TVersionedRow());
                 ++PerformanceCounters_->StaticChunkRowLookupTrueNegativeCount;
             } else {
                 const auto& key = Keys_[RowCount_];
@@ -532,9 +538,9 @@ public:
 
                 if (key == BlockReader_->GetKey()) {
                     auto row = BlockReader_->GetRow(&MemoryPool_);
-                    rows->push_back(row);
+                    rows.push_back(row);
                     ++RowCount_;
-                    dataWeight += GetDataWeight(rows->back());
+                    dataWeight += GetDataWeight(rows.back());
                 } else if (BlockReader_->GetKey() > key) {
                     auto nextKeyIt = std::lower_bound(
                         Keys_.begin() + RowCount_,
@@ -542,9 +548,9 @@ public:
                         BlockReader_->GetKey());
 
                     size_t skippedKeys = std::distance(Keys_.begin() + RowCount_, nextKeyIt);
-                    skippedKeys = std::min(skippedKeys, rows->capacity() - rows->size());
+                    skippedKeys = std::min(skippedKeys, rows.capacity() - rows.size());
 
-                    rows->insert(rows->end(), skippedKeys, TVersionedRow());
+                    rows.insert(rows.end(), skippedKeys, TVersionedRow());
                     RowCount_ += skippedKeys;
                     dataWeight += skippedKeys * GetDataWeight(TVersionedRow());
                 } else {
@@ -554,10 +560,10 @@ public:
         }
 
         DataWeight_ += dataWeight;
-        PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+        PerformanceCounters_->StaticChunkRowLookupCount += rows.size();
         PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
 
-        return true;
+        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
 private:
@@ -1061,16 +1067,18 @@ public:
         }
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         auto readGuard = AcquireReadGuard();
 
-        YT_VERIFY(rows->capacity() > 0);
-        rows->clear();
+        YT_VERIFY(options.MaxRowsPerRead > 0);
+        std::vector<TVersionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
+
         RowBuilder_.Clear();
 
         if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
-            return true;
+            return CreateEmptyVersionedRowBatch();
         }
 
         if (!Initialized_) {
@@ -1081,21 +1089,21 @@ public:
         }
 
         if (Completed_) {
-            return false;
+            return nullptr;
         }
 
-        while (rows->size() < rows->capacity()) {
+        while (rows.size() < rows.capacity()) {
             FeedBlocksToReaders();
             ArmColumnReaders();
 
             // Compute the number rows to read.
-            i64 rowLimit = static_cast<i64>(rows->capacity() - rows->size());
+            i64 rowLimit = static_cast<i64>(rows.capacity() - rows.size());
             rowLimit = std::min(rowLimit, HardUpperRowIndex_ - RowIndex_);
             rowLimit = std::min(rowLimit, GetReadyRowCount());
             rowLimit = std::min(rowLimit, MaxRowsPerRead_);
             YT_VERIFY(rowLimit > 0);
 
-            auto range = RowBuilder_.AllocateRows(rows, rowLimit, RowIndex_, SafeUpperRowIndex_);
+            auto range = RowBuilder_.AllocateRows(&rows, rowLimit, RowIndex_, SafeUpperRowIndex_);
 
             // Read key values.
             for (const auto& keyColumnReader : KeyColumnReaders_) {
@@ -1114,7 +1122,7 @@ public:
                     {
                         Completed_ = true;
                         range = range.Slice(range.Begin(), range.Begin() + index);
-                        rows->resize(rows->size() - rowLimit + index);
+                        rows.resize(rows.size() - rowLimit + index);
                         break;
                     }
                 }
@@ -1132,9 +1140,9 @@ public:
             }
         }
 
-        i64 rowCount = rows->size();
+        i64 rowCount = rows.size();
         i64 dataWeight = 0;
-        for (auto row : *rows) {
+        for (auto row : rows) {
             dataWeight += GetDataWeight(row);
         }
 
@@ -1143,7 +1151,7 @@ public:
         PerformanceCounters_->StaticChunkRowReadCount += rowCount;
         PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeight;
 
-        return true;
+        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
 private:
@@ -1437,22 +1445,24 @@ public:
         SetReadyEvent(RequestFirstBlocks());
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         auto readGuard = AcquireReadGuard();
 
-        rows->clear();
+        std::vector<TVersionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
+
         RowBuilder_.Clear();
 
         if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
-            return true;
+            return CreateEmptyVersionedRowBatch();
         }
 
         if (NextKeyIndex_ == Keys_.Size()) {
-            return false;
+            return nullptr;
         }
 
-        while (rows->size() < rows->capacity()) {
+        while (rows.size() < rows.capacity()) {
             FeedBlocksToReaders();
 
             bool found = false;
@@ -1474,13 +1484,13 @@ public:
                     // Key must be present in exactly one row.
                     YT_VERIFY(upperRowIndex == lowerRowIndex + 1);
                     i64 rowIndex = lowerRowIndex;
-                    rows->push_back(ReadRow(rowIndex));
+                    rows.push_back(ReadRow(rowIndex));
                     found = true;
                 }
             }
 
             if (!found) {
-                rows->push_back({});
+                rows.push_back({});
             }
 
             if (++NextKeyIndex_ == Keys_.Size() || !TryFetchNextRow()) {
@@ -1488,9 +1498,9 @@ public:
             }
         }
 
-        i64 rowCount = rows->size();
+        i64 rowCount = rows.size();
         i64 dataWeight = 0;
-        for (auto row : *rows) {
+        for (auto row : rows) {
             dataWeight += GetDataWeight(row);
         }
 
@@ -1499,7 +1509,7 @@ public:
         PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
         PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
 
-        return true;
+        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
 private:
@@ -1559,35 +1569,39 @@ public:
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows)
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         auto comparator = [] (const TVersionedRow& lhs, const TUnversionedRow& rhs) {
             return CompareRows(lhs.BeginKeys(), lhs.EndKeys(), rhs.Begin(), rhs.End()) < 0;
         };
 
-        rows->clear();
-        bool hasMoreData = true;
-        while (rows->empty() && hasMoreData) {
-            hasMoreData = UnderlyingReader_->Read(rows);
+        std::vector<TVersionedRow> rows;
 
-            if (rows->empty()) {
+        bool hasMoreData = true;
+        while (rows.empty() && hasMoreData) {
+            auto batch = UnderlyingReader_->Read(options);
+            hasMoreData = static_cast<bool>(batch);
+            if (!batch || batch->IsEmpty()) {
                 break;
             }
 
-            rows->erase(
+            auto range = batch->MaterializeRows();
+            rows = std::vector<TVersionedRow>(range.begin(), range.end());
+
+            rows.erase(
                 std::remove_if(
-                    rows->begin(),
-                    rows->end(),
+                    rows.begin(),
+                    rows.end(),
                     [] (TVersionedRow row) {
                         return !row;
                     }),
-                rows->end());
+                rows.end());
 
-            auto finish = rows->begin();
-            for (auto start = rows->begin(); start != rows->end() && RangeIndex_ < Ranges_.Size();) {
-                start = std::lower_bound(start, rows->end(), Ranges_[RangeIndex_].first, comparator);
+            auto finish = rows.begin();
+            for (auto start = rows.begin(); start != rows.end() && RangeIndex_ < Ranges_.Size();) {
+                start = std::lower_bound(start, rows.end(), Ranges_[RangeIndex_].first, comparator);
 
-                if (start != rows->end() && !comparator(*start, Ranges_[RangeIndex_].second)) {
+                if (start != rows.end() && !comparator(*start, Ranges_[RangeIndex_].second)) {
                     auto nextBoundIt = std::upper_bound(
                         Ranges_.begin() + RangeIndex_,
                         Ranges_.end(),
@@ -1603,27 +1617,31 @@ public:
                     continue;
                 }
 
-                auto end = std::lower_bound(start, rows->end(), Ranges_[RangeIndex_].second, comparator);
+                auto end = std::lower_bound(start, rows.end(), Ranges_[RangeIndex_].second, comparator);
 
                 finish = std::move(start, end, finish);
 
-                if (end != rows->end()) {
+                if (end != rows.end()) {
                     ++RangeIndex_;
                 }
 
                 start = end;
             }
-            size_t newSize = std::distance(rows->begin(), finish);
+            size_t newSize = std::distance(rows.begin(), finish);
 
-            YT_VERIFY(newSize <= rows->size());
-            rows->resize(newSize);
+            YT_VERIFY(newSize <= rows.size());
+            rows.resize(newSize);
 
             if (RangeIndex_ == Ranges_.Size()) {
                 hasMoreData = false;
             }
         }
 
-        return !rows->empty() || hasMoreData;
+        if (!rows.empty() || hasMoreData) {
+            return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+        } else {
+            return nullptr;
+        }
     }
 
 private:
@@ -1980,9 +1998,7 @@ TRowReaderAdapter::TRowReaderAdapter(
             columnFilter,
             timestamp,
             produceAllVersions))
-{
-    Rows_.reserve(RowBufferCapacity);
-}
+{ }
 
 void TRowReaderAdapter::ReadRowset(const std::function<void(TVersionedRow)>& onRow)
 {
@@ -1994,18 +2010,22 @@ void TRowReaderAdapter::ReadRowset(const std::function<void(TVersionedRow)>& onR
 TVersionedRow TRowReaderAdapter::FetchRow()
 {
     ++RowIndex_;
-    if (RowIndex_ >= Rows_.size()) {
+    if (!RowBatch_ || RowIndex_ >= RowBatch_->GetRowCount()) {
         RowIndex_ = 0;
         while (true) {
-            YT_VERIFY(UnderlyingReader_->Read(&Rows_));
-            if (!Rows_.empty()) {
+            TRowBatchReadOptions options{
+                .MaxRowsPerRead = RowBufferCapacity
+            };
+            RowBatch_ = UnderlyingReader_->Read(options);
+            YT_VERIFY(RowBatch_);
+            if (!RowBatch_->IsEmpty()) {
                 break;
             }
             NConcurrency::WaitFor(UnderlyingReader_->GetReadyEvent())
                 .ThrowOnError();
         }
     }
-    return Rows_[RowIndex_];
+    return RowBatch_->MaterializeRows()[RowIndex_];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,7 +5,7 @@
 #include <yt/ytlib/chunk_client/multi_reader_manager.h>
 #include <yt/ytlib/chunk_client/config.h>
 
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 
 namespace NYT::NChunkClient {
 

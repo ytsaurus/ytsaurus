@@ -1,10 +1,10 @@
 #pragma once
-#ifndef UNVERSIONED_ROW_BATCH_INL_H_
-#error "Direct inclusion of this file is not allowed, include unversioned_row_batch.h"
+#ifndef ROW_BATCH_INL_H_
+#error "Direct inclusion of this file is not allowed, include row_batch.h"
 // For the sake of sane code completion.
-#include "unversioned_row_batch.h"
+#include "row_batch.h"
 #endif
-#undef UNVERSIONED_ROW_BATCH_INL_H_
+#undef ROW_BATCH_INL_H_
 
 namespace NYT::NTableClient {
 
@@ -41,6 +41,29 @@ inline TRef IUnversionedColumnarRowBatch::TColumn::GetBitmapValues() const
     YT_VERIFY(!Rle);
     YT_VERIFY(!Dictionary);
     return Values->Data;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRow>
+typename TRowBatchTrait<TRow>::IRowBatchPtr CreateBatchFromRows(
+    TSharedRange<TRow> rows)
+{
+    if constexpr (std::is_same_v<TRow, TVersionedRow>) {
+        return CreateBatchFromVersionedRows(rows);
+    } else {
+        return CreateBatchFromUnversionedRows(rows);
+    }
+}
+
+template <class TRow>
+typename TRowBatchTrait<TRow>::IRowBatchPtr CreateEmptyRowBatch()
+{
+    if constexpr (std::is_same_v<TRow, TVersionedRow>) {
+        return CreateEmptyVersionedRowBatch();
+    } else {
+        return CreateEmptyUnversionedRowBatch();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

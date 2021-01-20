@@ -26,7 +26,7 @@
 #include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 
 #include <yt/client/ypath/rich.h>
 

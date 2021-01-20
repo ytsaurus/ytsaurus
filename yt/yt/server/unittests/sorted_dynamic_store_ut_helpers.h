@@ -51,9 +51,14 @@ protected:
         std::vector<TVersionedRow> rows;
         rows.reserve(1);
 
-        EXPECT_TRUE(lookupReader->Read(&rows));
-        EXPECT_EQ(1, rows.size());
-        auto row = rows.front();
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = 1
+        };
+
+        auto batch = lookupReader->Read(options);
+        EXPECT_TRUE(batch);
+        EXPECT_EQ(1, batch->GetRowCount());
+        auto row = batch->MaterializeRows().Front();
         if (!row) {
             return TUnversionedOwningRow();
         }

@@ -1,6 +1,8 @@
 #pragma once
 
+#include "config.h"
 #include "versioned_row.h"
+#include "row_batch.h"
 
 #include <yt/client/chunk_client/reader_base.h>
 
@@ -36,10 +38,10 @@ struct IVersionedReader
      *  Value ids correspond to column indexes in schema.
      *  The returned rows are canonically sorted (see TVersionedRow).
      *
-     *  If |false| is returned then the end of the rowset is reached and |rows| is empty.
-     *  If |true| is returned but |rows| is empty then no more data is available at the moment.
-     *  The caller must wait for the asynchronous flag provided by #GetReadyEvent to become set.
-     *  The latter may indicate an error occurred while fetching more data.
+     *  If |nullptr| is returned then the end of the rowset is reached.
+     *  If non-null value is returned but the batch is empty then no more data is available
+     *  at the moment. The caller must wait for the asynchronous flag provided by #GetReadyEvent
+     *  to become set. The latter may indicate an error occurred while fetching more data.
      *
      *  In Case A above row timestamps have the following meaning:
      *  1. If the row is found and is known to be deleted then only the deletion
@@ -47,8 +49,7 @@ struct IVersionedReader
      *  2. If the row is found and is known to exist then the last write
      *     timestamp and the last deleted timestamp (if exists) are provided.
      */
-    virtual bool Read(std::vector<TVersionedRow>* rows) = 0;
-
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVersionedReader)

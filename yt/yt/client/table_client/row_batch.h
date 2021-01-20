@@ -201,6 +201,24 @@ DEFINE_REFCOUNTED_TYPE(IUnversionedColumnarRowBatch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IVersionedRowBatch
+    : public virtual TRefCounted
+{
+    //! Returns the number of rows in the batch.
+    //! This call is cheap (in contrast to #IVersionedRowBatch::MaterializeRows).
+    virtual int GetRowCount() const = 0;
+
+    //! A helper method that returns |true| iff #GetRowCount is zero.
+    bool IsEmpty() const;
+
+    //! Returns the rows representing the batch.
+    virtual TSharedRange<TVersionedRow> MaterializeRows() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IVersionedRowBatch)
+
+////////////////////////////////////////////////////////////////////////////////
+
 IUnversionedRowBatchPtr CreateBatchFromUnversionedRows(
     TSharedRange<TUnversionedRow> rows);
 
@@ -208,8 +226,41 @@ IUnversionedRowBatchPtr CreateEmptyUnversionedRowBatch();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IVersionedRowBatchPtr CreateBatchFromVersionedRows(
+    TSharedRange<TVersionedRow> rows);
+
+IVersionedRowBatchPtr CreateEmptyVersionedRowBatch();
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRow>
+struct TRowBatchTrait;
+
+template <>
+struct TRowBatchTrait<TUnversionedRow>
+{
+    using IRowBatchPtr = IUnversionedRowBatchPtr;
+};
+
+template <>
+struct TRowBatchTrait<TVersionedRow>
+{
+    using IRowBatchPtr = IVersionedRowBatchPtr;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRow>
+typename TRowBatchTrait<TRow>::IRowBatchPtr CreateBatchFromRows(
+    TSharedRange<TRow> rows);
+
+template <class TRow>
+typename TRowBatchTrait<TRow>::IRowBatchPtr CreateEmptyRowBatch();
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
 
-#define UNVERSIONED_ROW_BATCH_INL_H_
-#include "unversioned_row_batch-inl.h"
-#undef UNVERSIONED_ROW_BATCH_INL_H_
+#define ROW_BATCH_INL_H_
+#include "row_batch-inl.h"
+#undef ROW_BATCH_INL_H_

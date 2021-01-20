@@ -131,11 +131,14 @@ void CheckResult(std::vector<TVersionedRow>* expected, IVersionedReaderPtr reade
     std::vector<TVersionedRow> actual;
     actual.reserve(1000);
 
-    while (reader->Read(&actual)) {
-        if (actual.empty()) {
+    while (auto batch = reader->Read()) {
+        if (batch->IsEmpty()) {
             EXPECT_TRUE(reader->GetReadyEvent().Get().IsOK());
             continue;
         }
+
+        auto range = batch->MaterializeRows();
+        std::vector<TVersionedRow> actual(range.begin(), range.end());
 
         actual.erase(
             std::remove_if(

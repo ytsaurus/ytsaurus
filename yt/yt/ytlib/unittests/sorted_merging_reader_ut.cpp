@@ -8,7 +8,7 @@
 #include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 

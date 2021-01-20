@@ -18,7 +18,7 @@
 #include <yt/ytlib/table_client/chunk_state.h>
 
 #include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 #include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/misc/protobuf_helpers.h>

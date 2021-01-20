@@ -16,8 +16,8 @@
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_batch.h>
 #include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/wire_protocol.h>
 
@@ -204,6 +204,7 @@ public:
 
 protected:
     using TRows = TSharedRange<TRow>;
+    using IRowBatchPtr = typename TRowBatchTrait<TRow>::IRowBatchPtr;
 
     const TChunkSpec ChunkSpec_;
     const TRemoteDynamicStoreReaderConfigPtr Config_;
@@ -239,15 +240,16 @@ protected:
         return row;
     }
 
-    bool DoRead(std::vector<TRow>* rows)
+    IRowBatchPtr DoRead(const TRowBatchReadOptions& options)
     {
-        rows->clear();
-        YT_VERIFY(rows->capacity() > 0);
+        YT_VERIFY(options.MaxRowsPerRead > 0);
+        std::vector<TRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
 
         YT_VERIFY(ReadyEvent_);
 
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-            return true;
+            return CreateEmptyRowBatch<TRow>();
         }
 
         ReadyEvent_ = NewPromise<void>();
@@ -258,20 +260,20 @@ protected:
             const auto& loadedRows = RowsFuture_.Get().Value();
             if (loadedRows.Empty()) {
                 YT_LOG_DEBUG("Got empty streaming response, closing reader");
-                return false;
+                return nullptr;
             }
 
             StoredRowset_ = loadedRows;
 
             int readCount = std::min<int>(
-                rows->capacity() - rows->size(),
+                rows.capacity() - rows.size(),
                 loadedRows.size() - RowIndex_);
 
             for (int localRowIndex = 0; localRowIndex < readCount; ++localRowIndex) {
                 auto postprocessedRow = PostprocessRow(loadedRows[RowIndex_++]);
-                rows->push_back(postprocessedRow);
+                rows.push_back(postprocessedRow);
                 ++RowCount_;
-                DataWeight_ += GetDataWeight(rows->back());
+                DataWeight_ += GetDataWeight(rows.back());
             }
 
             if (RowIndex_ == loadedRows.size()) {
@@ -280,7 +282,7 @@ protected:
         }
 
         ReadyEvent_.SetFrom(RowsFuture_);
-        return true;
+        return CreateBatchFromRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
     void DoOpen()
@@ -400,9 +402,9 @@ public:
         return ReadyEvent_;
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows)
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        return DoRead(rows);
+        return DoRead(options);
     }
 
 private:
@@ -506,15 +508,7 @@ public:
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         RowBuffer_->Clear();
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(options.MaxRowsPerRead);
-        if (DoRead(&rows)) {
-            return rows.empty()
-                ? CreateEmptyUnversionedRowBatch()
-                : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows)));
-        } else {
-            return nullptr;
-        }
+        return DoRead(options);
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
@@ -740,41 +734,42 @@ public:
         return ReadyEvent_;
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows)
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        rows->clear();
+        std::vector<TVersionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
+
         if (PreviousReader_ != CurrentReader_) {
             PreviousReader_ = CurrentReader_;
         }
 
         auto readyEvent = GetReadyEvent();
         if (!readyEvent.IsSet() || !readyEvent.Get().IsOK()) {
-            return true;
+            return CreateEmptyVersionedRowBatch();
         }
 
         ReadyEvent_ = NewPromise<void>();
 
         try {
-            bool result = CurrentReader_->Read(rows);
+            auto batch = CurrentReader_->Read(options);
 
             if (!ChunkReaderFallbackOccured_) {
-                if (!rows->empty()) {
-                    auto lastKey = rows->back();
+                if (batch && !batch->IsEmpty()) {
+                    auto lastKey = batch->MaterializeRows().Back();
                     YT_VERIFY(lastKey);
                     LastKey_ = TLegacyOwningKey(lastKey.BeginKeys(), lastKey.EndKeys());
                 }
-                if (result) {
+                if (batch) {
                     CurrentReader_->GetReadyEvent().Subscribe(
                         BIND(&TRetryingRemoteDynamicStoreReader::OnUnderlyingReaderReadyEvent, MakeStrong(this))
                             .Via(GetCurrentInvoker()));
                 }
             }
 
-            return result;
+            return batch;
         } catch (const std::exception& ex) {
             OnReaderFailed(ex);
-            rows->clear();
-            return true;
+            return CreateEmptyVersionedRowBatch();
         }
     }
 
