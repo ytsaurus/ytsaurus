@@ -65,7 +65,7 @@ void TSchedulerPool::ValidateChildrenCompatibility()
     }
 
     // TODO(renadeen): move children validation to pool config?
-    FullConfig()->StrongGuaranteeResources->ForEachResource([this] (auto TResourceLimitsConfig::* resourceDataMember, const TString& name) {
+    FullConfig()->StrongGuaranteeResources->ForEachResource([this] (auto TResourceLimitsConfig::* resourceDataMember, EJobResourceType resourceType) {
         using TResource = typename std::remove_reference_t<decltype(std::declval<TResourceLimitsConfig>().*resourceDataMember)>::value_type;
         auto getResource = [&] (TSchedulerPool* object) -> TResource {
             return (object->FullConfig()->StrongGuaranteeResources.Get()->*resourceDataMember).value_or(0);
@@ -79,7 +79,7 @@ void TSchedulerPool::ValidateChildrenCompatibility()
 
         if (parentResource < childrenResourceSum) {
             THROW_ERROR_EXCEPTION("Guarantee of resource for pool %Qv is less than the sum of children guarantees",  GetName())
-                << TErrorAttribute("resource_name", name)
+                << TErrorAttribute("resource_type", resourceType)
                 << TErrorAttribute("pool_name", GetName())
                 << TErrorAttribute("parent_resource_value", parentResource)
                 << TErrorAttribute("children_resource_sum", childrenResourceSum);
