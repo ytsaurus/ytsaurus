@@ -5,7 +5,7 @@ import yt.wrapper as yt
 import pytest
 
 
-class TestAclCommands(object):
+class TestAclCommandsBase(object):
     def setup(self):
         yt.create("user", attributes={"name": "tester"})
         yt.create("account", attributes={"name": "tester"})
@@ -18,6 +18,8 @@ class TestAclCommands(object):
         yt.remove("//sys/accounts/tester", force=True)
         yt.remove("//sys/groups/super_testers", force=True)
 
+
+class TestAclCommandsRpc(TestAclCommandsBase):
     @authors("sandello", "ignat")
     @pytest.mark.usefixtures("yt_env_with_rpc")
     def test_check_permission(self):
@@ -42,6 +44,8 @@ class TestAclCommands(object):
         finally:
             yt.remove("//home/tester", force=True)
 
+
+class TestAclCommands(TestAclCommandsBase):
     @authors("sandello")
     @pytest.mark.usefixtures("yt_env")
     def test_add_remove_member(self):

@@ -26,7 +26,18 @@ def pytest_ignore_collect(path, config):
     return path.startswith(get_tests_sandbox()) or \
         path.startswith(os.path.join(get_tests_location(), "__pycache__"))
 
-def init_environment_for_test_session(mode, **kwargs):
+
+@pytest.fixture(scope="class", autouse=True)
+def active_environment():
+    return set()
+
+
+def init_environment_for_test_session(request, mode, **kwargs):
+    active_environment = request.getfixturevalue("active_environment")
+    assert not active_environment, "another test environment is already active"
+    active_environment.add(request.fixturename)
+    request.addfinalizer(lambda: active_environment.remove(request.fixturename))
+
     config = {"api_version": "v3"}
     if mode in ("native_v3", "native_v4"):
         config["backend"] = "native"
@@ -53,6 +64,7 @@ def init_environment_for_test_session(mode, **kwargs):
     else:
         yt.config.COMMANDS = None
 
+    request.addfinalizer(lambda: environment.cleanup())
     return environment
 
 def test_function_setup():
@@ -64,8 +76,7 @@ def register_test_function_finalizer(request, remove_operations_archive=True):
 
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4"])
 def test_environment(request):
-    environment = init_environment_for_test_session(request.param)
-    request.addfinalizer(lambda: environment.cleanup())
+    environment = init_environment_for_test_session(request, request.param)
     return environment
 
 @pytest.fixture(scope="class", params=["v3", "v4"])
@@ -91,7 +102,7 @@ def test_environment_with_framing(request):
             },
         },
     }
-    environment = init_environment_for_test_session(request.param, delta_proxy_config=delta_proxy_config)
+    environment = init_environment_for_test_session(request, request.param, delta_proxy_config=delta_proxy_config)
 
     # Setup framing keep-alive period through dynamic config.
     yt.set("//sys/proxies/@config", {"framing": {"keep_alive_period": keep_alive_period}})
@@ -105,27 +116,23 @@ def test_environment_with_framing(request):
         "suspending_path": suspending_path,
     }
 
-    request.addfinalizer(lambda: environment.cleanup())
     return environment
 
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
-    environment = init_environment_for_test_session(request.param)
-    request.addfinalizer(lambda: environment.cleanup())
+    environment = init_environment_for_test_session(request, request.param)
     return environment
 
 @pytest.fixture(scope="class")
 def test_environment_for_yamr(request):
-    environment = init_environment_for_test_session("yamr")
-    request.addfinalizer(lambda: environment.cleanup())
+    environment = init_environment_for_test_session(request, "yamr")
     return environment
 
 @pytest.fixture(scope="class")
 def test_environment_multicell(request):
-    environment = init_environment_for_test_session(
+    environment = init_environment_for_test_session(request,
         "native_multicell",
         env_options={"secondary_master_cell_count": 2})
-    request.addfinalizer(lambda: environment.cleanup())
     return environment
 
 @pytest.fixture(scope="class")
@@ -134,6 +141,7 @@ def test_environment_job_archive(request):
         pytest.skip("porto is not available inside distbuild")
 
     environment = init_environment_for_test_session(
+        request,
         "job_archive",
         env_options={"use_porto_for_servers": True},
         delta_node_config={
@@ -163,9 +171,6 @@ def test_environment_job_archive(request):
 
     sync_create_cell()
     init_operation_archive.create_tables_latest_version(yt, override_tablet_cell_bundle="default")
-
-    request.addfinalizer(lambda: environment.cleanup())
-
     return environment
 
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
@@ -174,6 +179,7 @@ def test_environment_with_porto(request):
         pytest.skip("porto is not available inside distbuild")
 
     environment = init_environment_for_test_session(
+        request,
         request.param,
         env_options={"use_porto_for_servers": True},
         delta_node_config={
@@ -190,17 +196,16 @@ def test_environment_with_porto(request):
         need_suid=True
     )
 
-    request.addfinalizer(lambda: environment.cleanup())
     return environment
 
 @pytest.fixture(scope="class", params=["v4", "rpc"])
 def test_environment_with_increased_memory(request):
     environment = init_environment_for_test_session(
+        request,
         request.param,
         env_options=dict(jobs_memory_limit=8 * GB),
     )
 
-    request.addfinalizer(lambda: environment.cleanup())
     return environment
 
 def _yt_env(request, test_environment):
