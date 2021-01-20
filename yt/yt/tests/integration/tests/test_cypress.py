@@ -2709,6 +2709,20 @@ class TestCypress(YTEnvSetup):
             assert not exists("//tmp/dir1/f1/@" + attr_name)
             assert not exists("//tmp/dir1/j1/@" + attr_name)
 
+    @authors("shakurov")
+    def test_inheritable_attributes_yt_14207(self):
+        create_medium("m1")
+        create("map_node", "//tmp/d1", attributes={"primary_medium": "m1"})
+        create("map_node", "//tmp/d1/d2/d3", recursive=True, attributes={"primary_medium": "default"})
+
+        tx = start_transaction()
+
+        create("table", "//tmp/d1/d2/d3/t1", tx=tx)
+        create("table", "//tmp/d1/d2/d3/t2", tx=tx)
+
+        assert get("//tmp/d1/d2/d3/t1/@primary_medium", tx=tx) == "default"
+        assert get("//tmp/d1/d2/d3/t2/@primary_medium", tx=tx) == "default"
+
     @authors("savrus")
     def test_create_invalid_type(self):
         with pytest.raises(YtError):

@@ -543,12 +543,14 @@ void TCompositeNodeBase::Load(NCellMaster::TLoadContext& context)
 
 bool TCompositeNodeBase::HasInheritableAttributes() const
 {
-    if (Attributes_) {
-        YT_ASSERT(!Attributes_->AreEmpty());
-        return true;
-    } else {
-        return false;
+    for (auto* node = this; node; node = node->GetOriginator()->As<TCompositeNodeBase>()) {
+        if (node->Attributes_) {
+            YT_ASSERT(!node->Attributes_->AreEmpty());
+            return true;
+        }
     }
+
+    return false;
 }
 
 const TCompositeNodeBase::TAttributes* TCompositeNodeBase::FindAttributes() const
