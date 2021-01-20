@@ -19,12 +19,12 @@ class ReadLimit(object):
         else:
             self.limit = {}
 
-    def add_key_part(self, key_list):
-        if "key" not in self.limit:
-            self.limit["key"] = []
+    def set_key(self, key_list):
+        assert "key" not in self.limit
+        self.limit["key"] = []
 
-        for key in flatten(key_list):
-            self.limit["key"].append(key)
+        for value in flatten(key_list):
+            self.limit["key"].append(value)
 
     def as_dict(self):
         return self.limit
@@ -63,7 +63,7 @@ class RichYPath(object):
             path_start += 1
         return str_without_attributes[path_start:]
 
-    def parse_channel(self, tokenizer, attributes):
+    def parse_columns(self, tokenizer, attributes):
         if tokenizer.get_current_type() != TOKEN_LEFT_BRACE:
             return
 
@@ -111,10 +111,10 @@ class RichYPath(object):
                     tokenizer.parse_next()
 
             tokenizer.parse_next()
-            limit.add_key_part(row_builder)
+            limit.set_key(row_builder)
         else:
             self.parse_key_part(tokenizer, row_builder)
-            limit.add_key_part(row_builder)
+            limit.set_key(row_builder)
 
         tokenizer.get_current_token().expect_type(separators)
 
@@ -126,6 +126,7 @@ class RichYPath(object):
             tokenizer.parse_next()
             lower_limit = ReadLimit()
             upper_limit = ReadLimit()
+            exact = ReadLimit()
 
             self.parse_row_limit(tokenizer, (TOKEN_COLON, TOKEN_COMMA, TOKEN_RIGHT_BRACKET), lower_limit)
 
@@ -133,14 +134,9 @@ class RichYPath(object):
                 tokenizer.parse_next()
                 self.parse_row_limit(tokenizer, (TOKEN_COMMA, TOKEN_RIGHT_BRACKET), upper_limit)
             else:
-                if "row_index" in lower_limit.as_dict():
-                    upper_limit = ReadLimit(deepcopy(lower_limit.as_dict()))
-                    upper_limit.set_row_index(lower_limit.as_dict()["row_index"] + 1)
-                else:
-                    upper_limit = ReadLimit(deepcopy(lower_limit.as_dict()))
-                    key = YsonEntity()
-                    key.attributes = {"type": "max"}
-                    upper_limit.add_key_part(key)
+                # This is the case of exact limit.
+                exact = lower_limit
+                lower_limit = ReadLimit()
 
             row_range = {}
             if lower_limit.as_dict():
@@ -148,6 +144,9 @@ class RichYPath(object):
 
             if upper_limit.as_dict():
                 row_range["upper_limit"] = upper_limit.as_dict()
+
+            if exact.as_dict():
+                row_range["exact"] = exact.as_dict()
 
             ranges.append(row_range)
 
@@ -183,7 +182,7 @@ class RichYPath(object):
         if ypath_tokenizer.get_type() == TOKEN_RANGE:
             yson_tokenizer = YsonTokenizer(StreamWrap(BytesIO(range_str), "", ""), encoding)
             yson_tokenizer.parse_next()
-            self.parse_channel(yson_tokenizer, attributes)
+            self.parse_columns(yson_tokenizer, attributes)
             self.parse_row_ranges(yson_tokenizer, attributes)
             yson_tokenizer.get_current_token().expect_type(TOKEN_END_OF_STREAM)
 

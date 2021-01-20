@@ -1,19 +1,15 @@
 #include "rich.h"
 
+#include "parser_detail.h"
+
 #include <yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/column_rename_descriptor.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/parser_helpers.h>
-
-#include <yt/core/ypath/tokenizer.h>
 
 #include <yt/core/yson/consumer.h>
-#include <yt/core/yson/token.h>
-#include <yt/core/yson/tokenizer.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -24,20 +20,6 @@ using namespace NYson;
 using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NSecurityClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-const NYson::ETokenType BeginColumnSelectorToken = NYson::ETokenType::LeftBrace;
-const NYson::ETokenType EndColumnSelectorToken = NYson::ETokenType::RightBrace;
-const NYson::ETokenType ColumnSeparatorToken = NYson::ETokenType::Comma;
-const NYson::ETokenType BeginRowSelectorToken = NYson::ETokenType::LeftBracket;
-const NYson::ETokenType EndRowSelectorToken = NYson::ETokenType::RightBracket;
-const NYson::ETokenType RowIndexMarkerToken = NYson::ETokenType::Hash;
-const NYson::ETokenType BeginTupleToken = NYson::ETokenType::LeftParenthesis;
-const NYson::ETokenType EndTupleToken = NYson::ETokenType::RightParenthesis;
-const NYson::ETokenType KeySeparatorToken = NYson::ETokenType::Comma;
-const NYson::ETokenType RangeToken = NYson::ETokenType::Colon;
-const NYson::ETokenType RangeSeparatorToken = NYson::ETokenType::Comma;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,235 +92,6 @@ bool operator== (const TRichYPath& lhs, const TRichYPath& rhs)
 
 namespace {
 
-void ThrowUnexpectedToken(const TToken& token)
-{
-    THROW_ERROR_EXCEPTION("Unexpected token %Qv",
-        token);
-}
-
-TString ParseAttributes(const TString& str, IAttributeDictionary* attributes)
-{
-    int spaceCount = 0;
-    {
-        size_t index = 0;
-        while (index < str.size() && IsSpace(str[index])) {
-            ++index;
-        }
-        if (index == str.size() || str[index] != TokenTypeToChar(NYson::ETokenType::LeftAngle)) {
-            return str;
-        }
-        spaceCount = index;
-    }
-
-    NYson::TTokenizer tokenizer(TStringBuf(str).SubStr(spaceCount));
-    tokenizer.ParseNext();
-    if (tokenizer.CurrentToken().GetType() != NYson::ETokenType::LeftAngle) {
-        ThrowUnexpectedToken(tokenizer.CurrentToken());
-    }
-
-    int depth = 0;
-    int attrStartPosition = spaceCount + 1;
-
-    while (true) {
-        switch (tokenizer.CurrentToken().GetType()) {
-            case NYson::ETokenType::LeftAngle:
-                ++depth;
-                break;
-            case NYson::ETokenType::RightAngle:
-                --depth;
-                break;
-            default:
-                break;
-        }
-
-        if (depth == 0) {
-            break;
-        }
-
-        if (!tokenizer.ParseNext()) {
-            THROW_ERROR_EXCEPTION("Unmatched '<' in YPath");
-        }
-    }
-
-    int attrEndPosition = spaceCount + tokenizer.GetPosition() - 1;
-    int pathStartPosition = attrEndPosition + 1;
-
-    TYsonString attrYson(
-        str.substr(attrStartPosition, attrEndPosition - attrStartPosition),
-        NYson::EYsonType::MapFragment);
-    attributes->MergeFrom(*ConvertToAttributes(attrYson));
-
-    return TrimLeadingWhitespaces(str.substr(pathStartPosition));
-}
-
-void ParseColumns(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes)
-{
-    if (tokenizer.GetCurrentType() != BeginColumnSelectorToken) {
-        return;
-    }
-
-    std::vector<TString> columns;
-
-    tokenizer.ParseNext();
-    while (tokenizer.GetCurrentType() != EndColumnSelectorToken) {
-        TString begin;
-        switch (tokenizer.GetCurrentType()) {
-            case NYson::ETokenType::String:
-                begin.assign(tokenizer.CurrentToken().GetStringValue());
-                tokenizer.ParseNext();
-                break;
-            default:
-                ThrowUnexpectedToken(tokenizer.CurrentToken());
-                YT_ABORT();
-        }
-
-        columns.push_back(begin);
-
-        switch (tokenizer.GetCurrentType()) {
-            case ColumnSeparatorToken:
-                tokenizer.ParseNext();
-                break;
-            case EndColumnSelectorToken:
-                break;
-            default:
-                ThrowUnexpectedToken(tokenizer.CurrentToken());
-                YT_ABORT();
-        }
-    }
-    tokenizer.ParseNext();
-
-    attributes->Set("columns", ConvertToYsonString(columns));
-}
-
-void ParseKeyPart(
-    NYson::TTokenizer& tokenizer,
-    TUnversionedOwningRowBuilder* rowBuilder)
-{
-    // We don't fill id here, because key part columns are well known.
-    // Also we don't have a name table for them :)
-    TUnversionedValue value;
-
-    switch (tokenizer.GetCurrentType()) {
-        case NYson::ETokenType::String: {
-            auto str = tokenizer.CurrentToken().GetStringValue();
-            value = MakeUnversionedStringValue(str);
-            break;
-        }
-
-        case NYson::ETokenType::Int64: {
-            value = MakeUnversionedInt64Value(tokenizer.CurrentToken().GetInt64Value());
-            break;
-        }
-
-        case NYson::ETokenType::Uint64: {
-            value = MakeUnversionedUint64Value(tokenizer.CurrentToken().GetUint64Value());
-            break;
-        }
-
-        case NYson::ETokenType::Double: {
-            value = MakeUnversionedDoubleValue(tokenizer.CurrentToken().GetDoubleValue());
-            break;
-        }
-
-        case NYson::ETokenType::Boolean: {
-            value = MakeUnversionedBooleanValue(tokenizer.CurrentToken().GetBooleanValue());
-            break;
-        }
-
-        case NYson::ETokenType::Hash: {
-            value = MakeUnversionedSentinelValue(EValueType::Null);
-            break;
-        }
-
-        default:
-            ThrowUnexpectedToken(tokenizer.CurrentToken());
-            break;
-    }
-    rowBuilder->AddValue(value);
-    tokenizer.ParseNext();
-}
-
-void ParseRowLimit(
-    NYson::TTokenizer& tokenizer,
-    std::vector<NYson::ETokenType> separators,
-    TLegacyReadLimit* limit)
-{
-    if (std::find(separators.begin(), separators.end(), tokenizer.GetCurrentType()) != separators.end()) {
-        return;
-    }
-
-    TUnversionedOwningRowBuilder rowBuilder;
-    bool hasKeyLimit = false;
-    switch (tokenizer.GetCurrentType()) {
-        case RowIndexMarkerToken:
-            tokenizer.ParseNext();
-            limit->SetRowIndex(tokenizer.CurrentToken().GetInt64Value());
-            tokenizer.ParseNext();
-            break;
-
-        case BeginTupleToken:
-            tokenizer.ParseNext();
-            hasKeyLimit = true;
-            while (tokenizer.GetCurrentType() != EndTupleToken) {
-                ParseKeyPart(tokenizer, &rowBuilder);
-                switch (tokenizer.GetCurrentType()) {
-                    case KeySeparatorToken:
-                        tokenizer.ParseNext();
-                        break;
-                    case EndTupleToken:
-                        break;
-                    default:
-                        ThrowUnexpectedToken(tokenizer.CurrentToken());
-                        YT_ABORT();
-                }
-            }
-            tokenizer.ParseNext();
-            break;
-
-        default:
-            ParseKeyPart(tokenizer, &rowBuilder);
-            hasKeyLimit = true;
-            break;
-    }
-
-    if (hasKeyLimit) {
-        auto key = rowBuilder.FinishRow();
-        limit->SetLegacyKey(key);
-    }
-
-    tokenizer.CurrentToken().ExpectTypes(separators);
-}
-
-void ParseRowRanges(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes)
-{
-    if (tokenizer.GetCurrentType() == BeginRowSelectorToken) {
-        tokenizer.ParseNext();
-
-        std::vector<TLegacyReadRange> ranges;
-
-        bool finished = false;
-        while (!finished) {
-            TLegacyReadLimit lowerLimit, upperLimit;
-            ParseRowLimit(tokenizer, {RangeToken, RangeSeparatorToken, EndRowSelectorToken}, &lowerLimit);
-            if (tokenizer.GetCurrentType() == RangeToken) {
-                tokenizer.ParseNext();
-
-                ParseRowLimit(tokenizer, {RangeSeparatorToken, EndRowSelectorToken}, &upperLimit);
-                ranges.push_back(TLegacyReadRange(lowerLimit, upperLimit));
-            } else {
-                // The case of exact limit.
-                ranges.push_back(TLegacyReadRange(lowerLimit));
-            }
-            if (tokenizer.CurrentToken().GetType() == EndRowSelectorToken) {
-                finished = true;
-            }
-            tokenizer.ParseNext();
-        }
-
-        attributes->Set("ranges", ConvertToYsonString(ranges));
-    }
-}
-
 void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& attributes, EYsonFormat ysonFormat)
 {
     TString attrString;
@@ -394,25 +147,7 @@ TYsonString FindAttributeYson(const TRichYPath& path, const TString& key)
 
 TRichYPath TRichYPath::Parse(const TString& str)
 {
-    auto attributes = CreateEphemeralAttributes();
-
-    auto strWithoutAttributes = ParseAttributes(str, attributes.Get());
-    TTokenizer ypathTokenizer(strWithoutAttributes);
-
-    while (ypathTokenizer.GetType() != ETokenType::EndOfStream && ypathTokenizer.GetType() != ETokenType::Range) {
-        ypathTokenizer.Advance();
-    }
-    auto path = TYPath(ypathTokenizer.GetPrefix());
-    auto rangeStr = ypathTokenizer.GetToken();
-
-    if (ypathTokenizer.GetType() == ETokenType::Range) {
-        NYson::TTokenizer ysonTokenizer(rangeStr);
-        ysonTokenizer.ParseNext();
-        ParseColumns(ysonTokenizer, attributes.Get());
-        ParseRowRanges(ysonTokenizer, attributes.Get());
-        ysonTokenizer.CurrentToken().ExpectType(NYson::ETokenType::EndOfStream);
-    }
-    return TRichYPath(path, *attributes);
+    return ParseRichYPathImpl(str);
 }
 
 TRichYPath TRichYPath::Normalize() const
@@ -662,14 +397,14 @@ TString ConvertToString(const TRichYPath& path, EYsonFormat ysonFormat)
     AppendAttributes(&builder, *attributes, ysonFormat);
     builder.AppendString(path.GetPath());
     if (columns) {
-        builder.AppendChar(TokenTypeToChar(BeginColumnSelectorToken));
+        builder.AppendChar('{');
         JoinToString(
             &builder,
             columns->begin(),
             columns->end(),
             TDefaultFormatter(),
-            TokenTypeToString(ColumnSeparatorToken));
-        builder.AppendChar(TokenTypeToChar(EndColumnSelectorToken));
+            ",");
+        builder.AppendChar('}');
     }
 
     return builder.Flush();
