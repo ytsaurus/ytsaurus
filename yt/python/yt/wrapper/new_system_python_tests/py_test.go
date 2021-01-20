@@ -118,37 +118,6 @@ func PrepareBinaries(destination string) error {
 			return fmt.Errorf("Failed to make a symlink: %s", err)
 		}
 	}
-	fixupBinary := yatest.BuildPath("yt/yt/tools/yt_sudo_fixup/yt-sudo-fixup")
-
-	var binariesToFix = []string{
-		"exec",
-		"job-proxy",
-		"tools",
-	}
-
-	for _, binary := range binariesToFix {
-		binaryPath := path.Join(destination, "ytserver-"+binary)
-		origPath := path.Join(destination, "ytserver-"+binary+".orig")
-		err = os.Rename(binaryPath, origPath)
-		if err != nil {
-			return fmt.Errorf("Failed to rename %s to %s: %s", binaryPath, origPath, err)
-		}
-		trampolineBash := `#!/bin/bash
-
-exec sudo -En %v %v %v %v "$@"
-`
-
-		err = ioutil.WriteFile(
-			binaryPath,
-			[]byte(fmt.Sprintf(trampolineBash, fixupBinary, os.Getuid(), origPath, "ytserver-"+binary)),
-			0755,
-		)
-		if err != nil {
-			return fmt.Errorf("Failed to write file %s: %s", binaryPath, err)
-		}
-	}
-
-	// TODO: support logrotate
 
 	return nil
 }
@@ -212,8 +181,7 @@ func PreparePython(preparedPythonPath string, t *testing.T) error {
 		"--yt-root", yatest.SourcePath("yt"),
 		"--arcadia-root", yatest.SourcePath(""),
 	)
-	stdout.Reset()
-	stderr.Reset()
+
 	cmdPrepareSourceTree.Stdout = &stdout
 	cmdPrepareSourceTree.Stderr = &stderr
 
