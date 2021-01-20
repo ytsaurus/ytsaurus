@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"a.yandex-team.ru/library/go/test/yatest"
+	"github.com/stretchr/testify/require"
 )
 
 type Testcase struct {
@@ -226,34 +227,28 @@ func PreparePython(preparedPythonPath string, t *testing.T) error {
 }
 
 func TestPyTest(t *testing.T) {
-	var err error
-	var isOK bool
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-
-	var useSystemPython string
-	useSystemPython, isOK = yatest.BuildFlag("USE_SYSTEM_PYTHON")
-	if !isOK || useSystemPython == "" {
+	useSystemPython, ok := yatest.BuildFlag("USE_SYSTEM_PYTHON")
+	if !ok || useSystemPython == "" {
 		t.Skipf("You should specify USE_SYSTEM_PYTHON")
 		return
 	}
 
 	testsRoot := os.Getenv("TESTS_SANDBOX")
 	if testsRoot == "" {
-		testsRoot = yatest.OutputRAMDrivePath("")
+		if yatest.HasRAMDrive() {
+			testsRoot = yatest.OutputRAMDrivePath("")
+		} else {
+			testsRoot = yatest.OutputPath("")
+		}
 	}
 
 	preparedPythonPath := filepath.Join(testsRoot, "prepared_python")
-	err = PreparePython(preparedPythonPath, t)
-	if err != nil {
-		t.Fatalf("Failed to prepare python: %s", err)
-	}
+	err := PreparePython(preparedPythonPath, t)
+	require.NoError(t, err, "failed to prepare python")
 
 	binariesPath := filepath.Join(testsRoot, "bin")
 	err = PrepareBinaries(binariesPath)
-	if err != nil {
-		t.Fatalf("Failed to prepare python: %s", err)
-	}
+	require.NoError(t, err, "failed to prepare binaries")
 
 	sandboxDir := filepath.Join(testsRoot, "sandbox")
 
@@ -261,19 +256,11 @@ func TestPyTest(t *testing.T) {
 	pythonPaths = append(pythonPaths, preparedPythonPath)
 
 	testPathsFilePath := path.Join(preparedPythonPath, "yt/wrapper/new_system_python_tests/test_paths.txt")
-	testPathsFile, err := os.Open(testPathsFilePath)
-	if err != nil {
-		t.Fatalf("Failed to open %s: %s", testPathsFilePath, err)
-	}
-	defer testPathsFile.Close()
-
-	data, err := ioutil.ReadAll(testPathsFile)
-	if err != nil {
-		t.Fatalf("Failed to read %s: %s", testPathsFilePath, err)
-	}
+	testPathsBlob, err := ioutil.ReadFile(testPathsFilePath)
+	require.NoError(t, err)
 
 	testPaths := []string{}
-	for _, testName := range strings.Fields(string(data)) {
+	for _, testName := range strings.Fields(string(testPathsBlob)) {
 		testPaths = append(testPaths, path.Join(preparedPythonPath, "yt/wrapper/tests", testName))
 	}
 
@@ -283,24 +270,24 @@ func TestPyTest(t *testing.T) {
 		"--cache-clear",
 		"--debug",
 		"--verbose",
-		"--verbose",
-		"--process-count", "6",
+		"--durations=0",
 	}
 	pytestArgs = append(pytestArgs, testPaths...)
+
+	if pytestFilter := os.Getenv("PYTEST_FILTER"); pytestFilter != "" {
+		pytestArgs = append(pytestArgs, "-k", pytestFilter)
+	}
 
 	cmdPytest := exec.Command(
 		yatest.PythonBinPath(),
 		pytestArgs...,
 	)
-	stdout.Reset()
-	stderr.Reset()
-	cmdPytest.Stdout = &stdout
-	cmdPytest.Stderr = &stderr
+	cmdPytest.Stdout = os.Stdout
+	cmdPytest.Stderr = os.Stderr
 
 	err = os.Setenv("PATH", strings.Join([]string{binariesPath, os.Getenv("PATH")}, ":"))
-	if err != nil {
-		t.Fatalf("Failed to setenv: %s", err)
-	}
+	require.NoError(t, err)
+
 	cmdPytest.Env = append(
 		os.Environ(),
 		"PYTHONPATH="+strings.Join(pythonPaths, ":"),
@@ -310,47 +297,32 @@ func TestPyTest(t *testing.T) {
 		"YT_ENABLE_VERBOSE_LOGGING=1",
 	)
 
-	t.Logf("Env: %s", cmdPytest.Env)
-	t.Logf("Running %s", cmdPytest.String())
+	t.Logf("env: %s", cmdPytest.Env)
+	t.Logf("running %s", cmdPytest.String())
 
-	err = cmdPytest.Run()
-
-	t.Logf("Pytest command stdout: %s", stdout.String())
-	t.Logf("Pytest command stderr: %s", stderr.String())
-
-	if err != nil {
-		t.Logf("Running pytest command failed: %s", err)
+	if err = cmdPytest.Run(); err != nil {
+		t.Errorf("running pytest command failed: %s", err)
 	}
 
-	xmlFile, err := os.Open(yatest.OutputPath("junit.xml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer xmlFile.Close()
+	require.NoError(t, os.RemoveAll(binariesPath))
 
-	byteValue, _ := ioutil.ReadAll(xmlFile)
+	junitBlob, err := ioutil.ReadFile(yatest.OutputPath("junit.xml"))
+	require.NoError(t, err)
 
 	var testSuite Testsuite
-	err = xml.Unmarshal(byteValue, &testSuite)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = os.RemoveAll(binariesPath)
-	if err != nil {
-		t.Logf("Failed to remove: %s", err)
-	}
+	require.NoError(t, xml.Unmarshal(junitBlob, &testSuite))
 
 	for _, testcase := range testSuite.Testcases {
-		t.Run(
-			fmt.Sprintf("%s::%s", testcase.Classname, testcase.Name),
-			func(t *testing.T) {
-				var testCaseError = testcase.Failure.Text
-				if testCaseError != "" {
-					fmt.Print(testCaseError)
-					t.Fail()
-				}
-			},
-		)
+		t.Run(fmt.Sprintf("%s::%s", testcase.Classname, testcase.Name), func(t *testing.T) {
+			if testCaseError := testcase.Failure.Text; testCaseError != "" {
+				t.Logf(testCaseError)
+				t.Fail()
+			}
+
+			if testCaseError := testcase.Error.Text; testCaseError != "" {
+				t.Logf(testCaseError)
+				t.Fail()
+			}
+		})
 	}
 }
