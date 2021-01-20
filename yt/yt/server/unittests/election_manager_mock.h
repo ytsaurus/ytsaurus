@@ -22,21 +22,6 @@ public:
 
     MOCK_METHOD0(GetPriority, TPeerPriority());
     MOCK_METHOD1(FormatPriority, TString(TPeerPriority priority));
-
-    MOCK_METHOD1(OnAlivePeerSetChanged, void(const TPeerIdSet& alivePeers));
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TElectionManagerMock
-    : public IElectionManager
-{
-public:
-    MOCK_METHOD0(Initialize, void());
-    MOCK_METHOD0(Finalize, void());
-
-    MOCK_METHOD0(Participate, void());
-    MOCK_METHOD1(Abandon, void(const TError&));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

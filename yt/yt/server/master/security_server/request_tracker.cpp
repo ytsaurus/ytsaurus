@@ -34,6 +34,10 @@ using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = SecurityServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRequestTracker::TRequestTracker(
     const NDistributedThrottler::TDistributedThrottlerConfigPtr& userThrottlerConfig,
     NCellMaster::TBootstrap* bootstrap)
@@ -219,7 +223,9 @@ void TRequestTracker::OnUpdateAlivePeerCount()
 {
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
     const auto& hydraManager = hydraFacade->GetHydraManager();
-    int peerCount = static_cast<int>(hydraManager->GetAlivePeerIds().size());
+    auto alivePeerIds = hydraManager->GetAlivePeerIds();
+    YT_LOG_DEBUG("Alive peers updated (AlivePeerIds: %v)", alivePeerIds);
+    int peerCount = static_cast<int>(alivePeerIds.size());
     if (peerCount != AlivePeerCount_) {
         AlivePeerCount_ = peerCount;
         if (!GetDynamicConfig()->EnableDistributedThrottler) {
