@@ -9,7 +9,7 @@
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 
 #include <yt/core/misc/heap.h>
 

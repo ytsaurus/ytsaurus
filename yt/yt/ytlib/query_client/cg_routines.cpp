@@ -12,7 +12,7 @@
 #include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 #include <yt/client/table_client/helpers.h>
 
 #include <yt/core/yson/lexer.h>

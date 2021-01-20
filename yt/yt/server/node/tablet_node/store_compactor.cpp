@@ -1410,27 +1410,31 @@ private:
             ++currentPartitionIndex;
         };
 
-        std::vector<TVersionedRow> readRows;
-        readRows.reserve(MaxRowsPerRead);
+        IVersionedRowBatchPtr rowBatch;
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = MaxRowsPerRead
+        };
         int currentRowIndex = 0;
 
         auto peekInputRow = [&] () -> TVersionedRow {
-            if (currentRowIndex == readRows.size()) {
+            if (!rowBatch || currentRowIndex == rowBatch->GetRowCount()) {
                 // readRows will be invalidated, must flush writeRows.
                 flushOutputRows();
                 currentRowIndex = 0;
                 while (true) {
-                    if (!reader->Read(&readRows)) {
+                    rowBatch = reader->Read(options);
+                    if (!rowBatch) {
                         return TVersionedRow();
                     }
-                    readRowCount += readRows.size();
-                    if (!readRows.empty())
+                    readRowCount += rowBatch->GetRowCount();
+                    if (!rowBatch->IsEmpty()) {
                         break;
+                    }
                     WaitFor(reader->GetReadyEvent())
                         .ThrowOnError();
                 }
             }
-            return readRows[currentRowIndex];
+            return rowBatch->MaterializeRows()[currentRowIndex];
         };
 
         auto skipInputRow = [&] () {
@@ -1834,23 +1838,24 @@ private:
         WaitFor(reader->Open())
             .ThrowOnError();
 
-        std::vector<TVersionedRow> rows;
-        rows.reserve(MaxRowsPerRead);
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = MaxRowsPerRead
+        };
 
         i64 readRowCount = 0;
         i64 writeRowCount = 0;
 
-        while (reader->Read(&rows)) {
-            readRowCount += rows.size();
+        while (auto batch = reader->Read(options)) {
+            readRowCount += batch->GetRowCount();
 
-            if (rows.empty()) {
+            if (batch->IsEmpty()) {
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
             }
 
-            writeRowCount += rows.size();
-            if (!writer->Write(rows)) {
+            writeRowCount += batch->GetRowCount();
+            if (!writer->Write(batch->MaterializeRows())) {
                 WaitFor(writer->GetReadyEvent())
                     .ThrowOnError();
             }

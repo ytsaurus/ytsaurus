@@ -131,7 +131,7 @@ public:
         return VoidFuture;
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         // Drop all references except the last one, as the last surviving block
         // reader may still be alive.
@@ -141,18 +141,20 @@ public:
                 RetainedUncompressedBlocks_.end() - 1);
         }
 
+        std::vector<TVersionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
+
         MemoryPool_.Clear();
-        rows->clear();
 
         if (Finished_) {
             // Now we may safely drop all references to blocks.
             RetainedUncompressedBlocks_.clear();
-            return false;
+            return nullptr;
         }
 
-        Finished_ = !DoRead(rows);
+        Finished_ = !DoRead(&rows);
 
-        return true;
+        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
     virtual TDataStatistics GetDataStatistics() const override

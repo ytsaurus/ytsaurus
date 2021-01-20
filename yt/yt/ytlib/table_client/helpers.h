@@ -8,7 +8,7 @@
 #include <yt/client/table_client/columnar_statistics.h>
 #include <yt/client/table_client/column_sort_schema.h>
 #include <yt/client/table_client/table_output.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 
 #include <yt/client/chunk_client/public.h>
 

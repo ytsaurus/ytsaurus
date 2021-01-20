@@ -394,4 +394,21 @@ DEFINE_REFCOUNTED_TYPE(TChunkWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRowBatchReadOptions
+{
+    //! The desired number of rows to read.
+    //! This is just an estimate; not all readers support this limit.
+    i64 MaxRowsPerRead = 10000;
+
+    //! The desired data weight to read.
+    //! This is just an estimate; not all readers support this limit.
+    i64 MaxDataWeightPerRead = 16_MB;
+
+    //! If true then the reader may return a columnar batch.
+    //! If false then the reader must return a non-columnar batch.
+    bool Columnar = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

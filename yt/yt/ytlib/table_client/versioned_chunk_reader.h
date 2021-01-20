@@ -116,7 +116,7 @@ private:
     const int KeyCount_;
     const IVersionedReaderPtr UnderlyingReader_;
 
-    std::vector<TVersionedRow> Rows_;
+    IVersionedRowBatchPtr RowBatch_;
     int RowIndex_ = -1;
 
     TVersionedRow FetchRow();

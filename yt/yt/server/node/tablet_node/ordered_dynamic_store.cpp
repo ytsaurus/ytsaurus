@@ -28,7 +28,7 @@
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 #include <yt/client/table_client/name_table.h>
 
 namespace NYT::NTabletNode {

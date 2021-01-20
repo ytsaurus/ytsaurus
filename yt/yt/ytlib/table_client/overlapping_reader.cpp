@@ -5,7 +5,7 @@
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
 
@@ -50,6 +50,7 @@ private:
     {
         IVersionedReaderPtr Reader;
         TFuture<void> ReadyEvent;
+        IVersionedRowBatchPtr RowBatch;
         std::vector<TVersionedRow> Rows;
         std::vector<TVersionedRow>::iterator CurrentRow;
 
@@ -208,7 +209,18 @@ bool TSchemafulOverlappingLookupReader::RefillSession(TSession* session)
         return false;
     }
 
-    bool finished = !session->Reader->Read(&session->Rows);
+    TRowBatchReadOptions options{
+        .MaxRowsPerRead = MaxRowsPerRead
+    };
+    session->RowBatch = session->Reader->Read(options);
+
+    bool finished = !static_cast<bool>(session->RowBatch);
+    if (!finished) {
+        auto range = session->RowBatch->MaterializeRows();
+        session->Rows = std::vector<TVersionedRow>(range.begin(), range.end());
+    } else {
+        session->Rows.clear();
+    }
 
     if (!session->Rows.empty()) {
         session->CurrentRow = session->Rows.begin();
@@ -320,6 +332,7 @@ private:
         int Index;
         IVersionedReaderPtr Reader;
         TFuture<void> ReadyEvent;
+        IVersionedRowBatchPtr RowBatch;
         std::vector<TVersionedRow> Rows;
         std::vector<TVersionedRow>::iterator CurrentRow;
 
@@ -600,8 +613,15 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(
         return false;
     }
 
-    session->Rows.reserve(options.MaxRowsPerRead);
-    bool finished = !session->Reader->Read(&session->Rows);
+    session->RowBatch = session->Reader->Read(options);
+
+    bool finished = !static_cast<bool>(session->RowBatch);
+    if (!finished) {
+        auto range = session->RowBatch->MaterializeRows();
+        session->Rows = std::vector<TVersionedRow>(range.begin(), range.end());
+    } else {
+        session->Rows.clear();
+    }
 
     session->Rows.erase(
         std::remove_if(
@@ -793,12 +813,14 @@ public:
         return DoOpen();
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        TRowBatchReadOptions options{
-            .MaxRowsPerRead = static_cast<i64>(rows->capacity())
-        };
-        return DoRead(rows, options);
+        std::vector<TVersionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
+        if (!DoRead(&rows, options)) {
+            return nullptr;
+        }
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override

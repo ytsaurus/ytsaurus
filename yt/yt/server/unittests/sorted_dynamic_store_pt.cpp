@@ -25,8 +25,9 @@ public:
              << "WritePercentage: " << writePercentage
              << Endl;
 
-        std::vector<TVersionedRow> rows;
-        rows.reserve(1);
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = 1
+        };
 
         auto executeRead = [&] () {
             TUnversionedOwningRowBuilder builder;
@@ -44,7 +45,7 @@ public:
                 BlockReadOptions_);
 
             reader->Open().Get();
-            reader->Read(&rows);
+            reader->Read(options);
         };
 
         auto executeWrite = [&] () {

@@ -38,7 +38,7 @@
 #include <yt/client/query_client/query_statistics.h>
 
 #include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/wire_protocol.h>
@@ -571,8 +571,9 @@ private:
             WaitFor(reader->Open())
                 .ThrowOnError();
 
-            std::vector<TVersionedRow> rows;
-            rows.reserve(MaxRowsPerRemoteDynamicStoreRead);
+            TRowBatchReadOptions options{
+                .MaxRowsPerRead = MaxRowsPerRemoteDynamicStoreRead
+            };
 
             YT_LOG_DEBUG("Started serving remote dynamic store read request "
                 "(TabletId: %v, StoreId: %v, Timestamp: %v, ReadSessionId: %v, "
@@ -601,14 +602,14 @@ private:
 
                 // NB: Dynamic store reader is non-blocking in the sense of ready event.
                 // However, waiting on blocked row may occur. See YT-12492.
-                reader->Read(&rows);
-                if (rows.empty()) {
-                    return TSharedRef();
+                auto batch = reader->Read(options);
+                if (!batch || batch->IsEmpty()) {
+                    return TSharedRef{};
                 }
-                rowCount += rows.size();
+                rowCount += batch->GetRowCount();
 
                 TWireProtocolWriter writer;
-                writer.WriteVersionedRowset(rows);
+                writer.WriteVersionedRowset(batch->MaterializeRows());
                 auto data = writer.Finish();
 
                 struct TReadDynamicStoreTag { };
@@ -657,8 +658,9 @@ private:
 
             bool sendOffset = true;
 
-            TRowBatchReadOptions readOptions;
-            readOptions.MaxRowsPerRead = MaxRowsPerRemoteDynamicStoreRead;
+            TRowBatchReadOptions readOptions{
+                .MaxRowsPerRead = MaxRowsPerRemoteDynamicStoreRead
+            };
 
             return HandleInputStreamingRequest(context, [&] {
                 auto batch = reader->Read(readOptions);

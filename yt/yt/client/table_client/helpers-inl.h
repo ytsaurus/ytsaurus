@@ -6,7 +6,7 @@
 #endif
 
 #include "row_buffer.h"
-#include "unversioned_row_batch.h"
+#include "row_batch.h"
 
 #include <yt/core/yson/protobuf_interop.h>
 

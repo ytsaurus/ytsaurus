@@ -262,6 +262,7 @@ DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)
 
 DECLARE_REFCOUNTED_STRUCT(IUnversionedRowBatch)
 DECLARE_REFCOUNTED_STRUCT(IUnversionedColumnarRowBatch)
+DECLARE_REFCOUNTED_STRUCT(IVersionedRowBatch)
 
 struct IValueConsumer;
 struct IFlushableValueConsumer;

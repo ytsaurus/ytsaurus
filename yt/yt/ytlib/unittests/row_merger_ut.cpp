@@ -14,15 +14,15 @@
 #include <yt/ytlib/table_client/overlapping_reader.h>
 #include <yt/ytlib/table_client/row_merger.h>
 
+#include <yt/client/table_client/helpers.h>
+#include <yt/client/table_client/row_batch.h>
 #include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_reader.h>
+#include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/versioned_row.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/unversioned_row_batch.h>
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/schema.h>
 
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -1582,20 +1582,21 @@ public:
         return VoidFuture;
     }
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        rows->clear();
+        std::vector<TVersionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
 
         if (Position_ == Rows_.size()) {
-            return false;
+            return nullptr;
         }
 
-        while (Position_ < Rows_.size() && rows->size() < rows->capacity()) {
-            rows->push_back(Rows_[Position_]);
+        while (Position_ < Rows_.size() && rows.size() < rows.capacity()) {
+            rows.push_back(Rows_[Position_]);
             ++Position_;
         }
 
-        return true;
+        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override
@@ -1636,8 +1637,6 @@ class TSchemafulMergingReaderTest
 public:
     void ReadAll(ISchemafulUnversionedReaderPtr reader, std::vector<TUnversionedRow>* result)
     {
-        std::vector<TUnversionedRow> partial;
-        partial.reserve(1024);
         while (auto batch = reader->Read()) {
             if (batch->IsEmpty()) {
                 WaitFor(reader->GetReadyEvent())
@@ -1784,24 +1783,22 @@ class TVersionedMergingReaderTest
 public:
     void ReadAll(IVersionedReaderPtr reader, std::vector<TVersionedRow>* result)
     {
-        std::vector<TVersionedRow> partial;
-        partial.reserve(1024);
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = 1024
+        };
 
         WaitFor(reader->Open())
             .ThrowOnError();
 
-        bool wait;
-        do {
-            WaitFor(reader->GetReadyEvent())
-                .ThrowOnError();
-            wait = reader->Read(&partial);
-
-            for (const auto& row : partial) {
+        while (auto batch = reader->Read(options)) {
+            for (const auto& row : batch->MaterializeRows()) {
                 Result_.push_back(TVersionedOwningRow(row));
                 result->push_back(Result_.back());
             }
 
-        } while (wait || partial.size() > 0);
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
+        }
     }
 
 private:

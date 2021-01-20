@@ -3,7 +3,7 @@
 #include "column_reader_detail.h"
 #include "helpers.h"
 
-#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_batch.h>
 #include <yt/client/table_client/logical_type.h>
 
 #include <yt/core/misc/bitmap.h>

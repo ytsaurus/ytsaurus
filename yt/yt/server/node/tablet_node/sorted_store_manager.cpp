@@ -737,9 +737,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             /*lookup*/ true, // Forbid null rows. All rows in cache must have a key.
             /*mergeRowsOnFlush*/ false);
 
-        std::vector<TVersionedRow> rows;
-        rows.reserve(MaxRowsPerFlushRead);
-
         const auto& rowCache = tabletSnapshot->RowCache;
 
         if (rowCache) {
@@ -762,12 +759,19 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         THazardPtrFlushGuard flushGuard;
 
+        TRowBatchReadOptions readOptions{
+            .MaxRowsPerRead = MaxRowsPerFlushRead
+        };
+
         while (true) {
             // NB: Memory store reader is always synchronous.
-            reader->Read(&rows);
-            if (rows.empty()) {
+            auto batch = reader->Read(readOptions);
+            if (!batch || batch->IsEmpty()) {
                 break;
             }
+
+            auto range = batch->MaterializeRows();
+            std::vector<TVersionedRow> rows(range.begin(), range.end());
 
             if (tabletSnapshot->Config->MergeRowsOnFlush) {
                 auto outputIt = rows.begin();
