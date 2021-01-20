@@ -1410,7 +1410,14 @@ private:
             ++ThrottledSubrequestIndex_;
 
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            auto workloadType = Subrequests_[CurrentSubrequestIndex_].Mutation
+            auto subrequestType = Subrequests_[CurrentSubrequestIndex_].Type;
+            if (subrequestType != EExecutionSessionSubrequestType::LocalRead &&
+                subrequestType != EExecutionSessionSubrequestType::LocalWrite)
+            {
+                continue;
+            }
+
+            auto workloadType = subrequestType == EExecutionSessionSubrequestType::LocalWrite
                 ? EUserWorkloadType::Write
                 : EUserWorkloadType::Read;
             auto result = securityManager->ThrottleUser(User_, 1, workloadType);
