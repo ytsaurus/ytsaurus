@@ -49,7 +49,9 @@ struct TEpochContext
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
     TLeaseTrackerPtr LeaseTracker;
+
     NConcurrency::TPeriodicExecutorPtr HeartbeatMutationCommitExecutor;
+    NConcurrency::TPeriodicExecutorPtr AlivePeersUpdateExecutor;
 
     std::atomic_flag Restarting = ATOMIC_FLAG_INIT;
     bool LeaderSwitchStarted = false;

@@ -46,15 +46,6 @@ struct IElectionCallbacks
 
     //! Enables pretty-printing peer priorities in logs.
     virtual TString FormatPriority(TPeerPriority priority) = 0;
-
-    //! Called when the set of alive peers changes. Only called on the leader.
-    /*!
-     *  This means the calls may only occur between #OnStartLeading and #OnStopLeading.
-     *  Consequently, one should always consider subscribing to all three of these callbacks.
-     *
-     *  The peer set includes both voting and non-voting peers.
-     */
-    virtual void OnAlivePeerSetChanged(const TPeerIdSet& alivePeers) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IElectionCallbacks)
@@ -102,6 +93,12 @@ struct IElectionManager
      *  Thread affinity: any
      */
     virtual NYson::TYsonProducer GetMonitoringProducer() = 0;
+
+    //! For leaders only: returns the set of alive peers.
+    /*!
+     *  This includes both voting and non-voting peers.
+     */
+    virtual TPeerIdSet GetAlivePeerIds() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IElectionManager)

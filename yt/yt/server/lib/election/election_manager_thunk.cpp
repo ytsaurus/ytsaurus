@@ -36,6 +36,11 @@ NYson::TYsonProducer TElectionManagerThunk::GetMonitoringProducer()
     return Underlying_.Load()->GetMonitoringProducer();
 }
 
+TPeerIdSet TElectionManagerThunk::GetAlivePeerIds()
+{
+    return Underlying_.Load()->GetAlivePeerIds();
+}
+
 void TElectionManagerThunk::SetUnderlying(IElectionManagerPtr underlying)
 {
     Underlying_.Store(std::move(underlying));

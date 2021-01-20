@@ -134,14 +134,6 @@ public:
                 (priority % 2) != 0 ? "+" : "");
         }
 
-        virtual void OnAlivePeerSetChanged(const TPeerIdSet& alivePeers) override
-        {
-            CancelableControlInvoker_->Invoke(BIND(
-                &TDistributedHydraManager::OnElectionAlivePeerSetChanged,
-                Owner_,
-                alivePeers));
-        }
-
     private:
         const TWeakPtr<TDistributedHydraManager> Owner_;
         const IInvokerPtr CancelableControlInvoker_;
@@ -582,7 +574,7 @@ private:
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
-    TAtomicObject<TPeerIdSet> AlivePeers_;
+    TAtomicObject<TPeerIdSet> AlivePeerIds_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -1423,6 +1415,16 @@ private:
     }
 
 
+    void OnUpdateAlivePeers()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::LeaderRecovery) {
+            ControlEpochContext_->AlivePeerIds.Store(ElectionManager_->GetAlivePeerIds());
+        }
+    }
+
+
     void OnElectionStartLeading(const NElection::TEpochContextPtr& electionEpochContext)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1899,6 +1901,13 @@ private:
             epochContext->EpochUserAutomatonInvoker,
             BIND(&TDistributedHydraManager::OnHeartbeatMutationCommit, MakeWeak(this)),
             Config_->HeartbeatMutationPeriod);
+        if (epochContext->LeaderId == epochContext->CellManager->GetSelfPeerId()) {
+            epochContext->AlivePeersUpdateExecutor = New<TPeriodicExecutor>(
+                epochContext->EpochControlInvoker,
+                BIND(&TDistributedHydraManager::OnUpdateAlivePeers, MakeWeak(this)),
+                TDuration::Seconds(5));
+            epochContext->AlivePeersUpdateExecutor->Start();
+        }
         epochContext->LeaderSyncBatcher = New<TAsyncBatcher<void>>(
             BIND_DONT_CAPTURE_TRACE_CONTEXT(&TDistributedHydraManager::DoSyncWithLeader, MakeWeak(this), MakeWeak(epochContext)),
             Config_->LeaderSyncDelay);
