@@ -309,7 +309,6 @@ class YTEnvSetup(object):
             kill_child_processes=True,
             use_native_client=True,
             use_porto_for_servers=cls.USE_PORTO,
-            port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),

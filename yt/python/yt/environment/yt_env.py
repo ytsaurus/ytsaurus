@@ -103,7 +103,7 @@ class YTInstance(object):
                  controller_agent_count=None, defer_controller_agent_start=False,
                  http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, rpc_proxy_ports=None, cell_tag=0,
                  enable_debug_logging=True, enable_logging_compression=True, preserve_working_dir=False, tmpfs_path=None,
-                 port_locks_path=None, local_port_range=None, port_range_start=None, node_port_set_size=None,
+                 local_port_range=None, port_range_start=None, node_port_set_size=None,
                  listen_port_pool=None, fqdn=None, jobs_resource_limits=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
@@ -168,9 +168,6 @@ class YTInstance(object):
             rpc_proxy_count = 0
 
         self._use_native_client = use_native_client
-
-        self._random_generator = random.Random(random.SystemRandom().random())
-        self._random_uuid = generate_uuid(self._random_generator)
         self._lock = RLock()
 
         self.configs = defaultdict(list)
@@ -188,13 +185,6 @@ class YTInstance(object):
         self._tmpfs_path = tmpfs_path
         if self._tmpfs_path is not None:
             self._tmpfs_path = os.path.abspath(self._tmpfs_path)
-
-        self.port_locks_path = port_locks_path
-        if self.port_locks_path is not None:
-            makedirp(self.port_locks_path)
-        self.local_port_range = local_port_range
-        self._listen_port_pool = listen_port_pool
-        self._open_port_iterator = None
 
         if fqdn is None:
             self._hostname = socket.getfqdn()
@@ -252,20 +242,62 @@ class YTInstance(object):
 
         self._default_client_config = {"enable_token": False}
 
-        self._prepare_environment(jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
-                                  node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
-                                  enable_master_cache, enable_permission_cache, modify_configs_func,
-                                  enable_structured_master_logging, enable_structured_scheduler_logging, enable_rpc_driver_proxy_discovery)
+        yt_config = LocalYtConfig()
+        yt_config.master_count = self.master_count
+        yt_config.secondary_cell_count = self.secondary_master_cell_count
+        yt_config.primary_cell_tag = self._cell_tag
+        yt_config.nonvoting_master_count = self.nonvoting_master_count
+        yt_config.clock_count = self.clock_count
+        yt_config.scheduler_count = self.scheduler_count
+        yt_config.controller_agent_count = self.controller_agent_count
+        yt_config.http_proxy_count = self.http_proxy_count
+        yt_config.http_proxy_ports = self.http_proxy_ports
+        yt_config.rpc_proxy_count = self.rpc_proxy_count
+        yt_config.rpc_proxy_ports = self.rpc_proxy_ports
 
-    def _get_ports_generator(self, port_range_start):
-        if port_range_start and isinstance(port_range_start, int):
-            return count(port_range_start)
-        elif self._listen_port_pool is not None:
-            return iter(self._listen_port_pool)
+        yt_config.enable_debug_logging = self._enable_debug_logging
+        yt_config.enable_log_compression = self._enable_logging_compression
+        yt_config.log_compression_method = self._log_compression_method
+        yt_config.enable_structured_master_logging = enable_structured_master_logging
+        yt_config.enable_structured_scheduler_logging = enable_structured_scheduler_logging
+        if enable_master_cache is not None:
+            yt_config.enable_master_cache = enable_master_cache
+        if enable_permission_cache is not None:
+            yt_config.enable_permission_cache = enable_permission_cache
+        yt_config.fqdn = self._hostname
+
+        yt_config.node_count = self.node_count
+
+        if jobs_resource_limits is not None:
+            yt_config.jobs_resouce_limits = jobs_resource_limits
+        if jobs_cpu_limit is not None:
+            yt_config.job_resource_limits["cpu"] = jobs_cpu_limit
+        if jobs_memory_limit is not None:
+            yt_config.job_resource_limits["memory"] = jobs_memory_limit
+        if jobs_user_slot_count is not None:
+            yt_config.job_resource_limits["user_slots"] = jobs_user_slot_count
+
+        yt_config.node_memory_limit_addition = node_memory_limit_addition
+        yt_config.node_chunk_store_quota = node_chunk_store_quota
+        yt_config.allow_chunk_storage_in_tmpfs = allow_chunk_storage_in_tmpfs
+        yt_config.node_port_set_size = node_port_set_size
+
+        yt_config.port_range_start = port_range_start
+        yt_config.local_port_range = local_port_range
+        yt_config.listen_port_pool = listen_port_pool
+        self._open_port_iterator = None
+
+        self._prepare_environment(yt_config, self._get_ports_generator(yt_config), modify_configs_func)
+
+    def _get_ports_generator(self, yt_config):
+        if yt_config.port_range_start and isinstance(yt_config.port_range_start, int):
+            return count(yt_config.port_range_start)
+        elif yt_config.listen_port_pool is not None:
+            return iter(yt_config.listen_port_pool)
         else:
             self._open_port_iterator = OpenPortIterator(
-                port_locks_path=self.port_locks_path,
-                local_port_range=self.local_port_range)
+                port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH", None),
+                local_port_range=yt_config.local_port_range)
             return self._open_port_iterator
 
     def _prepare_directories(self):
@@ -331,12 +363,8 @@ class YTInstance(object):
                 "http_proxy": http_proxy_dirs,
                 "rpc_proxy": rpc_proxy_dirs}
 
-    def _prepare_environment(self, jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
-                             node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
-                             enable_master_cache, enable_permission_cache, modify_configs_func,
-                             enable_structured_master_logging, enable_structured_scheduler_logging, enable_rpc_driver_proxy_discovery):
+    def _prepare_environment(self, yt_config, ports_generator, modify_configs_func):
         logger.info("Preparing cluster instance as follows:")
-        logger.info("  random_uuid        %s", self._random_uuid)
         logger.info("  clocks             %d", self.clock_count)
         logger.info("  masters            %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
         logger.info("  nodes              %d", self.node_count)
@@ -354,49 +382,9 @@ class YTInstance(object):
             logger.warning("Master count is zero. Instance is not prepared.")
             return
 
-        yt_config = LocalYtConfig()
-        yt_config.master_count = self.master_count
-        yt_config.secondary_cell_count = self.secondary_master_cell_count
-        yt_config.primary_cell_tag = self._cell_tag
-        yt_config.nonvoting_master_count = self.nonvoting_master_count
-        yt_config.clock_count = self.clock_count
-        yt_config.scheduler_count = self.scheduler_count
-        yt_config.controller_agent_count = self.controller_agent_count
-        yt_config.http_proxy_count = self.http_proxy_count
-        yt_config.http_proxy_ports = self.http_proxy_ports
-        yt_config.rpc_proxy_count = self.rpc_proxy_count
-        yt_config.rpc_proxy_ports = self.rpc_proxy_ports
-
-        yt_config.enable_debug_logging = self._enable_debug_logging
-        yt_config.enable_log_compression = self._enable_logging_compression
-        yt_config.log_compression_method = self._log_compression_method
-        yt_config.enable_structured_master_logging = enable_structured_master_logging
-        yt_config.enable_structured_scheduler_logging = enable_structured_scheduler_logging
-        if enable_master_cache is not None:
-            yt_config.enable_master_cache = enable_master_cache
-        if enable_permission_cache is not None:
-            yt_config.enable_permission_cache = enable_permission_cache
-        yt_config.fqdn = self._hostname
-
-        yt_config.node_count = self.node_count
-
-        if jobs_resource_limits is not None:
-            yt_config.jobs_resouce_limits = jobs_resource_limits
-        if jobs_cpu_limit is not None:
-            yt_config.job_resource_limits["cpu"] = jobs_cpu_limit
-        if jobs_memory_limit is not None:
-            yt_config.job_resource_limits["memory"] = jobs_memory_limit
-        if jobs_user_slot_count is not None:
-            yt_config.job_resource_limits["user_slots"] = jobs_user_slot_count
-
-        yt_config.node_memory_limit_addition = node_memory_limit_addition
-        yt_config.node_chunk_store_quota = node_chunk_store_quota
-        yt_config.allow_chunk_storage_in_tmpfs = allow_chunk_storage_in_tmpfs
-        yt_config.node_port_set_size = node_port_set_size
-
         dirs = self._prepare_directories()
 
-        cluster_configuration = build_configs(self._get_ports_generator(port_range_start), dirs, self.logs_path, yt_config)
+        cluster_configuration = build_configs(ports_generator, dirs, self.logs_path, yt_config)
 
         if modify_configs_func:
             modify_configs_func(cluster_configuration, self.abi_version)

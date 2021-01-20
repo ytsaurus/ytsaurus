@@ -9,11 +9,10 @@ from yt.environment import arcadia_interop
 import subprocess
 import os.path
 
+import yatest.common.network
 import yt.packages.requests as requests
 
 from yt_env_setup import YTEnvSetup
-
-from yt.environment.helpers import OpenPortIterator
 
 from yt.clickhouse.test_helpers import get_log_tailer_config, get_host_paths
 
@@ -120,10 +119,7 @@ class TestLogTailer(YTEnvSetup):
         create_user("yt-log-tailer")
         add_member("yt-log-tailer", "superusers")
 
-        port_iterator = OpenPortIterator(
-            port_locks_path=self.Env.port_locks_path, local_port_range=self.Env.local_port_range
-        )
-        log_tailer_monitoring_port = next(port_iterator)
+        log_tailer_monitoring_port = yatest.common.network.PortManager().get_port()
 
         dummy_logger = subprocess.Popen([HOST_PATHS["dummy-logger"], log_path, "5", "1000", "2000"])
         log_tailer = subprocess.Popen(
