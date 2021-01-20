@@ -102,17 +102,17 @@ public:
         // NB(renadeen): must be in sync with the lines below.
         YT_VERIFY(GetParameterCount() == 5);
 
-        processResource(&TResourceLimitsConfig::UserSlots, "user_slots");
-        processResource(&TResourceLimitsConfig::Cpu, "cpu");
-        processResource(&TResourceLimitsConfig::Network, "network");
-        processResource(&TResourceLimitsConfig::Memory, "memory");
-        processResource(&TResourceLimitsConfig::Gpu, "gpu");
+        processResource(&TResourceLimitsConfig::UserSlots, EJobResourceType::UserSlots);
+        processResource(&TResourceLimitsConfig::Cpu, EJobResourceType::Cpu);
+        processResource(&TResourceLimitsConfig::Network, EJobResourceType::Network);
+        processResource(&TResourceLimitsConfig::Memory, EJobResourceType::Memory);
+        processResource(&TResourceLimitsConfig::Gpu, EJobResourceType::Gpu);
     }
 
     bool IsNonTrivial()
     {
         bool isNonTrivial = false;
-        ForEachResource([&, this] (auto TResourceLimitsConfig::* resourceDataMember, const TString& name) {
+        ForEachResource([&, this] (auto TResourceLimitsConfig::* resourceDataMember, EJobResourceType /* resourceType */) {
             isNonTrivial |= (this->*resourceDataMember).has_value();
         });
         return isNonTrivial;
