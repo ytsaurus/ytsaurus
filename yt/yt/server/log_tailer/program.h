@@ -20,7 +20,6 @@ public:
         Opts_.AddLongOption("monitoring-port", "ytserver monitoring port")
             .DefaultValue(10242)
             .StoreResult(&MonitoringPort_);
-
         Opts_.SetFreeArgsMin(0);
         Opts_.SetFreeArgsMax(1);
         Opts_.SetFreeArgTitle(0, "writer-pid");
@@ -34,6 +33,7 @@ protected:
         ConfigureCrashHandler();
 
         auto config = GetConfig();
+        config->MonitoringPort = MonitoringPort_;
         if (parseResult.GetFreeArgCount() == 1) {
             auto freeArgs = parseResult.GetFreeArgs();
             config->LogTailer->LogRotation->LogWriterPid = FromString<int>(freeArgs[0]);
@@ -42,12 +42,12 @@ protected:
         ConfigureSingletons(config);
         StartDiagnosticDump(config);
 
-        TBootstrap bootstrap{std::move(config), MonitoringPort_};
+        TBootstrap bootstrap(std::move(config));
         bootstrap.Run();
     }
 
 private:
-    ui16 MonitoringPort_ = 0;
+    int MonitoringPort_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

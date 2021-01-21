@@ -12,7 +12,7 @@
 
 #include <yt/server/lib/discovery_server/public.h>
 #include <yt/server/lib/discovery_server/config.h>
-#include <yt/server/lib/discovery_server/discovery_service.h>
+#include <yt/server/lib/discovery_server/discovery_server.h>
 
 #include <yt/core/rpc/local_channel.h>
 #include <yt/core/rpc/local_server.h>
@@ -85,18 +85,18 @@ public:
 
 private:
     std::vector<TString> Addresses_ = {"peer1", "peer2", "peer3", "peer4", "peer5"};
-    std::vector<TDiscoveryServerPtr> DiscoveryServers_;
+    std::vector<IDiscoveryServerPtr> DiscoveryServers_;
     std::vector<IServerPtr> RpcServers_;
 
     std::vector<TActionQueuePtr> ActionQueues_;
     TStaticChannelFactoryPtr ChannelFactory_;
 
-    TDiscoveryServerPtr CreateDiscoveryServer(const TDiscoveryServerConfigPtr& serverConfig, int index)
+    IDiscoveryServerPtr CreateDiscoveryServer(const TDiscoveryServerConfigPtr& serverConfig, int index)
     {
         auto serverActionQueue = New<TActionQueue>("DiscoveryServer" + ToString(index));
         auto gossipActionQueue = New<TActionQueue>("Gossip" + ToString(index));
 
-        auto server = New<TDiscoveryServer>(
+        auto server = NDiscoveryServer::CreateDiscoveryServer(
             RpcServers_[index],
             Addresses_[index],
             serverConfig,

@@ -101,17 +101,22 @@ void TBootstrap::DoRun()
     TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
     TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
 
-    Config_->MonitoringServer->ServerName = "monitoring";
-    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+    HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
+    NMonitoring::Initialize(
+        HttpServer_,
+        Config_->SolomonExporter,
+        &MonitoringManager_,
+        &orchidRoot);
 
     SetNodeByYPath(
         orchidRoot,
         "/config",
         ConfigNode_);
-    SetBuildAttributes(orchidRoot, "clickhouse_server");
+    SetBuildAttributes(
+        orchidRoot,
+        "clickhouse_server");
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
@@ -124,7 +129,6 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(),
         CoreDumper_));
-
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker()));

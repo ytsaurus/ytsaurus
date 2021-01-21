@@ -85,20 +85,22 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     Poller_ = CreateThreadPoolPoller(Config_->ThreadCount, "Poller");
     Acceptor_ = CreateThreadPoolPoller(1, "Acceptor");
 
-    Config_->MonitoringServer->Port = Config_->MonitoringPort;
-    Config_->MonitoringServer->ServerName = "monitoring";
-    MonitoringServer_ = NHttp::CreateServer(
-        Config_->MonitoringServer);
+    MonitoringServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(MonitoringServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
+    NMonitoring::Initialize(
+        MonitoringServer_,
+        Config_->SolomonExporter,
+        &MonitoringManager_,
+        &orchidRoot);
 
     SetNodeByYPath(
         orchidRoot,
         "/config",
         ConfigNode_);
-
-    SetBuildAttributes(orchidRoot, "http_proxy");
+    SetBuildAttributes(
+        orchidRoot,
+        "http_proxy");
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;

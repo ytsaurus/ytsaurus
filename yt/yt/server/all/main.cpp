@@ -9,15 +9,18 @@
 #include <yt/server/node/cluster_node/program.h>
 #include <yt/server/exec/program.h>
 #include <yt/server/log_tailer/program.h>
+#include <yt/server/discovery_server/program.h>
 
 #include <yt/ytlib/program/program.h>
 
 #include <library/cpp/getopt/small/last_getopt_parse_result.h>
 
+namespace NYT {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAllProgram
-    : public NYT::TProgram
+    : public TProgram
 {
 public:
     int Run(int argc, const char** argv)
@@ -28,13 +31,15 @@ public:
     }
 
 private:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult&) override
+    virtual void DoRun(const NLastGetopt::TOptsParseResult& /* result */) override
     {
         YT_ABORT();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
 
 int main(int argc, const char** argv)
 {
@@ -50,6 +55,7 @@ int main(int argc, const char** argv)
         {"ytserver-scheduler", [&] { return NYT::NScheduler::TSchedulerProgram().Run(argc, argv); }},
         {"ytserver-controller-agent", [&] { return NYT::NControllerAgent::TControllerAgentProgram().Run(argc, argv); }},
         {"ytserver-log-tailer", [&] { return NYT::NLogTailer::TLogTailerProgram().Run(argc, argv); }},
+        {"ytserver-discovery", [&] { return NYT::NClusterDiscoveryServer::TClusterDiscoveryServerProgram().Run(argc, argv); }},
     };
 
     for (const auto program : programs) {
@@ -59,7 +65,7 @@ int main(int argc, const char** argv)
     }
 
     // Handles auxiliary flags like --version and --build.
-    TAllProgram().Run(argc, argv);
+    NYT::TAllProgram().Run(argc, argv);
 
     Cerr << "Program " << argv[0] << " is not known" << Endl;
     return 1;

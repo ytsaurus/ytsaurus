@@ -144,13 +144,12 @@ private:
             config->Yt->Address = GetFQDNHostName();
         }
 
-        config->MonitoringServer->Port = config->MonitoringPort = MonitoringPort_;
+        config->MonitoringPort = MonitoringPort_;
         config->BusServer->Port = config->RpcPort = RpcPort_;
         config->ClickHouse->TcpPort = TcpPort_;
         config->ClickHouse->HttpPort = HttpPort_;
         config->Yt->CliqueId = TGuid::FromString(CliqueId_);
         config->Yt->InstanceId = TGuid::FromString(InstanceId_);
-
     }
 
     void PrintClickHouseVersionAndExit() const

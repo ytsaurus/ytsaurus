@@ -197,8 +197,6 @@ TBootstrap::~TBootstrap() = default;
 
 void TBootstrap::Initialize()
 {
-    srand(time(nullptr));
-
     ControlActionQueue_ = New<TActionQueue>("Control");
     JobActionQueue_ = New<TActionQueue>("Job");
 
@@ -668,20 +666,15 @@ void TBootstrap::DoRun()
     // Force start node directory synchronizer.
     MasterConnection_->GetNodeDirectorySynchronizer()->Start();
 
-    Config_->MonitoringServer->Port = Config_->MonitoringPort;
-    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
-    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    Config_->MonitoringServer->ServerName = "monitoring";
-    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+    HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-    auto skynetHttpConfig = New<NHttp::TServerConfig>();
-    skynetHttpConfig->Port = Config_->SkynetHttpPort;
-    skynetHttpConfig->BindRetryCount = Config_->BusServer->BindRetryCount;
-    skynetHttpConfig->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    skynetHttpConfig->ServerName = "skynet";
-    SkynetHttpServer_ = NHttp::CreateServer(skynetHttpConfig);
+    SkynetHttpServer_ = NHttp::CreateServer(Config_->CreateSkynetHttpServerConfig());
 
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_, Config_->SolomonExporter);
+    NMonitoring::Initialize(
+        HttpServer_,
+        Config_->SolomonExporter,
+        &MonitoringManager_,
+        &OrchidRoot_);
 
     StoreCompactor_ = CreateStoreCompactor(this);
     StoreFlusher_ = CreateStoreFlusher(this);
@@ -730,8 +723,9 @@ void TBootstrap::DoRun()
         "/object_service_cache",
         CreateVirtualNode(ObjectServiceCache_->GetOrchidService()
             ->Via(GetControlInvoker())));
-
-    SetBuildAttributes(OrchidRoot_, "node");
+    SetBuildAttributes(
+        OrchidRoot_,
+        "node");
 
     SkynetHttpServer_->AddHandler(
         "/read_skynet_part",

@@ -25,24 +25,23 @@ static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(
-    NYT::NLogTailer::TLogTailerBootstrapConfigPtr config,
-    ui16 monitoringPort)
+TBootstrap::TBootstrap(TLogTailerBootstrapConfigPtr config)
     : Config_(std::move(config))
     , LogTailerQueue_(New<TActionQueue>("LogTailer"))
     , LogTailer_(New<TLogTailer>(this, Config_->LogTailer))
-    , MonitoringPort_(monitoringPort)
 { }
 
 void TBootstrap::Run()
 {
     YT_LOG_INFO("Starting log tailer");
 
-    Config_->MonitoringServer->Port = MonitoringPort_;
-    Config_->MonitoringServer->ServerName = "monitoring";
-    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+    HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_, Config_->SolomonExporter);
+    NMonitoring::Initialize(
+        HttpServer_,
+        Config_->SolomonExporter,
+        &MonitoringManager_,
+        &OrchidRoot_);
 
     SetBuildAttributes(OrchidRoot_, "clickhouse_log_tailer");
 

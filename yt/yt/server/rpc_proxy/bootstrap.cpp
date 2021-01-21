@@ -133,19 +133,18 @@ void TBootstrap::DoRun()
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
-    Config_->MonitoringServer->Port = Config_->MonitoringPort;
-    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
-    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    Config_->MonitoringServer->ServerName = "monitoring";
-    HttpServer_ = NHttp::CreateServer(
-        Config_->MonitoringServer);
+    HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
+    NMonitoring::Initialize(
+        HttpServer_,
+        Config_->SolomonExporter,
+        &MonitoringManager_,
+        &orchidRoot);
 
     SetNodeByYPath(
         orchidRoot,
@@ -155,7 +154,9 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/coordinator",
         CreateVirtualNode(ProxyCoordinator_->CreateOrchidService()));
-    SetBuildAttributes(orchidRoot, "proxy");
+    SetBuildAttributes(
+        orchidRoot,
+        "proxy");
 
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
