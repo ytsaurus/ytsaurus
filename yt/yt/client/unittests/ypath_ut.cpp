@@ -1,6 +1,13 @@
+#include "key_helpers.h"
+
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/client/ypath/rich.h>
+
+#include <yt/client/chunk_client/helpers.h>
+
+#include <yt/client/table_client/comparator.h>
+#include <yt/client/table_client/key_bound.h>
 
 #include <yt/core/yson/parser.h>
 #include <yt/core/yson/writer.h>
@@ -19,6 +26,9 @@ namespace NYT::NYTree {
 namespace {
 
 using namespace NYson;
+using namespace NYPath;
+using namespace NChunkClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -397,6 +407,232 @@ TEST_F(TYPathTest, IgnoreAmpersand3)
     Set("/map", "{}");
     Set("/map/@attr", "value");
     Check("/map&/@attr", "value");
+}
+
+TEST_F(TYPathTest, NewReadRanges)
+{
+    TComparator comparatorAsc1({ESortOrder::Ascending});
+    TComparator comparatorAsc2({ESortOrder::Ascending, ESortOrder::Ascending});
+    TComparator comparatorDesc1({ESortOrder::Descending});
+    TComparator comparatorDesc2({ESortOrder::Descending, ESortOrder::Descending});
+
+    auto makeRow = [&] (const std::vector<int> values) {
+        std::vector<TUnversionedValue> unversionedValues;
+        unversionedValues.reserve(values.size());
+        for (int value : values) {
+            unversionedValues.emplace_back(MakeUnversionedInt64Value(value));
+        }
+        return MakeRow(std::move(unversionedValues));
+    };
+
+    {
+        std::vector<TReadRange> ranges(1);
+        // No ranges.
+        EXPECT_EQ(
+            ranges,
+            TRichYPath::Parse("//t").GetNewRanges());
+    }
+    {
+        // Some row index ranges in short form.
+        std::vector<TReadRange> ranges(2);
+        ranges[0].LowerLimit().SetRowIndex(1);
+        ranges[0].UpperLimit().SetRowIndex(2);
+
+        ranges[1].LowerLimit().SetRowIndex(3);
+
+        EXPECT_EQ(
+            ranges,
+            TRichYPath::Parse("//t[#1, #3:]").GetNewRanges());
+    }
+
+    {
+        // Key range without provided comparator is not allowed.
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            TRichYPath::Parse("//t[foo]").GetNewRanges(),
+            std::exception,
+            "for an unsorted object");
+    }
+
+    {
+        // Some key ranges in short form.
+        std::vector<TReadRange> ranges(2);
+        // (123,456):789
+        ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({123, 456});
+        ranges[0].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() < makeRow({789});
+        // (424,242)
+        ranges[1].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({424, 242});
+        ranges[1].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() <= makeRow({424, 242});
+
+        auto ypath = TRichYPath::Parse("//t[(123,456):789, (424,242)]");
+
+        EXPECT_EQ(
+            ranges,
+            ypath.GetNewRanges(comparatorAsc2));
+        EXPECT_EQ(
+            ranges,
+            ypath.GetNewRanges(comparatorDesc2));
+    }
+
+    {
+        // Same key ranges in short form, but in context of shorter key prefix.
+        // Inclusiveness of some key bounds is toggled.
+        std::vector<TReadRange> ranges(2);
+        // (123,456):789
+        ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() > makeRow({123});
+        ranges[0].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() < makeRow({789});
+        // (424,242); in ascending case it transforms into empty range.
+        ranges[1].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() > makeRow({});
+        ranges[1].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() < makeRow({});
+
+        auto ypath = TRichYPath::Parse("//t[(123,456):789, (424,242)]");
+
+        EXPECT_EQ(
+            ranges,
+            ypath.GetNewRanges(comparatorAsc1));
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            ypath.GetNewRanges(comparatorDesc1),
+            std::exception,
+            "Read limit key cannot be longer");
+    }
+
+    {
+        // Short key in context of a longer key prefix.
+        std::vector<TReadRange> ranges(2);
+        // (123):456
+        ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({123});
+        ranges[0].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() < makeRow({456});
+        // (789); in ascending case it transforms into empty range.
+        ranges[1].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() > makeRow({});
+        ranges[1].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() < makeRow({});
+
+        auto ypath = TRichYPath::Parse("//t[(123):456, (789)]");
+
+        EXPECT_EQ(
+            ranges,
+            ypath.GetNewRanges(comparatorAsc2));
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            ypath.GetNewRanges(comparatorDesc2),
+            std::exception,
+            "Exact read limit key should have same length");
+    }
+
+    {
+        // Some row index ranges in full form.
+        std::vector<TReadRange> ranges(2);
+        // #42:#57
+        ranges[0].LowerLimit().SetRowIndex(42);
+        ranges[0].UpperLimit().SetRowIndex(57);
+        // #123
+        ranges[1].LowerLimit().SetRowIndex(123);
+        ranges[1].UpperLimit().SetRowIndex(124);
+
+        auto ypath = TRichYPath::Parse(
+            "<ranges=["
+            "{lower_limit={row_index=42};upper_limit={row_index=57}};"
+            "{exact={row_index=123}};"
+            "]>//t");
+
+        EXPECT_EQ(ranges, ypath.GetNewRanges());
+    }
+
+    {
+        // Lower limit simultaneously with exact.
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            TRichYPath::Parse("<ranges=[{lower_limit={};exact={}}]>//t").GetNewRanges(),
+            std::exception,
+            "Exact limit cannot be specified simultaneously");
+    }
+
+    {
+        // Key bound in exact limit.
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            TRichYPath::Parse(R"(<ranges=[{exact={key_bound=["<="; []]}}]>//t)").GetNewRanges(),
+            std::exception,
+            "Key bound cannot be specified in exact");
+    }
+
+    {
+        // Key and key bound.
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            TRichYPath::Parse(R"(<ranges=[{lower_limit={key=[]; key_bound=[">="; []]};}]>//t)").GetNewRanges(),
+            std::exception,
+            "Key and key bound");
+    }
+
+    {
+        // Key with sentinels (ok for ascending and not ok for descending).
+        std::vector<TReadRange> ranges(1);
+        // (42):(57,<type=max>#)
+        ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({42});
+        ranges[0].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() <= makeRow({57});
+
+        auto ypath = TRichYPath::Parse("<ranges=[{lower_limit={key=[42]};upper_limit={key=[57;<type=max>#]}}]>//tmp/t");
+
+        EXPECT_EQ(ranges, ypath.GetNewRanges(comparatorAsc2));
+
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            ypath.GetNewRanges(comparatorDesc2),
+            std::exception,
+            "Sentinel values are not allowed");
+    }
+
+    {
+        // Key with sentinels (ok for ascending and not ok for descending).
+        std::vector<TReadRange> ranges(1);
+        // (42):(57,<type=max>#)
+        ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({42});
+        ranges[0].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() <= makeRow({57});
+
+        auto ypath = TRichYPath::Parse("<ranges=[{lower_limit={key=[42]};upper_limit={key=[57;<type=max>#]}}]>//tmp/t");
+
+        EXPECT_EQ(ranges, ypath.GetNewRanges(comparatorAsc2));
+
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            ypath.GetNewRanges(comparatorDesc2),
+            std::exception,
+            "Sentinel values are not allowed");
+    }
+
+    {
+        // Correct usage of key bounds for previous case.
+        std::vector<TReadRange> ranges(1);
+        // >=(42):<=(57)
+        ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({42});
+        ranges[0].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() <= makeRow({57});
+
+        auto ypath = TRichYPath::Parse(
+            R"(<ranges=[{lower_limit={key_bound=[">=";[42]]};upper_limit={key_bound=["<=";[57]];}}]>//tmp/t)");
+
+        EXPECT_EQ(ranges, ypath.GetNewRanges(comparatorAsc2));
+        EXPECT_EQ(ranges, ypath.GetNewRanges(comparatorDesc2));
+        EXPECT_EQ(ranges, ypath.GetNewRanges(comparatorAsc1));
+        EXPECT_EQ(ranges, ypath.GetNewRanges(comparatorDesc1));
+    }
+
+    {
+        std::vector<TReadRange> ranges(1);
+        // >=(42,57) with shorter comparator, i.e not ok both for ascending and descending sort order.
+        ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({42, 57});
+
+        auto ypath = TRichYPath::Parse(R"(<ranges=[{lower_limit={key_bound=[">="; [42;57]]};}]>//tmp/t)");
+
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            ypath.GetNewRanges(comparatorAsc1),
+            std::exception,
+            "Key bound length must not exceed");
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            ypath.GetNewRanges(comparatorDesc1),
+            std::exception,
+            "Key bound length must not exceed");
+    }
+
+    {
+        // Exact consisting of multiple selectors.
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            TRichYPath::Parse("<ranges=[{exact={row_index=42;chunk_index=23}}]>//tmp/t").GetNewRanges(),
+            std::exception,
+            "Exact read limit must have exactly one");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

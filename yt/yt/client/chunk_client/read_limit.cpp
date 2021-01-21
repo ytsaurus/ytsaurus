@@ -570,12 +570,79 @@ TReadLimit::TReadLimit(
 
 bool TReadLimit::IsTrivial() const
 {
+    return GetSelectorCount() == 0;
+}
+
+int TReadLimit::GetSelectorCount() const
+{
+    int selectorCount = 0;
+
+    if (KeyBound_) {
+        ++selectorCount;
+    }
+
+    if (RowIndex_) {
+        ++selectorCount;
+    }
+
+    if (Offset_) {
+        ++selectorCount;
+    }
+
+    if (ChunkIndex_) {
+        ++selectorCount;
+    }
+
+    if (TabletIndex_) {
+        ++selectorCount;
+    }
+
+    return selectorCount;
+}
+
+TReadLimit TReadLimit::ToExactUpperCounterpart() const
+{
+    YT_VERIFY(GetSelectorCount() == 1);
+
+    TReadLimit result = *this;
+
+    if (KeyBound_) {
+        YT_VERIFY(!KeyBound_.IsUpper);
+        // We are either a special >[] empty key bound, or a lower part of some
+        // key bound from an exact read limit, in which case we must be inclusive.
+        if (!KeyBound_.IsEmpty()) {
+            YT_VERIFY(KeyBound_.IsInclusive);
+        }
+        result.KeyBound_ = result.KeyBound_.Invert().ToggleInclusiveness();
+    }
+
+    if (RowIndex_) {
+        ++*result.RowIndex_;
+    }
+
+    if (Offset_) {
+        ++*result.Offset_;
+    }
+
+    if (ChunkIndex_) {
+        ++*result.ChunkIndex_;
+    }
+
+    if (TabletIndex_) {
+        ++*result.TabletIndex_;
+    }
+
+    return result;
+}
+
+bool TReadLimit::operator == (const TReadLimit& other) const
+{
     return
-        (!KeyBound_ || KeyBound_.IsUniversal()) &&
-        !RowIndex_ &&
-        !Offset_ &&
-        !ChunkIndex_ &&
-        !TabletIndex_;
+        KeyBound_ == other.KeyBound_ &&
+        RowIndex_ == other.RowIndex_ &&
+        Offset_ == other.Offset_ &&
+        ChunkIndex_ == other.ChunkIndex_ &&
+        TabletIndex_ == other.TabletIndex_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -704,6 +771,38 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
         .EndMap();
 }
 
+void Deserialize(TReadLimit& readLimit, const INodePtr& node)
+{
+    if (node->GetType() != NYTree::ENodeType::Map) {
+        THROW_ERROR_EXCEPTION("Error parsing read limit: expected %Qlv node, actual %Qlv node",
+            NYTree::ENodeType::Map,
+            node->GetType());
+    }
+
+    readLimit = TReadLimit();
+    auto attributes = ConvertToAttributes(node);
+
+    if (auto optionalKeyBound = FindReadLimitComponent<TOwningKeyBound>(attributes, "key_bound")) {
+        readLimit.KeyBound() = *optionalKeyBound;
+    }
+
+    if (auto optionalRowIndex = FindReadLimitComponent<i64>(attributes, "row_index")) {
+        readLimit.SetRowIndex(*optionalRowIndex);
+    }
+
+    if (auto optionalOffset = FindReadLimitComponent<i64>(attributes, "offset")) {
+        readLimit.SetOffset(*optionalOffset);
+    }
+
+    if (auto optionalChunkIndex = FindReadLimitComponent<i64>(attributes, "chunk_index")) {
+        readLimit.SetChunkIndex(*optionalChunkIndex);
+    }
+
+    if (auto optionalTabletIndex = FindReadLimitComponent<i32>(attributes, "tablet_index")) {
+        readLimit.SetTabletIndex(*optionalTabletIndex);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadRange::TReadRange(TReadLimit lowerLimit, TReadLimit upperLimit)
@@ -728,6 +827,11 @@ TReadRange::TReadRange(
     if (range.has_upper_limit()) {
         UpperLimit_ = TReadLimit(range.upper_limit(), /* isUpper */true, keyLength);
     }
+}
+
+bool TReadRange::operator == (const TReadRange& other) const
+{
+    return LowerLimit_ == other.LowerLimit_ && UpperLimit_ == other.UpperLimit_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,16 @@
+#include "helpers.h"
+
+#include "read_limit.h"
+
+namespace NYT::NChunkClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintTo(const TReadRange& readRange, std::ostream* os)
+{
+    *os << ToString(readRange);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NChunkClient

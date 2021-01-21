@@ -180,9 +180,6 @@ struct TChunkReaderMemoryManagerOptions;
 
 DECLARE_REFCOUNTED_STRUCT(TMemoryManagedData)
 
-class TLegacyReadLimit;
-class TLegacyReadRange;
-
 struct TUserObject;
 
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
