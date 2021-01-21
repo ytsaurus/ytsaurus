@@ -1261,19 +1261,17 @@ public:
 
         SwitchTo(agent->GetCancelableInvoker());
 
-        auto parseOperationsFuture = BIND([&operationsProto = request->operations()] () {
-                std::vector<TOperationInfo> operationInfos;
+        std::vector<TOperationInfo> operationInfos;
+        auto parseOperationsFuture = BIND([&operationsProto = request->operations(), &operationInfos = operationInfos] () {
                 operationInfos.reserve(operationsProto.size());
                 for (const auto& operationInfoProto : operationsProto) {
                     operationInfos.emplace_back(FromProto<TOperationInfo>(operationInfoProto));
                 }
-                return operationInfos;
             })
             .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
             .Run();
-
-        auto operationInfos = WaitFor(parseOperationsFuture)
-            .ValueOrThrow();
+        WaitFor(parseOperationsFuture)
+            .ThrowOnError();
 
         TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics;
         for (const auto& operationInfo : operationInfos) {
