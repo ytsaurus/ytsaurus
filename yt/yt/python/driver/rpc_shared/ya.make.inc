@@ -9,5 +9,5 @@ CXXFLAGS(
 )
 
 PEERDIR(
-    ${YT_ROOT}/yt/python/driver/rpc
+    yt/yt/python/driver/rpc
 )
