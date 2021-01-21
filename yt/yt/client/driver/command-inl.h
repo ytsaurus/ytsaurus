@@ -42,6 +42,8 @@ TTransactionalCommandBase<
 {
     this->RegisterParameter("transaction_id", this->Options.TransactionId)
         .Optional();
+    this->RegisterParameter("ping", this->Options.Ping)
+        .Optional();
     this->RegisterParameter("ping_ancestor_transactions", this->Options.PingAncestors)
         .Optional();
 }
@@ -71,7 +73,7 @@ NApi::ITransactionPtr TTransactionalCommandBase<
     auto transaction = transactionPool->FindTransactionAndRenewLease(transactionId);
     if (!transaction) {
         NApi::TTransactionAttachOptions options;
-        options.Ping = false;
+        options.Ping = this->Options.Ping;
         options.PingAncestors = this->Options.PingAncestors;
         transaction = context->GetClient()->AttachTransaction(transactionId, options);
     }
