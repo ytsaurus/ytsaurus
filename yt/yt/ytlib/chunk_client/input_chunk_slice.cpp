@@ -191,26 +191,26 @@ TInputSliceLimit::TInputSliceLimit(bool isUpper)
     : KeyBound(TKeyBound::MakeUniversal(isUpper))
 { }
 
-void TInputSliceLimit::MergeLower(const TInputSliceLimit& other, const std::optional<TComparator>& comparator)
+void TInputSliceLimit::MergeLower(const TInputSliceLimit& other, const TComparator& comparator)
 {
     if (!RowIndex || (other.RowIndex && *other.RowIndex > *RowIndex)) {
         RowIndex = other.RowIndex;
     }
     if (comparator) {
-        comparator->ReplaceIfStrongerKeyBound(KeyBound, other.KeyBound);
+        comparator.ReplaceIfStrongerKeyBound(KeyBound, other.KeyBound);
     } else {
         YT_VERIFY(!other.KeyBound);
     }
     YT_VERIFY(!KeyBound || !KeyBound.IsUpper);
 }
 
-void TInputSliceLimit::MergeUpper(const TInputSliceLimit& other, const std::optional<TComparator>& comparator)
+void TInputSliceLimit::MergeUpper(const TInputSliceLimit& other, const TComparator& comparator)
 {
     if (!RowIndex || (other.RowIndex && *other.RowIndex < *RowIndex)) {
         RowIndex = other.RowIndex;
     }
     if (comparator) {
-        comparator->ReplaceIfStrongerKeyBound(KeyBound, other.KeyBound);
+        comparator.ReplaceIfStrongerKeyBound(KeyBound, other.KeyBound);
     } else {
         YT_VERIFY(!other.KeyBound);
     }
@@ -760,7 +760,7 @@ void InferLimitsFromBoundaryKeys(
     const TInputChunkSlicePtr& chunkSlice,
     const TRowBufferPtr& rowBuffer,
     std::optional<int> keyColumnCount,
-    std::optional<TComparator> comparator)
+    TComparator comparator)
 {
     if (chunkSlice->IsLegacy) {
         if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
@@ -775,13 +775,13 @@ void InferLimitsFromBoundaryKeys(
     } else {
         if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
             YT_VERIFY(comparator);
-            auto chunkLowerBound = KeyBoundFromLegacyRow(boundaryKeys->MinKey, /* isUpper */ false, comparator->GetLength(), rowBuffer);
-            auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /* isUpper */ true, comparator->GetLength(), rowBuffer);
-            if (comparator->StrongerKeyBound(chunkSlice->LowerLimit().KeyBound, chunkLowerBound) == chunkLowerBound) {
+            auto chunkLowerBound = KeyBoundFromLegacyRow(boundaryKeys->MinKey, /* isUpper */ false, comparator.GetLength(), rowBuffer);
+            auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /* isUpper */ true, comparator.GetLength(), rowBuffer);
+            if (comparator.StrongerKeyBound(chunkSlice->LowerLimit().KeyBound, chunkLowerBound) == chunkLowerBound) {
                 chunkLowerBound.Prefix = rowBuffer->Capture(chunkLowerBound.Prefix);
                 chunkSlice->LowerLimit().KeyBound = chunkLowerBound;
             }
-            if (comparator->StrongerKeyBound(chunkSlice->UpperLimit().KeyBound, chunkUpperBound) == chunkUpperBound) {
+            if (comparator.StrongerKeyBound(chunkSlice->UpperLimit().KeyBound, chunkUpperBound) == chunkUpperBound) {
                 chunkUpperBound.Prefix = rowBuffer->Capture(chunkUpperBound.Prefix);
                 chunkSlice->UpperLimit().KeyBound = chunkUpperBound;
             }
@@ -797,7 +797,7 @@ std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     return CreateInputChunkSlice(inputChunk)->SliceEvenly(sliceDataWeight, sliceRowCount);
 }
 
-void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlice, std::optional<TComparator> comparator, EDataSourceType dataSourceType)
+void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlice, TComparator comparator, EDataSourceType dataSourceType)
 {
     // The chunk spec in the slice has arrived from master, so it can't possibly contain any extensions
     // except misc and boundary keys (in sorted merge or reduce). Jobs request boundary keys
@@ -867,7 +867,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
             auto lowerLimitToSerialize = inputSlice->LowerLimit();
             if (!inputSlice->LowerLimit().KeyBound || inputSlice->LowerLimit().KeyBound.IsUniversal() ||
                 (dataSourceType == EDataSourceType::UnversionedTable && comparator &&
-                comparator->CompareKeyBounds(inputSlice->LowerLimit().KeyBound, chunkMinKeyBound) <= 0))
+                comparator.CompareKeyBounds(inputSlice->LowerLimit().KeyBound, chunkMinKeyBound) <= 0))
             {
                 lowerLimitToSerialize.KeyBound = TKeyBound();
             }
@@ -878,7 +878,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
             auto upperLimitToSerialize = inputSlice->UpperLimit();
             if (!inputSlice->UpperLimit().KeyBound || inputSlice->UpperLimit().KeyBound.IsUniversal() ||
                 (dataSourceType == EDataSourceType::UnversionedTable &&
-                comparator && comparator->CompareKeyBounds(inputSlice->UpperLimit().KeyBound, chunkMaxKeyBound) >= 0))
+                comparator && comparator.CompareKeyBounds(inputSlice->UpperLimit().KeyBound, chunkMaxKeyBound) >= 0))
             {
                 upperLimitToSerialize.KeyBound = TKeyBound();
             }

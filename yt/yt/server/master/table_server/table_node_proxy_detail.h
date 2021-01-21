@@ -46,7 +46,7 @@ protected:
         const NYson::TYsonString& oldValue,
         const NYson::TYsonString& newValue) override;
     virtual void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& context) const override;
-    virtual std::optional<NTableClient::TComparator> GetComparator() const override;
+    virtual NTableClient::TComparator GetComparator() const override;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 

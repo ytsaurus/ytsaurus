@@ -299,7 +299,7 @@ public:
         TChunkList* chunkList,
         TCtxFetchPtr rpcContext,
         TFetchContext&& fetchContext,
-        std::optional<TComparator> comparator)
+        TComparator comparator)
         : Bootstrap_(bootstrap)
         , ChunkList_(chunkList)
         , RpcContext_(std::move(rpcContext))
@@ -332,7 +332,7 @@ private:
     TChunkList* const ChunkList_;
     const TCtxFetchPtr RpcContext_;
     TFetchContext FetchContext_;
-    const std::optional<TComparator> Comparator_;
+    const TComparator Comparator_;
 
     int CurrentRangeIndex_ = 0;
 
@@ -963,9 +963,9 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
 void TChunkOwnerNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& /* readLimit */) const
 { }
 
-std::optional<TComparator> TChunkOwnerNodeProxy::GetComparator() const
+TComparator TChunkOwnerNodeProxy::GetComparator() const
 {
-    return std::nullopt;
+    return TComparator();
 }
 
 void TChunkOwnerNodeProxy::ValidateInUpdate()
@@ -1036,7 +1036,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         ValidateReadLimit(protoRange.upper_limit());
 
         auto& range = fetchContext.Ranges.emplace_back();
-        FromProto(&range, protoRange, comparator ? std::make_optional(comparator->GetLength()) : std::nullopt);
+        FromProto(&range, protoRange, comparator.GetLength());
     }
 
     auto visitor = New<TFetchChunkVisitor>(

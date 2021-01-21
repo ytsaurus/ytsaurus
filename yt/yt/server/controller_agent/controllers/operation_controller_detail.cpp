@@ -5302,9 +5302,7 @@ void TOperationControllerBase::FetchInputTables()
 
         auto inputChunk = New<TInputChunk>(
             chunkSpec,
-            /* keyColumnCount */ table->Comparator
-                ? std::make_optional(table->Comparator->GetLength())
-                : std::nullopt);
+            /* keyColumnCount */ table->Comparator.GetLength());
         inputChunk->SetTableIndex(tableIndex);
         inputChunk->SetChunkIndex(totalChunkCount++);
 
@@ -6673,15 +6671,15 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                 auto chunkSlice = CreateInputChunkSlice(chunk);
                 InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer);
                 auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
-                dataSlice->TransformToNew(RowBuffer, table->Comparator->GetLength());
-                fetcher->AddDataSliceForSlicing(dataSlice, *table->Comparator, sliceSize, true);
+                dataSlice->TransformToNew(RowBuffer, table->Comparator.GetLength());
+                fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, true);
             }
 
             fetcher->SetCancelableContext(GetCancelableContext());
             asyncResults.emplace_back(fetcher->Fetch());
             fetchers.emplace_back(std::move(fetcher));
             YT_VERIFY(table->Comparator);
-            comparators.push_back(*table->Comparator);
+            comparators.push_back(table->Comparator);
         }
     }
 
@@ -6768,11 +6766,11 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                         RowBuffer->Capture(chunkSpec->BoundaryKeys()->MinKey.Get()),
                         GetKeySuccessor(chunkSpec->BoundaryKeys()->MaxKey.Get(), RowBuffer)));
 
-                    chunkSlice->TransformToNew(RowBuffer, table->Comparator->GetLength());
+                    chunkSlice->TransformToNew(RowBuffer, table->Comparator.GetLength());
                 }
 
                 YT_VERIFY(table->Comparator);
-                auto dataSlices = CombineVersionedChunkSlices(chunkSlices, *table->Comparator);
+                auto dataSlices = CombineVersionedChunkSlices(chunkSlices, table->Comparator);
                 for (const auto& dataSlice : dataSlices) {
                     if (IsUnavailable(dataSlice, CheckParityReplicas())) {
                         switch (Spec_->UnavailableChunkStrategy) {
@@ -6811,7 +6809,7 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
 
                     YT_VERIFY(table->Comparator);
 
-                    dataSlice->TransformToNew(RowBuffer, table->Comparator->GetLength());
+                    dataSlice->TransformToNew(RowBuffer, table->Comparator.GetLength());
                 }
             }
         }
@@ -6908,7 +6906,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
         chunkSliceList.reserve(dataSliceDescriptor.ChunkSpecs.size());
 
         // TODO(gritukan): One day we will do interrupts in non-input tasks.
-        std::optional<TComparator> comparator;
+        TComparator comparator;
         if (joblet->Task->GetIsInput()) {
             comparator = GetInputTable(dataSliceDescriptor.GetDataSourceIndex())->Comparator;
         }
@@ -6929,7 +6927,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
             // slices into new.
             if (!dynamic) {
                 if (comparator) {
-                    chunkSlice->TransformToNew(RowBuffer, comparator->GetLength());
+                    chunkSlice->TransformToNew(RowBuffer, comparator.GetLength());
                     InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer, std::nullopt, comparator);
                 } else {
                     chunkSlice->TransformToNewKeyless();
@@ -6941,7 +6939,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
         if (dynamic) {
             dataSlice = CreateVersionedInputDataSlice(chunkSliceList);
             if (comparator) {
-                dataSlice->TransformToNew(RowBuffer, comparator->GetLength());
+                dataSlice->TransformToNew(RowBuffer, comparator.GetLength());
             } else {
                 dataSlice->TransformToNewKeyless();
             }

@@ -541,17 +541,17 @@ TReadLimit::TReadLimit(TOwningKeyBound keyBound)
 TReadLimit::TReadLimit(
     const NProto::TReadLimit& readLimit,
     bool isUpper,
-    std::optional<int> keyLength)
+    int keyLength)
 {
     if (readLimit.has_key_bound_prefix()) {
         NTableClient::FromProto(&KeyBound_.Prefix, readLimit.key_bound_prefix());
         KeyBound_.IsUpper = isUpper;
         KeyBound_.IsInclusive = readLimit.key_bound_is_inclusive();
     } else if (readLimit.has_legacy_key()) {
-        YT_VERIFY(keyLength);
+        YT_VERIFY(keyLength > 0);
         TUnversionedOwningRow legacyKey;
         FromProto(&legacyKey, readLimit.legacy_key());
-        KeyBound_ = KeyBoundFromLegacyRow(legacyKey, isUpper, *keyLength);
+        KeyBound_ = KeyBoundFromLegacyRow(legacyKey, isUpper, keyLength);
     }
 
     if (readLimit.has_row_index()) {
@@ -711,14 +711,14 @@ void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit)
     }
 }
 
-void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit, bool isUpper, std::optional<int> keyLength)
+void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit, bool isUpper, int keyLength)
 {
     // Formally speaking two exceptions in this method could be YT_VERIFY, but let's
     // try to be more tolerant to possible bugs. After all, this code is used in
     // master a lot.
 
     auto validateKeyLengthIsPresent = [=] {
-        if (!keyLength) {
+        if (keyLength == 0) {
             THROW_ERROR_EXCEPTION(
                 "Read limit contains key, but key length is not provided");
         }
@@ -731,10 +731,10 @@ void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit, 
         FromProto(&readLimit->KeyBound().Prefix, protoReadLimit.key_bound_prefix());
         readLimit->KeyBound().IsInclusive = protoReadLimit.key_bound_is_inclusive();
 
-        if (readLimit->KeyBound().Prefix.GetCount() > *keyLength) {
+        if (readLimit->KeyBound().Prefix.GetCount() > keyLength) {
             THROW_ERROR_EXCEPTION(
                 "Invalid key bound prefix length; expected no more than %v, actual %v",
-                *keyLength,
+                keyLength,
                 readLimit->KeyBound().Prefix.GetCount());
         }
     } else if (protoReadLimit.has_legacy_key()) {
@@ -742,7 +742,7 @@ void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit, 
 
         TLegacyOwningKey legacyKey;
         FromProto(&legacyKey, protoReadLimit.legacy_key());
-        readLimit->KeyBound() = KeyBoundFromLegacyRow(legacyKey, isUpper, *keyLength);
+        readLimit->KeyBound() = KeyBoundFromLegacyRow(legacyKey, isUpper, keyLength);
     }
 
     if (protoReadLimit.has_row_index()) {
@@ -819,7 +819,7 @@ TReadRange::TReadRange(TReadLimit lowerLimit, TReadLimit upperLimit)
 
 TReadRange::TReadRange(
     const NProto::TReadRange& range,
-    std::optional<int> keyLength)
+    int keyLength)
 {
     if (range.has_lower_limit()) {
         LowerLimit_ = TReadLimit(range.lower_limit(), /* isUpper */false, keyLength);
@@ -857,7 +857,7 @@ void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange)
     }
 }
 
-void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange, std::optional<int> keyLength)
+void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange, int keyLength)
 {
     if (protoReadRange.has_lower_limit()) {
         FromProto(&readRange->LowerLimit(), protoReadRange.lower_limit(), /* isUpper */ false, keyLength);

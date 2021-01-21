@@ -105,7 +105,7 @@ void TraverseChunkTree(
     TChunkList* root,
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit,
-    std::optional<NTableClient::TComparator> comparator);
+    NTableClient::TComparator comparator);
 
 //! Legacy version of previous function. Works by transforming legacy lower and upper
 //! limits into new read limits and invoking previous version.
@@ -115,7 +115,7 @@ void TraverseChunkTree(
     TChunkList* root,
     const NChunkClient::TLegacyReadLimit& legacyLowerLimit,
     const NChunkClient::TLegacyReadLimit& legacyUpperLimit,
-    std::optional<NTableClient::TComparator> comparator);
+    NTableClient::TComparator comparator);
 
 //! Traverses the subtree at #root. No bounds are being checked,
 //! #visitor is being notified of each relevant child.

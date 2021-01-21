@@ -2543,7 +2543,7 @@ protected:
 
             const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
             if (comparator) {
-                dataSlice->TransformToNew(RowBuffer, comparator->GetLength());
+                dataSlice->TransformToNew(RowBuffer, comparator.GetLength());
                 InferLimitsFromBoundaryKeys(dataSlice, RowBuffer, comparator);
             } else {
                 dataSlice->TransformToNewKeyless();

@@ -50,7 +50,7 @@ void TNewJobStub::AddPreliminaryForeignDataSlice(const TLegacyDataSlicePtr& data
     ++PreliminaryForeignSliceCount_;
 }
 
-void TNewJobStub::Finalize(bool sortByPosition, std::optional<TComparator> comparator)
+void TNewJobStub::Finalize(bool sortByPosition, TComparator comparator)
 {
     for (const auto& [_, stripe] : StripeMap_) {
         for (const auto& dataSlice : stripe->DataSlices) {
@@ -69,7 +69,7 @@ void TNewJobStub::Finalize(bool sortByPosition, std::optional<TComparator> compa
                 if (comparator) {
                     YT_VERIFY(lhs->LowerLimit().KeyBound);
                     YT_VERIFY(rhs->UpperLimit().KeyBound);
-                    if (comparator->CompareKeyBounds(lhs->UpperLimit().KeyBound, rhs->LowerLimit().KeyBound) <= 0) {
+                    if (comparator.CompareKeyBounds(lhs->UpperLimit().KeyBound, rhs->LowerLimit().KeyBound) <= 0) {
                         return true;
                     }
                 }
@@ -595,7 +595,7 @@ void TNewJobManager::SetLogger(TLogger logger)
     Logger = logger;
 }
 
-void TNewJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob, std::optional<TComparator> comparator)
+void TNewJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob, TComparator comparator)
 {
     // TODO(max42): keep the order of jobs in a singly linked list that allows us to use this
     // procedure not only during the initial creation of jobs or right after the whole pool invalidation,

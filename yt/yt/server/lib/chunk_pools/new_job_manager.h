@@ -51,7 +51,7 @@ public:
     //! calculates the statistics for the stripe list and maybe additionally sorts slices
     //! in all stripes according to their original table position in order to satisfy
     //! silly^W tricky sorted operation guarantees.
-    void Finalize(bool sortByPosition, std::optional<NTableClient::TComparator> comparator = std::nullopt);
+    void Finalize(bool sortByPosition, NTableClient::TComparator comparator = NTableClient::TComparator());
 
     i64 GetDataWeight() const;
     i64 GetRowCount() const;
@@ -127,7 +127,7 @@ public:
     void Enlarge(
         i64 dataWeightPerJob,
         i64 primaryDataWeightPerJob,
-        std::optional<NTableClient::TComparator> comparator = std::nullopt);
+        NTableClient::TComparator comparator = NTableClient::TComparator());
 
     std::pair<NTableClient::TKeyBound, NTableClient::TKeyBound>
         GetBounds(IChunkPoolOutput::TCookie cookie) const;

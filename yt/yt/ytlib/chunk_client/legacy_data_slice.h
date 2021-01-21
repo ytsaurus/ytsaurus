@@ -81,7 +81,7 @@ public:
     //! and we have some comparator or when we do not have comparator but data slice is actually keyless.
     void TransformToNew(
         const NTableClient::TRowBufferPtr& rowBuffer,
-        std::optional<NTableClient::TComparator> comparator);
+        NTableClient::TComparator comparator);
 
     TChunkSliceList ChunkSlices;
     EDataSourceType Type;
@@ -151,7 +151,7 @@ TLegacyDataSlicePtr CreateVersionedInputDataSlice(
 void InferLimitsFromBoundaryKeys(
     const TLegacyDataSlicePtr& dataSlice,
     const NTableClient::TRowBufferPtr& rowBuffer,
-    const std::optional<NTableClient::TComparator>& comparator = std::nullopt);
+    const NTableClient::TComparator& comparator = NTableClient::TComparator());
 
 //! Set data slice limits to be equal to chunk boundary keys shortened to given prefix length.
 //! Works only for new data slices.
