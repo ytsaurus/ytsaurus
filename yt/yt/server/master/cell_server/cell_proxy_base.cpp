@@ -85,6 +85,8 @@ void TCellProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
     descriptors->push_back(EInternedAttributeKey::LeadingPeerId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Health)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LocalHealth)
+        .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::Peers);
     descriptors->push_back(EInternedAttributeKey::ConfigVersion);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrerequisiteTransactionId)
@@ -110,6 +112,7 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
             return true;
 
         case EInternedAttributeKey::Health:
+            // COMPAT(akozhikhov).
             if (multicellManager->IsMulticell()) {
                 BuildYsonFluently(consumer)
                     .Value(cell->GetMulticellHealth());
@@ -117,6 +120,11 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                 BuildYsonFluently(consumer)
                     .Value(cell->GetHealth());
             }
+            return true;
+
+        case EInternedAttributeKey::LocalHealth:
+            BuildYsonFluently(consumer)
+                .Value(cell->GetHealth());
             return true;
 
         case EInternedAttributeKey::Peers:
