@@ -1,4 +1,4 @@
-#include "discovery_service.h"
+#include "discovery_server.h"
 #include "discovery_server_service_proxy.h"
 #include "group.h"
 #include "group_manager.h"
@@ -196,11 +196,11 @@ DEFINE_REFCOUNTED_TYPE(TServerDiscoveryService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryServer::TImpl
-    : public TRefCounted
+class TDiscoveryServer
+    : public IDiscoveryServer
 {
 public:
-    TImpl(
+    TDiscoveryServer(
         IServerPtr rpcServer,
         TString selfAddress,
         TDiscoveryServerConfigPtr config,
@@ -215,7 +215,7 @@ public:
         , GroupManager_(New<TGroupManager>(Logger))
         , GossipPeriodicExecutor_(New<TPeriodicExecutor>(
             std::move(gossipInvoker),
-            BIND(&TImpl::SendGossip, MakeWeak(this)),
+            BIND(&TDiscoveryServer::SendGossip, MakeWeak(this)),
             Config_->GossipPeriod))
         , ClientService_(New<TClientDiscoveryService>(
             RpcServer_,
@@ -228,7 +228,7 @@ public:
             Config_))
     { }
 
-    void Initialize()
+    virtual void Initialize() override
     {
         ClientService_->Initialize();
         ServerService_->Initialize();
@@ -238,7 +238,7 @@ public:
         YT_LOG_INFO("Server initialized (Addresses: %v)", Config_->ServerAddresses);
     }
 
-    void Finalize()
+    virtual void Finalize() override
     {
         ClientService_->Finalize();
         ServerService_->Finalize();
@@ -248,7 +248,7 @@ public:
         YT_LOG_INFO("Server finalized");
     }
 
-    NYTree::IYPathServicePtr GetYPathService()
+    virtual NYTree::IYPathServicePtr GetYPathService() override
     {
         return GroupManager_->GetYPathService();
     }
@@ -318,37 +318,21 @@ private:
     }
 };
 
-TDiscoveryServer::TDiscoveryServer(
+IDiscoveryServerPtr CreateDiscoveryServer(
     IServerPtr rpcServer,
     TString selfAddress,
     TDiscoveryServerConfigPtr config,
     IChannelFactoryPtr channelFactory,
     IInvokerPtr serverInvoker,
     IInvokerPtr gossipInvoker)
-    : Impl_(New<TImpl>(
+{
+    return New<TDiscoveryServer>(
         std::move(rpcServer),
         std::move(selfAddress),
         std::move(config),
         std::move(channelFactory),
         std::move(serverInvoker),
-        std::move(gossipInvoker)))
-{ }
-
-TDiscoveryServer::~TDiscoveryServer() = default;
-
-void TDiscoveryServer::Initialize()
-{
-    Impl_->Initialize();
-}
-
-void TDiscoveryServer::Finalize()
-{
-    Impl_->Finalize();
-}
-
-NYTree::IYPathServicePtr TDiscoveryServer::GetYPathService()
-{
-    return Impl_->GetYPathService();
+        std::move(gossipInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

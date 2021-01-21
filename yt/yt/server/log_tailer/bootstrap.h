@@ -19,9 +19,7 @@ class TBootstrap
 public:
     static constexpr int InterruptionExitCode = 0;
 
-    TBootstrap(
-        TLogTailerBootstrapConfigPtr config,
-        ui16 monitoringPort);
+    explicit TBootstrap(TLogTailerBootstrapConfigPtr config);
 
     void Run();
 
@@ -36,7 +34,7 @@ public:
     void Terminate(int exitCode = 0);
 
 private:
-    TLogTailerBootstrapConfigPtr Config_;
+    const TLogTailerBootstrapConfigPtr Config_;
 
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::IClientPtr Client_;
@@ -50,8 +48,6 @@ private:
     NHttp::IServerPtr HttpServer_;
 
     TLogTailerPtr LogTailer_;
-
-    ui16 MonitoringPort_;
 
     std::atomic<int> SigintCounter_ = {0};
 

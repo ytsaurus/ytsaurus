@@ -5,7 +5,7 @@
 #include <util/string/builder.h>
 
 #include <yt/server/lib/discovery_server/config.h>
-#include <yt/server/lib/discovery_server/discovery_service.h>
+#include <yt/server/lib/discovery_server/discovery_server.h>
 
 #include <yt/ytlib/discovery_client/public.h>
 #include <yt/ytlib/discovery_client/helpers.h>
@@ -69,7 +69,7 @@ public:
         DiscoveryServers_[index]->Initialize();
     }
 
-    TDiscoveryServerPtr CreateDiscoveryServer(const TDiscoveryServerConfigPtr& serverConfig, int index)
+    IDiscoveryServerPtr CreateDiscoveryServer(const TDiscoveryServerConfigPtr& serverConfig, int index)
     {
         serverConfig->GossipPeriod = TDuration::MilliSeconds(500);
         serverConfig->AttributesUpdatePeriod = TDuration::Seconds(1);
@@ -77,7 +77,7 @@ public:
         auto serverActionQueue = New<TActionQueue>("DiscoveryServer" + ToString(index));
         auto gossipActionQueue = New<TActionQueue>("Gossip" + ToString(index));
 
-        auto server = New<TDiscoveryServer>(
+        auto server = NDiscoveryServer::CreateDiscoveryServer(
             RpcServers_[index],
             Addresses_[index],
             serverConfig,
@@ -135,14 +135,14 @@ public:
         return Addresses_;
     }
 
-    TDiscoveryServerPtr GetDiscoveryServer()
+    IDiscoveryServerPtr GetDiscoveryServer()
     {
         return DiscoveryServers_[0];
     }
 
 private:
     std::vector<TString> Addresses_ = {"peer1", "peer2", "peer3", "peer4", "peer5"};
-    std::vector<TDiscoveryServerPtr> DiscoveryServers_;
+    std::vector<IDiscoveryServerPtr> DiscoveryServers_;
     std::vector<IServerPtr> RpcServers_;
 
     std::vector<TActionQueuePtr> ActionQueues_;

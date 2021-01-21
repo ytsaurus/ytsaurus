@@ -132,11 +132,7 @@ void TBootstrap::DoRun()
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
-    Config_->MonitoringServer->Port = Config_->MonitoringPort;
-    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
-    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    Config_->MonitoringServer->ServerName = "monitoring";
-    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+    HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
     ControllerAgent_ = New<TControllerAgent>(Config_->ControllerAgent, ConfigNode_->AsMap()->FindChild("controller_agent"), this);
 
@@ -145,7 +141,11 @@ void TBootstrap::DoRun()
     }
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
+    NMonitoring::Initialize(
+        HttpServer_,
+        Config_->SolomonExporter,
+        &MonitoringManager_,
+        &orchidRoot);
 
     ControllerAgent_->Initialize();
 
@@ -163,17 +163,16 @@ void TBootstrap::DoRun()
             "/core_dumper",
             CreateVirtualNode(CoreDumper_->CreateOrchidService()));
     }
-
-    SetBuildAttributes(orchidRoot, "controller_agent");
+    SetBuildAttributes(
+        orchidRoot,
+        "controller_agent");
 
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(),
         CoreDumper_));
-
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker()));
-
     RpcServer_->RegisterService(CreateJobSpecService(this));
     RpcServer_->RegisterService(CreateControllerAgentService(this));
 

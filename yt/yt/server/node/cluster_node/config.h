@@ -31,6 +31,8 @@
 
 #include <yt/core/concurrency/config.h>
 
+#include <yt/core/http/config.h>
+
 #include <yt/core/ytalloc/config.h>
 
 namespace NYT::NClusterNode {
@@ -405,6 +407,16 @@ public:
 
             DynamicConfigManager->IgnoreConfigAbsence = true;
         });
+    }
+
+    NHttp::TServerConfigPtr CreateSkynetHttpServerConfig()
+    {
+        auto config = New<NHttp::TServerConfig>();
+        config->Port = SkynetHttpPort;
+        config->BindRetryCount = BusServer->BindRetryCount;
+        config->BindRetryBackoff = BusServer->BindRetryBackoff;
+        config->ServerName = "skynet";
+        return config;
     }
 };
 

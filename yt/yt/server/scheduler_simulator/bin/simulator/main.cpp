@@ -246,15 +246,15 @@ protected:
         StartDiagnosticDump(config);
 
         {
-            config->MonitoringServer->Port = config->MonitoringPort;
-            config->MonitoringServer->BindRetryCount = config->BusServer->BindRetryCount;
-            config->MonitoringServer->BindRetryBackoff = config->BusServer->BindRetryBackoff;
-            config->MonitoringServer->ServerName = "monitoring";
-            auto httpServer = NHttp::CreateServer(config->MonitoringServer);
+            auto httpServer = NHttp::CreateServer(config->CreateMonitoringHttpServerConfig());
 
             NMonitoring::TMonitoringManagerPtr monitoringManager;
             NYTree::IMapNodePtr orchidRoot;
-            NMonitoring::Initialize(httpServer, &monitoringManager, &orchidRoot, config->SolomonExporter);
+            NMonitoring::Initialize(
+                httpServer,
+                config->SolomonExporter,
+                &monitoringManager,
+                &orchidRoot);
 
             YT_LOG_INFO("Listening for HTTP requests on port %v", httpServer->GetAddress().GetPort());
             httpServer->Start();

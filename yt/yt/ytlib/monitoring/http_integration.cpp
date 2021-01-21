@@ -43,14 +43,14 @@ using namespace NJson;
 
 void Initialize(
     const NHttp::IServerPtr& monitoringServer,
-    TMonitoringManagerPtr* manager,
-    NYTree::IMapNodePtr* orchidRoot,
-    const NProfiling::TSolomonExporterConfigPtr& config)
+    const NProfiling::TSolomonExporterConfigPtr& config,
+    TMonitoringManagerPtr* monitoringManager,
+    NYTree::IMapNodePtr* orchidRoot)
 {
-    *manager = New<TMonitoringManager>();
-    (*manager)->Register("/yt_alloc", NYTAlloc::CreateStatisticsProducer());
-    (*manager)->Register("/ref_counted", CreateRefCountedTrackerStatisticsProducer());
-    (*manager)->Register("/solomon", BIND([] (NYson::IYsonConsumer* consumer) {
+    *monitoringManager = New<TMonitoringManager>();
+    (*monitoringManager)->Register("/yt_alloc", NYTAlloc::CreateStatisticsProducer());
+    (*monitoringManager)->Register("/ref_counted", CreateRefCountedTrackerStatisticsProducer());
+    (*monitoringManager)->Register("/solomon", BIND([] (NYson::IYsonConsumer* consumer) {
         auto tags = NProfiling::TSolomonRegistry::Get()->GetDynamicTags();
 
         BuildYsonFluently(consumer)
@@ -58,13 +58,13 @@ void Initialize(
                 .Item("dynamic_tags").Value(THashMap<TString, TString>(tags.begin(), tags.end()))
             .EndMap();
     }));
-    (*manager)->Start();
+    (*monitoringManager)->Start();
 
     *orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
         *orchidRoot,
         "/monitoring",
-        CreateVirtualNode((*manager)->GetService()));
+        CreateVirtualNode((*monitoringManager)->GetService()));
     SetNodeByYPath(
         *orchidRoot,
         "/profiling",
@@ -89,8 +89,8 @@ class TYPathHttpHandler
     : public IHttpHandler
 {
 public:
-    TYPathHttpHandler(const IYPathServicePtr& service)
-        : Service_(service)
+    explicit TYPathHttpHandler(IYPathServicePtr service)
+        : Service_(std::move(service))
     { }
 
     virtual void HandleRequest(
@@ -145,7 +145,7 @@ public:
     }
 
 private:
-    IYPathServicePtr Service_;
+    const IYPathServicePtr Service_;
 };
 
 IHttpHandlerPtr GetOrchidYPathHttpHandler(const IYPathServicePtr& service)

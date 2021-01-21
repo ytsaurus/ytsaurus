@@ -34,7 +34,7 @@
 #include <yt/server/lib/hydra/snapshot.h>
 
 #include <yt/server/lib/discovery_server/config.h>
-#include <yt/server/lib/discovery_server/discovery_service.h>
+#include <yt/server/lib/discovery_server/discovery_server.h>
 
 #include <yt/server/master/journal_server/journal_manager.h>
 #include <yt/server/master/journal_server/journal_node.h>
@@ -408,8 +408,6 @@ NDistributedThrottler::TDistributedThrottlerFactoryPtr TBootstrap::CreateDistrib
 
 void TBootstrap::Initialize()
 {
-    srand(time(nullptr));
-
     ControlQueue_ = New<TActionQueue>("Control");
 
     BIND(&TBootstrap::DoInitialize, this)
@@ -600,11 +598,6 @@ void TBootstrap::DoInitialize()
         YT_VERIFY(CellDirectory_->ReconfigureCell(cellConfig));
     }
 
-    Config_->MonitoringServer->Port = Config_->MonitoringPort;
-    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
-    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    Config_->MonitoringServer->ServerName = "monitoring";
-
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
@@ -745,7 +738,7 @@ void TBootstrap::DoInitialize()
     DiscoveryQueue_ = New<TActionQueue>("Discovery");
     auto discoveryServerConfig = New<TDiscoveryServerConfig>();
     discoveryServerConfig->ServerAddresses = std::move(addresses);
-    DiscoveryServer_ = New<TDiscoveryServer>(
+    DiscoveryServer_ = CreateDiscoveryServer(
         RpcServer_,
         localAddress,
         discoveryServerConfig,
@@ -849,10 +842,15 @@ void TBootstrap::DoRun()
     HydraFacade_->Initialize();
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
-    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+    HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
+    NMonitoring::Initialize(
+        HttpServer_,
+        Config_->SolomonExporter,
+        &MonitoringManager_,
+        &orchidRoot);
+
     MonitoringManager_->Register(
         "/hydra",
         HydraFacade_->GetHydraManager()->GetMonitoringProducer());
@@ -880,8 +878,9 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/reign",
         ConvertTo<INodePtr>(GetCurrentReign()));
-
-    SetBuildAttributes(orchidRoot, "master");
+    SetBuildAttributes(
+        orchidRoot,
+        "master");
 
     HttpServer_->Start();
 

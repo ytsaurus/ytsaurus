@@ -131,11 +131,7 @@ void TBootstrap::DoRun()
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
-    Config_->MonitoringServer->Port = Config_->MonitoringPort;
-    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
-    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    Config_->MonitoringServer->ServerName = "monitoring";
-    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+    HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
 
@@ -155,7 +151,11 @@ void TBootstrap::DoRun()
     ControllerAgentTracker_->Initialize();
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
+    NMonitoring::Initialize(
+        HttpServer_,
+        Config_->SolomonExporter,
+        &MonitoringManager_,
+        &orchidRoot);
 
     SetNodeByYPath(
         orchidRoot,
@@ -165,17 +165,16 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/scheduler",
         CreateVirtualNode(Scheduler_->CreateOrchidService()->Via(GetControlInvoker(EControlQueue::Orchid))));
-
-    SetBuildAttributes(orchidRoot, "scheduler");
+    SetBuildAttributes(
+        orchidRoot,
+        "scheduler");
 
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(EControlQueue::Default),
         CoreDumper_));
-
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker(EControlQueue::Orchid)));
-
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));

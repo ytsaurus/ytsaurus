@@ -171,7 +171,7 @@ private:
     NConcurrency::TActionQueuePtr ControlQueue_;
     ICoreDumperPtr CoreDumper_;
     NConcurrency::TActionQueuePtr DiscoveryQueue_;
-    NDiscoveryServer::TDiscoveryServerPtr DiscoveryServer_;
+    NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
     TDiskSpaceProfilerPtr DiskSpaceProfiler_;
 

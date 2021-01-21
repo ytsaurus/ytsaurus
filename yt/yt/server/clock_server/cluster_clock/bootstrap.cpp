@@ -154,8 +154,6 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
 
 void TBootstrap::Initialize()
 {
-    srand(time(nullptr));
-
     ControlQueue_ = New<TActionQueue>("Control");
 
     BIND(&TBootstrap::DoInitialize, this)
@@ -218,11 +216,6 @@ void TBootstrap::DoInitialize()
 
     auto channelFactory = CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient));
 
-    Config_->MonitoringServer->Port = Config_->MonitoringPort;
-    Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
-    Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
-    Config_->MonitoringServer->ServerName = "monitoring";
-
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
@@ -275,10 +268,15 @@ void TBootstrap::DoRun()
     HydraFacade_->Initialize();
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
-    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+    HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
+    NMonitoring::Initialize(
+        HttpServer_,
+        Config_->SolomonExporter,
+        &MonitoringManager_,
+        &orchidRoot);
+
     MonitoringManager_->Register(
         "/hydra",
         HydraFacade_->GetHydraManager()->GetMonitoringProducer());
@@ -290,8 +288,9 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/config",
         ConfigNode_);
-
-    SetBuildAttributes(orchidRoot, "clock");
+    SetBuildAttributes(
+        orchidRoot,
+        "clock");
 
     HttpServer_->Start();
 
