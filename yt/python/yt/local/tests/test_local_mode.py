@@ -49,8 +49,7 @@ def _get_local_mode_tests_sandbox():
     return os.path.join(_get_tests_sandbox(), "TestLocalMode")
 
 def _get_yt_local_binary():
-    _, python_root, _ = arcadia_interop.get_root_paths()
-    return yatest.common.binary_path(python_root + "/yt/local/bin/yt_local_make/yt_local")
+    return yatest.common.binary_path("yt/python/yt/local/bin/yt_local_make/yt_local")
 
 def _get_instance_path(instance_id):
     return os.path.join(_get_local_mode_tests_sandbox(), instance_id)
