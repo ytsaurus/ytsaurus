@@ -37,17 +37,6 @@ def is_inside_distbuild():
 
     return True
 
-def get_root_paths(source_prefix="", inside_arcadia=None):
-    if is_inside_arcadia(inside_arcadia):
-        yt_root = source_prefix + "yt/"
-        python_root = source_prefix + "yt/python/"
-        global_root = source_prefix
-    else:
-        yt_root = ""
-        python_root = "python/"
-        global_root = ""
-    return yt_root, python_root, global_root
-
 
 def search_binary_path(binary_name, build_path_suffix=None, cwd_suffix=None):
     """
