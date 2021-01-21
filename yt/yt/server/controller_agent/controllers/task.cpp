@@ -273,7 +273,7 @@ void TTask::AdjustOutputKeyBounds(const TLegacyDataSlicePtr& dataSlice) const
         YT_VERIFY(comparator);
 
         // Intersect new read range with the original data slice read range.
-        InputReadRangeRegistry_.ApplyReadRange(dataSlice, *comparator);
+        InputReadRangeRegistry_.ApplyReadRange(dataSlice, comparator);
     }
 }
 
@@ -1077,7 +1077,7 @@ std::unique_ptr<TNodeDirectoryBuilder> TTask::MakeNodeDirectoryBuilder(
 void TTask::AddSequentialInputSpec(
     TJobSpec* jobSpec,
     TJobletPtr joblet,
-    std::optional<TComparator> comparator)
+    TComparator comparator)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -1098,7 +1098,7 @@ void TTask::AddSequentialInputSpec(
 void TTask::AddParallelInputSpec(
     TJobSpec* jobSpec,
     TJobletPtr joblet,
-    std::optional<TComparator> comparator)
+    TComparator comparator)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -1122,7 +1122,7 @@ void TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
     TChunkStripePtr stripe,
-    std::optional<TComparator> comparator)
+    TComparator comparator)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 

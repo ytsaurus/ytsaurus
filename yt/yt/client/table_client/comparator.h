@@ -71,7 +71,12 @@ public:
     //! Returns a comparator that compares rows by first #keyColumnCount columns and ignores other.
     TComparator Trim(int keyColumnCount) const;
 
+    //! Returns true if at least one column has descending sort order.
     bool HasDescendingSortOrder() const;
+
+    //! Empty comparator is identified with an absense of comparator.
+    //! This may be used instead of TComparator.
+    explicit operator bool() const;
 
 private:
     void ValidateKey(const TKey& key) const;

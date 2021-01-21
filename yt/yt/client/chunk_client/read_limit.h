@@ -143,7 +143,7 @@ public:
     TReadLimit(
         const NProto::TReadLimit& readLimit,
         bool isUpper,
-        std::optional<int> keyLength = std::nullopt);
+        int keyLength = 0);
 
     bool IsTrivial() const;
 
@@ -166,7 +166,7 @@ void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit);
 //! If protoReadLimit contains key, it is transformed into new key bound by
 //! calling KeyBoundFromLegacyKey using *keyLength. In this case, if keyLength
 //! is std::nullopt, exception is thrown.
-void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit, bool isUpper, std::optional<int> keyLength);
+void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit, bool isUpper, int keyLength);
 
 void Serialize(const TReadLimit& readLimit, NYson::IYsonConsumer* consumer);
 //! This method deserializes modern read limit representation, recognizing only key bound, but not legacy key.
@@ -185,7 +185,7 @@ public:
     TReadRange(TReadLimit lowerLimit, TReadLimit upperLimit);
     TReadRange(
         const NProto::TReadRange& range,
-        std::optional<int> keyLength = std::nullopt);
+        int keyLength = 0);
 
     bool operator == (const TReadRange& other) const;
 };
@@ -196,7 +196,7 @@ TString ToString(const TReadRange& readRange);
 
 void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange);
 //! See comment for FromProto(TReadLimit*, const NProto::TReadLimit&, bool, std::optional<int>).
-void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange, std::optional<int> keyLength);
+void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange, int keyLength);
 
 void Serialize(const TReadRange& readLimit, NYson::IYsonConsumer* consumer);
 

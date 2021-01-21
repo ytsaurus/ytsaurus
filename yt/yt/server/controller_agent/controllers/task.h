@@ -228,16 +228,16 @@ protected:
     void AddSequentialInputSpec(
         NJobTrackerClient::NProto::TJobSpec* jobSpec,
         TJobletPtr joblet,
-        std::optional<NTableClient::TComparator> comparator = std::nullopt);
+        NTableClient::TComparator comparator = NTableClient::TComparator());
     void AddParallelInputSpec(
         NJobTrackerClient::NProto::TJobSpec* jobSpec,
         TJobletPtr joblet,
-        std::optional<NTableClient::TComparator> comparator = std::nullopt);
+        NTableClient::TComparator comparator = NTableClient::TComparator());
     void AddChunksToInputSpec(
         NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
         NScheduler::NProto::TTableInputSpec* inputSpec,
         NChunkPools::TChunkStripePtr stripe,
-        std::optional<NTableClient::TComparator> comparator = std::nullopt);
+        NTableClient::TComparator comparator = NTableClient::TComparator());
 
     void AddOutputTableSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 

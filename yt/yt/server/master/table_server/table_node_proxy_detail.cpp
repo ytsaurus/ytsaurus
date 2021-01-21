@@ -1148,11 +1148,10 @@ void TTableNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& 
     }
 }
 
-std::optional<TComparator> TTableNodeProxy::GetComparator() const
+TComparator TTableNodeProxy::GetComparator() const
 {
     const auto& schema = GetThisImpl()->GetTableSchema();
-    auto comparator = schema.IsSorted() ? std::make_optional(schema.ToComparator()) : std::nullopt;
-    return comparator;
+    return schema.ToComparator();
 }
 
 bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)

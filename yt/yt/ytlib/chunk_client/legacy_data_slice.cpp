@@ -226,10 +226,10 @@ void TLegacyDataSlice::TransformToNewKeyless()
 
 void TLegacyDataSlice::TransformToNew(
     const NTableClient::TRowBufferPtr& rowBuffer,
-    std::optional<NTableClient::TComparator> comparator)
+    NTableClient::TComparator comparator)
 {
     if (comparator) {
-        TransformToNew(rowBuffer, comparator->GetLength());
+        TransformToNew(rowBuffer, comparator.GetLength());
     } else {
         TransformToNewKeyless();
     }
@@ -453,7 +453,7 @@ TLegacyDataSlicePtr CreateInputDataSlice(
 void InferLimitsFromBoundaryKeys(
     const TLegacyDataSlicePtr& dataSlice,
     const TRowBufferPtr& rowBuffer,
-    const std::optional<TComparator>& comparator)
+    const TComparator& comparator)
 {
     if (dataSlice->IsLegacy) {
         TLegacyKey minKey;
@@ -482,18 +482,18 @@ void InferLimitsFromBoundaryKeys(
         auto upperBound = TKeyBound::MakeUniversal(/* isUpper */ true);
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
-                auto chunkLowerBound = KeyBoundFromLegacyRow(boundaryKeys->MinKey, /* isUpper */ false, comparator->GetLength(), rowBuffer);
-                auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /* isUpper */ true, comparator->GetLength(), rowBuffer);
-                comparator->ReplaceIfStrongerKeyBound(lowerBound, chunkLowerBound);
-                comparator->ReplaceIfStrongerKeyBound(upperBound, chunkUpperBound);
+                auto chunkLowerBound = KeyBoundFromLegacyRow(boundaryKeys->MinKey, /* isUpper */ false, comparator.GetLength(), rowBuffer);
+                auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /* isUpper */ true, comparator.GetLength(), rowBuffer);
+                comparator.ReplaceIfStrongerKeyBound(lowerBound, chunkLowerBound);
+                comparator.ReplaceIfStrongerKeyBound(upperBound, chunkUpperBound);
             }
         }
 
-        if (comparator->StrongerKeyBound(dataSlice->LowerLimit().KeyBound, lowerBound) == lowerBound) {
+        if (comparator.StrongerKeyBound(dataSlice->LowerLimit().KeyBound, lowerBound) == lowerBound) {
             lowerBound.Prefix = rowBuffer->Capture(lowerBound.Prefix);
             dataSlice->LowerLimit().KeyBound = lowerBound;
         }
-        if (comparator->StrongerKeyBound(dataSlice->UpperLimit().KeyBound, upperBound) == upperBound) {
+        if (comparator.StrongerKeyBound(dataSlice->UpperLimit().KeyBound, upperBound) == upperBound) {
             upperBound.Prefix = rowBuffer->Capture(upperBound.Prefix);
             dataSlice->UpperLimit().KeyBound = upperBound;
         }

@@ -68,8 +68,8 @@ struct TInputSliceLimit
         bool isUpper);
 
     //! If comparator is not present, these methods verify that no key bound is present in #other.
-    void MergeLower(const TInputSliceLimit& other, const std::optional<NTableClient::TComparator>& comparator);
-    void MergeUpper(const TInputSliceLimit& other, const std::optional<NTableClient::TComparator>& comparator);
+    void MergeLower(const TInputSliceLimit& other, const NTableClient::TComparator& comparator);
+    void MergeUpper(const TInputSliceLimit& other, const NTableClient::TComparator& comparator);
 
     bool IsTrivial() const;
 
@@ -251,7 +251,7 @@ void InferLimitsFromBoundaryKeys(
     const TInputChunkSlicePtr& chunkSlice,
     const NTableClient::TRowBufferPtr& rowBuffer,
     std::optional<int> keyColumnCount = std::nullopt,
-    std::optional<NTableClient::TComparator> comparator = std::nullopt);
+    NTableClient::TComparator comparator = NTableClient::TComparator());
 
 std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     const TInputChunkPtr& inputChunk,
@@ -262,7 +262,7 @@ std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
 void ToProto(
     NProto::TChunkSpec* chunkSpec,
     const TInputChunkSlicePtr& inputSlice,
-    std::optional<NTableClient::TComparator> comparator,
+    NTableClient::TComparator comparator,
     EDataSourceType dataSourceType);
 
 ////////////////////////////////////////////////////////////////////////////////

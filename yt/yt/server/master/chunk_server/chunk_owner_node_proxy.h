@@ -74,7 +74,7 @@ protected:
     virtual void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& readLimit) const;
 
     //! If this node is a sorted table, return comparator corresponding to sort order.
-    virtual std::optional<NTableClient::TComparator> GetComparator() const;
+    virtual NTableClient::TComparator GetComparator() const;
 
     void ValidateInUpdate();
     virtual void ValidateBeginUpload();

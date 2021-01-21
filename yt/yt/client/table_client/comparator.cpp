@@ -288,6 +288,11 @@ bool TComparator::HasDescendingSortOrder() const
     return std::find(SortOrders_.begin(), SortOrders_.end(), ESortOrder::Descending) != SortOrders_.end();
 }
 
+TComparator::operator bool() const
+{
+    return !SortOrders_.empty();
+}
+
 void FormatValue(TStringBuilderBase* builder, const TComparator& comparator, TStringBuf /* spec */)
 {
     builder->AppendFormat("{Length: %v, SortOrders: ", comparator.GetLength());

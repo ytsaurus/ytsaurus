@@ -49,7 +49,7 @@ struct TInputTable
     NTableClient::TTableSchemaPtr Schema = New<NTableClient::TTableSchema>();
     //! Comparator corresponding to the input table sort order.
     //! Used around read limits using keys.
-    std::optional<NTableClient::TComparator> Comparator;
+    NTableClient::TComparator Comparator;
     NTableClient::ETableSchemaMode SchemaMode;
     bool Dynamic = false;
     NHydra::TRevision ContentRevision = NHydra::NullRevision;
