@@ -520,9 +520,14 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         self._check_cell_stable(cell_id)
 
     @authors("savrus")
-    def test_tablet_cell_health_statistics(self):
+    def test_tablet_cell_health_status(self):
         cell_id = sync_create_cells(1)[0]
         wait(lambda: get("#{0}/@health".format(cell_id)) == "good")
+
+    @authors("akozhikhov")
+    def test_tablet_cell_local_health(self):
+        cell_id = sync_create_cells(1)[0]
+        wait(lambda: get("#{0}/@local_health".format(cell_id)) == "good")
 
     @authors("ifsmirnov")
     def test_distributed_commit(self):

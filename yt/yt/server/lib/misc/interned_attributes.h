@@ -194,6 +194,7 @@
     XX(LeadingPeerId, leading_peer_id) \
     XX(LeaseTransactionId, lease_transaction_id) \
     XX(LifeStage, life_stage) \
+    XX(LocalHealth, local_health) \
     XX(LocalRequisition, local_requisition) \
     XX(LocalRequisitionIndex, local_requisition_index) \
     XX(LockCount, lock_count) \
