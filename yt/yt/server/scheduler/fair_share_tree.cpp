@@ -109,14 +109,14 @@ public:
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* strategyHost,
         ISchedulerTreeHost* treeHost,
-        std::vector<IInvokerPtr> feasibleInvokers,
+        const std::vector<IInvokerPtr>& feasibleInvokers,
         TString treeId)
         : Config_(std::move(config))
         , ControllerConfig_(std::move(controllerConfig))
-        , ResourceTree_(New<TResourceTree>(config))
+        , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
         , StrategyHost_(strategyHost)
         , TreeHost_(treeHost)
-        , FeasibleInvokers_(std::move(feasibleInvokers))
+        , FeasibleInvokers_(feasibleInvokers)
         , TreeId_(std::move(treeId))
         , TreeProfiler_(SchedulerProfiler.WithRequiredTag("tree", TreeId_))
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
@@ -1200,6 +1200,9 @@ private:
         context.SchedulingStatistics().ResourceUsage = schedulingContext->ResourceUsage();
         context.SchedulingStatistics().ResourceLimits = schedulingContext->ResourceLimits();
 
+        // NB: it calculates resource usages, must be called before any scheduling and preemptable jobs analyses.
+        context.PrepareForScheduling(rootElementSnapshot->RootElement);
+
         bool needPackingFallback;
         {
             context.StartStage(&NonPreemptiveSchedulingStage_);
@@ -1374,7 +1377,6 @@ private:
             {
                 if (!prescheduleExecuted) {
                     TWallTimer prescheduleTimer;
-                    context->PrepareForScheduling();
                     rootElement->PrescheduleJob(context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
                     context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                     prescheduleExecuted = true;
@@ -1448,12 +1450,6 @@ private:
         {
             NProfiling::TWallTimer timer;
 
-            // We need to initialize dynamic attributes list to update
-            // resource usage discounts.
-            if (!context->SchedulingContext()->RunningJobs().empty()) {
-                context->PrepareForScheduling();
-            }
-
             for (const auto& job : context->SchedulingContext()->RunningJobs()) {
                 auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
                 if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
@@ -1465,7 +1461,8 @@ private:
 
                 bool isAggressivePreemptionEnabled = isAggressive &&
                     operationElement->IsAggressiveStarvationPreemptionAllowed();
-                bool isJobPreemptable = operationElement->IsPreemptionAllowed(isAggressive, config) &&
+
+                bool isJobPreemptable = operationElement->IsPreemptionAllowed(isAggressive, context->DynamicAttributesList(), config) &&
                     operationElement->IsJobPreemptable(job->GetId(), isAggressivePreemptionEnabled);
 
                 bool forceJobPreemptable = !operationElement->IsSchedulingSegmentCompatibleWithNode(
@@ -1518,7 +1515,8 @@ private:
             {
                 if (!prescheduleExecuted) {
                     TWallTimer prescheduleTimer;
-                    context->PrepareForScheduling();
+                    // NB: this method resets Active attribute that is necessary for PrescheduleJob correctness.
+                    context->PrepareForScheduling(rootElementSnapshot->RootElement);
                     rootElement->PrescheduleJob(
                         context,
                         isAggressive
@@ -1570,7 +1568,7 @@ private:
 
             auto* parent = operationElement->GetParent();
             while (parent) {
-                if (!Dominates(parent->GetSpecifiedResourceLimits(), parent->GetInstantResourceUsage())) {
+                if (parent->AreResourceLimitsViolated()) {
                     return parent;
                 }
                 parent = parent->GetParent();
@@ -1730,6 +1728,8 @@ private:
 
     void UnregisterPool(const TPoolPtr& pool)
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto userName = pool->GetUserName();
         if (userName && pool->IsEphemeralInDefaultParentPool()) {
             YT_VERIFY(UserToEphemeralPoolsInDefaultPool_[*userName].erase(pool->GetId()) == 1);

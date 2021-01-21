@@ -11,12 +11,15 @@ from yt_helpers import create_custom_pool_tree_with_one_node
 
 import io
 import pytest
+import random
 import gzip
 import zstd
+import time
+
+##################################################################
 
 
 class TestRuntimeParameters(YTEnvSetup):
-
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -364,6 +367,63 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="default") + "/resource_usage/cpu") == 1.0)
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_limits/cpu") == 0.5)
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_usage/cpu") == 0.5)
+
+
+class TestRuntimeParametersWithRecentResourceUsage(TestRuntimeParameters):
+    def setup_method(self, method):
+        super(TestRuntimeParametersWithRecentResourceUsage, self).setup_method(method)
+        set("//sys/pool_trees/default/@config/use_recent_resource_usage_for_local_satisfaction", True)
+
+##################################################################
+
+
+class TestSchedulerResourceUsageStrategySwitches(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "operations_update_period": 10,
+            "pool_change_is_allowed": True,
+            "watchers_update_period": 100,  # Update pools configuration period
+        }
+    }
+
+    @authors("ignat")
+    def test_switches(self):
+        OP_COUNT = 20
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(3)])
+
+        for index in xrange(OP_COUNT):
+            create("table", "//tmp/t_out" + str(index))
+            create_pool("pool_" + str(index))
+
+        ops = []
+        for index in xrange(OP_COUNT):
+            op = map(
+                track=False,
+                command="sleep 1; echo 'AAA' >&2; cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(index),
+                spec={"job_count": 3, "pool": "pool_" + str(index)},
+            )
+            ops.append(op)
+
+        for index in xrange(40):
+            set("//sys/pool_trees/default/@config/use_recent_resource_usage_for_local_satisfaction", index % 2 == 0)
+            if random.randint(0, 1):
+                set("//sys/pools/pool_{}/@resource_limits".format(random.randint(0, OP_COUNT - 1)), {})
+            else:
+                set("//sys/pools/pool_{}/@resource_limits".format(random.randint(0, OP_COUNT - 1)), {"user_slots": 1})
+            time.sleep(0.5)
+
+        for index, op in enumerate(ops):
+            op.track()
+            assert read_table("//tmp/t_out" + str(index)) == [{"foo": "bar"}] * 3
 
 
 class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):

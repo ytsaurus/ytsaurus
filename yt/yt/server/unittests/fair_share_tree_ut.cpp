@@ -64,7 +64,7 @@ struct TSchedulerStrategyHostMock
     {
         return GetCurrentInvoker();
     }
-    
+
     virtual IInvokerPtr GetOrchidWorkerInvoker() const override
     {
         return GetCurrentInvoker();
@@ -343,7 +343,7 @@ public:
     {
         YT_ABORT();
     }
-    
+
     virtual TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const override
     {
         YT_ABORT();
@@ -391,7 +391,7 @@ class TFairShareTreeHostMock
 {
 public:
     explicit TFairShareTreeHostMock(const TFairShareStrategyTreeConfigPtr& treeConfig)
-        : ResourceTree_(New<TResourceTree>(treeConfig))
+        : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
     { }
 
     virtual TResourceTree* GetResourceTree() override
@@ -560,7 +560,8 @@ protected:
             SchedulerLogger);
         context.StartStage(&SchedulingStageMock_);
 
-        context.PrepareForScheduling();
+        context.PrepareForScheduling(rootElement);
+        rootElement->CalculateCurrentResourceUsage(&context);
         rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
 
         operationElement->ScheduleJob(&context, /* ignorePacking */ true);
@@ -2289,7 +2290,8 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         /* enableSchedulingInfoLogging */ true,
         SchedulerLogger);
     context.StartStage(&SchedulingStageMock_);
-    context.PrepareForScheduling();
+    context.PrepareForScheduling(rootElement);
+    rootElement->CalculateCurrentResourceUsage(&context);
     rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
 
     for (auto operationElement : operationElements) {

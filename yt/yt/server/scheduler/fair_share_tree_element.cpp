@@ -141,7 +141,7 @@ TFairShareContext::TFairShareContext(
     , Logger(logger)
 { }
 
-void TFairShareContext::PrepareForScheduling()
+void TFairShareContext::PrepareForScheduling(const TRootElementPtr& rootElement)
 {
     // TODO(ignat): add check that this method called before rootElement->PrescheduleJob (or refactor this code).
     if (!Initialized_) {
@@ -152,6 +152,8 @@ void TFairShareContext::PrepareForScheduling()
         for (const auto& filter : RegisteredSchedulingTagFilters_) {
             CanSchedule_.push_back(SchedulingContext_->CanSchedule(filter));
         }
+
+        rootElement->CalculateCurrentResourceUsage(this);
     } else {
         for (auto& attributes : DynamicAttributesList_) {
             attributes.Active = false;
@@ -301,7 +303,12 @@ void TSchedulerElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 
     auto specifiedResourceLimits = GetSpecifiedResourceLimits();
     if (PersistentAttributes_.AppliedResourceLimits != specifiedResourceLimits) {
-        ResourceTreeElement_->SetResourceLimits(specifiedResourceLimits);
+        std::vector<TResourceTreeElementPtr> descendantOperationElements;
+        if (!IsOperation() && PersistentAttributes_.AppliedResourceLimits == TJobResources::Infinite() && specifiedResourceLimits != TJobResources::Infinite()) {
+            // NB: this code executed in control thread, therefore tree structure is actual and agreed with tree structure of resource tree.
+            CollectResourceTreeOperationElements(&descendantOperationElements);
+        }
+        ResourceTreeElement_->SetResourceLimits(specifiedResourceLimits, descendantOperationElements);
         PersistentAttributes_.AppliedResourceLimits = specifiedResourceLimits;
     }
 }
@@ -337,7 +344,7 @@ void TSchedulerElement::UpdateSchedulableAttributesFromDynamicAttributes(TDynami
     UpdateDynamicAttributes(dynamicAttributesList);
 
     Attributes_.SatisfactionRatio = attributes.SatisfactionRatio;
-    Attributes_.LocalSatisfactionRatio = ComputeLocalSatisfactionRatio();
+    Attributes_.LocalSatisfactionRatio = ComputeLocalSatisfactionRatio(ResourceUsageAtUpdate_);
     Attributes_.Alive = attributes.Active;
 }
 
@@ -435,6 +442,12 @@ bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributes
     return dynamicAttributesList[GetTreeIndex()].Active;
 }
 
+
+TJobResources TSchedulerElement::GetCurrentResourceUsage(const TDynamicAttributesList& dynamicAttributesList) const
+{
+    return dynamicAttributesList[GetTreeIndex()].ResourceUsage;
+}
+
 double TSchedulerElement::GetWeight() const
 {
     auto specifiedWeight = GetSpecifiedWeight();
@@ -526,6 +539,16 @@ void TSchedulerElement::SetStarving(bool starving)
     PersistentAttributes_.Starving = starving;
 }
 
+TJobMetrics TSchedulerElement::GetJobMetrics() const
+{
+    return ResourceTreeElement_->GetJobMetrics();
+}
+
+bool TSchedulerElement::AreResourceLimitsViolated() const
+{
+    return ResourceTreeElement_->AreResourceLimitsViolated();
+}
+
 TJobResources TSchedulerElement::GetInstantResourceUsage() const
 {
     auto resourceUsage = ResourceTreeElement_->GetResourceUsage();
@@ -534,11 +557,6 @@ TJobResources TSchedulerElement::GetInstantResourceUsage() const
             GetId());
     }
     return resourceUsage;
-}
-
-TJobMetrics TSchedulerElement::GetJobMetrics() const
-{
-    return ResourceTreeElement_->GetJobMetrics();
 }
 
 double TSchedulerElement::GetMaxShareRatio() const
@@ -592,7 +610,10 @@ TSchedulerElement::TSchedulerElement(
     EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
     : TSchedulerElementFixedState(host, treeHost, std::move(treeConfig), std::move(treeId))
-    , ResourceTreeElement_(New<TResourceTreeElement>(TreeHost_->GetResourceTree(), id, elementKind))
+    , ResourceTreeElement_(New<TResourceTreeElement>(
+        TreeHost_->GetResourceTree(),
+        id,
+        elementKind))
     , Logger(logger)
 {
     if (id == RootPoolName) {
@@ -623,7 +644,7 @@ IFairShareTreeHost* TSchedulerElement::GetTreeHost() const
     return TreeHost_;
 }
 
-double TSchedulerElement::ComputeLocalSatisfactionRatio() const
+double TSchedulerElement::ComputeLocalSatisfactionRatio(const TJobResources& resourceUsage) const
 {
     const auto& fairShare = Attributes_.FairShare.Total;
 
@@ -631,10 +652,6 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio() const
     if (Dominates(TResourceVector::SmallEpsilon(), fairShare)) {
         return InfiniteSatisfactionRatio;
     }
-
-    auto resourceUsage = TreeConfig_->UseRecentResourceUsageForLocalSatisfaction
-        ? GetInstantResourceUsage()
-        : ResourceUsageAtUpdate_;
 
     auto usageShare = TResourceVector::FromJobResources(resourceUsage, TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
 
@@ -1252,7 +1269,13 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList*
     // Satisfaction ratio of a composite element is the minimum of its children's satisfaction ratios.
     // NB(eshcherbin): We initialize with local satisfaction ratio in case all children have no pending jobs
     // and thus are not in the |SchedulableChildren_| list.
-    attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio();
+    if (Mutable_) {
+        attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(ResourceUsageAtUpdate_);
+    } else if (TreeConfig_->UseRecentResourceUsageForLocalSatisfaction) {
+        attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(GetInstantResourceUsage());
+    } else {
+        attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(attributes.ResourceUsage);
+    }
 
     // Declare the element passive if all children are passive.
     attributes.Active = false;
@@ -1310,6 +1333,17 @@ void TCompositeSchedulerElement::IncreaseRunningOperationCount(int delta)
     }
 }
 
+void TCompositeSchedulerElement::CalculateCurrentResourceUsage(TFairShareContext* context)
+{
+    auto& attributes = context->DynamicAttributesFor(this);
+
+    attributes.ResourceUsage = TJobResources();
+    for (const auto& child : EnabledChildren_) {
+        child->CalculateCurrentResourceUsage(context);
+        attributes.ResourceUsage += child->GetCurrentResourceUsage(context->DynamicAttributesList());
+    }
+}
+
 void TCompositeSchedulerElement::PrescheduleJob(
     TFairShareContext* context,
     EPrescheduleJobOperationCriterion operationCriterion,
@@ -1351,6 +1385,7 @@ void TCompositeSchedulerElement::PrescheduleJob(
             operationCriterionForChildren = EPrescheduleJobOperationCriterion::All;
         }
     }
+
     for (const auto& child : SchedulableChildren_) {
         child->PrescheduleJob(context, operationCriterionForChildren, aggressiveStarvationEnabled);
     }
@@ -1561,6 +1596,13 @@ void TCompositeSchedulerElement::ApplyOperationSchedulingSegmentChanges(
 {
     for (const auto& child : EnabledChildren_) {
         child->ApplyOperationSchedulingSegmentChanges(operationContexts);
+    }
+}
+
+void TCompositeSchedulerElement::CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const
+{
+    for (const auto& child : EnabledChildren_) {
+        child->CollectResourceTreeOperationElements(elements);
     }
 }
 
@@ -2075,7 +2117,7 @@ void TCompositeSchedulerElement::BuildResourceMetering(const std::optional<TMete
     YT_VERIFY(key || parentKey);
 
     if (key) {
-        YT_VERIFY(statistics->insert({*key, TMeteringStatistics(GetStrongGuaranteeResources(), GetInstantResourceUsage(), GetJobMetrics())}).second);
+        YT_VERIFY(statistics->insert({*key, TMeteringStatistics(GetStrongGuaranteeResources(), ResourceUsageAtUpdate(), GetJobMetrics())}).second);
     }
 
     for (const auto& child : EnabledChildren_) {
@@ -3162,7 +3204,7 @@ void TOperationElement::DisableNonAliveElements()
 void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
-    
+
     PendingJobCount_ = Controller_->GetPendingJobCount();
     DetailedMinNeededJobResources_ = Controller_->GetDetailedMinNeededJobResources();
     AggregatedMinNeededJobResources_ = Controller_->GetAggregatedMinNeededJobResources();
@@ -3181,7 +3223,7 @@ void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 void TOperationElement::UpdateCumulativeAttributes(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
-    
+
     if (PersistentAttributes_.LastBestAllocationRatioUpdateTime + TreeConfig_->BestAllocationRatioUpdatePeriod > context->Now) {
         auto allocationLimits = GetAdjustedResourceLimits(
             ResourceDemand_,
@@ -3194,7 +3236,7 @@ void TOperationElement::UpdateCumulativeAttributes(TUpdateFairShareContext* cont
             /* oneDivByZero */ 1.0);
         PersistentAttributes_.LastBestAllocationRatioUpdateTime = context->Now;
     }
-    
+
     // This should be called after |BestAllocationShare| update since it is used to compute the limits.
     TSchedulerElement::UpdateCumulativeAttributes(context);
 
@@ -3313,8 +3355,14 @@ void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList* dynamicA
 {
     auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
     attributes.BestLeafDescendant = this;
-    attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio();
     attributes.Active = IsAlive();
+    if (Mutable_) {
+        attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(ResourceUsageAtUpdate_);
+    } else if (TreeConfig_->UseRecentResourceUsageForLocalSatisfaction) {
+        attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(GetInstantResourceUsage());
+    } else {
+        attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(attributes.ResourceUsage);
+    }
 }
 
 void TOperationElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
@@ -3332,6 +3380,15 @@ void TOperationElement::UpdateControllerConfig(const TFairShareStrategyOperation
 {
     YT_VERIFY(Mutable_);
     ControllerConfig_ = config;
+}
+
+void TOperationElement::CalculateCurrentResourceUsage(TFairShareContext* context)
+{
+    auto& attributes = context->DynamicAttributesFor(this);
+
+    attributes.ResourceUsage = IsAlive()
+        ? GetInstantResourceUsage()
+        : TJobResources();
 }
 
 void TOperationElement::PrescheduleJob(
@@ -3438,7 +3495,10 @@ TString TOperationElement::GetLoggingString() const
         GetMinNeededResourcesUnsatisfiedCount());
 }
 
-void TOperationElement::UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool checkAncestorsActiveness)
+void TOperationElement::UpdateAncestorsDynamicAttributes(
+    TFairShareContext* context,
+    const TJobResources& resourceUsageDelta,
+    bool checkAncestorsActiveness)
 {
     auto* parent = GetMutableParent();
     while (parent) {
@@ -3446,6 +3506,8 @@ void TOperationElement::UpdateAncestorsDynamicAttributes(TFairShareContext* cont
         if (checkAncestorsActiveness) {
             YT_VERIFY(activeBefore);
         }
+
+        context->DynamicAttributesFor(parent).ResourceUsage += resourceUsageDelta;
 
         parent->UpdateDynamicAttributes(&context->DynamicAttributesList());
 
@@ -3468,7 +3530,7 @@ void TOperationElement::DeactivateOperation(TFairShareContext* context, EDeactiv
     YT_VERIFY(attributes.Active);
     attributes.Active = false;
     GetMutableParent()->UpdateChild(context, this);
-    UpdateAncestorsDynamicAttributes(context);
+    UpdateAncestorsDynamicAttributes(context, /* deltaResourceUsage */ TJobResources());
     OnOperationDeactivated(context, reason);
 }
 
@@ -3478,7 +3540,7 @@ void TOperationElement::ActivateOperation(TFairShareContext* context)
     YT_VERIFY(!attributes.Active);
     attributes.Active = true;
     GetMutableParent()->UpdateChild(context, this);
-    UpdateAncestorsDynamicAttributes(context, /* checkAncestorsActiveness */ false);
+    UpdateAncestorsDynamicAttributes(context, /* deltaResourceUsage */ TJobResources(), /* checkAncestorsActiveness */ false);
 }
 
 void TOperationElement::RecordHeartbeat(const TPackingHeartbeatSnapshot& heartbeatSnapshot)
@@ -3638,10 +3700,15 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         startDescriptor,
         Spec_->PreemptionMode);
 
+    auto resourceUsageBeforeUpdate = GetCurrentResourceUsage(context->DynamicAttributesList());
+    CalculateCurrentResourceUsage(context);
     UpdateDynamicAttributes(&context->DynamicAttributesList());
+    auto resourceUsageAfterUpdate = GetCurrentResourceUsage(context->DynamicAttributesList());
+
+    auto resourceUsageDelta = resourceUsageAfterUpdate - resourceUsageBeforeUpdate;
 
     GetMutableParent()->UpdateChild(context, this);
-    UpdateAncestorsDynamicAttributes(context);
+    UpdateAncestorsDynamicAttributes(context, resourceUsageDelta);
 
     if (heartbeatSnapshot) {
         recordHeartbeatWithTimer(*heartbeatSnapshot);
@@ -3734,7 +3801,10 @@ void TOperationElement::CheckForStarvation(TInstant now)
     TSchedulerElement::CheckForStarvationImpl(fairSharePreemptionTimeout, now);
 }
 
-bool TOperationElement::IsPreemptionAllowed(bool isAggressivePreemption, const TFairShareStrategyTreeConfigPtr& config) const
+bool TOperationElement::IsPreemptionAllowed(
+    bool isAggressivePreemption,
+    const TDynamicAttributesList& dynamicAttributesList,
+    const TFairShareStrategyTreeConfigPtr& config) const
 {
     if (Spec_->PreemptionMode == EPreemptionMode::Graceful) {
         return false;
@@ -3767,7 +3837,14 @@ bool TOperationElement::IsPreemptionAllowed(bool isAggressivePreemption, const T
             : config->PreemptionSatisfactionThreshold;
 
         // NB: We want to use *local* satisfaction ratio here.
-        if (config->PreemptionCheckSatisfaction && element->ComputeLocalSatisfactionRatio() < threshold + RatioComparisonPrecision) {
+        double localSatisfactionRatio;
+        if (TreeConfig_->UseRecentResourceUsageForLocalSatisfaction) {
+            localSatisfactionRatio = element->ComputeLocalSatisfactionRatio(element->GetInstantResourceUsage());
+        } else {
+            const auto& elementAttributes = dynamicAttributesList[element->GetTreeIndex()];
+            localSatisfactionRatio = element->ComputeLocalSatisfactionRatio(elementAttributes.ResourceUsage);
+        }
+        if (config->PreemptionCheckSatisfaction && localSatisfactionRatio < threshold + RatioComparisonPrecision) {
             OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfiedParentOrSelf);
             return false;
         }
@@ -4290,6 +4367,11 @@ void TOperationElement::ApplyOperationSchedulingSegmentChanges(
     const auto& context = GetOrCrash(operationContexts, OperationId_);
     PersistentAttributes_.SchedulingSegmentDataCenter = context.DataCenter;
     PersistentAttributes_.FailingToScheduleAtDataCenterSince = context.FailingToScheduleAtDataCenterSince;
+}
+
+void TOperationElement::CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const
+{
+    elements->push_back(ResourceTreeElement_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

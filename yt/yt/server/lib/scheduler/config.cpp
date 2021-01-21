@@ -221,7 +221,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .DefaultNew();
 
     RegisterParameter("use_recent_resource_usage_for_local_satisfaction", UseRecentResourceUsageForLocalSatisfaction)
-        .Default(true);
+        .Default(false);
 
     RegisterParameter("enable_resource_tree_structure_lock_profiling", EnableResourceTreeStructureLockProfiling)
         .Default(true);

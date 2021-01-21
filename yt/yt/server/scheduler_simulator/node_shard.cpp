@@ -237,7 +237,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         "StartedJobs: %v, PreemptedJobs: %v, "
         "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
         "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
-        "AggressivelyPreemptiveScheduleJobAttempts: %v, PreemptiveScheduleJobAttempts: %v"
+        "AggressivelyPreemptiveScheduleJobAttempts: %v, PreemptiveScheduleJobAttempts: %v, "
         "HasAggressivelyStarvingElements: %v)",
         event.Time,
         event.NodeId,

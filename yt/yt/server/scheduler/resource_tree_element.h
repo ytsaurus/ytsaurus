@@ -19,7 +19,10 @@ class TResourceTreeElement
     : public TRefCounted
 {
 public:
-    TResourceTreeElement(TResourceTree* resourceTree, const TString& id, EResourceTreeElementKind elementKind);
+    TResourceTreeElement(
+        TResourceTree* resourceTree,
+        const TString& id,
+        EResourceTreeElementKind elementKind);
 
     TJobResources GetResourceUsage();
 
@@ -32,7 +35,10 @@ public:
         const TJobResources& resourceDemand,
         const TJobResources& resourceDiscount);
 
-    void SetResourceLimits(TJobResources resourceLimits);
+    void SetResourceLimits(
+        const TJobResources& resourceLimits,
+        const std::vector<TResourceTreeElementPtr>& descendantOperations);
+    bool AreResourceLimitsViolated() const;
 
     inline bool GetAlive() const;
     inline void SetNonAlive();
@@ -44,16 +50,19 @@ public:
 
     void MarkInitialized();
 
+    void SetMaintainInstantResourceUsage(bool value);
+
 private:
     TResourceTree* ResourceTree_;
     const TString Id_;
     const EResourceTreeElementKind Kind_;
-
+    
     NConcurrency::TPaddedReaderWriterSpinLock ResourceUsageLock_;
     TJobResources ResourceLimits_ = TJobResources::Infinite();
     TJobResources ResourceUsage_;
     TJobResources ResourceUsagePrecommit_;
 
+    std::atomic<bool> MaintainInstantResourceUsage_ = false;
     std::atomic<bool> ResourceLimitsSpecified_ = false;
 
     NConcurrency::TPaddedReaderWriterSpinLock JobMetricsLock_;

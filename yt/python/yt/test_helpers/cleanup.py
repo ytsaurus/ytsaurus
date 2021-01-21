@@ -1,11 +1,10 @@
 from __future__ import print_function
 
-from yt.common import YtError, wait
+from yt.common import YtError, wait, format_error
 
 import sys
 
 def abort_transactions(list_action, abort_action):
-    result = []
     for tx in list_action("//sys/transactions", attributes=["title"]):
         title = tx.attributes.get("title", "")
         if "Scheduler lock" in title:
