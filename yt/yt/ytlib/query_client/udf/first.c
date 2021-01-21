@@ -1,4 +1,5 @@
 #include "yt_udf.h"
+#include <string.h>
 
 void first_init(
     TExpressionContext* context,
@@ -18,7 +19,14 @@ static void first_iteration(
     if (state->Type == Null) {
         result->Type = newValue->Type;
         result->Length = newValue->Length;
-        result->Data = newValue->Data;
+
+        if (newValue->Type == String) {
+            char* permanentData = AllocateBytes(context, newValue->Length);
+            memcpy(permanentData, newValue->Data.String, newValue->Length);
+            result->Data.String = permanentData;
+        } else {
+            result->Data = newValue->Data;
+        }
     } else {
         result->Type = state->Type;
         result->Length = state->Length;
