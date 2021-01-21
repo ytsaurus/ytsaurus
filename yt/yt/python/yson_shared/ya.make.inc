@@ -9,8 +9,8 @@ CXXFLAGS(
 )
 
 PEERDIR(
-    ${YT_ROOT}/yt/core
-    ${YT_ROOT}/yt/python/common
-    ${YT_ROOT}/yt/python/yson
+    yt/yt/core
+    yt/yt/python/common
+    yt/yt/python/yson
 )
 

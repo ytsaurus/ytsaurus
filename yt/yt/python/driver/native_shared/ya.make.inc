@@ -9,5 +9,5 @@ CXXFLAGS(
 )
 
 PEERDIR(
-    ${YT_ROOT}/yt/python/driver/native
+    yt/yt/python/driver/native
 )
