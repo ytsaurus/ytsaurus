@@ -977,18 +977,33 @@ TQueryStatistics DoExecuteQuery(
     auto rowsBegin = sourceRows.begin();
     auto rowsEnd = sourceRows.end();
 
-    size_t batchSize = RowsetProcessingSize;
+    // Use small batch size for tests.
+    const size_t maxBatchSize = 5;
+
+    size_t batchSize = maxBatchSize;
 
     if (query->IsOrdered() && query->Offset + query->Limit < batchSize) {
         batchSize = query->Offset + query->Limit;
     }
 
+    bool isFirstRead = true;
     auto readRows = [&] (const TRowBatchReadOptions& options) {
-        EXPECT_EQ(options.MaxRowsPerRead, batchSize);
+        // Free memory to test correct capturing of data.
+        auto readCount = std::distance(sourceRows.begin(), rowsBegin);
+        for (size_t index = 0; index < readCount; ++index) {
+            sourceRows[index] = TRow();
+            owningSourceRows[index] = TOwningRow();
+        }
+
+        if (isFirstRead && query->IsOrdered()) {
+            EXPECT_EQ(options.MaxRowsPerRead, std::min(RowsetProcessingSize, query->Offset + query->Limit));
+            isFirstRead = false;
+        }
+
         auto size = std::min<size_t>(options.MaxRowsPerRead, std::distance(rowsBegin, rowsEnd));
         std::vector<TRow> rows(rowsBegin, rowsBegin + size);
         rowsBegin += size;
-        batchSize = std::min<size_t>(batchSize * 2, RowsetProcessingSize);
+        batchSize = std::min<size_t>(batchSize * 2, maxBatchSize);
         return rows.empty()
             ? nullptr
             : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows)));
@@ -2315,6 +2330,37 @@ TEST_F(TQueryEvaluateTest, GroupWithLimitFirst)
     }, resultSplit);
 
     auto queryStatistics = EvaluateWithQueryStatistics("first(b) as f FROM [//t] group by a limit 1", split, source, ResultMatcher(result)).second;
+    EXPECT_EQ(queryStatistics.RowsRead, 3);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupWithLimitFirstString)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::String},
+        {"c", EValueType::Int64}
+    });
+
+    std::vector<TString> source;
+    for (int i = 0; i < 10; i++) {
+        source.push_back(Format("a=%v;b=%Qv;c=%v", i % 3, i, i));
+    }
+
+    auto resultSplit = MakeSplit({
+        {"f", EValueType::String}
+    });
+
+    auto result = YsonToRows({
+        "f=\"0\""
+    }, resultSplit);
+
+    auto queryStatistics = EvaluateWithQueryStatistics(
+        "first(b) as f FROM [//t] group by a limit 1",
+        split,
+        source,
+        ResultMatcher(result)).second;
     EXPECT_EQ(queryStatistics.RowsRead, 3);
 
     SUCCEED();
