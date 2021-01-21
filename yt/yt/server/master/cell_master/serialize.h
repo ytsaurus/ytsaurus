@@ -124,6 +124,7 @@ DEFINE_ENUM(EMasterReign,
     ((BannedReplicaClusterList)                                     (1439))  // akozhikhov
     ((ReplicationLagInRTT)                                          (1440))  // akozhikhov
     ((ClearSetBeforeDeserialization)                                (1441))  // eshcherbin
+    ((YT_14207_InheritableAttributesFix)                            (1442))  // shakurov
     // Late 20.3 starts here.
     ((OrderedRemoteDynamicStoreReader)                              (1444))  // ifsmirnov
     ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
