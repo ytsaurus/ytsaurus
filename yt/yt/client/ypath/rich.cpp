@@ -236,6 +236,182 @@ std::vector<NChunkClient::TLegacyReadRange> TRichYPath::GetRanges() const
     }
 }
 
+//! Return read range corresponding to given map node.
+NChunkClient::TReadRange RangeNodeToReadRange(
+    const std::optional<NTableClient::TComparator>& comparator,
+    const IMapNodePtr& rangeNode)
+{
+    auto lowerLimitNode = rangeNode->FindChild("lower_limit");
+    auto upperLimitNode = rangeNode->FindChild("upper_limit");
+    auto exactNode = rangeNode->FindChild("exact");
+
+    if (exactNode && (lowerLimitNode || upperLimitNode)) {
+        THROW_ERROR_EXCEPTION("Exact limit cannot be specified simultaneously with lower or upper limits");
+    }
+
+    auto deserializeLimit = [&] (const IMapNodePtr& limitNode, TReadLimit& readLimit, bool isUpper, bool isExact) {
+        auto keyNode = limitNode->FindChild("key");
+        if (keyNode) {
+            limitNode->RemoveChild(keyNode);
+        }
+
+        auto keyBoundNode = limitNode->FindChild("key_bound");
+
+        // Check that key bound and key are not specified simultaneously.
+        if (keyNode && keyBoundNode) {
+            THROW_ERROR_EXCEPTION("Key and key bound cannot be specified simultaneously within limit");
+        }
+
+        // Check that key bound is not specified in exact clause.
+        if (keyBoundNode && isExact) {
+            THROW_ERROR_EXCEPTION("Key bound cannot be specified in exact limit, specify lower or upper limit instead");
+        }
+
+        // Check that key or key bound do not appear for unsorted tables.
+        if ((keyNode || keyBoundNode) && !comparator) {
+            THROW_ERROR_EXCEPTION("Cannot use key or key bound in read limit for an unsorted object");
+        }
+
+        // Now validate key or key bound.
+        if (keyNode) {
+            // Before deserializing, we may need to transform legacy key into key bound.
+            auto owningKey = ConvertTo<TUnversionedOwningRow>(keyNode);
+            TOwningKeyBound keyBound;
+
+            // For tables with descending sort order we are allowed to impose stricter rules regarding
+            // what can be specified as a "key" in a read limit.
+            if (comparator->HasDescendingSortOrder()) {
+                // First of all, we do not want to state if <min> is less than any value in descending sort order
+                // or not. That's why we simply prohibit keys with sentinels when comparator is not totally ascending.
+                if (std::find_if(
+                    owningKey.begin(),
+                    owningKey.end(),
+                    [&] (const TUnversionedValue& value) {
+                        return IsSentinelType(value.Type);
+                    }) != owningKey.end())
+                {
+                    THROW_ERROR_EXCEPTION(
+                        "Sentinel values are not allowed in read limit key when at least one column "
+                        "has descending sort order");
+                }
+                // Also, we prohibit keys that are longer than comparator.
+                if (owningKey.GetCount() > comparator->GetLength()) {
+                    THROW_ERROR_EXCEPTION(
+                        "Read limit key cannot be longer than schema key prefix when at least one column "
+                        "has descending sort order");
+                }
+
+                // Finally, we do not allow keys shorter than comparator for "exact" read limit.
+                if (isExact && owningKey.GetCount() < comparator->GetLength()) {
+                    THROW_ERROR_EXCEPTION(
+                        "Exact read limit key should have same length as schema key prefix when at least "
+                        "one column has descending sort order");
+                }
+                keyBound = TOwningKeyBound::FromRow(owningKey, /* isInclusive */ !isUpper, isUpper);
+            } else {
+                // Existing code may specify arbitrary garbage as legacy keys and we have no solution other
+                // than interpreting it as a key bound using interop method.
+
+                if (isExact && owningKey.GetCount() != comparator->GetLength()) {
+                    // NB: there is a tricky case when read limit is exact and specified key is shorter
+                    // than comparator. Recall that (in old terms) there may be no keys between
+                    // (foo) and (foo, <min>) in a table with two key columns.
+                    //
+                    // For non-totally ascending comparators we throw error right in deserializeLimit.
+                    //
+                    // For totally ascending comparators we can't throw error and we must somehow
+                    // represent an empty range because there may be already existing code that specifies
+                    // such limits and expects the empty result, but not an error.
+                    //
+                    // That's why we replace such key with (empty) key bound >[] to make sure this range
+                    // will not contain any key. Also, note that simply skipping such range is incorrect
+                    // as it would break range indices (kudos to ifsmirnov@ for this nice observation).
+                    keyBound = TOwningKeyBound::MakeEmpty(/* isUpper */ false);
+                } else {
+                    keyBound = KeyBoundFromLegacyRow(owningKey, isUpper, comparator->GetLength());
+                }
+            }
+            limitNode->AddChild("key_bound", ConvertToNode(keyBound));
+        }
+
+        // We got rid of "key" map node key, so we may just use Deserialize which simply constructs
+        // read limit from node representation.
+        Deserialize(readLimit, limitNode);
+
+        // Note that "key_bound" is either specified explicitly or obtained from "key" at this point.
+        // For the former case, we did not yet perform validation of key bound sanity, we will do that
+        // later. For the latter case the check is redundant, but let's perform it anyway.
+
+        // If key bound was explicitly specified (i.e. we did not transform legacy key into key bound),
+        // we still need to check that key bound length is no more than comparator length.
+        if (readLimit.KeyBound() && readLimit.KeyBound().Prefix.GetCount() > comparator->GetLength()) {
+            THROW_ERROR_EXCEPTION("Key bound length must not exceed schema key prefix length");
+        }
+
+        // Check that key bound is of correct direction.
+        if (readLimit.KeyBound() && readLimit.KeyBound().IsUpper != isUpper) {
+            // Key bound for exact limit is formed only by us and it has always a correct (lower) direction.
+            YT_VERIFY(!isExact);
+            THROW_ERROR_EXCEPTION(
+                "Key bound for %v limit has wrong relation type %Qv",
+                isUpper ? "upper" : "lower",
+                readLimit.KeyBound().GetRelation());
+        }
+
+        // Validate that exact limit contains at most one selector.
+        if (exactNode && readLimit.GetSelectorCount() != 1) {
+            THROW_ERROR_EXCEPTION("Exact read limit must have exactly one selector specified");
+        }
+    };
+
+    TReadRange result;
+
+    if (lowerLimitNode) {
+        deserializeLimit(lowerLimitNode->AsMap(), result.LowerLimit(), /* isUpper */ false, /* isExact */ false);
+    }
+    if (upperLimitNode) {
+        deserializeLimit(upperLimitNode->AsMap(), result.UpperLimit(), /* isUpper */ true, /* isExact */ false);
+    }
+    if (exactNode) {
+        // Exact limit is transformed into pair of lower and upper limit. First, deserialize exact limit
+        // as if it was lower limit.
+        deserializeLimit(exactNode->AsMap(), result.LowerLimit(), /* isUpper */ false, /* isExact */ true);
+
+        // Now copy lower limit to upper limit and either increment single integer selector, or
+        // invert key bound selector.
+        result.UpperLimit() = result.LowerLimit().ToExactUpperCounterpart();
+    }
+
+    return result;
+}
+
+std::vector<NChunkClient::TReadRange> TRichYPath::GetNewRanges(
+    const std::optional<NTableClient::TComparator>& comparator) const
+{
+    auto optionalRangeNodes = FindAttribute<std::vector<IMapNodePtr>>(*this, "ranges");
+
+    if (!optionalRangeNodes) {
+        return {TReadRange()};
+    }
+
+    std::vector<NChunkClient::TReadRange> readRanges;
+
+    for (const auto& rangeNode : *optionalRangeNodes) {
+        // For the sake of unchanged range node in error message.
+        auto rangeNodeCopy = ConvertToNode(rangeNode);
+        try {
+            readRanges.emplace_back(RangeNodeToReadRange(comparator, rangeNode));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(
+                NYPath::EErrorCode::InvalidReadRange, "Invalid read range")
+                << TErrorAttribute("range", rangeNodeCopy)
+                << ex;
+        }
+    }
+
+    return readRanges;
+}
+
 void TRichYPath::SetRanges(const std::vector<NChunkClient::TLegacyReadRange>& value)
 {
     Attributes().Set("ranges", value);

@@ -146,6 +146,16 @@ public:
         std::optional<int> keyLength = std::nullopt);
 
     bool IsTrivial() const;
+
+    //! Return number of specified selectors.
+    int GetSelectorCount() const;
+
+    //! Given read limit with exactly one selector, either increment single integer selector, or
+    //! invert key bound selector. This method is used to transform "exact" YPath read limit
+    //! into a pair of lower and upper read limit.
+    TReadLimit ToExactUpperCounterpart() const;
+
+    bool operator == (const TReadLimit& other) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,6 +169,8 @@ void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit);
 void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit, bool isUpper, std::optional<int> keyLength);
 
 void Serialize(const TReadLimit& readLimit, NYson::IYsonConsumer* consumer);
+//! This method deserializes modern read limit representation, recognizing only key bound, but not legacy key.
+void Deserialize(TReadLimit& readLimit, const NYTree::INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -174,6 +186,8 @@ public:
     TReadRange(
         const NProto::TReadRange& range,
         std::optional<int> keyLength = std::nullopt);
+
+    bool operator == (const TReadRange& other) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

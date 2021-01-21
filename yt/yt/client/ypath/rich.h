@@ -69,8 +69,17 @@ public:
     std::optional<NTableClient::TColumnRenameDescriptors> GetColumnRenameDescriptors() const;
 
     // "ranges"
-    // COMPAT(ignat): also "lower_limit" and "upper_limit"
+    //! COMPAT(ignat): also "lower_limit" and "upper_limit"
+    //! This method returns legacy read ranges completely ignoring key bounds.
     std::vector<NChunkClient::TLegacyReadRange> GetRanges() const;
+
+    //! Get ranges, possibly transforming legacy keys into new key bounds using provided comparator.
+    //! This method throws if comparator is not present and keys are present.
+    //! In case when at least one column is non-ascending, some requirements are even stronger,
+    //! refer to the implementation for details.
+    std::vector<NChunkClient::TReadRange> GetNewRanges(
+        const std::optional<NTableClient::TComparator>& comparator = std::nullopt) const;
+
     void SetRanges(const std::vector<NChunkClient::TLegacyReadRange>& value);
     bool HasNontrivialRanges() const;
 

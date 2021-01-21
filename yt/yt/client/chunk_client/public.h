@@ -135,6 +135,11 @@ DECLARE_REFCOUNTED_CLASS(TBlockReordererConfig)
 struct TCodecDuration;
 class TCodecStatistics;
 
+class TLegacyReadLimit;
+class TLegacyReadRange;
+class TReadLimit;
+class TReadRange;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

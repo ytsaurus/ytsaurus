@@ -137,6 +137,7 @@ void FormatValue(TStringBuilderBase* builder, const TOwningKeyBound& keyBound, T
 TString ToString(const TOwningKeyBound& keyBound);
 
 void Serialize(const TOwningKeyBound& keyBound, NYson::IYsonConsumer* consumer);
+void Deserialize(TOwningKeyBound& keyBound, const NYTree::INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

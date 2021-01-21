@@ -22,6 +22,25 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::pair<bool, bool> RelationToIsUpperAndIsInclusive(TStringBuf relation)
+{
+    if (relation == "<=") {
+        return {/* isInclusive */ true, /* isUpper */ true};
+    } else if (relation == ">=") {
+        return {/* isInclusive */ true, /* isUpper */ false};
+    } else if (relation == "<") {
+        return {/* isInclusive */ false, /* isUpper */ true};
+    } else if (relation == ">") {
+        return {/* isInclusive */ false, /* isUpper */ false};
+    } else {
+        THROW_ERROR_EXCEPTION(
+            "Error parsing relation literal %Qv; one of \"<=\", \">=\", \"<\", \">\" expected",
+            relation);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TRow, class TKeyBound>
 TKeyBound TKeyBoundImpl<TRow, TKeyBound>::FromRow(const TRow& row, bool isInclusive, bool isUpper)
 {
@@ -270,6 +289,42 @@ TString ToString(const TKeyBound& keyBound)
 void Serialize(const TOwningKeyBound& keyBound, IYsonConsumer* consumer)
 {
     keyBound.Serialize(consumer);
+}
+
+void Deserialize(TOwningKeyBound& keyBound, const NYTree::INodePtr& node)
+{
+    if (node->GetType() == ENodeType::Entity) {
+        keyBound = TOwningKeyBound();
+    } else if (node->GetType() == ENodeType::List) {
+        auto listNode = node->AsList();
+        if (listNode->GetChildCount() != 2) {
+            THROW_ERROR_EXCEPTION(
+                "Error parsing key bound: list node must have exactly two elements, "
+                "first of which is a relation string literal, and second is a row; "
+                "%v elements found",
+                listNode->GetChildCount());
+        }
+        auto relationNode = listNode->GetChildOrThrow(0);
+        auto rowNode = listNode->GetChildOrThrow(1);
+
+        if (relationNode->GetType() != ENodeType::String) {
+            THROW_ERROR_EXCEPTION(
+                "Error parsing key bound: first element must be a string node; actual %Qv node",
+                relationNode->GetType());
+        }
+
+        auto relation = relationNode->GetValue<TString>();
+        auto [isInclusive, isUpper] = NDetail::RelationToIsUpperAndIsInclusive(relation);
+
+        TUnversionedOwningRow row;
+        Deserialize(row, rowNode);
+
+        keyBound = TOwningKeyBound::FromRow(row, isInclusive, isUpper);
+    } else {
+        THROW_ERROR_EXCEPTION("Error parsing key bound: expected %Qlv node, actual %Qlv node",
+            NYTree::ENodeType::List,
+            node->GetType());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
