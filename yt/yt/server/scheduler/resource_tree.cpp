@@ -13,18 +13,40 @@ static const auto& Logger = StrategyLogger;
 
 using namespace NConcurrency;
 
-TResourceTree::TResourceTree(const TFairShareStrategyTreeConfigPtr& config)
-    : Config_(config)
-{ }
+TResourceTree::TResourceTree(
+    const TFairShareStrategyTreeConfigPtr& config,
+    const std::vector<IInvokerPtr>& feasibleInvokers)
+    : FeasibleInvokers_(feasibleInvokers)
+{
+    if (config) {
+        UpdateConfig(config);
+    }
+}
 
 void TResourceTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
 {
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
     EnableStructureLockProfiling.store(config->EnableResourceTreeStructureLockProfiling);
     EnableUsageLockProfiling.store(config->EnableResourceTreeUsageLockProfiling);
+    if (MaintainInstantResourceUsage_ != config->UseRecentResourceUsageForLocalSatisfaction) {
+        auto structureGuard = WriterGuard(StructureLock_);
+        MaintainInstantResourceUsage_ = config->UseRecentResourceUsageForLocalSatisfaction;
+
+        for (const auto& element : AliveElements_) {
+            element->SetMaintainInstantResourceUsage(MaintainInstantResourceUsage_);
+        }
+
+        if (MaintainInstantResourceUsage_) {
+            DoRecalculateAllResourceUsages();
+        }
+    }
 }
 
 void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent)
 {
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
     // There is no necessity to acquire StructureLock_ since element is newly created and no concurrent operations are possible.
     YT_VERIFY(!element->Initialized_);
     YT_VERIFY(!element->Parent_);
@@ -32,10 +54,15 @@ void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const T
 
     element->Parent_ = parent;
     element->Initialized_ = true;
+    element->MaintainInstantResourceUsage_.store(MaintainInstantResourceUsage_.load());
+
+    AliveElements_.insert(element);
 }
 
 void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent)
 {
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
     auto structureGuard = WriterGuard(StructureLock_);
 
     IncrementStructureLockWriteCount();
@@ -57,6 +84,8 @@ void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const T
 
 void TResourceTree::ScheduleDetachParent(const TResourceTreeElementPtr& element)
 {
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
     YT_LOG_DEBUG("Scheduling element to detach (Id: %v)", element->GetId());
     YT_VERIFY(element->Initialized_);
     ElementsToDetachQueue_.Enqueue(element);
@@ -64,6 +93,8 @@ void TResourceTree::ScheduleDetachParent(const TResourceTreeElementPtr& element)
 
 void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, bool markAsNonAlive)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!element->GetAlive()) {
         return;
     }
@@ -115,6 +146,8 @@ void TResourceTree::CheckCycleAbsence(const TResourceTreeElementPtr& element, co
 
 void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!element->GetAlive()) {
         return;
     }
@@ -130,6 +163,8 @@ void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElement
 
 void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     YT_VERIFY(element->Initialized_);
 
     TResourceTreeElement* current = element.Get();
@@ -148,6 +183,8 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeEleme
 
 void TResourceTree::IncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!element->GetAlive()) {
         return;
     }
@@ -165,6 +202,8 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
     const TResourceTreeElementPtr& element,
     const TJobResources& delta)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     YT_VERIFY(element->Initialized_);
 
     TResourceTreeElement* current = element.Get();
@@ -186,6 +225,8 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
     const TJobResources &delta,
     TJobResources *availableResourceLimitsOutput)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!element->GetAlive()) {
         return EResourceTreeIncreaseResult::ElementIsNotAlive;
     }
@@ -233,6 +274,8 @@ void TResourceTree::CommitHierarchicalResourceUsage(
     const TJobResources& resourceUsageDelta,
     const TJobResources& precommittedResources)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = ReaderGuard(StructureLock_);
 
     IncrementStructureLockReadCount();
@@ -253,8 +296,11 @@ void TResourceTree::CommitHierarchicalResourceUsage(
     }
 }
 
+// TODO(ignat): extract this logic to separate class.
 void TResourceTree::ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementPtr& element, const TJobMetrics& delta)
 {
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
     auto guard = ReaderGuard(StructureLock_);
 
     IncrementStructureLockReadCount();
@@ -270,7 +316,9 @@ void TResourceTree::ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementP
 
 void TResourceTree::PerformPostponedActions()
 {
-    auto guard = WriterGuard(StructureLock_);
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+    auto structureGuard = WriterGuard(StructureLock_);
 
     IncrementStructureLockWriteCount();
 
@@ -285,6 +333,7 @@ void TResourceTree::PerformPostponedActions()
             FormatResources(element->GetResourceUsageWithPrecommit()));
         YT_VERIFY(element->GetResourceUsageWithPrecommit() == TJobResources());
         element->Parent_ = nullptr;
+        YT_VERIFY(AliveElements_.erase(element) == 1);
     }
 }
 
@@ -313,6 +362,57 @@ void TResourceTree::IncrementUsageLockWriteCount()
 {
     if (EnableUsageLockProfiling) {
         UsageLockWriteCount_.Increment();
+    }
+}
+
+void TResourceTree::InitializeResourceUsageFor(
+    const TResourceTreeElementPtr& targetElement,
+    const std::vector<TResourceTreeElementPtr>& operationElements)
+{
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+    // This method called from Control thread with list of descendant operations elements.
+    // All changes of tree structure performed from Control thread, thus we guarantee that
+    // all operations are alive.
+    auto structureGuard = WriterGuard(StructureLock_);
+
+    TJobResources newResourceUsage;
+    for (auto element : operationElements) {
+        YT_VERIFY(AliveElements_.contains(element));
+        newResourceUsage += element->ResourceUsage_;
+    }
+
+    {
+        auto guard = WriterGuard(targetElement->ResourceUsageLock_);
+        IncrementUsageLockWriteCount();
+        targetElement->ResourceUsage_ = newResourceUsage;
+    }
+
+    YT_LOG_DEBUG("Resource usage initialized for element in resource tree (Id: %v, ResourceUsage: %v)",
+        targetElement->Id_,
+        FormatResources(newResourceUsage));
+}
+
+void TResourceTree::DoRecalculateAllResourceUsages()
+{
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+    YT_LOG_DEBUG("Recalculating all resource usages in resource tree");
+
+    // NB: to use this method your must acquire structured lock and active elements lock.
+    for (const auto& element : AliveElements_) {
+        if (element->Kind_ != EResourceTreeElementKind::Operation) {
+            element->ResourceUsage_ = TJobResources();
+        }
+    }
+    for (const auto& element : AliveElements_) {
+        if (element->Kind_ == EResourceTreeElementKind::Operation) {
+            auto current = element->Parent_;
+            do {
+                current->ResourceUsage_ += element->ResourceUsage_;
+                current = current->Parent_;
+            } while (current->Kind_ != EResourceTreeElementKind::Root);
+        }
     }
 }
 

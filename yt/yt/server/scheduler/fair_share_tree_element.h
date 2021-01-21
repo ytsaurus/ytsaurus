@@ -177,6 +177,7 @@ struct TDynamicAttributes
     double SatisfactionRatio = 0.0;
     bool Active = false;
     TSchedulerElement* BestLeafDescendant = nullptr;
+    TJobResources ResourceUsage;
     TJobResources ResourceUsageDiscount;
 
     std::unique_ptr<TChildHeap> ChildHeap;
@@ -273,7 +274,7 @@ public:
         bool enableSchedulingInfoLogging,
         const NLogging::TLogger& logger);
 
-    void PrepareForScheduling();
+    void PrepareForScheduling(const TRootElementPtr& rootElement);
 
     TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
@@ -394,6 +395,8 @@ public:
     virtual void UpdateSchedulableAttributesFromDynamicAttributes(TDynamicAttributesList* dynamicAttributesList);
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) = 0;
+    
+    virtual void CalculateCurrentResourceUsage(TFairShareContext* context) = 0;
 
     virtual void PrescheduleJob(TFairShareContext* context, EPrescheduleJobOperationCriterion operationCriterion, bool aggressiveStarvationEnabled) = 0;
     virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) = 0;
@@ -454,7 +457,9 @@ public:
     virtual void SetStarving(bool starving);
     virtual void CheckForStarvation(TInstant now) = 0;
 
-    TJobResources GetInstantResourceUsage() const;
+    // Returns resource usage observed in current heartbeat.
+    TJobResources GetCurrentResourceUsage(const TDynamicAttributesList& dynamicAttributesList) const;
+
     TJobMetrics GetJobMetrics() const;
     TResourceVector GetResourceUsageShare() const;
 
@@ -472,7 +477,7 @@ public:
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
 
-    double ComputeLocalSatisfactionRatio() const;
+    double ComputeLocalSatisfactionRatio(const TJobResources& resourceUsage) const;
 
     const NLogging::TLogger& GetLogger() const;
 
@@ -491,6 +496,9 @@ public:
     bool IsStrictlyDominatesNonBlocked(const TResourceVector& lhs, const TResourceVector& rhs) const;
 
     virtual TJobResources GetSpecifiedResourceLimits() const = 0;
+    bool AreResourceLimitsViolated() const;
+
+    TJobResources GetInstantResourceUsage() const;
 
     TJobResources ComputeTotalResourcesOnSuitableNodes() const;
 
@@ -510,6 +518,8 @@ public:
         THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const = 0;
     virtual void ApplyOperationSchedulingSegmentChanges(
         const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) = 0;
+
+    virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const = 0;
 
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
@@ -618,6 +628,8 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
 
+    virtual void CalculateCurrentResourceUsage(TFairShareContext* context) override;
+
     virtual void PrescheduleJob(TFairShareContext* context, EPrescheduleJobOperationCriterion operationCriterion, bool aggressiveStarvationEnabled) override;
     virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) override;
 
@@ -688,6 +700,8 @@ public:
         THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const override;
     virtual void ApplyOperationSchedulingSegmentChanges(
         const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) override;
+
+    virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
 
 protected:
     NProfiling::TBufferedProducerPtr ProducerBuffer_;
@@ -1065,6 +1079,8 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
 
+    virtual void CalculateCurrentResourceUsage(TFairShareContext* context) override;
+
     virtual void PrescheduleJob(TFairShareContext* context, EPrescheduleJobOperationCriterion operationCriterion, bool aggressiveStarvationEnabled) override;
     virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) override;
 
@@ -1090,7 +1106,10 @@ public:
 
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
-    bool IsPreemptionAllowed(bool isAggressivePreemption, const TFairShareStrategyTreeConfigPtr& config) const;
+    bool IsPreemptionAllowed(
+        bool isAggressivePreemption,
+        const TDynamicAttributesList& dynamicAttributesList,
+        const TFairShareStrategyTreeConfigPtr& config) const;
 
     void ApplyJobMetricsDelta(const TJobMetrics& delta);
 
@@ -1158,7 +1177,10 @@ public:
     void MarkOperationRunningInPool();
     bool IsOperationRunningInPool();
 
-    void UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool checkAncestorsActiveness = true);
+    void UpdateAncestorsDynamicAttributes(
+        TFairShareContext* context,
+        const TJobResources& resourceUsageDelta,
+        bool checkAncestorsActiveness = true);
 
     void MarkPendingBy(TCompositeSchedulerElement* violatedPool);
 
@@ -1174,6 +1196,8 @@ public:
         THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const override;
     virtual void ApplyOperationSchedulingSegmentChanges(
         const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) override;
+
+    virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
 

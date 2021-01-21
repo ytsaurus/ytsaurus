@@ -51,17 +51,40 @@ bool TResourceTreeElement::CheckDemand(
     return Dominates(availableDemand, delta);
 }
 
-void TResourceTreeElement::SetResourceLimits(TJobResources resourceLimits)
+void TResourceTreeElement::SetResourceLimits(
+    const TJobResources& resourceLimits,
+    const std::vector<TResourceTreeElementPtr>& descendantOperations)
 {
-    auto guard = WriterGuard(ResourceUsageLock_);
+    // NB: this method called from Control thread, tree structure supposed to have no changes.
+    bool resourceLimitsSpecifiedBeforeUpdate = ResourceLimitsSpecified_;
 
-    ResourceTree_->IncrementUsageLockWriteCount();
+    {
+        auto guard = WriterGuard(ResourceUsageLock_);
 
-    ResourceLimits_ = resourceLimits;
-    ResourceLimitsSpecified_ = (resourceLimits != TJobResources::Infinite());
-    if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
-        ResourceUsagePrecommit_ = TJobResources();
+        ResourceTree_->IncrementUsageLockWriteCount();
+
+        ResourceLimits_ = resourceLimits;
+        ResourceLimitsSpecified_ = (resourceLimits != TJobResources::Infinite());
+        if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+            ResourceUsagePrecommit_ = TJobResources();
+        }
     }
+
+    // XXX(ignat): is it safe to have this element with incorrect resource usage?
+    if (!resourceLimitsSpecifiedBeforeUpdate && ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+        ResourceTree_->InitializeResourceUsageFor(this, descendantOperations);
+    }
+}
+
+bool TResourceTreeElement::AreResourceLimitsViolated() const
+{
+    if (!ResourceLimitsSpecified_) {
+        return false;
+    }
+
+    auto guard = ReaderGuard(ResourceUsageLock_);
+
+    return !Dominates(ResourceLimits_, ResourceUsage_);
 }
 
 bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(const TJobResources& delta)
@@ -87,6 +110,10 @@ bool TResourceTreeElement::CommitLocalResourceUsage(
     const TJobResources& resourceUsageDelta,
     const TJobResources& precommittedResources)
 {
+    if (!MaintainInstantResourceUsage_ && !ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+        return true;
+    }
+
     auto guard = WriterGuard(ResourceUsageLock_);
 
     if (!Alive_) {
@@ -100,7 +127,7 @@ bool TResourceTreeElement::CommitLocalResourceUsage(
         // We can try to subtract some excessive resource usage precommit, if precommit was added before resource limits were set.
         ResourceUsagePrecommit_ = Max(TJobResources(), ResourceUsagePrecommit_ - precommittedResources);
     }
-    
+
     YT_VERIFY(Dominates(ResourceUsage_, TJobResources()));
 
     return true;
@@ -108,6 +135,10 @@ bool TResourceTreeElement::CommitLocalResourceUsage(
 
 bool TResourceTreeElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 {
+    if (!MaintainInstantResourceUsage_ && !ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+        return true;
+    }
+
     auto guard = WriterGuard(ResourceUsageLock_);
 
     if (!Alive_) {
@@ -125,6 +156,8 @@ bool TResourceTreeElement::IncreaseLocalResourceUsage(const TJobResources& delta
 
 void TResourceTreeElement::ReleaseResources(TJobResources* usagePrecommit, TJobResources* usage)
 {
+    YT_VERIFY(Kind_ == EResourceTreeElementKind::Operation);
+
     auto guard = WriterGuard(ResourceUsageLock_);
 
     YT_VERIFY(!Alive_);
@@ -138,6 +171,10 @@ void TResourceTreeElement::ReleaseResources(TJobResources* usagePrecommit, TJobR
 
 TJobResources TResourceTreeElement::GetResourceUsagePrecommit()
 {
+    if (!MaintainInstantResourceUsage_) {
+        YT_VERIFY(ResourceLimitsSpecified_ || Kind_ == EResourceTreeElementKind::Operation);
+    }
+
     auto guard = ReaderGuard(ResourceUsageLock_);
 
     ResourceTree_->IncrementUsageLockReadCount();
@@ -149,6 +186,11 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     const TJobResources& delta,
     TJobResources* availableResourceLimitsOutput)
 {
+    if (!MaintainInstantResourceUsage_ && !ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
+        *availableResourceLimitsOutput = TJobResources::Infinite();
+        return true;
+    }
+
     if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
         *availableResourceLimitsOutput = TJobResources::Infinite();
         return true;
@@ -183,6 +225,13 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
 void TResourceTreeElement::MarkInitialized()
 {
     Initialized_ = true;
+}
+
+void TResourceTreeElement::SetMaintainInstantResourceUsage(bool value)
+{
+    auto guard = WriterGuard(ResourceUsageLock_);
+
+    MaintainInstantResourceUsage_ = value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

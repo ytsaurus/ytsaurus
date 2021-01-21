@@ -5,6 +5,8 @@
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 
+#include <yt/core/concurrency/spinlock.h>
+
 #include <yt/core/misc/lock_free.h>
 
 namespace NYT::NScheduler {
@@ -25,7 +27,9 @@ class TResourceTree
     : public TRefCounted
 {
 public:
-    explicit TResourceTree(const TFairShareStrategyTreeConfigPtr& config);
+    TResourceTree(
+        const TFairShareStrategyTreeConfigPtr& config,
+        const std::vector<IInvokerPtr>& feasibleInvokers);
 
     void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config);
 
@@ -54,11 +58,18 @@ public:
     void IncrementUsageLockReadCount();
     void IncrementUsageLockWriteCount();
 
-private:
-    TFairShareStrategyTreeConfigPtr Config_;
+    void InitializeResourceUsageFor(
+        const TResourceTreeElementPtr& targetElement,
+        const std::vector<TResourceTreeElementPtr>& operationElements);
 
+private:
+    std::vector<IInvokerPtr> FeasibleInvokers_;
+
+    std::atomic<bool> MaintainInstantResourceUsage_ = false;
     std::atomic<bool> EnableStructureLockProfiling = false;
     std::atomic<bool> EnableUsageLockProfiling = false;
+
+    THashSet<TResourceTreeElementPtr> AliveElements_;
 
     TMultipleProducerSingleConsumerLockFreeStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, StructureLock_);
@@ -72,6 +83,8 @@ private:
     void CheckCycleAbsence(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent);
     void DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);
     void DoIncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta);
+
+    void DoRecalculateAllResourceUsages();
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceTree)
