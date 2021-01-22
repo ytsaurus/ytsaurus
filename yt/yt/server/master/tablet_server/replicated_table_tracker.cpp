@@ -976,7 +976,9 @@ private:
         int asyncReplicas = 0;
 
         for (const auto& replica : object->Replicas()) {
-            if (!replica->GetEnableReplicatedTableTracker()) {
+            if (replica->GetState() != ETableReplicaState::Enabled ||
+                !replica->GetEnableReplicatedTableTracker())
+            {
                 skippedReplicas += 1;
                 continue;
             }
