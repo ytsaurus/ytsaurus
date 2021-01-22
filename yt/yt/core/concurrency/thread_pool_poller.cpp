@@ -81,6 +81,7 @@ public:
         , Logger(ConcurrencyLogger.WithTag("ThreadNamePrefix: %v", ThreadNamePrefix_))
         , Threads_(ThreadCount_)
         , StartLatch_(ThreadCount_)
+        , PollerImpl_(std::make_shared<TPollerImpl>())
         , Invoker_(New<TInvoker>(this))
     {
         for (int index = 0; index < ThreadCount_; ++index) {
@@ -117,6 +118,8 @@ public:
                 pollables.push_back(pollable);
             }
         }
+
+        Invoker_->Stop();
 
         YT_LOG_INFO("Thread pool poller is waiting for pollables to shut down (PollableCount: %v)",
             pollables.size());
@@ -208,14 +211,14 @@ public:
             fd,
             control,
             pollable->GetLoggingTag());
-        Impl_.Set(pollable.Get(), fd, ToImplControl(control));
+        PollerImpl_->Set(pollable.Get(), fd, ToImplControl(control));
     }
 
     virtual void Unarm(int fd) override
     {
         YT_LOG_TRACE("Unarming poller (FD: %v)",
             fd);
-        Impl_.Remove(fd);
+        PollerImpl_->Remove(fd);
     }
 
     virtual void Retry(const IPollablePtr& pollable, bool wakeup) override
@@ -319,16 +322,16 @@ private:
                 return;
             }
 
-            std::array<decltype(Poller_->Impl_)::TEvent, MaxEventsPerPoll> events;
-            int eventCount = Poller_->Impl_.Wait(events.data(), MaxEventsPerPoll, PollerThreadQuantum.MicroSeconds());
+            std::array<TPollerImpl::TEvent, MaxEventsPerPoll> events;
+            int eventCount = Poller_->PollerImpl_->Wait(events.data(), MaxEventsPerPoll, PollerThreadQuantum.MicroSeconds());
             if (eventCount == 0) {
                 return;
             }
 
             for (int index = 0; index < eventCount; ++index) {
                 const auto& event = events[index];
-                auto control = FromImplControl(Poller_->Impl_.ExtractFilter(&event));
-                auto* pollable = static_cast<IPollable*>(Poller_->Impl_.ExtractEvent(&event));
+                auto control = FromImplControl(Poller_->PollerImpl_->ExtractFilter(&event));
+                auto* pollable = static_cast<IPollable*>(Poller_->PollerImpl_->ExtractEvent(&event));
                 if (pollable) {
                     YT_LOG_TRACE("Got pollable event (Pollable: %v, Control: %v)",
                         pollable->GetLoggingTag(),
@@ -407,18 +410,33 @@ private:
 
     TLockFreeQueue<IPollablePtr> RetryQueue_;
 
+    // Only makes sense for "select" backend.
+    struct TMutexLocking
+    {
+        using TMyMutex = TMutex;
+    };
+
+    using TPollerImpl = ::TPollerImpl<TMutexLocking>;
+
+    const std::shared_ptr<TPollerImpl> PollerImpl_;
+
     class TInvoker
         : public IInvoker
     {
     public:
         explicit TInvoker(TThreadPoolPoller* owner)
-            : Owner_(owner)
+            : PollerImpl_(owner->PollerImpl_)
             , CallbackEventCount_(std::make_shared<TEventCount>())
         { }
 
         void Start()
         {
             ArmPoller();
+        }
+
+        void Stop()
+        {
+            ShutdownStarted_.store(true);
         }
 
         std::shared_ptr<TEventCount> GetCallbackEventCount()
@@ -441,7 +459,7 @@ private:
                 return TClosure();
             }
 
-            if (Owner_->ShutdownStarted_.load()) {
+            if (ShutdownStarted_.load()) {
                 return BIND([] { });
             }
 
@@ -480,8 +498,9 @@ private:
         }
 
     private:
-        TThreadPoolPoller* const Owner_;
+        const std::shared_ptr<TPollerImpl> PollerImpl_;
 
+        std::atomic<bool> ShutdownStarted_ = false;
         std::shared_ptr<TEventCount> CallbackEventCount_;
         TLockFreeQueue<TClosure> Callbacks_;
         TNotificationHandle WakeupHandle_;
@@ -489,26 +508,18 @@ private:
 
         void ArmPoller()
         {
-            Owner_->Impl_.Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_READ | CONT_POLL_EDGE_TRIGGERED);
+            PollerImpl_->Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_READ | CONT_POLL_EDGE_TRIGGERED);
         }
 
         void DrainQueueIfNeeded()
         {
-            if (Owner_->ShutdownStarted_.load()) {
+            if (ShutdownStarted_.load()) {
                 DrainQueue();
             }
         }
     };
 
     const TIntrusivePtr<TInvoker> Invoker_;
-
-    // Only makes sense for "select" backend.
-    struct TMutexLocking
-    {
-        using TMyMutex = TMutex;
-    };
-
-    TPollerImpl<TMutexLocking> Impl_;
 };
 
 IPollerPtr CreateThreadPoolPoller(
