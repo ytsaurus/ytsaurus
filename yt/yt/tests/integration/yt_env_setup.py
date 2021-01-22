@@ -236,6 +236,7 @@ class YTEnvSetup(object):
     ENABLE_TABLET_BALANCER = False
 
     NUM_REMOTE_CLUSTERS = 0
+    NUM_TEST_PARTITIONS = 1
 
     @classmethod
     def is_multicell(cls):
@@ -281,6 +282,17 @@ class YTEnvSetup(object):
             return getattr(cls, param_name)
 
         return value
+
+    @classmethod
+    def partition_items(cls, items):
+        if cls.NUM_TEST_PARTITIONS == 1:
+            return [items]
+
+        partitions = [[] for _ in range(cls.NUM_TEST_PARTITIONS)]
+        items = sorted(items, key=lambda x: x.nodeid)
+        for i, item in enumerate(items):
+            partitions[i % len(partitions)].append(item)
+        return partitions
 
     @classmethod
     def create_yt_cluster_instance(cls, index, path):
