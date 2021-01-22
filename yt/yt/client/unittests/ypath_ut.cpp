@@ -552,11 +552,27 @@ TEST_F(TYPathTest, NewReadRanges)
     }
 
     {
-        // Key and key bound.
-        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
-            TRichYPath::Parse(R"(<ranges=[{lower_limit={key=[]; key_bound=[">="; []]};}]>//t)").GetNewRanges(),
-            std::exception,
-            "Key and key bound");
+        // Key and key bound together, first case is regular for backward-compatible serialization,
+        // second contains incorrect key which should be ignored.
+        std::vector<TReadRange> ranges(2);
+        // (42):
+        ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({42});
+
+        // (57):(23)
+
+        ranges[1].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({57});
+        ranges[1].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() < makeRow({23});
+
+        auto ypath = TRichYPath::Parse(
+            "<ranges=["
+            R"({lower_limit={key_bound=[">=";[42]]; key=[42]}};)"
+            R"({lower_limit={key_bound=[">=";[57]]; key=[123;asd]}; upper_limit={key_bound=["<"; [23]]; key=[]}};)"
+            "]>//t");
+
+        EXPECT_EQ(ranges, ypath.GetNewRanges(comparatorAsc1));
+        EXPECT_EQ(ranges, ypath.GetNewRanges(comparatorDesc1));
+        EXPECT_EQ(ranges, ypath.GetNewRanges(comparatorAsc2));
+        EXPECT_EQ(ranges, ypath.GetNewRanges(comparatorDesc2));
     }
 
     {
