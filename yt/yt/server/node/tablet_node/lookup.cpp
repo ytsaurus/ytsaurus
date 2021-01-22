@@ -24,6 +24,8 @@
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
 
+#include <yt/client/transaction_client/helpers.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/logging/log.h>
@@ -106,7 +108,7 @@ public:
                 auto foundItem = foundItemRef.Get();
 
                 if (foundItem) {
-                    // If table is frozen both revisions are null.
+                    // If table is frozen both revisions are zero.
                     if (foundItem->Revision.load(std::memory_order_acquire) >= flushIndex) {
                         ++CacheHits_;
                         YT_LOG_TRACE("Row found (Key: %v)", key);
@@ -134,33 +136,16 @@ public:
         std::vector<ISortedStorePtr> dynamicEdenStores;
         std::vector<ISortedStorePtr> chunkEdenStores;
 
-        auto compactionTimestamp = TabletSnapshot_->RetainedTimestamp;
-        auto majorTimestamp = TabletSnapshot_->RetainedTimestamp;
-
         for (const auto& store : edenStores) {
             if (store->IsDynamic()) {
                 dynamicEdenStores.push_back(store);
-                majorTimestamp = std::min(majorTimestamp, store->GetMinTimestamp());
             } else {
                 chunkEdenStores.push_back(store);
             }
-
-            compactionTimestamp = std::max(compactionTimestamp, store->GetMaxTimestamp());
         }
 
+        RetainedTimestamp_ = TabletSnapshot_->RetainedTimestamp;
         StoreFlushIndex_ = TabletSnapshot_->StoreFlushIndex;
-
-        CacheRowMerger_ = std::make_unique<TVersionedRowMerger>(
-            New<TRowBuffer>(TLookupSessionBufferTag()),
-            TabletSnapshot_->PhysicalSchema->GetColumnCount(),
-            TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
-            UniversalColumnFilter,
-            TabletSnapshot_->Config,
-            compactionTimestamp,
-            majorTimestamp,
-            TabletSnapshot_->ColumnEvaluator,
-            /*lookup*/ false,
-            /*mergeRowsOnFlush*/ false);
 
         // NB: We allow more parallelization in case of data node lookup
         // due to lower cpu and memory usage on tablet nodes.
@@ -335,8 +320,8 @@ private:
     // Holds references to lookup tables.
     TConcurrentCache<TCachedRow>::TLookuper CacheLookuper_;
     std::vector<TConcurrentCache<TCachedRow>::TCachedItemRef> RowsFromCache_;
-    std::unique_ptr<TVersionedRowMerger> CacheRowMerger_;
     ui32 StoreFlushIndex_;
+    TTimestamp RetainedTimestamp_;
 
     static const int TypicalSessionCount = 16;
     using TReadSessionList = SmallVector<TReadSession, TypicalSessionCount>;
@@ -433,12 +418,14 @@ private:
         const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
         const std::function<std::pair<bool, size_t>()>& onRow)
     {
+        std::vector<TVersionedRow> versionedRows;
+
         auto processSessions = [&] (TReadSessionList& sessions) {
             for (auto& session : sessions) {
                 auto row = session.FetchRow();
                 onPartialRow(row, MaxTimestamp);
                 if (UseLookupCache_) {
-                    CacheRowMerger_->AddPartialRow(row);
+                    versionedRows.push_back(row);
                 }
             }
         };
@@ -460,14 +447,26 @@ private:
             if (auto cachedItemHead = cachedItemRef.Get()) {
                 auto cachedItem = GetLatestRow(cachedItemHead);
 
-                YT_LOG_TRACE("Using row from cache (Row: %v, Revision: %v, DynamicMinTimestamp: %v, ReadTimestamp: %v)",
+                if (Timestamp_ < cachedItem->RetainedTimestamp) {
+                    THROW_ERROR_EXCEPTION("Timestamp %llx is less than retained timestamp %llx of cached row in tablet %v",
+                        Timestamp_,
+                        cachedItem->RetainedTimestamp,
+                        TabletSnapshot_->TabletId);
+                }
+
+                auto minDynamicTimestamp = MaxTimestamp;
+                for (auto row : versionedRows) {
+                    minDynamicTimestamp = std::min(minDynamicTimestamp, GetMinTimestamp(row));
+                }
+
+                YT_LOG_TRACE("Using row from cache (Row: %v, Revision: %v, MinDynamicTimestamp: %v, ReadTimestamp: %v)",
                     cachedItem->GetVersionedRow(),
                     cachedItem->Revision.load(),
-                    CacheRowMerger_->GetMinTimestamp(),
+                    minDynamicTimestamp,
                     Timestamp_);
 
                 // Consider only versions before versions from dynamic rows.
-                onPartialRow(cachedItem->GetVersionedRow(), CacheRowMerger_->GetMinTimestamp());
+                onPartialRow(cachedItem->GetVersionedRow(), minDynamicTimestamp);
 
                 // Reinsert row here.
                 YT_LOG_TRACE("Reinserting row (Row: %v)", cachedItem->GetVersionedRow());
@@ -477,21 +476,19 @@ private:
                 } else {
                     lookupTable->Insert(std::move(cachedItem));
                 }
-
-                // Build row to reset merger.
-                CacheRowMerger_->BuildMergedRow();
             } else {
                 processSessions(*partitionSessions);
                 processSessions(ChunkEdenSessions_);
 
                 if (UseLookupCache_) {
-                    auto mergedRow = CacheRowMerger_->BuildMergedRow();
-                    if (mergedRow) {
-                        YT_VERIFY(mergedRow.GetKeyCount() > 0);
+                    auto cachedItem = BuildCachedRow(
+                        &TabletSnapshot_->RowCache->Allocator,
+                        versionedRows,
+                        RetainedTimestamp_);
 
-                        auto cachedItem = CachedRowFromVersionedRow(
-                            &TabletSnapshot_->RowCache->Allocator,
-                            mergedRow);
+                    if (cachedItem) {
+                        YT_VERIFY(cachedItem->GetVersionedRow().GetKeyCount() > 0);
+
                         auto revision = StoreFlushIndex_;
                         cachedItem->Revision.store(revision, std::memory_order_release);
 
@@ -507,6 +504,8 @@ private:
                     }
                 }
             }
+
+            versionedRows.clear();
 
             auto statistics = onRow();
             FoundRowCount_ += statistics.first;

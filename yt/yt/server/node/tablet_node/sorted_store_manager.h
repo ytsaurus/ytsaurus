@@ -100,7 +100,9 @@ private:
 
     TSortedDynamicStorePtr ActiveStore_;
     std::multimap<TTimestamp, ISortedStorePtr> MaxTimestampToStore_;
-    std::deque<ui32> StoreFlushIndexQueue_;
+
+    // During changelog replay stores may be removed out of order.
+    std::set<ui32> StoreFlushIndexQueue_;
 
     virtual IDynamicStore* GetActiveStore() const override;
     virtual void ResetActiveStore() override;
