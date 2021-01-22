@@ -1199,9 +1199,11 @@ protected:
         {
             TTask::OnJobLost(completedJob);
 
-            if (const auto& partitionTask = Controller_->GetFinalPartitionTask()) {
-                Controller_->UpdateTask(this);
-                Controller_->UpdateTask(partitionTask);
+            Controller_->UpdateTask(this);
+            if (!Controller_->SimpleSort) {
+                if (const auto& partitionTask = Controller_->GetFinalPartitionTask()) {
+                    Controller_->UpdateTask(partitionTask);
+                }
             }
         }
 
