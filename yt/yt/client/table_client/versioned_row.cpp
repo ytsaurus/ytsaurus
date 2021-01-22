@@ -538,6 +538,34 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
     }
 }
 
+TTimestamp GetMinTimestamp(TVersionedRow row)
+{
+    auto result = MaxTimestamp;
+    if (row) {
+        for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
+            result = std::min(it->Timestamp, result);
+        }
+        for (auto it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
+            result = std::min(*it, result);
+        }
+    }
+    return result;
+}
+
+TTimestamp GetMaxTimestamp(TVersionedRow row)
+{
+    auto result = MinTimestamp;
+    if (row) {
+        for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
+            result = std::max(it->Timestamp, result);
+        }
+        for (auto it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
+            result = std::max(*it, result);
+        }
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

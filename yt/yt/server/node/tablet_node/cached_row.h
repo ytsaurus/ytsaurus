@@ -23,6 +23,8 @@ struct TCachedRow final
     // but we have to make updated row visible from primary lookup table.
     TAtomicPtr<TCachedRow> Updated;
 
+    NTableClient::TTimestamp RetainedTimestamp;
+
     char Data[0];
 
     using TAllocator = TSlabAllocator;
@@ -56,49 +58,103 @@ inline TCachedRowPtr GetLatestRow(TCachedRowPtr cachedItem)
 }
 
 template <class TAlloc>
-TCachedRowPtr CachedRowFromVersionedRow(TAlloc* allocator, NTableClient::TVersionedRow row)
+TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedRow> rows, NTableClient::TTimestamp retainedTimestamp)
 {
-    int rowSize = row.GetMemoryEnd() - row.GetMemoryBegin();
+    int valueCount = 0;
+    int writeTimestampCount = 0;
+    int deleteTimestampCount = 0;
+    int blobDataSize = 0;
 
-    int stringDataSize = 0;
-    for (auto it = row.BeginKeys(); it != row.EndKeys(); ++it) {
-        if (IsStringLikeType(it->Type)) {
-            stringDataSize += it->Length;
+    NTableClient::TVersionedRow nonSentinelRow;
+    for (auto row : rows) {
+        if (!row) {
+            continue;
+        }
+
+        nonSentinelRow = row;
+        writeTimestampCount += row.GetWriteTimestampCount();
+        deleteTimestampCount += row.GetDeleteTimestampCount();
+        valueCount += row.GetValueCount();
+        for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
+            if (IsStringLikeType(it->Type)) {
+                blobDataSize += it->Length;
+            }
         }
     }
 
-    for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
+    if (!nonSentinelRow) {
+        return nullptr;
+    }
+
+    int keyCount = nonSentinelRow.GetKeyCount();
+    for (auto it = nonSentinelRow.BeginKeys(); it != nonSentinelRow.EndKeys(); ++it) {
         if (IsStringLikeType(it->Type)) {
-            stringDataSize += it->Length;
+            blobDataSize += it->Length;
         }
     }
 
-    auto cachedRow = NewWithExtraSpace<TCachedRow>(allocator, rowSize + stringDataSize);
+    size_t rowSize = NTableClient::GetVersionedRowByteSize(
+        keyCount,
+        valueCount,
+        writeTimestampCount,
+        deleteTimestampCount);
 
-    memcpy(&cachedRow->Data[0], row.GetMemoryBegin(), rowSize);
+    auto cachedRow = NewWithExtraSpace<TCachedRow>(allocator, rowSize + blobDataSize);
+    auto versionedRow = cachedRow->GetVersionedRow();
 
-    auto capturedRow = cachedRow->GetVersionedRow();
-    char* dest = const_cast<char*>(capturedRow.GetMemoryEnd());
+    auto header = versionedRow.GetHeader();
+    header->KeyCount = keyCount;
+    header->ValueCount = valueCount;
+    header->WriteTimestampCount = writeTimestampCount;
+    header->DeleteTimestampCount = deleteTimestampCount;
 
-    for (auto it = capturedRow.BeginKeys(); it != capturedRow.EndKeys(); ++it) {
+    std::copy(nonSentinelRow.BeginKeys(), nonSentinelRow.EndKeys(), versionedRow.BeginKeys());
+
+    auto writeTimestampsDest = versionedRow.BeginWriteTimestamps();
+    auto deleteTimestampsDest = versionedRow.BeginDeleteTimestamps();
+    auto valuesDest = versionedRow.BeginValues();
+
+    for (auto row : rows) {
+        if (!row) {
+            continue;
+        }
+        writeTimestampsDest = std::copy(row.BeginWriteTimestamps(), row.EndWriteTimestamps(), writeTimestampsDest);
+        deleteTimestampsDest = std::copy(row.BeginDeleteTimestamps(), row.EndDeleteTimestamps(), deleteTimestampsDest);
+        valuesDest = std::copy(row.BeginValues(), row.EndValues(), valuesDest);
+    }
+
+    char* blobDataDest = const_cast<char*>(versionedRow.GetMemoryEnd());
+    for (auto it = versionedRow.BeginKeys(); it != versionedRow.EndKeys(); ++it) {
         if (IsStringLikeType(it->Type)) {
-            memcpy(dest, it->Data.String, it->Length);
-            it->Data.String = dest;
-            dest += it->Length;
+            memcpy(blobDataDest, it->Data.String, it->Length);
+            it->Data.String = blobDataDest;
+            blobDataDest += it->Length;
         }
     }
 
-    for (auto it = capturedRow.BeginValues(); it != capturedRow.EndValues(); ++it) {
+    for (auto it = versionedRow.BeginValues(); it != versionedRow.EndValues(); ++it) {
         if (IsStringLikeType(it->Type)) {
-            memcpy(dest, it->Data.String, it->Length);
-            it->Data.String = dest;
-            dest += it->Length;
+            memcpy(blobDataDest, it->Data.String, it->Length);
+            it->Data.String = blobDataDest;
+            blobDataDest += it->Length;
         }
     }
 
-    cachedRow->Hash = GetFarmFingerprint(row.BeginKeys(), row.EndKeys());
+    YT_VERIFY(blobDataDest == cachedRow->Data + rowSize + blobDataSize);
+
+    std::sort(versionedRow.BeginWriteTimestamps(), versionedRow.EndWriteTimestamps(), std::greater<NTableClient::TTimestamp>());
+    std::sort(versionedRow.BeginDeleteTimestamps(), versionedRow.EndDeleteTimestamps(), std::greater<NTableClient::TTimestamp>());
+
+    cachedRow->Hash = GetFarmFingerprint(versionedRow.BeginKeys(), versionedRow.EndKeys());
+    cachedRow->RetainedTimestamp = retainedTimestamp;
 
     return cachedRow;
+}
+
+template <class TAlloc>
+TCachedRowPtr CachedRowFromVersionedRow(TAlloc* allocator, NTableClient::TVersionedRow row, NTableClient::TTimestamp retainedTimestamp)
+{
+    return BuildCachedRow(allocator, MakeRange(&row, 1), retainedTimestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

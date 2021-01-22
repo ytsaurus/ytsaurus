@@ -783,34 +783,6 @@ void TVersionedRowMerger::Cleanup()
     Started_ = false;
 }
 
-TTimestamp TVersionedRowMerger::GetMinTimestamp() const
-{
-    auto result = MaxTimestamp;
-    for (auto ts : WriteTimestamps_) {
-        result = std::min(result, ts);
-    }
-
-    for (auto ts : DeleteTimestamps_) {
-        result = std::min(result, ts);
-    }
-
-    return result;
-}
-
-TTimestamp TVersionedRowMerger::GetMaxTimestamp() const
-{
-    auto result = MinTimestamp;
-    for (auto ts : WriteTimestamps_) {
-        result = std::max(result, ts);
-    }
-
-    for (auto ts : DeleteTimestamps_) {
-        result = std::max(result, ts);
-    }
-
-    return result;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TSamplingRowMerger::TSamplingRowMerger(

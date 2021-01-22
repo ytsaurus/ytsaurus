@@ -29,6 +29,8 @@
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
 
+#include <yt/client/transaction_client/helpers.h>
+
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/api/native/client.h>
@@ -554,7 +556,6 @@ void TSortedStoreManager::DiscardAllStores()
     // dynamic store having taken snapshot lock for the table.
     Rotate(/*createNewStore*/ static_cast<bool>(GetActiveStore()));
 
-    StoreFlushIndexQueue_.clear();
     TStoreManagerBase::DiscardAllStores();
 
     // TODO(ifsmirnov): Reset initial partition. It's non-trivial because partition balancer tasks
@@ -576,11 +577,7 @@ void TSortedStoreManager::RemoveStore(IStorePtr store)
     if (sortedStore->IsDynamic()) {
         auto sortedDynamicStore = store->AsSortedDynamic();
         auto flushIndex = sortedDynamicStore->GetFlushIndex();
-
-        YT_VERIFY(StoreFlushIndexQueue_.empty() || flushIndex <= StoreFlushIndexQueue_.front());
-        if (!StoreFlushIndexQueue_.empty() && flushIndex == StoreFlushIndexQueue_.front()) {
-            StoreFlushIndexQueue_.pop_front();
-        }
+        StoreFlushIndexQueue_.erase(flushIndex);
     }
 
     SchedulePartitionSampling(sortedStore->GetPartition());
@@ -627,7 +624,7 @@ void TSortedStoreManager::OnActiveStoreRotated()
     ++storeFlushIndex;
     Tablet_->SetStoreFlushIndex(storeFlushIndex);
     ActiveStore_->SetFlushIndex(storeFlushIndex);
-    StoreFlushIndexQueue_.push_back(storeFlushIndex);
+    YT_VERIFY(StoreFlushIndexQueue_.insert(storeFlushIndex).second);
 
     MaxTimestampToStore_.emplace(ActiveStore_->GetMaxTimestamp(), ActiveStore_);
 }
@@ -737,6 +734,11 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             /*lookup*/ true, // Forbid null rows. All rows in cache must have a key.
             /*mergeRowsOnFlush*/ false);
 
+        using NTransactionClient::InstantToTimestamp;
+        using NTransactionClient::TimestampToInstant;
+
+        auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tabletSnapshot->Config->MinDataTtl).first;
+
         const auto& rowCache = tabletSnapshot->RowCache;
 
         if (rowCache) {
@@ -839,7 +841,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
                         auto updatedItem = CachedRowFromVersionedRow(
                             &rowCache->Allocator,
-                            mergedRow);
+                            mergedRow,
+                            retainedTimestamp);
 
                         YT_LOG_TRACE("Updating cache (Row: %v, Revision: %v, StoreFlushIndex: %v)",
                             updatedItem->GetVersionedRow(),
@@ -938,9 +941,7 @@ bool TSortedStoreManager::IsStoreFlushable(IStorePtr store) const
 
     // Ensure that stores are being flushed in order.
     auto sortedStore = store->AsSortedDynamic();
-
-    YT_VERIFY(!StoreFlushIndexQueue_.empty());
-    return sortedStore->GetFlushIndex() == StoreFlushIndexQueue_.front();
+    return StoreFlushIndexQueue_.empty() || sortedStore->GetFlushIndex() <= *StoreFlushIndexQueue_.begin();
 }
 
 ISortedStoreManagerPtr TSortedStoreManager::AsSorted()

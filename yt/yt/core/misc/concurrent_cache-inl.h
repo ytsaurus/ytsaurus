@@ -75,6 +75,100 @@ TConcurrentCache<T>::~TConcurrentCache()
         head->Size.load());
 }
 
+template <class T>
+TConcurrentCache<T>::TCachedItemRef::TCachedItemRef(typename THashTable::TItemRef ref, TLookupTable* origin)
+    : TConcurrentCache<T>::THashTable::TItemRef(ref)
+    , Origin(origin)
+{ }
+
+template <class T>
+typename TConcurrentCache<T>::TLookuper& TConcurrentCache<T>::TLookuper::operator= (TLookuper&& other)
+{
+    Parent_ = std::move(other.Parent_);
+    Primary_ = std::move(other.Primary_);
+    Secondary_ = std::move(other.Secondary_);
+
+    return *this;
+}
+
+template <class T>
+TConcurrentCache<T>::TLookuper::TLookuper(
+    TConcurrentCache* parent,
+    TIntrusivePtr<TLookupTable> primary,
+    TIntrusivePtr<TLookupTable> secondary)
+    : Parent_(parent)
+    , Primary_(std::move(primary))
+    , Secondary_(std::move(secondary))
+{ }
+
+template <class T>
+template <class TKey>
+typename TConcurrentCache<T>::TCachedItemRef TConcurrentCache<T>::TLookuper::operator() (const TKey& key)
+{
+    auto fingerprint = THash<T>()(key);
+
+    // Use fixed lookup tables. No need to read head.
+
+    if (auto item = Primary_->FindRef(fingerprint, key)) {
+        return TCachedItemRef(item, Primary_.Get());
+    }
+
+    if (!Secondary_) {
+        return TCachedItemRef();
+    }
+
+    return TCachedItemRef(Secondary_->FindRef(fingerprint, key), Secondary_.Get());
+}
+
+template <class T>
+TConcurrentCache<T>::TLookuper::operator bool ()
+{
+    return Parent_;
+}
+
+template <class T>
+typename TConcurrentCache<T>::TLookuper TConcurrentCache<T>::GetLookuper()
+{
+    auto primary = Head_.Acquire();
+    auto secondary = primary ? primary->Next.Acquire() : nullptr;
+
+    return TLookuper(this, std::move(primary), std::move(secondary));
+}
+
+template <class T>
+typename TConcurrentCache<T>::TInserter& TConcurrentCache<T>::TInserter::operator= (TInserter&& other)
+{
+    Parent_ = std::move(other.Parent_);
+    Primary_ = std::move(other.Primary_);
+
+    return *this;
+}
+
+template <class T>
+TConcurrentCache<T>::TInserter::TInserter(
+    TConcurrentCache* parent,
+    TIntrusivePtr<TLookupTable> primary)
+    : Parent_(parent)
+    , Primary_(std::move(primary))
+{ }
+
+template <class T>
+typename TConcurrentCache<T>::TLookupTable* TConcurrentCache<T>::TInserter::GetTable()
+{
+    if (Primary_->Size >= Parent_->Capacity_) {
+        Primary_ = Parent_->RenewTable(Primary_);
+    }
+
+    return Primary_.Get();
+}
+
+template <class T>
+typename TConcurrentCache<T>::TInserter TConcurrentCache<T>::GetInserter()
+{
+    auto primary = Head_.Acquire();
+    return TInserter(this, std::move(primary));
+}
+
 /////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

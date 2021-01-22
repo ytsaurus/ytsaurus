@@ -109,9 +109,6 @@ public:
     TVersionedRow BuildMergedRow();
     void Reset();
 
-    TTimestamp GetMinTimestamp() const;
-    TTimestamp GetMaxTimestamp() const;
-
 private:
     const TRowBufferPtr RowBuffer_;
     const int KeyColumnCount_;

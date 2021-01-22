@@ -405,9 +405,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         count = 500
 
+        # Decorate to simplify grep.
+        def decorate_key(key):
+            return 12300000 + key
+
         for wave in xrange(1, 30):
             rows = [{
-                "k": k,
+                "k": decorate_key(k),
                 "v": wave * count + k,
                 choice(["a", "b", "c"]): randint(1, 10000),
                 choice(["s", "t"]): str(randint(1, 10000))}
@@ -415,12 +419,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             insert_rows("//tmp/t", rows, update=True)
             print_debug("Insert rows ", rows)
 
-            keys = [{"k": k} for k in sample(range(1, 1000), 100)]
+            keys = [{"k": decorate_key(k)} for k in sample(range(1, count), 100)]
             delete_rows("//tmp/t", keys)
             print_debug("Delete rows ", keys)
 
             for i in xrange(1, 10):
-                keys = [{"k": k} for k in sample(range(1, count), 10)]
+                keys = [{"k": decorate_key(k)} for k in sample(range(1, count), 10)]
 
                 ts = generate_timestamp()
                 no_cache = lookup_rows("//tmp/t", keys, timestamp=ts)
@@ -462,9 +466,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             row_data = " ".join(yson.dumps(row.get(col, yson.YsonEntity())) for col in ["v", "i", "a", "b", "c", "s", "t"])
             return row_data
 
+        # Decorate to simplify grep.
+        def decorate_key(key):
+            return 12300000 + key
+
         for wave in xrange(1, 30):
             rows = [{
-                "k": k,
+                "k": decorate_key(k),
                 "v": k,
                 "i": wave,
                 choice(["a", "b", "c"]): randint(1, 10000),
@@ -481,7 +489,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             print_debug("Insert rows ", rows)
             insert_rows("//tmp/t", rows, update=True)
 
-            keys = [{"k": k} for k in sample(range(1, 1000), 100)]
+            keys = [{"k": decorate_key(k)} for k in sample(range(1, count), 100)]
             for key in keys:
                 if key["k"] in verify_map:
                     del verify_map[key["k"]]
@@ -489,11 +497,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             delete_rows("//tmp/t", keys)
 
             for i in xrange(1, 10):
-                keys = [{"k": k} for k in sample(range(1, count), 10)]
+                keys = [{"k": decorate_key(k)} for k in sample(range(1, count), 10)]
                 result = lookup_rows("//tmp/t", keys, use_lookup_cache=True)
 
                 for row in result:
-                    assert row["k"] == row["v"]
+                    assert row["k"] == decorate_key(row["v"])
                     assert get_checksum(row) == row["md5"]
                     revision = row["i"]
                     assert revision >= revision_map.get(row["k"], 0)
