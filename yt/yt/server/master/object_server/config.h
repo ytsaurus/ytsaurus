@@ -148,6 +148,7 @@ class TDynamicObjectServiceConfig
 public:
     bool EnableTwoLevelCache;
     bool EnableMutationBoomerangs;
+    TDuration ScheduleReplyRetryBackoff;
 
     TDynamicObjectServiceConfig()
     {
@@ -155,6 +156,8 @@ public:
             .Default(false);
         RegisterParameter("enable_mutation_boomerangs", EnableMutationBoomerangs)
             .Default(true);
+        RegisterParameter("schedule_reply_retry_backoff", ScheduleReplyRetryBackoff)
+            .Default(TDuration::MilliSeconds(100));
     }
 };
 

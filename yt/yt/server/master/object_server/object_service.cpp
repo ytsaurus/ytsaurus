@@ -224,11 +224,12 @@ private:
     TMultipleProducerSingleConsumerLockFreeStack<TExecuteSessionPtr> ReadySessions_;
     TMultipleProducerSingleConsumerLockFreeStack<TExecuteSessionPtr> FinishedSessions_;
 
-    std::atomic<bool> ProcessSessionsCallbackEnqueued_ = {false};
+    std::atomic<bool> ProcessSessionsCallbackEnqueued_ = false;
 
     TStickyUserErrorCache StickyUserErrorCache_;
-    std::atomic<bool> EnableTwoLevelCache_ = {false};
-    std::atomic<bool> EnableMutationBoomerangs_ = {true};
+    std::atomic<bool> EnableTwoLevelCache_ = false;
+    std::atomic<bool> EnableMutationBoomerangs_ = true;
+    std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -479,7 +480,7 @@ private:
 
     // Once this drops to zero, the request can be replied.
     // Starts with one to indicate that the "ultimate" lock is initially held.
-    std::atomic<int> ReplyLockCount_ = {1};
+    std::atomic<int> ReplyLockCount_ = 1;
 
     // Set to true when the "ultimate" reply lock is released and
     // RepyLockCount_ is decremented.
@@ -1896,9 +1897,9 @@ private:
         if (requestTimeout && *requestTimeout > Owner_->Config_->TimeoutBackoffLeadTime) {
             auto backoffDelay = *requestTimeout - Owner_->Config_->TimeoutBackoffLeadTime;
             BackoffAlarmCookie_ = TDelayedExecutor::Submit(
-                BIND(&TObjectService::TExecuteSession::OnBackoffAlarm, MakeStrong(this))
-                    .Via(TObjectService::GetRpcInvoker()),
-                backoffDelay);
+                BIND(&TObjectService::TExecuteSession::OnBackoffAlarm, MakeStrong(this)),
+                backoffDelay,
+                TObjectService::GetRpcInvoker());
         }
     }
 
@@ -1959,8 +1960,10 @@ private:
 
         TTryGuard guard(LocalExecutionLock_);
         if (!guard.WasAcquired()) {
-            TObjectService::GetRpcInvoker()->Invoke(
-                BIND(&TObjectService::TExecuteSession::ScheduleReplyIfNeeded, MakeStrong(this)));
+            NConcurrency::TDelayedExecutor::Submit(
+                BIND(IgnoreResult(&TObjectService::TExecuteSession::ScheduleReplyIfNeeded), MakeStrong(this)),
+                Owner_->ScheduleReplyRetryBackoff_.load(),
+                TObjectService::GetRpcInvoker());
             return false;
         }
 
@@ -1994,8 +1997,10 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    EnableTwoLevelCache_ = Bootstrap_->GetConfigManager()->GetConfig()->ObjectService->EnableTwoLevelCache;
-    EnableMutationBoomerangs_ = Bootstrap_->GetConfigManager()->GetConfig()->ObjectService->EnableMutationBoomerangs;
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ObjectService;
+    EnableTwoLevelCache_ = config->EnableTwoLevelCache;
+    EnableMutationBoomerangs_ = config->EnableMutationBoomerangs;
+    ScheduleReplyRetryBackoff_ = config->ScheduleReplyRetryBackoff;
 }
 
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
