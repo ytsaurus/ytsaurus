@@ -140,12 +140,14 @@ TAsyncFileChangelogIndex::TAsyncFileChangelogIndex(
     const NChunkClient::IIOEnginePtr& IOEngine,
     const TString& name,
     i64 alignment,
-    i64 indexBlockSize)
+    i64 indexBlockSize,
+    bool enableSync)
     : IOEngine_(IOEngine)
     , IndexFileName_(name)
     , Alignment_(alignment)
     , IndexBlockSize_(indexBlockSize)
     , MaxIndexRecordsPerBucket_(Alignment_ / sizeof(TChangelogIndexRecord))
+    , EnableSync_(enableSync)
     , FirstIndexBucket_(New<TIndexBucket>(MaxIndexRecordsPerBucket_, Alignment_, 0))
     , CurrentIndexBucket_(FirstIndexBucket_)
 {
@@ -166,7 +168,9 @@ void TAsyncFileChangelogIndex::Create()
     header.Signature = TChangelogIndexHeader::ExpectedSignature;
     WritePod(tempFile, header);
 
-    tempFile.FlushData();
+    if (EnableSync_) {
+        tempFile.FlushData();
+    }
     tempFile.Close();
 
     NFS::Replace(tempFileName, IndexFileName_);
@@ -396,7 +400,9 @@ TFuture<void> TAsyncFileChangelogIndex::FlushData()
         std::vector<TFuture<void>> asyncResults;
         asyncResults.reserve(2);
         asyncResults.push_back(FlushDirtyBuckets());
-        asyncResults.push_back(IOEngine_->FlushData(IndexFile_).As<void>());
+        if (EnableSync_) {
+            asyncResults.push_back(IOEngine_->FlushData(IndexFile_).As<void>());
+        }
         return AllSucceeded(asyncResults);
     } else {
         return VoidFuture;
@@ -411,7 +417,9 @@ void TAsyncFileChangelogIndex::Close()
 
     {
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
-        IndexFile_->FlushData() ;
+        if (EnableSync_) {
+            IndexFile_->FlushData();
+        }
         IndexFile_->Close();
     }
 }

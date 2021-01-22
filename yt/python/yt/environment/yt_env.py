@@ -1,7 +1,7 @@
 from __future__ import print_function
 
-from .configs_provider import init_logging, build_configs
-from .default_configs import get_dynamic_master_config
+from .configs_provider import _init_logging, build_configs
+from .default_config import get_dynamic_master_config
 from .helpers import (
     read_config, write_config, is_dead_or_zombie, OpenPortIterator,
     wait_for_removing_file_lock, get_value_from_config, WaitFailed,
@@ -258,8 +258,7 @@ class YTInstance(object):
         yt_config.enable_debug_logging = self._enable_debug_logging
         yt_config.enable_log_compression = self._enable_logging_compression
         yt_config.log_compression_method = self._log_compression_method
-        yt_config.enable_structured_master_logging = enable_structured_master_logging
-        yt_config.enable_structured_scheduler_logging = enable_structured_scheduler_logging
+        yt_config.enable_structured_logging = enable_structured_master_logging or enable_structured_scheduler_logging
         if enable_master_cache is not None:
             yt_config.enable_master_cache = enable_master_cache
         if enable_permission_cache is not None:
@@ -384,7 +383,7 @@ class YTInstance(object):
 
         dirs = self._prepare_directories()
 
-        cluster_configuration = build_configs(ports_generator, dirs, self.logs_path, yt_config)
+        cluster_configuration = build_configs(yt_config, ports_generator, dirs, self.logs_path)
 
         if modify_configs_func:
             modify_configs_func(cluster_configuration, self.abi_version)
@@ -407,6 +406,7 @@ class YTInstance(object):
             self._prepare_rpc_proxies(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"])
 
         self._prepare_drivers(
+            yt_config,
             cluster_configuration["driver"],
             cluster_configuration["rpc_driver"],
             cluster_configuration["master"],
@@ -530,9 +530,6 @@ class YTInstance(object):
 
     def rewrite_controller_agent_configs(self):
         self._prepare_controller_agents(self._cluster_configuration["controller_agent"], force_overwrite=True)
-
-    def rewrite_http_proxy_configs(self):
-        self._prepare_http_proxies(self._cluster_configuration["http_proxy"], force_overwrite=True)
 
     def get_node_address(self, index, with_port=True):
         node_config = self.configs["node"][index]
@@ -837,7 +834,7 @@ class YTInstance(object):
 
     def _get_master_name(self, master_name, cell_index):
         if cell_index == 0:
-            return master_name # + "_primary"
+            return master_name
         else:
             return master_name + "_secondary_" + str(cell_index - 1)
 
@@ -1198,7 +1195,7 @@ class YTInstance(object):
             if not error.is_resolve_error():
                 raise
 
-    def _prepare_drivers(self, driver_configs, rpc_driver_config, master_configs, clock_configs):
+    def _prepare_drivers(self, yt_config, driver_configs, rpc_driver_config, master_configs, clock_configs):
         for cell_index in xrange(self.secondary_master_cell_count + 1):
             if cell_index == 0:
                 tag = master_configs["primary_cell_tag"]
@@ -1250,23 +1247,13 @@ class YTInstance(object):
             self.configs[name] = config
             self.config_paths[name] = config_path
 
-        # Driver logging
-        for driver_type in ("native", "rpc"):
-            name = "driver_logging" if driver_type == "native" else "rpc_driver_logging"
-            prefix = "" if driver_type == "native" else "rpc-"
-            config_path = os.path.join(self.configs_path, prefix + "driver-logging.yson")
+        config_path = os.path.join(self.configs_path, "driver-logging.yson")
 
-            config = init_logging(
-                None, self.logs_path, "driver",
-                log_errors_to_stderr=False,
-                enable_debug_logging=self._enable_debug_logging,
-                enable_compression=self._enable_logging_compression,
-                log_compression_method=self._log_compression_method)
+        config = _init_logging(self.logs_path, "driver", yt_config)
+        write_config(config, config_path)
 
-            write_config(config, config_path)
-
-            self.configs[name] = config
-            self.config_paths[name] = config_path
+        self.configs["driver_logging"] = config
+        self.config_paths["driver_logging"] = config_path
 
     def _prepare_http_proxies(self, proxy_configs, force_overwrite=False):
         self.configs["http_proxy"] = []
@@ -1416,6 +1403,7 @@ class YTInstance(object):
                     result.append(get_value_from_config(config, job_proxy_log_config_path, service))
 
             extract_debug_log_paths("driver", {"logging": self.configs["driver_logging"]}, log_paths)
+
             for service, configs in list(iteritems(self.configs)):
                 for config in flatten(configs):
                     if service.startswith("driver") or service.startswith("rpc_driver") or service.startswith("clock_driver"):

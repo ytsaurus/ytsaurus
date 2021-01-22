@@ -16,6 +16,10 @@ b"""
 
     changelogs = {
         flush_period = 10;
+        enable_sync = %false;
+        io_engine = {
+            enable_sync = %false;
+        }
     };
 
     cell_directory = {
@@ -70,6 +74,18 @@ b"""
 
         tablet_balancer = {
             enable_tablet_balancer = %false;
+        };
+
+        multicell_gossip_config = {
+            table_statistics_gossip_period = 100;
+            tablet_cell_statistics_gossip_period = 100;
+            tablet_cell_status_full_gossip_period = 100;
+            tablet_cell_status_incremental_gossip_period = 100;
+        };
+
+        tablet_cell_decommissioner = {
+            decommission_check_period = 100;
+            orphans_check_period = 100;
         };
     };
 
@@ -158,8 +174,9 @@ b"""
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
         schedule_job_time_limit = 5000;
-
+        exec_node_descriptors_update_period = 100;
         static_orchid_cache_update_period = 100;
+        operation_to_agent_assignment_backoff = 100;
         orchid_keys_update_period = 100;
 
         min_needed_resources_update_period = 100;
@@ -188,6 +205,10 @@ b"""
 
     changelogs = {
         flush_period = 10;
+        enable_sync = %false;
+        io_engine = {
+            enable_sync = %true;
+        };
     };
 
     timestamp_manager = {
@@ -315,6 +336,22 @@ b"""
 
         multiplexed_changelog = {
             flush_period = 10;
+            enable_sync = %false;
+            io_engine = {
+                enable_sync = %false;
+            };
+        };
+        high_latency_split_changelog = {
+            enable_sync = %false;
+            io_engine = {
+                enable_sync = %false;
+            };
+        };
+        low_latency_split_changelog = {
+            enable_sync = %false;
+            io_engine = {
+                enable_sync = %false;
+            };
         };
 
         incremental_heartbeat_period = 200;

@@ -85,7 +85,7 @@ def start(args):
         set_env("YT_DRIVER_LOGGING_CONFIG_PATH", yt_instance.config_paths["driver_logging"])
     elif driver_backend == "rpc":
         set_env("YT_DRIVER_CONFIG_PATH", yt_instance.config_paths["rpc_driver"])
-        set_env("YT_DRIVER_LOGGING_CONFIG_PATH", yt_instance.config_paths["rpc_driver_logging"])
+        set_env("YT_DRIVER_LOGGING_CONFIG_PATH", yt_instance.config_paths["driver_logging"])
     else:
         print("Incorrect driver backend '%s'", driver_backend, file=sys.stderr)
         sys.exit(1)

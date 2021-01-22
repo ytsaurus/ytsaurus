@@ -47,7 +47,8 @@ public:
         const NChunkClient::IIOEnginePtr& ioEngine,
         const TString& fileName,
         i64 alignment,
-        i64 indexBlockSize);
+        i64 indexBlockSize,
+        bool enableSync);
 
     void Create();
     TFuture<void> FlushData();
@@ -84,6 +85,7 @@ private:
     const i64 Alignment_;
     const i64 IndexBlockSize_;
     const int MaxIndexRecordsPerBucket_;
+    const bool EnableSync_;
 
     std::vector<TChangelogIndexRecord> Index_;
     std::shared_ptr<TFileHandle> IndexFile_;

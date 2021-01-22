@@ -1,4 +1,4 @@
-from .default_configs import get_watcher_config
+from .default_config import get_watcher_config
 
 from yt.common import which, touch
 
