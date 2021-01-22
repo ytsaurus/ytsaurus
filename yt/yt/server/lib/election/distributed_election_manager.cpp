@@ -261,6 +261,7 @@ private:
                         id);
                     Owner_->PotentialPeerIds_.erase(id);
                     Owner_->AliveFollowerIds_.erase(id);
+                    Owner_->AlivePeerIds_.erase(id);
                 } else {
                     YT_LOG_INFO(error, "Error pinging %v, will retry later (PeerId: %v)",
                         votingPeer ? "follower": "observer",
