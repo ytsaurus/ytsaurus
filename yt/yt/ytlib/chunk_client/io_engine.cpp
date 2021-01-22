@@ -90,6 +90,7 @@ public:
     int ReadThreadCount;
     int WriteThreadCount;
     bool UseDirectIO;
+    bool EnableSync;
 
     std::optional<TDuration> SickReadTimeThreshold;
     std::optional<TDuration> SickReadTimeWindow;
@@ -110,6 +111,8 @@ public:
             .Default(1);
         RegisterParameter("use_direct_io", UseDirectIO)
             .Default(false);
+        RegisterParameter("enable_sync", EnableSync)
+            .Default(true);
 
         RegisterParameter("sick_read_time_threshold", SickReadTimeThreshold)
             .GreaterThanOrEqual(TDuration::Zero())
@@ -271,7 +274,7 @@ public:
         i64 newSize,
         bool flush)
     {
-        return BIND(&TThreadedIOEngine::DoClose, MakeStrong(this), handle, newSize, flush)
+        return BIND(&TThreadedIOEngine::DoClose, MakeStrong(this), handle, newSize, flush && Config_->EnableSync)
             .AsyncVia(WriteInvoker_)
             .Run();
     }
@@ -406,6 +409,9 @@ private:
     {
         TEventTimer timer(FdatasyncTimer_);
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
+        if (!Config_->EnableSync) {
+            return true;            
+        }
         return handle->FlushData();
     }
 
@@ -413,6 +419,9 @@ private:
     {
         TEventTimer timer(FsyncTimer_);
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
+        if (!Config_->EnableSync) {
+            return true;            
+        }
         return handle->Flush();
     }
 

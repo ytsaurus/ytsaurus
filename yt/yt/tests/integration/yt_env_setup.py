@@ -7,7 +7,7 @@ from yt_helpers import get_current_time, parse_yt_time
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.porto_helpers import remove_all_volumes
-from yt.environment.default_configs import (
+from yt.environment.default_config import (
     get_dynamic_master_config,
     get_dynamic_node_config,
 )
@@ -548,28 +548,6 @@ class YTEnvSetup(object):
             if cls.cleanup_root_files:
                 # XXX(psushin): unlink all Porto volumes.
                 remove_all_volumes(cls.path_to_run)
-
-                # XXX(asaitgalin): Unmount everything.
-                # TODO(prime@): remove this, since we are using Porto everywhere
-                subprocess.check_call(
-                    [
-                        "sudo",
-                        "find",
-                        cls.path_to_run,
-                        "-type",
-                        "d",
-                        "-exec",
-                        "mountpoint",
-                        "-q",
-                        "{}",
-                        ";",
-                        "-exec",
-                        "sudo",
-                        "umount",
-                        "{}",
-                        ";",
-                    ]
-                )
 
                 # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
                 chown_command = [

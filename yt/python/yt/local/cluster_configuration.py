@@ -1,28 +1,12 @@
 from yt.wrapper.common import MB, GB
 
-# TODO(asaitgalin): Remove it when new version of yt.wrapper
-# is built and deployed.
-from copy import deepcopy
 from yt.common import update
-try:
-    from yt.common import update_inplace
-except ImportError:
-    update_inplace = update
-    del update
-
-    def update(obj, patch):
-        return update_inplace(deepcopy(obj), patch)
+from yt.common import update_inplace
 
 from yt.packages.six import iteritems, itervalues
 
-# Local mode config patches (for all versions)
-# None values mean config subtree removal (see _remove_none_fields function below)
-# For more detailed info about how configs are generated see environment/configs_provider.py
 MASTER_CONFIG_PATCHES = [
     {
-        "changelogs": {
-            "enable_sync": False
-        },
         "node_tracker": {
             "max_concurrent_node_registrations": None,
             "max_concurrent_node_unregistrations": None

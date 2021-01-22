@@ -48,7 +48,7 @@ public:
         , FileName_(fileName)
         , Config_(config)
         , Logger(HydraLogger.WithTag("Path: %v", FileName_))
-        , IndexFile_(IOEngine_, fileName + "." + ChangelogIndexExtension, Alignment, Config_->IndexBlockSize)
+        , IndexFile_(IOEngine_, fileName + "." + ChangelogIndexExtension, Alignment, Config_->IndexBlockSize, Config_->EnableSync)
         , AppendOutput_(Alignment, Alignment)
     { }
 
@@ -176,7 +176,9 @@ public:
             NFS::ExpectIOErrors([&] () {
                 {
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
-                    DataFile_->FlushData();
+                    if (Config_->EnableSync) {
+                        DataFile_->FlushData();
+                    }
                     DataFile_->Close();
                 }
                 IndexFile_.Close();
@@ -524,7 +526,9 @@ private:
 
                 YT_VERIFY(tempFile.GetPosition() == header.FirstRecordOffset);
 
-                tempFile.FlushData();
+                if (Config_->EnableSync) {
+                    tempFile.FlushData();
+                }
                 tempFile.Close();
 
                 NFS::Replace(tempFileName, FileName_);

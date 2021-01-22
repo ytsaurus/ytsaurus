@@ -13,6 +13,7 @@ class LocalYtConfig(object):
     kill_child_processes = attr.ib(False)
     run_watcher = attr.ib(False)
     capture_stderr_to_file = attr.ib(True)
+    optimize_config = attr.ib(False)
 
     """High level master configuration"""
     primary_cell_tag = attr.ib(None)
@@ -28,13 +29,12 @@ class LocalYtConfig(object):
     allow_chunk_storage_in_tmpfs = attr.ib(False)
 
     """Feature flags"""
-    enable_log_compression = attr.ib(False)
     enable_master_cache = attr.ib(None)
     enable_permission_cache = attr.ib(None)
-    enable_structured_master_logging = attr.ib(False)
-    enable_structured_scheduler_logging = attr.ib(False)
     enable_rpc_driver_proxy_discovery = attr.ib(False)
+    enable_log_compression = attr.ib(False)
     enable_debug_logging = attr.ib(True)
+    enable_structured_logging = attr.ib(False)
 
     """Port settings"""
     http_proxy_ports = attr.ib(factory=list)
