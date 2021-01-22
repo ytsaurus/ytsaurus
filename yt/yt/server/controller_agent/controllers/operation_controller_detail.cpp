@@ -101,7 +101,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/misc/algorithm_helpers.h>
 #include <yt/core/misc/chunked_input_stream.h>

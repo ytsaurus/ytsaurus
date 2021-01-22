@@ -12,7 +12,7 @@
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/io_engine.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/misc/checksum.h>
 

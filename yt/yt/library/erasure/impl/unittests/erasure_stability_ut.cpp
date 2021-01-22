@@ -1,11 +1,11 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <util/random/random.h>
 
-using namespace NYT;
-using namespace NYT::NErasure;
+namespace NYT::NErasure {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,3 +69,6 @@ INSTANTIATE_TEST_SUITE_P(
             std::vector<unsigned char>{194, 60, 234})));
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT::NErasure

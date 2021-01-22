@@ -8,7 +8,7 @@
 #include <yt/client/table_client/serialize.h>
 #include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/ytree/fluent.h>

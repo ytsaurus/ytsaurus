@@ -4,7 +4,7 @@
 #include <yt/client/chunk_client/read_limit.h>
 #include <yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 namespace NYT::NChunkClient {
 

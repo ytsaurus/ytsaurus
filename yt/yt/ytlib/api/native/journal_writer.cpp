@@ -51,7 +51,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <deque>
 #include <queue>

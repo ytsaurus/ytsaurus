@@ -4,7 +4,7 @@
 
 #include "chunk_reader_allowing_repair.h"
 
-#include <yt/library/erasure/public.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/actions/callback.h>
 

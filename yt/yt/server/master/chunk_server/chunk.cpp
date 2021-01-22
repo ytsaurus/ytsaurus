@@ -14,7 +14,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/misc/collection_helpers.h>
 

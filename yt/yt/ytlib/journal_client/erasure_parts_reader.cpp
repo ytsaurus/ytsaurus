@@ -11,7 +11,7 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/small_set.h>

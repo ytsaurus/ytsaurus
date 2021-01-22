@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/library/erasure/public.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/logging/log.h>
 

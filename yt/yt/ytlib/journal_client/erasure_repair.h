@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/library/erasure/impl/public.h>
 
 #include <yt/core/actions/future-inl.h>
 

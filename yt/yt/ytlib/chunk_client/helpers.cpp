@@ -41,13 +41,13 @@
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/compression/codec.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/net/address.h>
 #include <yt/core/net/local_address.h>

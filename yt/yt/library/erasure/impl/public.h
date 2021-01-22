@@ -1,12 +1,15 @@
 #pragma once
 
-#include "public.h"
+#include <yt/library/erasure/public.h>
+
+#include <library/cpp/erasure/codec.h>
 
 namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICodec* GetCodec(ECodec id);
+using ::NErasure::TPartIndexList;
+using ::NErasure::TPartIndexSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
