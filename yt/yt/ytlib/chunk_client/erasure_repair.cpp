@@ -13,7 +13,7 @@
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/action_queue.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <numeric>
 

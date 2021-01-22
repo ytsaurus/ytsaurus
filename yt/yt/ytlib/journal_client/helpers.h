@@ -12,7 +12,7 @@
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/library/erasure/impl/public.h>
 
 namespace NYT::NJournalClient {
 

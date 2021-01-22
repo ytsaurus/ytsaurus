@@ -1,8 +1,44 @@
 #include "codec.h"
 
-using namespace NErasure;
+#include <yt/core/misc/assert.h>
 
 namespace NYT::NErasure {
+
+using namespace ::NErasure;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJerasureBlobTag
+{ };
+
+struct TLrcBufferTag
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCodecTraits::Check(bool expr, const char* strExpr, const char* file, int line)
+{
+    if (Y_UNLIKELY(!expr)) {
+        ::NYT::NDetail::AssertTrapImpl("YT_VERIFY", strExpr, file, line);
+        Y_UNREACHABLE();
+    }
+}
+
+TCodecTraits::TMutableBlobType TCodecTraits::AllocateBlob(size_t size)
+{
+    return TMutableBlobType::Allocate<TJerasureBlobTag>(size, false);
+}
+
+TCodecTraits::TBufferType TCodecTraits::AllocateBuffer(size_t size)
+{
+    // Only LRC now uses buffer allocation.
+    return TBufferType(TLrcBufferTag(), size);
+}
+
+TCodecTraits::TBlobType TCodecTraits::FromBufferToBlob(TBufferType&& blob)
+{
+    return TBlobType::FromBlob(std::move(blob));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,4 +77,5 @@ ICodec* GetCodec(ECodec id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NErasure
+} // namespace NYT::NChunkClient
+

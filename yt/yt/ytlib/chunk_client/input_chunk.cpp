@@ -1,12 +1,12 @@
 #include "input_chunk.h"
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 

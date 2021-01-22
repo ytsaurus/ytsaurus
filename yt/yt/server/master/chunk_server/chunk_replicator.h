@@ -15,7 +15,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/optional.h>

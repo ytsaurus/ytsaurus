@@ -32,7 +32,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/actions/cancelable_context.h>
 

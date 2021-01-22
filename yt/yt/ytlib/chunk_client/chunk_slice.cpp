@@ -9,7 +9,7 @@
 #include <yt/client/table_client/key_bound.h>
 #include <yt/client/table_client/schema.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/logging/log.h>
 

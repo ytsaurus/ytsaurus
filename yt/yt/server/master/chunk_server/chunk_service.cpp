@@ -33,7 +33,7 @@
 
 #include <yt/core/rpc/helpers.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 namespace NYT::NChunkServer {
 

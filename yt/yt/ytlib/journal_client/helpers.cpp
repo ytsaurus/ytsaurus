@@ -20,7 +20,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <util/generic/algorithm.h>
 #include <util/generic/cast.h>

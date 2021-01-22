@@ -43,7 +43,7 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/serialize.h>

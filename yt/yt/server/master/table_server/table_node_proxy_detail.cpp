@@ -41,7 +41,7 @@
 #include <yt/client/transaction_client/helpers.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/library/erasure/codec.h>
+#include <yt/library/erasure/impl/codec.h>
 
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/string.h>
