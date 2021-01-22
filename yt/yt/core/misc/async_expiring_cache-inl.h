@@ -40,7 +40,7 @@ TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(
     , MissedCounter_(profiler.Counter("/miss"))
     , SizeCounter_(profiler.Gauge("/size"))
 {
-    if (Config_->BatchUpdate && Config_->RefreshTime) {
+    if (Config_->BatchUpdate && Config_->RefreshTime && *Config_->RefreshTime) {
         NConcurrency::TDelayedExecutor::Submit(
             BIND(&TAsyncExpiringCache::UpdateAll, MakeWeak(this)),
             *Config_->RefreshTime);
@@ -308,7 +308,7 @@ void TAsyncExpiringCache<TKey, TValue>::Set(const TKey& key, TErrorOr<TValue> va
         entry->Promise.Set(std::move(valueOrError));
         YT_VERIFY(Map_.emplace(key, std::move(entry)).second);
         OnAdded(key);
-        if (!Config_->BatchUpdate && isValueOK && Config_->RefreshTime) {
+        if (!Config_->BatchUpdate && isValueOK && Config_->RefreshTime && *Config_->RefreshTime) {
             entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
                 BIND_DONT_CAPTURE_TRACE_CONTEXT(
                     &TAsyncExpiringCache::InvokeGet,
@@ -382,7 +382,7 @@ void TAsyncExpiringCache<TKey, TValue>::SetResult(
         return;
     }
 
-    if (!Config_->BatchUpdate && valueOrError.IsOK() && Config_->RefreshTime) {
+    if (!Config_->BatchUpdate && valueOrError.IsOK() && Config_->RefreshTime && *Config_->RefreshTime) {
         entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
             BIND_DONT_CAPTURE_TRACE_CONTEXT(
                 &TAsyncExpiringCache::InvokeGet,
