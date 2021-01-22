@@ -257,11 +257,6 @@ NChunkClient::TReadRange RangeNodeToReadRange(
 
         auto keyBoundNode = limitNode->FindChild("key_bound");
 
-        // Check that key bound and key are not specified simultaneously.
-        if (keyNode && keyBoundNode) {
-            THROW_ERROR_EXCEPTION("Key and key bound cannot be specified simultaneously within limit");
-        }
-
         // Check that key bound is not specified in exact clause.
         if (keyBoundNode && isExact) {
             THROW_ERROR_EXCEPTION("Key bound cannot be specified in exact limit, specify lower or upper limit instead");
@@ -272,8 +267,10 @@ NChunkClient::TReadRange RangeNodeToReadRange(
             THROW_ERROR_EXCEPTION("Cannot use key or key bound in read limit for an unsorted object");
         }
 
-        // Now validate key or key bound.
-        if (keyNode) {
+        // NB: for the sake of compatibility, we support specifying both key and key bound in read limit.
+        // In this case we consider only key bound and completely ignore key.
+
+        if (keyNode && !keyBoundNode) {
             // Before deserializing, we may need to transform legacy key into key bound.
             auto owningKey = ConvertTo<TUnversionedOwningRow>(keyNode);
             TOwningKeyBound keyBound;
