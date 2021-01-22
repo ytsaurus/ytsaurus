@@ -51,8 +51,10 @@ TAsyncExpiringCacheConfig::TAsyncExpiringCacheConfig()
         .Default(false);
 
     RegisterPostprocessor([&] () {
-        if (RefreshTime && *RefreshTime > ExpireAfterSuccessfulUpdateTime) {
-            THROW_ERROR_EXCEPTION("\"refresh_time\" must be less than \"expire_after_successful_update_time\"");
+        if (RefreshTime && *RefreshTime && *RefreshTime > ExpireAfterSuccessfulUpdateTime) {
+            THROW_ERROR_EXCEPTION("\"refresh_time\" must be less than \"expire_after_successful_update_time\"")
+                << TErrorAttribute("refresh_time", RefreshTime)
+                << TErrorAttribute("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime);
         }
     });
 }
