@@ -210,6 +210,7 @@ struct TReplicaCounters
     explicit TReplicaCounters(const NProfiling::TRegistry& profiler)
         : LagRowCount(profiler.Summary("/replica/lag_row_count"))
         , LagTime(profiler.TimeGauge("/replica/lag_time"))
+        , ReplicationThrottleTime(profiler.Timer("/replica/replication_throttle_time"))
         , ReplicationTransactionStartTime(profiler.Timer("/replica/replication_transaction_start_time"))
         , ReplicationTransactionCommitTime(profiler.Timer("/replica/replication_transaction_commit_time"))
         , ReplicationRowsReadTime(profiler.Timer("/replica/replication_rows_read_time"))
@@ -223,6 +224,7 @@ struct TReplicaCounters
 
     NProfiling::TSummary LagRowCount;
     NProfiling::TTimeGauge LagTime;
+    NProfiling::TEventTimer ReplicationThrottleTime;
     NProfiling::TEventTimer ReplicationTransactionStartTime;
     NProfiling::TEventTimer ReplicationTransactionCommitTime;
     NProfiling::TEventTimer ReplicationRowsReadTime;

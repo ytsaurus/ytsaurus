@@ -185,11 +185,6 @@ private:
                     << HardErrorAttribute;
             }
 
-            if (Throttler_->IsOverdraft()) {
-                YT_LOG_DEBUG("Bandwidth limit reached; skipping iteration (TotalCount: %v)",
-                    Throttler_->GetQueueTotalCount());
-                return;
-            }
 
             const auto& tabletRuntimeData = tabletSnapshot->TabletRuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
@@ -199,6 +194,17 @@ private:
                     counters.ReplicationErrorCount.Increment();
                 }
             });
+
+            {
+                auto throttleFuture = Throttler_->Throttle(1);
+                if (!throttleFuture.IsSet()) {
+                    TEventTimer timerGuard(counters.ReplicationTransactionCommitTime);
+                    YT_LOG_DEBUG("Started waiting for replication throttling");
+                    WaitFor(throttleFuture)
+                        .ThrowOnError();
+                    YT_LOG_DEBUG("Finished waiting for replication throttling");
+                }
+            }
 
             // YT-8542: Fetch the last barrier timestamp _first_ to ensure proper serialization between
             // replicator and tablet slot threads.
