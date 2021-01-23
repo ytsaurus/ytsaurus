@@ -145,7 +145,10 @@ def yson_to_json(yson_tree, print_attributes=True):
             iter += 1
 
         if YsonType in bases:
-            other = list(set(bases) - set([YsonType]))[0]
+            other_types = list(set(bases) - set([YsonType]))
+            if not other_types:
+                raise RuntimeError("Failed to perform yson to json conversion of {!r}".format(yson_tree))
+            other = other_types[0]
             return other(yson_tree)
         return yson_tree
 
