@@ -3,4 +3,6 @@
     pool="yt-integration-tests";
     cypress_root="//home/yt-integration-tests";
     run_as_root=%true;
+    blob_ttl=1209600000000000;
+    output_ttl=1209600000000000;
 }
