@@ -36,6 +36,7 @@ private:
     i64 OutputPosition_ = 0;
 
     TBuffer Input_;
+    TBuffer Output_;
 
     std::unique_ptr<ZstdContext> Context_;
 
@@ -43,7 +44,8 @@ private:
     virtual void DoFlush() override;
     virtual void DoFinish() override;
 
-    void FlushOneFrame();
+    void FlushOutput();
+    void CompressOneFrame();
     void ScanTail();
     void Repair(bool writeTruncateMessage);
 };

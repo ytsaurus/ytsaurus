@@ -82,7 +82,7 @@ void TAppendableZstdFile::DoWrite(const void* buf, size_t len)
         len -= toWrite;
 
         while (Input_.Size() >= MaxFrameUncompressedLength) {
-            FlushOneFrame();
+            CompressOneFrame();
         }
     }
 }
@@ -90,8 +90,9 @@ void TAppendableZstdFile::DoWrite(const void* buf, size_t len)
 void TAppendableZstdFile::DoFlush()
 {
     while (!Input_.Empty()) {
-        FlushOneFrame();
+        CompressOneFrame();
     }
+    FlushOutput();
 }
 
 void TAppendableZstdFile::DoFinish()
@@ -99,7 +100,7 @@ void TAppendableZstdFile::DoFinish()
     Flush();
 }
 
-void TAppendableZstdFile::FlushOneFrame()
+void TAppendableZstdFile::CompressOneFrame()
 {
     if (Input_.Empty()) {
         return;
@@ -107,22 +108,29 @@ void TAppendableZstdFile::FlushOneFrame()
 
     size_t toWrite = Min(Input_.Size(), size_t(MaxFrameUncompressedLength));
 
-    TBuffer buffer(MaxFrameLength + ZstdSyncTagLength);
-    size_t size = ZSTD_compressCCtx(Context_->CCtx, buffer.Data(), MaxFrameLength, Input_.Data(), toWrite, CompressionLevel_);
+    Output_.Reserve(MaxFrameLength + ZstdSyncTagLength);
+    size_t size = ZSTD_compressCCtx(Context_->CCtx, Output_.Data(), MaxFrameLength, Input_.Data(), toWrite, CompressionLevel_);
     if (ZSTD_isError(size)) {
         THROW_ERROR_EXCEPTION("ZSTD_compressCCtx() failed")
             << TErrorAttribute("zstd_error", ZSTD_getErrorName(size));
     }
-    buffer.Resize(size);
+    Output_.Advance(size);
 
-    ui64 syncTagOffset = OutputPosition_ + buffer.Size();
-    buffer.Append(ZstdSyncTag, sizeof(ZstdSyncTag));
-    buffer.Append(reinterpret_cast<const char*>(&syncTagOffset), sizeof(syncTagOffset));
-
-    File_->Pwrite(buffer.Data(), buffer.Size(), OutputPosition_);
-    OutputPosition_ += buffer.Size();
+    ui64 syncTagOffset = OutputPosition_ + Output_.Size();
+    Output_.Append(ZstdSyncTag, sizeof(ZstdSyncTag));
+    Output_.Append(reinterpret_cast<const char*>(&syncTagOffset), sizeof(syncTagOffset));
 
     Input_.ChopHead(toWrite);
+}
+
+void TAppendableZstdFile::FlushOutput()
+{
+    if (Output_.Empty()) {
+        return;
+    }
+    File_->Pwrite(Output_.Data(), Output_.Size(), OutputPosition_);
+    OutputPosition_ += Output_.Size();
+    Output_.Resize(0);
 }
 
 static std::optional<i64> FindSyncTag(const char* buf, size_t size, i64 offset)
