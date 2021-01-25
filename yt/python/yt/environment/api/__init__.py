@@ -10,13 +10,14 @@ class LocalYtConfig(object):
     local_cypress_path = attr.ib(None)
     fqdn = attr.ib("localhost")
     use_porto_for_servers = attr.ib(False)
+    use_native_client = attr.ib(False)
     kill_child_processes = attr.ib(False)
     run_watcher = attr.ib(False)
-    capture_stderr_to_file = attr.ib(True)
     optimize_config = attr.ib(False)
+    log_compression_method = attr.ib("gzip")
 
     """High level master configuration"""
-    primary_cell_tag = attr.ib(None)
+    primary_cell_tag = attr.ib(0)
 
     """High level node settings"""
     jobs_resource_limits = attr.ib(factory=lambda: {
@@ -29,8 +30,8 @@ class LocalYtConfig(object):
     allow_chunk_storage_in_tmpfs = attr.ib(False)
 
     """Feature flags"""
-    enable_master_cache = attr.ib(None)
-    enable_permission_cache = attr.ib(None)
+    enable_master_cache = attr.ib(False)
+    enable_permission_cache = attr.ib(False)
     enable_rpc_driver_proxy_discovery = attr.ib(False)
     enable_log_compression = attr.ib(False)
     enable_debug_logging = attr.ib(True)
@@ -59,8 +60,9 @@ class LocalYtConfig(object):
     remote_cluster_count = attr.ib(0)
 
     """Start options"""
-    delay_node_start = attr.ib(False)
-    delay_scheduler_start = attr.ib(False)
+    defer_node_start = attr.ib(False)
+    defer_scheduler_start = attr.ib(False)
+    defer_controller_agent_start = attr.ib(False)
 
     """Config patches"""
     delta_master_config = attr.ib(None)

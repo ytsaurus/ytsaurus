@@ -35,10 +35,12 @@ def prepare_yatest_environment():
     os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
 
+# Why??????
 OPTION_NAME_MAPPING = {
     "NUM_MASTERS": "master_count",
     "NUM_NODES": "node_count",
     "NUM_SCHEDULERS": "scheduler_count",
+    "NUM_CONTROLLER_AGENTS": "controller_agent_count",
     "DELTA_MASTER_CONFIG": "master_config",
     "RPC_PROXY_COUNT": "rpc_proxy_count",
 }

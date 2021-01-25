@@ -42,12 +42,12 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
 
     def _multicell_set(self, path, value):
         set(path, value)
-        for i in xrange(self.Env.secondary_master_cell_count):
+        for i in xrange(self.NUM_SECONDARY_MASTER_CELLS):
             driver = get_driver(i + 1)
             wait(lambda: exists(path, driver=driver) and get(path, driver=driver) == value)
 
     def _multicell_wait(self, predicate):
-        for i in xrange(self.Env.secondary_master_cell_count):
+        for i in xrange(self.NUM_SECONDARY_MASTER_CELLS):
             driver = get_driver(i + 1)
             wait(predicate(driver))
 

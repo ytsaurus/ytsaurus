@@ -6,6 +6,7 @@ from yt.test_helpers import wait
 import yt.test_helpers.cleanup as test_cleanup
 
 from yt.environment import YTInstance, arcadia_interop
+from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
@@ -151,17 +152,20 @@ class YtTestEnvironment(object):
         if not os.path.exists(local_temp_directory):
             os.mkdir(local_temp_directory)
 
-        self.env = YTInstance(self.sandbox_dir,
-                              master_count=1,
-                              node_count=3,
-                              scheduler_count=1,
-                              http_proxy_count=1 if has_http_proxy else 0,
-                              rpc_proxy_count=1,
-                              fqdn="localhost",
+        yt_config = LocalYtConfig(
+            master_count=1,
+            node_count=3,
+            scheduler_count=1,
+            http_proxy_count=1 if has_http_proxy else 0,
+            rpc_proxy_count=1,
+            fqdn="localhost",
+            allow_chunk_storage_in_tmpfs=True,
+            **env_options
+        )
+
+        self.env = YTInstance(self.sandbox_dir, yt_config,                
                               modify_configs_func=modify_configs,
-                              kill_child_processes=True,
-                              allow_chunk_storage_in_tmpfs=True,
-                              **env_options)
+                              kill_child_processes=True)
 
         try:
             self.env.start(start_secondary_master_cells=True)

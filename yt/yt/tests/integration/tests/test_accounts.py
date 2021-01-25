@@ -255,7 +255,7 @@ class AccountsTestSuiteBase(YTEnvSetup):
         )
 
     def teardown_method(self, method):
-        for cell_index in xrange(self.Env.secondary_master_cell_count + 1):
+        for cell_index in xrange(self.NUM_SECONDARY_MASTER_CELLS + 1):
             driver = get_driver(cell_index)
             accounts = ls("//sys/accounts", driver=driver)
             for account in accounts:
@@ -2519,7 +2519,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         with pytest.raises(YtError):
             move("//sys/account_tree/yt", "//sys/account_tree/YaMR/2.0")
 
-        for cell_index in xrange(self.Env.secondary_master_cell_count + 1):
+        for cell_index in xrange(self.NUM_SECONDARY_MASTER_CELLS + 1):
             driver = get_driver(cell_index)
             assert not exists("//sys/account_tree/YaMR/yt", driver=driver)
             assert not exists("//sys/account_tree/YaMR/2.0", driver=driver)
