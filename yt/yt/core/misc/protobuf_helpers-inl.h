@@ -75,7 +75,7 @@ inline void FromProto(TInstant* original, ::google::protobuf::uint64 serialized)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type ToProto(
+typename std::enable_if_t<std::is_convertible_v<T*, ::google::protobuf::MessageLite*>> ToProto(
     T* serialized,
     const T& original)
 {
@@ -83,7 +83,7 @@ typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite
 }
 
 template <class T>
-typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type FromProto(
+typename std::enable_if_t<std::is_convertible_v<T*, ::google::protobuf::MessageLite*>> FromProto(
     T* original,
     const T& serialized)
 {
@@ -226,13 +226,13 @@ void FromProtoArrayImpl(
 }
 
 template <class TProtoPair, class TValue>
-typename std::enable_if<!std::is_trivial<TValue>::value, void>::type SetPairValueImpl(TProtoPair& pair, const TValue& value)
+typename std::enable_if_t<!std::is_trivial_v<TValue>> SetPairValueImpl(TProtoPair& pair, const TValue& value)
 {
     ToProto(pair->mutable_value(), value);
 }
 
 template <class TProtoPair, class TValue>
-typename std::enable_if<std::is_trivial<TValue>::value, void>::type SetPairValueImpl(TProtoPair& pair, const TValue& value)
+typename std::enable_if_t<std::is_trivial_v<TValue>> SetPairValueImpl(TProtoPair& pair, const TValue& value)
 {
    pair->set_value(value);
 }

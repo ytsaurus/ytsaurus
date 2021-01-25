@@ -45,9 +45,9 @@ struct TPolymorphicTraits
 template <class T>
 struct TPolymorphicTraits<
     T,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T&, TDynamicTag&>
-    >::TType
+    typename std::enable_if_t<
+        std::is_convertible_v<T&, TDynamicTag&>
+    >
 >
 {
     static const bool Dynamic = true;
@@ -94,12 +94,12 @@ struct TFactoryTraits
 template <class T>
 struct TFactoryTraits<
     T,
-    typename NMpl::TEnableIf<
-        NMpl::TAnd<
-            NMpl::TIsConvertible<T*, NYT::TRefCountedBase*>,
-            NMpl::TNot<NMpl::TIsConvertible<T*, TFactoryTag<TNullFactory>*>>
+    typename std::enable_if_t<
+        std::conjunction_v<
+            std::is_convertible<T*, NYT::TRefCountedBase*>,
+            std::negation<std::is_convertible<T*, TFactoryTag<TNullFactory>*>>
         >
-    >::TType
+    >
 >
 {
     using TFactory = TRefCountedFactory;
@@ -108,9 +108,9 @@ struct TFactoryTraits<
 template <class T>
 struct TFactoryTraits<
     T,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T*, TFactoryTag<TNullFactory>*>
-    >::TType
+    typename std::enable_if_t<
+        std::is_convertible_v<T*, TFactoryTag<TNullFactory>*>
+    >
 >
 {
     using TFactory = TNullFactory;
@@ -127,9 +127,9 @@ struct TIdClass
 template <class T>
 struct TIdClass<
     T,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T*, NYT::TRefCountedBase*>
-    >::TType
+    typename std::enable_if_t<
+        std::is_convertible_v<T*, NYT::TRefCountedBase*>
+    >
 >
 {
     using TType = NYT::TRefCountedWrapper<T>;

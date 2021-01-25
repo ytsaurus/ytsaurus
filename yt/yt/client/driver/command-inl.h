@@ -37,7 +37,7 @@ void ProduceSingleOutputValue(
 template <class TOptions>
 TTransactionalCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TTransactionalOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TTransactionalOptions&>>
 >::TTransactionalCommandBase()
 {
     this->RegisterParameter("transaction_id", this->Options.TransactionId)
@@ -51,7 +51,7 @@ TTransactionalCommandBase<
 template <class TOptions>
 NApi::ITransactionPtr TTransactionalCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TTransactionalOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TTransactionalOptions&>>
 >::AttachTransaction(
     ICommandContextPtr context,
     bool required)
@@ -86,7 +86,7 @@ NApi::ITransactionPtr TTransactionalCommandBase<
 template <class TOptions>
 TMutatingCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TMutatingOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TMutatingOptions&>>
 >::TMutatingCommandBase()
 {
     this->RegisterParameter("mutation_id", this->Options.MutationId)
@@ -100,7 +100,7 @@ TMutatingCommandBase<
 template <class TOptions>
 TReadOnlyMasterCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TMasterReadOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TMasterReadOptions&>>
 >::TReadOnlyMasterCommandBase()
 {
     this->RegisterParameter("read_from", this->Options.ReadFrom)
@@ -118,7 +118,7 @@ TReadOnlyMasterCommandBase<
 template <class TOptions>
 TReadOnlyTabletCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TTabletReadOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TTabletReadOptions&>>
 >::TReadOnlyTabletCommandBase()
 {
     this->RegisterParameter("read_from", this->Options.ReadFrom)
@@ -134,7 +134,7 @@ TReadOnlyTabletCommandBase<
 template <class TOptions>
 TSuppressableAccessTrackingCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TSuppressableAccessTrackingOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TSuppressableAccessTrackingOptions&>>
 >::TSuppressableAccessTrackingCommandBase()
 {
     this->RegisterParameter("suppress_access_tracking", this->Options.SuppressAccessTracking)
@@ -150,7 +150,7 @@ TSuppressableAccessTrackingCommandBase<
 template <class TOptions>
 TPrerequisiteCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TPrerequisiteOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TPrerequisiteOptions&>>
 >::TPrerequisiteCommandBase()
 {
     this->RegisterParameter("prerequisite_transaction_ids", this->Options.PrerequisiteTransactionIds)
@@ -164,7 +164,7 @@ TPrerequisiteCommandBase<
 template <class TOptions>
 TTimeoutCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TTimeoutOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TTimeoutOptions&>>
 >::TTimeoutCommandBase()
 {
     this->RegisterParameter("timeout", this->Options.Timeout)
@@ -176,7 +176,7 @@ TTimeoutCommandBase<
 template <class TOptions>
 TTabletReadCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletTransactionOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, TTabletTransactionOptions&>>
 >::TTabletReadCommandBase()
 {
     this->RegisterParameter("transaction_id", this->Options.TransactionId)
@@ -186,7 +186,7 @@ TTabletReadCommandBase<
 template <class TOptions>
 NApi::IClientBasePtr TTabletReadCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletTransactionOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, TTabletTransactionOptions&>>
 >::GetClientBase(ICommandContextPtr context)
 {
     if (auto transactionId = this->Options.TransactionId) {
@@ -202,7 +202,7 @@ NApi::IClientBasePtr TTabletReadCommandBase<
 template <class TOptions>
 TTabletWriteCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletWriteOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, TTabletWriteOptions&>>
 >::TTabletWriteCommandBase()
 {
     this->RegisterParameter("atomicity", this->Options.Atomicity)
@@ -214,7 +214,7 @@ TTabletWriteCommandBase<
 template <class TOptions>
 NApi::ITransactionPtr TTabletWriteCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletWriteOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, TTabletWriteOptions&>>
 >::GetTransaction(ICommandContextPtr context)
 {
     if (auto transactionId = this->Options.TransactionId) {
@@ -233,7 +233,7 @@ NApi::ITransactionPtr TTabletWriteCommandBase<
 template <class TOptions>
 bool TTabletWriteCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletWriteOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, TTabletWriteOptions&>>
 >::ShouldCommitTransaction()
 {
     return !this->Options.TransactionId;
@@ -244,7 +244,7 @@ bool TTabletWriteCommandBase<
 template <class TOptions>
 TSelectRowsCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TSelectRowsOptionsBase&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TSelectRowsOptionsBase&>>
 >::TSelectRowsCommandBase()
 {
     this->RegisterParameter("udf_registry_path", this->Options.UdfRegistryPath)

@@ -5,7 +5,6 @@
 #include "format.h"
 #endif
 
-#include "mpl.h"
 #include "string.h"
 #include "optional.h"
 #include "enum.h"

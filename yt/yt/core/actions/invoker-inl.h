@@ -6,8 +6,6 @@
 #endif
 #undef INVOKER_INL_H_
 
-#include "bind.h"
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +15,7 @@ TExtendedCallback<R(TArgs...)>
 TExtendedCallback<R(TArgs...)>::Via(IInvokerPtr invoker) const
 {
     static_assert(
-        NMpl::TIsVoid<R>::Value,
+        std::is_void_v<R>,
         "Via() can only be used with void return type.");
     YT_ASSERT(invoker);
 

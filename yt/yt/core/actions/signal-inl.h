@@ -1,6 +1,5 @@
 #pragma once
 
-#include <yt/core/misc/mpl.h>
 #include <yt/core/misc/ref.h>
 
 #ifndef SIGNAL_INL_H_

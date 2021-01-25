@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ref_counted.h"
-#include "mpl.h"
 
 #include <util/generic/hash.h>
 
@@ -44,7 +43,7 @@ public:
     { }
 
     //! Constructor from a strong reference with an upcast.
-    template <class U, class = typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType>
+    template <class U, class = typename std::enable_if_t<std::is_convertible_v<U*, T*>>>
     TWeakPtr(const TIntrusivePtr<U>& ptr) noexcept
         : TWeakPtr(ptr.Get())
     {
@@ -59,7 +58,7 @@ public:
     { }
 
     //! Copy constructor with an upcast.
-    template <class U, class = typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType>
+    template <class U, class = typename std::enable_if_t<std::is_convertible_v<U*, T*>>>
     TWeakPtr(const TWeakPtr<U>& other) noexcept
         : TWeakPtr(other.Lock())
     {
@@ -75,7 +74,7 @@ public:
     }
 
     //! Move constructor with an upcast.
-    template <class U, class = typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType>
+    template <class U, class = typename std::enable_if_t<std::is_convertible_v<U*, T*>>>
     TWeakPtr(TWeakPtr<U>&& other) noexcept
     {
         static_assert(
@@ -104,7 +103,7 @@ public:
     TWeakPtr& operator=(const TIntrusivePtr<U>& ptr) noexcept
     {
         static_assert(
-            NMpl::TIsConvertible<U*, T*>::Value,
+            std::is_convertible_v<U*, T*>,
             "U* must be convertible to T*");
         TWeakPtr(ptr).Swap(*this);
         return *this;
@@ -122,7 +121,7 @@ public:
     TWeakPtr& operator=(const TWeakPtr<U>& other) noexcept
     {
         static_assert(
-            NMpl::TIsConvertible<U*, T*>::Value,
+            std::is_convertible_v<U*, T*>,
             "U* must be convertible to T*");
         TWeakPtr(other).Swap(*this);
         return *this;
@@ -140,7 +139,7 @@ public:
     TWeakPtr& operator=(TWeakPtr<U>&& other) noexcept
     {
         static_assert(
-            NMpl::TIsConvertible<U*, T*>::Value,
+            std::is_convertible_v<U*, T*>,
             "U* must be convertible to T*");
         TWeakPtr(std::move(other)).Swap(*this);
         return *this;
@@ -163,7 +162,7 @@ public:
     void Reset(const TIntrusivePtr<U>& ptr) // noexcept
     {
         static_assert(
-            NMpl::TIsConvertible<U*, T*>::Value,
+            std::is_convertible_v<U*, T*>,
             "U* must be convertible to T*");
         TWeakPtr(ptr).Swap(*this);
     }
@@ -285,7 +284,7 @@ template <class T, class U>
 bool operator==(const TWeakPtr<T>& lhs, const TWeakPtr<U>& rhs)
 {
     static_assert(
-        NMpl::TIsConvertible<U*, T*>::Value,
+        std::is_convertible_v<U*, T*>,
         "U* must be convertible to T*");
     return lhs.Lock().Get() == rhs.Lock().Get();
 }
@@ -294,7 +293,7 @@ template <class T, class U>
 bool operator!=(const TWeakPtr<T>& lhs, const TWeakPtr<U>& rhs)
 {
     static_assert(
-        NMpl::TIsConvertible<U*, T*>::Value,
+        std::is_convertible_v<U*, T*>,
         "U* must be convertible to T*");
     return lhs.Lock().Get() != rhs.Lock().Get();
 }

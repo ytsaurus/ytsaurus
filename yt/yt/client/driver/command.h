@@ -8,7 +8,6 @@
 #include <yt/client/api/sticky_transaction_pool.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/mpl.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -106,7 +105,7 @@ class TTransactionalCommandBase
 template <class TOptions>
 class TTransactionalCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TTransactionalOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TTransactionalOptions&>>
 >
     : public virtual TTypedCommandBase<TOptions>
 {
@@ -126,7 +125,7 @@ class TMutatingCommandBase
 template <class TOptions>
 class TMutatingCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TMutatingOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TMutatingOptions&>>
 >
     : public virtual TTypedCommandBase<TOptions>
 {
@@ -143,7 +142,7 @@ class TReadOnlyMasterCommandBase
 template <class TOptions>
 class TReadOnlyMasterCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TMasterReadOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TMasterReadOptions&>>
 >
     : public virtual TTypedCommandBase<TOptions>
 {
@@ -160,7 +159,7 @@ class TReadOnlyTabletCommandBase
 template <class TOptions>
 class TReadOnlyTabletCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TTabletReadOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TTabletReadOptions&>>
 >
     : public virtual TTypedCommandBase<TOptions>
 {
@@ -177,7 +176,7 @@ class TSuppressableAccessTrackingCommandBase
 template <class TOptions>
 class TSuppressableAccessTrackingCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TSuppressableAccessTrackingOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TSuppressableAccessTrackingOptions&>>
 >
     : public virtual TTypedCommandBase<TOptions>
 {
@@ -194,7 +193,7 @@ class TPrerequisiteCommandBase
 template <class TOptions>
 class TPrerequisiteCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TPrerequisiteOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TPrerequisiteOptions&>>
 >
     : public virtual TTypedCommandBase<TOptions>
 {
@@ -211,7 +210,7 @@ class TTimeoutCommandBase
 template <class TOptions>
 class TTimeoutCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TTimeoutOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TTimeoutOptions&>>
 >
     : public virtual TTypedCommandBase<TOptions>
 {
@@ -233,7 +232,7 @@ class TTabletReadCommandBase
 template <class TOptions>
 class TTabletReadCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletTransactionOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, TTabletTransactionOptions&>>
 >
     : public virtual TTypedCommandBase<TOptions>
 {
@@ -272,7 +271,7 @@ class TTabletWriteCommandBase
 template <class TOptions>
 class TTabletWriteCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletWriteOptions&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, TTabletWriteOptions&>>
 >
     : public virtual TTypedCommandBase<TOptions>
 {
@@ -289,7 +288,7 @@ class TSelectRowsCommandBase
 template <class TOptions>
 class TSelectRowsCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TSelectRowsOptionsBase&>>::TType
+    typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TSelectRowsOptionsBase&>>
 >
     : public virtual TTypedCommandBase<TOptions>
 {
