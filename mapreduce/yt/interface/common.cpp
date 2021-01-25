@@ -107,7 +107,7 @@ static std::pair<EValueType, bool> Simplify(const NTi::TTypePtr& type)
             return {VT_UINT64, true};
 
         case ETypeName::Float:
-            break;
+            return {VT_FLOAT, true};
         case ETypeName::Double:
             return {VT_DOUBLE, true};
 
@@ -130,8 +130,9 @@ static std::pair<EValueType, bool> Simplify(const NTi::TTypePtr& type)
         case ETypeName::TzTimestamp:
             break;
 
-        case ETypeName::Decimal:
         case ETypeName::Json:
+            return {VT_JSON, true};
+        case ETypeName::Decimal:
         case ETypeName::Uuid:
             break;
         case ETypeName::Yson:
