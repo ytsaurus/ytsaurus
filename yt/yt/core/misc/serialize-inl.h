@@ -1691,7 +1691,7 @@ template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename std::enable_if<NMpl::TIsPod<T>::Value && !std::is_pointer<T>::value>::type
+    typename std::enable_if<NMpl::TIsPod<T>::value && !std::is_pointer<T>::value>::type
 >
 {
     typedef TPodSerializer TSerializer;
@@ -1866,7 +1866,7 @@ typedef TEnumIndexedVectorSerializer<> TSerializer;
 };
 
 template <class F, class S, class C>
-struct TSerializerTraits<std::pair<F, S>, C, typename std::enable_if<!NMpl::TIsPod<std::pair<F, S>>::Value>::type>
+struct TSerializerTraits<std::pair<F, S>, C, typename std::enable_if<!NMpl::TIsPod<std::pair<F, S>>::value>::type>
 {
     typedef TTupleSerializer<std::pair<F, S>> TSerializer;
     typedef TValueBoundComparer TComparer;

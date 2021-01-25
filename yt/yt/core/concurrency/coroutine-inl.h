@@ -12,12 +12,12 @@ namespace NYT::NConcurrency {
 
 namespace NDetail {
 
-template <class TCallee, class TCaller, class TArguments, unsigned... Indexes>
+template <class TCallee, class TCaller, class TArguments, size_t... Indexes>
 void Invoke(
     TCallee& callee,
     TCaller& caller,
     TArguments&& arguments,
-    NMpl::TSequence<Indexes...>)
+    std::index_sequence<Indexes...>)
 {
     callee.Run(
         caller,
@@ -62,7 +62,7 @@ void TCoroutine<R(TArgs...)>::Invoke()
             Callee_,
             *this,
             std::move(Arguments_),
-            typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType());
+            std::make_index_sequence<sizeof...(TArgs)>());
         Result_.reset();
     } catch (...) {
         Result_.reset();
@@ -97,7 +97,7 @@ void TCoroutine<void(TArgs...)>::Invoke()
             Callee_,
             *this,
             std::move(Arguments_),
-            typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType());
+            std::make_index_sequence<sizeof...(TArgs)>());
         Result_ = false;
     } catch (...) {
         Result_ = false;

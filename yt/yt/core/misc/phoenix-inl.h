@@ -1,4 +1,5 @@
 #pragma once
+#include <type_traits>
 #ifndef PHOENIX_INL_H_
 #error "Direct inclusion of this file is not allowed, include phoenix.h"
 // For the sake of sane code completion.
@@ -54,9 +55,9 @@ struct TInstantiatedRegistrar
 template <class T>
 struct TInstantiatedRegistrar<
     T,
-    typename NMpl::TEnableIfC<
-        NMpl::TIsConvertible<T&, TRefCounted&>::Value
-    >::TType
+    std::enable_if_t<
+        std::is_convertible_v<T&, TRefCounted&>
+    >
 >
 {
     static void Do(TLoadContext& context, T* rawPtr)
@@ -249,12 +250,12 @@ template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename NMpl::TEnableIfC<
-        NMpl::TAndC<
-            NMpl::TIsConvertible<T&, TIntrusivePtr<typename T::TUnderlying>&>::Value,
-            NMpl::TIsConvertible<C&, NPhoenix::TContextBase&>::Value
-        >::Value
-    >::TType
+    std::enable_if_t<
+        std::conjunction_v<
+            std::is_convertible<T&, TIntrusivePtr<typename T::TUnderlying>&>,
+            std::is_convertible<C&, NPhoenix::TContextBase&>
+        >
+    >
 >
 {
     using TSerializer = NPhoenix::TSerializer;
@@ -264,12 +265,12 @@ template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename NMpl::TEnableIfC<
-        NMpl::TAndC<
-            NMpl::TIsConvertible<T&, std::unique_ptr<typename T::element_type>&>::Value,
-            NMpl::TIsConvertible<C&, NPhoenix::TContextBase&>::Value
-        >::Value
-    >::TType
+    std::enable_if_t<
+        std::conjunction_v<
+            std::is_convertible<T&, std::unique_ptr<typename T::element_type>&>,
+            std::is_convertible<C&, NPhoenix::TContextBase&>
+        >
+    >
 >
 {
     using TSerializer = NPhoenix::TSerializer;
@@ -279,12 +280,12 @@ template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename NMpl::TEnableIfC<
-        NMpl::TAndC<
-            std::is_pointer<T>::value,
-            NMpl::TIsConvertible<C&, NPhoenix::TContextBase&>::Value
-        >::Value
-    >::TType
+    std::enable_if_t<
+        std::conjunction_v<
+            std::is_pointer<T>,
+            std::is_convertible<C&, NPhoenix::TContextBase&>
+        >
+    >
 >
 {
     using TSerializer = NPhoenix::TSerializer;

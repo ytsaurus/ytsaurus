@@ -39,11 +39,11 @@ inline void FromProto(TInstant* original, ::google::protobuf::uint64 serialized)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type ToProto(
+typename std::enable_if<std::is_convertible_v<T*, ::google::protobuf::MessageLite*>, void>::type ToProto(
     T* serialized,
     const T& original);
 template <class T>
-typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type FromProto(
+typename std::enable_if<std::is_convertible_v<T*, ::google::protobuf::MessageLite*>, void>::type FromProto(
     T* original,
     const T& serialized);
 
@@ -245,7 +245,7 @@ template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, ::google::protobuf::Message&>>::TType>
+    typename std::enable_if_t<std::is_convertible_v<T&, ::google::protobuf::Message&>>>
 {
     typedef TBinaryProtoSerializer TSerializer;
 };
@@ -271,8 +271,9 @@ struct TProtoExtensionTag;
 #define DECLARE_PROTO_EXTENSION(type, tag) \
     template <> \
     struct TProtoExtensionTag<type> \
-        : NMpl::TIntegralConstant<i32, tag> \
-    { };
+    { \
+        static constexpr i32 Value = tag; \
+    };
 
 //! Registers protobuf extension for further conversions. This method
 //! is assumed to be called during static initialization only.

@@ -1,8 +1,11 @@
 #pragma once
 
 #include "callback.h"
+#include "bind.h"
 
 #include <yt/core/concurrency/public.h>
+
+#include <type_traits>
 
 namespace NYT {
 

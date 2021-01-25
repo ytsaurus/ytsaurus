@@ -714,7 +714,7 @@ template <class TSequence>
 struct TApplyCallback;
 
 template <unsigned... Indexes>
-struct TApplyCallback<NMpl::TSequence<Indexes...>>
+struct TApplyCallback<std::integer_sequence<unsigned, Indexes...>>
 {
     template <class TBody, class TBuilder>
     static void Do(TBody&& body, TBuilder&& builder, Value* argsArray[sizeof...(Indexes)])
@@ -737,7 +737,7 @@ struct TClosureFunctionDefiner;
 template <class TResult, class... TArgs>
 struct TClosureFunctionDefiner<TResult(TArgs...)>
 {
-    typedef typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType TIndexesPack;
+    typedef typename std::make_integer_sequence<unsigned, sizeof...(TArgs)> TIndexesPack;
 
     template <class TBody>
     static TLlvmClosure Do(const TCGModulePtr& module, TCGOperatorContext& parentBuilder, TBody&& body, llvm::Twine name)
@@ -791,7 +791,7 @@ struct TFunctionDefiner;
 template <class TResult, class... TArgs>
 struct TFunctionDefiner<TResult(TArgs...)>
 {
-    typedef typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType TIndexesPack;
+    typedef typename std::make_integer_sequence<unsigned, sizeof...(TArgs)> TIndexesPack;
 
     template <class TBody>
     static Function* Do(const TCGModulePtr& module, TBody&& body, llvm::Twine name)

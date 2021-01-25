@@ -1,4 +1,3 @@
-#pragma once
 #ifndef BIND_INL_H_
 #error "Direct inclusion of this file is not allowed, include bind.h"
 // For the sake of sane code completion.
@@ -6,7 +5,6 @@
 #endif
 #undef BIND_INL_H_
 
-#include <yt/core/misc/mpl.h>
 
 #include <yt/core/tracing/trace_context.h>
 
@@ -217,7 +215,7 @@ public:
     auto operator()(D* object, XAs&&... args) const
     {
         static_assert(
-            !NMpl::TIsArray<D>::Value,
+            !std::is_array_v<D>,
             "First bound argument to a method cannot be an array");
 
         return (object->*Method_)(std::forward<XAs>(args)...);
@@ -228,7 +226,7 @@ public:
     {
         using TResult = typename TFunctorTraits<TMethod>::TResult;
         static_assert(
-            NMpl::TIsVoid<TResult>::Value,
+            std::is_void_v<TResult>,
             "Weak calls are only supported for methods with a void return type");
 
         auto strongRef = ref.Lock();
@@ -371,39 +369,33 @@ struct TFunctorTraits<NDetail::TIgnoreResultWrapper<T>>
 
 template <class T>
 struct TIsNonConstReference
-    : public NMpl::TFalseType
+    : public std::false_type
 { };
 
 template <class T>
 struct TIsNonConstReference<T&>
-    : public NMpl::TTrueType
+    : public std::true_type
 { };
 
 template <class T>
 struct TIsNonConstReference<const T&>
-    : public NMpl::TFalseType
+    : public std::false_type
 { };
 
 template <class T>
 struct TCheckNoRawPtrToRefCountedType
 {
-    enum {
-        Value = (NMpl::TIsPointer<T>::Value && (
-            NMpl::TIsConvertible<T, const TRefCounted*>::Value ||
-            NMpl::TIsConvertible<T, TRefCounted*>::Value
-        ))
-    };
-
     static_assert(
-        !Value,
+        !(std::is_pointer_v<T> && (
+            std::is_convertible_v<T, const TRefCounted*> ||
+            std::is_convertible_v<T, TRefCounted*>
+        )),
         "T has reference-counted type and should not be bound by the raw pointer");
-
-    using TType = T;
 };
 
 template <class... TArgs>
-struct TCheckParamsIsRawPtrToRefCountedType
-    : public NYT::NMpl::TTypesPack<typename TCheckNoRawPtrToRefCountedType<TArgs>::TType...>
+struct TCheckParamsNoRawPtrToRefCountedType
+    : public std::tuple<TCheckNoRawPtrToRefCountedType<TArgs>...>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -427,7 +419,7 @@ struct TSplitHelper<N, TR (TA0, TAs...)>
     : public TSplit<N - 1, TR (TAs...)>
 {
     static_assert(
-        !TIsNonConstReference<TA0>::Value,
+        !TIsNonConstReference<TA0>::value,
         "T is a non-const reference and should not be bound.");
 };
 
@@ -467,8 +459,8 @@ public:
 template <bool CaptureTraceContext, class TFunctor, class TSequence, class... TBs>
 class TBindState;
 
-template <bool CaptureTraceContext, class TFunctor, class... TBs, unsigned... BoundIndexes>
-class TBindState<CaptureTraceContext, TFunctor, NMpl::TSequence<BoundIndexes...>, TBs...>
+template <bool CaptureTraceContext, class TFunctor, class... TBs, size_t... BoundIndexes>
+class TBindState<CaptureTraceContext, TFunctor, std::index_sequence<BoundIndexes...>, TBs...>
     : public NDetail::TBindStateBase
     , public TTraceContextMixin<CaptureTraceContext>
 {
@@ -546,17 +538,17 @@ auto Bind(
     Y_UNUSED(location);
 #endif
 
-    using TTraits = NDetail::TFunctorTraits<typename NMpl::TDecay<TFunctor>::TType>;
+    using TTraits = NDetail::TFunctorTraits<typename std::decay_t<TFunctor>>;
     using TRunSignature = typename NDetail::TSplit<sizeof...(TBs), typename TTraits::TSignature>::TResult;
 
-    NYT::NDetail::TCheckParamsIsRawPtrToRefCountedType<typename NMpl::TDecay<TBs>::TType...> checkParamsIsRawPtrToRefCountedType;
+    NYT::NDetail::TCheckParamsNoRawPtrToRefCountedType<typename std::decay_t<TBs>...> checkParamsIsRawPtrToRefCountedType;
     Y_UNUSED(checkParamsIsRawPtrToRefCountedType);
 
     using TState = NYT::NDetail::TBindState<
         CaptureTraceContext,
         typename TTraits::TInvoker,
-        typename NMpl::TGenerateSequence<sizeof...(TBs)>::TType,
-        typename NMpl::TDecay<TBs>::TType...>;
+        typename std::make_index_sequence<sizeof...(TBs)>,
+        typename std::decay_t<TBs>...>;
 
     using THelper = NYT::NDetail::TBindHelper<TRunSignature>;
 

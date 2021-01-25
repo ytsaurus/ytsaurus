@@ -5,7 +5,6 @@
 #include "object_pool.h"
 #endif
 
-#include "mpl.h"
 
 namespace NYT {
 
@@ -96,9 +95,9 @@ TObjectPool<T, TTraits>& ObjectPool()
 template <class T>
 struct TPooledObjectTraits<
     T,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T&, ::google::protobuf::MessageLite&>
-    >::TType
+    typename std::enable_if_t<
+        std::is_convertible_v<T&, ::google::protobuf::MessageLite&>
+    >
 >
     : public TPooledObjectTraitsBase<T>
 {

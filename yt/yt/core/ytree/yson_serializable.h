@@ -219,7 +219,7 @@ template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, NYTree::TYsonSerializableLite&>>::TType>
+    typename std::enable_if_t<std::is_convertible_v<T&, NYTree::TYsonSerializableLite&>>>
 {
     typedef TBinaryYsonSerializer TSerializer;
 };

@@ -598,7 +598,7 @@ TIntrusivePtr<T> UpdateYsonSerializable(
     const NYTree::INodePtr& patch)
 {
     static_assert(
-        NMpl::TIsConvertible<T*, TYsonSerializable*>::Value,
+        std::is_convertible_v<T*, TYsonSerializable*>,
         "'obj' must be convertible to TYsonSerializable");
 
     using NYTree::INodePtr;

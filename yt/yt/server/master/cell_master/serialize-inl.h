@@ -126,14 +126,14 @@ template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename NMpl::TEnableIfC<
-        NMpl::TAndC<
-            NMpl::TIsConvertible<T, const NObjectServer::TObject*>::Value,
-            NMpl::TNotC<
-                NMpl::TIsConvertible<T, const NCypressServer::TCypressNode*>::Value
-            >::Value
-        >::Value
-    >::TType
+    typename std::enable_if_t<
+        std::conjunction_v<
+            std::is_convertible<T, const NObjectServer::TObject*>,
+            std::negation<
+                std::is_convertible<T, const NCypressServer::TCypressNode*>
+            >
+        >
+    >
 >
 {
     using TSerializer = NCellMaster::TNonversionedObjectRefSerializer;
@@ -144,9 +144,9 @@ template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T, const NCypressServer::TCypressNode*>
-    >::TType
+    typename std::enable_if_t<
+        std::is_convertible_v<T, const NCypressServer::TCypressNode*>
+    >
 >
 {
     using TSerializer = NCellMaster::TVersionedObjectRefSerializer;
