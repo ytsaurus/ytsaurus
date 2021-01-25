@@ -28,6 +28,8 @@ public:
     // NB: exception is raised upon validation fails. Caller is obliged to restore correct state.
     void ValidateAll();
     void ValidateChildrenCompatibility();
+    void ValidateStrongGuarantees(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig) const;
+    void ValidateStrongGuaranteesRecursively(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig) const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -52,6 +54,9 @@ public:
 
 private:
     using TBase = NObjectServer::TNonversionedMapObjectBase<TSchedulerPool>;
+
+    NScheduler::TFairShareStrategyTreeConfigPtr GetPoolTreeConfig() const;
+    void DoValidateStrongGuarantees(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig, bool recursive) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

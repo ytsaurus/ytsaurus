@@ -279,6 +279,8 @@ public:
     // then it uses heap for maintaining best active child.
     int MinChildHeapSize;
 
+    EJobResourceType MainResource;
+
     TFairShareStrategyTreeConfig();
 };
 

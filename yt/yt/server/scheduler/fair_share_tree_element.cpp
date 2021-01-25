@@ -356,9 +356,7 @@ void TSchedulerElement::UpdateAttributes()
     YT_VERIFY(Dominates(TResourceVector::Ones(), Attributes_.LimitsShare));
     YT_VERIFY(Dominates(Attributes_.LimitsShare, TResourceVector::Zero()));
 
-    // TODO(eshcherbin): Make StrongGuarantee a true vector (see: YT-13755).
-    auto strongGuaranteeDominantShare = GetMaxResourceRatio(GetStrongGuaranteeResources(), TotalResourceLimits_);
-    Attributes_.StrongGuaranteeShare = TResourceVector::FromDouble(strongGuaranteeDominantShare);
+    Attributes_.StrongGuaranteeShare = TResourceVector::FromJobResources(EffectiveStrongGuaranteeResources_, TotalResourceLimits_);
 
     // NB: We need to ensure that |FairShareByFitFactor_(0.0)| is less than or equal to |LimitsShare| so that there exists a feasible fit factor and |MaxFitFactorBySuggestion_| is well defined.
     // To achieve this we limit |StrongGuarantee| with |LimitsShare| here, and later adjust the sum of children's |StrongGuarantee| to fit into the parent's |StrongGuarantee|.
@@ -371,8 +369,8 @@ void TSchedulerElement::UpdateAttributes()
         Attributes_.DominantResource = GetDominantResource(ResourceUsageAtUpdate_, TotalResourceLimits_);
     }
 
-    Attributes_.UsageShare = TResourceVector::FromJobResources(ResourceUsageAtUpdate_, TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
-    Attributes_.DemandShare = TResourceVector::FromJobResources(ResourceDemand_, TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
+    Attributes_.UsageShare = TResourceVector::FromJobResources(ResourceUsageAtUpdate_, TotalResourceLimits_);
+    Attributes_.DemandShare = TResourceVector::FromJobResources(ResourceDemand_, TotalResourceLimits_);
     YT_VERIFY(Dominates(Attributes_.DemandShare, Attributes_.UsageShare));
 }
 
@@ -488,6 +486,23 @@ double TSchedulerElement::GetWeight() const
         parentStrongGuaranteeDominantShare;
 }
 
+TResourceLimitsConfigPtr TSchedulerElement::GetStrongGuaranteeResourcesConfig() const
+{
+    return nullptr;
+}
+
+TJobResources TSchedulerElement::GetSpecifiedStrongGuaranteeResources() const
+{
+    auto guaranteeConfig = GetStrongGuaranteeResourcesConfig();
+    YT_VERIFY(guaranteeConfig);
+    return ToJobResources(guaranteeConfig, {});
+}
+
+void TSchedulerElement::DetermineEffectiveStrongGuaranteeResources()
+{
+    YT_VERIFY(Mutable_);
+}
+
 TCompositeSchedulerElement* TSchedulerElement::GetMutableParent()
 {
     return Parent_;
@@ -566,8 +581,7 @@ double TSchedulerElement::GetMaxShareRatio() const
 
 TResourceVector TSchedulerElement::GetResourceUsageShare() const
 {
-    return TResourceVector::FromJobResources(
-        ResourceUsageAtUpdate_, TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
+    return TResourceVector::FromJobResources(ResourceUsageAtUpdate_, TotalResourceLimits_);
 }
 
 double TSchedulerElement::GetResourceDominantUsageShareAtUpdate() const
@@ -653,7 +667,7 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio(const TJobResources& res
         return InfiniteSatisfactionRatio;
     }
 
-    auto usageShare = TResourceVector::FromJobResources(resourceUsage, TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
+    auto usageShare = TResourceVector::FromJobResources(resourceUsage, TotalResourceLimits_);
 
     // Check if the element is over-satisfied.
     if (TResourceVector::Any(usageShare, fairShare, [] (double usage, double fair) { return usage > fair; })) {
@@ -803,11 +817,7 @@ TJobResources TSchedulerElement::GetTotalResourceLimits() const
 
 TResourceVector TSchedulerElement::ComputeLimitsShare() const
 {
-    return TResourceVector::FromJobResources(
-        Min(ResourceLimits_, TotalResourceLimits_),
-        TotalResourceLimits_,
-        /* zeroDivByZero */ 1.0,
-        /* oneDivByZero */ 1.0);
+    return TResourceVector::FromJobResources(Min(ResourceLimits_, TotalResourceLimits_), TotalResourceLimits_);
 }
 
 TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
@@ -1535,9 +1545,11 @@ void TCompositeSchedulerElement::ProfileFull(bool profilingCompatibilityEnabled)
     buffer.AddGauge("/running_operation_count", RunningOperationCount());
     buffer.AddGauge("/total_operation_count", OperationCount());
     if (profilingCompatibilityEnabled) {
-        ProfileResources(&buffer, GetStrongGuaranteeResources(), "/min_share_resources");
+        ProfileResources(&buffer, GetSpecifiedStrongGuaranteeResources(), "/min_share_resources");
+        ProfileResources(&buffer, EffectiveStrongGuaranteeResources(), "/effective_min_share_resources");
     } else {
-        ProfileResources(&buffer, GetStrongGuaranteeResources(), "/strong_guarantee_resources");
+        ProfileResources(&buffer, GetSpecifiedStrongGuaranteeResources(), "/strong_guarantee_resources");
+        ProfileResources(&buffer, EffectiveStrongGuaranteeResources(), "/effective_strong_guarantee_resources");
     }
     ProducerBuffer_->Update(std::move(buffer));
 }
@@ -1679,7 +1691,7 @@ void TCompositeSchedulerElement::AdjustStrongGuarantees()
     }
 
     if (IsRoot()) {
-        Attributes_.PromisedFairShare = TResourceVector::Ones();
+        Attributes_.PromisedFairShare = TResourceVector::FromJobResources(TotalResourceLimits_, TotalResourceLimits_);
     }
 
     double weightSum = 0.0;
@@ -1989,6 +2001,78 @@ double TCompositeSchedulerElement::GetMinChildWeight(const TChildList& children)
     return minWeight;
 }
 
+void TCompositeSchedulerElement::DetermineEffectiveStrongGuaranteeResources()
+{
+    YT_VERIFY(Mutable_);
+
+    TJobResources totalExplicitChildrenGuaranteeResources;
+    TJobResources totalEffectiveChildrenGuaranteeResources;
+    auto mainResource = TreeConfig_->MainResource;
+    for (const auto& child : EnabledChildren_) {
+        auto& childEffectiveGuaranteeResources = child->EffectiveStrongGuaranteeResources();
+        childEffectiveGuaranteeResources = child->GetSpecifiedStrongGuaranteeResources();
+        totalExplicitChildrenGuaranteeResources += childEffectiveGuaranteeResources;
+
+        double mainResourceRatio = GetResource(EffectiveStrongGuaranteeResources_, mainResource) > 0
+            ? GetResource(childEffectiveGuaranteeResources, mainResource) / GetResource(EffectiveStrongGuaranteeResources_, mainResource)
+            : 0.0;
+        auto childGuaranteeConfig = child->GetStrongGuaranteeResourcesConfig();
+        #define XX(name, Name) \
+            if (!childGuaranteeConfig->Name && EJobResourceType::Name != mainResource) { \
+                auto parentGuarantee = EffectiveStrongGuaranteeResources_.Get##Name(); \
+                childEffectiveGuaranteeResources.Set##Name(parentGuarantee * mainResourceRatio); \
+            }
+        ITERATE_JOB_RESOURCES(XX)
+        #undef XX
+
+        totalEffectiveChildrenGuaranteeResources += childEffectiveGuaranteeResources;
+    }
+
+    // NB: It is possible to overcommit guarantees at the first level of the tree, so we don't want to do
+    // additional checks and rescaling. Instead, we handle this later when we adjust |StrongGuaranteeShare|.
+    if (!IsRoot()) {
+        // NB: This should never happen because we validate the guarantees at master.
+        YT_LOG_WARNING_IF(!Dominates(EffectiveStrongGuaranteeResources_, totalExplicitChildrenGuaranteeResources),
+            "Total children's explicit strong guarantees exceeds the effective strong guarantee at pool"
+            "(EffectiveStrongGuarantees: %v, TotalExplicitChildrenGuarantees: %v)",
+            EffectiveStrongGuaranteeResources_,
+            totalExplicitChildrenGuaranteeResources);
+
+        auto residualGuaranteeResources = Max(EffectiveStrongGuaranteeResources_ - totalExplicitChildrenGuaranteeResources, TJobResources{});
+        auto totalImplicitChildrenGuaranteeResources = totalEffectiveChildrenGuaranteeResources - totalExplicitChildrenGuaranteeResources;
+        auto adjustImplicitGuaranteesForResource = [&] (EJobResourceType resourceType, auto TResourceLimitsConfig::* resourceDataMember) {
+            if (resourceType == mainResource) {
+                return;
+            }
+
+            auto residualGuarantee = GetResource(residualGuaranteeResources, resourceType);
+            auto totalImplicitChildrenGuarantee = GetResource(totalImplicitChildrenGuaranteeResources, resourceType);
+            if (residualGuarantee >= totalImplicitChildrenGuarantee) {
+                return;
+            }
+
+            double scalingFactor = residualGuarantee / totalImplicitChildrenGuarantee;
+            for (const auto& child : EnabledChildren_) {
+                if ((child->GetStrongGuaranteeResourcesConfig().Get()->*resourceDataMember).has_value()) {
+                    continue;
+                }
+
+                auto childGuarantee = GetResource(child->EffectiveStrongGuaranteeResources(), resourceType);
+                SetResource(child->EffectiveStrongGuaranteeResources(), resourceType, childGuarantee * scalingFactor);
+            }
+        };
+
+        #define XX(name, Name) \
+            adjustImplicitGuaranteesForResource(EJobResourceType::Name, &TResourceLimitsConfig::Name);
+        ITERATE_JOB_RESOURCES(XX)
+        #undef XX
+    }
+
+    for (const auto& child : EnabledChildren_) {
+        child->DetermineEffectiveStrongGuaranteeResources();
+    }
+}
+
 TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const
 {
     const auto& childHeap = dynamicAttributesList[GetTreeIndex()].ChildHeap;
@@ -2117,7 +2201,7 @@ void TCompositeSchedulerElement::BuildResourceMetering(const std::optional<TMete
     YT_VERIFY(key || parentKey);
 
     if (key) {
-        YT_VERIFY(statistics->insert({*key, TMeteringStatistics(GetStrongGuaranteeResources(), ResourceUsageAtUpdate(), GetJobMetrics())}).second);
+        YT_VERIFY(statistics->insert({*key, TMeteringStatistics(GetSpecifiedStrongGuaranteeResources(), ResourceUsageAtUpdate(), GetJobMetrics())}).second);
     }
 
     for (const auto& child : EnabledChildren_) {
@@ -2322,9 +2406,9 @@ std::optional<double> TPool::GetSpecifiedWeight() const
     return Config_->Weight;
 }
 
-TJobResources TPool::GetStrongGuaranteeResources() const
+TResourceLimitsConfigPtr TPool::GetStrongGuaranteeResourcesConfig() const
 {
-    return ToJobResources(Config_->StrongGuaranteeResources, {});
+    return Config_->StrongGuaranteeResources;
 }
 
 TResourceVector TPool::GetMaxShare() const
@@ -2681,7 +2765,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
     auto guard = WriterGuard(JobPropertiesMapLock_);
 
     auto getUsageShare = [&] (const TJobResources& resourceUsage) -> TResourceVector {
-        return TResourceVector::FromJobResources(resourceUsage, totalResourceLimits, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
+        return TResourceVector::FromJobResources(resourceUsage, totalResourceLimits);
     };
 
     auto balanceLists = [&] (
@@ -3229,11 +3313,7 @@ void TOperationElement::UpdateCumulativeAttributes(TUpdateFairShareContext* cont
             ResourceDemand_,
             TotalResourceLimits_,
             GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
-        PersistentAttributes_.BestAllocationShare = TResourceVector::FromJobResources(
-            allocationLimits,
-            TotalResourceLimits_,
-            /* zeroDivByZero */ 0.0,
-            /* oneDivByZero */ 1.0);
+        PersistentAttributes_.BestAllocationShare = TResourceVector::FromJobResources(allocationLimits, TotalResourceLimits_);
         PersistentAttributes_.LastBestAllocationRatioUpdateTime = context->Now;
     }
 
@@ -3745,9 +3825,9 @@ std::optional<double> TOperationElement::GetSpecifiedWeight() const
     return RuntimeParameters_->Weight;
 }
 
-TJobResources TOperationElement::GetStrongGuaranteeResources() const
+TResourceLimitsConfigPtr TOperationElement::GetStrongGuaranteeResourcesConfig() const
 {
-    return ToJobResources(Spec_->StrongGuaranteeResources, {});
+    return Spec_->StrongGuaranteeResources;
 }
 
 TResourceVector TOperationElement::GetMaxShare() const
@@ -4470,6 +4550,7 @@ void TRootElement::Update(TUpdateFairShareContext* context)
     VERIFY_INVOKER_AFFINITY(Host_->GetFairShareUpdateInvoker());
     TForbidContextSwitchGuard contextSwitchGuard;
 
+    DetermineEffectiveStrongGuaranteeResources();
     InitIntegralPoolLists(context);
     UpdateCumulativeAttributes(context);
     ConsumeAndRefillIntegralPools(context);
@@ -4564,9 +4645,18 @@ std::optional<double> TRootElement::GetSpecifiedWeight() const
     return std::nullopt;
 }
 
-TJobResources TRootElement::GetStrongGuaranteeResources() const
+TJobResources TRootElement::GetSpecifiedStrongGuaranteeResources() const
 {
     return TotalResourceLimits_;
+}
+
+void TRootElement::DetermineEffectiveStrongGuaranteeResources()
+{
+    YT_VERIFY(Mutable_);
+
+    EffectiveStrongGuaranteeResources_ = TotalResourceLimits_;
+
+    TCompositeSchedulerElement::DetermineEffectiveStrongGuaranteeResources();
 }
 
 TResourceVector TRootElement::GetMaxShare() const
@@ -4663,7 +4753,7 @@ void TRootElement::BuildResourceDistributionInfo(TFluentMap fluent) const
     double distributedStrongGuaranteeDominantShare = 0.0;
     for (const auto& child : EnabledChildren_) {
         // TODO(renadeen): Fix when strong guarantee share becomes disproportional.
-        distributedStrongGuaranteeDominantShare += GetMaxResourceRatio(child->GetStrongGuaranteeResources(), TotalResourceLimits_);
+        distributedStrongGuaranteeDominantShare += GetMaxResourceRatio(child->GetSpecifiedStrongGuaranteeResources(), TotalResourceLimits_);
     }
     double maxDistributedIntegralRatio = std::max(Attributes_.TotalBurstRatio, Attributes_.TotalResourceFlowRatio);
     double undistributedResourceFlowRatio = std::max(Attributes_.TotalBurstRatio - Attributes_.TotalResourceFlowRatio, 0.0);

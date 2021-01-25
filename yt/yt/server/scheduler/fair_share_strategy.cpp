@@ -940,11 +940,7 @@ public:
                 promisedFairShare = poolStateSnapshot->PromisedFairShare;
             }
 
-            auto newDemandShare = TResourceVector::FromJobResources(
-                newDemand,
-                totalResourceLimits,
-                /* zeroDivByZero */ 0.0,
-                /* oneDivByZero */ 1.0);
+            auto newDemandShare = TResourceVector::FromJobResources(newDemand, totalResourceLimits);
             auto modelDemandShare = newDemandShare + currentDemandShare;
             auto reserveShare = promisedFairShare - modelDemandShare;
 
