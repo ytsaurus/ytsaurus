@@ -475,9 +475,9 @@ private:
             YT_LOG_DEBUG("Journal chunk session aborted successfully (Replica: %v)",
                 replica);
         } else {
-            InnerErrors_.push_back(rspOrError);
             YT_LOG_WARNING(rspOrError, "Failed to abort journal chunk session (Replica: %v)",
                 replica);
+            InnerErrors_.push_back(rspOrError);
         }
 
         if (IsSuccess()) {
@@ -561,9 +561,11 @@ private:
     };
     std::vector<TChunkMetaResult> ChunkMetaResults_;
 
+    bool HeaderResponseReceived_ = false;
     std::optional<NJournalClient::NProto::TOverlayedJournalChunkHeader> Header_;
 
-    std::vector<TError> InnerErrors_;
+    std::vector<TError> ChunkMetaInnerErrors_;
+    std::vector<TError> HeaderBlockInnerErrors_;
 
     const TPromise<TChunkQuorumInfo> Promise_ = NewPromise<TChunkQuorumInfo>();
 
@@ -629,10 +631,10 @@ private:
         const TDataNodeServiceProxy::TErrorOrRspGetChunkMetaPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            auto error = TError("Failed to get chunk meta for replica %v", replica)
-                << rspOrError;
-            InnerErrors_.push_back(error);
-            YT_LOG_WARNING(error);
+            YT_LOG_WARNING(rspOrError, "Failed to get journal chunk meta (Replica: %v)",
+                replica);
+            ChunkMetaInnerErrors_.push_back(TError("Failed to get chunk meta for replica %v", replica)
+                << rspOrError);
             return;
         }
 
@@ -660,16 +662,18 @@ private:
         const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            auto error = TError("Failed to get chunk header block for replica %v", replica)
-                << rspOrError;
-            InnerErrors_.push_back(error);
-            YT_LOG_WARNING(error);
+            YT_LOG_WARNING(rspOrError, "Failed to get journal chunk header block (Replica: %v)",
+                replica);
+            HeaderBlockInnerErrors_.push_back(TError("Failed to get journal chunk header block for replica %v", replica)
+                << rspOrError);
             return;
         }
 
         if (Header_) {
             return;
         }
+
+        HeaderResponseReceived_ = true;
 
         const auto& rsp = rspOrError.Value();
 
@@ -681,10 +685,10 @@ private:
 
         NJournalClient::NProto::TOverlayedJournalChunkHeader header;
         if (!TryDeserializeProto(&header, rsp->Attachments()[0])) {
-            auto error = TError("Error parsing header block received from replica %v", replica)
-                << rspOrError;
-            InnerErrors_.push_back(error);
-            YT_LOG_WARNING(error);
+            YT_LOG_WARNING(rspOrError, "Error parsing journal chunk header block (Replica: %v)",
+                replica);
+            ChunkMetaInnerErrors_.push_back(TError("Error parsing journal chunk header block received from replica %v", replica)
+                << rspOrError);
             return;
         }
 
@@ -719,7 +723,7 @@ private:
                 ChunkId_,
                 ChunkMetaResults_.size(),
                 Quorum_)
-                << InnerErrors_);
+                << ChunkMetaInnerErrors_);
             return;
         }
 
@@ -728,6 +732,12 @@ private:
 
         TChunkQuorumInfo result;
         if (Overlayed_) {
+            if (!HeaderResponseReceived_) {
+                Promise_.Set(TError("Could not receive successful response to any header request for overlayed journal chunk %v",
+                    ChunkId_)
+                    << HeaderBlockInnerErrors_);
+                return;
+            }
             if (Header_) {
                 result.FirstOverlayedRowIndex = Header_->first_row_index();
                 result.RowCount = miscExt.row_count() - 1;
