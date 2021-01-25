@@ -277,6 +277,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("min_child_heap_size", MinChildHeapSize)
         .Default(16);
 
+    RegisterParameter("main_resource", MainResource)
+        .Default(EJobResourceType::Cpu);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")

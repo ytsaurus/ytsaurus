@@ -339,6 +339,20 @@ double GetResource(const TJobResources& resources, EJobResourceType type)
     }
 }
 
+void SetResource(TJobResources& resources, EJobResourceType type, double value)
+{
+    switch (type) {
+        #define XX(name, Name) \
+            case EJobResourceType::Name: \
+                resources.Set##Name(value); \
+                break;
+        ITERATE_JOB_RESOURCES(XX)
+        #undef XX
+        default:
+            YT_ABORT();
+    }
+}
+
 double GetMinResourceRatio(
     const TJobResources& nominator,
     const TJobResources& denominator)

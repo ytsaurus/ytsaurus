@@ -55,6 +55,7 @@ void TSchedulerPool::ValidateAll()
 {
     FullConfig_->Validate();
     ValidateChildrenCompatibility();
+    ValidateStrongGuarantees(GetPoolTreeConfig());
     GetParent()->ValidateChildrenCompatibility();
 }
 
@@ -90,6 +91,65 @@ void TSchedulerPool::ValidateChildrenCompatibility()
         THROW_ERROR_EXCEPTION("Pool %Qv cannot have subpools since it is in FIFO mode")
             << TErrorAttribute("pool_name", GetName());
     }
+}
+
+void TSchedulerPool::ValidateStrongGuarantees(const TFairShareStrategyTreeConfigPtr& poolTreeConfig) const
+{
+    DoValidateStrongGuarantees(poolTreeConfig, /* recursive */ false);
+}
+
+void TSchedulerPool::ValidateStrongGuaranteesRecursively(const TFairShareStrategyTreeConfigPtr& poolTreeConfig) const
+{
+    DoValidateStrongGuarantees(poolTreeConfig, /* recursive */ true);
+}
+
+void TSchedulerPool::DoValidateStrongGuarantees(const TFairShareStrategyTreeConfigPtr& poolTreeConfig, bool recursive) const
+{
+    bool hasMainResourceGuarantee = false;
+    bool hasAnyResourceGuarantee = false;
+    FullConfig()->StrongGuaranteeResources->ForEachResource([&] (auto TResourceLimitsConfig::* resourceDataMember, EJobResourceType resourceType) {
+        bool hasResourse = (FullConfig()->StrongGuaranteeResources.Get()->*resourceDataMember).has_value();
+        hasAnyResourceGuarantee |= hasResourse;
+        if (resourceType == poolTreeConfig->MainResource) {
+            hasMainResourceGuarantee = hasResourse;
+        }
+    });
+
+    if (hasAnyResourceGuarantee && !hasMainResourceGuarantee) {
+        THROW_ERROR_EXCEPTION("Main resource guarantee must be specified in order to set guarantees for any other resource")
+            << TErrorAttribute("pool_name", GetName())
+            << TErrorAttribute("main_resource", poolTreeConfig->MainResource)
+            << TErrorAttribute("guarantee_config", FullConfig()->StrongGuaranteeResources);
+    }
+
+    if (recursive) {
+        for (const auto& [_, child] : KeyToChild_) {
+            child->DoValidateStrongGuarantees(poolTreeConfig, recursive);
+        }
+    }
+}
+
+TFairShareStrategyTreeConfigPtr TSchedulerPool::GetPoolTreeConfig() const
+{
+    const TSchedulerPool* schedulerPool = this;
+    while (auto* parent = schedulerPool->GetParent()) {
+        schedulerPool = parent;
+    }
+    YT_VERIFY(schedulerPool->IsRoot());
+    auto* poolTree = schedulerPool->GetMaybePoolTree();
+
+    TFairShareStrategyTreeConfigPtr poolTreeConfig;
+    auto specifiedConfig = poolTree->SpecifiedConfig();
+    try {
+        poolTreeConfig = ConvertTo<TFairShareStrategyTreeConfigPtr>(specifiedConfig);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Invalid pool tree config")
+            << TErrorAttribute("pool_tree", poolTree->GetTreeName())
+            << ex;
+    }
+
+    YT_VERIFY(poolTreeConfig);
+    return poolTreeConfig;
 }
 
 void TSchedulerPool::Save(NCellMaster::TSaveContext& context) const
@@ -191,6 +251,7 @@ void TSchedulerPool::GuardedUpdatePoolAttribute(
         throw;
     }
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerPoolTree::TSchedulerPoolTree(NCypressClient::TObjectId id)

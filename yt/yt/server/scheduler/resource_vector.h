@@ -59,8 +59,8 @@ public:
     static TResourceVector FromJobResources(
         const TJobResources& resources,
         const TJobResources& totalLimits,
-        double zeroDivByZero,
-        double oneDivByZero)
+        double zeroDivByZero = 0.0,
+        double oneDivByZero = 0.0)
     {
         TResourceVector result = {};
         int resourceId = 0;

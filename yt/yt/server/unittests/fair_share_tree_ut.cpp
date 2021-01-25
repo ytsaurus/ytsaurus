@@ -669,7 +669,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
         rootElement->PreUpdate(&updateContext);
         rootElement->Update(&updateContext);
 
-        auto expectedOperationDemand = TResourceVector::FromJobResources(jobResources, nodeResources, 0.0, 1.0);
+        auto expectedOperationDemand = TResourceVector::FromJobResources(jobResources, nodeResources);
         auto poolExpectedDemand = expectedOperationDemand * (OperationCount / 2.0);
         auto totalExpectedDemand = expectedOperationDemand * OperationCount;
 
@@ -762,6 +762,8 @@ TEST_F(TFairShareTreeTest, TestResourceLimits)
     nodeResources.SetCpu(10);
     nodeResources.SetMemory(100);
 
+    auto totalLimitsShare = TResourceVector::FromJobResources(nodeResources.ToJobResources(), nodeResources.ToJobResources());
+
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
 
     auto rootElement = CreateTestRootElement(host.Get());
@@ -778,15 +780,15 @@ TEST_F(TFairShareTreeTest, TestResourceLimits)
         rootElement->PreUpdate(&updateContext);
         rootElement->Update(&updateContext);
 
-        EXPECT_EQ(TResourceVector::Ones(), rootElement->Attributes().LimitsShare);
+        EXPECT_EQ(totalLimitsShare, rootElement->Attributes().LimitsShare);
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
 
-        EXPECT_EQ(TResourceVector::Ones(), poolA->Attributes().LimitsShare);
+        EXPECT_EQ(totalLimitsShare, poolA->Attributes().LimitsShare);
         EXPECT_EQ(nodeResources.ToJobResources(), poolA->ResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
 
-        EXPECT_EQ(TResourceVector::Ones(), poolB->Attributes().LimitsShare);
+        EXPECT_EQ(totalLimitsShare, poolB->Attributes().LimitsShare);
         EXPECT_EQ(nodeResources.ToJobResources(), poolB->ResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolB->GetTotalResourceLimits());
     }
@@ -813,17 +815,17 @@ TEST_F(TFairShareTreeTest, TestResourceLimits)
         rootElement->PreUpdate(&updateContext);
         rootElement->Update(&updateContext);
 
-        EXPECT_EQ(TResourceVector::Ones(), rootElement->Attributes().LimitsShare);
+        EXPECT_EQ(totalLimitsShare, rootElement->Attributes().LimitsShare);
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
 
-        auto poolALimitsShare = TResourceVector::FromJobResources(poolAResourceLimits, nodeResources, 1.0, 1.0);
+        auto poolALimitsShare = TResourceVector::FromJobResources(poolAResourceLimits, nodeResources);
         EXPECT_EQ(poolALimitsShare, poolA->Attributes().LimitsShare);
         EXPECT_EQ(poolAResourceLimits, poolA->ResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
 
         auto poolBResourceLimits = nodeResources * maxShareRatio;
-        auto poolBLimitsShare = TResourceVector::FromJobResources(poolBResourceLimits, nodeResources, 1.0, 1.0);
+        auto poolBLimitsShare = TResourceVector::FromJobResources(poolBResourceLimits, nodeResources);
         EXPECT_EQ(poolBLimitsShare, poolB->Attributes().LimitsShare);
         EXPECT_EQ(poolBResourceLimits, poolB->ResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolB->GetTotalResourceLimits());
@@ -836,6 +838,8 @@ TEST_F(TFairShareTreeTest, TestFractionalResourceLimits)
     nodeResources.SetUserSlots(10);
     nodeResources.SetCpu(11.17);
     nodeResources.SetMemory(100);
+
+    auto totalLimitsShare = TResourceVector::FromJobResources(nodeResources.ToJobResources(), nodeResources.ToJobResources());
 
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
 
@@ -861,11 +865,11 @@ TEST_F(TFairShareTreeTest, TestFractionalResourceLimits)
         rootElement->PreUpdate(&updateContext);
         rootElement->Update(&updateContext);
 
-        EXPECT_EQ(TResourceVector::Ones(), rootElement->Attributes().LimitsShare);
+        EXPECT_EQ(totalLimitsShare, rootElement->Attributes().LimitsShare);
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
 
-        auto poolLimitsShare = TResourceVector::FromJobResources(poolResourceLimits, nodeResources, 1.0, 1.0);
+        auto poolLimitsShare = TResourceVector::FromJobResources(poolResourceLimits, nodeResources);
         EXPECT_EQ(poolLimitsShare, poolA->Attributes().LimitsShare);
         EXPECT_EQ(poolResourceLimits.ToJobResources(), poolA->ResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
@@ -961,8 +965,8 @@ TEST_F(TFairShareTreeTest, TestBestAllocationShare)
     rootElement->Update(&updateContext);
 
     auto totalResources = nodeResourcesA * 2. + nodeResourcesB;
-    auto demandShare = TResourceVector::FromJobResources(jobResources * 3., totalResources, 0.0, 1.0);
-    auto fairShare = TResourceVector::FromJobResources(jobResources, totalResources, 0.0, 1.0);
+    auto demandShare = TResourceVector::FromJobResources(jobResources * 3., totalResources);
+    auto fairShare = TResourceVector::FromJobResources(jobResources, totalResources);
     EXPECT_EQ(demandShare, operationElementX->Attributes().DemandShare);
     EXPECT_EQ(0.375, operationElementX->PersistentAttributes().BestAllocationShare[EJobResourceType::Memory]);
     EXPECT_RV_NEAR(fairShare, operationElementX->Attributes().FairShare.Total);
@@ -2210,7 +2214,7 @@ TEST_F(TFairShareTreeTest, PromisedFairShareOfIntegralPools)
         rootElement->PreUpdate(&updateContext);
         rootElement->Update(&updateContext);
 
-        TResourceVector unit = {0.1, 0.1, 0.1, 0.1, 0.1};
+        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 3, burstPool->Attributes().PromisedFairShare);
         EXPECT_RV_NEAR(unit * 3, burstPoolParent->Attributes().PromisedFairShare);
 

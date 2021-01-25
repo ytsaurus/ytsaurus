@@ -182,6 +182,11 @@ double GetResource(
     const TJobResources& resources,
     EJobResourceType type);
 
+void SetResource(
+    TJobResources& resources,
+    EJobResourceType type,
+    double value);
+
 double GetMinResourceRatio(
     const TJobResources& nominator,
     const TJobResources& denominator);

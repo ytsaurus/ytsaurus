@@ -2993,6 +2993,7 @@ class TestSchedulingSegments(YTEnvSetup):
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": [TestSchedulingSegments.DATA_CENTER],
         })
+        set("//sys/pool_trees/default/@config/main_resource", "gpu")
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
         wait(
             lambda: get(
@@ -3577,7 +3578,7 @@ class TestSchedulingSegments(YTEnvSetup):
     @authors("eshcherbin")
     def test_node_changes_trees(self):
         set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
 
         op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
         wait(lambda: len(op.get_running_jobs()) == 1)
@@ -3738,6 +3739,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS,
         })
+        set("//sys/pool_trees/default/@config/main_resource", "gpu")
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
         wait(
             lambda: get(
@@ -3861,7 +3863,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         assert node_to_disappear is not None
 
         set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
         set("//sys/cluster_nodes/" + node_to_disappear + "/@user_tags/end", "other")
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 4. / 9.))
 
@@ -4027,7 +4029,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
     def test_fail_large_gpu_operation_started_in_several_trees(self):
         node = list(ls("//sys/cluster_nodes"))[0]
         set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
 
         big_op = run_sleeping_vanilla(
@@ -4688,3 +4690,182 @@ class TestSatisfactionRatio(YTEnvSetup):
             )
         )
         wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("pool") + "/satisfaction_ratio"), 1.0))
+
+
+##################################################################
+
+
+class TestVectorStrongGuarantees(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 10,
+                    "user_slots": 10,
+                    "network": 100,
+                }
+            }
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,  # Update pools configuration period
+        }
+    }
+
+    def _are_almost_equal_vec(self, lhs, rhs):
+        for resource in ["cpu", "user_slots", "network"]:
+            if not are_almost_equal(lhs.get(resource, 0.0), rhs.get(resource, 0.0)):
+                return False
+        return True
+
+    def setup_method(self, method):
+        super(TestVectorStrongGuarantees, self).setup_method(method)
+        set("//sys/pool_trees/default/@config/main_resource", "cpu")
+
+    @authors("eshcherbin")
+    def test_explicit_guarantees(self):
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}})
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("pool") + "/strong_guarantee_resources"),
+            {"cpu": 30, "user_slots": 30}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("pool") + "/effective_strong_guarantee_resources"),
+            {"cpu": 30, "user_slots": 30, "network": 300}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("pool") + "/strong_guarantee_share"),
+            {"cpu": 1.0, "user_slots": 1.0, "network": 1.0}))
+
+        create_pool("subpool1", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 20}})
+        create_pool("subpool2", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 20, "user_slots": 10}})
+
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool1") + "/effective_strong_guarantee_resources"),
+            {"cpu": 10, "user_slots": 20, "network": 100}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool1") + "/strong_guarantee_share"),
+            {"cpu": 1.0 / 3.0, "user_slots": 2.0 / 3.0, "network": 1.0 / 3.0}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool2") + "/effective_strong_guarantee_resources"),
+            {"cpu": 20, "user_slots": 10, "network": 200}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool2") + "/strong_guarantee_share"),
+            {"cpu": 2.0 / 3.0, "user_slots": 1.0 / 3.0, "network": 2.0 / 3.0}))
+
+        run_sleeping_vanilla(job_count=3, spec={"pool": "pool"}, task_patch={"cpu_limit": 10})
+
+        op1 = run_sleeping_vanilla(job_count=20, spec={"pool": "subpool1"}, task_patch={"cpu_limit": 0.5})
+        op2 = run_sleeping_vanilla(job_count=10, spec={"pool": "subpool2"}, task_patch={"cpu_limit": 2})
+        wait(lambda: exists(scheduler_orchid_operation_path(op2.id)))
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op1.id) + "/detailed_fair_share/total/cpu"), 1.0 / 3.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op1.id) + "/detailed_fair_share/total/user_slots"), 2.0 / 3.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op2.id) + "/detailed_fair_share/total/cpu"), 2.0 / 3.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op2.id) + "/detailed_fair_share/total/user_slots"), 1.0 / 3.0))
+
+    @authors("eshcherbin")
+    def test_partially_explicit_guarantees_without_scaling(self):
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}})
+        create_pool("subpool1", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 15}})
+        create_pool("subpool2", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 5}})
+        create_pool("subpool3", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10}})
+
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool1") + "/effective_strong_guarantee_resources"),
+            {"cpu": 10, "user_slots": 15, "network": 100}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool1") + "/strong_guarantee_share"),
+            {"cpu": 1.0 / 3.0, "user_slots": 1.0 / 2.0, "network": 1.0 / 3.0}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool2") + "/effective_strong_guarantee_resources"),
+            {"cpu": 5, "user_slots": 5, "network": 50}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool2") + "/strong_guarantee_share"),
+            {"cpu": 1.0 / 6.0, "user_slots": 1.0 / 6.0, "network": 1.0 / 6.0}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool3") + "/effective_strong_guarantee_resources"),
+            {"cpu": 10, "user_slots": 10, "network": 100}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool3") + "/strong_guarantee_share"),
+            {"cpu": 1.0 / 3.0, "user_slots": 1.0 / 3.0, "network": 1.0 / 3.0}))
+
+    @authors("eshcherbin")
+    def test_partially_explicit_guarantees_with_scaling(self):
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}})
+        create_pool("subpool1", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 25}})
+        create_pool("subpool2", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 5}})
+        create_pool("subpool3", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10}})
+
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool1") + "/effective_strong_guarantee_resources"),
+            {"cpu": 10, "user_slots": 25, "network": 100}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool1") + "/strong_guarantee_share"),
+            {"cpu": 1.0 / 3.0, "user_slots": 5.0 / 6.0, "network": 1.0 / 3.0}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool2") + "/effective_strong_guarantee_resources"),
+            {"cpu": 5, "user_slots": 1, "network": 50}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool2") + "/strong_guarantee_share"),
+            {"cpu": 1.0 / 6.0, "user_slots": 1.0 / 30.0, "network": 1.0 / 6.0}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool3") + "/effective_strong_guarantee_resources"),
+            {"cpu": 10, "user_slots": 3, "network": 100}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("subpool3") + "/strong_guarantee_share"),
+            {"cpu": 1.0 / 3.0, "user_slots": 1.0 / 10.0, "network": 1.0 / 3.0}))
+
+    @authors("eshcherbin")
+    def test_guarantee_overcommit(self):
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"cpu": 15, "user_slots": 20}})
+        create_pool("pool2", attributes={"strong_guarantee_resources": {"cpu": 20}})
+
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("pool1") + "/effective_strong_guarantee_resources"),
+            {"cpu": 15, "user_slots": 20, "network": 150}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("pool1") + "/strong_guarantee_share"),
+            {"cpu": 3.0 / 8.0, "user_slots": 1.0 / 2.0, "network": 3.0 / 8.0}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("pool2") + "/effective_strong_guarantee_resources"),
+            {"cpu": 20, "user_slots": 20, "network": 200}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("pool2") + "/strong_guarantee_share"),
+            {"cpu": 1.0 / 2.0, "user_slots": 1.0 / 2.0, "network": 1.0 / 2.0}))
+
+    @authors("eshcherbin")
+    def test_children_compatibility_validation(self):
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}})
+        create_pool("subpool", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10}})
+
+        with pytest.raises(YtError):
+            create_pool("pubsubpool", parent_name="subpool", attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 5}})
+
+    @authors("eshcherbin")
+    def test_main_resource_validation_on_pool_config_update(self):
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}})
+        create_pool("subpool1", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 25}})
+
+        with pytest.raises(YtError):
+            set("//sys/pools/pool/subpool1/@strong_guarantee_resources", {"user_slots": 5})
+
+        set("//sys/pools/pool/subpool1/@strong_guarantee_resources", {"cpu": 0, "user_slots": 5})
+
+        with pytest.raises(YtError):
+            create_pool("subpool2", parent_name="pool", attributes={"strong_guarantee_resources": {"user_slots": 5}})
+
+    @authors("eshcherbin")
+    def test_main_resource_validation_on_tree_config_update(self):
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}})
+        create_pool("subpool1", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 1}})
+
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/default/@config/main_resource", "user_slots")
+
+        remove("//sys/pools/pool/subpool1")
+        set("//sys/pool_trees/default/@config/main_resource", "user_slots")

@@ -309,6 +309,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceDemand);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsageAtUpdate);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits, TJobResources::Infinite());
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, EffectiveStrongGuaranteeResources);
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYREF_RW_PROPERTY(TPersistentAttributes, PersistentAttributes);
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulingTagFilterIndex, EmptySchedulingTagFilterIndex);
@@ -428,7 +429,9 @@ public:
     virtual std::optional<double> GetSpecifiedWeight() const = 0;
     virtual double GetWeight() const;
 
-    virtual TJobResources GetStrongGuaranteeResources() const = 0;
+    virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const;
+    virtual TJobResources GetSpecifiedStrongGuaranteeResources() const;
+    virtual void DetermineEffectiveStrongGuaranteeResources();
 
     virtual TResourceVector GetMaxShare() const = 0;
 
@@ -679,6 +682,8 @@ public:
 
     virtual TResourceVector DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context) override;
 
+    virtual void DetermineEffectiveStrongGuaranteeResources() override;
+
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const = 0;
 
@@ -812,7 +817,7 @@ public:
     virtual TString GetId() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual TJobResources GetStrongGuaranteeResources() const override;
+    virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const override;
     virtual TResourceVector GetMaxShare() const override;
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const override;
 
@@ -1097,7 +1102,7 @@ public:
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual TJobResources GetStrongGuaranteeResources() const override;
+    virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const override;
     virtual TResourceVector GetMaxShare() const override;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
@@ -1293,7 +1298,8 @@ public:
     virtual TString GetId() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual TJobResources GetStrongGuaranteeResources() const override;
+    virtual TJobResources GetSpecifiedStrongGuaranteeResources() const override;
+    virtual void DetermineEffectiveStrongGuaranteeResources() override;
     virtual TResourceVector GetMaxShare() const override;
 
     virtual double GetFairShareStarvationTolerance() const override;
