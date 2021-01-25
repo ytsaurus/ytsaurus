@@ -1,11 +1,12 @@
 from .cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIMIT_ADDITION
 
 from yt.environment import YTInstance
+from yt.environment.api import LocalYtConfig
 from yt.environment.init_cluster import initialize_world
 import yt.environment.init_operation_archive as yt_env_init_operation_archive
 from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead_or_zombie, yatest_common
 from yt.wrapper.common import generate_uuid, GB
-from yt.common import YtError, require, get_value, is_process_alive
+from yt.common import YtError, require, is_process_alive
 
 
 import yt.yson as yson
@@ -157,7 +158,7 @@ def log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare
         environment.id))
     if start_proxy:
         logger.info("HTTP proxy addresses: %s", environment.get_http_proxy_addresses())
-        if environment._hostname != "localhost":
+        if "localhost" not in environment.get_proxy_address():
             logger.info("UI address: http://yt.yandex.net/%s", environment.get_proxy_address())
     if start_rpc_proxy:
         logger.info("GRPC proxy address: %s", environment.get_grpc_proxy_address())
@@ -237,6 +238,7 @@ _START_DEFAULTS = {
     "master_count": 1,
     "node_count": 1,
     "scheduler_count": 1,
+    "controller_agent_count": 1,
     "http_proxy_count": 1,
     "rpc_proxy_count": None,
     "secondary_master_cell_count": 0,
@@ -248,20 +250,53 @@ _START_DEFAULTS = {
     "node_chunk_store_quota": 7 * GB
 }
 
-def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_count=0, rpc_proxy_config=None,
-          master_config=None, node_config=None, scheduler_config=None, proxy_config=None, controller_agent_config=None,
-          http_proxy_ports=None, http_proxy_count=None, rpc_proxy_ports=None, id=None, local_cypress_dir=None,
-          enable_debug_logging=False, enable_logging_compression=False, tmpfs_path=None, port_range_start=None,
-          listen_port_pool=None, fqdn=None, path=None,
-          prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None, jobs_resource_limits=None,
-          node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
+def start(master_count=None,
+          node_count=None,
+          scheduler_count=None,
+          controller_agent_count=None,
+          rpc_proxy_count=0,
+          rpc_proxy_config=None,
+          master_config=None,
+          node_config=None,
+          scheduler_config=None,
+          proxy_config=None,
+          controller_agent_config=None,
+          http_proxy_ports=None,
+          http_proxy_count=None,
+          rpc_proxy_ports=None,
+          id=None,
+          local_cypress_dir=None,
+          enable_debug_logging=False,
+          enable_logging_compression=False,
+          tmpfs_path=None,
+          port_range_start=None,
+          listen_port_pool=None,
+          fqdn=None,
+          path=None,
+          prepare_only=False,
+          jobs_memory_limit=None,
+          jobs_cpu_limit=None,
+          jobs_user_slot_count=None,
+          jobs_resource_limits=None,
+          node_chunk_store_quota=None,
+          allow_chunk_storage_in_tmpfs=True,
+          wait_tablet_cell_initialization=False,
           init_operations_archive=False,
-          meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0,
-          ytserver_all_path=None, driver_backend=None, secondary_master_cell_count=None,
+          meta_files_suffix=None,
+          set_pdeath_sig=False,
+          watcher_config=None,
+          cell_tag=0,
+          ytserver_all_path=None,
+          driver_backend=None,
+          secondary_master_cell_count=None,
           log_compression_method=None):
+
     options = {}
     for name in _START_DEFAULTS:
-        options[name] = get_value(locals()[name], _START_DEFAULTS[name])
+        options[name] = _START_DEFAULTS[name] if locals()[name] is None else locals()[name]
+
+    options["secondary_cell_count"] = options["secondary_master_cell_count"]
+    del options["secondary_master_cell_count"]
 
     if options["rpc_proxy_count"] is None:
         options["rpc_proxy_count"] = 0
@@ -289,31 +324,36 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
 
     watcher_config = _load_config(watcher_config)
 
-    # Enable capturing stderrs to file
-    os.environ["YT_CAPTURE_STDERR_TO_FILE"] = "1"
+    if jobs_cpu_limit is not None:
+        options["jobs_resource_limits"]["cpu"] = jobs_cpu_limit
+    if jobs_memory_limit is not None:
+        options["jobs_resource_limits"]["memory"] = jobs_memory_limit
+    if jobs_user_slot_count is not None:
+        options["jobs_resource_limits"]["user_slots"] = jobs_user_slot_count
+
+    yt_config = LocalYtConfig(
+        http_proxy_ports=http_proxy_ports,
+        rpc_proxy_ports=rpc_proxy_ports,
+        enable_debug_logging=enable_debug_logging,
+        enable_log_compression=enable_logging_compression,
+        log_compression_method=log_compression_method,
+        port_range_start=port_range_start,
+        listen_port_pool=listen_port_pool,
+        fqdn=fqdn or socket.getfqdn(),
+        node_memory_limit_addition=NODE_MEMORY_LIMIT_ADDITION,
+        primary_cell_tag=cell_tag,
+        allow_chunk_storage_in_tmpfs=allow_chunk_storage_in_tmpfs,
+        **options
+    )
 
     environment = YTInstance(sandbox_path,
-                             http_proxy_ports=http_proxy_ports,
-                             rpc_proxy_ports=rpc_proxy_ports,
-                             enable_debug_logging=enable_debug_logging,
-                             enable_logging_compression=enable_logging_compression,
-                             log_compression_method=log_compression_method,
-                             port_range_start=port_range_start,
-                             listen_port_pool=listen_port_pool,
-                             fqdn=fqdn,
+                             yt_config,
                              preserve_working_dir=True,
-                             node_memory_limit_addition=NODE_MEMORY_LIMIT_ADDITION,
                              tmpfs_path=sandbox_tmpfs_path,
                              modify_configs_func=modify_configs_func,
                              kill_child_processes=set_pdeath_sig,
                              watcher_config=watcher_config,
-                             cell_tag=cell_tag,
-                             allow_chunk_storage_in_tmpfs=allow_chunk_storage_in_tmpfs,
-                             jobs_memory_limit=jobs_memory_limit,
-                             jobs_cpu_limit=jobs_cpu_limit,
-                             jobs_user_slot_count=jobs_user_slot_count,
-                             ytserver_all_path=ytserver_all_path,
-                             **options)
+                             ytserver_all_path=ytserver_all_path)
 
     environment.id = sandbox_id
 

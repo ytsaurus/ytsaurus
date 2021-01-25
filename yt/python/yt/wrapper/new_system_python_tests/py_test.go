@@ -261,7 +261,6 @@ func TestPyTest(t *testing.T) {
 		"PYTHONPATH="+strings.Join(pythonPaths, ":"),
 		"LD_LIBRARY_PATH="+yatest.PythonLibPath(),
 		"TESTS_SANDBOX="+sandboxDir,
-		"YT_CAPTURE_STDERR_TO_FILE=1",
 		"YT_ENABLE_VERBOSE_LOGGING=1",
 	)
 

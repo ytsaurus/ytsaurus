@@ -5,6 +5,7 @@ import yt_commands
 from yt_helpers import get_current_time, parse_yt_time
 
 from yt.environment import YTInstance, arcadia_interop
+from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.porto_helpers import remove_all_volumes
 from yt.environment.default_config import (
@@ -298,39 +299,37 @@ class YTEnvSetup(object):
     def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index)
 
-        capture_stderr_to_file = True
-
-        instance = YTInstance(
-            path,
+        yt_config=LocalYtConfig(
+            use_porto_for_servers=cls.USE_PORTO,
+            use_native_client=True,
             master_count=cls.get_param("NUM_MASTERS", index),
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
-            secondary_master_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
+            secondary_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
             clock_count=cls.get_param("NUM_CLOCKS", index),
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             defer_scheduler_start=cls.get_param("DEFER_SCHEDULER_START", index),
-            controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
+            controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index) if cls.get_param("NUM_CONTROLLER_AGENTS", index) is not None else cls.get_param("NUM_SCHEDULERS", index),
             defer_controller_agent_start=cls.get_param("DEFER_CONTROLLER_AGENT_START", index),
-            http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index)
-            if cls.get_param("ENABLE_HTTP_PROXY", index)
-            else 0,
+            http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0,
             rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
-            watcher_config={"disable_logrotate": True},
-            node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
-            kill_child_processes=True,
-            use_native_client=True,
-            use_porto_for_servers=cls.USE_PORTO,
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
+            primary_cell_tag=index * 10,
+            enable_structured_logging=True,
+            enable_log_compression=True, log_compression_method="zstd",
+            node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
+        )
+
+        instance = YTInstance(
+            path,
+            yt_config,
+            watcher_config={"disable_logrotate": True},
+            kill_child_processes=True,
             modify_configs_func=modify_configs_func,
-            cell_tag=index * 10,
-            enable_structured_master_logging=True,
-            enable_structured_scheduler_logging=True,
-            capture_stderr_to_file=capture_stderr_to_file,
             stderrs_path=os.path.join(arcadia_interop.yatest_common.output_path("yt_stderrs"), cls.run_name, str(index)),
-            enable_logging_compression=True, log_compression_method="zstd",
         )
 
         instance._cluster_name = cls.get_cluster_name(index)
@@ -432,12 +431,10 @@ class YTEnvSetup(object):
         yt_commands.wait_drivers()
 
         for env in [cls.Env] + cls.remote_envs:
-            # To avoid strange hangups.
-            if env.master_count > 0:
-                liveness_checker = Checker(lambda: env.check_liveness(callback_func=emergency_exit_within_tests))
-                liveness_checker.daemon = True
-                liveness_checker.start()
-                cls.liveness_checkers.append(liveness_checker)
+            liveness_checker = Checker(lambda: env.check_liveness(callback_func=emergency_exit_within_tests))
+            liveness_checker.daemon = True
+            liveness_checker.start()
+            cls.liveness_checkers.append(liveness_checker)
 
         if len(cls.Env.configs["master"]) > 0:
             clusters = {}

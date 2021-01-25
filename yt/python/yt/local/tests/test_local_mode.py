@@ -260,7 +260,7 @@ class TestLocalMode(object):
             start(master_count=0)
 
         with local_yt(id=_get_id("test_start_masters_and_proxy"), master_count=3,
-                      node_count=0, scheduler_count=0) as environment:
+                      node_count=0, scheduler_count=0, controller_agent_count=0) as environment:
             assert len(_read_pids_file(environment.id)) == 5
             assert len(environment.configs["master"]) == 3
 
@@ -285,7 +285,7 @@ class TestLocalMode(object):
                 assert len(_read_pids_file(environment.id)) == 5
 
         with local_yt(id=_get_id("test_start_masters_only"), node_count=0,
-                      scheduler_count=0, http_proxy_count=0) as environment:
+                      scheduler_count=0, controller_agent_count=0, http_proxy_count=0) as environment:
             assert len(_read_pids_file(environment.id)) == 2
 
     def test_use_local_yt(self):
@@ -334,7 +334,7 @@ class TestLocalMode(object):
 
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
 
-        with yt_local.LocalYt(path="test_path"):
+        with yt_local.LocalYt(path=yatest.common.output_path("test_path"), enable_debug_logging=True):
             pass
 
     def test_local_cypress_synchronization(self):

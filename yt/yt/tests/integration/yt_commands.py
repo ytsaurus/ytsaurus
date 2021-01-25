@@ -165,7 +165,7 @@ def init_drivers(clusters):
         return drivers
 
     for instance in clusters:
-        if instance.master_count > 0:
+        if instance.yt_config.master_count > 0:
             if instance._default_driver_backend == "native":
                 default_driver = create_driver_per_api(instance.configs["driver"])
             else:
@@ -177,7 +177,7 @@ def init_drivers(clusters):
 
             secondary_drivers = [
                 create_driver_per_api(instance.configs["driver_secondary_" + str(i)])
-                for i in xrange(instance.secondary_master_cell_count)
+                for i in xrange(instance.yt_config.secondary_cell_count)
             ]
 
             clusters_drivers[instance._cluster_name] = [default_driver] + secondary_drivers
@@ -468,7 +468,7 @@ def _assert_true_for_cell(cell_index, predicate):
 
 
 def assert_true_for_secondary_cells(env, predicate):
-    for i in xrange(env.secondary_master_cell_count):
+    for i in xrange(env.yt_config.secondary_cell_count):
         _assert_true_for_cell(i + 1, predicate)
 
 
@@ -478,7 +478,7 @@ def assert_true_for_all_cells(env, predicate):
 
 
 def _check_true_for_all_cells(env, predicate):
-    for i in xrange(env.secondary_master_cell_count + 1):
+    for i in xrange(env.yt_config.secondary_cell_count + 1):
         if not predicate(get_driver(i)):
             return False
     return True

@@ -56,7 +56,7 @@ def init_environment_for_test_session(request, mode, **kwargs):
         get_tests_sandbox(),
         "TestYtWrapper" + mode.capitalize(),
         config,
-        **kwargs)
+        **kwargs)    
 
     if mode.startswith("native"):
         import yt_driver_bindings
@@ -132,7 +132,7 @@ def test_environment_for_yamr(request):
 def test_environment_multicell(request):
     environment = init_environment_for_test_session(request,
         "native_multicell",
-        env_options={"secondary_master_cell_count": 2})
+        env_options={"secondary_cell_count": 2})
     return environment
 
 @pytest.fixture(scope="class")

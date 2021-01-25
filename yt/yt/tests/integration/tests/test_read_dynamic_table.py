@@ -64,7 +64,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         table_id = get("//tmp/t/@id")
 
         def _find_driver():
-            for i in xrange(self.Env.secondary_master_cell_count):
+            for i in xrange(self.NUM_SECONDARY_MASTER_CELLS):
                 driver = get_driver(i + 1)
                 if exists("#{0}".format(table_id), driver=driver):
                     return driver
