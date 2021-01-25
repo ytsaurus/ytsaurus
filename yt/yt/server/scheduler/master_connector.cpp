@@ -942,16 +942,29 @@ private:
                 "banned",
                 "initial_aggregated_min_needed_resources",
             };
+            const int operationsCount = static_cast<int>(OperationIds_.size());
 
             YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
-                OperationIds_.size());
+                operationsCount);
 
             auto batchReq = Owner_->StartObjectBatchRequest(
                 EMasterChannelKind::Follower,
                 PrimaryMasterCellTag,
                 Owner_->Config_->FetchOperationAttributesSubbatchSize);
+            THashMap<TOperationId, size_t> startResponseIndex;
+
+            enum class ERequestPart {
+                Attributes = 0,
+                SecureVault = 1,
+                NumOfParts = 2
+            };
+
+            startResponseIndex.reserve(OperationIds_.size());
             {
-                for (auto operationId : OperationIds_) {
+                for (size_t index = 0; index < operationsCount; ++index) {
+                    const auto& operationId = OperationIds_[index];
+                    startResponseIndex[operationId] = index;
+
                     // Keep stuff below in sync with #TryCreateOperationFromAttributes.
 
                     auto operationAttributesPath = GetOperationPath(operationId) + "/@";
@@ -961,13 +974,13 @@ private:
                     {
                         auto req = TYPathProxy::Get(operationAttributesPath);
                         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-                        batchReq->AddRequest(req, "get_op_attr_" + ToString(operationId));
+                        batchReq->AddRequest(req);
                     }
 
                     // Retrieve secure vault.
                     {
                         auto req = TYPathProxy::Get(secureVaultPath);
-                        batchReq->AddRequest(req, "get_op_secure_vault_" + ToString(operationId));
+                        batchReq->AddRequest(req);
                     }
                 }
             }
@@ -980,7 +993,6 @@ private:
 
             {
                 const auto chunkSize = Owner_->Config_->ParseOperationAttributesBatchSize;
-                const int operationsCount = static_cast<int>(OperationIds_.size());
 
                 std::vector<TFuture<std::vector<TOperationPtr>>> futures;
                 futures.reserve(RoundUp(operationsCount, chunkSize));
@@ -993,11 +1005,14 @@ private:
                         const auto& operationId = OperationIds_[index];
 
                         const auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                            "get_op_attr_" + ToString(operationId))
+                                startResponseIndex[operationId] * static_cast<int>(ERequestPart::NumOfParts) + 
+                                static_cast<int>(ERequestPart::Attributes)
+                            )
                             .ValueOrThrow();
 
                         const auto secureVaultRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                            "get_op_secure_vault_" + ToString(operationId));
+                                startResponseIndex[operationId] * static_cast<int>(ERequestPart::NumOfParts) + 
+                                static_cast<int>(ERequestPart::SecureVault));
 
                         if (!secureVaultRspOrError.IsOK() && 
                             secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
