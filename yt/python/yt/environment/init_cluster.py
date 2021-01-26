@@ -5,6 +5,8 @@ import yt.logger as logger
 from yt.common import get_value, wait
 
 import string
+import socket
+import time
 import argparse
 
 def create(type_, name, client):
@@ -355,6 +357,55 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         add_acl("//sys/pool_trees/physical/transfer_manager",
                 {"subjects": ["transfer_manager"], "permissions": ["write", "remove"], "action": "allow"},
                 client)
+
+
+def _initialize_world(client, environment, yt_config):
+    cluster_connection = environment.configs["driver"]
+
+    initialize_world(
+        client,
+        proxy_address=None,
+        configure_pool_trees=False,
+        is_multicell=yt_config.secondary_cell_count > 0)
+
+    tablet_cell_attributes = {
+        "changelog_replication_factor": 1,
+        "changelog_read_quorum": 1,
+        "changelog_write_quorum": 1,
+        "changelog_account": "sys",
+        "snapshot_account": "sys"
+    }
+
+    if not client.get("//sys/tablet_cell_bundles/default/@tablet_cell_ids"):
+        client.set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
+
+    tablet_cells = client.get("//sys/tablet_cells")
+    if not tablet_cells:
+        tablet_cell_id = client.create("tablet_cell")
+    else:
+        tablet_cell_id = tablet_cells.keys()[0]
+
+    if yt_config.wait_tablet_cell_initialization or yt_config.init_operations_archive:
+        logger.info("Waiting for tablet cells to become ready...")
+        while client.get("//sys/tablet_cells/{0}/@health".format(tablet_cell_id)) != "good":
+            time.sleep(0.1)
+        logger.info("Tablet cells are ready")
+
+    if yt_config.init_operations_archive:
+        yt_env_init_operation_archive.create_tables_latest_version(client)
+
+    # Used to automatically determine local mode from python wrapper.
+    client.set("//sys/@local_mode_fqdn", socket.getfqdn())
+
+    # Cluster connection and clusters.
+    client.set("//sys/@cluster_connection", cluster_connection)
+    client.set("//sys/@cluster_name", environment.id)
+    client.set("//sys/clusters", {environment.id: cluster_connection})
+
+    # Tablet limits for tmp account.
+    client.set("//sys/accounts/tmp/@resource_limits/tablet_count", 1000)
+    client.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 5 * 1024 ** 3)
+
 
 def main():
     parser = argparse.ArgumentParser(description="new YT cluster init script")

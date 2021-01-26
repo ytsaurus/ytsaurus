@@ -4,7 +4,7 @@ from __future__ import print_function
 
 from yt.local import start, stop, delete, get_proxy, list_instances
 from yt.local.helpers import YTCheckingThread
-from yt.local.commands import _START_DEFAULTS, get_main_process_pid_file_path
+from yt.local.commands import get_main_process_pid_file_path
 
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
@@ -25,40 +25,6 @@ SERVICE_LIST = ("master", "node", "scheduler", "controller-agent", "proxy", "rpc
 
 logger = logging.getLogger("Yt.local")
 
-_USE_START_DEFAULT = object()
-
-def fix_parser(parser):
-    old_add_argument = parser.add_argument
-
-    def add_argument(*args, **kwargs):
-        help = [kwargs.get("help", "")]
-        if "default" in kwargs:
-
-            if kwargs["default"] is _USE_START_DEFAULT:
-                argument_name = args[0].strip("--").replace("-", "_")
-                kwargs["default"] = _START_DEFAULTS[argument_name]
-
-            default = str(kwargs["default"])
-            help.append(" (default: {0})".format(default))
-        kwargs["help"] = "".join(help)
-        old_add_argument(*args, **kwargs)
-
-    parser.add_argument = add_argument
-    return parser
-
-def patch_add_parser(subparsers):
-    old_add_parser = subparsers.add_parser
-
-    def add_parser(*args, **kwargs):
-        func = kwargs.get("func", None)
-        if func is not None:
-            kwargs.pop("func")
-        parser = fix_parser(old_add_parser(*args, **kwargs))
-        if func is not None:
-            parser.set_defaults(func=func)
-        return parser
-
-    subparsers.add_parser = add_parser
 
 def start_func(**kwargs):
     sync = kwargs.pop("sync", False)
@@ -174,14 +140,14 @@ def start_func(**kwargs):
         print(environment.id)
 
 def add_start_subparser(subparsers):
-    parser = subparsers.add_parser("start", help="Start local YT environment with specified options",
-                                   func=start_func)
-    parser.add_argument("--master-count", type=int, default=_USE_START_DEFAULT, help="number of masters")
-    parser.add_argument("--node-count", type=int, default=_USE_START_DEFAULT, help="number of nodes")
-    parser.add_argument("--scheduler-count", type=int, default=_USE_START_DEFAULT, help="number of schedulers")
-    parser.add_argument("--http-proxy-count", type=int, default=_USE_START_DEFAULT, help="number of http proxies")
-    parser.add_argument("--rpc-proxy-count", type=int, default=_USE_START_DEFAULT, help="number of rpc proxies")
-    parser.add_argument("--secondary-master-cell-count", type=int, default=_USE_START_DEFAULT,
+    parser = subparsers.add_parser("start", help="Start local YT environment with specified options")
+    parser.set_defaults(func=start_func)
+    parser.add_argument("--master-count", type=int, default=1, help="number of masters")
+    parser.add_argument("--node-count", type=int, default=1, help="number of nodes")
+    parser.add_argument("--scheduler-count", type=int, default=1, help="number of schedulers")
+    parser.add_argument("--http-proxy-count", type=int, default=1, help="number of http proxies")
+    parser.add_argument("--rpc-proxy-count", type=int, default=0, help="number of rpc proxies")
+    parser.add_argument("--secondary-master-cell-count", type=int, default=0,
                         help="number of secondary cells. Do not use it if you are not sure what you are doing.")
 
     for service in SERVICE_LIST:
@@ -220,8 +186,6 @@ def add_start_subparser(subparsers):
     parser.add_argument("--prepare-only", action="store_true", default=False,
                         help="Only prepare environment, but don't start.")
 
-    parser.add_argument("--jobs-resource-limits", type=yson._loads_from_native_str, default=_USE_START_DEFAULT,
-                        help="jobs resource limits in YSON format")
     parser.add_argument("--jobs-memory-limit", type=int,
                         help="memory limit for jobs in bytes")
     parser.add_argument("--jobs-cpu-limit", type=int,
@@ -229,8 +193,6 @@ def add_start_subparser(subparsers):
     parser.add_argument("--jobs-user-slot-count", type=int,
                         help="slot count for user jobs")
 
-    parser.add_argument("--node-chunk-store-quota", type=int, default=_USE_START_DEFAULT,
-                        help="size for node chunk storage in bytes")
     parser.add_argument("--forbid-chunk-storage-in-tmpfs", action="store_true", default=False,
                         help="disables chunk storage in tmpfs")
 
@@ -260,22 +222,23 @@ def add_start_subparser(subparsers):
     parser.add_argument("--sync-mode-sleep-timeout", type=int, default=2, help=argparse.SUPPRESS)
 
 def add_stop_subparser(subparsers):
-    parser = subparsers.add_parser("stop", help="Stop local YT with given id", func=stop)
+    parser = subparsers.add_parser("stop", help="Stop local YT with given id")
+    parser.set_defaults(func=stop)
     parser.add_argument("id", help="local YT id")
     parser.add_argument("--delete", help="remove working directory after stopping", action="store_true",
                         dest="remove_working_dir")
 
 def add_delete_subparser(subparsers):
-    parser = subparsers.add_parser("delete", help="Delete stopped local YT working directory.",
-                                   func=delete)
+    parser = subparsers.add_parser("delete", help="Delete stopped local YT working directory.")
+    parser.set_defaults(func=delete)
     parser.add_argument("id", help="local YT id")
 
 def get_proxy_func(**kwargs):
     print(get_proxy(**kwargs))
 
 def add_get_proxy_subparser(subparsers):
-    parser = subparsers.add_parser("get_proxy", help="Get proxy address for local YT with given id",
-                                   func=get_proxy_func)
+    parser = subparsers.add_parser("get_proxy", help="Get proxy address for local YT with given id")
+    parser.set_defaults(func=get_proxy_func)
     parser.add_argument("id", help="local YT id")
 
 def print_instances(**kwargs):
@@ -289,7 +252,8 @@ def print_instances(**kwargs):
             print("{0}\tstatus: {1}".format(instance_id, status))
 
 def add_list_subparser(subparsers):
-    subparsers.add_parser("list", help="List local YT instances", func=print_instances)
+    parser = subparsers.add_parser("list", help="List local YT instances")
+    parser.set_defaults(func=print_instances)
 
 def main():
     options_parser = argparse.ArgumentParser(add_help=False)
@@ -301,8 +265,6 @@ def main():
 
     subparsers = parser.add_subparsers(metavar="command")
     subparsers.required = True
-
-    patch_add_parser(subparsers)
 
     add_start_subparser(subparsers)
     add_stop_subparser(subparsers)
