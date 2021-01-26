@@ -169,6 +169,42 @@ bool TAccount::IsMasterMemoryLimitViolated() const
     return ClusterStatistics_.ResourceUsage.MasterMemory > ClusterResourceLimits_.MasterMemory;
 }
 
+bool TAccount::IsMasterMemoryLimitViolated(TCellTag cellTag) const
+{
+    const auto& perCellLimits = ClusterResourceLimits_.CellMasterMemoryLimits();
+    auto limitIt = perCellLimits.find(cellTag);
+    if (limitIt == perCellLimits.end()) {
+        return false;
+    }
+
+    auto usageIt = MulticellStatistics_.find(cellTag);
+    if (usageIt == MulticellStatistics_.end()) {
+        return false;
+    }
+
+    return usageIt->second.ResourceUsage.MasterMemory > limitIt->second;
+}
+
+bool TAccount::IsChunkHostMasterMemoryLimitViolated(const TMulticellManagerPtr& multicellManager) const
+{
+    auto totalRoleMasterMemory = GetChunkHostMasterMemoryUsage(multicellManager);
+    return totalRoleMasterMemory > ClusterResourceLimits_.ChunkHostMasterMemory;
+}
+
+i64 TAccount::GetChunkHostMasterMemoryUsage(const TMulticellManagerPtr& multicellManager) const
+{
+    auto cellTags = multicellManager->GetRoleMasterCells(EMasterCellRoles::ChunkHost);
+    i64 totalRoleMasterMemory = 0;
+    for (auto cellTag : cellTags) {
+        auto roleMulticellStatisticsIt = MulticellStatistics_.find(cellTag);
+        if (roleMulticellStatisticsIt != MulticellStatistics_.end()) {
+            totalRoleMasterMemory += roleMulticellStatisticsIt->second.ResourceUsage.MasterMemory;
+        }
+    }
+
+    return totalRoleMasterMemory;
+}
+    
 TAccountStatistics* TAccount::GetCellStatistics(NObjectClient::TCellTag cellTag)
 {
     return &GetOrCrash(MulticellStatistics_, cellTag);
@@ -226,9 +262,9 @@ void TAccount::DetachChild(TAccount* child) noexcept
     }
 }
 
-TClusterResources TAccount::ComputeTotalChildrenLimits() const
+TClusterResourceLimits TAccount::ComputeTotalChildrenLimits() const
 {
-    auto result = TClusterResources();
+    auto result = TClusterResourceLimits();
     for (const auto& [key, child] : KeyToChild()) {
         result += child->ClusterResourceLimits();
     }

@@ -160,13 +160,13 @@ public:
     TAccount* GetChunkWiseAccountingMigrationAccount();
 
     
-    using TViolatedResourceLimits = TClusterResources;
+    using TViolatedResourceLimits = TClusterResourceLimits;
     //! Returns recursive violated resource limits for account's subtree.
     TViolatedResourceLimits GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const;
 
     //! Sets |resourceLimits| as |account|'s cluster resource limits.
     //! Throws if that would violate the invariants.
-    void TrySetResourceLimits(TAccount* account, const TClusterResources& resourceLimits);
+    void TrySetResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits);
 
     //! Subtracts |resourceDelta| from |srcAccount| and all its ancestors up to (but not including)
     //! LCA(|srcAccount|, |dstAccount|), then adds it to |dstAccount| and all its ancestors up to
@@ -178,7 +178,7 @@ public:
     void TransferAccountResources(
         TAccount* srcAccount,
         TAccount* dstAccount,
-        const TClusterResources& resourceDelta);
+        const TClusterResourceLimits& resourceDelta);
 
     //! Adds the #chunk to the resource usage of accounts mentioned in #requisition.
     void UpdateResourceUsage(

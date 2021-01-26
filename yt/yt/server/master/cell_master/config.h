@@ -137,6 +137,7 @@ class TDynamicMulticellManagerConfig
 public:
     TDuration CellStatisticsGossipPeriod;
     THashMap<NObjectServer::TCellTag, EMasterCellRoles> CellRoles;
+    THashMap<NObjectServer::TCellTag, TString> CellNames;
 
     TDynamicMulticellManagerConfig()
     {
@@ -144,12 +145,30 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("cell_roles", CellRoles)
             .Default();
+        RegisterParameter("cell_names", CellNames)
+            .Default();
 
         RegisterPostprocessor([&] () {
             for (const auto& [cellTag, cellRoles] : CellRoles) {
                 if (None(cellRoles)) {
                     THROW_ERROR_EXCEPTION("Cell %v has no roles",
                         cellTag);
+                }
+            }
+
+            THashMap<TString, NObjectServer::TCellTag> nameToCellTag;
+            for (const auto& [cellTag, cellName] : CellNames) {
+                NObjectClient::TCellTag cellTagCellName;
+                if (TryFromString(cellName, cellTagCellName)) {
+                    THROW_ERROR_EXCEPTION("Invalid cell name %Qv",
+                        cellName);
+                }
+                auto [it, inserted] = nameToCellTag.emplace(cellName, cellTag);
+                if (!inserted) {
+                    THROW_ERROR_EXCEPTION("Duplicate cell name %Qv for cell tags %v and %v",
+                        cellName,
+                        cellTag,
+                        it->second);
                 }
             }
         });

@@ -67,6 +67,8 @@ class AccountsTestSuiteBase(YTEnvSetup):
         tablet_static_memory=0,
         disk_space=0,
         master_memory=0,
+        chunk_host_master_memory=0,
+        master_memory_per_cell={},
         include_disk_space=False,
     ):
         limits = {
@@ -75,7 +77,11 @@ class AccountsTestSuiteBase(YTEnvSetup):
             "node_count": node_count,
             "tablet_count": tablet_count,
             "tablet_static_memory": tablet_static_memory,
-            "master_memory": master_memory,
+            "master_memory": {
+                "total": master_memory,
+                "chunk_host": chunk_host_master_memory,
+                "per_cell": master_memory_per_cell,
+            }
         }
         if include_disk_space:
             limits["disk_space"] = disk_space
@@ -97,7 +103,7 @@ class AccountsTestSuiteBase(YTEnvSetup):
         set("//sys/accounts/{0}/@resource_limits/node_count".format(account), value, **kwargs)
 
     def _set_account_master_memory(self, account, value, **kwargs):
-        set("//sys/accounts/{0}/@resource_limits/master_memory".format(account), value, **kwargs)
+        set("//sys/accounts/{0}/@resource_limits/master_memory/total".format(account), value, **kwargs)
 
     def _get_account_chunk_count_limit(self, account):
         return get("//sys/accounts/{0}/@resource_limits/chunk_count".format(account))
@@ -1636,12 +1642,13 @@ class TestAccounts(AccountsTestSuiteBase):
         set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)
         create_account("a")
         create("table", "//tmp/t", attributes={"account": "a"})
-        set("//sys/accounts/a/@resource_limits/master_memory", 0)
+        set("//sys/accounts/a/@resource_limits/master_memory/total", 0)
         with pytest.raises(YtError):
             set("//tmp/t/@sdflkf", "sdlzkfj")
-        set("//sys/accounts/a/@resource_limits/master_memory", 1000000)
+        set("//sys/accounts/a/@resource_limits/master_memory/total", 1000000)
+        set("//sys/accounts/a/@resource_limits/master_memory/chunk_host", 1000000)
         set("//tmp/t/@sdflkf", "sdlzkfj")
-        set("//sys/accounts/a/@resource_limits/master_memory", 0)
+        set("//sys/accounts/a/@resource_limits/master_memory/total", 0)
         remove("//tmp/t/@sdflkf")
 
     @authors("aleksandra-zh")
@@ -1923,7 +1930,7 @@ class TestAccounts(AccountsTestSuiteBase):
     def test_totals(self):
         self._set_account_zero_limits("chunk_wise_accounting_migration")
 
-        def add_resources(*resources):
+        def add_resource_limits(*resources):
             result = {
                 "disk_space_per_medium": {"default": 0},
                 "disk_space": 0,
@@ -1931,7 +1938,34 @@ class TestAccounts(AccountsTestSuiteBase):
                 "node_count": 0,
                 "tablet_count": 0,
                 "tablet_static_memory": 0,
-                "master_memory": 0,
+                "master_memory":
+                {
+                    "total": 0,
+                    "chunk_host": 0,
+                    "per_cell": {}
+                }
+            }
+            for r in resources:
+                result["disk_space_per_medium"]["default"] += r["disk_space_per_medium"].get("default", 0)
+                result["disk_space"] += r["disk_space"]
+                result["chunk_count"] += r["chunk_count"]
+                result["node_count"] += r["node_count"]
+                result["tablet_count"] += r["tablet_count"]
+                result["tablet_static_memory"] += r["tablet_static_memory"]
+                result["master_memory"]["total"] += r["master_memory"]["total"]
+                result["master_memory"]["chunk_host"] += r["master_memory"]["chunk_host"]
+
+            return result
+
+        def add_resource_usage(*resources):
+            result = {
+                "disk_space_per_medium": {"default": 0},
+                "disk_space": 0,
+                "chunk_count": 0,
+                "node_count": 0,
+                "tablet_count": 0,
+                "tablet_static_memory": 0,
+                "master_memory": 0
             }
             for r in resources:
                 result["disk_space_per_medium"]["default"] += r["disk_space_per_medium"].get("default", 0)
@@ -1955,7 +1989,12 @@ class TestAccounts(AccountsTestSuiteBase):
                 "node_count": 1,
                 "tablet_count": 0,
                 "tablet_static_memory": 0,
-                "master_memory": 1000,
+                "master_memory":
+                {
+                    "total": 1000,
+                    "chunk_host": 0,
+                    "per_cell": {}
+                }
             },
         )
         create_account("a2")
@@ -1967,11 +2006,16 @@ class TestAccounts(AccountsTestSuiteBase):
                 "node_count": 1,
                 "tablet_count": 0,
                 "tablet_static_memory": 0,
-                "master_memory": 1000,
+                "master_memory":
+                {
+                    "total": 1000,
+                    "chunk_host": 0,
+                    "per_cell": {}
+                }
             },
         )
 
-        total_resource_limits = add_resources(
+        total_resource_limits = add_resource_limits(
             resource_limits,
             {
                 "disk_space_per_medium": {"default": 2000},
@@ -1980,7 +2024,12 @@ class TestAccounts(AccountsTestSuiteBase):
                 "node_count": 2,
                 "tablet_count": 0,
                 "tablet_static_memory": 0,
-                "master_memory": 2000,
+                "master_memory":
+                {
+                    "total": 2000,
+                    "chunk_host": 0,
+                    "per_cell": {}
+                }
             },
         )
 
@@ -2021,8 +2070,8 @@ class TestAccounts(AccountsTestSuiteBase):
             resource_usage2 = get("//sys/accounts/a2/@resource_usage")
             committed_resource_usage2 = get("//sys/accounts/a2/@committed_resource_usage")
 
-            total_resource_usage = add_resources(resource_usage, resource_usage1, resource_usage2)
-            total_committed_resource_usage = add_resources(
+            total_resource_usage = add_resource_usage(resource_usage, resource_usage1, resource_usage2)
+            total_committed_resource_usage = add_resource_usage(
                 committed_resource_usage,
                 committed_resource_usage1,
                 committed_resource_usage2,
@@ -3341,7 +3390,12 @@ class TestAccountTree(AccountsTestSuiteBase):
             "tablet_count": 1,
             "tablet_static_memory": 1,
             "disk_space_per_medium": {},
-            "master_memory": 0,
+            "master_memory":
+            {
+                "total": 0,
+                "chunk_host": 0,
+                "per_cell": {}
+            }
         }
 
         # yt-dev
@@ -3364,7 +3418,12 @@ class TestAccountTree(AccountsTestSuiteBase):
                 "tablet_count": 1,
                 "tablet_static_memory": 1,
                 "disk_space_per_medium": {"default": 2},
-                "master_memory": 0,
+                "master_memory":
+                {
+                    "total": 0,
+                    "chunk_host": 0,
+                    "per_cell": {}
+                }
             }
         )
 
@@ -3385,7 +3444,12 @@ class TestAccountTree(AccountsTestSuiteBase):
                 "tablet_count": 0,
                 "tablet_static_memory": 0,
                 "disk_space_per_medium": {"hdd7": 1},
-                "master_memory": 0,
+                "master_memory":
+                {
+                    "total": 0,
+                    "chunk_host": 0,
+                    "per_cell": {}
+                }
             }
         )
 
@@ -3405,7 +3469,12 @@ class TestAccountTree(AccountsTestSuiteBase):
                 "tablet_count": 1,
                 "tablet_static_memory": 1,
                 "disk_space_per_medium": {"default": 2, "hdd7": 2},
-                "master_memory": 0,
+                "master_memory":
+                {
+                    "total": 0,
+                    "chunk_host": 0,
+                    "per_cell": {}
+                }
             }
         )
 
@@ -3552,9 +3621,9 @@ class TestAccountTree(AccountsTestSuiteBase):
             False,
         )
 
-        create_account("a", attributes={"resource_limits": {"master_memory": 10000}})
-        create_account("b", "a", attributes={"resource_limits": {"master_memory": 5000}})
-        create_account("c", "a", attributes={"resource_limits": {"master_memory": 6000}})
+        create_account("a", attributes={"resource_limits": {"master_memory": {"total": 10000}}})
+        create_account("b", "a", attributes={"resource_limits": {"master_memory": {"total": 5000}}})
+        create_account("c", "a", attributes={"resource_limits": {"master_memory": {"total": 6000}}})
 
         with pytest.raises(YtError):
             self._set_account_master_memory("a", 1000)
@@ -3656,7 +3725,6 @@ class TestAccountTree(AccountsTestSuiteBase):
             "tablet_count",
             "tablet_static_memory",
             "disk_space",
-            "master_memory",
         ):
             with pytest.raises(YtError):
                 transfer_account_resources("yt-dev", "yt-prod", self._build_resource_limits(**{resource: -1}))
@@ -3997,6 +4065,104 @@ class TestAccountsMulticell(TestAccounts):
 
         wait(lambda: len(get("#" + chunk_id + "/@owning_nodes")) == 1)
         wait(lambda: len(get("#" + chunk_id + "/@requisition")) == 1)
+
+    @authors("aleksandra-zh")
+    def test_master_memory_per_cell(self):
+        set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)
+
+        create_account("a")
+        set("//sys/accounts/a/@resource_limits/master_memory/total", 1000000)
+        set("//sys/accounts/a/@resource_limits/master_memory/chunk_host", 1000000)
+        set("//sys/accounts/a/@resource_limits/master_memory/per_cell", {"1": 0})
+        master_memory_sleep()
+
+        create("table", "//tmp/t1", attributes={"account": "a", "external_cell_tag": 1})
+        with pytest.raises(YtError):
+            write_table("//tmp/t1", {"a": "b"})
+
+        create("table", "//tmp/t2", attributes={"account": "a", "external_cell_tag": 2})
+        write_table("//tmp/t2", {"a": "b"})
+
+    @authors("aleksandra-zh")
+    def test_master_memory_per_cell_overcommit_validation(self):
+        set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)
+        set(
+            "//sys/@config/security_manager/enable_master_memory_usage_account_overcommit_validation",
+            True,
+        )
+
+        create_account("a")
+        create_account("b", "a")
+
+        with pytest.raises(YtError):
+            set("//sys/accounts/a/@resource_limits/master_memory/per_cell", {"1": 0})
+
+        set("//sys/accounts/b/@resource_limits/master_memory/per_cell", {"1": 0})
+        set("//sys/accounts/a/@resource_limits/master_memory/per_cell", {"1": 0})
+
+    @authors("aleksandra-zh")
+    def test_chunk_host_master_memory1(self):
+        set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)
+
+        set("//sys/@config/multicell_manager/cell_roles", {"1": ["chunk_host"]})
+
+        create_account("a")
+        set("//sys/accounts/a/@resource_limits/master_memory/total", 1000000)
+        set("//sys/accounts/a/@resource_limits/master_memory/chunk_host", 0)
+        master_memory_sleep()
+
+        create("table", "//tmp/t1", attributes={"account": "a", "external_cell_tag": 1})
+        with pytest.raises(YtError):
+            write_table("//tmp/t1", {"a": "b"})
+
+    @authors("aleksandra-zh")
+    def test_chunk_host_master_memory2(self):
+        set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)
+
+        set("//sys/@config/multicell_manager/cell_roles",
+            {"1": ["chunk_host"], "2": ["chunk_host"]})
+
+        create_account("a")
+        set("//sys/accounts/a/@resource_limits/master_memory/total", 1000000)
+        set("//sys/accounts/a/@resource_limits/master_memory/chunk_host", 100)
+        master_memory_sleep()
+
+        create("table", "//tmp/t1", attributes={"account": "a", "external_cell_tag": 1})
+        create("table", "//tmp/t2", attributes={"account": "a", "external_cell_tag": 2})
+
+        def quota_is_over():
+            try:
+                write_table("<append=true>//tmp/t1", {"a": "b"})
+            except:
+                return True
+            master_memory_sleep()
+            return False
+
+        wait(quota_is_over)
+
+        master_memory_sleep()
+        with pytest.raises(YtError):
+            write_table("<append=true>//tmp/t2", {"a": "b"})
+
+    @authors("aleksandra-zh")
+    def test_master_cell_names(self):
+        set("//sys/@config/multicell_manager/cell_names/0", "Julia")
+
+        with pytest.raises(YtError):
+            set("//sys/@config/multicell_manager/cell_names/2", "Julia")
+
+        with pytest.raises(YtError):
+            set("//sys/@config/multicell_manager/cell_names/1", "2")
+
+        create_account("a")
+        set("//sys/accounts/a/@resource_limits/master_memory/total", 1000000)
+        set("//sys/accounts/a/@resource_limits/master_memory/chunk_host", 1000000)
+
+        set("//sys/accounts/a/@resource_limits/master_memory/per_cell", {"Julia": 100, "1": 200, "2": 300})
+
+        set("//sys/@config/multicell_manager/cell_names/2", "George")
+
+        assert get("//sys/accounts/a/@resource_limits/master_memory/per_cell") == {"Julia": 100, "1": 200, "George": 300}
 
 
 class TestAccountTreeMulticell(TestAccountTree):

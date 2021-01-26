@@ -124,6 +124,19 @@ public:
      */
     NObjectClient::TCellTagList GetRoleMasterCells(EMasterCellRoles cellRole);
 
+    //! Returns master cell name (cell tag is default cell name).
+    //! Decimal representation of cell tag is the default.
+    /*!
+     *  \note Thread affinity: any
+     */
+    TString GetMasterCellName(NObjectClient::TCellTag cellTag);
+
+    //! Returns master cell tag or std::nullopt, if there is no cell with given name.
+    /*!
+     *  \note Thread affinity: any
+     */
+    std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName);
+
     //! Returns the list of cell tags for all registered master cells (other than the local one),
     //! in a stable order.
     /*!`

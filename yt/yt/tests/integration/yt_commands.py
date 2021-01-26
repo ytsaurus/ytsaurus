@@ -1506,14 +1506,13 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
             "node_count": 1000,
             "tablet_count": 0,
             "tablet_static_memory": 0,
-            "master_memory": 0,
         }
 
+    set_master_memory = True
     if "resource_limits" in kwargs["attributes"]:
         resource_limits = kwargs["attributes"]["resource_limits"]
-        set_master_memory = isinstance(resource_limits, dict) and resource_limits.get("master_memory", 0) == 0
-    else:
-        set_master_memory = True
+        if isinstance(resource_limits, dict) and "master_memory" in resource_limits:
+            set_master_memory = resource_limits["master_memory"].get("total", 0) == 0                
 
     driver = kwargs.get("driver")
 
@@ -1525,11 +1524,23 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
             and get("//sys/accounts/{0}/@life_stage".format(name), driver=driver) == "creation_committed"
         )
     if set_master_memory:
-        set(
-            "//sys/accounts/{0}/@resource_limits/master_memory".format(name),
-            100000,
-            driver=driver,
-        )
+        try:
+            set(
+                "//sys/accounts/{0}/@resource_limits/master_memory/total".format(name),
+                100000,
+                driver=driver,
+            )
+            set(
+                "//sys/accounts/{0}/@resource_limits/master_memory/chunk_host".format(name),
+                100000,
+                driver=driver,
+            )
+        except:
+            set(
+                "//sys/accounts/{0}/@resource_limits/master_memory".format(name),
+                100000,
+                driver=driver,
+            )
 
 
 def remove_account(name, **kwargs):

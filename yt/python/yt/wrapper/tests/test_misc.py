@@ -1062,9 +1062,15 @@ class TestTransferAccountResources(object):
                 "chunk_count": 1000 * x,
                 "tablet_count": 5 * x,
                 "tablet_static_memory": 1000 * x,
-                "master_memory": 25000 * x,
+                "master_memory":
+                {
+                    "total": 25000 * x,
+                    "chunk_host": 25000 * x,
+                    "per_cell": {}
+                },
                 "disk_space": 50000 * x,
                 "disk_space_per_medium": {"default": 50000 * x} if x != 0 else {}}
+
         yt.create("account", attributes={"name": "a", "resource_limits": get_limits(6)})
         yt.create("account", attributes={"name": "a1", "parent_name": "a", "resource_limits": get_limits(3)})
         yt.create("account", attributes={"name": "a2", "parent_name": "a", "resource_limits": get_limits(3)})

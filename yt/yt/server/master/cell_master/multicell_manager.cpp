@@ -264,6 +264,25 @@ public:
         return it == RoleMasterCellsMap_.end() ? EmptyCellTagList : it->second;
     }
 
+    TString GetMasterCellName(NObjectClient::TCellTag cellTag)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = ReaderGuard(MasterCellNamesLock_);
+
+        return GetOrCrash(MasterCellNameMap_, cellTag);
+    }
+
+    std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = ReaderGuard(MasterCellNamesLock_);
+
+        auto it = NameMasterCellMap_.find(cellName);
+        return it == NameMasterCellMap_.end() ? std::nullopt : std::make_optional(it->second);
+    }
+
     const TCellTagList& GetRegisteredMasterCellTags()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -470,6 +489,10 @@ private:
     THashMap<TCellTag, EMasterCellRoles> MasterCellRolesMap_;
     THashMap<EMasterCellRoles, TCellTagList> RoleMasterCellsMap_;
 
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MasterCellNamesLock_);
+    THashMap<TCellTag, TString> MasterCellNameMap_;
+    THashMap<TString, TCellTag> NameMasterCellMap_;
+
     static const TCellTagList EmptyCellTagList;
 
     const TIntrusivePtr<TAsyncBatcher<void>> UpstreamSyncBatcher_;
@@ -508,6 +531,7 @@ private:
         }
 
         RecomputeMasterCellRoles();
+        RecomputeMasterCellNames();
     }
 
     virtual void Clear() override
@@ -826,6 +850,7 @@ private:
         entry.Index = index;
 
         RecomputeMasterCellRoles();
+        RecomputeMasterCellNames();
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Master cell registered (CellTag: %v, CellIndex: %v)",
             cellTag,
@@ -952,7 +977,6 @@ private:
     }
 
 
-
     TSerializedMessagePtr BuildHiveMessage(const TCrossCellMessage& crossCellMessage)
     {
         if (const auto* protoPtr = std::get_if<TCrossCellMessage::TProtoMessage>(&crossCellMessage.Payload)) {
@@ -1016,6 +1040,7 @@ private:
             CellStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->CellStatisticsGossipPeriod);
         }
         RecomputeMasterCellRoles();
+        RecomputeMasterCellNames();
     }
 
 
@@ -1062,6 +1087,25 @@ private:
             if (it != RoleMasterCellsMap_.end()) {
                 SortUnique(it->second);
             }
+        }
+    }
+
+    void RecomputeMasterCellNames()
+    {
+        auto guard = WriterGuard(MasterCellNamesLock_);
+
+        MasterCellNameMap_.clear();
+        NameMasterCellMap_.clear();
+
+        auto populateCellName = [&] (TCellTag cellTag) {
+            auto name = GetDynamicConfig()->CellNames.Value(cellTag, ToString(cellTag));
+            YT_VERIFY(MasterCellNameMap_.emplace(cellTag, name).second);
+            YT_VERIFY(NameMasterCellMap_.emplace(name, cellTag).second);
+        };
+
+        populateCellName(GetCellTag());
+        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
+            populateCellName(cellTag);
         }
     }
 
@@ -1192,6 +1236,16 @@ EMasterCellRoles TMulticellManager::GetMasterCellRoles(TCellTag cellTag)
 TCellTagList TMulticellManager::GetRoleMasterCells(EMasterCellRoles cellRole)
 {
     return Impl_->GetRoleMasterCells(cellRole);
+}
+
+TString TMulticellManager::GetMasterCellName(NObjectClient::TCellTag cellTag)
+{
+    return Impl_->GetMasterCellName(cellTag);
+}
+
+std::optional<NObjectClient::TCellTag> TMulticellManager::FindMasterCellTagByName(const TString& cellName)
+{
+    return Impl_->FindMasterCellTagByName(cellName);
 }
 
 const TCellTagList& TMulticellManager::GetRegisteredMasterCellTags()

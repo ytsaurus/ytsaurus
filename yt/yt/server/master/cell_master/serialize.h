@@ -133,6 +133,7 @@ DEFINE_ENUM(EMasterReign,
     ((EnableDescendingSortOrder)                                    (1501))  // max42
     ((RowBufferEmptyRowDeserialization)                             (1502))  // max42
     ((RemoveOldCellTracker)                                         (1503))  // gritukan
+    ((PerCellPerRoleMasterMemoryLimit)                              (1504))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

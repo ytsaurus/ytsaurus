@@ -3,6 +3,7 @@
 #include "public.h"
 #include "acl.h"
 #include "cluster_resources.h"
+#include "cluster_resource_limits.h"
 
 #include <yt/server/master/cell_master/public.h>
 
@@ -43,7 +44,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
     DEFINE_BYVAL_RW_PROPERTY(TAccountStatistics*, LocalStatisticsPtr);
     DEFINE_BYREF_RW_PROPERTY(TAccountStatistics, ClusterStatistics);
-    DEFINE_BYREF_RW_PROPERTY(TClusterResources, ClusterResourceLimits);
+    DEFINE_BYREF_RW_PROPERTY(TClusterResourceLimits, ClusterResourceLimits);
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowChildrenLimitOvercommit);
 
     // COMPAT(kiselyovp)
@@ -92,6 +93,15 @@ public:
     //! i.e. no more master memory can be occupied.
     bool IsMasterMemoryLimitViolated() const;
 
+    //! Returns |true| if master memory usage for specified cell is exceeded.
+    bool IsMasterMemoryLimitViolated(NObjectClient::TCellTag cellTag) const;
+
+    //! Returns |true| if chunk host master memory usage is exceeded.
+    bool IsChunkHostMasterMemoryLimitViolated(const NCellMaster::TMulticellManagerPtr& multicellManager) const;
+
+    //! Returns total chunk host master memory usage.
+    i64 GetChunkHostMasterMemoryUsage(const NCellMaster::TMulticellManagerPtr& multicellManager) const;
+
     //! Returns statistics for a given cell tag.
     TAccountStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);
 
@@ -102,7 +112,7 @@ public:
     //! Unlinks a child account and subtracts its resource usage from its former ancestry.
     virtual void DetachChild(TAccount* child) noexcept override;
 
-    TClusterResources ComputeTotalChildrenLimits() const;
+    TClusterResourceLimits ComputeTotalChildrenLimits() const;
 
     TClusterResources ComputeTotalChildrenResourceUsage() const;
     TClusterResources ComputeTotalChildrenCommittedResourceUsage() const;

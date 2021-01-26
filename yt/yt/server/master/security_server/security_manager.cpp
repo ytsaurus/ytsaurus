@@ -388,6 +388,7 @@ public:
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
 
         RegisterMethod(BIND(&TImpl::HydraSetAccountStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetAccountStatisticsAtSecondaryCells, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRecomputeMembershipClosure, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
     }
@@ -532,10 +533,14 @@ public:
 
     TViolatedResourceLimits GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const
     {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& cellTags = multicellManager->GetSecondaryCellTags();
+        auto primaryCellTag = multicellManager->GetPrimaryCellTag();
+
         return AccumulateOverMapObjectSubtree(
             account,
             TViolatedResourceLimits(),
-            [] (const TAccount* account, TViolatedResourceLimits* violatedLimits) {
+            [&] (const TAccount* account, TViolatedResourceLimits* violatedLimits) {
                 if (account->IsNodeCountLimitViolated()) {
                     ++violatedLimits->NodeCount;
                 }
@@ -548,10 +553,27 @@ public:
                 if (account->IsTabletStaticMemoryLimitViolated()) {
                     ++violatedLimits->TabletStaticMemory;
                 }
+                if (account->IsMasterMemoryLimitViolated()) {
+                    ++violatedLimits->MasterMemory;
+                }
+
+                if (account->IsChunkHostMasterMemoryLimitViolated(multicellManager)) {
+                    ++violatedLimits->ChunkHostMasterMemory;
+                }
 
                 for (const auto& [mediumIndex, usage] : account->ClusterStatistics().ResourceUsage.DiskSpace()) {
                     if (account->IsDiskSpaceLimitViolated(mediumIndex)) {
                         violatedLimits->AddToMediumDiskSpace(mediumIndex, 1);
+                    }
+                }
+
+                if (account->IsMasterMemoryLimitViolated(primaryCellTag)) {
+                    violatedLimits->AddMasterMemory(primaryCellTag, 1);
+                }
+
+                for (auto cellTag : cellTags) {
+                    if (account->IsMasterMemoryLimitViolated(cellTag)) {
+                        violatedLimits->AddMasterMemory(cellTag, 1);
                     }
                 }
             });
@@ -559,70 +581,84 @@ public:
 
     template <class... TArgs>
     void ThrowWithDetailedViolatedResources(
-        const TClusterResources& limits, const TClusterResources& usage, TArgs... args)
+        const TClusterResourceLimits& limits, const TClusterResourceLimits& usage, TArgs&&... args)
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto violatedResources = limits.GetViolatedBy(usage);
         auto serializer = New<TSerializableViolatedClusterResourceLimits>(
             chunkManager,
+            multicellManager,
             violatedResources);
 
         THROW_ERROR(TError(std::forward<TArgs>(args)...)
             << TErrorAttribute("violated_resources", serializer));
     }
 
-    TClusterResources ComputeAccountTotalChildrenLimits(TAccount* account)
+    TClusterResourceLimits ComputeAccountTotalChildrenLimits(TAccount* account)
     {
         auto totalChildrenLimits = account->ComputeTotalChildrenLimits();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
         const auto& dynamicConfig = GetDynamicConfig();
         if (!dynamicConfig->EnableMasterMemoryUsageAccountOvercommitValidation) {
             totalChildrenLimits.MasterMemory = 0;
+            totalChildrenLimits.ChunkHostMasterMemory = 0;
+            for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
+                totalChildrenLimits.SetMasterMemory(cellTag, 0);
+            }
+            totalChildrenLimits.SetMasterMemory(multicellManager->GetPrimaryCellTag(), 0);
+        } else {
+            const auto& cellMasterMemoryLimits = account->ClusterResourceLimits().CellMasterMemoryLimits();
+            for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
+                if (!cellMasterMemoryLimits.contains(cellTag)) {
+                    totalChildrenLimits.SetMasterMemory(cellTag, 0);
+                }
+            }
+            auto primaryCellTag = multicellManager->GetPrimaryCellTag();
+            if (!cellMasterMemoryLimits.contains(primaryCellTag)) {
+                totalChildrenLimits.SetMasterMemory(primaryCellTag, 0);
+            }
         }
         return totalChildrenLimits;
     }
 
-    bool IsAccountOvercommitted(TAccount* account, TClusterResources newResources)
+    bool IsAccountOvercommitted(TAccount* account, TClusterResourceLimits newResources)
     {
         auto totalChildrenLimits = ComputeAccountTotalChildrenLimits(account);
-        const auto& dynamicConfig = GetDynamicConfig();
-        if (!dynamicConfig->EnableMasterMemoryUsageAccountOvercommitValidation) {
-            newResources.MasterMemory = 0;
-        }
-        return newResources.IsAtLeastOneResourceLessThan(totalChildrenLimits);
+        return newResources.IsViolatedBy(totalChildrenLimits);
     }
 
     template <class... TArgs>
-    void ThrowAccountOvercommitted(TAccount* account, TClusterResources newResources, TArgs... args)
+    void ThrowAccountOvercommitted(TAccount* account, TClusterResourceLimits newResourceLimits, TArgs&&... args)
     {
         auto totalChildrenLimits = ComputeAccountTotalChildrenLimits(account);
-        const auto& dynamicConfig = GetDynamicConfig();
-        if (!dynamicConfig->EnableMasterMemoryUsageAccountOvercommitValidation) {
-            newResources.MasterMemory = 0;
-        }
         ThrowWithDetailedViolatedResources(
-            newResources,
+            newResourceLimits,
             totalChildrenLimits,
             std::forward<TArgs>(args)...);
     }
 
-    void ValidateResourceLimits(TAccount* account, const TClusterResources& resourceLimits)
+    void ValidateResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits)
     {
         if (!Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
             return;
         }
 
-        if (resourceLimits.IsAtLeastOneResourceLessThan(TClusterResources())) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto zeroResources = TClusterResourceLimits::Zero(multicellManager);
+        if (resourceLimits.IsViolatedBy(zeroResources)) {
             ThrowWithDetailedViolatedResources(
                 resourceLimits,
-                TClusterResources(),
+                zeroResources,
                 "Failed to change resource limits for account %Qv: limits cannot be negative",
                 account->GetName());
         }
 
         const auto& currentResourceLimits = account->ClusterResourceLimits();
-        if (resourceLimits.IsAtLeastOneResourceLessThan(currentResourceLimits)) {
+        if (resourceLimits.IsViolatedBy(currentResourceLimits)) {
             for (const auto& [key, child] : SortHashMapByKeys(account->KeyToChild())) {
-                if (resourceLimits.IsAtLeastOneResourceLessThan(child->ClusterResourceLimits())) {
+                if (resourceLimits.IsViolatedBy(child->ClusterResourceLimits())) {
                     ThrowWithDetailedViolatedResources(
                         resourceLimits,
                         child->ClusterResourceLimits(),
@@ -643,10 +679,10 @@ public:
             }
         }
 
-        if (currentResourceLimits.IsAtLeastOneResourceLessThan(resourceLimits)) {
+        if (currentResourceLimits.IsViolatedBy(resourceLimits)) {
             if (auto* parent = account->GetParent()) {
                 const auto& parentResourceLimits = parent->ClusterResourceLimits();
-                if (parentResourceLimits.IsAtLeastOneResourceLessThan(resourceLimits)) {
+                if (parentResourceLimits.IsViolatedBy(resourceLimits)) {
                     ThrowWithDetailedViolatedResources(
                         parentResourceLimits,
                         resourceLimits,
@@ -669,20 +705,20 @@ public:
         }
     }
 
-    void TrySetResourceLimits(TAccount* account, const TClusterResources& resourceLimits)
+    void TrySetResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits)
     {
         ValidateResourceLimits(account, resourceLimits);
         account->ClusterResourceLimits() = resourceLimits;
     }
 
-    void TransferAccountResources(TAccount* srcAccount, TAccount* dstAccount, const TClusterResources& resourceDelta)
+    void TransferAccountResources(TAccount* srcAccount, TAccount* dstAccount, const TClusterResourceLimits& resourceDelta)
     {
         YT_VERIFY(srcAccount);
         YT_VERIFY(dstAccount);
 
-        TSmallFlatMap<TAccount*, TClusterResources, 4> limitsBackup;
+        TSmallFlatMap<TAccount*, TClusterResourceLimits, 4> limitsBackup;
         try {
-            if (resourceDelta.IsAtLeastOneResourceLessThan(TClusterResources())) {
+            if (resourceDelta.IsViolatedBy(TClusterResourceLimits())) {
                 THROW_ERROR_EXCEPTION("Resource delta cannot be negative");
             }
 
@@ -700,7 +736,7 @@ public:
                 ValidatePermission(account, EPermission::Write);
             }
 
-            auto tryIncrementLimits = [&] (TAccount* account, const TClusterResources& delta) {
+            auto tryIncrementLimits = [&] (TAccount* account, const TClusterResourceLimits& delta) {
                 auto oldLimits = account->ClusterResourceLimits();
                 auto newLimits = oldLimits + delta;
 
@@ -1741,26 +1777,32 @@ public:
 
         auto* initialAccount = account;
 
+        const auto& dynamicConfig = GetDynamicConfig();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+        auto roles = multicellManager->GetMasterCellRoles(cellTag);
+        auto isChunkHostCell = Any(roles & EMasterCellRoles::ChunkHost);
+
         auto throwOverdraftError = [&] (
-            const char* resourceType,
-            TAccount* overdraftedAccount,
+            const TString& resourceType,
+            TAccount* overdrawnAccount,
             const auto& usage,
             const auto& increase,
             const auto& limit,
             const TMedium* medium = nullptr)
         {
             auto errorMessage = Format("%v %Qv is over %v limit%v%v",
-                overdraftedAccount == initialAccount
+                overdrawnAccount == initialAccount
                     ? "Account"
-                    : overdraftedAccount == initialAccount->GetParent()
+                    : overdrawnAccount == initialAccount->GetParent()
                         ? "Parent account"
                         : "Ancestor account",
-                overdraftedAccount->GetName(),
+                overdrawnAccount->GetName(),
                 resourceType,
                 medium
                     ? Format(" in medium %Qv", medium->GetName())
                     : TString(),
-                overdraftedAccount != initialAccount
+                overdrawnAccount != initialAccount
                     ? Format(" (while validating account %Qv)", initialAccount->GetName())
                     : TString());
 
@@ -1770,8 +1812,49 @@ public:
                 << TErrorAttribute("increase", increase)
                 << TErrorAttribute("limit", limit);
         };
+        
+        auto validateMasterMemoryIncrease = [&] (TAccount* account) {
+            if (!dynamicConfig->EnableMasterMemoryUsageValidation || delta.MasterMemory <= 0) {
+                return;
+            }
+            const auto& limits = account->ClusterResourceLimits();
+            const auto& multicellStatistics = account->MulticellStatistics();
 
-        const auto& dynamicConfig = GetDynamicConfig();
+            const auto& perCellLimit = limits.CellMasterMemoryLimits();
+            auto cellLimitsIt = perCellLimit.find(cellTag);
+            auto multicellStatisticsIt = multicellStatistics.find(cellTag);
+            if (cellLimitsIt != perCellLimit.end() && multicellStatisticsIt != multicellStatistics.end()) {
+                if (multicellStatisticsIt->second.ResourceUsage.MasterMemory + delta.MasterMemory >
+                    cellLimitsIt->second) 
+                {
+                    throwOverdraftError(Format("cell %v master memory", cellTag),
+                        account,
+                        multicellStatisticsIt->second.ResourceUsage.MasterMemory,
+                        delta.MasterMemory,
+                        cellLimitsIt->second);
+                }
+            }
+
+            if (isChunkHostCell) {
+                auto chunkHostMasterMemory = account->GetChunkHostMasterMemoryUsage(multicellManager);
+                if (chunkHostMasterMemory + delta.MasterMemory > limits.ChunkHostMasterMemory) {
+                    throwOverdraftError(Format("chunk host master memory"),
+                        account,
+                        chunkHostMasterMemory,
+                        delta.MasterMemory,
+                        limits.ChunkHostMasterMemory);
+                }
+            }
+
+            auto masterMemoryUsage = account->ClusterStatistics().ResourceUsage.MasterMemory;
+            if (masterMemoryUsage + delta.MasterMemory > limits.MasterMemory) {
+                throwOverdraftError("master memory",
+                    account,
+                    masterMemoryUsage,
+                    delta.MasterMemory,
+                    limits.MasterMemory);
+            }
+        };
 
         for (; account; account = account->GetParent()) {
             const auto& usage = account->ClusterStatistics().ResourceUsage;
@@ -1806,11 +1889,7 @@ public:
             if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
                 throwOverdraftError("tablet static memory", account, usage.TabletStaticMemory, delta.TabletStaticMemory, limits.TabletStaticMemory);
             }
-            if (dynamicConfig->EnableMasterMemoryUsageValidation && delta.MasterMemory > 0 &&
-                usage.MasterMemory + delta.MasterMemory > limits.MasterMemory)
-            {
-                throwOverdraftError("master memory", account, usage.MasterMemory, delta.MasterMemory, limits.MasterMemory);
-            }
+            validateMasterMemoryIncrease(account);
         }
 
     }
@@ -1821,7 +1900,7 @@ public:
         const auto& childLimits = childAccount->ClusterResourceLimits();
 
         const auto& parentLimits = parentAccount->ClusterResourceLimits();
-        if (parentLimits.IsAtLeastOneResourceLessThan(childLimits)) {
+        if (parentLimits.IsViolatedBy(childLimits)) {
             ThrowWithDetailedViolatedResources(
                 parentLimits,
                 childLimits,
@@ -2496,7 +2575,7 @@ private:
         }
 
         if (NeedAdjustRootAccountLimits_) {
-            RootAccount_->ClusterResourceLimits() = TClusterResources::Infinite();
+            RootAccount_->ClusterResourceLimits() = TClusterResourceLimits::Infinite();
         }
 
         RecomputeAccountMasterMemoryUsage();
@@ -2872,11 +2951,11 @@ private:
         // Accounts
         // root, infinite resources, not meant to be used
         if (EnsureBuiltinAccountInitialized(RootAccount_, RootAccountId_, RootAccountName)) {
-            RootAccount_->ClusterResourceLimits() = TClusterResources::Infinite();
+            RootAccount_->ClusterResourceLimits() = TClusterResourceLimits::Infinite();
         }
         RootAccount_->SetAllowChildrenLimitOvercommit(true);
 
-        auto defaultResources = TClusterResources()
+        auto defaultResources = TClusterResourceLimits()
             .SetNodeCount(100000)
             .SetChunkCount(1000000000)
             .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB)
@@ -2915,7 +2994,7 @@ private:
 
         // chunk_wise_accounting_migration, maximum disk space, maximum nodes, maximum chunks, 100_GB master memory allowed for: root
         if (EnsureBuiltinAccountInitialized(ChunkWiseAccountingMigrationAccount_, ChunkWiseAccountingMigrationAccountId_, ChunkWiseAccountingMigrationAccountName)) {
-            auto resourceLimits = TClusterResources()
+            auto resourceLimits = TClusterResourceLimits()
                 .SetNodeCount(std::numeric_limits<int>::max())
                 .SetChunkCount(std::numeric_limits<int>::max())
                 .SetMasterMemory(100_GB)
@@ -3095,23 +3174,35 @@ private:
 
         YT_LOG_INFO("Sending account statistics gossip message");
 
-        NProto::TReqSetAccountStatistics request;
-        request.set_cell_tag(multicellManager->GetCellTag());
-        for (auto [accountId, account] : AccountMap_) {
-            if (!IsObjectAlive(account)) {
-                continue;
-            }
-
-            auto* entry = request.add_entries();
-            ToProto(entry->mutable_account_id(), account->GetId());
-            ToProto(
-                entry->mutable_statistics(),
-                multicellManager->IsPrimaryMaster() ? account->ClusterStatistics() : account->LocalStatistics());
-        }
-
         if (multicellManager->IsPrimaryMaster()) {
+            NProto::TReqSetMulticellAccountStatistics request;
+            for (auto [accountId, account] : AccountMap_) {
+                if (!IsObjectAlive(account)) {
+                    continue;
+                }
+
+                auto* entry = request.add_entries();
+                ToProto(entry->mutable_account_id(), account->GetId());
+
+                for (const auto& [cellTag, cellStatistics] : account->MulticellStatistics()) {
+                    auto* statistics = entry->add_statistics();
+                    statistics->set_cell_tag(cellTag);
+                    ToProto(statistics->mutable_statistics(), cellStatistics);
+                }
+            }
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
+            NProto::TReqSetAccountStatistics request;
+            request.set_cell_tag(multicellManager->GetCellTag());
+            for (auto [accountId, account] : AccountMap_) {
+                if (!IsObjectAlive(account)) {
+                    continue;
+                }
+
+                auto* entry = request.add_entries();
+                ToProto(entry->mutable_account_id(), account->GetId());
+                ToProto(entry->mutable_statistics(), account->LocalStatistics());
+            }
             multicellManager->PostToPrimaryMaster(request, false);
         }
     }
@@ -3121,7 +3212,7 @@ private:
         auto cellTag = request->cell_tag();
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
+        YT_VERIFY(multicellManager->IsPrimaryMaster());
 
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
             YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
@@ -3140,12 +3231,44 @@ private:
             }
 
             auto newStatistics = FromProto<TAccountStatistics>(entry.statistics());
-            if (multicellManager->IsPrimaryMaster()) {
-                *account->GetCellStatistics(cellTag) = newStatistics;
-                account->RecomputeClusterStatistics();
-            } else {
-                account->ClusterStatistics() = newStatistics;
+            *account->GetCellStatistics(cellTag) = newStatistics;
+            account->RecomputeClusterStatistics();
+        }
+    }
+
+    void HydraSetAccountStatisticsAtSecondaryCells(NProto::TReqSetMulticellAccountStatistics* request)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
+
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received account statistics gossip message");
+
+        auto localCellTag = multicellManager->GetCellTag();
+
+        for (const auto& entry : request->entries()) {
+            auto accountId = FromProto<TAccountId>(entry.account_id());
+            auto* account = FindAccount(accountId);
+            if (!IsObjectAlive(account)) {
+                continue;
             }
+
+            auto& multicellStatistics = account->MulticellStatistics();
+            for (const auto& cellStatistics: entry.statistics()) {
+                auto cellTag = cellStatistics.cell_tag();
+                if (localCellTag == cellTag) {
+                    continue;
+                }
+
+                if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
+                    YT_LOG_WARNING("Received unknown cell tag in account statistics gossip message (CellTag: %v)", cellTag);
+                    continue;
+                }
+
+                auto newStatistics = FromProto<TAccountStatistics>(cellStatistics.statistics());
+                multicellStatistics[cellTag] = newStatistics;
+            }
+
+            account->RecomputeClusterStatistics();
         }
     }
 
@@ -3836,12 +3959,12 @@ TAccount* TSecurityManager::GetChunkWiseAccountingMigrationAccount()
     return Impl_->GetChunkWiseAccountingMigrationAccount();
 }
 
-TClusterResources TSecurityManager::GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const
+TSecurityManager::TViolatedResourceLimits TSecurityManager::GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const
 {
     return Impl_->GetAccountRecursiveViolatedResourceLimits(account);
 }
 
-void TSecurityManager::TrySetResourceLimits(TAccount* account, const TClusterResources& resourceLimits)
+void TSecurityManager::TrySetResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits)
 {
     Impl_->TrySetResourceLimits(account, resourceLimits);
 }
@@ -3849,7 +3972,7 @@ void TSecurityManager::TrySetResourceLimits(TAccount* account, const TClusterRes
 void TSecurityManager::TransferAccountResources(
     TAccount* srcAccount,
     TAccount* dstAccount,
-    const TClusterResources& resourceDelta)
+    const TClusterResourceLimits& resourceDelta)
 {
     Impl_->TransferAccountResources(srcAccount, dstAccount, resourceDelta);
 }

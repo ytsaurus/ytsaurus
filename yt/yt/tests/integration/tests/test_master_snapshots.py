@@ -154,7 +154,11 @@ def check_master_memory():
         "node_count": 100,
         "tablet_count": 100,
         "tablet_static_memory": 100000,
-        "master_memory": 100000,
+        "master_memory":
+        {
+            "total": 100000,
+            "chunk_host": 100000,
+        }
     }
     create_account("a", attributes={"resource_limits": resource_limits})
 
