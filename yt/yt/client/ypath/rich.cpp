@@ -238,7 +238,7 @@ std::vector<NChunkClient::TLegacyReadRange> TRichYPath::GetRanges() const
 
 //! Return read range corresponding to given map node.
 NChunkClient::TReadRange RangeNodeToReadRange(
-    const std::optional<NTableClient::TComparator>& comparator,
+    const NTableClient::TComparator& comparator,
     const IMapNodePtr& rangeNode)
 {
     auto lowerLimitNode = rangeNode->FindChild("lower_limit");
@@ -275,46 +275,44 @@ NChunkClient::TReadRange RangeNodeToReadRange(
             auto owningKey = ConvertTo<TUnversionedOwningRow>(keyNode);
             TOwningKeyBound keyBound;
 
+            bool containsSentinels = std::find_if(
+                owningKey.begin(),
+                owningKey.end(),
+                [&] (const TUnversionedValue& value) {
+                    return IsSentinelType(value.Type);
+                }) != owningKey.end();
+
             // For tables with descending sort order we are allowed to impose stricter rules regarding
             // what can be specified as a "key" in a read limit.
-            if (comparator->HasDescendingSortOrder()) {
+            if (comparator.HasDescendingSortOrder()) {
                 // First of all, we do not want to state if <min> is less than any value in descending sort order
                 // or not. That's why we simply prohibit keys with sentinels when comparator is not totally ascending.
-                if (std::find_if(
-                    owningKey.begin(),
-                    owningKey.end(),
-                    [&] (const TUnversionedValue& value) {
-                        return IsSentinelType(value.Type);
-                    }) != owningKey.end())
-                {
+                if (containsSentinels) {
                     THROW_ERROR_EXCEPTION(
                         "Sentinel values are not allowed in read limit key when at least one column "
                         "has descending sort order");
                 }
                 // Also, we prohibit keys that are longer than comparator.
-                if (owningKey.GetCount() > comparator->GetLength()) {
+                if (owningKey.GetCount() > comparator.GetLength()) {
                     THROW_ERROR_EXCEPTION(
                         "Read limit key cannot be longer than schema key prefix when at least one column "
                         "has descending sort order");
                 }
 
-                // Finally, we do not allow keys shorter than comparator for "exact" read limit.
-                if (isExact && owningKey.GetCount() < comparator->GetLength()) {
-                    THROW_ERROR_EXCEPTION(
-                        "Exact read limit key should have same length as schema key prefix when at least "
-                        "one column has descending sort order");
-                }
                 keyBound = TOwningKeyBound::FromRow(owningKey, /* isInclusive */ !isUpper, isUpper);
             } else {
                 // Existing code may specify arbitrary garbage as legacy keys and we have no solution other
                 // than interpreting it as a key bound using interop method.
 
-                if (isExact && owningKey.GetCount() != comparator->GetLength()) {
-                    // NB: there is a tricky case when read limit is exact and specified key is shorter
-                    // than comparator. Recall that (in old terms) there may be no keys between
-                    // (foo) and (foo, <min>) in a table with two key columns.
+                if (isExact && (owningKey.GetCount() > comparator.GetLength() || containsSentinels)) {
+                    // NB: there are two tricky cases when read limit is exact:
+                    // - (1) if specified key is longer than comparator. Recall that (in old terms)
+                    // there may be no keys between (foo, bar) and (foo, bar, <max>) in a table with single
+                    // key column.
+                    // - (2) if specified key contains sentinels.
                     //
-                    // For non-totally ascending comparators we throw error right in deserializeLimit.
+                    // For non-totally ascending comparators we throw error right in deserializeLimit in
+                    // both cases.
                     //
                     // For totally ascending comparators we can't throw error and we must somehow
                     // represent an empty range because there may be already existing code that specifies
@@ -325,7 +323,7 @@ NChunkClient::TReadRange RangeNodeToReadRange(
                     // as it would break range indices (kudos to ifsmirnov@ for this nice observation).
                     keyBound = TOwningKeyBound::MakeEmpty(/* isUpper */ false);
                 } else {
-                    keyBound = KeyBoundFromLegacyRow(owningKey, isUpper, comparator->GetLength());
+                    keyBound = KeyBoundFromLegacyRow(owningKey, isUpper, comparator.GetLength());
                 }
             }
             limitNode->AddChild("key_bound", ConvertToNode(keyBound));
@@ -341,7 +339,7 @@ NChunkClient::TReadRange RangeNodeToReadRange(
 
         // If key bound was explicitly specified (i.e. we did not transform legacy key into key bound),
         // we still need to check that key bound length is no more than comparator length.
-        if (readLimit.KeyBound() && readLimit.KeyBound().Prefix.GetCount() > comparator->GetLength()) {
+        if (readLimit.KeyBound() && readLimit.KeyBound().Prefix.GetCount() > comparator.GetLength()) {
             THROW_ERROR_EXCEPTION("Key bound length must not exceed schema key prefix length");
         }
 
@@ -355,9 +353,9 @@ NChunkClient::TReadRange RangeNodeToReadRange(
                 readLimit.KeyBound().GetRelation());
         }
 
-        // Validate that exact limit contains at most one selector.
-        if (exactNode && readLimit.GetSelectorCount() != 1) {
-            THROW_ERROR_EXCEPTION("Exact read limit must have exactly one selector specified");
+        // Validate that exact limit contains at most one independent selector.
+        if (exactNode && (readLimit.HasIndependentSelectors() || readLimit.IsTrivial())) {
+            THROW_ERROR_EXCEPTION("Exact read limit must have exactly one independent selector specified");
         }
     };
 
@@ -383,9 +381,28 @@ NChunkClient::TReadRange RangeNodeToReadRange(
 }
 
 std::vector<NChunkClient::TReadRange> TRichYPath::GetNewRanges(
-    const std::optional<NTableClient::TComparator>& comparator) const
+    const NTableClient::TComparator& comparator) const
 {
+    // TODO(max42): YT-14242. Top-level "lower_limit" and "upper_limit" are processed for compatibility.
+    // But we should deprecate this one day.
     auto optionalRangeNodes = FindAttribute<std::vector<IMapNodePtr>>(*this, "ranges");
+    auto optionalLowerLimitNode = FindAttribute<IMapNodePtr>(*this, "lower_limit");
+    auto optionalUpperLimitNode = FindAttribute<IMapNodePtr>(*this, "upper_limit");
+
+    if (optionalLowerLimitNode || optionalUpperLimitNode) {
+        if (optionalRangeNodes) {
+            THROW_ERROR_EXCEPTION("YPath cannot be annotated with both multiple (\"ranges\" attribute) "
+                "and single (\"lower_limit\" or \"upper_limit\" attributes) ranges");
+        }
+        THashMap<TString, IMapNodePtr> rangeNode;
+        if (optionalLowerLimitNode) {
+            rangeNode["lower_limit"] = optionalLowerLimitNode;
+        }
+        if (optionalUpperLimitNode) {
+            rangeNode["upper_limit"] = optionalUpperLimitNode;
+        }
+        optionalRangeNodes = {ConvertToNode(rangeNode)->AsMap()};
+    }
 
     if (!optionalRangeNodes) {
         return {TReadRange()};
@@ -409,9 +426,9 @@ std::vector<NChunkClient::TReadRange> TRichYPath::GetNewRanges(
     return readRanges;
 }
 
-void TRichYPath::SetRanges(const std::vector<NChunkClient::TLegacyReadRange>& value)
+void TRichYPath::SetRanges(const std::vector<NChunkClient::TReadRange>& ranges)
 {
-    Attributes().Set("ranges", value);
+    Attributes().Set("ranges", ranges);
     // COMPAT(ignat)
     Attributes().Remove("lower_limit");
     Attributes().Remove("upper_limit");

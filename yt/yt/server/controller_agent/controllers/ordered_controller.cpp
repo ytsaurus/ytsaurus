@@ -71,8 +71,8 @@ using namespace NScheduler;
 using NYT::FromProto;
 using NYT::ToProto;
 
-using NChunkClient::TLegacyReadRange;
-using NChunkClient::TLegacyReadLimit;
+using NChunkClient::TReadRange;
+using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -434,7 +434,7 @@ protected:
         return OrderedTask_->GetChunkPoolOutput()->GetOutputOrder();
     }
 
-    virtual void CustomPrepare() override
+    virtual void CustomMaterialize() override
     {
         // NB: Base member is not called intentionally.
 
@@ -938,12 +938,10 @@ private:
         return {Spec_->TablePath};
     }
 
-    virtual void DoInitialize() override
+    virtual void CustomPrepare() override
     {
-        TOrderedControllerBase::DoInitialize();
-
         auto& path = InputTables_[0]->Path;
-        auto ranges = path.GetRanges();
+        auto ranges = path.GetNewRanges(InputTables_[0]->Comparator);
         if (ranges.size() > 1) {
             THROW_ERROR_EXCEPTION("Erase operation does not support tables with multiple ranges");
         }
@@ -952,17 +950,22 @@ private:
         }
 
         if (ranges.size() == 1) {
-            std::vector<TLegacyReadRange> complementaryRanges;
+            std::vector<TReadRange> complementaryRanges;
             const auto& range = ranges[0];
+            if (range.LowerLimit().HasIndependentSelectors() || range.UpperLimit().HasIndependentSelectors()) {
+                // NB: without this check we may erase wider range than requested by user.
+                THROW_ERROR_EXCEPTION("Erase operation does not support read limits with several independent selectors");
+            }
+
             if (!range.LowerLimit().IsTrivial()) {
-                complementaryRanges.push_back(TLegacyReadRange(TLegacyReadLimit(), range.LowerLimit()));
+                complementaryRanges.push_back(TReadRange(TReadLimit(), range.LowerLimit().Invert()));
             }
             if (!range.UpperLimit().IsTrivial()) {
-                complementaryRanges.push_back(TLegacyReadRange(range.UpperLimit(), TLegacyReadLimit()));
+                complementaryRanges.push_back(TReadRange(range.UpperLimit().Invert(), TReadLimit()));
             }
             path.SetRanges(complementaryRanges);
         } else {
-            path.SetRanges(std::vector<TLegacyReadRange>());
+            path.SetRanges(std::vector<TReadRange>{});
         }
     }
 
@@ -1197,7 +1200,7 @@ private:
         }
     }
 
-    virtual void CustomPrepare() override
+    virtual void CustomMaterialize() override
     {
         if (Spec_->CopyAttributes) {
             if (InputTables_.size() != 1) {
@@ -1243,7 +1246,7 @@ private:
             THROW_ERROR_EXCEPTION("Static table cannot be copied into a dynamic table");
         }
 
-        TOrderedControllerBase::CustomPrepare();
+        TOrderedControllerBase::CustomMaterialize();
     }
 
     virtual void CustomCommit() override

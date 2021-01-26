@@ -511,36 +511,41 @@ private:
                 YT_LOG_DEBUG("Skipping table as it already has non-trivial ranges (Table: %v)", inputTable->Path);
                 continue;
             }
-            std::vector<TLegacyReadRange> ranges;
+            std::vector<TReadRange> ranges;
 
             const auto& tablets = inputTable->TableMountInfo->Tablets;
 
-            std::optional<TLegacyKey> beginKey;
+            TOwningKeyBound lowerBound;
 
-            auto flushRange = [&] (TLegacyKey key) {
-                YT_VERIFY(beginKey);
+            auto flushRange = [&] (TOwningKeyBound upperBound) {
+                YT_VERIFY(lowerBound);
                 auto& range = ranges.emplace_back();
-                range.LowerLimit().SetLegacyKey(TLegacyOwningKey(*beginKey));
-                range.UpperLimit().SetLegacyKey(TLegacyOwningKey(key));
-                beginKey = std::nullopt;
+                range.LowerLimit().KeyBound() = lowerBound;
+                range.UpperLimit().KeyBound() = upperBound;
+                lowerBound = TOwningKeyBound();
             };
 
             for (int index = 0; index < static_cast<int>(tablets.size()); ++index) {
-                const auto& lowerKey = tablets[index]->PivotKey;
-                const auto& upperKey = (index + 1 < static_cast<int>(tablets.size())) ? tablets[index + 1]->PivotKey : MaxKey();
-                if (GetRangeMask(EKeyConditionScale::Tablet, lowerKey, upperKey, inputTable->OperandIndex).can_be_true) {
-                    if (!beginKey) {
-                        beginKey = lowerKey;
+                const auto& lowerPivotKey = tablets[index]->PivotKey;
+                const auto& upperPivotKey = (index + 1 < static_cast<int>(tablets.size())) ? tablets[index + 1]->PivotKey : MaxKey();
+                if (GetRangeMask(
+                        EKeyConditionScale::Tablet,
+                        lowerPivotKey,
+                        upperPivotKey,
+                        inputTable->OperandIndex).can_be_true)
+                {
+                    if (!lowerBound) {
+                        lowerBound = TOwningKeyBound::FromRow() >= lowerPivotKey;
                     }
                 } else {
-                    if (beginKey) {
-                        flushRange(lowerKey);
+                    if (lowerBound) {
+                        flushRange(TOwningKeyBound::FromRow() < lowerPivotKey);
                     }
                 }
             }
 
-            if (beginKey) {
-                flushRange(MaxKey());
+            if (lowerBound) {
+                flushRange(TOwningKeyBound::MakeUniversal(/* isUpper */ true));
             }
 
             YT_LOG_DEBUG("Dynamic table ranges inferred from tablet pivot keys (Table: %v, Ranges: %v)", inputTable->Path, ranges);
@@ -595,31 +600,18 @@ private:
         if (table->Dynamic && QueryContext_->Settings->DynamicTable->FetchFromTablets &&
             table->TableMountInfo->MountedTablets.size() == table->TableMountInfo->Tablets.size())
         {
-            std::vector<TReadRange> readRanges;
-            for (const auto& legacyReadRange : table->Path.GetRanges()) {
-                auto& readRange = readRanges.emplace_back();
-                readRange.LowerLimit() = ReadLimitFromLegacyReadLimit(
-                    legacyReadRange.LowerLimit(),
-                    /* isUpper */ false,
-                    table->Comparator.GetLength());
-                readRange.UpperLimit() = ReadLimitFromLegacyReadLimit(
-                    legacyReadRange.UpperLimit(),
-                    /* isUpper */ true,
-                    table->Comparator.GetLength());
-            }
-
             TabletChunkSpecFetcher_->Add(
                 FromObjectId(table->ObjectId),
                 table->ChunkCount,
                 tableIndex,
-                std::move(readRanges));
+                table->Path.GetNewRanges(table->Comparator));
         } else {
             MasterChunkSpecFetcher_->Add(
                 table->ObjectId,
                 table->ExternalCellTag,
                 table->ChunkCount,
                 tableIndex,
-                table->Path.GetRanges());
+                table->Path.GetNewRanges(table->Comparator));
         }
     }
 

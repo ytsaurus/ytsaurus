@@ -218,7 +218,7 @@ public:
         Persist(context, TaskOutputTables_);
     }
 
-    virtual void CustomPrepare() override
+    virtual void CustomMaterialize() override
     {
         ValidateOperationLimits();
 

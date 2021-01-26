@@ -74,7 +74,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     const NApi::NNative::IClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const TUserObject& userObject,
-    const std::vector<TLegacyReadRange>& ranges,
+    const std::vector<TReadRange>& ranges,
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
@@ -87,7 +87,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
 std::vector<NProto::TChunkSpec> FetchTabletStores(
     const NApi::NNative::IClientPtr& client,
     const TUserObject& userObject,
-    const std::vector<TLegacyReadRange>& ranges,
+    const std::vector<TReadRange>& ranges,
     const NLogging::TLogger& logger);
 
 //! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.

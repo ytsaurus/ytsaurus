@@ -501,19 +501,18 @@ TEST_F(TYPathTest, NewReadRanges)
         // (123):456
         ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({123});
         ranges[0].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() < makeRow({456});
-        // (789); in ascending case it transforms into empty range.
-        ranges[1].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() > makeRow({});
-        ranges[1].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() < makeRow({});
+        // (789)
+        ranges[1].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({789});
+        ranges[1].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() <= makeRow({789});
 
         auto ypath = TRichYPath::Parse("//t[(123):456, (789)]");
 
         EXPECT_EQ(
             ranges,
             ypath.GetNewRanges(comparatorAsc2));
-        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
-            ypath.GetNewRanges(comparatorDesc2),
-            std::exception,
-            "Exact read limit key should have same length");
+        EXPECT_EQ(
+            ranges,
+            ypath.GetNewRanges(comparatorDesc2));
     }
 
     {
@@ -643,11 +642,65 @@ TEST_F(TYPathTest, NewReadRanges)
     }
 
     {
-        // Exact consisting of multiple selectors.
+        // Exact consisting of multiple independent selectors.
         EXPECT_THROW_MESSAGE_HAS_SUBSTR(
             TRichYPath::Parse("<ranges=[{exact={row_index=42;chunk_index=23}}]>//tmp/t").GetNewRanges(),
             std::exception,
-            "Exact read limit must have exactly one");
+            "Exact read limit must have exactly one independent selector");
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            TRichYPath::Parse("<ranges=[{exact={tablet_index=42;chunk_index=23}}]>//tmp/t").GetNewRanges(),
+            std::exception,
+            "Exact read limit must have exactly one independent selector");
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            TRichYPath::Parse("<ranges=[{exact={tablet_index=42;row_index=12;chunk_index=23}}]>//tmp/t").GetNewRanges(),
+            std::exception,
+            "Exact read limit must have exactly one independent selector");
+    }
+    {
+        // TODO(max42): YT-14241.
+        // Exact consisting of tablet_index or tablet_index + row_index (which is OK).
+        std::vector<TReadRange> ranges(2);
+        // tablet_index = 2
+        ranges[0].LowerLimit().SetTabletIndex(2);
+        ranges[0].UpperLimit().SetTabletIndex(2);
+        // tablet_index = 2; row_index = 42;
+        ranges[1].LowerLimit().SetTabletIndex(2);
+        ranges[1].LowerLimit().SetRowIndex(42);
+        ranges[1].UpperLimit().SetTabletIndex(2);
+        ranges[1].UpperLimit().SetRowIndex(43);
+
+        auto ypath = TRichYPath::Parse(
+            "<ranges=["
+            "{exact={tablet_index=2}};"
+            "{exact={tablet_index=2;row_index=42}};"
+            "]>//tmp/t");
+    }
+
+    {
+        // Short key in context of a longer key prefix, long key in context of a shorter key prefix
+        // and a key of proper length but with sentinels; long form. With ascending comparator
+        // we should replace latter two ranges with an empty range.
+        std::vector<TReadRange> ranges(3);
+        // [(42)]
+        ranges[0].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() >= makeRow({42});
+        ranges[0].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() <= makeRow({42});
+        // [(42, 43, 44)]
+        ranges[1].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() > makeRow({});
+        ranges[1].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() < makeRow({});
+        // [(42, <type=max>#)]
+        ranges[2].LowerLimit().KeyBound() = TOwningKeyBound::FromRow() > makeRow({});
+        ranges[2].UpperLimit().KeyBound() = TOwningKeyBound::FromRow() < makeRow({});
+
+        auto ypath = TRichYPath::Parse(
+            "<ranges=["
+            "{exact={key=[42];}};"
+            "{exact={key=[42;43;44];}};"
+            "{exact={key=[42;<type=max>#];}};"
+            "]>//tmp/t");
+
+        EXPECT_EQ(
+            ranges,
+            ypath.GetNewRanges(comparatorAsc2));
     }
 }
 

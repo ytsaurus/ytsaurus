@@ -1030,7 +1030,7 @@ void FromProto(
     for (int columnIndex = 0; columnIndex < protoKeyColumns.names_size(); ++columnIndex) {
         auto& columnSchema = columns[columnIndex];
         YT_VERIFY(columnSchema.Name() == protoKeyColumns.names(columnIndex));
-        // TODO(gritukan): YT-14155 
+        // TODO(gritukan): YT-14155
         if (!columnSchema.SortOrder()) {
             columnSchema.SetSortOrder(ESortOrder::Ascending);
         }

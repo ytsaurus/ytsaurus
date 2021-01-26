@@ -599,27 +599,35 @@ protected:
     void FillInitializeResult(TOperationControllerInitializeResult* result);
     void ValidateIntermediateDataAccess(const TString& user, NYTree::EPermission permission) const;
     void InitUpdatingTables();
+    virtual void PrepareInputTables();
 
     // Preparation.
-    void FetchInputTables();
     void RegisterInputChunk(const NChunkClient::TInputChunkPtr& inputChunk);
     void LockInputTables();
     void GetInputTablesAttributes();
     void GetOutputTablesSchema();
-    virtual void PrepareInputTables();
     virtual void PrepareOutputTables();
     void LockOutputTablesAndGetAttributes();
-    void FetchUserFiles();
-    void ValidateUserFileSizes();
-    void DoFetchUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files);
     void LockUserFiles();
     void GetUserFilesAttributes();
+    virtual void CustomPrepare();
+
+    // Materialization.
+    void FetchInputTables();
+    void FetchUserFiles();
+    void DoFetchUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files);
+    void ValidateUserFileSizes();
+    void PickIntermediateDataCells();
+    void InitChunkListPools();
     void SuppressLivePreviewIfNeeded();
     void CreateLivePreviewTables();
     void CollectTotals();
-    virtual void CustomPrepare();
+    virtual void CustomMaterialize();
+    void InitializeHistograms();
+    void InitializeSecurityTags();
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
+
 
     //! If auto-merge is not possible for operation, returns error with a reason.
     virtual TError GetAutoMergeError() const;
@@ -638,9 +646,6 @@ protected:
     void WriteInputQueryToJobSpec(
         NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt);
     virtual void PrepareInputQuery();
-
-    void PickIntermediateDataCells();
-    void InitChunkListPools();
 
     // Completion.
     void TeleportOutputChunks();
@@ -1171,10 +1176,7 @@ private:
 
     void UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& statistics, bool resourceOverdraft = false);
 
-    void InitializeHistograms();
     void UpdateActualHistogram(const TStatistics& statistics);
-
-    void InitializeSecurityTags();
 
     virtual void OnExecNodesUpdated();
 

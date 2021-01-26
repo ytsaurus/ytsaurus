@@ -82,6 +82,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
+#include <yt/client/chunk_client/read_limit.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -794,6 +795,8 @@ void TOperationControllerBase::DoInitialize()
 
 void TOperationControllerBase::LockInputs()
 {
+    // TODO(max42): why is this done during initialization?
+    // Consider moving this call to preparation phase.
     PrepareInputTables();
     LockInputTables();
     LockUserFiles();
@@ -919,6 +922,8 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     InitializeStandardStreamDescriptors();
 
+    CustomPrepare();
+
     YT_LOG_INFO("Operation prepared");
 
     TOperationControllerPrepareResult result;
@@ -945,7 +950,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         CollectTotals();
 
-        CustomPrepare();
+        CustomMaterialize();
 
         InitializeHistograms();
 
@@ -5231,7 +5236,7 @@ void TOperationControllerBase::FetchInputTables()
     // We fetch columnar statistics only for the tables that have column selectors specified.
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
         auto& table = InputTables_[tableIndex];
-        auto ranges = table->Path.GetRanges();
+        auto ranges = table->Path.GetNewRanges(table->Comparator);
         int originalRangeCount = ranges.size();
 
         // XXX(max42): does this ever happen?
@@ -5250,16 +5255,21 @@ void TOperationControllerBase::FetchInputTables()
                 BuiltinRangeExtractorMap,
                 queryOptions);
 
-            std::vector<TLegacyReadRange> inferredRanges;
+            std::vector<TReadRange> inferredRanges;
             for (const auto& range : ranges) {
-                auto lower = range.LowerLimit().HasLegacyKey() ? range.LowerLimit().GetLegacyKey() : MinKey();
-                auto upper = range.UpperLimit().HasLegacyKey() ? range.UpperLimit().GetLegacyKey() : MaxKey();
+                auto legacyRange = ReadRangeToLegacyReadRange(range);
+                auto lower = legacyRange.LowerLimit().HasLegacyKey()
+                    ? legacyRange.LowerLimit().GetLegacyKey()
+                    : MinKey();
+                auto upper = legacyRange.UpperLimit().HasLegacyKey()
+                    ? legacyRange.UpperLimit().GetLegacyKey()
+                    : MaxKey();
                 auto result = rangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
                 for (const auto& inferred : result) {
-                    auto inferredRange = range;
+                    auto inferredRange = legacyRange;
                     inferredRange.LowerLimit().SetLegacyKey(TLegacyOwningKey(inferred.first));
                     inferredRange.UpperLimit().SetLegacyKey(TLegacyOwningKey(inferred.second));
-                    inferredRanges.push_back(inferredRange);
+                    inferredRanges.push_back(ReadRangeFromLegacyReadRange(inferredRange, table->Comparator.GetLength()));
                 }
             }
             ranges = std::move(inferredRanges);
@@ -6062,11 +6072,11 @@ void TOperationControllerBase::FetchUserFiles()
                 file.Path,
                 userJobSpec->TaskTitle);
 
-            std::vector<TLegacyReadRange> readRanges;
+            std::vector<TReadRange> readRanges;
             if (file.Type == EObjectType::Table) {
-                readRanges = file.Path.GetRanges();
+                readRanges = file.Path.GetNewRanges(file.Schema->ToComparator());
             } else if (file.Type == EObjectType::File) {
-                readRanges = {TLegacyReadRange()};
+                readRanges = {TReadRange()};
             } else {
                 YT_ABORT();
             }
@@ -6581,6 +6591,9 @@ void TOperationControllerBase::CollectTotals()
 }
 
 void TOperationControllerBase::CustomPrepare()
+{ }
+
+void TOperationControllerBase::CustomMaterialize()
 { }
 
 TError TOperationControllerBase::GetAutoMergeError() const

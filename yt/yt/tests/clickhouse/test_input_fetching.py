@@ -494,7 +494,7 @@ class TestInputFetching(ClickHouseTestBase):
 
             # Complex form.
             def check_complex(lower_limit, upper_limit):
-                if upper_limit is not None:
+                if upper_limit is None:
                     range_spec = {"exact": lower_limit}
                 else:
                     range_spec = {"lower": lower_limit, "upper": upper_limit}
@@ -519,7 +519,9 @@ class TestInputFetching(ClickHouseTestBase):
                     {"key": [1, yson_min]},
                     {"key": [1, yson_null]},
             ):
-                check_complex(lower_limit, None)
+                # Empty exact range is invalid.
+                if lower_limit != {}:
+                    check_complex(lower_limit, None)
                 for upper_limit in (
                         {},
                         {"row_index": 24},
