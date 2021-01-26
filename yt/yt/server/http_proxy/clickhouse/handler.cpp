@@ -136,8 +136,8 @@ public:
 
             ProxiedRequestHeaders_ = Request_->GetHeaders()->Duplicate();
             ProxiedRequestHeaders_->Remove("Authorization");
-            ProxiedRequestHeaders_->Add("X-Clickhouse-User", User_);
-            ProxiedRequestHeaders_->Add("X-Clique-Id", ToString(OperationId_));
+            ProxiedRequestHeaders_->Set("X-Clickhouse-User", User_);
+            ProxiedRequestHeaders_->Set("X-Clique-Id", ToString(OperationId_));
 
             CgiParameters_.EraseAll("database");
             CgiParameters_.EraseAll("query_id");
@@ -168,7 +168,7 @@ public:
             }
 
             // COMPAT(max42): remove this, name is misleading.
-            ProxiedRequestHeaders_->Add("X-Yt-Request-Id", ToString(Request_->GetRequestId()));
+            ProxiedRequestHeaders_->Set("X-Yt-Request-Id", ToString(Request_->GetRequestId()));
 
             auto traceIdString = ToString(traceContext->GetTraceId());
             auto spanIdString = Format("%" PRIx64, traceContext->GetSpanId());
@@ -178,9 +178,9 @@ public:
                 spanIdString,
                 sampledString);
 
-            ProxiedRequestHeaders_->Add("X-Yt-Trace-Id", traceIdString);
-            ProxiedRequestHeaders_->Add("X-Yt-Span-Id", spanIdString);
-            ProxiedRequestHeaders_->Add("X-Yt-Sampled", ToString(traceContext->IsSampled()));
+            ProxiedRequestHeaders_->Set("X-Yt-Trace-Id", traceIdString);
+            ProxiedRequestHeaders_->Set("X-Yt-Span-Id", spanIdString);
+            ProxiedRequestHeaders_->Set("X-Yt-Sampled", ToString(traceContext->IsSampled()));
         } catch (const std::exception& ex) {
             ReplyWithError(EStatusCode::InternalServerError, TError("Preparation failed")
                 << ex);
