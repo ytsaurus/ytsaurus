@@ -72,7 +72,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     int chunkCount;
     // XXX(babenko): YT-11825
     bool dynamic;
-    bool sorted;
+    TTableSchemaPtr schema;
     {
         YT_LOG_INFO("Requesting chunk count");
 
@@ -93,7 +93,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",
             "dynamic",
-            "sorted"
+            "schema",
         });
         batchReq->AddRequest(req);
 
@@ -107,7 +107,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
 
         chunkCount = attributes->Get<int>("chunk_count");
         dynamic = attributes->Get<bool>("dynamic");
-        sorted = attributes->Get<bool>("sorted");
+        schema = attributes->Get<TTableSchemaPtr>("schema");
     }
 
     auto skynetShareLocations = New<TSkynetSharePartsLocations>();
@@ -118,9 +118,9 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         client,
         skynetShareLocations->NodeDirectory,
         userObject,
-        richPath.GetRanges(),
+        richPath.GetNewRanges(schema->ToComparator()),
         // XXX(babenko): YT-11825
-        dynamic && !sorted ? -1 : chunkCount,
+        dynamic && !schema->IsSorted() ? -1 : chunkCount,
         options.Config->MaxChunksPerFetch,
         options.Config->MaxChunksPerLocateRequest,
         [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {

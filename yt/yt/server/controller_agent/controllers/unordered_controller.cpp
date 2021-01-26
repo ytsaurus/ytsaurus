@@ -389,7 +389,7 @@ protected:
         }
     }
 
-    virtual void CustomPrepare() override
+    virtual void CustomMaterialize() override
     {
         InitTeleportableInputTables();
 

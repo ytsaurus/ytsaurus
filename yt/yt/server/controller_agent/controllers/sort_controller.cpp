@@ -2795,9 +2795,9 @@ protected:
         PartitionJobIOConfig->TableReader->SamplingRate = std::nullopt;
     }
 
-    virtual void CustomPrepare() override
+    virtual void CustomMaterialize() override
     {
-        TOperationControllerBase::CustomPrepare();
+        TOperationControllerBase::CustomMaterialize();
 
         ValidateIntermediateDataAccountPermission(EPermission::Use);
 
@@ -3096,9 +3096,9 @@ private:
         }
     }
 
-    virtual void CustomPrepare() override
+    virtual void CustomMaterialize() override
     {
-        TSortControllerBase::CustomPrepare();
+        TSortControllerBase::CustomMaterialize();
 
         if (TotalEstimatedInputDataWeight == 0) {
             return;
@@ -3955,9 +3955,9 @@ private:
         IntermediateChunkSchema_ = New<TTableSchema>(std::move(chunkSchemaColumns), /* strict */ false);
     }
 
-    virtual void CustomPrepare() override
+    virtual void CustomMaterialize() override
     {
-        TSortControllerBase::CustomPrepare();
+        TSortControllerBase::CustomMaterialize();
 
         InitIntermediateSchemas();
 

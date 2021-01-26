@@ -584,7 +584,7 @@ protected:
 
     virtual TUserJobSpecPtr GetUserJobSpec() const = 0;
 
-    virtual void CustomPrepare() override
+    virtual void CustomMaterialize() override
     {
         // NB: Base member is not called intentionally.
         // TODO(max42): But why?
@@ -1075,7 +1075,7 @@ public:
                     THROW_ERROR_EXCEPTION("Foreign table can not be specified as teleport")
                         << TErrorAttribute("path", table->Path);
                 }
-                if (table->Path.GetRanges().size() > 1) {
+                if (table->Path.GetNewRanges(table->Comparator).size() > 1) {
                     THROW_ERROR_EXCEPTION("Reduce operation does not support foreign tables with multiple ranges");
                 }
                 ++foreignInputCount;

@@ -289,7 +289,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     const TUserObject& userObject,
-    const std::vector<NChunkClient::TLegacyReadRange>& ranges,
+    const std::vector<NChunkClient::TReadRange>& ranges,
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
@@ -318,14 +318,14 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
             // XXX(babenko): YT-11825
             if (chunkCount >= 0) {
                 auto chunkCountLowerLimit = subrequestIndex * maxChunksPerFetch;
-                if (adjustedRange.LowerLimit().HasChunkIndex()) {
-                    chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
+                if (auto lowerChunkIndex = adjustedRange.LowerLimit().GetChunkIndex()) {
+                    chunkCountLowerLimit = std::max(chunkCountLowerLimit, *lowerChunkIndex);
                 }
                 adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
 
                 auto chunkCountUpperLimit = (subrequestIndex + 1) * maxChunksPerFetch;
-                if (adjustedRange.UpperLimit().HasChunkIndex()) {
-                    chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
+                if (auto upperChunkIndex = adjustedRange.UpperLimit().GetChunkIndex()) {
+                    chunkCountUpperLimit = std::min(chunkCountUpperLimit, *upperChunkIndex);
                 }
                 adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
             }
@@ -336,7 +336,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
             req->Tag() = rangeIndex;
             req->set_address_type(static_cast<int>(addressType));
             initializeFetchRequest(req.Get());
-            ToProto(req->mutable_ranges(), std::vector<NChunkClient::TLegacyReadRange>{adjustedRange});
+            ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
             batchReq->AddRequest(req);
         }
@@ -372,7 +372,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
 std::vector<NProto::TChunkSpec> FetchTabletStores(
     const NApi::NNative::IClientPtr& client,
     const TUserObject& userObject,
-    const std::vector<TLegacyReadRange>& ranges,
+    const std::vector<TReadRange>& ranges,
     const NLogging::TLogger& logger)
 {
     const auto& Logger = logger;

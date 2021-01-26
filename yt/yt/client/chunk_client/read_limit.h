@@ -145,7 +145,21 @@ public:
         bool isUpper,
         int keyLength = 0);
 
+    //! Returns true if no selectors are specified.
     bool IsTrivial() const;
+
+    //! Returns true if this read limit contains more than one "independent" selector.
+    //! By "independent" we mean following: "row_index" and "key" are independent, but
+    //! "tablet_index" and "row_index" are not since they are used for ordered dyntables
+    //! and tuple (tablet_index, row_index) defines a read limit for them.
+    //!
+    //! Rationale: this method allows checking if read limit is suitable for "exact" clause
+    //! or for specifying read ranges for Erase operation.
+    //!
+    //! Equivalent way of thinking: if readLimit.HasIndependentSelectors() == true,
+    //! then {upper_limit = readLimit} and {lower_limit = readLimit} always define
+    //! complementary row sets.
+    bool HasIndependentSelectors() const;
 
     //! Return number of specified selectors.
     int GetSelectorCount() const;
@@ -154,6 +168,11 @@ public:
     //! invert key bound selector. This method is used to transform "exact" YPath read limit
     //! into a pair of lower and upper read limit.
     TReadLimit ToExactUpperCounterpart() const;
+
+    //! Return inverted read limit, i.e. integer selectors remain as is and key bound is inverted.
+    //! NB: this method makes YT_VERIFY that read limit contains exactly one selector. Otherwise
+    //! semantics of such method is weird.
+    TReadLimit Invert() const;
 
     bool operator == (const TReadLimit& other) const;
 };
@@ -212,6 +231,17 @@ TReadLimit ReadLimitFromLegacyReadLimitKeyless(const TLegacyReadLimit& legacyRea
 
 //! Transform new read limit into legacy read limit.
 TLegacyReadLimit ReadLimitToLegacyReadLimit(const TReadLimit& readLimit);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Transform legacy read range to new read range possibly transforming legacy keys into
+//! key bounds by calling KeyBoundFromLegacyKey.
+TReadRange ReadRangeFromLegacyReadRange(const TLegacyReadRange& legacyReadRange, int keyLength);
+//! Transform legacy read range without legacy keys into new read range (merely copying all integer fields).
+TReadRange ReadRangeFromLegacyReadRangeKeyless(const TLegacyReadRange& legacyReadRange);
+
+//! Transform new read range into legacy read range.
+TLegacyReadRange ReadRangeToLegacyReadRange(const TReadRange& readRange);
 
 ////////////////////////////////////////////////////////////////////////////////
 

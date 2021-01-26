@@ -72,7 +72,7 @@ void TMasterChunkSpecFetcher::Add(
     TCellTag externalCellTag,
     i64 chunkCount,
     int tableIndex,
-    const std::vector<TLegacyReadRange>& ranges)
+    const std::vector<TReadRange>& ranges)
 {
     auto& state = GetCellState(externalCellTag);
 
@@ -87,14 +87,14 @@ void TMasterChunkSpecFetcher::Add(
             // XXX(gritukan, babenko): YT-11825
             if (chunkCount >= 0) {
                 auto chunkCountLowerLimit = index * MaxChunksPerFetch_;
-                if (adjustedRange.LowerLimit().HasChunkIndex()) {
-                    chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
+                if (auto lowerChunkIndex = adjustedRange.LowerLimit().GetChunkIndex()) {
+                    chunkCountLowerLimit = std::max(chunkCountLowerLimit, *lowerChunkIndex);
                 }
                 adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
 
                 auto chunkCountUpperLimit = (index + 1) * MaxChunksPerFetch_;
-                if (adjustedRange.UpperLimit().HasChunkIndex()) {
-                    chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
+                if (auto upperChunkIndex = adjustedRange.UpperLimit().GetChunkIndex()) {
+                    chunkCountUpperLimit = std::min(chunkCountUpperLimit, *upperChunkIndex);
                 }
                 adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
             }
@@ -102,7 +102,7 @@ void TMasterChunkSpecFetcher::Add(
             auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(objectId));
             AddCellTagToSyncWith(req, objectId);
             InitializeFetchRequest_(req.Get(), tableIndex);
-            ToProto(req->mutable_ranges(), std::vector<NChunkClient::TLegacyReadRange>{adjustedRange});
+            ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
             state.BatchReq->AddRequest(req, "fetch");
@@ -278,6 +278,7 @@ void TTabletChunkSpecFetcher::AddSorted(
     const std::vector<TReadRange>& ranges)
 {
     const auto& comparator = tableMountInfo.Schemas[ETableSchemaKind::Primary]->ToComparator();
+    YT_VERIFY(comparator);
 
     auto validateReadLimit = [&] (const TReadLimit& readLimit, const TStringBuf& limitKind) {
         try {

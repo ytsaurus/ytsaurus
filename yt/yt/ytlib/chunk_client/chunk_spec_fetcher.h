@@ -44,7 +44,7 @@ public:
         NObjectClient::TCellTag externalCellTag,
         i64 chunkCount,
         int tableIndex = 0,
-        const std::vector<TLegacyReadRange>& ranges = {TLegacyReadRange()});
+        const std::vector<TReadRange>& ranges = {TReadRange()});
 
     TFuture<void> Fetch();
 

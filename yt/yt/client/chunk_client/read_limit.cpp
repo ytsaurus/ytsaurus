@@ -573,6 +573,23 @@ bool TReadLimit::IsTrivial() const
     return GetSelectorCount() == 0;
 }
 
+bool TReadLimit::HasIndependentSelectors() const
+{
+    if (GetSelectorCount() >= 3) {
+        return true;
+    }
+    if (GetSelectorCount() == 2) {
+        if (RowIndex_ && TabletIndex_) {
+            // Row index and tablet index are not independent.
+            return false;
+        } else {
+            return true;
+        }
+    }
+    // Having single or no selector at all means that there are no independent selectors.
+    return false;
+}
+
 int TReadLimit::GetSelectorCount() const
 {
     int selectorCount = 0;
@@ -602,7 +619,7 @@ int TReadLimit::GetSelectorCount() const
 
 TReadLimit TReadLimit::ToExactUpperCounterpart() const
 {
-    YT_VERIFY(GetSelectorCount() == 1);
+    YT_VERIFY(!HasIndependentSelectors());
 
     TReadLimit result = *this;
 
@@ -628,8 +645,24 @@ TReadLimit TReadLimit::ToExactUpperCounterpart() const
         ++*result.ChunkIndex_;
     }
 
-    if (TabletIndex_) {
-        ++*result.TabletIndex_;
+    // TODO(max42): YT-14241.
+    // Right now tablet index is used only when reading ordered dynamic tables,
+    // and they obey different rules. Tablet index selector is effectively
+    // inclusive since we order rows by (tablet_index, row_index). In particular,
+    // upper_bound = {tablet_index = 2} specifies rows up to tablet 2 __inclusive__.
+    // This leads to the fact that we do not need to increment tablet index here.
+
+    return result;
+}
+
+TReadLimit TReadLimit::Invert() const
+{
+    YT_VERIFY(!HasIndependentSelectors());
+
+    auto result = *this;
+
+    if (KeyBound_) {
+        result.KeyBound() = result.KeyBound().Invert();
     }
 
     return result;
@@ -763,11 +796,18 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("key_bound").Value(readLimit.KeyBound())
-            .Item("row_index").Value(readLimit.GetRowIndex())
-            .Item("offset").Value(readLimit.GetOffset())
-            .Item("chunk_index").Value(readLimit.GetChunkIndex())
-            .Item("tablet_index").Value(readLimit.GetTabletIndex())
+            .DoIf(static_cast<bool>(readLimit.KeyBound()), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("key_bound").Value(readLimit.KeyBound())
+                    // COMPAT(max42): it is important to serialize also a key in order to keep
+                    // backward compatibility with old clusters. Note that modern version of code
+                    // should ignore "key" selector if "key_bound" is present.
+                    .Item("key").Value(KeyBoundToLegacyRow(readLimit.KeyBound()));
+            })
+            .OptionalItem("row_index", readLimit.GetRowIndex())
+            .OptionalItem("offset", readLimit.GetOffset())
+            .OptionalItem("chunk_index", readLimit.GetChunkIndex())
+            .OptionalItem("tablet_index", readLimit.GetTabletIndex())
         .EndMap();
 }
 
@@ -943,6 +983,38 @@ TLegacyReadLimit ReadLimitToLegacyReadLimit(const TReadLimit& readLimit)
     if (readLimit.KeyBound()) {
         result.SetLegacyKey(KeyBoundToLegacyRow(readLimit.KeyBound()));
     }
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReadRange ReadRangeFromLegacyReadRange(const TLegacyReadRange& legacyReadRange, int keyLength)
+{
+    TReadRange result;
+
+    result.LowerLimit() = ReadLimitFromLegacyReadLimit(legacyReadRange.LowerLimit(), /* isUpper */ false, keyLength);
+    result.UpperLimit() = ReadLimitFromLegacyReadLimit(legacyReadRange.UpperLimit(), /* isUpper */ true, keyLength);
+
+    return result;
+}
+
+TReadRange ReadRangeFromLegacyReadRangeKeyless(const TLegacyReadRange& legacyReadRange)
+{
+    TReadRange result;
+
+    result.LowerLimit() = ReadLimitFromLegacyReadLimitKeyless(legacyReadRange.LowerLimit());
+    result.UpperLimit() = ReadLimitFromLegacyReadLimitKeyless(legacyReadRange.UpperLimit());
+
+    return result;
+}
+
+TLegacyReadRange ReadRangeToLegacyReadRange(const TReadRange& readRange)
+{
+    TLegacyReadRange result;
+
+    result.LowerLimit() = ReadLimitToLegacyReadLimit(readRange.LowerLimit());
+    result.UpperLimit() = ReadLimitToLegacyReadLimit(readRange.UpperLimit());
 
     return result;
 }

@@ -41,19 +41,19 @@ TReadJournalCommand::TReadJournalCommand()
 
 void TReadJournalCommand::DoExecute(ICommandContextPtr context)
 {
-    auto checkLimit = [] (const TLegacyReadLimit& limit) {
-        if (limit.HasLegacyKey()) {
+    auto checkLimit = [] (const TReadLimit& limit) {
+        if (limit.KeyBound()) {
             THROW_ERROR_EXCEPTION("Reading key range is not supported in journals");
         }
-        if (limit.HasChunkIndex()) {
+        if (limit.GetChunkIndex()) {
             THROW_ERROR_EXCEPTION("Reading chunk index range is not supported in journals");
         }
-        if (limit.HasOffset()) {
+        if (limit.GetOffset()) {
             THROW_ERROR_EXCEPTION("Reading offset range is not supported in journals");
         }
     };
 
-    if (Path.GetRanges().size() > 1) {
+    if (Path.GetNewRanges().size() > 1) {
         THROW_ERROR_EXCEPTION("Reading multiple ranges is not supported in journals");
     }
 
@@ -61,18 +61,16 @@ void TReadJournalCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->JournalReader,
         JournalReader);
 
-    if (Path.GetRanges().size() == 1) {
-        auto range = Path.GetRanges()[0];
+    if (Path.GetNewRanges().size() == 1) {
+        auto range = Path.GetNewRanges()[0];
 
         checkLimit(range.LowerLimit());
         checkLimit(range.UpperLimit());
 
-        Options.FirstRowIndex = range.LowerLimit().HasRowIndex()
-            ? range.LowerLimit().GetRowIndex()
-            : 0;
+        Options.FirstRowIndex = range.LowerLimit().GetRowIndex().value_or(0);
 
-        if (range.UpperLimit().HasRowIndex()) {
-            Options.RowCount = range.UpperLimit().GetRowIndex() - *Options.FirstRowIndex;
+        if (auto upperRowIndex = range.UpperLimit().GetRowIndex()) {
+            Options.RowCount = *upperRowIndex - *Options.FirstRowIndex;
         }
     }
 

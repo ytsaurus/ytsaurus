@@ -78,9 +78,9 @@ public:
     //! In case when at least one column is non-ascending, some requirements are even stronger,
     //! refer to the implementation for details.
     std::vector<NChunkClient::TReadRange> GetNewRanges(
-        const std::optional<NTableClient::TComparator>& comparator = std::nullopt) const;
+        const NTableClient::TComparator& comparator = NTableClient::TComparator()) const;
 
-    void SetRanges(const std::vector<NChunkClient::TLegacyReadRange>& value);
+    void SetRanges(const std::vector<NChunkClient::TReadRange>& ranges);
     bool HasNontrivialRanges() const;
 
     // "file_name"
