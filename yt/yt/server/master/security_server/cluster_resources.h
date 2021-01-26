@@ -22,24 +22,22 @@ class TClusterResources
 public:
     TClusterResources();
 
-    //! Get infinite resources.
-    static TClusterResources Infinite();
-
-    //! Set node count.
+    //! Sets node count.
     TClusterResources&& SetNodeCount(i64 nodeCount) &&;
 
-    //! Set chunk count.
+    //! Sets chunk count.
     TClusterResources&& SetChunkCount(i64 chunkCount) &&;
 
-    //! Set tablet count.
+    //! Sets tablet count.
     TClusterResources&& SetTabletCount(int tabletCount) &&;
 
-    //! Set tablet static memory size.
+    //! Sets tablet static memory size.
     TClusterResources&& SetTabletStaticMemory(i64 tabletStaticMemory) &&;
 
+    //! Sets master memory.
     TClusterResources&& SetMasterMemory(i64 masterMemory) &&;
 
-    //! Set medium disk space.
+    //! Sets medium disk space.
     TClusterResources&& SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&;
     void SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &;
 
@@ -50,28 +48,6 @@ public:
     //! Completely empties disk space counts for all media.
     void ClearDiskSpace();
 
-    // TODO(shakurov): rename to 'IsViolatedBy' and move to a separate
-    // TClusterResourceLimits type?
-    bool IsAtLeastOneResourceLessThan(const TClusterResources& rhs) const;
-
-    // TODO(shakurov): introduce a separate TViolatedResourceLimits type (and
-    // probably TClusterResourcesLimits also).
-    using TViolatedResourceLimits = TClusterResources;
-    TViolatedResourceLimits GetViolatedBy(const TClusterResources& usage) const;
-
-private:
-    //! Space occupied on data nodes in bytes per medium.
-    /*!
-     *  This takes replication into account. At intermediate stages
-     *  the actual space may be different.
-     *
-     *  Zero disk space for a medium is considered equivalent to that medium
-     *  missing an entry in this map. In particular, setting zero disk space for
-     *  a medium leads to erasing it from the map altogether.
-     */
-    NChunkClient::TMediumMap<i64> DiskSpace_;
-
-public:
     const NChunkClient::TMediumMap<i64>& DiskSpace() const;
 
     //! Number of Cypress nodes created at master.
@@ -97,6 +73,18 @@ public:
 
     void Save(NCypressServer::TBeginCopyContext& context) const;
     void Load(NCypressServer::TEndCopyContext& context);
+
+private:
+    //! Space occupied on data nodes in bytes per medium.
+    /*!
+     *  This takes replication into account. At intermediate stages
+     *  the actual space may be different.
+     *
+     *  Zero disk space for a medium is considered equivalent to that medium
+     *  missing an entry in this map. In particular, setting zero disk space for
+     *  a medium leads to erasing it from the map altogether.
+     */
+    NChunkClient::TMediumMap<i64> DiskSpace_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,12 +97,11 @@ class TSerializableClusterResources
 {
 public:
     // For deserialization.
-    explicit TSerializableClusterResources(bool serializeDiskSpace = true);
+    explicit TSerializableClusterResources();
     // For serialization.
     TSerializableClusterResources(
         const NChunkServer::TChunkManagerPtr& chunkManager,
-        const TClusterResources& clusterResources,
-        bool serializeDiskSpace = true);
+        const TClusterResources& clusterResources);
 
     TClusterResources ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const;
 
@@ -126,7 +113,8 @@ private:
     int TabletCount_ = 0;
     i64 TabletStaticMemory_ = 0;
     THashMap<TString, i64> DiskSpacePerMedium_;
-    i64 DiskSpace_; // Compatibility.
+    // COMPAT(shakurov)
+    i64 DiskSpace_;
     i64 MasterMemory_ = 0;
 };
 
@@ -153,29 +141,6 @@ bool operator != (const TClusterResources& lhs, const TClusterResources& rhs);
 
 void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources, TStringBuf /*format*/);
 TString ToString(const TClusterResources& resources);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A helper for serializing TClusterResources as violated resource limits.
-// TODO(shakurov): introduce an actual TViolatedClusterResourceLimits and use it here.
-class TSerializableViolatedClusterResourceLimits
-    : public NYTree::TYsonSerializable
-{
-public:
-    TSerializableViolatedClusterResourceLimits(
-        const NChunkServer::TChunkManagerPtr& chunkManager,
-        const TClusterResources& violatedResourceLimits);
-
-private:
-    bool NodeCount_ = 0;
-    bool ChunkCount_ = 0;
-    bool TabletCount_ = 0;
-    bool TabletStaticMemory_ = 0;
-    THashMap<TString, bool> DiskSpacePerMedium_;
-    bool MasterMemory_ = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSerializableViolatedClusterResourceLimits)
 
 ////////////////////////////////////////////////////////////////////////////////
 

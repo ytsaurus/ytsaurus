@@ -165,12 +165,12 @@ private:
                 }
                 auto resourceUsage =
                     account->ClusterStatistics().ResourceUsage - account->ComputeTotalChildrenResourceUsage();
-                SerializeClusterResources(resourceUsage, account, true, consumer);
+                SerializeClusterResources(resourceUsage, account, consumer);
                 return true;
             }
 
             case EInternedAttributeKey::RecursiveResourceUsage:
-                SerializeClusterResources(account->ClusterStatistics().ResourceUsage, account, true, consumer);
+                SerializeClusterResources(account->ClusterStatistics().ResourceUsage, account, consumer);
                 return true;
 
             case EInternedAttributeKey::CommittedResourceUsage: {
@@ -179,12 +179,12 @@ private:
                 }
                 auto resourceUsage =
                     account->ClusterStatistics().CommittedResourceUsage - account->ComputeTotalChildrenCommittedResourceUsage();
-                SerializeClusterResources(resourceUsage, account, true, consumer);
+                SerializeClusterResources(resourceUsage, account, consumer);
                 return true;
             }
 
             case EInternedAttributeKey::RecursiveCommittedResourceUsage:
-                SerializeClusterResources(account->ClusterStatistics().CommittedResourceUsage, account, true, consumer);
+                SerializeClusterResources(account->ClusterStatistics().CommittedResourceUsage, account, consumer);
                 return true;
 
             case EInternedAttributeKey::MulticellStatistics: {
@@ -213,7 +213,7 @@ private:
                 if (IsRootAccount()) {
                     break;
                 }
-                SerializeClusterResources(account->ClusterResourceLimits(), account, true, consumer);
+                SerializeClusterResourceLimits(account->ClusterResourceLimits(), account, true, consumer);
                 return true;
 
             case EInternedAttributeKey::ViolatedResourceLimits: {
@@ -221,6 +221,10 @@ private:
                     break;
                 }
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+                auto cellTags = multicellManager->GetSecondaryCellTags();
+                cellTags.push_back(multicellManager->GetPrimaryCellTag());
 
                 // TODO(shakurov): introduce TAccount::GetViolatedResourceLimits
                 // and make use of it here.
@@ -237,7 +241,15 @@ private:
                         .Item("chunk_count").Value(account->IsChunkCountLimitViolated())
                         .Item("tablet_count").Value(account->IsTabletCountLimitViolated())
                         .Item("tablet_static_memory").Value(account->IsTabletStaticMemoryLimitViolated())
-                        .Item("master_memory").Value(account->IsMasterMemoryLimitViolated())
+                        .Item("master_memory")
+                            .BeginMap()
+                                .Item("total").Value(account->IsMasterMemoryLimitViolated())
+                                .Item("chunk_host").Value(account->IsChunkHostMasterMemoryLimitViolated(multicellManager))
+                                .Item("per_cell").DoMapFor(cellTags, [&] (TFluentMap fluent, TCellTag cellTag) {
+                                    fluent
+                                        .Item(multicellManager->GetMasterCellName(cellTag)).Value(account->IsMasterMemoryLimitViolated(cellTag));
+                                })
+                            .EndMap()
                     .EndMap();
                 return true;
             }
@@ -246,13 +258,13 @@ private:
                 const auto& securityManager = Bootstrap_->GetSecurityManager();
 
                 auto violatedLimits = securityManager->GetAccountRecursiveViolatedResourceLimits(account);
-                SerializeClusterResources(violatedLimits, nullptr, false, consumer);
+                SerializeClusterResourceLimits(violatedLimits, nullptr, false, consumer);
                 return true;
             }
 
             case EInternedAttributeKey::TotalChildrenResourceLimits: {
                 auto resourceLimits = account->ComputeTotalChildrenLimits();
-                SerializeClusterResources(resourceLimits, account, true, consumer);
+                SerializeClusterResourceLimits(resourceLimits, account, true, consumer);
                 return true;
             }
 
@@ -268,6 +280,7 @@ private:
         auto* account = GetThisImpl();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         switch (key) {
             case EInternedAttributeKey::AllowChildrenLimitOvercommit: {
@@ -285,8 +298,8 @@ private:
                     break;
                 }
 
-                auto limits = ConvertTo<TSerializableClusterResourcesPtr>(value);
-                securityManager->TrySetResourceLimits(account, limits->ToClusterResources(chunkManager));
+                auto limits = ConvertTo<TSerializableClusterResourceLimitsPtr>(value);
+                securityManager->TrySetResourceLimits(account, limits->ToClusterResourceLimits(chunkManager, multicellManager));
                 return true;
             }
 
@@ -300,14 +313,12 @@ private:
     void SerializeClusterResources(
         const TClusterResources& clusterResources,
         const TAccount* account,
-        bool serializeDiskSpace,
         NYson::IYsonConsumer* consumer)
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto resourceSerializer = New<TSerializableClusterResources>(
             chunkManager,
-            clusterResources,
-            serializeDiskSpace);
+            clusterResources);
 
         if (account) {
             // Make sure medium disk space usage is serialized even if it's zero - for media with limits set.
@@ -324,6 +335,23 @@ private:
             .Value(resourceSerializer);
     }
 
+    void SerializeClusterResourceLimits(
+        const TClusterResourceLimits& clusterResourceLimits,
+        const TAccount* account,
+        bool serializeDiskSpace,
+        NYson::IYsonConsumer* consumer)
+    {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto resourceSerializer = New<TSerializableClusterResourceLimits>(
+            chunkManager,
+            multicellManager,
+            clusterResourceLimits,
+            serializeDiskSpace);
+        BuildYsonFluently(consumer)
+            .Value(resourceSerializer);
+    }
+    
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(TransferAccountResources);
@@ -338,12 +366,13 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto* impl = GetThisImpl();
         auto* srcAccount = securityManager->GetAccountByNameOrThrow(request->src_account(), true /*activeLifeStageOnly*/);
-        auto serializableResourceDelta = ConvertTo<TSerializableClusterResourcesPtr>(
+        auto serializableResourceDelta = ConvertTo<TSerializableClusterResourceLimitsPtr>(
             TYsonString(request->resource_delta()));
-        auto resourceDelta = serializableResourceDelta->ToClusterResources(chunkManager);
+        auto resourceDelta = serializableResourceDelta->ToClusterResourceLimits(chunkManager, multicellManager);
 
         context->SetRequestInfo("SrcAccount: %v, DstAccount: %v",
             srcAccount->GetName(),

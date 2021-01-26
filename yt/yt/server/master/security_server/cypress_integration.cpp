@@ -104,6 +104,7 @@ private:
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto* rootAccount = securityManager->GetRootAccount();
 
         switch (key) {
@@ -125,7 +126,7 @@ private:
 
             case EInternedAttributeKey::TotalResourceLimits: {
                 auto resources = rootAccount->ComputeTotalChildrenLimits();
-                auto serializer = New<TSerializableClusterResources>(chunkManager, resources);
+                auto serializer = New<TSerializableClusterResourceLimits>(chunkManager, multicellManager, resources);
                 BuildYsonFluently(consumer)
                     .Value(serializer);
                 return true;

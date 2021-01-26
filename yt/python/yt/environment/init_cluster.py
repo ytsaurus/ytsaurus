@@ -76,8 +76,9 @@ def get_default_resource_limits(client):
     result = {"node_count": 500000,
               "chunk_count": 1000000,
               "tablet_count": 1000,
-              "tablet_static_memory": 1 * GB,
-              "master_memory": 100 * GB}
+              "tablet_static_memory": 1 * GB
+    }
+
     # Backwards compatibility.
     if client.exists("//sys/media"):
         result["disk_space_per_medium"] = {"default": 10 * TB}
@@ -85,6 +86,27 @@ def get_default_resource_limits(client):
         result["disk_space"] = 10 * TB
 
     return result
+
+def create_account(client, attributes):
+    client.create("account", attributes=attributes)
+
+    # Backwards compatibility.
+    GB = 1024 ** 3
+    account_name = attributes["name"]
+    try:
+        client.set(
+            "//sys/accounts/{0}/@resource_limits/master_memory/total".format(account_name),
+            100 * GB
+        )
+        client.set(
+            "//sys/accounts/{0}/@resource_limits/master_memory/chunk_host".format(account_name),
+            100 * GB
+        )
+    except:
+        client.set(
+            "//sys/accounts/{0}/@resource_limits/master_memory".format(account_name),
+            100 * GB
+        )
 
 def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None, configure_pool_trees=True, is_multicell=False):
     client = get_value(client, yt)
@@ -133,7 +155,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
     client.set("//sys/tablet_cells/@inherit_acl", "false")
 
     if not client.exists("//sys/accounts/tmp_files"):
-        client.create("account", attributes={"name": "tmp_files",
+        create_account(client, attributes={"name": "tmp_files",
                                              "acl": [{
                                                  "action": "allow",
                                                  "subjects": ["users"],
@@ -146,7 +168,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         logger.warning("Account 'tmp_files' already exists")
 
     if not client.exists("//sys/accounts/default"):
-        client.create("account", attributes={"name": "default",
+        create_account(client, attributes={"name": "default",
                                              "acl": [{
                                                  "action": "allow",
                                                  "subjects": ["users"],
@@ -160,7 +182,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         logger.warning("Account 'default' already exists")
 
     if not client.exists("//sys/accounts/tmp_jobs"):
-        client.create("account", attributes={"name": "tmp_jobs",
+        create_account(client, attributes={"name": "tmp_jobs",
                                              "resource_limits": get_default_resource_limits(client)})
         if is_multicell:
             wait(lambda: client.get("//sys/accounts/tmp_jobs/@life_stage") == 'creation_committed')

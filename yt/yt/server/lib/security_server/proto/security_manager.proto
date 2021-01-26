@@ -41,6 +41,23 @@ message TReqSetAccountStatistics
     repeated TEntry entries = 2;
 }
 
+message TReqSetMulticellAccountStatistics
+{
+    message TCellStatistics
+    {
+        required int32 cell_tag = 1;
+        required TAccountStatistics statistics = 2;
+    }
+
+    message TEntry
+    {
+        required NYT.NProto.TGuid account_id = 1;
+        repeated TCellStatistics statistics = 2;
+    }
+
+    repeated TEntry entries = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqRecomputeMembershipClosure
