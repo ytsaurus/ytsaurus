@@ -168,7 +168,7 @@ class YtTestEnvironment(object):
                               kill_child_processes=True)
 
         try:
-            self.env.start(start_secondary_master_cells=True)
+            self.env.start()
         except:
             self.save_sandbox()
             raise

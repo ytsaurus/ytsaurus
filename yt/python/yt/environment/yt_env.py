@@ -8,6 +8,7 @@ from .helpers import (
     is_port_opened, is_file_locked)
 from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
+from .init_cluster import _initialize_world
 
 from yt.common import YtError, remove_file, makedirp, update, get_value, which
 from yt.wrapper.common import generate_uuid, flatten
@@ -330,7 +331,7 @@ class YTInstance(object):
         if os.path.exists(self.runtime_data_path):
             shutil.rmtree(self.runtime_data_path, ignore_errors=True)
 
-    def start(self, start_secondary_master_cells=False, on_masters_started_func=None):
+    def start(self, on_masters_started_func=None):
         for name, processes in iteritems(self._service_processes):
             for index in xrange(len(processes)):
                 processes[index] = None
@@ -358,7 +359,7 @@ class YTInstance(object):
 
             self.synchronize()
 
-            if start_secondary_master_cells:
+            if not self.yt_config.defer_secondary_cell_start:
                 self.start_secondary_master_cells(sync=False)
                 self.synchronize()
 
@@ -382,6 +383,20 @@ class YTInstance(object):
             if self._run_watcher:
                 self._start_watcher()
                 self._started = True
+
+            if self.yt_config.initialize_world:
+                if not self._load_existing_environment:
+                    client = self.create_client()
+
+                    # This hack is necessary to correctly run inside docker container.
+                    # In this case public proxy port differs from proxy port inside container and
+                    # we should use latter.
+                    client.config["proxy"]["enable_proxy_discovery"] = False
+
+                    _initialize_world(
+                        client,
+                        self,
+                        self.yt_config)
 
             self._write_environment_info_to_file()
         except (YtError, KeyboardInterrupt) as err:

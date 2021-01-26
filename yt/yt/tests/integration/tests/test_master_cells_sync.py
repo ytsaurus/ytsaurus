@@ -9,7 +9,6 @@ from flaky import flaky
 
 
 class TestMasterCellsSync(YTEnvSetup):
-    START_SECONDARY_MASTER_CELLS = True
     ENABLE_SECONDARY_CELLS_CLEANUP = False
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_NODES = 3
@@ -232,7 +231,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
 @pytest.mark.skipif("True", reason="Currently broken")
 class TestMasterCellsSyncDelayed(TestMasterCellsSync):
-    START_SECONDARY_MASTER_CELLS = False
+    DEFER_SECONDARY_CELL_START = True
 
     @classmethod
     def setup_class(cls):

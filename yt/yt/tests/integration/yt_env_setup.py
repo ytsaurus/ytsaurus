@@ -194,7 +194,7 @@ class YTEnvSetup(object):
     NUM_CLOCKS = 0
     NUM_NONVOTING_MASTERS = 0
     NUM_SECONDARY_MASTER_CELLS = 0
-    START_SECONDARY_MASTER_CELLS = True
+    DEFER_SECONDARY_CELL_START = False
     ENABLE_SECONDARY_CELLS_CLEANUP = True
     MASTER_CELL_ROLES = {}
     NUM_NODES = 5
@@ -305,6 +305,7 @@ class YTEnvSetup(object):
             master_count=cls.get_param("NUM_MASTERS", index),
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
             secondary_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
+            defer_secondary_cell_start=cls.get_param("DEFER_SECONDARY_CELL_START", index),
             clock_count=cls.get_param("NUM_CLOCKS", index),
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
@@ -319,7 +320,8 @@ class YTEnvSetup(object):
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             primary_cell_tag=index * 10,
             enable_structured_logging=True,
-            enable_log_compression=True, log_compression_method="zstd",
+            enable_log_compression=True,
+            log_compression_method="zstd",
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
         )
 
@@ -421,12 +423,9 @@ class YTEnvSetup(object):
 
         yt_commands.init_drivers([cls.Env] + cls.remote_envs)
 
-        cls.Env.start(
-            start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS,
-            on_masters_started_func=cls.on_masters_started,
-        )
+        cls.Env.start(on_masters_started_func=cls.on_masters_started)
         for index, env in enumerate(cls.remote_envs):
-            env.start(start_secondary_master_cells=cls.get_param("START_SECONDARY_MASTER_CELLS", index))
+            env.start()
 
         yt_commands.wait_drivers()
 
@@ -460,7 +459,7 @@ class YTEnvSetup(object):
         if cls.remote_envs:
             sleep(1.0)
 
-        if yt_commands.is_multicell and cls.START_SECONDARY_MASTER_CELLS:
+        if yt_commands.is_multicell and not cls.DEFER_SECONDARY_CELL_START:
             yt_commands.remove("//sys/operations")
             yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 1})
 

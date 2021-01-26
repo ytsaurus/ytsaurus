@@ -2,7 +2,6 @@ from .cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIM
 
 from yt.environment import YTInstance
 from yt.environment.api import LocalYtConfig
-from yt.environment.init_cluster import initialize_world
 import yt.environment.init_operation_archive as yt_env_init_operation_archive
 from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead_or_zombie, yatest_common
 from yt.wrapper.common import generate_uuid, GB
@@ -183,77 +182,11 @@ def _safe_remove(path):
         if err.errno != errno.ENOENT:
             raise
 
-def _initialize_world(client, environment, wait_tablet_cell_initialization, init_operations_archive,
-                      configure_default_tablet_cell_bundle, is_multicell):
-    cluster_connection = environment.configs["driver"]
 
-    proxy_address = None
-    initialize_world(
-        client,
-        proxy_address=proxy_address,
-        configure_pool_trees=False,
-        is_multicell=is_multicell)
-
-    tablet_cell_attributes = {
-        "changelog_replication_factor": 1,
-        "changelog_read_quorum": 1,
-        "changelog_write_quorum": 1,
-        "changelog_account": "sys",
-        "snapshot_account": "sys"
-    }
-
-    if configure_default_tablet_cell_bundle:
-        if not client.get("//sys/tablet_cell_bundles/default/@tablet_cell_ids"):
-            client.set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
-        tablet_cell_attributes.clear()
-
-    tablet_cells = client.get("//sys/tablet_cells")
-    if not tablet_cells:
-        tablet_cell_id = client.create("tablet_cell", attributes=tablet_cell_attributes)
-    else:
-        tablet_cell_id = tablet_cells.keys()[0]
-
-    if wait_tablet_cell_initialization or init_operations_archive:
-        logger.info("Waiting for tablet cells to become ready...")
-        while client.get("//sys/tablet_cells/{0}/@health".format(tablet_cell_id)) != "good":
-            time.sleep(0.1)
-        logger.info("Tablet cells are ready")
-
-    if init_operations_archive:
-        yt_env_init_operation_archive.create_tables_latest_version(client)
-
-    # Used to automatically determine local mode from python wrapper.
-    client.set("//sys/@local_mode_fqdn", socket.getfqdn())
-
-    # Cluster connection and clusters.
-    client.set("//sys/@cluster_connection", cluster_connection)
-    client.set("//sys/@cluster_name", environment.id)
-    client.set("//sys/clusters", {environment.id: cluster_connection})
-
-    # Tablet limits for tmp account.
-    client.set("//sys/accounts/tmp/@resource_limits/tablet_count", 1000)
-    client.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 5 * 1024 ** 3)
-
-_START_DEFAULTS = {
-    "master_count": 1,
-    "node_count": 1,
-    "scheduler_count": 1,
-    "controller_agent_count": 1,
-    "http_proxy_count": 1,
-    "rpc_proxy_count": None,
-    "secondary_master_cell_count": 0,
-    "jobs_resource_limits": {
-        "memory": 16 * GB,
-        "cpu": 1,
-        "user_slots": 10,
-    },
-    "node_chunk_store_quota": 7 * GB
-}
-
-def start(master_count=None,
-          node_count=None,
-          scheduler_count=None,
-          controller_agent_count=None,
+def start(master_count=1,
+          node_count=1,
+          scheduler_count=1,
+          controller_agent_count=1,
           rpc_proxy_count=0,
           rpc_proxy_config=None,
           master_config=None,
@@ -262,7 +195,7 @@ def start(master_count=None,
           proxy_config=None,
           controller_agent_config=None,
           http_proxy_ports=None,
-          http_proxy_count=None,
+          http_proxy_count=1,
           rpc_proxy_ports=None,
           id=None,
           local_cypress_dir=None,
@@ -278,7 +211,7 @@ def start(master_count=None,
           jobs_cpu_limit=None,
           jobs_user_slot_count=None,
           jobs_resource_limits=None,
-          node_chunk_store_quota=None,
+          node_chunk_store_quota=7*GB,
           allow_chunk_storage_in_tmpfs=True,
           wait_tablet_cell_initialization=False,
           init_operations_archive=False,
@@ -287,24 +220,9 @@ def start(master_count=None,
           watcher_config=None,
           cell_tag=0,
           ytserver_all_path=None,
-          driver_backend=None,
-          secondary_master_cell_count=None,
+          secondary_master_cell_count=0,
           log_compression_method=None):
-
-    options = {}
-    for name in _START_DEFAULTS:
-        options[name] = _START_DEFAULTS[name] if locals()[name] is None else locals()[name]
-
-    options["secondary_cell_count"] = options["secondary_master_cell_count"]
-    del options["secondary_master_cell_count"]
-
-    if options["rpc_proxy_count"] is None:
-        options["rpc_proxy_count"] = 0
-
-    if driver_backend is not None:
-        options["driver_backend"] = driver_backend
-
-    require(options["master_count"] >= 1, lambda: YtError("Cannot start local YT instance without masters"))
+    require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
     sandbox_id = id if id is not None else generate_uuid()
@@ -324,36 +242,53 @@ def start(master_count=None,
 
     watcher_config = _load_config(watcher_config)
 
+    if jobs_resource_limits is None:
+        jobs_resource_limits = {
+            "memory": 16 * GB,
+            "cpu": 1,
+            "user_slots": 10,
+        }
+
     if jobs_cpu_limit is not None:
-        options["jobs_resource_limits"]["cpu"] = jobs_cpu_limit
+        jobs_resource_limits["cpu"] = jobs_cpu_limit
     if jobs_memory_limit is not None:
-        options["jobs_resource_limits"]["memory"] = jobs_memory_limit
+        jobs_resource_limits["memory"] = jobs_memory_limit
     if jobs_user_slot_count is not None:
-        options["jobs_resource_limits"]["user_slots"] = jobs_user_slot_count
+        jobs_resource_limits["user_slots"] = jobs_user_slot_count
 
     yt_config = LocalYtConfig(
+        master_count=master_count,
+        node_count=node_count,
+        scheduler_count=scheduler_count,
+        controller_agent_count=controller_agent_count,
+        secondary_cell_count=secondary_master_cell_count,
+        rpc_proxy_count=rpc_proxy_count,
+        http_proxy_count=http_proxy_count,
         http_proxy_ports=http_proxy_ports,
         rpc_proxy_ports=rpc_proxy_ports,
         enable_debug_logging=enable_debug_logging,
         enable_log_compression=enable_logging_compression,
         log_compression_method=log_compression_method,
         port_range_start=port_range_start,
+        jobs_resource_limits=jobs_resource_limits,
         listen_port_pool=listen_port_pool,
         fqdn=fqdn or socket.getfqdn(),
         node_memory_limit_addition=NODE_MEMORY_LIMIT_ADDITION,
         primary_cell_tag=cell_tag,
         allow_chunk_storage_in_tmpfs=allow_chunk_storage_in_tmpfs,
-        **options
-    )
+        initialize_world=True,
+        wait_tablet_cell_initialization=wait_tablet_cell_initialization,
+        init_operations_archive=init_operations_archive)
 
-    environment = YTInstance(sandbox_path,
-                             yt_config,
-                             preserve_working_dir=True,
-                             tmpfs_path=sandbox_tmpfs_path,
-                             modify_configs_func=modify_configs_func,
-                             kill_child_processes=set_pdeath_sig,
-                             watcher_config=watcher_config,
-                             ytserver_all_path=ytserver_all_path)
+    environment = YTInstance(
+        sandbox_path,
+        yt_config,
+        preserve_working_dir=True,
+        tmpfs_path=sandbox_tmpfs_path,
+        modify_configs_func=modify_configs_func,
+        kill_child_processes=set_pdeath_sig,
+        watcher_config=watcher_config,
+        ytserver_all_path=ytserver_all_path)
 
     environment.id = sandbox_id
 
@@ -374,25 +309,15 @@ def start(master_count=None,
         os.remove(is_started_file)
 
     if not prepare_only:
-        start_secondary_master_cells = secondary_master_cell_count is not None and secondary_master_cell_count > 0
-        environment.start(start_secondary_master_cells=start_secondary_master_cells)
+        environment.start()
 
         # FIXME(asaitgalin): Remove this when st/YT-3054 is done.
         if not environment._load_existing_environment:
             client = environment.create_client()
-
-            # This hack is necessary to correctly run inside docker container.
-            # In this case public proxy port differs from proxy port inside container and
-            # we should use latter.
-            client.config["proxy"]["enable_proxy_discovery"] = False
-
-            _initialize_world(client, environment, wait_tablet_cell_initialization, init_operations_archive,
-                              configure_default_tablet_cell_bundle=(environment.abi_version[0] >= 19),
-                              is_multicell=start_secondary_master_cells)
             if local_cypress_dir is not None:
                 _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client)
 
-    log_started_instance_info(environment, options["http_proxy_count"] > 0, options["rpc_proxy_count"] > 0, prepare_only)
+    log_started_instance_info(environment, http_proxy_count > 0,rpc_proxy_count > 0, prepare_only)
     touch(is_started_file)
 
     return environment

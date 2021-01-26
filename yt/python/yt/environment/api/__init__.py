@@ -16,6 +16,11 @@ class LocalYtConfig(object):
     optimize_config = attr.ib(False)
     log_compression_method = attr.ib("gzip")
 
+    """Cluster initialization options"""
+    initialize_world = attr.ib(False)
+    wait_tablet_cell_initialization = attr.ib(False)
+    init_operations_archive = attr.ib(False)
+
     """High level master configuration"""
     primary_cell_tag = attr.ib(0)
 
@@ -63,6 +68,7 @@ class LocalYtConfig(object):
     defer_node_start = attr.ib(False)
     defer_scheduler_start = attr.ib(False)
     defer_controller_agent_start = attr.ib(False)
+    defer_secondary_cell_start = attr.ib(False)
 
     """Config patches"""
     delta_master_config = attr.ib(None)
