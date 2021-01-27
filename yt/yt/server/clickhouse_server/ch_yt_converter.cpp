@@ -1,0 +1,593 @@
+#include "ch_yt_converter.h"
+
+#include "std_helpers.h"
+#include "config.h"
+#include "columnar_conversion.h"
+
+#include <yt/client/table_client/helpers.h>
+
+#include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/token_writer.h>
+#include <yt/yt/core/yson/null_consumer.h>
+
+#include <Core/Types.h>
+#include <Columns/IColumn.h>
+#include <Columns/ColumnArray.h>
+#include <Columns/ColumnString.h>
+#include <Columns/ColumnVector.h>
+#include <Columns/ColumnNullable.h>
+#include <Columns/ColumnNothing.h>
+#include <Columns/ColumnTuple.h>
+#include <DataTypes/DataTypeArray.h>
+#include <DataTypes/IDataType.h>
+#include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypeNothing.h>
+#include <DataTypes/DataTypeTuple.h>
+#include <DataTypes/DataTypeDate.h>
+#include <DataTypes/DataTypeDateTime.h>
+
+#include <library/cpp/iterator/functools.h>
+
+#include <util/generic/buffer.h>
+
+#include <util/stream/buffer.h>
+
+namespace NYT::NClickHouseServer {
+
+using namespace NTableClient;
+using namespace NYson;
+using namespace NLogging;
+
+// Used only for YT_LOG_FATAL below.
+TLogger Logger("CHYTConverter");
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Anonymous namespace prevents ODR violation between CH->YT and YT->CH internal
+// implementation classes.
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Node in the conversion tree-like structure. Child nodes are saved by
+//! std::unique_ptr<IConverter> in member fields of particular implementations.
+struct IConverter
+{
+    //! Setup converter to work with given column.
+    virtual void InitColumn(const DB::IColumn* column) = 0;
+
+    //! This method fills given range with all values from given column. Note that it may
+    //! fill not all of the unversioned values, e.g. when converting Nullable columns.
+    virtual void FillValueRange(TMutableRange<TUnversionedValue> values) = 0;
+
+    //! This method is used to fill "next" value from this column and pass it to the given
+    //! YSON writer. If writer == nullptr, next value is simply ignored (which is useful
+    //! when this converter is enclosed in Nullable converter).
+    virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) = 0;
+
+    virtual TLogicalTypePtr GetLogicalType() const = 0;
+    virtual ~IConverter() = default;
+};
+
+using IConverterPtr = std::unique_ptr<IConverter>;
+
+//////////////////////////////////////////////////////////////////////////////////
+
+template <DB::TypeIndex TypeId>
+class TSimpleValueConverter
+    : public IConverter
+{
+public:
+    TSimpleValueConverter(DB::DataTypePtr dataType, ESimpleLogicalValueType simpleLogicalValueType)
+        : DataType_(std::move(dataType))
+        , LogicalType_(SimpleLogicalType(simpleLogicalValueType))
+    { }
+
+    virtual void InitColumn(const DB::IColumn* column) override
+    {
+        Column_ = column;
+        Data_ = Column_->getDataAt(0).data;
+        ColumnString_ = dynamic_cast<const DB::ColumnString*>(Column_);
+        CurrentValueIndex_ = 0;
+    }
+
+    virtual void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    {
+        YT_VERIFY(values.size() == Column_->size());
+
+        for (int index = 0; index < static_cast<int>(values.size()); ++index) {
+            #define XX(typeId, TChType, valueType, Accessor) \
+                if constexpr (TypeId == typeId) { \
+                    auto* typedData = reinterpret_cast<const TChType*>(Data_); \
+                    values[index].Type = valueType; \
+                    values[index].Data.Accessor = typedData[index]; \
+                } else
+
+            XX(DB::TypeIndex::Int8, DB::Int8, EValueType::Int64, Int64)
+            XX(DB::TypeIndex::Int16, DB::Int16, EValueType::Int64, Int64)
+            XX(DB::TypeIndex::Int32, DB::Int32, EValueType::Int64, Int64)
+            XX(DB::TypeIndex::Int64, DB::Int64, EValueType::Int64, Int64)
+            XX(DB::TypeIndex::UInt8, DB::UInt8, EValueType::Uint64, Uint64)
+            XX(DB::TypeIndex::UInt16, DB::UInt16, EValueType::Uint64, Uint64)
+            XX(DB::TypeIndex::UInt32, DB::UInt32, EValueType::Uint64, Uint64)
+            XX(DB::TypeIndex::UInt64, DB::UInt64, EValueType::Uint64, Uint64)
+            XX(DB::TypeIndex::Float32, DB::Float32, EValueType::Double, Double)
+            XX(DB::TypeIndex::Float64, DB::Float64, EValueType::Double, Double)
+            XX(DB::TypeIndex::Date, DB::UInt16, EValueType::Uint64, Uint64)
+            XX(DB::TypeIndex::DateTime, DB::UInt32, EValueType::Uint64, Uint64)
+            XX(DB::TypeIndex::Interval, DB::Int64, EValueType::Int64, Int64)
+            /* else */ if constexpr (TypeId == DB::TypeIndex::String) {
+                YT_ASSERT(ColumnString_);
+                values[index].Type = EValueType::String;
+                // Use fully qualified method to prevent virtual call.
+                auto stringRef = ColumnString_->DB::ColumnString::getDataAt(index);
+                values[index].Data.String = stringRef.data;
+                values[index].Length = stringRef.size;
+            } else {
+                THROW_ERROR_EXCEPTION(
+                    "Conversion of ClickHouse type %v to YT type system is not supported",
+                    DataType_->getName());
+            }
+
+            #undef XX
+        }
+    }
+
+    virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    {
+        YT_ASSERT(CurrentValueIndex_ < Column_->size());
+
+        if (!writer) {
+            ++CurrentValueIndex_;
+            return;
+        }
+
+        #define XX(typeId, TChType, method) \
+            if constexpr (TypeId == typeId) { \
+                auto* typedData = reinterpret_cast<const TChType*>(Data_); \
+                writer->method(typedData[CurrentValueIndex_]); \
+            } else
+
+        XX(DB::TypeIndex::Int8, DB::Int8, WriteBinaryInt64)
+        XX(DB::TypeIndex::Int16, DB::Int16, WriteBinaryInt64)
+        XX(DB::TypeIndex::Int32, DB::Int32, WriteBinaryInt64)
+        XX(DB::TypeIndex::Int64, DB::Int64, WriteBinaryInt64)
+        XX(DB::TypeIndex::UInt8, DB::UInt8, WriteBinaryUint64)
+        XX(DB::TypeIndex::UInt16, DB::UInt16, WriteBinaryUint64)
+        XX(DB::TypeIndex::UInt32, DB::UInt32, WriteBinaryUint64)
+        XX(DB::TypeIndex::UInt64, DB::UInt64, WriteBinaryUint64)
+        XX(DB::TypeIndex::Float32, DB::Float32, WriteBinaryDouble)
+        XX(DB::TypeIndex::Float64, DB::Float64, WriteBinaryDouble)
+        XX(DB::TypeIndex::Date, DB::UInt16, WriteBinaryUint64)
+        XX(DB::TypeIndex::DateTime, DB::UInt32, WriteBinaryUint64)
+        XX(DB::TypeIndex::Interval, DB::Int64, WriteBinaryInt64)
+        /* else */ if constexpr (TypeId == DB::TypeIndex::String) {
+            YT_ASSERT(ColumnString_);
+            // Use fully qualified method to prevent virtual call.
+            auto stringRef = ColumnString_->DB::ColumnString::getDataAt(CurrentValueIndex_);
+            writer->WriteBinaryString(TStringBuf(stringRef.data, stringRef.size));
+        }
+        ++CurrentValueIndex_;
+
+        #undef XX
+    }
+
+    virtual TLogicalTypePtr GetLogicalType() const override
+    {
+        return LogicalType_;
+    }
+
+private:
+    const DB::IColumn* Column_ = nullptr;
+    const char* Data_ = nullptr;
+    const DB::ColumnString* ColumnString_ = nullptr;
+    i64 CurrentValueIndex_ = 0;
+
+    DB::DataTypePtr DataType_;
+    TLogicalTypePtr LogicalType_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNullableConverter
+    : public IConverter
+{
+public:
+    explicit TNullableConverter(IConverterPtr underlyingConverter)
+        : UnderlyingConverter_(std::move(underlyingConverter))
+    { }
+
+    virtual void InitColumn(const DB::IColumn* column) override
+    {
+        YT_VERIFY(column->isNullable());
+        auto* columnNullable = DB::checkAndGetColumn<DB::ColumnNullable>(column);
+        NullColumn_ = &columnNullable->getNullMapColumn();
+        NullData_ = &NullColumn_->getData();
+        UnderlyingConverter_->InitColumn(&columnNullable->getNestedColumn());
+        CurrentValueIndex_ = 0;
+    }
+
+    virtual void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    {
+        UnderlyingConverter_->FillValueRange(values);
+
+        YT_VERIFY(NullData_->size() == values.size());
+
+        for (int index = 0; index < static_cast<int>(NullData_->size()); ++index) {
+            if ((*NullData_)[index]) {
+                values[index] = MakeUnversionedNullValue();
+            }
+        }
+    }
+
+    virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    {
+        if (!writer) {
+            // Technically this can't happen since Nullable can't be enclosed in Nullable in CH.
+            ++CurrentValueIndex_;
+            UnderlyingConverter_->ExtractNextValueYson(nullptr);
+            return;
+        }
+
+        if ((*NullData_)[CurrentValueIndex_]) {
+            writer->WriteEntity();
+            UnderlyingConverter_->ExtractNextValueYson(nullptr);
+        } else {
+            UnderlyingConverter_->ExtractNextValueYson(writer);
+        }
+        ++CurrentValueIndex_;
+    }
+
+    virtual TLogicalTypePtr GetLogicalType() const override
+    {
+        return OptionalLogicalType(UnderlyingConverter_->GetLogicalType());
+    }
+
+private:
+    const DB::ColumnUInt8* NullColumn_ = nullptr;
+    const DB::ColumnUInt8::Container* NullData_ = nullptr;
+    i64 CurrentValueIndex_ = 0;
+    IConverterPtr UnderlyingConverter_;
+};
+
+//////////////////////////////////////////////////////////////////////////////////
+
+class TArrayConverter
+    : public IConverter
+{
+public:
+    explicit TArrayConverter(IConverterPtr underlyingConverter)
+        : UnderlyingConverter_(std::move(underlyingConverter))
+    { }
+
+    virtual void InitColumn(const DB::IColumn* column) override
+    {
+        auto* columnArray = DB::checkAndGetColumn<DB::ColumnArray>(column);
+        Offsets_ = &columnArray->getOffsets();
+        CurrentValueIndex_ = 0;
+        UnderlyingConverter_->InitColumn(&columnArray->getData());
+    }
+
+    virtual void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    {
+        // We should not get here.
+        YT_ABORT();
+    }
+
+    virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    {
+        auto beginOffset = CurrentValueIndex_ > 0 ? (*Offsets_)[CurrentValueIndex_ - 1] : 0;
+        auto endOffset = (*Offsets_)[CurrentValueIndex_];
+
+        if (!writer) {
+            // Technically this can't happen since Array can't be enclosed in Nullable in CH.
+            ++CurrentValueIndex_;
+            while (beginOffset < endOffset) {
+                UnderlyingConverter_->ExtractNextValueYson(nullptr);
+                ++beginOffset;
+            }
+            return;
+        }
+
+        writer->WriteBeginList();
+        while (beginOffset < endOffset) {
+            UnderlyingConverter_->ExtractNextValueYson(writer);
+            writer->WriteItemSeparator();
+            ++beginOffset;
+        }
+        writer->WriteEndList();
+
+        ++CurrentValueIndex_;
+    }
+
+    virtual TLogicalTypePtr GetLogicalType() const override
+    {
+        return ListLogicalType(UnderlyingConverter_->GetLogicalType());
+    }
+
+private:
+    const DB::ColumnArray::Offsets* Offsets_ = nullptr;
+    i64 CurrentValueIndex_ = 0;
+    IConverterPtr UnderlyingConverter_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTupleConverter
+    : public IConverter
+{
+public:
+    explicit TTupleConverter(std::vector<IConverterPtr> underlyingConverters, std::optional<std::vector<TString>> elementNames)
+        : UnderlyingConverters_(std::move(underlyingConverters))
+        , ElementNames_(std::move(elementNames))
+    {
+        YT_VERIFY(!ElementNames_ || ElementNames_->size() == UnderlyingConverters_.size());
+    }
+
+    virtual void InitColumn(const DB::IColumn* column) override
+    {
+        auto* columnTuple = DB::checkAndGetColumn<DB::ColumnTuple>(column);
+        YT_VERIFY(columnTuple->getColumns().size() == UnderlyingConverters_.size());
+        for (const auto& [nestedColumn, underlyingConverter] : Zip(columnTuple->getColumns(), UnderlyingConverters_)) {
+            underlyingConverter->InitColumn(&*nestedColumn);
+        }
+    }
+
+    virtual void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    {
+        // We should not get here.
+        YT_ABORT();
+    }
+
+    virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    {
+        if (!writer) {
+            for (const auto& underlyingConverter : UnderlyingConverters_) {
+                underlyingConverter->ExtractNextValueYson(nullptr);
+            }
+            return;
+        }
+
+        writer->WriteBeginList();
+        for (const auto& underlyingConverter : UnderlyingConverters_) {
+            underlyingConverter->ExtractNextValueYson(writer);
+            writer->WriteItemSeparator();
+        }
+        writer->WriteEndList();
+    }
+
+    virtual TLogicalTypePtr GetLogicalType() const override
+    {
+        if (!ElementNames_) {
+            std::vector<TLogicalTypePtr> underlyingLogicalTypes;
+            underlyingLogicalTypes.reserve(UnderlyingConverters_.size());
+            for (const auto& underlyingConverter : UnderlyingConverters_) {
+                underlyingLogicalTypes.emplace_back(underlyingConverter->GetLogicalType());
+            }
+            return TupleLogicalType(std::move(underlyingLogicalTypes));
+        } else {
+            std::vector<TStructField> structFields;
+            structFields.reserve(UnderlyingConverters_.size());
+            for (const auto& [underlyingConverter, elementName] : Zip(UnderlyingConverters_, *ElementNames_)) {
+                structFields.push_back({elementName, underlyingConverter->GetLogicalType()});
+            }
+            return StructLogicalType(std::move(structFields));
+        }
+    }
+
+private:
+    std::vector<IConverterPtr> UnderlyingConverters_;
+    std::optional<std::vector<TString>> ElementNames_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCHYTConverter::TImpl
+{
+public:
+    TImpl(DB::DataTypePtr dataType, TCompositeSettingsPtr settings)
+        : DataType_(std::move(dataType))
+        , Settings_(std::move(settings))
+    {
+        RootConverter_ = CreateConverter(DataType_);
+    }
+
+    TLogicalTypePtr GetLogicalType() const
+    {
+        return RootConverter_->GetLogicalType();
+    }
+
+    TRange<TUnversionedValue> ConvertColumnToUnversionedValues(const DB::ColumnPtr& column)
+    {
+        // Note that this assignment sets all value ids to zero.
+        CurrentValues_.assign(column->size(), MakeUnversionedSentinelValue(EValueType::TheBottom));
+        Buffer_.Clear();
+        // We save current column to be able to prolong its lifetime until next call of
+        // ConvertColumnToUnversionedValues. This allows us to form string-like unversioned values
+        // pointing directly to the input column.
+        CurrentColumn_ = column;
+
+        RootConverter_->InitColumn(CurrentColumn_.get());
+
+        if (IsV1Type(RootConverter_->GetLogicalType())) {
+            RootConverter_->FillValueRange(CurrentValues_);
+        } else {
+            TBufferOutput output(Buffer_);
+            TZeroCopyOutputStreamWriter streamWriter(&output);
+            std::vector<size_t> offsets = {0};
+            for (size_t index = 0; index < column->size(); ++index) {
+                TCheckedInDebugYsonTokenWriter writer(&streamWriter);
+                RootConverter_->ExtractNextValueYson(&writer);
+                offsets.emplace_back(streamWriter.GetTotalWrittenSize());
+            }
+            for (size_t index = 0; index < column->size(); ++index) {
+                CurrentValues_[index].Type = EValueType::Composite;
+                CurrentValues_[index].Data.String = Buffer_.data() + offsets[index];
+                CurrentValues_[index].Length = offsets[index + 1] - offsets[index];
+            }
+            #ifndef NDEBUG
+
+            // Validate that we formed valid YSONs (I know that TCheckedInDebugYsonTokenWriter
+            // already does that, but nevertheless let's make sure I didn't mess up with offsets).
+            for (size_t index = 0; index < column->size(); ++index) {
+                try {
+                    TNullYsonConsumer consumer;
+                    TMemoryInput input(CurrentValues_[index].Data.String, CurrentValues_[index].Length);
+                    TYsonInput ysonInput(&input);
+                    ParseYson(ysonInput, &consumer);
+                } catch (const std::exception& ex) {
+                    YT_LOG_FATAL(ex, "Error while converting value %v", index);
+                }
+            }
+
+            #endif
+        }
+
+        #ifndef NDEBUG
+
+        // Assert that we did not forget to fill any of the values.
+        for (const auto& value : CurrentValues_) {
+            YT_VERIFY(value.Type != EValueType::TheBottom);
+        }
+
+        #endif
+
+        return CurrentValues_;
+    }
+
+private:
+    DB::DataTypePtr DataType_;
+    TCompositeSettingsPtr Settings_;
+
+    IConverterPtr RootConverter_;
+
+    DB::ColumnPtr CurrentColumn_;
+    std::vector<TUnversionedValue> CurrentValues_;
+    TBuffer Buffer_;
+
+    IConverterPtr CreateSimpleValueConverter(const DB::DataTypePtr& dataType)
+    {
+        switch (dataType->getTypeId()) {
+            #define XX(typeId, simpleLogicalValueType) \
+                case DB::TypeIndex::typeId: \
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::typeId>>( \
+                        dataType, \
+                        ESimpleLogicalValueType::simpleLogicalValueType);
+
+            XX(Int8, Int8)
+            XX(Int16, Int16)
+            XX(Int32, Int32)
+            XX(Int64, Int64)
+            XX(UInt8, Uint8)
+            XX(UInt16, Uint16)
+            XX(UInt32, Uint32)
+            XX(UInt64, Uint64)
+            XX(Float32, Float)
+            XX(Float64, Double)
+            XX(String, String)
+            XX(Date, Date)
+            XX(DateTime, Datetime)
+            XX(Interval, Interval)
+
+            #undef XX
+
+            default:
+                YT_ABORT();
+        }
+    }
+
+    IConverterPtr CreateNullableConverter(const DB::DataTypePtr& dataType)
+    {
+        auto dataTypeNullable = dynamic_pointer_cast<const DB::DataTypeNullable>(dataType);
+        YT_VERIFY(dataTypeNullable);
+        auto underlyingConverter = CreateConverter(dataTypeNullable->getNestedType());
+        return std::make_unique<TNullableConverter>(std::move(underlyingConverter));
+    }
+
+    IConverterPtr CreateArrayConverter(const DB::DataTypePtr& dataType)
+    {
+        auto dataTypeArray = dynamic_pointer_cast<const DB::DataTypeArray>(dataType);
+        YT_VERIFY(dataTypeArray);
+        auto underlyingConverter = CreateConverter(dataTypeArray->getNestedType());
+        return std::make_unique<TArrayConverter>(std::move(underlyingConverter));
+    }
+
+    IConverterPtr CreateTupleConverter(const DB::DataTypePtr& dataType)
+    {
+        auto dataTypeTuple = dynamic_pointer_cast<const DB::DataTypeTuple>(dataType);
+        YT_VERIFY(dataTypeTuple);
+        std::vector<IConverterPtr> underlyingConverters;
+        auto elementNames = ToVectorString(dataTypeTuple->getElementNames());
+        underlyingConverters.reserve(dataTypeTuple->getElements().size());
+        for (const auto& elementDataType : dataTypeTuple->getElements()) {
+            underlyingConverters.emplace_back(CreateConverter(elementDataType));
+        }
+        return std::make_unique<TTupleConverter>(
+            std::move(underlyingConverters),
+            dataTypeTuple->haveExplicitNames() ? std::make_optional(elementNames) : std::nullopt);
+    }
+
+    IConverterPtr CreateConverter(const DB::DataTypePtr& dataType)
+    {
+        switch (dataType->getTypeId()) {
+            case DB::TypeIndex::Int8:
+            case DB::TypeIndex::Int16:
+            case DB::TypeIndex::Int32:
+            case DB::TypeIndex::Int64:
+            case DB::TypeIndex::UInt8:
+            case DB::TypeIndex::UInt16:
+            case DB::TypeIndex::UInt32:
+            case DB::TypeIndex::UInt64:
+            case DB::TypeIndex::Float32:
+            case DB::TypeIndex::Float64:
+            case DB::TypeIndex::String:
+                return CreateSimpleValueConverter(dataType);
+            case DB::TypeIndex::Nullable:
+                return CreateNullableConverter(dataType);
+            case DB::TypeIndex::Array:
+                return CreateArrayConverter(dataType);
+            case DB::TypeIndex::Tuple:
+                return CreateTupleConverter(dataType);
+            default:
+                THROW_ERROR_EXCEPTION(
+                    "Conversion of ClickHouse type %v to YT type system is not supported",
+                    DataType_->getName());
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCHYTConverter::TCHYTConverter(
+    DB::DataTypePtr dataType,
+    TCompositeSettingsPtr settings)
+    : Impl_(std::make_unique<TImpl>(std::move(dataType), std::move(settings)))
+{ }
+
+TLogicalTypePtr TCHYTConverter::GetLogicalType() const
+{
+    return Impl_->GetLogicalType();
+}
+
+TRange<TUnversionedValue> TCHYTConverter::ConvertColumnToUnversionedValues(
+    const DB::ColumnPtr& column)
+{
+    return Impl_->ConvertColumnToUnversionedValues(column);
+}
+
+TCHYTConverter::~TCHYTConverter() = default;
+TCHYTConverter::TCHYTConverter(
+    TCHYTConverter&& other)
+    : Impl_(std::move(other.Impl_))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NClickHouseServer

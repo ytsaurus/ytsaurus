@@ -1,3 +1,5 @@
+#include "helpers.h"
+
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/clickhouse_server/yt_ch_converter.h>
@@ -98,7 +100,7 @@ void ExpectFields(const DB::IColumn& column, std::vector<DB::Field> expectedFiel
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TTestComposites
+class TTestYTCHConversion
     : public ::testing::Test
 {
 public:
@@ -224,7 +226,7 @@ std::pair<TYtColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues va
     return {ytColumn, owner};
 }
 
-TEST_F(TTestComposites, TestAnyPassthrough)
+TEST_F(TTestYTCHConversion, TestAnyPassthrough)
 {
     std::vector<TString> ysons = {
         "42",
@@ -257,7 +259,7 @@ TEST_F(TTestComposites, TestAnyPassthrough)
     }
 }
 
-TEST_F(TTestComposites, TestSimpleTypes)
+TEST_F(TTestYTCHConversion, TestSimpleTypes)
 {
     // Prepare test values as YSON.
     std::vector<TString> ysonStringsInt8 = {
@@ -383,7 +385,7 @@ TEST_F(TTestComposites, TestSimpleTypes)
     testAsType(ysonsFloat, ESimpleLogicalValueType::Double, std::make_shared<DB::DataTypeNumber<double>>(), double(), double());
 }
 
-TEST_F(TTestComposites, TestOptionalSimpleTypeAsUnversionedValue)
+TEST_F(TTestYTCHConversion, TestOptionalSimpleTypeAsUnversionedValue)
 {
     auto intValue = MakeUnversionedInt64Value(42);
     auto nullValue = MakeUnversionedNullValue();
@@ -403,7 +405,7 @@ TEST_F(TTestComposites, TestOptionalSimpleTypeAsUnversionedValue)
     });
 }
 
-TEST_F(TTestComposites, TestOptionalSimpleType)
+TEST_F(TTestYTCHConversion, TestOptionalSimpleType)
 {
     std::vector<std::vector<TString>> ysonStringsByNestingLevel = {
         {},
@@ -453,7 +455,7 @@ TEST_F(TTestComposites, TestOptionalSimpleType)
     }
 }
 
-TEST_F(TTestComposites, TestListInt32)
+TEST_F(TTestYTCHConversion, TestListInt32)
 {
     std::vector<TString> ysonStringsListInt32 = {
         "[42;57]",
@@ -486,7 +488,7 @@ TEST_F(TTestComposites, TestListInt32)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestComposites, TestListListInt32)
+TEST_F(TTestYTCHConversion, TestListListInt32)
 {
     std::vector<TString> ysonStringsListListInt32 = {
         "[[42;57];[-1]]",
@@ -519,7 +521,7 @@ TEST_F(TTestComposites, TestListListInt32)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestComposites, TestListAny)
+TEST_F(TTestYTCHConversion, TestListAny)
 {
     std::vector<TString> ysonStringsListAny = {
         "[#; 42; []; [[];[]]; x]",
@@ -550,7 +552,7 @@ TEST_F(TTestComposites, TestListAny)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestComposites, TestOptionalListOptionalInt32)
+TEST_F(TTestYTCHConversion, TestOptionalListOptionalInt32)
 {
     std::vector<TString> ysonStringsOptionalListOptionalInt32 = {
         "[#]",
@@ -583,7 +585,7 @@ TEST_F(TTestComposites, TestOptionalListOptionalInt32)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestComposites, TestDictIntString)
+TEST_F(TTestYTCHConversion, TestDictIntString)
 {
     std::vector<TString> ysonStringsDictIntString = {
         "[[42; foo]; [27; bar]]",
@@ -615,7 +617,7 @@ TEST_F(TTestComposites, TestDictIntString)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestComposites, TestOptionalTupleInt32String)
+TEST_F(TTestYTCHConversion, TestOptionalTupleInt32String)
 {
     std::vector<TString> ysonStringsOptionalTupleInt32String = {
         "[42; xyz]",
@@ -646,7 +648,7 @@ TEST_F(TTestComposites, TestOptionalTupleInt32String)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestComposites, TestOptionalStructInt32String)
+TEST_F(TTestYTCHConversion, TestOptionalStructInt32String)
 {
     std::vector<TString> ysonStringsOptionalStructInt32String = {
         "{key=42;value=xyz}",
@@ -691,7 +693,7 @@ TEST_F(TTestComposites, TestOptionalStructInt32String)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestComposites, TestAnyUpcast)
+TEST_F(TTestYTCHConversion, TestAnyUpcast)
 {
     // This is a pretty tricky scenario. Any column may be read from chunks originally
     // from the table having concrete type for this column. In this case we interpret
@@ -729,7 +731,7 @@ TEST_F(TTestComposites, TestAnyUpcast)
     ExpectDataConversion(anyDescriptor, ytAnyColumn, {DB::Field("{\"a\"=1;}"), DB::Field("[]")});
 }
 
-TEST_F(TTestComposites, TestIntegerUpcast)
+TEST_F(TTestYTCHConversion, TestIntegerUpcast)
 {
     // Similar as previous for integers, e.g. int16 -> int32.
     std::vector<TUnversionedValue> intValues = {MakeUnversionedInt64Value(42), MakeUnversionedInt64Value(-17)};
