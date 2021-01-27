@@ -81,3 +81,12 @@ func (l *localFilesOption) uploadLocalFiles(ctx context.Context, p *prepare) (er
 func WithLocalFiles(paths []string) OperationOption {
 	return &localFilesOption{paths: paths}
 }
+
+type skipSelfUploadOption struct {
+}
+
+func (l *skipSelfUploadOption) isOperationOption() {}
+
+func SkipSelfUpload() OperationOption {
+	return &skipSelfUploadOption{}
+}

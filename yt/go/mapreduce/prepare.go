@@ -105,7 +105,19 @@ func (p *prepare) setGoMaxProc(spec *spec.UserScript) {
 }
 
 func (p *prepare) prepare(opts []OperationOption) error {
-	if p.spec.Type != yt.OperationRemoteCopy {
+	skipSelfUpload := false
+	for _, opt := range opts {
+		switch opt := opt.(type) {
+		case *localFilesOption:
+			p.actions = append(p.actions, opt.uploadLocalFiles)
+		case *skipSelfUploadOption:
+			skipSelfUpload = true
+		default:
+			panic(fmt.Sprintf("unsupported option type %T", opt))
+		}
+	}
+
+	if p.spec.Type != yt.OperationRemoteCopy && !skipSelfUpload {
 		if err := p.mr.uploadSelf(p.ctx); err != nil {
 			return err
 		}
@@ -118,15 +130,6 @@ func (p *prepare) prepare(opts []OperationOption) error {
 	var cypress yt.CypressClient = p.mr.yc
 	if p.mr.tx != nil {
 		cypress = p.mr.tx
-	}
-
-	for _, opt := range opts {
-		switch opt := opt.(type) {
-		case *localFilesOption:
-			p.actions = append(p.actions, opt.uploadLocalFiles)
-		default:
-			panic(fmt.Sprintf("unsupported option type %T", opt))
-		}
 	}
 
 	if p.spec.Type != yt.OperationRemoteCopy {
