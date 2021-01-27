@@ -1504,9 +1504,12 @@ public:
         }
 
         if (request->exec_nodes_requested()) {
-            for (const auto& [nodeId, descriptor] : *scheduler->GetCachedExecNodeDescriptors()) {
-                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), descriptor);
-            }
+            RunInMessageOffloadThread([&] {
+                auto descriptors = scheduler->GetCachedExecNodeDescriptors();
+                for (const auto& [_, descriptor] : *descriptors) {
+                    ToProto(response->mutable_exec_nodes()->add_exec_nodes(), descriptor);
+                }
+            });
         }
 
         for (int shardId = 0; shardId < nodeShardCount; ++shardId) {
