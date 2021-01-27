@@ -158,8 +158,6 @@ NODE_STORE_LOCATION_PATCHES = [
     }
 ]
 
-NODE_MEMORY_LIMIT_ADDITION = 500 * MB + 200 * MB + 500 * MB  # block_cache + tablet_node, see above
-
 DRIVER_CONFIG_PATCH = {
     "transaction_manager": None
 }
@@ -187,49 +185,55 @@ def _remove_none_fields(node):
 
     traverse(node)
 
-def modify_cluster_configuration(cluster_configuration, abi_version, master_config_patch=None, node_config_patch=None,
-                                 scheduler_config_patch=None, controller_agent_config_patch=None, proxy_config_patch=None,
-                                 rpc_proxy_config_patch=None):
+def modify_cluster_configuration(yt_config, cluster_configuration):
     master = cluster_configuration["master"]
 
     for tag in [master["primary_cell_tag"]] + master["secondary_cell_tags"]:
         for config in master[tag]:
-            for patch in MASTER_CONFIG_PATCHES:
-                update_inplace(config, patch)
+            if yt_config.optimize_config:
+                for patch in MASTER_CONFIG_PATCHES:
+                    update_inplace(config, patch)
 
-            if master_config_patch:
-                update_inplace(config, master_config_patch)
+            if yt_config.delta_master_config:
+                update_inplace(config, yt_config.delta_master_config)
 
     for config in itervalues(cluster_configuration["driver"]):
-        update_inplace(config, DRIVER_CONFIG_PATCH)
+        if yt_config.optimize_config:
+            update_inplace(config, DRIVER_CONFIG_PATCH)
 
     for config in cluster_configuration["scheduler"]:
-        update_inplace(config, SCHEDULER_CONFIG_PATCH)
-        if scheduler_config_patch:
-            update_inplace(config, scheduler_config_patch)
+        if yt_config.optimize_config:
+            update_inplace(config, SCHEDULER_CONFIG_PATCH)
+
+        if yt_config.delta_scheduler_config:
+            update_inplace(config, yt_config.delta_scheduler_config)
 
     for config in cluster_configuration["controller_agent"]:
-        update_inplace(config, CONTROLLER_AGENT_CONFIG_PATCH)
-        if controller_agent_config_patch:
-            update_inplace(config, controller_agent_config_patch)
+        if yt_config.optimize_config:
+            update_inplace(config, CONTROLLER_AGENT_CONFIG_PATCH)
+
+        if yt_config.delta_controller_agent_config:
+            update_inplace(config, yt_config.delta_controller_agent_config)
 
     for config in cluster_configuration["node"]:
-        for patch in NODE_CONFIG_PATCHES:
-            update_inplace(config, patch)
+        if yt_config.optimize_config:
+            for patch in NODE_CONFIG_PATCHES:
+                update_inplace(config, patch)
 
-        for store_location in config["data_node"].get("store_locations", []):
-            for patch in NODE_STORE_LOCATION_PATCHES:
-                update_inplace(store_location, patch)
+            for store_location in config["data_node"].get("store_locations", []):
+                for patch in NODE_STORE_LOCATION_PATCHES:
+                    update_inplace(store_location, patch)
 
-        if node_config_patch:
-            update_inplace(config, node_config_patch)
+        if yt_config.delta_node_config:
+            update_inplace(config, yt_config.delta_node_config)
 
-    if proxy_config_patch:
-        for config in cluster_configuration["http_proxy"]:
-            update_inplace(config, proxy_config_patch)
+    for config in cluster_configuration["http_proxy"]:
+        if yt_config.delta_http_proxy_config:
+            update_inplace(config, yt_config.delta_http_proxy_config)
 
-    if rpc_proxy_config_patch:
-        for config in cluster_configuration["rpc_proxy"]:
-            update_inplace(config, rpc_proxy_config_patch)
+    for config in cluster_configuration["rpc_proxy"]:
+        if yt_config.delta_rpc_proxy_config:
+            update_inplace(config, yt_config.delta_rpc_proxy_config)
 
-    _remove_none_fields(cluster_configuration)
+    if yt_config.optimize_config:
+        _remove_none_fields(cluster_configuration)

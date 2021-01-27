@@ -7,19 +7,19 @@ class LocalYtConfig(object):
     inside_arcadia = attr.ib(True)
     path = attr.ib(None)
     tmpfs_path = attr.ib(None)
-    local_cypress_path = attr.ib(None)
     fqdn = attr.ib("localhost")
     use_porto_for_servers = attr.ib(False)
     use_native_client = attr.ib(False)
     kill_child_processes = attr.ib(False)
     run_watcher = attr.ib(False)
     optimize_config = attr.ib(False)
-    log_compression_method = attr.ib("gzip")
 
     """Cluster initialization options"""
     initialize_world = attr.ib(False)
     wait_tablet_cell_initialization = attr.ib(False)
     init_operations_archive = attr.ib(False)
+    local_cypress_dir = attr.ib(None)
+    meta_files_suffix = attr.ib(".meta")
 
     """High level master configuration"""
     primary_cell_tag = attr.ib(0)
@@ -38,9 +38,12 @@ class LocalYtConfig(object):
     enable_master_cache = attr.ib(False)
     enable_permission_cache = attr.ib(False)
     enable_rpc_driver_proxy_discovery = attr.ib(False)
+
+    """Logging configuration"""
     enable_log_compression = attr.ib(False)
     enable_debug_logging = attr.ib(True)
     enable_structured_logging = attr.ib(False)
+    log_compression_method = attr.ib("gzip")
 
     """Port settings"""
     http_proxy_ports = attr.ib(factory=list)

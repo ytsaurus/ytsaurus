@@ -9,6 +9,8 @@ from .helpers import (
 from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
 from .init_cluster import _initialize_world
+from .local_cypress import _synchronize_cypress_with_local_dir
+from .local_cluster_configuration import modify_cluster_configuration
 
 from yt.common import YtError, remove_file, makedirp, update, get_value, which
 from yt.wrapper.common import generate_uuid, flatten
@@ -109,12 +111,16 @@ def _get_ports_generator(yt_config):
 
 
 class YTInstance(object):
-    def __init__(self, path, yt_config, modify_configs_func=None,
-                 kill_child_processes=False, watcher_config=None,
+    def __init__(self, path, yt_config,
+                 modify_configs_func=None,
+                 kill_child_processes=False,
+                 watcher_config=None,
                  run_watcher=True,
-                 ytserver_all_path=None, watcher_binary=None,
+                 ytserver_all_path=None,
+                 watcher_binary=None,
                  stderrs_path=None,
-                 preserve_working_dir=False, tmpfs_path=None):
+                 preserve_working_dir=False,
+                 tmpfs_path=None):
         _configure_logger()
 
         self.yt_config = yt_config
@@ -294,6 +300,8 @@ class YTInstance(object):
 
         cluster_configuration = build_configs(yt_config, ports_generator, dirs, self.logs_path)
 
+        modify_cluster_configuration(yt_config, cluster_configuration)
+
         if modify_configs_func:
             modify_configs_func(cluster_configuration, self.abi_version)
 
@@ -397,6 +405,12 @@ class YTInstance(object):
                         client,
                         self,
                         self.yt_config)
+
+                    if self.yt_config.local_cypress_dir is not None:
+                        _synchronize_cypress_with_local_dir(
+                            self.yt_config.local_cypress_dir,
+                            self.yt_config.meta_files_suffix,
+                            client)
 
             self._write_environment_info_to_file()
         except (YtError, KeyboardInterrupt) as err:
