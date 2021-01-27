@@ -98,6 +98,8 @@ struct TConfig
 
     bool MountSandboxInTmpfs;
 
+    TRichYPath ApiFilePathOptions;
+
     // Testing options, should never be used in user programs.
     bool UseAbortableResponse = false;
     bool EnableDebugMetrics = false;
@@ -129,6 +131,8 @@ struct TConfig
     static TString LoadTokenFromFile(const TString& tokenPath);
 
     static TNode LoadJsonSpec(const TString& strSpec);
+
+    static TRichYPath LoadApiFilePathOptions(const TString& ysonMap);
 
     void LoadToken();
     void LoadSpec();

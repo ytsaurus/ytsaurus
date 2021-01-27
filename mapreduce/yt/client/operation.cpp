@@ -811,7 +811,7 @@ private:
         CypressFiles_.push_back(file);
     }
 
-    void UploadLocalFile(const TLocalFilePath& localPath, const TAddLocalFileOptions& options)
+    void UploadLocalFile(const TLocalFilePath& localPath, const TAddLocalFileOptions& options, bool isApiFile = false)
     {
         TFsPath fsPath(localPath);
         fsPath.CheckExists();
@@ -822,8 +822,11 @@ private:
         bool isExecutable = stat.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
         auto cachePath = UploadToCache(TFileToUpload(localPath, options.MD5CheckSum_));
 
-        TRichYPath cypressPath(cachePath);
-        cypressPath.FileName(options.PathInJob_.GetOrElse(fsPath.Basename()));
+        TRichYPath cypressPath;
+        if (isApiFile) {
+            cypressPath = TConfig::Get()->ApiFilePathOptions;
+        }
+        cypressPath.Path(cachePath).FileName(options.PathInJob_.GetOrElse(fsPath.Basename()));
         if (isExecutable) {
             cypressPath.Executable(true);
         }
@@ -843,10 +846,11 @@ private:
             if (binaryLocalPath.MD5CheckSum) {
                 opts.MD5CheckSum(*binaryLocalPath.MD5CheckSum);
             }
-            UploadLocalFile(binaryLocalPath.Path, opts);
+            UploadLocalFile(binaryLocalPath.Path, opts, /* isApiFile */ true);
         } else if (HoldsAlternative<TJobBinaryCypressPath>(jobBinary)) {
             auto binaryCypressPath = ::Get<TJobBinaryCypressPath>(jobBinary);
-            auto ytPath = TRichYPath(binaryCypressPath.Path);
+            TRichYPath ytPath = TConfig::Get()->ApiFilePathOptions;
+            ytPath.Path(binaryCypressPath.Path);
             if (binaryCypressPath.TransactionId) {
                 ytPath.TransactionId(*binaryCypressPath.TransactionId);
             }
@@ -874,7 +878,8 @@ private:
     void UploadSmallFile(const TSmallJobFile& smallFile)
     {
         auto cachePath = UploadToCache(TDataToUpload(smallFile.Data, smallFile.FileName + " [generated-file]"));
-        CachedFiles_.push_back(TRichYPath(cachePath).FileName(smallFile.FileName));
+        auto path = TConfig::Get()->ApiFilePathOptions;
+        CachedFiles_.push_back(path.Path(cachePath).FileName(smallFile.FileName));
         if (ShouldMountSandbox()) {
             TotalFileSize_ += RoundUpFileSize(smallFile.Data.size());
         }

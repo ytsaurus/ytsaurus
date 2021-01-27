@@ -3,11 +3,14 @@
 #include "helpers.h"
 
 #include <mapreduce/yt/interface/logging/log.h>
-#include <library/cpp/yson/node/node_builder.h>
 #include <mapreduce/yt/interface/operation.h>
 
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/svnversion/svnversion.h>
+
+#include <library/cpp/yson/node/node_builder.h>
+#include <library/cpp/yson/node/node_io.h>
+
 #include <library/cpp/yson/yson2json_adapter.h>
 
 #include <util/string/strip.h>
@@ -93,6 +96,21 @@ TNode TConfig::LoadJsonSpec(const TString& strSpec)
     Y_ENSURE(spec.IsMap(), "Json spec is not a map");
 
     return spec;
+}
+
+TRichYPath TConfig::LoadApiFilePathOptions(const TString& ysonMap)
+{
+    TNode attributes;
+    try {
+        attributes = NodeFromYsonString(ysonMap);
+    } catch (const yexception& exc) {
+        ythrow yexception() << "Failed to parse YT_API_FILE_PATH_OPTIONS (it must be yson map): " << exc;
+    }
+    TNode pathNode = "";
+    pathNode.Attributes() = attributes;
+    TRichYPath path;
+    Deserialize(path, pathNode);
+    return path;
 }
 
 void TConfig::LoadToken()
@@ -193,6 +211,8 @@ void TConfig::Reset()
     NodeReaderFormat = ENodeReaderFormat::Auto;
 
     MountSandboxInTmpfs = GetBool("YT_MOUNT_SANDBOX_IN_TMPFS");
+
+    ApiFilePathOptions = LoadApiFilePathOptions(GetEnv("YT_API_FILE_PATH_OPTIONS", "{}"));
 
     ConnectionPoolSize = GetInt("YT_CONNECTION_POOL_SIZE", 16);
 
