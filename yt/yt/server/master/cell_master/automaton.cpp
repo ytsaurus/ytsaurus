@@ -3,14 +3,7 @@
 #include "hydra_facade.h"
 #include "serialize.h"
 
-#include <yt/server/master/object_server/object_manager.h>
-
-#include <yt/server/master/security_server/security_manager.h>
-
 namespace NYT::NCellMaster {
-
-using namespace NObjectServer;
-using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,37 +61,6 @@ bool TMasterAutomatonPart::ValidateSnapshotVersion(int version)
 int TMasterAutomatonPart::GetCurrentSnapshotVersion()
 {
     return NCellMaster::GetCurrentReign();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-EMasterReign TSaveContext::GetVersion()
-{
-    return static_cast<EMasterReign>(NHydra::TSaveContext::GetVersion());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TLoadContext::TLoadContext(TBootstrap* bootstrap)
-    : Bootstrap_(bootstrap)
-{ }
-
-TObject* TLoadContext::GetWeakGhostObject(TObjectId id) const
-{
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    return objectManager->GetWeakGhostObject(id);
-}
-
-template <>
-const TSecurityTagsRegistryPtr& TLoadContext::GetInternRegistry() const
-{
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    return securityManager->GetSecurityTagsRegistry();
-}
-
-EMasterReign TLoadContext::GetVersion()
-{
-    return static_cast<EMasterReign>(NHydra::TLoadContext::GetVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

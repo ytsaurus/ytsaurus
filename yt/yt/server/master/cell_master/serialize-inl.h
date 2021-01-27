@@ -8,8 +8,9 @@
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/mpl.h>
 
+#include <yt/core/yson/string.h>
+
 #include <yt/server/master/object_server/object.h>
-#include <yt/server/master/object_server/public.h>
 
 #include <yt/server/master/cypress_server/node.h>
 #include <yt/server/master/cypress_server/serialize.h>
@@ -69,7 +70,7 @@ struct TNonversionedObjectRefSerializer
             object = context.GetWeakGhostObject(objectId)->template As<TObject>();
             SERIALIZATION_DUMP_WRITE(context, "objref %v <destroyed>", objectId);
         } else {
-            object = context.template GetEntity<TObject>(key);
+            object = context.template GetRawEntity<TObject>(key);
             SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key.Index);
         }
     }
@@ -105,7 +106,7 @@ struct TVersionedObjectRefSerializer
         typedef typename std::remove_pointer<T>::type TObject;
         auto key = NYT::Load<TEntitySerializationKey>(context);
         if (key) {
-            object = context.template GetEntity<TObject>(key);
+            object = context.template GetRawEntity<TObject>(key);
             SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetVersionedId(), key.Index);
         } else {
             object = nullptr;

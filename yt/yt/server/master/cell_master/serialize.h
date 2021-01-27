@@ -138,6 +138,43 @@ DEFINE_ENUM(EMasterReign,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSaveContext
+    : public NHydra::TSaveContext
+{
+public:
+    using TSavedSchemaMap = THashMap<NTableServer::TSharedTableSchema*, NObjectClient::TVersionedObjectId>;
+    DEFINE_BYREF_RW_PROPERTY(TSavedSchemaMap, SavedSchemas);
+
+public:
+    EMasterReign GetVersion();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLoadContext
+    : public NHydra::TLoadContext
+{
+public:
+    using TLoadedSchemaMap = THashMap<
+        NObjectClient::TVersionedObjectId,
+        NTableServer::TSharedTableSchema*,
+        NObjectClient::TDirectVersionedObjectIdHash>;
+    DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
+    DEFINE_BYREF_RW_PROPERTY(TLoadedSchemaMap, LoadedSchemas);
+
+public:
+    explicit TLoadContext(TBootstrap* bootstrap);
+
+    NObjectServer::TObject* GetWeakGhostObject(NObjectServer::TObjectId id) const;
+
+    template <class T>
+    const TInternRegistryPtr<T>& GetInternRegistry() const;
+
+    EMasterReign GetVersion();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCellMaster
 
 #define SERIALIZE_INL_H_

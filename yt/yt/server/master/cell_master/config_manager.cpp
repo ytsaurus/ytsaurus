@@ -3,6 +3,7 @@
 #include "config_manager.h"
 #include "hydra_facade.h"
 #include "multicell_manager.h"
+#include "serialize.h"
 #include "config.h"
 
 #include <yt/server/master/tablet_server/config.h>

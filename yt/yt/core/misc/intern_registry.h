@@ -13,22 +13,33 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+struct TInternRegistryTraits
+{
+    template <class U>
+    static TInternedObjectDataPtr<T> ConstructData(
+        TInternRegistryPtr<T> registry,
+        U&& data);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
 class TInternRegistry
     : public TRefCounted
 {
 public:
-    TInternedObject<T> Intern(T&& data);
-    TInternedObject<T> Intern(const T& data);
+    template <class U>
+    TInternedObject<T> Intern(U&& data);
+
     int GetSize() const;
     void Clear();
+
+    static TInternedObjectDataPtr<T> GetDefault();
 
 private:
     friend class TInternedObjectData<T>;
 
     void OnInternedDataDestroyed(TInternedObjectData<T>* data);
-
-    template <class F>
-    TInternedObject<T> DoIntern(const T& data, const F& internedDataBuilder);
 
     struct THash
     {
@@ -56,8 +67,6 @@ class TInternedObjectData
 {
 public:
     ~TInternedObjectData();
-
-    static TInternedObjectDataPtr<T> GetDefault();
 
     const T& GetData() const;
     size_t GetHash() const;
@@ -89,11 +98,13 @@ public:
     TInternedObject<T>& operator=(const TInternedObject<T>& other) = default;
     TInternedObject<T>& operator=(TInternedObject<T>&& other) = default;
 
+    explicit operator bool() const;
+
     const T& operator*() const;
     const T* operator->() const;
 
-    TInternedObjectDataPtr<T> ToData() const;
-    static TInternedObject<T> FromData(TInternedObjectDataPtr<T> data);
+    TInternedObjectDataPtr<T> ToDataPtr() const;
+    static TInternedObject<T> FromDataPtr(TInternedObjectDataPtr<T> data);
 
     static bool RefEqual(const TInternedObject<T>& lhs, const TInternedObject<T>& rhs);
 
