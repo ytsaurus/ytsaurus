@@ -1,10 +1,8 @@
-from .cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIMIT_ADDITION
-
 from yt.environment import YTInstance
 from yt.environment.api import LocalYtConfig
 import yt.environment.init_operation_archive as yt_env_init_operation_archive
 from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead_or_zombie, yatest_common
-from yt.wrapper.common import generate_uuid, GB
+from yt.wrapper.common import generate_uuid, GB, MB
 from yt.common import YtError, require, is_process_alive
 
 
@@ -64,88 +62,6 @@ def _get_bool_from_env(name, default=False):
     except:
         return default
     return value == 1
-
-def _get_attributes_from_local_dir(local_path, meta_files_suffix):
-    meta_file_path = os.path.join(local_path, meta_files_suffix)
-    if os.path.isfile(meta_file_path):
-        with open(meta_file_path, "rb") as f:
-            try:
-                meta = yson.load(f)
-            except yson.YsonError:
-                logger.exception("Failed to load meta file {0}, meta will not be processed".format(meta_file_path))
-                return {}
-            return meta.get("attributes", {})
-    return {}
-
-def _create_map_node_from_local_dir(local_path, dest_path, meta_files_suffix, client):
-    attributes = _get_attributes_from_local_dir(local_path, meta_files_suffix)
-    client.create("map_node", dest_path, attributes=attributes, ignore_existing=True)
-
-def _create_node_from_local_file(local_filename, dest_filename, meta_files_suffix, client):
-    if not os.path.isfile(local_filename + meta_files_suffix):
-        logger.warning("Found file {0} without meta info, skipping".format(local_filename))
-        return
-
-    with open(local_filename + meta_files_suffix, "rb") as f:
-        try:
-            meta = yson.load(f)
-        except yson.YsonError:
-            logger.exception("Failed to load meta file for table {0}, skipping".format(local_filename))
-            return
-
-        attributes = meta.get("attributes", {})
-
-        if meta["type"] == "table":
-            if "format" not in meta:
-                logger.warning("Found table {0} with unspecified format".format(local_filename))
-                return
-
-            sorted_by = attributes.pop("sorted_by", [])
-
-            client.create("table", dest_filename, attributes=attributes)
-            with open(local_filename, "rb") as table_file:
-                client.write_table(dest_filename, table_file, format=meta["format"], raw=True)
-
-            if sorted_by:
-                client.run_sort(dest_filename, sort_by=sorted_by)
-
-        elif meta["type"] == "file":
-            client.create("file", dest_filename, attributes=attributes)
-            with open(local_filename, "rb") as local_file:
-                client.write_file(dest_filename, local_file)
-
-        else:
-            logger.warning("Found file {0} with currently unsupported type {1}"
-                           .format(local_filename, meta["type"]))
-
-def _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client):
-    cypress_path_prefix = "//"
-
-    if meta_files_suffix is None:
-        meta_files_suffix = ".meta"
-
-    local_cypress_dir = os.path.abspath(local_cypress_dir)
-    require(os.path.exists(local_cypress_dir),
-            lambda: YtError("Local Cypress directory does not exist"))
-
-    root_attributes = _get_attributes_from_local_dir(local_cypress_dir, meta_files_suffix)
-    for key in root_attributes:
-        client.set_attribute("/", key, root_attributes[key])
-
-    for root, dirs, files in os.walk(local_cypress_dir):
-        rel_path = os.path.abspath(root)[len(local_cypress_dir) + 1:]  # +1 to skip last /
-        for dir in dirs:
-            _create_map_node_from_local_dir(os.path.join(root, dir),
-                                            os.path.join(cypress_path_prefix, rel_path, dir),
-                                            meta_files_suffix,
-                                            client)
-        for file in files:
-            if file.endswith(meta_files_suffix):
-                continue
-            _create_node_from_local_file(os.path.join(root, file),
-                                         os.path.join(cypress_path_prefix, rel_path, file),
-                                         meta_files_suffix,
-                                         client)
 
 def _read_pids_file(pids_file_path):
     with open(pids_file_path) as f:
@@ -231,15 +147,6 @@ def start(master_count=1,
     sandbox_path = os.path.join(path, sandbox_id)
     sandbox_tmpfs_path = os.path.join(tmpfs_path, sandbox_id) if tmpfs_path else None
 
-    modify_configs_func = partial(
-        modify_cluster_configuration,
-        master_config_patch=_load_config(master_config),
-        scheduler_config_patch=_load_config(scheduler_config),
-        controller_agent_config_patch=_load_config(controller_agent_config),
-        node_config_patch=_load_config(node_config),
-        rpc_proxy_config_patch=_load_config(rpc_proxy_config),
-        proxy_config_patch=_load_config(proxy_config, is_proxy_config=True))
-
     watcher_config = _load_config(watcher_config)
 
     if jobs_resource_limits is None:
@@ -264,6 +171,14 @@ def start(master_count=1,
         secondary_cell_count=secondary_master_cell_count,
         rpc_proxy_count=rpc_proxy_count,
         http_proxy_count=http_proxy_count,
+
+        delta_master_config=_load_config(master_config),
+        delta_scheduler_config=_load_config(scheduler_config),
+        delta_controller_agent_config=_load_config(controller_agent_config),
+        delta_node_config=_load_config(node_config),
+        delta_rpc_proxy_config=_load_config(rpc_proxy_config),
+        delta_http_proxy_config=_load_config(proxy_config, is_proxy_config=True),
+
         http_proxy_ports=http_proxy_ports,
         rpc_proxy_ports=rpc_proxy_ports,
         enable_debug_logging=enable_debug_logging,
@@ -273,10 +188,13 @@ def start(master_count=1,
         jobs_resource_limits=jobs_resource_limits,
         listen_port_pool=listen_port_pool,
         fqdn=fqdn or socket.getfqdn(),
-        node_memory_limit_addition=NODE_MEMORY_LIMIT_ADDITION,
+        optimize_config=True,
+        node_memory_limit_addition=500*MB + 200*MB + 500*MB,
         primary_cell_tag=cell_tag,
         allow_chunk_storage_in_tmpfs=allow_chunk_storage_in_tmpfs,
         initialize_world=True,
+        local_cypress_dir=local_cypress_dir,
+        meta_files_suffix=meta_files_suffix,
         wait_tablet_cell_initialization=wait_tablet_cell_initialization,
         init_operations_archive=init_operations_archive)
 
@@ -285,7 +203,6 @@ def start(master_count=1,
         yt_config,
         preserve_working_dir=True,
         tmpfs_path=sandbox_tmpfs_path,
-        modify_configs_func=modify_configs_func,
         kill_child_processes=set_pdeath_sig,
         watcher_config=watcher_config,
         ytserver_all_path=ytserver_all_path)
@@ -310,12 +227,6 @@ def start(master_count=1,
 
     if not prepare_only:
         environment.start()
-
-        # FIXME(asaitgalin): Remove this when st/YT-3054 is done.
-        if not environment._load_existing_environment:
-            client = environment.create_client()
-            if local_cypress_dir is not None:
-                _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client)
 
     log_started_instance_info(environment, http_proxy_count > 0,rpc_proxy_count > 0, prepare_only)
     touch(is_started_file)
