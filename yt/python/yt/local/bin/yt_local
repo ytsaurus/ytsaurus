@@ -192,6 +192,7 @@ def add_start_subparser(subparsers):
                         help="cpu limit for jobs")
     parser.add_argument("--jobs-user-slot-count", type=int,
                         help="slot count for user jobs")
+    parser.add_argument("--jobs-resource-limits", type=yson._loads_from_native_str, default=None)
 
     parser.add_argument("--forbid-chunk-storage-in-tmpfs", action="store_true", default=False,
                         help="disables chunk storage in tmpfs")
