@@ -319,7 +319,7 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
             auto value = Traits_.Create(key);
             LoadValues_.push_back(value.get());
 
-            auto serializationKey = context.RegisterEntity(value.get());
+            auto serializationKey = context.RegisterRawEntity(value.get());
 
             value->SetDynamicData(AllocateDynamicData());
 

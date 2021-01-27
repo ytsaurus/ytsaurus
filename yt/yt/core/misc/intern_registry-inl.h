@@ -12,37 +12,34 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TInternedObject<T> TInternRegistry<T>::Intern(T&& data)
+template <class U>
+TInternedObjectDataPtr<T> TInternRegistryTraits<T>::ConstructData(
+    TInternRegistryPtr<T> registry,
+    U&& data)
 {
-    return DoIntern(data, [&] {
-        return  New<TInternedObjectData<T>>(std::move(data), this);
-    });
+    return New<TInternedObjectData<T>>(
+        std::forward<U>(data),
+        std::move(registry));
 }
 
-template <class T>
-TInternedObject<T> TInternRegistry<T>::Intern(const T& data)
-{
-    return DoIntern(data, [&] {
-        return  New<TInternedObjectData<T>>(data, this);
-    });
-}
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-template <class F>
-TInternedObject<T> TInternRegistry<T>::DoIntern(const T& data, const F& internedDataBuilder)
+template <class U>
+TInternedObject<T> TInternRegistry<T>::Intern(U&& data)
 {
-    if (TInternedObjectData<T>::GetDefault()->Data_ == data) {
+    if (TInternRegistry<T>::GetDefault()->GetData() == data) {
         return TInternedObject<T>();
     }
     auto guard = Guard(Lock_);
-    auto it = Registry_.find(data);
-    if (it == Registry_.end()) {
-        auto internedData = internedDataBuilder();
-        it = Registry_.insert(internedData.Get()).first;
+    typename TRegistrySet::insert_ctx context;
+    if (auto it = Registry_.find(data, context)) {
+        return TInternedObject<T>(MakeStrong(*it));
+    } else {
+        auto internedData = TInternRegistryTraits<T>::ConstructData(this, std::forward<U>(data));
+        it = Registry_.insert_direct(internedData.Get(), context);
         internedData->Iterator_ = it;
         return TInternedObject<T>(std::move(internedData));
-    } else {
-        return TInternedObject<T>(MakeStrong(*it));
     }
 }
 
@@ -51,6 +48,13 @@ int TInternRegistry<T>::GetSize() const
 {
     auto guard = Guard(Lock_);
     return static_cast<int>(Registry_.size());
+}
+
+template <class T>
+TInternedObjectDataPtr<T> TInternRegistry<T>::GetDefault()
+{
+    static const auto Default = New<TInternedObjectData<T>>(T(), nullptr);
+    return Default;
 }
 
 template <class T>
@@ -103,13 +107,6 @@ TInternedObjectData<T>::~TInternedObjectData()
 }
 
 template <class T>
-TInternedObjectDataPtr<T> TInternedObjectData<T>::GetDefault()
-{
-    static const auto Default = New<TInternedObjectData>(T(), nullptr);
-    return Default;
-}
-
-template <class T>
 const T& TInternedObjectData<T>::GetData() const
 {
     return Data_;
@@ -139,8 +136,14 @@ TInternedObjectData<T>::TInternedObjectData(const T& data, TInternRegistryPtr<T>
 
 template <class T>
 TInternedObject<T>::TInternedObject()
-    : Data_(TInternedObjectData<T>::GetDefault())
+    : Data_(TInternRegistry<T>::GetDefault())
 { }
+
+template <class T>
+TInternedObject<T>::operator bool() const
+{
+    return Data_.operator bool();
+}
 
 template <class T>
 const T& TInternedObject<T>::operator*() const
@@ -155,13 +158,13 @@ const T* TInternedObject<T>::operator->() const
 }
 
 template <class T>
-TInternedObjectDataPtr<T> TInternedObject<T>::ToData() const
+TInternedObjectDataPtr<T> TInternedObject<T>::ToDataPtr() const
 {
     return Data_;
 }
 
 template <class T>
-TInternedObject<T> TInternedObject<T>::FromData(TInternedObjectDataPtr<T> data)
+TInternedObject<T> TInternedObject<T>::FromDataPtr(TInternedObjectDataPtr<T> data)
 {
     return TInternedObject<T>(std::move(data));
 }
@@ -186,8 +189,7 @@ struct TInternedObjectSerializer
     {
         using NYT::Save;
 
-        auto data = object.ToData();
-        auto key = context.RegisterRefCountedEntity(data);
+        auto key = context.RegisterRefCountedEntity(object.ToDataPtr());
         Save(context, key);
         if (key == TEntityStreamSaveContext::InlineKey) {
             Save(context, *object);
@@ -205,11 +207,11 @@ struct TInternedObjectSerializer
                 auto value = Load<T>(context);
                 const auto& registry = context.template GetInternRegistry<T>();
                 object = registry->Intern(std::move(value));
-                auto key = context.RegisterRefCountedEntity(object.ToData());
-                SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
+                auto loadedKey = context.RegisterRefCountedEntity(object.ToDataPtr());
+                SERIALIZATION_DUMP_WRITE(context, "objref %v", loadedKey.Index);
             }
         } else {
-            object = TInternedObject<T>::FromData(context.template GetRefCountedEntity<TInternedObjectData<T>>(key));
+            object = TInternedObject<T>::FromDataPtr(context.template GetRefCountedEntity<TInternedObjectData<T>>(key));
             SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
         }
     }

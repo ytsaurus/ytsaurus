@@ -167,7 +167,7 @@ public:
     static inline const TEntitySerializationKey InlineKey = TEntitySerializationKey(-3);
 
     template <class T>
-    TEntitySerializationKey RegisterEntity(T* entity);
+    TEntitySerializationKey RegisterRawEntity(T* entity);
     template <class T>
     TEntitySerializationKey RegisterRefCountedEntity(const TIntrusivePtr<T>& entity);
 
@@ -184,12 +184,12 @@ class TEntityStreamLoadContext
 {
 public:
     template <class T>
-    TEntitySerializationKey RegisterEntity(T* entity);
+    TEntitySerializationKey RegisterRawEntity(T* entity);
     template <class T>
     TEntitySerializationKey RegisterRefCountedEntity(const TIntrusivePtr<T>& entity);
 
     template <class T>
-    T* GetEntity(TEntitySerializationKey key) const;
+    T* GetRawEntity(TEntitySerializationKey key) const;
     template <class T>
     TIntrusivePtr<T> GetRefCountedEntity(TEntitySerializationKey key) const;
 

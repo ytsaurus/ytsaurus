@@ -84,7 +84,7 @@ void TObjectPartCoWPtr<TObjectPart>::Save(NCellMaster::TSaveContext& context) co
     using NYT::Save;
 
     if (ObjectPart_) {
-        auto key = context.RegisterEntity(ObjectPart_);
+        auto key = context.RegisterRawEntity(ObjectPart_);
         Save(context, key);
         if (key == TEntityStreamSaveContext::InlineKey) {
             Save(context, *ObjectPart_);
@@ -109,10 +109,10 @@ void TObjectPartCoWPtr<TObjectPart>::Load(NCellMaster::TLoadContext& context)
         SERIALIZATION_DUMP_INDENT(context) {
             Load(context, *ObjectPart_);
         }
-        context.RegisterEntity(ObjectPart_);
+        context.RegisterRawEntity(ObjectPart_);
         SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
     } else {
-        ObjectPart_ = context.template GetEntity<TObjectPart>(key);
+        ObjectPart_ = context.template GetRawEntity<TObjectPart>(key);
         // NB: this only works iff the ref counter is embedded into the object.
         // This is essentially the same as re-wrapping raw ptrs into intrusive ones.
         ObjectPart_->Ref();

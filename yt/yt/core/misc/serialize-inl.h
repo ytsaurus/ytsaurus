@@ -308,7 +308,7 @@ inline TEntitySerializationKey TEntityStreamSaveContext::GenerateSerializationKe
 }
 
 template <class T>
-TEntitySerializationKey TEntityStreamSaveContext::RegisterEntity(T* entity)
+TEntitySerializationKey TEntityStreamSaveContext::RegisterRawEntity(T* entity)
 {
     if (auto it = RawPtrs_.find(entity)) {
         return it->second;
@@ -332,7 +332,7 @@ TEntitySerializationKey TEntityStreamSaveContext::RegisterRefCountedEntity(const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline TEntitySerializationKey TEntityStreamLoadContext::RegisterEntity(T* entity)
+inline TEntitySerializationKey TEntityStreamLoadContext::RegisterRawEntity(T* entity)
 {
     auto key = TEntitySerializationKey(static_cast<int>(RawPtrs_.size()));
     RawPtrs_.push_back(entity);
@@ -344,11 +344,11 @@ TEntitySerializationKey TEntityStreamLoadContext::RegisterRefCountedEntity(const
 {
     auto* ptr = entity.Get();
     RefCountedPtrs_.push_back(entity);
-    return RegisterEntity(ptr);
+    return RegisterRawEntity(ptr);
 }
 
 template <class T>
-T* TEntityStreamLoadContext::GetEntity(TEntitySerializationKey key) const
+T* TEntityStreamLoadContext::GetRawEntity(TEntitySerializationKey key) const
 {
     YT_ASSERT(key.Index >= 0);
     YT_ASSERT(key.Index < static_cast<int>(RawPtrs_.size()));
@@ -358,7 +358,7 @@ T* TEntityStreamLoadContext::GetEntity(TEntitySerializationKey key) const
 template <class T>
 TIntrusivePtr<T> TEntityStreamLoadContext::GetRefCountedEntity(TEntitySerializationKey key) const
 {
-    return TIntrusivePtr<T>(GetEntity<T>(key));
+    return TIntrusivePtr<T>(GetRawEntity<T>(key));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
