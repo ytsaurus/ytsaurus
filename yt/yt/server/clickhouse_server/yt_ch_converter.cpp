@@ -46,13 +46,6 @@ template <typename... Args>
             << TError(args...);
 }
 
-template <class TColumn>
-TColumn* CheckAndGetMutable(const DB::MutableColumnPtr& column)
-{
-    auto* typedColumn = DB::checkAndGetColumn<TColumn>(column.get());
-    return const_cast<TColumn*>(typedColumn);
-}
-
 //! Perform assignment column = newColumn also checking that new column is similar
 //! to the original one in terms of data types. This helper is useful when conversion
 //! deals with native YT columns, in which case columnar conversion methods create columns
@@ -64,6 +57,12 @@ void ReplaceColumnTypeChecked(TMutableColumnPtr& column, TMutableColumnPtr newCo
     YT_VERIFY(column->structureEquals(*column));
     column.swap(newColumn);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Anonymous namespace prevents ODR violation between CH->YT and YT->CH internal
+// implementation classes.
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -860,6 +859,10 @@ private:
         cursor->Next();
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
