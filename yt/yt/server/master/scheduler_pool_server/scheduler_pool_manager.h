@@ -32,7 +32,7 @@ public:
 
     // Pool tree name is obtained from root object.
     // It has complexity linear in the object's depth since we have to traverse all parents all the way to the root.
-    TString GetPoolTreeName(const TSchedulerPool* schedulerPool) noexcept;
+    std::optional<TString> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept;
 
 private:
     class TImpl;
