@@ -2,7 +2,7 @@
 
 #include "fwd.h"
 
-#include <statbox/ydl/runtime/cpp/gen_support/traits.h>
+#include <statbox/ydl/runtime/cpp/traits/traits.h>
 
 #include <library/cpp/type_info/type_info.h>
 #include <library/cpp/yson/node/node.h>

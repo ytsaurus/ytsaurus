@@ -15,7 +15,7 @@
 #include <util/stream/buffer.h>
 #include <util/string/subst.h>
 
-#include <statbox/ydl/runtime/cpp/gen_support/traits.h>
+#include <statbox/ydl/runtime/cpp/traits/traits.h>
 
 #include <typeindex>
 
