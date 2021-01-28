@@ -1,10 +1,11 @@
-#include "peer_block_updater.h"
+#include "block_peer_updater.h"
 #include "private.h"
 #include "chunk_block_manager.h"
 #include "config.h"
 #include "master_connector.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -28,33 +29,31 @@ static const auto& Logger = P2PLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeerBlockUpdater::TPeerBlockUpdater(
-    TDataNodeConfigPtr config,
-    TBootstrap* bootstrap)
-    : Config_(config)
-    , Bootstrap_(bootstrap)
+TBlockPeerUpdater::TBlockPeerUpdater(TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+    , Config_(Bootstrap_->GetConfig()->DataNode)
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetStorageHeavyInvoker(),
-        BIND(&TPeerBlockUpdater::Update, MakeWeak(this)),
+        BIND(&TBlockPeerUpdater::Update, MakeWeak(this)),
         Config_->PeerUpdatePeriod))
 { }
 
-void TPeerBlockUpdater::Start()
+void TBlockPeerUpdater::Start()
 {
     PeriodicExecutor_->Start();
 }
 
-void TPeerBlockUpdater::Stop()
+void TBlockPeerUpdater::Stop()
 {
     PeriodicExecutor_->Stop();
 }
 
-TDuration TPeerBlockUpdater::GetPeerUpdateExpirationTime() const
+TDuration TBlockPeerUpdater::GetPeerUpdateExpirationTime() const
 {
     return Config_->PeerUpdateExpirationTime;
 }
 
-void TPeerBlockUpdater::Update()
+void TBlockPeerUpdater::Update()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -65,7 +64,7 @@ void TPeerBlockUpdater::Update()
     YT_LOG_INFO("Cached blocks snapshot captured (BlockCount: %v)",
         blocks.size());
 
-    auto expirationTime = GetPeerUpdateExpirationTime().ToDeadLine();
+    auto expirationDeadline = GetPeerUpdateExpirationTime().ToDeadLine();
     auto localDescriptor = Bootstrap_
         ->GetMasterConnector()
         ->GetLocalDescriptor();
@@ -89,7 +88,7 @@ void TPeerBlockUpdater::Update()
         const auto& request = it->second;
         request->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
         request->set_peer_node_id(Bootstrap_->GetMasterConnector()->GetNodeId());
-        request->set_peer_expiration_time(expirationTime.GetValue());
+        request->set_peer_expiration_deadline(ToProto<ui64>(expirationDeadline));
         auto* protoBlockId = request->add_block_ids();
         const auto& blockId = block->GetKey();
         ToProto(protoBlockId->mutable_chunk_id(), blockId.ChunkId);
@@ -97,9 +96,9 @@ void TPeerBlockUpdater::Update()
     }
 
     for (const auto& [address, request] : requests) {
-        YT_LOG_DEBUG("Sending peer block update request (Address: %v, ExpirationTime: %v)",
+        YT_LOG_DEBUG("Sending peer block update request (Address: %v, ExpirationDeadline: %v)",
             address,
-            expirationTime);
+            expirationDeadline);
         request->Invoke();
     }
 }

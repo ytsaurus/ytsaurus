@@ -1,9 +1,10 @@
-#include "peer_block_distributor.h"
+#include "p2p_block_distributor.h"
 
-#include "peer_block_table.h"
+#include "block_peer_table.h"
 #include "private.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/server/node/data_node/config.h>
@@ -47,14 +48,12 @@ static const auto& Logger = P2PLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeerBlockDistributor::TPeerBlockDistributor(
-    TPeerBlockDistributorConfigPtr config,
-    TBootstrap* bootstrap)
-    : Config_(std::move(config))
-    , Bootstrap_(bootstrap)
+TP2PBlockDistributor::TP2PBlockDistributor(TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+    , Config_(Bootstrap_->GetConfig()->DataNode->P2PBlockDistributor)
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetStorageHeavyInvoker(),
-        BIND(&TPeerBlockDistributor::DoIteration, MakeWeak(this)),
+        BIND(&TP2PBlockDistributor::DoIteration, MakeWeak(this)),
         Config_->IterationPeriod))
 {
     auto profiler = P2PProfiler;
@@ -70,7 +69,7 @@ TPeerBlockDistributor::TPeerBlockDistributor(
     TotalRequestedBlockSizeGauge_ = profiler.Gauge("/total_requested_block_size");
 }
 
-void TPeerBlockDistributor::OnBlockRequested(TBlockId blockId, i64 blockSize)
+void TP2PBlockDistributor::OnBlockRequested(TBlockId blockId, i64 blockSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -78,7 +77,7 @@ void TPeerBlockDistributor::OnBlockRequested(TBlockId blockId, i64 blockSize)
     RecentlyRequestedBlocks_.Enqueue(blockId);
 }
 
-void TPeerBlockDistributor::Start()
+void TP2PBlockDistributor::Start()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -86,7 +85,7 @@ void TPeerBlockDistributor::Start()
     PeriodicExecutor_->Start();
 }
 
-void TPeerBlockDistributor::DoIteration()
+void TP2PBlockDistributor::DoIteration()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -97,7 +96,7 @@ void TPeerBlockDistributor::DoIteration()
     }
 }
 
-void TPeerBlockDistributor::SweepObsoleteRequests()
+void TP2PBlockDistributor::SweepObsoleteRequests()
 {
     auto now = TInstant::Now();
     while (!RequestHistory_.empty()) {
@@ -125,7 +124,7 @@ void TPeerBlockDistributor::SweepObsoleteRequests()
     }
 }
 
-void TPeerBlockDistributor::ProcessNewRequests()
+void TP2PBlockDistributor::ProcessNewRequests()
 {
     auto now = TInstant::Now();
 
@@ -135,7 +134,7 @@ void TPeerBlockDistributor::ProcessNewRequests()
     });
 }
 
-bool TPeerBlockDistributor::ShouldDistributeBlocks()
+bool TP2PBlockDistributor::ShouldDistributeBlocks()
 {
     i64 oldTransmittedBytes = TransmittedBytes_;
     UpdateTransmittedBytes();
@@ -183,7 +182,7 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
     return shouldDistributeBlocks;
 }
 
-void TPeerBlockDistributor::DistributeBlocks()
+void TP2PBlockDistributor::DistributeBlocks()
 {
     auto chosenBlocks = ChooseBlocks();
     const auto& reqTemplates = chosenBlocks.ReqTemplates;
@@ -212,7 +211,7 @@ void TPeerBlockDistributor::DistributeBlocks()
         ->GetNativeConnection()
         ->GetChannelFactory();
 
-    const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
+    const auto& peerBlockTable = Bootstrap_->GetBlockPeerTable();
 
     // Filter nodes that are not local and that are allowed by node tag filter.
     auto nodes = Bootstrap_->GetNodeDirectory()->GetAllDescriptors();
@@ -230,9 +229,9 @@ void TPeerBlockDistributor::DistributeBlocks()
         const auto& reqTemplate = reqTemplates[index];
         auto& chunk = DistributionHistory_[blockId.ChunkId];
 
-        auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, true);
+        auto peerList = peerBlockTable->FindOrCreatePeerList(blockId, true);
 
-        auto destinationNodes = ChooseDestinationNodes(nodeSet, nodes, peerData, &chunk.Nodes);
+        auto destinationNodes = ChooseDestinationNodes(nodeSet, nodes, peerList, &chunk.Nodes);
         if (destinationNodes.empty()) {
             YT_LOG_WARNING("No suitable destination nodes found");
             // We have no chances to succeed with following blocks.
@@ -241,8 +240,8 @@ void TPeerBlockDistributor::DistributeBlocks()
 
         YT_LOG_DEBUG("Sending block to destination nodes (BlockId: %v, DestinationNodes: %v)",
             blockId,
-            MakeFormattableView(destinationNodes, [] (TStringBuilderBase* builder, const std::pair<TNodeId, const TNodeDescriptor*>& pair) {
-                 FormatValue(builder, *(pair.second), TStringBuf());
+            MakeFormattableView(destinationNodes, [] (auto* builder, const auto& pair) {
+                 FormatValue(builder, *pair.second, TStringBuf());
              }));
 
         for (const auto& destinationNode : destinationNodes) {
@@ -257,7 +256,7 @@ void TPeerBlockDistributor::DistributeBlocks()
             req->MergeFrom(reqTemplate);
             SetRpcAttachedBlocks(req, {block});
             req->Invoke().Subscribe(BIND(
-                &TPeerBlockDistributor::OnBlockDistributed,
+                &TP2PBlockDistributor::OnBlockDistributed,
                 MakeWeak(this),
                 destinationAddress,
                 *nodeDescriptor,
@@ -268,7 +267,7 @@ void TPeerBlockDistributor::DistributeBlocks()
     }
 }
 
-TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
+TP2PBlockDistributor::TChosenBlocks TP2PBlockDistributor::ChooseBlocks()
 {
     // First we filter the blocks requested during the considered window (`Config->WindowLength` from now) such that:
     // 1) Block was not recently distributed (within `Config_->ConsecutiveDistributionDelay` from now);
@@ -321,7 +320,7 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
 
     std::sort(candidates.begin(), candidates.end());
 
-    TPeerBlockDistributor::TChosenBlocks chosenBlocks;
+    TP2PBlockDistributor::TChosenBlocks chosenBlocks;
 
     const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
 
@@ -381,13 +380,13 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
     return chosenBlocks;
 }
 
-std::vector<std::pair<TNodeId, const TNodeDescriptor*>> TPeerBlockDistributor::ChooseDestinationNodes(
+std::vector<std::pair<TNodeId, const TNodeDescriptor*>> TP2PBlockDistributor::ChooseDestinationNodes(
     const THashMap<TNodeId, TNodeDescriptor>& nodeSet,
     const std::vector<std::pair<TNodeId, TNodeDescriptor>>& nodes,
-    const TBlockPeerDataPtr& peerData,
+    const TCachedPeerListPtr& peerList,
     THashSet<TNodeId>* preferredPeers) const
 {
-    auto activePeerList = peerData->GetPeers();
+    auto activePeerList = peerList->GetPeers();
     THashSet<TNodeId> activePeers{activePeerList.begin(), activePeerList.end()};
 
     THashMap<TNodeId, const TNodeDescriptor*> destinationNodes;
@@ -429,7 +428,7 @@ std::vector<std::pair<TNodeId, const TNodeDescriptor*>> TPeerBlockDistributor::C
     return {destinationNodes.begin(), destinationNodes.end()};
 }
 
-void TPeerBlockDistributor::UpdateTransmittedBytes()
+void TP2PBlockDistributor::UpdateTransmittedBytes()
 {
     TNetworkInterfaceStatisticsMap interfaceToStatistics;
     try {
@@ -447,7 +446,7 @@ void TPeerBlockDistributor::UpdateTransmittedBytes()
     }
 }
 
-void TPeerBlockDistributor::OnBlockDistributed(
+void TP2PBlockDistributor::OnBlockDistributed(
     const TString& address,
     const TNodeDescriptor& descriptor,
     const TNodeId nodeId,
@@ -464,19 +463,19 @@ void TPeerBlockDistributor::OnBlockDistributed(
     }
 
     const auto& rsp = rspOrError.Value();
-    auto expirationTime = FromProto<TInstant>(rsp->expiration_time());
+    auto expirationDeadline = FromProto<TInstant>(rsp->expiration_deadline());
 
     YT_LOG_DEBUG("Populate cache request succeeded, registering node as a peer for block "
-        "(BlockId: %v, Address: %v, NodeId: %v, ExpirationTime: %v, Size: %v)",
+        "(BlockId: %v, Address: %v, NodeId: %v, ExpirationDeadline: %v, Size: %v)",
         blockId,
         address,
         nodeId,
-        expirationTime,
+        expirationDeadline,
         size);
 
-    const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
-    auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, true);
-    peerData->AddPeer(nodeId, expirationTime);
+    const auto& peerBlockTable = Bootstrap_->GetBlockPeerTable();
+    auto peerList = peerBlockTable->FindOrCreatePeerList(blockId, true);
+    peerList->AddPeer(nodeId, expirationDeadline);
 
     DistributedBytes_ += size;
 }

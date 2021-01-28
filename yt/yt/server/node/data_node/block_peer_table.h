@@ -18,15 +18,16 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Keeps information about all peers possibly holding a block.
+//! Keeps information about peers possibly holding a block (or a whole chunk).
 /*!
+ *  \note
  *  Thread affinity: any
  */
-class TBlockPeerData
+class TCachedPeerList
     : public TRefCounted
 {
 public:
-    explicit TBlockPeerData(int entryCountLimit);
+    explicit TCachedPeerList(int entryCountLimit);
 
     static constexpr int TypicalPeerCount = 64;
     using TNodeIdList = SmallVector<TNodeId, TypicalPeerCount>;
@@ -34,7 +35,7 @@ public:
     TNodeIdList GetPeers();
 
     //! Inserts a new peer.
-    void AddPeer(TNodeId nodeId, TInstant expirationTime);
+    void AddPeer(TNodeId nodeId, TInstant expirationDeadline);
 
     //! Returns true if the entry list is still non-empty.
     bool Sweep();
@@ -46,7 +47,7 @@ private:
     struct TBlockPeerEntry
     {
         TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
-        TInstant ExpirationTime;
+        TInstant ExpirationDeadline;
     };
 
     const int EntryCountLimit_;
@@ -55,46 +56,53 @@ private:
     SmallVector<TBlockPeerEntry, TypicalPeerCount * 2> Entries_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TBlockPeerData)
+DEFINE_REFCOUNTED_TYPE(TCachedPeerList)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Manages peer blocks information.
+//! Manages known block peers.
 /*!
  *
  *  When Data Node sends a block to a certain client
- *  ts address is remembered to facilitate peer-to-peer transfers.
- *  This class maintains an auto-expiring map for this purpose.
+ *  its address is remembered to facilitate peer-to-peer transfers.
  *
+ *  Also, when a chunk removal job is issued, the master also
+ *  provides the list of (other) known replicas to the node.
+ *  These replicas are remembered and are suggested to requesters.
+ *
+ *  This class maintains an auto-expiring map maintaining the above data.
+ *
+ *  \note
  *  Thread affinity: any
  */
-class TPeerBlockTable
+class TBlockPeerTable
     : public TRefCounted
 {
 public:
-    TPeerBlockTable(
-        TPeerBlockTableConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
+    explicit TBlockPeerTable(NClusterNode::TBootstrap* bootstrap);
 
-    //! Retrieves peer data for a given #blockId.
+    //! Retrieves peer list for a given #blockId.
     /*
      *  If #insert is true then always ensures an entry forr #blockId is created
      *  (if not already exists); otherwise may return null.
      */
-    TBlockPeerDataPtr FindOrCreatePeerData(const TBlockId& blockId, bool insert);
+    TCachedPeerListPtr FindOrCreatePeerList(const TBlockId& blockId, bool insert);
+
+    //! Same as above, but retrieves the peer list for a given #chunkId.
+    TCachedPeerListPtr FindOrCreatePeerList(TChunkId chunkId, bool insert);
 
 private:
-    const TPeerBlockTableConfigPtr Config_;
+    const TBlockPeerTableConfigPtr Config_;
 
     const NConcurrency::TPeriodicExecutorPtr SweepExecutor_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
-    THashMap<TBlockId, TBlockPeerDataPtr> BlockIdToData_;
+    THashMap<TBlockId, TCachedPeerListPtr> BlockIdToPeerList_;
 
     void OnSweep();
 };
 
-DEFINE_REFCOUNTED_TYPE(TPeerBlockTable)
+DEFINE_REFCOUNTED_TYPE(TBlockPeerTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 

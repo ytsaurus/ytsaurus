@@ -18,6 +18,7 @@ using namespace NChunkClient;
 TJob::TJob(
     EJobType type,
     TJobId jobId,
+    TChunk* chunk,
     const TChunkIdWithIndexes& chunkIdWithIndexes,
     TNode* node,
     const TNodePtrWithIndexesList& targetReplicas,
@@ -27,6 +28,7 @@ TJob::TJob(
     : JobId_(jobId)
     , Type_(type)
     , Decommission_(decommission)
+    , Chunk_(chunk)
     , ChunkIdWithIndexes_(chunkIdWithIndexes)
     , Node_(node)
     , TargetReplicas_(targetReplicas)
@@ -51,7 +53,8 @@ TJobPtr TJob::CreateReplicate(
     return New<TJob>(
         EJobType::ReplicateChunk,
         jobId,
-        TChunkIdWithIndexes(chunkWithIndexes.GetPtr()->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()),
+        chunk,
+        TChunkIdWithIndexes(chunk->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()),
         node,
         targetReplicas,
         TInstant::Now(),
@@ -60,6 +63,7 @@ TJobPtr TJob::CreateReplicate(
 
 TJobPtr TJob::CreateRemove(
     TJobId jobId,
+    TChunk* chunk,
     const TChunkIdWithIndexes& chunkIdWithIndexes,
     TNode* node)
 {
@@ -69,6 +73,7 @@ TJobPtr TJob::CreateRemove(
     return New<TJob>(
         EJobType::RemoveChunk,
         jobId,
+        chunk,
         chunkIdWithIndexes,
         node,
         TNodePtrWithIndexesList(),
@@ -94,6 +99,7 @@ TJobPtr TJob::CreateRepair(
     return New<TJob>(
         EJobType::RepairChunk,
         jobId,
+        chunk,
         TChunkIdWithIndexes(chunk->GetId(), GenericChunkReplicaIndex, GenericMediumIndex),
         node,
         targetReplicas,
@@ -107,13 +113,16 @@ TJobPtr TJob::CreateSeal(
     TChunkPtrWithIndexes chunkWithIndexes,
     TNode* node)
 {
+    auto* chunk = chunkWithIndexes.GetPtr();
+
     TNodeResources resourceUsage;
     resourceUsage.set_seal_slots(1);
 
     return New<TJob>(
         EJobType::SealChunk,
         jobId,
-        TChunkIdWithIndexes(chunkWithIndexes.GetPtr()->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()),
+        chunk,
+        TChunkIdWithIndexes(chunk->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()),
         node,
         TNodePtrWithIndexesList(),
         TInstant::Now(),

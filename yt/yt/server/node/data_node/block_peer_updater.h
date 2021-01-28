@@ -10,13 +10,11 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPeerBlockUpdater
+class TBlockPeerUpdater
     : public TRefCounted
 {
 public:
-    TPeerBlockUpdater(
-        TDataNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
+    explicit TBlockPeerUpdater(NClusterNode::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
@@ -24,15 +22,15 @@ public:
     TDuration GetPeerUpdateExpirationTime() const;
 
 private:
-    const TDataNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
+    const TDataNodeConfigPtr Config_;
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
     void Update();
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TPeerBlockUpdater)
+DEFINE_REFCOUNTED_TYPE(TBlockPeerUpdater)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,11 +3,14 @@
 #include "chunk.h"
 #include "chunk_manager.h"
 #include "job.h"
+#include "config.h"
 
 #include <yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/master_hydra_service.h>
+#include <yt/server/master/cell_master/config_manager.h>
+#include <yt/server/master/cell_master/config.h>
 
 #include <yt/server/master/node_tracker_server/node.h>
 #include <yt/server/master/node_tracker_server/node_directory_builder.h>
@@ -82,7 +85,12 @@ private:
                 node->GetLocalState());
         }
 
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& config = configManager->GetConfig()->ChunkManager;
+        auto chunkRemovalJobExpirationDeadline = TInstant::Now() + config->ChunkRemovalJobReplicasExpirationTime;
+
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+
         std::vector<TJobPtr> currentJobs;
         for (const auto& jobStatus : request->jobs()) {
             auto jobId = FromProto<TJobId>(jobStatus.job_id());
@@ -180,6 +188,19 @@ private:
                     auto* jobSpecExt = jobSpec.MutableExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext);
                     ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
                     jobSpecExt->set_medium_index(chunkIdWithIndexes.MediumIndex);
+                    if (auto* chunk = job->GetChunk()) {
+                        bool isErasure = chunk->IsErasure();
+                        for (auto replica : chunk->StoredReplicas()) {
+                            if (replica.GetPtr() == node) {
+                                continue;
+                            }
+                            if (isErasure && replica.GetReplicaIndex() != chunkIdWithIndexes.ReplicaIndex) {
+                                continue;
+                            }
+                            jobSpecExt->add_replicas(ToProto<ui32>(replica));
+                        }
+                        jobSpecExt->set_replicas_expiration_deadline(ToProto<ui64>(chunkRemovalJobExpirationDeadline));
+                    }
                     break;
                 }
 
