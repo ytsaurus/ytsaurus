@@ -25,7 +25,7 @@ DEFINE_ENUM(EYsonFormat,
 );
 
 // NB: -1 is used for serializing null TYsonString.
-DEFINE_ENUM(EYsonType,
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EYsonType, i8,
     ((Node)          (0))
     ((ListFragment)  (1))
     ((MapFragment)   (2))

@@ -29,7 +29,7 @@ TYsonString SpawnTool(const TString& toolName, const TYsonString& serializedArgu
         "--tool-name",
         toolName,
         "--tool-spec",
-        serializedArgument.GetData()
+        serializedArgument.AsStringBuf()
     });
 
     auto result = process.Execute();
@@ -60,7 +60,7 @@ TYsonString DoRunToolInProcess(const TString& toolName, const TYsonString& seria
     auto serializedResultOrError = DoExecuteTool(toolName, serializedArgument, false);
 
     // Treat empty string as OK
-    if (serializedResultOrError.GetData().empty()) {
+    if (serializedResultOrError.AsStringBuf().empty()) {
         return ConvertToYsonString(TError(), NYson::EYsonFormat::Text);
     }
 

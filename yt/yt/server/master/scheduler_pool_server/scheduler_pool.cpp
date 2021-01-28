@@ -175,16 +175,19 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     // NB(mrkastep): Since we remove the attribute from Attributes_ field, this change is idempotent i.e. can be
     // safely re-applied to snapshots after upgrading masters to a new major version.
     if (context.GetVersion() < EMasterReign::InternalizeAbcSchedulerPoolAttribute) {
-        static const auto abcAttributeName = "abc";
+        static const TString abcAttributeName("abc");
         if (auto abc = FindAttribute(abcAttributeName)) {
             auto value = std::move(*abc);
             YT_VERIFY(Attributes_->Remove(abcAttributeName));
             try {
                 FullConfig_->LoadParameter(abcAttributeName, NYTree::ConvertToNode(value), EMergeStrategy::Overwrite);
                 YT_VERIFY(SpecifiedAttributes_.emplace(TInternedAttributeKey::Lookup(abcAttributeName), std::move(value)).second);
-            } catch (const std::exception& e) {
+            } catch (const std::exception& ex) {
                 // Since we make this attribute well-known, the error needs to be logged and subsequently fixed.
-                YT_LOG_ERROR(e, "Cannot parse %Qv as %Qv attribute of pool %Qv", value, abcAttributeName, GetName());
+                YT_LOG_ERROR(ex, "Cannot parsing pool attribute (PoolName: %v, AttributeName: %v, Value: %v)",
+                    GetName(),
+                    abcAttributeName,
+                    value);
             }
         }
     }

@@ -565,14 +565,14 @@ private:
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
         if (Spec_->InputQuery) {
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
         SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
     }
 
     virtual bool IsTeleportationSupported() const override
@@ -781,7 +781,7 @@ private:
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMap));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
         SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
@@ -789,7 +789,7 @@ private:
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
 
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
@@ -1021,11 +1021,11 @@ private:
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
         SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
 
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         const auto& table = OutputTables_[0];
@@ -1265,7 +1265,7 @@ private:
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& key : attributeKeys) {
                 auto req = TYPathProxy::Set(path + "/@" + key);
-                req->set_value(InputTableAttributes_->GetYson(key).GetData());
+                req->set_value(InputTableAttributes_->GetYson(key).ToString());
                 SetTransactionId(req, OutputCompletionTransaction->GetId());
                 batchReq->AddRequest(req);
             }
@@ -1282,7 +1282,7 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(
             TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
         schedulerJobSpecExt->set_table_reader_options("");
         SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
@@ -1292,7 +1292,7 @@ private:
         }
 
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-        remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionConfig).GetData());
+        remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionConfig).ToString());
         remoteCopyJobSpecExt->set_concurrency(Spec_->Concurrency);
         remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
         remoteCopyJobSpecExt->set_delay_in_copy_chunk(ToProto<i64>(Spec_->DelayInCopyChunk));

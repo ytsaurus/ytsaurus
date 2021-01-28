@@ -541,8 +541,8 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
             YT_VERIFY(response->items_size() == values.size());
             for (int index = 0; index < response->items_size(); ++index) {
                 const auto& value = values[index];
-                if (!value.GetData().empty()) {
-                    response->mutable_items(index)->set_attributes(value.GetData());
+                if (!value.AsStringBuf().empty()) {
+                    response->mutable_items(index)->set_attributes(value.ToString());
                 }
             }
 

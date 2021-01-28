@@ -784,7 +784,7 @@ private:
     std::optional<TJobProfile> Profile_;
     TCoreInfos CoreInfos_;
 
-    TYsonString Statistics_ = TYsonString("{}");
+    TYsonString Statistics_ = TYsonString(TStringBuf("{}"));
     TInstant StatisticsLastSendTime_ = TInstant::Now();
 
     TBufferedProducerPtr UserJobSensorProducer_;

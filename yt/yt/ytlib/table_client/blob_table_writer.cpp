@@ -60,7 +60,7 @@ TBlobTableWriter::TBlobTableWriter(
 
     YT_VERIFY(blobIdColumnValues.size() == blobTableSchema.BlobIdColumns.size());
     for (size_t i = 0; i < BlobIdColumnIds_.size(); ++i) {
-        builder.AddValue(MakeUnversionedValue(blobIdColumnValues[i].GetData(), BlobIdColumnIds_[i], lexer));
+        builder.AddValue(MakeUnversionedValue(blobIdColumnValues[i].AsStringBuf(), BlobIdColumnIds_[i], lexer));
     }
     BlobIdColumnValues_ = builder.FinishRow();
 

@@ -79,8 +79,7 @@ private:
             jobShellDescriptor.Subcontainer);
 
         auto result = JobProxy_->PollJobShell(jobShellDescriptor, parameters);
-
-        ToProto(response->mutable_result(), result.GetData());
+        response->set_result(result.ToString());
         context->Reply();
     }
 

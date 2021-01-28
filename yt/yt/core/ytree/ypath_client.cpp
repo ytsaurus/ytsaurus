@@ -503,7 +503,7 @@ void SyncYPathSet(
     bool recursive)
 {
     auto request = TYPathProxy::Set(path);
-    request->set_value(value.GetData());
+    request->set_value(value.ToString());
     request->set_recursive(recursive);
     ExecuteVerb(service, request)
         .Get()

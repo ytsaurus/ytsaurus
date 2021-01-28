@@ -207,7 +207,7 @@ TYsonString StripAttributes(const TYsonString& yson)
     TStringStream outputStream;
     TYsonWriter writer(&outputStream);
     TYsonAttributesStripper stripper(&writer);
-    ParseYsonStringBuffer(yson.GetData(), yson.GetType(), &stripper);
+    ParseYsonStringBuffer(yson.AsStringBuf(), yson.GetType(), &stripper);
     return TYsonString(outputStream.Str(), yson.GetType());
 }
 
@@ -338,7 +338,7 @@ TNodeJobReport TNodeJobReport::FinishTime(TInstant finishTime)
 TNodeJobReport TNodeJobReport::Error(const TError& error)
 {
     if (!error.IsOK()) {
-        Error_ = ConvertToYsonString(error).GetData();
+        Error_ = ConvertToYsonString(error).ToString();
     }
     return std::move(*this);
 }
@@ -359,13 +359,13 @@ TNodeJobReport TNodeJobReport::SpecVersion(i64 specVersion)
 
 TNodeJobReport TNodeJobReport::Statistics(const TYsonString& statistics)
 {
-    Statistics_ = StripAttributes(statistics).GetData();
+    Statistics_ = StripAttributes(statistics).ToString();
     return std::move(*this);
 }
 
 TNodeJobReport TNodeJobReport::Events(const TJobEvents& events)
 {
-    Events_ = ConvertToYsonString(events).GetData();
+    Events_ = ConvertToYsonString(events).ToString();
     return std::move(*this);
 }
 
@@ -403,7 +403,7 @@ TNodeJobReport TNodeJobReport::CoreInfos(TCoreInfos coreInfos)
 
 TNodeJobReport TNodeJobReport::ExecAttributes(const TYsonString& execAttributes)
 {
-    ExecAttributes_ = StripAttributes(execAttributes).GetData();
+    ExecAttributes_ = StripAttributes(execAttributes).ToString();
     return std::move(*this);
 }
 
@@ -421,7 +421,7 @@ TNodeJobReport TNodeJobReport::MonitoringDescriptor(TString monitoringDescriptor
 
 void TNodeJobReport::SetStatistics(const TYsonString& statistics)
 {
-    Statistics_ = StripAttributes(statistics).GetData();
+    Statistics_ = StripAttributes(statistics).ToString();
 }
 
 void TNodeJobReport::SetStartTime(TInstant startTime)

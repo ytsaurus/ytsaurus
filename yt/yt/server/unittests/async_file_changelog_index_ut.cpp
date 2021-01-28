@@ -40,7 +40,7 @@ public:
         const auto& args = GetParam();
         const auto& type = std::get<0>(args);
         auto config = NYTree::ConvertTo<NYTree::INodePtr>(
-            NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
+            NYson::TYsonString(TString(std::get<1>(args))));
 
         IOEngine_ = NChunkClient::CreateIOEngine(type, config);
     }

@@ -87,7 +87,7 @@ private:
                 if (auto value = memberAttributes->FindYson(key)) {
                     auto* attr = protoMember->mutable_attributes()->add_attributes();
                     attr->set_key(key);
-                    attr->set_value(value.GetData());
+                    attr->set_value(value.ToString());
                 }
             }
         }

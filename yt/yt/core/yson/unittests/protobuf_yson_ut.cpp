@@ -315,11 +315,11 @@ TEST(TYsonToProtobufYsonTest, Success)
 
     EXPECT_EQ(3, message.attributes().attributes_size());
     EXPECT_EQ("k1", message.attributes().attributes(0).key());
-    EXPECT_EQ(ConvertToYsonString(1).GetData(), message.attributes().attributes(0).value());
+    EXPECT_EQ(ConvertToYsonString(1).ToString(), message.attributes().attributes(0).value());
     EXPECT_EQ("k2", message.attributes().attributes(1).key());
-    EXPECT_EQ(ConvertToYsonString("test").GetData(), message.attributes().attributes(1).value());
+    EXPECT_EQ(ConvertToYsonString("test").ToString(), message.attributes().attributes(1).value());
     EXPECT_EQ("k3", message.attributes().attributes(2).key());
-    EXPECT_EQ(ConvertToYsonString(std::vector<int>{1, 2, 3}).GetData(), message.attributes().attributes(2).value());
+    EXPECT_EQ(ConvertToYsonString(std::vector<int>{1, 2, 3}).ToString(), message.attributes().attributes(2).value());
 
     auto node = BuildYsonNodeFluently().BeginMap()
             .Item("a").Value(1)
@@ -328,7 +328,7 @@ TEST(TYsonToProtobufYsonTest, Success)
             .EndList()
         .EndMap();
 
-    EXPECT_EQ(ConvertToYsonString(node).GetData(), message.yson_field());
+    EXPECT_EQ(ConvertToYsonString(node).ToString(), message.yson_field());
 
     EXPECT_EQ(2, message.string_to_int32_map_size());
     EXPECT_EQ(0, message.string_to_int32_map().at("hello"));
@@ -938,7 +938,7 @@ TEST(TYsonToProtobufTest, KeepUnknownFields)
     TProtobufWriterOptions options;
     options.UnknownYsonFieldsMode = EUnknownYsonFieldsMode::Keep;
     auto protobufWriter = CreateProtobufWriter(&protobufOutput, ReflectProtobufMessageType<NYT::NYson::NProto::TExtensibleMessage>(), options);
-    ParseYsonStringBuffer(ysonString.GetData(), EYsonType::Node, protobufWriter.get());
+    ParseYsonStringBuffer(ysonString.ToString(), EYsonType::Node, protobufWriter.get());
 
     NYT::NYson::NProto::TExtensibleMessage message;
     EXPECT_TRUE(message.ParseFromArray(protobufString.data(), protobufString.length()));
@@ -1007,7 +1007,7 @@ TEST(TYsonToProtobufTest, ReservedFields)
     TStringOutput ysonOutputStream(yson); \
     TYsonWriter writer(&ysonOutputStream, EYsonFormat::Pretty); \
     ParseProtobuf(&writer, &protobufInputStream, ReflectProtobufMessageType<NYT::NYson::NProto::type>(), options); \
-    Cerr << ConvertToYsonString(TYsonString(yson), EYsonFormat::Pretty).GetData() << Endl;
+    Cerr << ConvertToYsonString(TYsonString(yson), EYsonFormat::Pretty).ToString() << Endl;
 
 #define TEST_EPILOGUE(type) \
     TEST_EPILOGUE_WITH_OPTIONS(type, TProtobufParserOptions())
@@ -1058,17 +1058,17 @@ TEST(TProtobufToYsonTest, Success)
         {
             auto* entry = proto->add_attributes();
             entry->set_key("k1");
-            entry->set_value(ConvertToYsonString(1).GetData());
+            entry->set_value(ConvertToYsonString(1).ToString());
         }
         {
             auto* entry = proto->add_attributes();
             entry->set_key("k2");
-            entry->set_value(ConvertToYsonString("test").GetData());
+            entry->set_value(ConvertToYsonString("test").ToString());
         }
         {
             auto* entry = proto->add_attributes();
             entry->set_key("k3");
-            entry->set_value(ConvertToYsonString(std::vector<int>{1, 2, 3}).GetData());
+            entry->set_value(ConvertToYsonString(std::vector<int>{1, 2, 3}).ToString());
         }
     }
 
@@ -1296,7 +1296,7 @@ TEST(TProtobufToYsonTest, ErrorProto)
     errorProto.set_code(1);
     auto attributeProto = errorProto.mutable_attributes()->add_attributes();
     attributeProto->set_key("host");
-    attributeProto->set_value(ConvertToYsonString("localhost").GetData());
+    attributeProto->set_value(ConvertToYsonString("localhost").ToString());
 
     auto serialized = SerializeProtoToRef(errorProto);
 

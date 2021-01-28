@@ -947,7 +947,7 @@ private:
             client->GetTablePivotKeys(path),
             [] (const auto& context, const TYsonString& result) {
                 auto* response = &context->Response();
-                response->set_value(result.GetData());
+                response->set_value(result.ToString());
             });
     }
 
@@ -1028,7 +1028,7 @@ private:
             client->GetNode(path, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_value(result.GetData());
+                response->set_value(result.ToString());
             });
     }
 
@@ -1068,7 +1068,7 @@ private:
             client->ListNode(path, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_value(result.GetData());
+                response->set_value(result.ToString());
             });
     }
 
@@ -2039,7 +2039,7 @@ private:
             client->GetOperation(operationIdOrAlias, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_meta(result.GetData());
+                response->set_meta(result.ToString());
             });
     }
 
@@ -2269,7 +2269,7 @@ private:
             client->GetJobInputPaths(jobId, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_paths(result.GetData());
+                response->set_paths(result.ToString());
             });
     }
 
@@ -2298,7 +2298,7 @@ private:
             client->GetJobSpec(jobId, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_job_spec(result.GetData());
+                response->set_job_spec(result.ToString());
             });
     }
 
@@ -2374,7 +2374,7 @@ private:
             client->GetJob(operationIdOrAlias, jobId, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_info(result.GetData());
+                response->set_info(result.ToString());
             });
     }
 
@@ -2418,7 +2418,7 @@ private:
             client->PollJobShell(jobId, shellName, parameters, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_result(result.GetData());
+                response->set_result(result.ToString());
             });
     }
 
@@ -2677,7 +2677,7 @@ private:
             client->ExplainQuery(query, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_value(result.GetData());
+                response->set_value(result.ToString());
             });
     }
 

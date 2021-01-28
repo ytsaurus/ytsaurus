@@ -96,13 +96,13 @@ public:
         EXPECT_EQ(*expectedLogicalType, *Converter_->GetLogicalType());
         std::vector<INodePtr> expectedNodes;
         for (const auto& yson : expectedValueYsons) {
-            expectedNodes.emplace_back(ConvertToNode(TYsonStringBuf(yson.data(), yson.size())));
+            expectedNodes.emplace_back(ConvertToNode(TYsonStringBuf(TStringBuf(yson.data(), yson.size()))));
         }
         auto actualValueRange = Converter_->ConvertColumnToUnversionedValues(column);
         std::vector<INodePtr> actualNodes;
         for (const auto& actualValue : actualValueRange) {
             ASSERT_EQ(EValueType::Composite, actualValue.Type);
-            actualNodes.emplace_back(ConvertToNode(TYsonStringBuf(actualValue.Data.String, actualValue.Length)));
+            actualNodes.emplace_back(ConvertToNode(TYsonStringBuf(TStringBuf(actualValue.Data.String, actualValue.Length))));
         }
         ASSERT_EQ(expectedNodes.size(), actualNodes.size());
         int index = 0;
@@ -110,8 +110,8 @@ public:
         {
             EXPECT_TRUE(AreNodesEqual(expectedNode, actualNode))
                 << "Yson strings define different nodes at index " << index << ":" << std::endl
-                << "  expected: " << ConvertToYsonString(expectedNode, EYsonFormat::Text).GetData() << std::endl
-                << "  actual: " << ConvertToYsonString(actualNode, EYsonFormat::Text).GetData() << std::endl;
+                << "  expected: " << ConvertToYsonString(expectedNode, EYsonFormat::Text).AsStringBuf() << std::endl
+                << "  actual: " << ConvertToYsonString(actualNode, EYsonFormat::Text).AsStringBuf() << std::endl;
             index++;
         }
     }

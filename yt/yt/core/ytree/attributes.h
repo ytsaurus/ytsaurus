@@ -4,6 +4,8 @@
 
 #include <yt/core/yson/string.h>
 
+#include <yt/core/misc/optional.h>
+
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////

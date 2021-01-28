@@ -393,7 +393,7 @@ TFuture<void> TClient::AlterTable(
     req->set_path(path);
 
     if (options.Schema) {
-        req->set_schema(ConvertToYsonString(*options.Schema).GetData());
+        req->set_schema(ConvertToYsonString(*options.Schema).ToString());
     }
     if (options.Dynamic) {
         req->set_dynamic(*options.Dynamic);
@@ -621,7 +621,7 @@ TFuture<TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
         req->set_user(*user);
     }
     req->set_permission(static_cast<int>(permission));
-    req->set_acl(ConvertToYsonString(acl).GetData());
+    req->set_acl(ConvertToYsonString(acl).ToString());
     req->set_ignore_missing_subjects(options.IgnoreMissingSubjects);
 
     ToProto(req->mutable_master_read_options(), options);
@@ -645,7 +645,7 @@ TFuture<void> TClient::TransferAccountResources(
 
     req->set_src_account(srcAccount);
     req->set_dst_account(dstAccount);
-    req->set_resource_delta(ConvertToYsonString(resourceDelta).GetData());
+    req->set_resource_delta(ConvertToYsonString(resourceDelta).ToString());
 
     ToProto(req->mutable_mutating_options(), options);
 
@@ -663,7 +663,7 @@ TFuture<NScheduler::TOperationId> TClient::StartOperation(
     SetTimeoutOptions(*req, options);
 
     req->set_type(NProto::ConvertOperationTypeToProto(type));
-    req->set_spec(spec.GetData());
+    req->set_spec(spec.ToString());
 
     ToProto(req->mutable_mutating_options(), options);
     ToProto(req->mutable_transactional_options(), options);
@@ -746,7 +746,7 @@ TFuture<void> TClient::UpdateOperationParameters(
 
     NScheduler::ToProto(req, operationIdOrAlias);
 
-    req->set_parameters(parameters.GetData());
+    req->set_parameters(parameters.ToString());
 
     return req->Invoke().As<void>();
 }
@@ -903,7 +903,7 @@ TFuture<TListOperationsResult> TClient::ListOperations(
     }
 
     if (options.AccessFilter) {
-        req->set_access_filter(ConvertToYsonString(options.AccessFilter).GetData());
+        req->set_access_filter(ConvertToYsonString(options.AccessFilter).ToString());
     }
 
     if (options.StateFilter) {
@@ -1044,7 +1044,7 @@ TFuture<TYsonString> TClient::PollJobShell(
     SetTimeoutOptions(*req, options);
 
     ToProto(req->mutable_job_id(), jobId);
-    req->set_parameters(parameters.GetData());
+    req->set_parameters(parameters.ToString());
     if (shellName) {
         req->set_shell_name(*shellName);
     }
@@ -1144,7 +1144,7 @@ TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
     SetTimeoutOptions(*req, options);
 
     for (const auto& subPath: path) {
-        req->add_path(ConvertToYsonString(subPath).GetData());
+        req->add_path(ConvertToYsonString(subPath).ToString());
     }
 
     req->set_fetcher_mode(static_cast<NProto::EColumnarStatisticsFetcherMode>(options.FetcherMode));

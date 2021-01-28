@@ -116,7 +116,7 @@ private:
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         auto result = job->PollJobShell(jobShellDescriptor, parameters);
 
-        response->set_result(result.GetData());
+        response->set_result(result.ToString());
         context->Reply();
     }
 

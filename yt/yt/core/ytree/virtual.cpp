@@ -132,7 +132,7 @@ void TVirtualMapBase::GetSelf(
     writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().GetData());
+                response->set_value(resultOrError.Value().ToString());
                 context->Reply();
             } else {
                 context->Reply(resultOrError);
@@ -190,7 +190,7 @@ void TVirtualMapBase::ListSelf(
     writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().GetData());
+                response->set_value(resultOrError.Value().ToString());
                 context->Reply();
             } else {
                 context->Reply(resultOrError);
@@ -551,7 +551,7 @@ void TVirtualListBase::GetSelf(
     writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().GetData());
+                response->set_value(resultOrError.Value().ToString());
                 context->Reply();
             } else {
                 context->Reply(resultOrError);

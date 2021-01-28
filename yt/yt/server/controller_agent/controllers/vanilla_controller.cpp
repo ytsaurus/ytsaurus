@@ -168,7 +168,7 @@ private:
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::Vanilla));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->JobIO).GetData());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->JobIO).ToString());
 
         TaskHost_->InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),

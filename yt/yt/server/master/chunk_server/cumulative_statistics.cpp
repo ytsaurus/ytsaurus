@@ -69,7 +69,7 @@ bool TCumulativeStatisticsEntry::operator!=(const TCumulativeStatisticsEntry& ot
 
 TString ToString(const TCumulativeStatisticsEntry& entry)
 {
-    return ConvertToYsonString(entry, EYsonFormat::Text).GetData();
+    return ConvertToYsonString(entry, EYsonFormat::Text).ToString();
 }
 
 void Serialize(const TCumulativeStatisticsEntry& entry, IYsonConsumer* consumer)

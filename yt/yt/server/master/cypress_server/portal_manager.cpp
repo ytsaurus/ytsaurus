@@ -89,7 +89,7 @@ public:
         ToProto(request.mutable_entrance_node_id(), trunkNode->GetId());
         ToProto(request.mutable_account_id(), trunkNode->GetAccount()->GetId());
         request.set_path(path);
-        request.set_acl(ConvertToYsonString(effectiveAcl).GetData());
+        request.set_acl(ConvertToYsonString(effectiveAcl).ToString());
         ToProto(request.mutable_inherited_node_attributes(), inheritedAttributes);
         ToProto(request.mutable_explicit_node_attributes(), explicitAttributes);
         ToProto(request.mutable_parent_id(), trunkNode->GetParent()->GetId());

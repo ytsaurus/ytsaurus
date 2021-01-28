@@ -172,7 +172,7 @@ TEST_F(TDefaultBlackboxTest, Success)
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}).Get();
     ASSERT_TRUE(result.IsOK());
-    EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString("{status=ok}"))));
+    EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString(TStringBuf("{status=ok}")))));
 }
 
 TEST_F(TDefaultBlackboxTest, DoesNotCallTvmWithoutPermission)
@@ -191,7 +191,7 @@ TEST_F(TDefaultBlackboxTest, DoesNotCallTvmWithoutPermission)
     auto result = service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}).Get();
 
     EXPECT_TRUE(result.IsOK());
-    EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString("{status=ok}"))));
+    EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString(TStringBuf("{status=ok}")))));
 }
 
 TEST_F(TDefaultBlackboxTest, RetriesErrors)
@@ -337,13 +337,13 @@ public:
         config->Cache->CacheTtl = TDuration::Seconds(1);
         config->Cache->ErrorTtl = TDuration::Seconds(1);
         config->Cache->OptimisticCacheTtl = TDuration::Seconds(5);
-    
+
         Authenticator_ = CreateCachingTokenAuthenticator(
             config,
             Authenticator_);
 
-        GoodResult = MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(R"yy({status={id=0};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy")));
-        RejectResult = MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(R"yy({status={id=5};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy")));
+        GoodResult = MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(TStringBuf(R"yy({status={id=0};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy"))));
+        RejectResult = MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(TStringBuf(R"yy({status={id=5};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy"))));
         ErrorResult = MakeFuture<INodePtr>(TError("Internal Server Error"));
     }
 

@@ -60,7 +60,7 @@ private:
     std::vector<TOperationId> TagToLastOperationId_;
 
     //! Cached YSON representation of operations, their memory tags and memory usages.
-    NYson::TYsonString CachedTaggedMemoryStatistics_ = NYson::TYsonString("", NYson::EYsonType::ListFragment);
+    NYson::TYsonString CachedTaggedMemoryStatistics_ = NYson::TYsonString(TStringBuf(), NYson::EYsonType::ListFragment);
     TInstant CachedTaggedMemoryStatisticsLastUpdateTime_;
 
     //! Cached total memory usage.

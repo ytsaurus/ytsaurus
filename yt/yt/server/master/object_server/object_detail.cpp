@@ -760,7 +760,7 @@ void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
 
 void TObjectProxyBase::ValidateCustomAttributeLength(const TYsonString& value)
 {
-    auto size = value.GetData().length();
+    auto size = value.AsStringBuf().length();
     auto limit = GetDynamicCypressManagerConfig()->MaxAttributeSize;
     if (size > limit) {
         THROW_ERROR_EXCEPTION(
@@ -1039,7 +1039,7 @@ void TNontemplateNonversionedObjectProxyBase::GetSelf(
         writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
             .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
                 if (resultOrError.IsOK()) {
-                    response->set_value(resultOrError.Value().GetData());
+                    response->set_value(resultOrError.Value().ToString());
                     context->Reply();
                 } else {
                     context->Reply(resultOrError);

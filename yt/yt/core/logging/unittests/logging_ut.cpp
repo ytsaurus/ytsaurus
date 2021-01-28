@@ -270,12 +270,12 @@ TEST_F(TLoggingTest, StreamWriter)
 TEST_F(TLoggingTest, Rule)
 {
     auto rule = New<TRuleConfig>();
-    rule->Load(ConvertToNode(TYsonString(
+    rule->Load(ConvertToNode(TYsonString(TStringBuf(
         R"({
             exclude_categories = [ bus ];
             min_level = info;
             writers = [ some_writer ];
-        })")));
+        })"))));
 
     EXPECT_TRUE(rule->IsApplicable("some_service", ELogMessageFormat::PlainText));
     EXPECT_FALSE(rule->IsApplicable("bus", ELogMessageFormat::PlainText));

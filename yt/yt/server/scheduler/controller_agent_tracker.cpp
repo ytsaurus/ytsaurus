@@ -125,13 +125,13 @@ void FromProto(TOperationInfo* operationInfo, const NProto::TOperationInfo& oper
         }
         operationInfo->AlertMap = alertMap;
     }
-            
+
     if (operationInfoProto.has_suspicious_jobs()) {
         operationInfo->SuspiciousJobsYson = TYsonString(operationInfoProto.suspicious_jobs(), EYsonType::MapFragment);
     } else {
         operationInfo->SuspiciousJobsYson = TYsonString();
     }
-            
+
     auto controllerData = New<TControllerRuntimeData>();
     controllerData->SetPendingJobCount(operationInfoProto.pending_job_count());
     controllerData->SetNeededResources(FromProto<TJobResources>(operationInfoProto.needed_resources()));
@@ -490,7 +490,7 @@ public:
 
         auto req = AgentProxy_->UpdateOperationRuntimeParameters();
         ToProto(req->mutable_operation_id(), OperationId_);
-        ToProto(req->mutable_parameters(), ConvertToYsonString(update).GetData());
+        ToProto(req->mutable_parameters(), ConvertToYsonString(update).ToString());
         req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
         return InvokeAgent<TControllerAgentServiceProxy::TRspUpdateOperationRuntimeParameters>(req).As<void>();
     }
@@ -1044,13 +1044,13 @@ public:
         auto* descriptor = req->mutable_operation_descriptor();
         ToProto(descriptor->mutable_operation_id(), operation->GetId());
         descriptor->set_operation_type(static_cast<int>(operation->GetType()));
-        descriptor->set_spec(operation->GetSpecString().GetData());
+        descriptor->set_spec(operation->GetSpecString().ToString());
         descriptor->set_start_time(ToProto<ui64>(operation->GetStartTime()));
         descriptor->set_authenticated_user(operation->GetAuthenticatedUser());
         if (operation->GetSecureVault()) {
-            descriptor->set_secure_vault(ConvertToYsonString(operation->GetSecureVault()).GetData());
+            descriptor->set_secure_vault(ConvertToYsonString(operation->GetSecureVault()).ToString());
         }
-        descriptor->set_acl(ConvertToYsonString(operation->GetRuntimeParameters()->Acl).GetData());
+        descriptor->set_acl(ConvertToYsonString(operation->GetRuntimeParameters()->Acl).ToString());
         ToProto(descriptor->mutable_pool_tree_controller_settings_map(), operation->PoolTreeControllerSettingsMap());
         ToProto(descriptor->mutable_user_transaction_id(), operation->GetUserTransactionId());
 
@@ -1214,7 +1214,7 @@ public:
                 context->SetResponseInfo("IncarnationId: %v",
                     agent->GetIncarnationId());
                 ToProto(response->mutable_incarnation_id(), agent->GetIncarnationId());
-                response->set_config(ConvertToYsonString(SchedulerConfig_).GetData());
+                response->set_config(ConvertToYsonString(SchedulerConfig_).ToString());
                 response->set_scheduler_version(GetVersion());
                 context->Reply();
             })
@@ -1300,7 +1300,7 @@ public:
                     operation->SetAlert(alertType, alert);
                 }
             }
-                
+
             if (operationInfo.SuspiciousJobsYson) {
                 operation->SetSuspiciousJobs(operationInfo.SuspiciousJobsYson);
             }

@@ -658,7 +658,7 @@ TListOperationsFilter::TListOperationsFilter(
 
     TString singleOperationYson;
     for (const auto& operationsYson : operations) {
-        RunYsonPullParser(operationsYson.GetData(), [&] (TYsonPullParserCursor* cursor) {
+        RunYsonPullParser(operationsYson.AsStringBuf(), [&] (TYsonPullParserCursor* cursor) {
             cursor->ParseList([&] (TYsonPullParserCursor* cursor) {
                 singleOperationYson.clear();
                 {

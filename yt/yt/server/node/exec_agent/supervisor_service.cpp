@@ -221,7 +221,7 @@ private:
         context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %v, StderrSize: %v",
             jobId,
             progress,
-            NYTree::ConvertToYsonString(statistics, EYsonFormat::Text).GetData(),
+            NYTree::ConvertToYsonString(statistics, EYsonFormat::Text).AsStringBuf(),
             stderrSize);
 
         const auto& jobController = Bootstrap_->GetJobController();

@@ -140,7 +140,7 @@ const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
     template <> \
     inline type ConvertTo(const NYson::TYsonString& str) \
     { \
-        NYson::TTokenizer tokenizer(str.GetData()); \
+        NYson::TTokenizer tokenizer(str.AsStringBuf()); \
         const auto& token = SkipAttributes(&tokenizer); \
         switch (token.GetType()) { \
             case NYson::ETokenType::Int64: \
@@ -148,9 +148,9 @@ const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
             case NYson::ETokenType::Uint64: \
                 return CheckedIntegralCast<type>(token.GetUint64Value()); \
             default: \
-                THROW_ERROR_EXCEPTION("Cannot parse \"" #type "\" from %Qlv value", \
+                THROW_ERROR_EXCEPTION("Cannot parse \"" #type "\" from %Qlv", \
                     token.GetType()) \
-                    << TErrorAttribute("data", str.GetData()); \
+                    << TErrorAttribute("data", str.AsStringBuf()); \
         } \
     }
 
@@ -169,10 +169,9 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TData>
-double ConvertYsonStringBaseToDouble(const NYson::TYsonStringBase<TData>& yson)
+double ConvertYsonStringBaseToDouble(const NYson::TYsonStringBuf& yson)
 {
-    NYson::TTokenizer tokenizer(yson.GetData());
+    NYson::TTokenizer tokenizer(yson.AsStringBuf());
     const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::Int64:
@@ -182,24 +181,23 @@ double ConvertYsonStringBaseToDouble(const NYson::TYsonStringBase<TData>& yson)
         case NYson::ETokenType::Boolean:
             return token.GetBooleanValue();
         default:
-            THROW_ERROR_EXCEPTION("Cannot parse \"number\" from %Qlv value",
+            THROW_ERROR_EXCEPTION("Cannot parse \"double\" from %Qlv",
                 token.GetType())
-                << TErrorAttribute("data", yson.GetData());
+                << TErrorAttribute("data", yson.AsStringBuf());
     }
 }
 
-template <typename TData>
-TString ConvertYsonStringBaseToString(const NYson::TYsonStringBase<TData>& yson)
+TString ConvertYsonStringBaseToString(const NYson::TYsonStringBuf& yson)
 {
-    NYson::TTokenizer tokenizer(yson.GetData());
+    NYson::TTokenizer tokenizer(yson.AsStringBuf());
     const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::String:
             return TString(token.GetStringValue());
         default:
-            THROW_ERROR_EXCEPTION("Cannot parse \"string\" from %Qlv value",
+            THROW_ERROR_EXCEPTION("Cannot parse \"string\" from %Qlv",
                 token.GetType())
-                << TErrorAttribute("data", yson.GetData());
+                << TErrorAttribute("data", yson.AsStringBuf());
     }
 }
 

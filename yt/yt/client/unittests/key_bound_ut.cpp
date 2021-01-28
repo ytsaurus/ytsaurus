@@ -236,20 +236,19 @@ TEST(TKeyBoundTest, Serialization)
     auto keyBoundLE = TOwningKeyBound::FromRow() <= owningRow;
 
     EXPECT_EQ(
-        ConvertToYsonString(keyBoundGT, EYsonFormat::Text).GetData(),
+        ConvertToYsonString(keyBoundGT, EYsonFormat::Text).AsStringBuf(),
         "[\">\";[3.14;-42;27u;\"Foo\";];]");
     EXPECT_EQ(
-        ConvertToYsonString(keyBoundGE, EYsonFormat::Text).GetData(),
+        ConvertToYsonString(keyBoundGE, EYsonFormat::Text).AsStringBuf(),
         "[\">=\";[3.14;-42;27u;\"Foo\";];]");
     EXPECT_EQ(
-        ConvertToYsonString(keyBoundLT, EYsonFormat::Text).GetData(),
+        ConvertToYsonString(keyBoundLT, EYsonFormat::Text).AsStringBuf(),
         "[\"<\";[3.14;-42;27u;\"Foo\";];]");
     EXPECT_EQ(
-        ConvertToYsonString(keyBoundLE, EYsonFormat::Text).GetData(),
+        ConvertToYsonString(keyBoundLE, EYsonFormat::Text).AsStringBuf(),
         "[\"<=\";[3.14;-42;27u;\"Foo\";];]");
-
     EXPECT_EQ(
-        ConvertToYsonString(TOwningKeyBound(), EYsonFormat::Text).GetData(),
+        ConvertToYsonString(TOwningKeyBound(), EYsonFormat::Text).AsStringBuf(),
         "#");
 }
 

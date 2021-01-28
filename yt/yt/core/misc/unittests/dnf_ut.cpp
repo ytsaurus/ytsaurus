@@ -63,14 +63,14 @@ TEST(TDnfTest, Serialization)
 {
     auto clause = TConjunctiveClause({"aaa", "bbb"}, {"ccc"});
     auto conjunctionString = ConvertToYsonString(clause, EYsonFormat::Text);
-    EXPECT_EQ("{\"include\"=[\"aaa\";\"bbb\";];\"exclude\"=[\"ccc\";];}", conjunctionString.GetData());
+    EXPECT_EQ("{\"include\"=[\"aaa\";\"bbb\";];\"exclude\"=[\"ccc\";];}", conjunctionString.AsStringBuf());
     EXPECT_EQ(clause, ConvertTo<TConjunctiveClause>(conjunctionString));
 
     auto dnf = TDnfFormula({
         TConjunctiveClause({"aaa", "bbb"}, {"ccc"}),
         TConjunctiveClause({"ccc"}, {})});
     auto dnfString = ConvertToYsonString(dnf, EYsonFormat::Text);
-    EXPECT_EQ("[{\"include\"=[\"aaa\";\"bbb\";];\"exclude\"=[\"ccc\";];};{\"include\"=[\"ccc\";];\"exclude\"=[];};]", dnfString.GetData());
+    EXPECT_EQ("[{\"include\"=[\"aaa\";\"bbb\";];\"exclude\"=[\"ccc\";];};{\"include\"=[\"ccc\";];\"exclude\"=[];};]", dnfString.AsStringBuf());
     EXPECT_EQ(dnf, ConvertTo<TDnfFormula>(dnfString));
 }
 

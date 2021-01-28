@@ -70,7 +70,7 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
         req->set_user(*user);
     }
     req->set_permission(static_cast<int>(permission));
-    req->set_acl(ConvertToYsonString(acl).GetData());
+    req->set_acl(ConvertToYsonString(acl).ToString());
     req->set_ignore_missing_subjects(options.IgnoreMissingSubjects);
     SetCachingHeader(req, options);
 
@@ -210,12 +210,12 @@ void TClient::MaybeValidateExternalObjectPermission(
     if (!TryParseObjectId(path, &objectId)) {
         return;
     }
-    
+
     switch (TypeFromId(objectId)) {
         case EObjectType::TableReplica:
             ValidateTableReplicaPermission(objectId, permission, options);
             break;
-        
+
         default:
             break;
     }
@@ -261,7 +261,7 @@ void TClient::DoTransferAccountResources(
 
     auto req = TAccountYPathProxy::TransferAccountResources(GetAccountPath(dstAccount));
     req->set_src_account(srcAccount);
-    req->set_resource_delta(ConvertToYsonString(resourceDelta).GetData());
+    req->set_resource_delta(ConvertToYsonString(resourceDelta).ToString());
     SetMutationId(req, options);
 
     batchReq->AddRequest(req);

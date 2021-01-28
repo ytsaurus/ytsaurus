@@ -624,7 +624,8 @@ private:
             return;
         }
 
-        auto* attribute  = user->FindAttribute("allow_external_false");
+        static const TString AllowExternalFalseKey("allow_external_false");
+        auto attribute  = user->FindAttribute(AllowExternalFalseKey);
         if (attribute && ConvertTo<bool>(*attribute)) {
             return;
         }

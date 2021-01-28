@@ -676,7 +676,7 @@ void TClient::DoSetNode(
     TStringStream stream;
     TBufferedBinaryYsonWriter writer(&stream, EYsonType::Node, false);
     YT_VERIFY(value.GetType() == EYsonType::Node);
-    writer.OnRaw(value.GetData(), EYsonType::Node);
+    writer.OnRaw(value.AsStringBuf(), EYsonType::Node);
     writer.Flush();
     req->set_value(stream.Str());
     req->set_recursive(options.Recursive);
@@ -711,7 +711,7 @@ void TClient::DoMultisetAttributesNode(
     for (const auto& [attribute, value] : children) {
         auto* protoSubrequest = req->add_subrequests();
         protoSubrequest->set_attribute(attribute);
-        protoSubrequest->set_value(ConvertToYsonString(value).GetData());
+        protoSubrequest->set_value(ConvertToYsonString(value).ToString());
     }
 
     batchReq->AddRequest(req);

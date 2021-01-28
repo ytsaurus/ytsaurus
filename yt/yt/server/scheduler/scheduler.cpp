@@ -3657,7 +3657,7 @@ private:
     {
         TStringBuilder builder;
         for (const auto& [operationId, operation] : IdToOperation_) {
-            builder.AppendString(operation->GetSuspiciousJobs().GetData());
+            builder.AppendString(operation->GetSuspiciousJobs().AsStringBuf());
         }
         return TYsonString(builder.Flush(), EYsonType::MapFragment);
     }

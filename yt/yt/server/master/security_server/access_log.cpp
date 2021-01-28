@@ -41,23 +41,27 @@ void TraverseTransactionAncestors(
     fluent
         .Item("transaction_id").Value(transaction->GetId())
         .DoIf(transaction->GetTitle().has_value(), [&] (auto fluent) {
-            fluent.Item("transaction_title").Value(transaction->GetTitle());
+            fluent
+                .Item("transaction_title").Value(transaction->GetTitle());
         })
         .DoIf(attributes, [&] (auto fluent) {
             const auto& attributeMap = attributes->Attributes();
-            for (const auto& attribute : {"operation_id", "operation_title"}) {
-                auto it = attributeMap.find(attribute);
-                fluent.DoIf(it != attributeMap.end(), [&] (auto fluent) {
-                    fluent.Item(attribute).Value(*it);
-                });
+            static const std::vector<TString> Keys{
+                TString("operation_id"),
+                TString("operation_title")
+            };
+            for (const auto& key : Keys) {
+                if (auto it = attributeMap.find(key)) {
+                    fluent.Item(key).Value(it->second);
+                }
             }
         })
         .DoIf(transaction->GetParent(), [&] (auto fluent) {
-            fluent.Item("parent")
-                .BeginMap()
-                .Do([&] (auto fluent) {
-                    TraverseTransactionAncestors(transaction->GetParent(), fluent);
-                })
+            fluent
+                .Item("parent").BeginMap()
+                    .Do([&] (auto fluent) {
+                        TraverseTransactionAncestors(transaction->GetParent(), fluent);
+                    })
                 .EndMap();
         });
 }

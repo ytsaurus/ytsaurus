@@ -290,7 +290,7 @@ TEST(TTableSchemaTest, ValidateTableSchemaTest)
 {
     auto expectBad = [] (const auto& schemaString) {
         TTableSchema schema;
-        Deserialize(schema, ConvertToNode(TYsonString(schemaString)));
+        Deserialize(schema, ConvertToNode(TYsonString(TStringBuf(schemaString))));
 
         EXPECT_THROW(ValidateTableSchema(schema, true), std::exception);
     };

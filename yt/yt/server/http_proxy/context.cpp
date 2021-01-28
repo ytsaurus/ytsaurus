@@ -544,15 +544,15 @@ void TContext::LogRequest()
     DriverRequest_.Id = Request_->GetRequestId();
     Parameters_ = ConvertToYsonString(
         HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
-        EYsonFormat::Text).GetData();
+        EYsonFormat::Text).ToString();
     YT_LOG_INFO("Gathered request parameters (RequestId: %v, Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
         Request_->GetRequestId(),
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
         Parameters_,
-        ConvertToYsonString(InputFormat_, EYsonFormat::Text).GetData(),
+        ConvertToYsonString(InputFormat_, EYsonFormat::Text).AsStringBuf(),
         InputContentEncoding_,
-        ConvertToYsonString(OutputFormat_, EYsonFormat::Text).GetData(),
+        ConvertToYsonString(OutputFormat_, EYsonFormat::Text).AsStringBuf(),
         OutputContentEncoding_);
 }
 
@@ -813,7 +813,7 @@ TSharedRef DumpError(const TError& error)
     errorStream << delimiter;
 
     auto formatAttributes = CreateEphemeralAttributes();
-    formatAttributes->SetYson("format", TYsonString("pretty"));
+    formatAttributes->SetYson("format", TYsonString(TStringBuf("pretty")));
 
     auto consumer = CreateConsumerForFormat(
         TFormat(EFormatType::Json, formatAttributes.Get()),
@@ -1003,7 +1003,7 @@ void TContext::ProcessDelayBeforeCommandTestingOption()
         return;
     }
     auto nodeString = ConvertToYsonString(node, EYsonFormat::Text);
-    if (nodeString.GetData().find(commandDelayOptions.Substring) == std::string::npos) {
+    if (nodeString.AsStringBuf().find(commandDelayOptions.Substring) == std::string::npos) {
         return;
     }
     YT_LOG_DEBUG("Waiting for %v seconds due to \"delay_before_command\" testing option",

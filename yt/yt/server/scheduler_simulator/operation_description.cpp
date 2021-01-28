@@ -19,7 +19,7 @@ class TYTreeSerializer
 public:
     static void Save(TSaveContext& context, const IMapNodePtr& node)
     {
-        NYT::Save(context, ConvertToYsonString(node).GetData());
+        NYT::Save(context, ConvertToYsonString(node).ToString());
     }
 
     static void Load(TLoadContext& context, IMapNodePtr& node)

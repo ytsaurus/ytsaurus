@@ -7,6 +7,8 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_client.h>
 
+#include <yt/core/misc/serialize.h>
+
 namespace NYT::NYson {
 namespace {
 
@@ -33,13 +35,13 @@ TYPED_TEST(TYsonTypedTest, GetYPath)
 
 TYPED_TEST(TYsonTypedTest, SetNodeByYPath)
 {
-    auto node = NYT::NYTree::ConvertToNode(TypeParam("{}"));
+    auto node = NYT::NYTree::ConvertToNode(TypeParam(TStringBuf("{}")));
     ForceYPath(node, "/submap/other_key");
 
     auto submap = node->AsMap()->GetChildOrThrow("submap")->AsMap();
     EXPECT_EQ(0, submap->GetChildCount());
 
-    auto value = NYT::NYTree::ConvertToNode(TypeParam("4"));
+    auto value = NYT::NYTree::ConvertToNode(TypeParam(TStringBuf("4")));
 
     SetNodeByYPath(node, "/submap/other_key", value);
     submap = node->AsMap()->GetChildOrThrow("submap")->AsMap();
@@ -48,7 +50,7 @@ TYPED_TEST(TYsonTypedTest, SetNodeByYPath)
 
 TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathMap)
 {
-    auto node = NYT::NYTree::ConvertToNode(TypeParam("{x={y={z=1}}}"));
+    auto node = NYT::NYTree::ConvertToNode(TypeParam(TStringBuf("{x={y={z=1}}}")));
     EXPECT_EQ(true, RemoveNodeByYPath(node, "/x/y/z"));
 
     auto submap = node->AsMap()->GetChildOrThrow("x")->AsMap()->GetChildOrThrow("y")->AsMap();
@@ -57,7 +59,7 @@ TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathMap)
 
 TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathList)
 {
-    auto node = NYT::NYTree::ConvertToNode(TypeParam("{x={y=[1]}}"));
+    auto node = NYT::NYTree::ConvertToNode(TypeParam(TStringBuf("{x={y=[1]}}")));
     EXPECT_EQ(true, RemoveNodeByYPath(node, "/x/y/0"));
 
     auto sublist = node->AsMap()->GetChildOrThrow("x")->AsMap()->GetChildOrThrow("y")->AsList();
@@ -66,7 +68,7 @@ TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathList)
 
 TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathInvalid)
 {
-    auto node = NYT::NYTree::ConvertToNode(TypeParam("{map={a=1};list=[1]}"));
+    auto node = NYT::NYTree::ConvertToNode(TypeParam(TStringBuf("{map={a=1};list=[1]}")));
     auto nodeCopy = CloneNode(node);
     EXPECT_EQ(false, RemoveNodeByYPath(node, "/map/b"));
     EXPECT_THROW(RemoveNodeByYPath(node, "/map/a/1"), std::exception);
@@ -87,7 +89,7 @@ TYPED_TEST(TYsonTypedTest, ConvertToNode)
     EXPECT_EQ("key", node->AsMap()->GetKeys().front());
 
     EXPECT_EQ("{\"key\"=\"value\";\"other_key\"=10;}",
-              ConvertToYsonString(node, EYsonFormat::Text).GetData());
+        ConvertToYsonString(node, EYsonFormat::Text).AsStringBuf());
 
     NYT::NYTree::INodePtr child;
 
@@ -113,7 +115,7 @@ TYPED_TEST(TYsonTypedTest, ListFragment)
     node = NYT::NYTree::ConvertToNode(TypeParam(yson, EYsonType::ListFragment));
     ASSERT_NO_THROW(node->AsList());
     EXPECT_EQ("[{\"a\"=\"b\";};{\"c\"=\"d\";};]",
-              ConvertToYsonString(node, EYsonFormat::Text).GetData());
+        ConvertToYsonString(node, EYsonFormat::Text).AsStringBuf());
 }
 
 TYPED_TEST(TYsonTypedTest, ConvertFromStream)
@@ -124,7 +126,7 @@ TYPED_TEST(TYsonTypedTest, ConvertFromStream)
     auto node = ConvertToNode(&ysonStream);
     ASSERT_NO_THROW(node->AsMap());
     EXPECT_EQ("{\"key\"=\"value\";}",
-              ConvertToYsonString(node, EYsonFormat::Text).GetData());
+        ConvertToYsonString(node, EYsonFormat::Text).AsStringBuf());
 }
 
 TYPED_TEST(TYsonTypedTest, ConvertToProducerNode)
@@ -134,7 +136,7 @@ TYPED_TEST(TYsonTypedTest, ConvertToProducerNode)
     TYsonWriter writer(&output, EYsonFormat::Text);
 
     // Make producer
-    auto ysonProducer = ConvertToProducer(TypeParam("{key=value}"));
+    auto ysonProducer = ConvertToProducer(TypeParam(TStringBuf("{key=value}")));
 
     // Apply producer to consumer
     ysonProducer.Run(&writer);
@@ -145,15 +147,15 @@ TYPED_TEST(TYsonTypedTest, ConvertToProducerNode)
 TYPED_TEST(TYsonTypedTest, ConvertToProducerListFragment)
 {
     {
-        auto producer = ConvertToProducer(TypeParam("{a=b}; {c=d}", EYsonType::ListFragment));
+        auto producer = ConvertToProducer(TypeParam(TStringBuf("{a=b}; {c=d}"), EYsonType::ListFragment));
         EXPECT_EQ("{\"a\"=\"b\";};\n{\"c\"=\"d\";};\n",
-            ConvertToYsonString(producer, EYsonFormat::Text).GetData());
+            ConvertToYsonString(producer, EYsonFormat::Text).AsStringBuf());
     }
 
     {
-        auto producer = ConvertToProducer(TypeParam("{key=value}"));
+        auto producer = ConvertToProducer(TypeParam(TStringBuf("{key=value}")));
         EXPECT_EQ("{\"key\"=\"value\";}",
-            ConvertToYsonString(producer, EYsonFormat::Text).GetData());
+            ConvertToYsonString(producer, EYsonFormat::Text).AsStringBuf());
     }
 }
 
@@ -165,7 +167,7 @@ TYPED_TEST(TYsonTypedTest, ConvertToForPodTypes)
         EXPECT_EQ(42, ConvertTo<i64>(node));
 
         auto ysonStr = ConvertToYsonString(node, EYsonFormat::Text);
-        EXPECT_EQ("42", ysonStr.GetData());
+        EXPECT_EQ("42", ysonStr.AsStringBuf());
         EXPECT_EQ(42, ConvertTo<i32>(ysonStr));
         EXPECT_EQ(42, ConvertTo<i64>(ysonStr));
         EXPECT_EQ(42.0, ConvertTo<double>(ysonStr));
@@ -176,7 +178,7 @@ TYPED_TEST(TYsonTypedTest, ConvertToForPodTypes)
         EXPECT_EQ(0.1, ConvertTo<double>(node));
 
         auto ysonStr = ConvertToYsonString(node, EYsonFormat::Text);
-        EXPECT_EQ("0.1", ysonStr.GetData());
+        EXPECT_EQ("0.1", ysonStr.AsStringBuf());
         EXPECT_EQ(0.1, ConvertTo<double>(ysonStr));
     }
 
@@ -189,7 +191,7 @@ TYPED_TEST(TYsonTypedTest, ConvertToForPodTypes)
         EXPECT_EQ(numbers, converted);
         auto yson = ConvertToYsonString(node, EYsonFormat::Text);
         EXPECT_EQ(EYsonType::Node, yson.GetType());
-        EXPECT_EQ("[1;2;]", yson.GetData());
+        EXPECT_EQ("[1;2;]", yson.AsStringBuf());
     }
 
     {
@@ -199,14 +201,14 @@ TYPED_TEST(TYsonTypedTest, ConvertToForPodTypes)
         EXPECT_EQ(boolean, converted);
         auto yson = ConvertToYsonString(node, EYsonFormat::Text);
         EXPECT_EQ(EYsonType::Node, yson.GetType());
-        EXPECT_EQ("%true", yson.GetData());
+        EXPECT_EQ("%true", yson.AsStringBuf());
     }
 
     EXPECT_EQ(ConvertTo<bool>("false"), false);
-    EXPECT_EQ(ConvertTo<bool>(TypeParam("%false")), false);
+    EXPECT_EQ(ConvertTo<bool>(TypeParam(TStringBuf("%false"))), false);
 
     EXPECT_EQ(ConvertTo<bool>("true"), true);
-    EXPECT_EQ(ConvertTo<bool>(TypeParam("%true")), true);
+    EXPECT_EQ(ConvertTo<bool>(TypeParam(TStringBuf("%true"))), true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,61 +259,97 @@ TEST(TYsonTest, UpdateNodes)
 
     EXPECT_EQ(
         "100",
-        ConvertToYsonString(res->AsMap()->FindChild("key_a"), EYsonFormat::Text).GetData());
+        ConvertToYsonString(res->AsMap()->FindChild("key_a"), EYsonFormat::Text).AsStringBuf());
     EXPECT_EQ(
         "<\"attr\"=\"some_attr\";>0.",
-        ConvertToYsonString(res->AsMap()->FindChild("key_b"), EYsonFormat::Text).GetData());
+        ConvertToYsonString(res->AsMap()->FindChild("key_b"), EYsonFormat::Text).AsStringBuf());
     EXPECT_EQ(
         "70.",
-        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("ignat"), EYsonFormat::Text).GetData());
+        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("ignat"), EYsonFormat::Text).AsStringBuf());
     EXPECT_EQ(
         "75.",
-        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("max"), EYsonFormat::Text).GetData());
+        ConvertToYsonString(res->AsMap()->FindChild("key_c")->AsMap()->FindChild("max"), EYsonFormat::Text).AsStringBuf());
     EXPECT_EQ(
         "{\"x\"=\"y\";}",
-        ConvertToYsonString(res->AsMap()->FindChild("key_d"), EYsonFormat::Text).GetData());
+        ConvertToYsonString(res->AsMap()->FindChild("key_d"), EYsonFormat::Text).AsStringBuf());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TYsonTest, TYsonStringTypesConversion)
 {
-    auto ysonString = TYsonString("{x=y;z=1}");
-    auto getData = [] (const TYsonStringBuf& ysonStringBuf) {
-        return ysonStringBuf.GetData();
+    auto ysonString = TYsonString(TStringBuf(("{x=y;z=1}")));
+    auto AsStringBuf = [] (const TYsonStringBuf& ysonStringBuf) {
+        return ysonStringBuf.AsStringBuf();
     };
     auto getType = [] (const TYsonStringBuf& ysonStringBuf) {
         return ysonStringBuf.GetType();
     };
 
     // We expect these functions to cast arguments implicitly.
-    EXPECT_EQ(getData(ysonString), ysonString.GetData());
+    EXPECT_EQ(AsStringBuf(ysonString), ysonString.AsStringBuf());
     EXPECT_EQ(getType(ysonString), ysonString.GetType());
 }
 
 TEST(TYsonTest, TYsonStringTypesHashing)
 {
-    auto ysonString = TYsonString("{x=y;z=1}");
-    auto ysonStringBuf = TYsonStringBuf("{x=y;z=1}");
+    auto ysonString = TYsonString(TStringBuf("{x=y;z=1}"));
+    auto ysonStringBuf = TYsonStringBuf(TStringBuf("{x=y;z=1}"));
     EXPECT_EQ(THash<TYsonString>()(ysonString), THash<TYsonStringBuf>()(ysonStringBuf));
 }
 
 TEST(TYsonTest, TYsonStringTypesComparisons)
 {
-    auto ysonString = TYsonString("{x=y;z=1}");
-    auto ysonStringBuf = TYsonStringBuf("{x=y;z=1}");
+    auto ysonString = TYsonString(TStringBuf("{x=y;z=1}"));
+    auto ysonStringBuf = TYsonStringBuf(TStringBuf("{x=y;z=1}"));
     EXPECT_EQ(ysonString, ysonString);
     EXPECT_EQ(ysonStringBuf, ysonStringBuf);
     EXPECT_EQ(ysonString, ysonStringBuf);
     EXPECT_EQ(ysonStringBuf, ysonString);
 
-    auto otherYsonString = TYsonString("{x=z;y=1}");
-    auto otherYsonStringBuf = TYsonStringBuf("{x=z;y=1}");
+    auto otherYsonString = TYsonString(TStringBuf("{x=z;y=1}"));
+    auto otherYsonStringBuf = TYsonStringBuf(TStringBuf("{x=z;y=1}"));
     EXPECT_NE(ysonString, otherYsonStringBuf);
     EXPECT_NE(ysonStringBuf, otherYsonStringBuf);
     EXPECT_NE(ysonString, otherYsonStringBuf);
     EXPECT_NE(ysonStringBuf, otherYsonString);
 }
+
+TEST(TYsonTest, TYsonStringFromStringBuf)
+{
+    auto stringBuf = TStringBuf("test");
+    auto ysonString = TYsonString(stringBuf);
+    EXPECT_EQ(stringBuf, ysonString.AsStringBuf());
+    EXPECT_EQ(stringBuf, ysonString.ToString());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYsonStringSerializationTest
+    : public ::testing::TestWithParam<TYsonString>
+{ };
+
+TEST_P(TYsonStringSerializationTest, Do)
+{
+    auto str = GetParam();
+    TString buffer;
+    TStringOutput output(buffer);
+    TStreamSaveContext saveContext(&output);
+    Save(saveContext, str);
+    TStringInput input(buffer);
+    TStreamLoadContext loadContext(&input);
+    EXPECT_EQ(str, Load<TYsonString>(loadContext));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Do,
+    TYsonStringSerializationTest,
+    ::testing::ValuesIn({
+        TYsonString(), // null
+        TYsonString(TStringBuf("test")),
+        TYsonString(TStringBuf("1;2;3"), EYsonType::ListFragment),
+        TYsonString(TStringBuf("a=1;b=2;c=3"), EYsonType::MapFragment),
+    }));
 
 ////////////////////////////////////////////////////////////////////////////////
 

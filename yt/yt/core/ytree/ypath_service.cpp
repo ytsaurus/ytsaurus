@@ -137,7 +137,7 @@ private:
         }
 
         auto yson = BuildStringFromProducer();
-        response->set_value(yson.GetData());
+        response->set_value(yson.ToString());
         context->Reply();
     }
 
@@ -586,7 +586,7 @@ void TCachedYPathService::RebuildCache()
         auto yson = WaitFor(asyncYson)
             .ValueOrThrow();
 
-        ProfilingCounters_->ByteSize.Update(yson.GetData().Size());
+        ProfilingCounters_->ByteSize.Update(yson.AsStringBuf().Size());
 
         UpdateCachedTree(ConvertToNode(yson));
     } catch (const std::exception& ex) {

@@ -76,7 +76,7 @@ TEST(TAttributesTest, MergeFromTest)
     EXPECT_EQ("Oleg", attributesX->Get<TString>("name"));
     EXPECT_EQ(30, attributesX->Get<int>("age"));
 
-    auto node = ConvertToNode(TYsonString("{age=20}"));
+    auto node = ConvertToNode(TYsonString(TStringBuf("{age=20}")));
     attributesX->MergeFrom(node->AsMap());
     EXPECT_EQ("Oleg", attributesX->Get<TString>("name"));
     EXPECT_EQ(20, attributesX->Get<int>("age"));

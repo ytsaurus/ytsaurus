@@ -884,7 +884,7 @@ public:
 
     void ConsumeYson(TYsonStringBuf yson)
     {
-        TMemoryInput in(yson.GetData());
+        TMemoryInput in(yson.AsStringBuf());
         TYsonPullParser parser(&in, EYsonType::Node);
         TYsonPullParserCursor cursor(&parser);
         RootConverter_->ConsumeYson(&cursor);

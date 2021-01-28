@@ -447,7 +447,7 @@ void TMasterConnector::RegisterAtPrimaryMaster()
     ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
     ToProto(req->mutable_tags(), NodeTags_);
 
-    req->set_cypress_annotations(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).GetData());
+    req->set_cypress_annotations(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
     req->set_build_version(GetVersion());
 
     YT_LOG_INFO("Registering at primary master (%v)",

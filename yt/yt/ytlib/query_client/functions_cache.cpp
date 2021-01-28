@@ -209,7 +209,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
         YT_LOG_DEBUG("Found UDF implementation in Cypress (Name: %v, Descriptor: %v)",
             function.second,
-            ConvertToYsonString(item, NYson::EYsonFormat::Text).GetData());
+            ConvertToYsonString(item, NYson::EYsonFormat::Text).AsStringBuf());
 
         TExternalFunctionSpec cypressInfo;
         cypressInfo.Descriptor = item;
@@ -280,7 +280,7 @@ void AppendUdfDescriptors(
 
         YT_LOG_DEBUG("Appending UDF descriptor (Name: %v, Descriptor: %v)",
             name,
-            ConvertToYsonString(descriptor, NYson::EYsonFormat::Text).GetData());
+            ConvertToYsonString(descriptor, NYson::EYsonFormat::Text).AsStringBuf());
 
         if (!descriptor) {
             continue;
@@ -794,7 +794,7 @@ void ToProto(NProto::TExternalFunctionImpl* proto, const TExternalFunctionImpl& 
     TDescriptorType descriptorType;
     descriptorType.Type = object.RepeatedArgType;
 
-    proto->set_repeated_arg_type(ConvertToYsonString(descriptorType).GetData());
+    proto->set_repeated_arg_type(ConvertToYsonString(descriptorType).ToString());
     proto->set_repeated_arg_index(object.RepeatedArgIndex);
     proto->set_use_function_context(object.UseFunctionContext);
 }

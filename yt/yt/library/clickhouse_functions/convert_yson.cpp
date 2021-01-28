@@ -113,15 +113,16 @@ public:
                 continue;
             }
             if (columnFormatOrNull->isNullAt(i)) {
-                THROW_ERROR_EXCEPTION("Yson format should be not null");
+                THROW_ERROR_EXCEPTION("YSON format should be not null");
             }
+
             const auto& yson = columnYson->getDataAt(i);
             const auto& format = columnFormat->getDataAt(i);
 
-            NYson::EYsonFormat ysonFormat = ConvertTo<NYson::EYsonFormat>(TString(format.data, format.size));
-            auto ysonString = TYsonString(yson.data, yson.size);
+            auto ysonFormat = ConvertTo<NYson::EYsonFormat>(TStringBuf(format.data, format.size));
+            auto ysonString = TYsonStringBuf(TStringBuf(yson.data, yson.size));
 
-            columnTo->insert(toField(ConvertToYsonString(ysonString, ysonFormat).GetData()));
+            columnTo->insert(toField(ConvertToYsonString(ysonString, ysonFormat).ToString()));
         }
 
         return columnTo;

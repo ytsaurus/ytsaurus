@@ -988,9 +988,9 @@ private:
     TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededJobResources;
 
     mutable TInstant CachedRunningJobsUpdateTime_;
-    mutable NYson::TYsonString CachedRunningJobsYson_ = NYson::TYsonString("", NYson::EYsonType::MapFragment);
+    mutable NYson::TYsonString CachedRunningJobsYson_ = NYson::TYsonString(TStringBuf(), NYson::EYsonType::MapFragment);
 
-    NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString("", NYson::EYsonType::MapFragment);
+    NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString(TStringBuf(), NYson::EYsonType::MapFragment);
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);
     NConcurrency::TPeriodicExecutorPtr SuspiciousJobsYsonUpdater_;
 

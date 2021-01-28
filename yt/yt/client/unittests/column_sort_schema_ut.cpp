@@ -21,7 +21,7 @@ TEST(TColumnSortSchemaTest, Serialize)
             .Name = name,
             .SortOrder = sortOrder
         };
-        auto serialized = ConvertToYsonString(schema, NYson::EYsonFormat::Text).GetData();
+        auto serialized = ConvertToYsonString(schema, NYson::EYsonFormat::Text).ToString();
         EXPECT_EQ(serialized, expected);
     };
 
@@ -40,7 +40,7 @@ TEST(TColumnSortSchemaTest, Deserialize)
     test("{\"name\"=\"foo\";\"sort_order\"=\"ascending\"}", "foo", ESortOrder::Ascending);
     test("{\"name\"=\"bar\";\"sort_order\"=\"descending\"}", "bar", ESortOrder::Descending);
     test("\"baz\"", "baz", ESortOrder::Ascending);
-    EXPECT_THROW_WITH_SUBSTRING(test("42", "foo", ESortOrder::Ascending), "Unexpected type of column sort schema node");    
+    EXPECT_THROW_WITH_SUBSTRING(test("42", "foo", ESortOrder::Ascending), "Unexpected type of column sort schema node");
 }
 
 TEST(TColumnSortSchemaTest, ProtobufConversion)

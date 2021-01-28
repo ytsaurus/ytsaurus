@@ -303,7 +303,7 @@ TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit) const
     auto truncateAttributes = [stringLimit] (const IAttributeDictionaryPtr& attributes) {
         auto clonedAttributes = attributes->Clone();
         for (const auto& key : clonedAttributes->ListKeys()) {
-            if (clonedAttributes->FindYson(key).GetData().Size() > stringLimit) {
+            if (clonedAttributes->FindYson(key).AsStringBuf().Size() > stringLimit) {
                 clonedAttributes->SetYson(
                     key,
                     BuildYsonStringFluently()
@@ -552,7 +552,7 @@ void AppendError(TStringBuilderBase* builder, const TError& error, int indent)
     }
 
     for (const auto& [key, value] : error.Attributes().ListPairs()) {
-        TTokenizer tokenizer(value.GetData());
+        TTokenizer tokenizer(value.AsStringBuf());
         YT_VERIFY(tokenizer.ParseNext());
         switch (tokenizer.GetCurrentType()) {
             case ETokenType::String:
@@ -571,7 +571,7 @@ void AppendError(TStringBuilderBase* builder, const TError& error, int indent)
                 AppendAttribute(builder, key, TString(FormatBool(tokenizer.CurrentToken().GetBooleanValue())), indent);
                 break;
             default:
-                AppendAttribute(builder, key, ConvertToYsonString(value, EYsonFormat::Text).GetData(), indent);
+                AppendAttribute(builder, key, ConvertToYsonString(value, EYsonFormat::Text).ToString(), indent);
                 break;
         }
     }
@@ -635,7 +635,7 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
     auto addAttribute = [&] (const TString& key, const auto& value) {
         auto* protoItem = protoError->mutable_attributes()->add_attributes();
         protoItem->set_key(key);
-        protoItem->set_value(ConvertToYsonString(value).GetData());
+        protoItem->set_value(ConvertToYsonString(value).ToString());
     };
 
     if (error.HasOriginAttributes()) {

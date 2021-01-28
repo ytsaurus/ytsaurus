@@ -56,7 +56,7 @@ TYsonString TClient::DoPollJobShell(
 
     auto req = proxy.PollJobShell();
     ToProto(req->mutable_job_id(), jobId);
-    ToProto(req->mutable_parameters(), parameters.GetData());
+    ToProto(req->mutable_parameters(), parameters.ToString());
     req->set_subcontainer(jobShellDescriptor.Subcontainer);
 
     auto rspOrError = WaitFor(req->Invoke());

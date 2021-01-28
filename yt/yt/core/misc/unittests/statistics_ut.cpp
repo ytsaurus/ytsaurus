@@ -147,7 +147,7 @@ TEST(TStatistics, Consumer)
 
 TEST(TStatistics, BuildingConsumer)
 {
-    TYsonString statisticsYson(
+    TYsonString statisticsYson(TStringBuf(
         "{"
             "abc="
             "{"
@@ -164,7 +164,7 @@ TEST(TStatistics, BuildingConsumer)
             "{"
                 "sum=50; count=5; min=8; max=12;"
             "};"
-        "}");
+        "}"));
     auto statistics = ConvertTo<TStatistics>(statisticsYson);
     auto data = statistics.Data();
 

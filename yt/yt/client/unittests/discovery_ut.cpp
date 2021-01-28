@@ -52,7 +52,7 @@ TEST(TDiscoveryTest, Simple)
     options.Attributes = keys;
     options.Attributes->push_back("lock_count");
 
-    NYson::TYsonString listRet("[<locks=[{child_key=tmp}]>dead_node;<locks=[{child_key=lock}]>alive_node;]");
+    NYson::TYsonString listRet(TStringBuf("[<locks=[{child_key=tmp}]>dead_node;<locks=[{child_key=lock}]>alive_node;]"));
 
     EXPECT_CALL(*MockClient, ListNode(path, _))
         .WillRepeatedly(Return(MakeFuture(listRet)));
@@ -244,9 +244,9 @@ TEST(TDiscoveryTest, Ban)
     EXPECT_CALL(*MockClient, ListNode(path, _))
         .WillRepeatedly(Return(MakeFuture(BuildYsonStringFluently()
             .BeginList()
-                .Item().Value(TYsonString("<locks=[{}]>dead_node"))
-                .Item().Value(TYsonString("<locks=[{child_key=lock}]>alive_node1"))
-                .Item().Value(TYsonString("<locks=[{};{child_key=lock}]>alive_node2"))
+                .Item().Value(TYsonString(TStringBuf("<locks=[{}]>dead_node")))
+                .Item().Value(TYsonString(TStringBuf("<locks=[{child_key=lock}]>alive_node1")))
+                .Item().Value(TYsonString(TStringBuf("<locks=[{};{child_key=lock}]>alive_node2")))
             .EndList())));
 
     std::vector<TString> expected = {"alive_node1", "alive_node2"};
@@ -296,19 +296,19 @@ TEST(TDiscoveryTest, Attributes)
             .BeginList()
                 .Item()
                     .BeginAttributes()
-                        .Item("locks").Value(TYsonString("[{child_key=tmp}]"))
+                        .Item("locks").Value(TYsonString(TStringBuf("[{child_key=tmp}]")))
                     .EndAttributes()
                     .Value("dead_node")
                 .Item()
                     .BeginAttributes()
-                        .Item("locks").Value(TYsonString("[{child_key=lock}]"))
+                        .Item("locks").Value(TYsonString(TStringBuf("[{child_key=lock}]")))
                         .Item("a1").Value(1)
                         .Item("a2").Value(2)
                     .EndAttributes()
                     .Value("alive_node1")
                 .Item()
                     .BeginAttributes()
-                        .Item("locks").Value(TYsonString("[{child_key=lock}]"))
+                        .Item("locks").Value(TYsonString(TStringBuf("[{child_key=lock}]")))
                         .Item("a1").Value(1)
                         .Item("a2").Value(2)
                     .EndAttributes()

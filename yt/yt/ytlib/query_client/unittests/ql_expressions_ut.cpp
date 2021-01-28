@@ -126,8 +126,8 @@ TEST_P(TExtractSubexpressionPredicateTest, Simple)
     const auto& predicateString = std::get<2>(args);
     const auto& extractedString = std::get<3>(args);
 
-    auto tableSchema = ConvertTo<TTableSchema>(TYsonString(schemaString));
-    auto tableSubschema = ConvertTo<TTableSchema>(TYsonString(subschemaString));
+    auto tableSchema = ConvertTo<TTableSchema>(TYsonString(TString(schemaString)));
+    auto tableSubschema = ConvertTo<TTableSchema>(TYsonString(TString(subschemaString)));
 
     auto predicate = PrepareExpression(predicateString, tableSchema);
     auto expected = PrepareExpression(extractedString, tableSubschema);
@@ -242,8 +242,8 @@ TEST_P(TEliminateLookupPredicateTest, Simple)
 
     TTableSchema tableSchema;
     TKeyColumns keyColumns;
-    Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
-    Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
+    Deserialize(tableSchema, ConvertToNode(TYsonString(TString(schemaString))));
+    Deserialize(keyColumns, ConvertToNode(TYsonString(TString(keyString))));
 
     std::vector<TLegacyOwningKey> keys;
     TString keysString;
@@ -367,8 +367,8 @@ TEST_P(TEliminatePredicateTest, Simple)
 
     TTableSchema tableSchema;
     TKeyColumns keyColumns;
-    Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
-    Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
+    Deserialize(tableSchema, ConvertToNode(TYsonString(TString(schemaString))));
+    Deserialize(keyColumns, ConvertToNode(TYsonString(TString(keyString))));
 
     auto predicate = PrepareExpression(predicateString, tableSchema);
     auto expected = PrepareExpression(refinedString, tableSchema);
@@ -747,7 +747,7 @@ TSharedRange<TRow> MakeRows(const TString& yson)
                 break;
             default:
                 keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(
-                    ConvertToYsonString(keyPart).GetData(),
+                    ConvertToYsonString(keyPart).AsStringBuf(),
                     id));
                 break;
         }

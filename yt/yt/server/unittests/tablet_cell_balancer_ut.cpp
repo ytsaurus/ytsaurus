@@ -122,8 +122,8 @@ public:
             }
         }
 
-        PeersPerCell_ = ConvertToYsonString(peersPerCell, EYsonFormat::Text).GetData();
-        CellLists_ = ConvertToYsonString(cellLists, EYsonFormat::Text).GetData();
+        PeersPerCell_ = ConvertToYsonString(peersPerCell, EYsonFormat::Text).ToString();
+        CellLists_ = ConvertToYsonString(cellLists, EYsonFormat::Text).ToString();
         InitialDistribution_ = GetDistribution();
     }
 
@@ -180,7 +180,7 @@ public:
                                 slot.second));
                     });
              })
-            .GetData();
+            .ToString();
     }
 
     virtual std::vector<TNodeHolder> GetNodes() override

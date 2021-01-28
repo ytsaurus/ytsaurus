@@ -5,94 +5,202 @@
 #include "consumer.h"
 
 #include <yt/core/misc/serialize.h>
+#include <yt/core/misc/variant.h>
 
 namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TData>
-TYsonStringBase<TData>::TYsonStringBase()
-    : Null_(true)
+TYsonStringBuf::TYsonStringBuf()
+{
+    Type_ = EYsonType::Node; // fake
+    Null_ = true;
+}
+
+TYsonStringBuf::TYsonStringBuf(const TYsonString& ysonString)
+{
+    if (ysonString) {
+        Data_ = ysonString.AsStringBuf();
+        Type_ = ysonString.GetType();
+        Null_ = false;
+    } else {
+        Type_ = EYsonType::Node; // fake
+        Null_ = true;
+    }
+}
+
+TYsonStringBuf::TYsonStringBuf(const TString& data, EYsonType type)
+    : TYsonStringBuf(TStringBuf(data), type)
 { }
 
-template <typename TData>
-TYsonStringBase<TData>::TYsonStringBase(TData data, EYsonType type)
-    : Null_(false)
-    , Data_(std::move(data))
+TYsonStringBuf::TYsonStringBuf(TStringBuf data, EYsonType type)
+    : Data_(data)
     , Type_(type)
+    , Null_(false)
 { }
 
-template <typename TData>
- TYsonStringBase<TData>::TYsonStringBase(const char* data, size_t length, EYsonType type)
-    : Null_(false)
-    , Data_(data, length)
-    , Type_(type)
-{ }
-
-template <typename TData>
-TYsonStringBase<TData>::operator bool() const
+TYsonStringBuf::operator bool() const
 {
     return !Null_;
 }
 
-template <typename TData>
-const TData& TYsonStringBase<TData>::GetData() const
+TStringBuf TYsonStringBuf::AsStringBuf() const
 {
-    YT_VERIFY(!Null_);
+    YT_VERIFY(*this);
     return Data_;
 }
 
-template <typename TData>
-EYsonType TYsonStringBase<TData>::GetType() const
+EYsonType TYsonStringBuf::GetType() const
 {
-    YT_VERIFY(!Null_);
+    YT_VERIFY(*this);
     return Type_;
 }
 
-template <typename TData>
-void TYsonStringBase<TData>::Validate() const
+void TYsonStringBuf::Validate() const
 {
-    if (!Null_) {
+    if (*this) {
         TMemoryInput input(Data_);
         ParseYson(TYsonInput(&input, Type_), GetNullYsonConsumer());
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRefCountedYsonStringData
+    : public TRefCounted
+    , public TWithExtraSpace<TRefCountedYsonStringData>
+{
+    char* GetData()
+    {
+        return static_cast<char*>(GetExtraSpacePtr());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYsonString::TYsonString()
+{
+    Begin_ = nullptr;
+    Size_ = 0;
+    Type_ = EYsonType::Node; // fake
+}
+
+TYsonString::TYsonString(const TYsonStringBuf& ysonStringBuf)
+{
+    if (ysonStringBuf) {
+        auto data = ysonStringBuf.AsStringBuf();
+        auto payload = NewWithExtraSpace<TRefCountedYsonStringData>(data.length());
+        ::memcpy(payload->GetData(), data.data(), data.length());
+        Payload_ = payload;
+        Begin_ = payload->GetData();
+        Size_ = data.length();
+        Type_ = ysonStringBuf.GetType();
+    } else {
+        Begin_ = nullptr;
+        Size_ = 0;
+        Type_ = EYsonType::Node; // fake
+    }
+}
+
+TYsonString::TYsonString(
+    TStringBuf data,
+    EYsonType type)
+    : TYsonString(TYsonStringBuf(data, type))
+{ }
+
+TYsonString::TYsonString(
+    TString data,
+    EYsonType type)
+{
+    Payload_ = data;
+    Begin_ = data.data();
+    Size_ = data.length();
+    Type_ = type;
+}
+
+TYsonString::TYsonString(
+    const TSharedRef& data,
+    EYsonType type)
+{
+    Payload_ = data.GetHolder();
+    Begin_ = data.Begin();
+    Size_ = data.Size();
+    Type_ = type;
+}
+
+TYsonString::operator bool() const
+{
+    return !std::holds_alternative<TNullPayload>(Payload_);
+}
+
+EYsonType TYsonString::GetType() const
+{
+    YT_VERIFY(*this);
+    return Type_;
+}
+
+TStringBuf TYsonString::AsStringBuf() const
+{
+    YT_VERIFY(*this);
+    return TStringBuf(Begin_, Begin_ + Size_);
+}
+
+TString TYsonString::ToString() const
+{
+    return Visit(
+        Payload_,
+        [] (const TNullPayload&) -> TString {
+            YT_ABORT();
+        },
+        [&] (const TIntrusivePtr<TRefCounted>&) {
+            return TString(AsStringBuf());
+        },
+        [] (const TString& payload) {
+            return payload;
+        });
+}
+
+size_t TYsonString::ComputeHash() const
+{
+    return THash<TStringBuf>()(TStringBuf(Begin_, Begin_ + Size_));
+}
+
+void TYsonString::Validate() const
+{
+    TYsonStringBuf(*this).Validate();
+}
+
 void TYsonString::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;
-    if (Null_) {
-        Save(context, static_cast<i32>(-1));
-    } else {
+    if (*this) {
         Save(context, static_cast<i32>(Type_));
-        Save(context, Data_);
+        TSizeSerializer::Save(context, Size_);
+        TRangeSerializer::Save(context, TRef(Begin_, Size_));
+    } else {
+        Save(context, static_cast<i32>(-1));
     }
 }
 
 void TYsonString::Load(TStreamLoadContext& context)
 {
     using NYT::Load;
-    Type_ = static_cast<EYsonType>(Load<i32>(context));
-    if (static_cast<i32>(Type_) == -1) {
-        Null_ = true;
-        Data_.clear();
+    auto type = Load<i32>(context);
+    if (type != -1) {
+        auto size = TSizeSerializer::Load(context);
+        auto payload = NewWithExtraSpace<TRefCountedYsonStringData>(size);
+        TRangeSerializer::Load(context, TMutableRef(payload->GetData(), size));
+        Payload_ = payload;
+        Begin_ = payload->GetData();
+        Size_ = static_cast<i32>(size);
+        Type_ = static_cast<EYsonType>(type);
     } else {
-        Null_ = false;
-        Load(context, Data_);
+        Payload_ = TNullPayload();
+        Begin_ = nullptr;
+        Size_ = 0;
+        Type_ = EYsonType::Node; // fake
     }
 }
-
-TYsonString::TYsonString(const TYsonStringBuf& ysonStringBuf)
-    : TYsonStringBase(TString(ysonStringBuf.GetData()), ysonStringBuf.GetType())
-{ }
-
-TYsonStringBuf::TYsonStringBuf(const TYsonString& ysonString)
-    : TYsonStringBase(ysonString.GetData(), ysonString.GetType())
-{ }
-
-// Explicitly instantiate the template to link successfully.
-template class TYsonStringBase<TString>;
-template class TYsonStringBase<TStringBuf>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,60 +214,14 @@ void Serialize(const TYsonStringBuf& yson, IYsonConsumer* consumer)
     consumer->OnRaw(yson);
 }
 
-template <typename TLeft, typename TRight>
-bool Equals(const TLeft& lhs, const TRight& rhs)
-{
-    return lhs.GetData() == rhs.GetData() && lhs.GetType() == rhs.GetType();
-}
-
-bool operator == (const TYsonString& lhs, const TYsonString& rhs)
-{
-    return Equals(lhs, rhs);
-}
-
-bool operator == (const TYsonString& lhs, const TYsonStringBuf& rhs)
-{
-    return Equals(lhs, rhs);
-}
-
-bool operator == (const TYsonStringBuf& lhs, const TYsonString& rhs)
-{
-    return Equals(lhs, rhs);
-}
-
-bool operator == (const TYsonStringBuf& lhs, const TYsonStringBuf& rhs)
-{
-    return Equals(lhs, rhs);
-}
-
-bool operator != (const TYsonString& lhs, const TYsonString& rhs)
-{
-    return !(lhs == rhs);
-}
-
-bool operator != (const TYsonString& lhs, const TYsonStringBuf& rhs)
-{
-    return !(lhs == rhs);
-}
-
-bool operator != (const TYsonStringBuf& lhs, const TYsonString& rhs)
-{
-    return !(lhs == rhs);
-}
-
-bool operator != (const TYsonStringBuf& lhs, const TYsonStringBuf& rhs)
-{
-    return !(lhs == rhs);
-}
-
 TString ToString(const TYsonString& yson)
 {
-    return yson.GetData();
+    return yson.ToString();
 }
 
 TString ToString(const TYsonStringBuf& yson)
 {
-    return TString{yson.GetData()};
+    return TString(yson.AsStringBuf());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

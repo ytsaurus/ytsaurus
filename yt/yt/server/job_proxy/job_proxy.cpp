@@ -194,7 +194,7 @@ void TJobProxy::SendHeartbeat()
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(job->GetProgress());
-    req->set_statistics(ConvertToYsonString(GetStatistics()).GetData());
+    req->set_statistics(ConvertToYsonString(GetStatistics()).ToString());
     req->set_stderr_size(job->GetStderrSize());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
@@ -224,7 +224,7 @@ void TJobProxy::LogJobSpec(TJobSpec jobSpec)
         // Some fields are serialized in binary YSON, let's make them human readable.
         #define TRANSFORM_TO_PRETTY_YSON(object, field) \
             if (object->has_ ## field() && !object->field().empty()) { \
-                object->set_ ## field(ConvertToYsonString(TYsonString(object->field()), EYsonFormat::Pretty).GetData()); \
+                object->set_ ## field(ConvertToYsonString(TYsonString(object->field()), EYsonFormat::Pretty).ToString()); \
             }
         TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, io_config);
         TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, table_reader_options);
@@ -695,7 +695,7 @@ void TJobProxy::ReportResult(
     auto req = SupervisorProxy_->OnJobFinished();
     ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
-    req->set_statistics(statistics.GetData());
+    req->set_statistics(statistics.ToString());
     req->set_start_time(ToProto<i64>(startTime));
     req->set_finish_time(ToProto<i64>(finishTime));
     auto job = FindJob();

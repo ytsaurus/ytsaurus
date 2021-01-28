@@ -409,7 +409,7 @@ void TClient::ValidateOperationAccess(
     TSerializableAccessControlList acl;
     if (operationOrError.IsOK()) {
         auto operationYson = std::move(operationOrError).Value();
-        auto aclYson = TryGetAny(operationYson.GetData(), "/runtime_parameters/acl");
+        auto aclYson = TryGetAny(operationYson.AsStringBuf(), "/runtime_parameters/acl");
         if (aclYson) {
             acl = ConvertTo<TSerializableAccessControlList>(TYsonStringBuf(*aclYson));
         } else {
@@ -1352,7 +1352,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             auto statisticsLz4 = FromUnversionedValue<TStringBuf>(row[*statisticsLz4Index]);
             auto codec = NCompression::GetCodec(NCompression::ECodec::Lz4);
             auto decompressed = codec->Decompress(TSharedRef(statisticsLz4.data(), statisticsLz4.size(), nullptr));
-            auto statisticsYson = TYsonStringBuf(decompressed.Begin(), decompressed.Size());
+            auto statisticsYson = TYsonStringBuf(TStringBuf(decompressed.Begin(), decompressed.Size()));
             if (needFullStatistics) {
                 job.Statistics = TYsonString(statisticsYson);
             }
@@ -1872,7 +1872,7 @@ static TError TryFillJobPools(
     }
 
     auto path = "/runtime_parameters/scheduling_options_per_pool_tree";
-    auto schedulingOptionsPerPoolTreeYson = TryGetAny(operationYsonOrError.Value().GetData(), path);
+    auto schedulingOptionsPerPoolTreeYson = TryGetAny(operationYsonOrError.Value().AsStringBuf(), path);
     if (!schedulingOptionsPerPoolTreeYson) {
         YT_LOG_DEBUG("Operation runtime_parameters miss scheduling_options_per_pool_tree (OperationId: %v)",
             operationId);

@@ -412,7 +412,7 @@ TString CanonizeYsonString(TString input)
     TStringStream out;
     {
         TYsonWriter writer(&out, EYsonFormat::Pretty);
-        ParseYsonStringBuffer(binaryYson.GetData(), EYsonType::Node, &writer);
+        ParseYsonStringBuffer(binaryYson.AsStringBuf(), EYsonType::Node, &writer);
     }
     return out.Str();
 }
@@ -421,7 +421,7 @@ TString ToTypeV3(const TLogicalTypePtr& logicalType)
 {
     TTypeV3LogicalTypeWrapper w{logicalType};
     auto ysonString = ConvertToYsonString(w);
-    return CanonizeYsonString(ysonString.GetData());
+    return CanonizeYsonString(ysonString.ToString());
 }
 
 TLogicalTypePtr FromTypeV3(TString yson)

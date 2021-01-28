@@ -2,40 +2,40 @@
 
 #include "public.h"
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
+#include <yt/core/misc/ref.h>
+
+#include <variant>
 
 namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Contains a sequence of bytes in YSON encoding annotated with EYsonType describing
-//! the content. Could be null.
-//!
-//! |TData| may be either |TString| or |TStringBuf|;
-//! it defines the ownership status of |TYsonStringBase|.
-template <typename TData>
-class TYsonStringBase
+//! the content. Could be null. Non-owning.
+class TYsonStringBuf
 {
 public:
     //! Constructs a null instance.
-    TYsonStringBase();
+    TYsonStringBuf();
+
+    //! Constructs an instance from TYsonString.
+    TYsonStringBuf(const TYsonString& ysonString);
 
     //! Constructs an non-null instance with given type and content.
-    explicit TYsonStringBase(
-        TData data,
+    explicit TYsonStringBuf(
+        const TString& data,
         EYsonType type = EYsonType::Node);
 
-    TYsonStringBase(
-        const char* data,
-        size_t length,
+    //! Constructs an non-null instance with given type and content.
+    explicit TYsonStringBuf(
+        TStringBuf data,
         EYsonType type = EYsonType::Node);
 
     //! Returns |true| if the instance is not null.
     explicit operator bool() const;
 
     //! Returns the underlying YSON bytes. The instance must be non-null.
-    const TData& GetData() const;
+    TStringBuf AsStringBuf() const;
 
     //! Returns type of YSON contained here. The instance must be non-null.
     EYsonType GetType() const;
@@ -44,34 +44,78 @@ public:
     void Validate() const;
 
 protected:
-    bool Null_;
-    TData Data_;
+    TStringBuf Data_;
     EYsonType Type_;
+    bool Null_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! An owning version of TYsonStringBuf.
+/*!
+ *  Internally captures the data either via TString or a polymorphic ref-counted holder.
+ */
 class TYsonString
-    : public TYsonStringBase<TString>
 {
 public:
-    using TYsonStringBase::TYsonStringBase;
+    //! Constructs a null instance.
+    TYsonString();
 
-    TYsonString() = default;
-
+    //! Constructs an instance from TYsonStringBuf.
+    //! Copies the data into a ref-counted payload.
     explicit TYsonString(const TYsonStringBuf& ysonStringBuf);
+
+    //! Constructs an instance from TStringBuf.
+    //! Copies the data into a ref-counted payload.
+    explicit TYsonString(
+        TStringBuf data,
+        EYsonType type = EYsonType::Node);
+
+    //! Constructs an instance from TString.
+    //! Zero-copy; retains the reference to TString in payload.
+    TYsonString(
+        TString data,
+        EYsonType type = EYsonType::Node);
+
+    //! Constructs an instance from TSharedRef.
+    //! Zero-copy; retains the reference to TSharedRef holder in payload.
+    TYsonString(
+        const TSharedRef& ref,
+        EYsonType type = EYsonType::Node);
+
+    //! Returns |true| if the instance is not null.
+    explicit operator bool() const;
+
+    //! Returns type of YSON contained here. The instance must be non-null.
+    EYsonType GetType() const;
+
+    //! Returns the non-owning data. The instance must be non-null.
+    TStringBuf AsStringBuf() const;
+
+    //! Returns the data represented by TString. The instance must be non-null.
+    //! Copies the data in case the payload is not TString.
+    TString ToString() const;
+
+    //! Computes the hash code.
+    size_t ComputeHash() const;
+
+    //! If the instance is not null, invokes the parser (which may throw).
+    void Validate() const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
-};
 
-class TYsonStringBuf
-    : public TYsonStringBase<TStringBuf>
-{
-public:
-    using TYsonStringBase::TYsonStringBase;
+private:
+    struct TNullPayload
+    { };
 
-    TYsonStringBuf() = default;
+    using THolder = TIntrusivePtr<TRefCounted>;
 
-    TYsonStringBuf(const TYsonString& ysonString);
+    std::variant<TNullPayload, THolder, TString> Payload_;
+
+    const char* Begin_;
+    i32 Size_;
+    EYsonType Type_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,24 +140,6 @@ TString ToString(const TYsonStringBuf& yson);
 
 } // namespace NYT::NYson
 
-//! A hasher for TYsonString
-template <>
-struct THash<NYT::NYson::TYsonString>
-{
-    size_t operator () (const NYT::NYson::TYsonString& str) const
-    {
-        return THash<TString>()(str.GetData());
-    }
-};
-
-//! A hasher for TYsonStringBuf
-template <>
-struct THash<NYT::NYson::TYsonStringBuf>
-{
-    size_t operator () (const NYT::NYson::TYsonStringBuf& str) const
-    {
-        return THash<TStringBuf>()(str.GetData());
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
+#define STRING_INL_H_
+#include "string-inl.h"
+#undef STRING_INL_H_

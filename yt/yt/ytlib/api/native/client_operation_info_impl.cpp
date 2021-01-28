@@ -358,12 +358,12 @@ TYsonString TClient::DoGetOperationFromArchive(
     }
 
 #define SET_ITEM_STRING_VALUE_WITH_FIELD(itemKey, fieldName) \
-    SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, TString(row[index].Data.String, row[index].Length))
+    SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, FromUnversionedValue<TString>(row[index]))
 #define SET_ITEM_STRING_VALUE(itemKey) SET_ITEM_STRING_VALUE_WITH_FIELD(itemKey, itemKey)
 #define SET_ITEM_YSON_STRING_VALUE(itemKey) \
-    SET_ITEM_VALUE(itemKey, TYsonString(row[index].Data.String, row[index].Length))
+    SET_ITEM_VALUE(itemKey, FromUnversionedValue<TYsonString>(row[index]))
 #define SET_ITEM_INSTANT_VALUE(itemKey) \
-    SET_ITEM_VALUE(itemKey, TInstant::MicroSeconds(row[index].Data.Int64))
+    SET_ITEM_VALUE(itemKey, FromUnversionedValue<TInstant>(row[index]))
 #define SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, operation) \
     .DoIf(fields.find(fieldName) != fields.end() && row[GET_INDEX(fieldName)].Type != EValueType::Null, \
         [&] (TFluentMap fluent) { \
@@ -459,7 +459,7 @@ static TInstant GetProgressBuildTime(const TYsonString& progressYson)
     if (!progressYson) {
         return TInstant();
     }
-    auto maybeTimeString = TryGetString(progressYson.GetData(), "/build_time");
+    auto maybeTimeString = TryGetString(progressYson.AsStringBuf(), "/build_time");
     if (!maybeTimeString) {
         return TInstant();
     }
@@ -536,7 +536,7 @@ TYsonString TClient::DoGetOperationImpl(
             auto cypressFieldNode = cypressResultMap->FindChild(fieldName);
             cypressResultMap->RemoveChild(fieldName);
 
-            auto archiveFieldString = TryGetAny(archiveResult.GetData(), "/" + fieldName);
+            auto archiveFieldString = TryGetAny(archiveResult.AsStringBuf(), "/" + fieldName);
 
             TYsonString archiveFieldYsonString;
             if (archiveFieldString) {
@@ -566,7 +566,7 @@ TYsonString TClient::DoGetOperationImpl(
                 continue;
             }
             TInstant buildTime;
-            if (auto maybeProgressYson = TryGetAny(result.GetData(), "/" + fieldName)) {
+            if (auto maybeProgressYson = TryGetAny(result.AsStringBuf(), "/" + fieldName)) {
                 buildTime = GetProgressBuildTime(TYsonString(*maybeProgressYson));
             }
             oldestBuildTime = Min(oldestBuildTime, buildTime);
@@ -605,7 +605,7 @@ TYsonString TClient::DoGetOperationImpl(
     // Check whether archive row was written by controller agent or operation cleaner.
     // Here we assume that controller agent does not write "state" field to the archive.
     auto isCompleteArchiveResult = [] (const TYsonString& archiveResult) {
-        return TryGetString(archiveResult.GetData(), "/state").has_value();
+        return TryGetString(archiveResult.AsStringBuf(), "/state").has_value();
     };
 
     if (archiveResult) {
@@ -912,15 +912,16 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     auto rowset = LookupOperationsInArchive(this, ids, columnFilter, timeout).ValueOrThrow();
 
     auto getYson = [&] (TUnversionedValue value) {
+        // TODO(babenko): consider replacing with FromUnversionedValue as a whole.
         return value.Type == EValueType::Null
             ? TYsonString()
-            : TYsonString(value.Data.String, value.Length);
+            : FromUnversionedValue<TYsonString>(value);
     };
     auto getString = [&] (TUnversionedValue value, TStringBuf name) {
         if (value.Type == EValueType::Null) {
             THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name);
         }
-        return TStringBuf(value.Data.String, value.Length);
+        return FromUnversionedValue<TStringBuf>(value);
     };
 
     THashMap<TOperationId, TOperation> idToOperation;
@@ -1104,7 +1105,8 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         for (auto row : resultCounts.Rowset->GetRows()) {
             std::optional<std::vector<TString>> pools;
             if (row[poolsIndex].Type != EValueType::Null) {
-                pools = ConvertTo<std::vector<TString>>(TYsonString(row[poolsIndex].Data.String, row[poolsIndex].Length));
+                // NB: "any_to_yson_string" returns a string; cf. YT-12047.
+                pools = ConvertTo<std::vector<TString>>(TYsonString(FromUnversionedValue<TString>(row[poolsIndex])));
             }
             auto user = FromUnversionedValue<TStringBuf>(row[authenticatedUserIndex]);
             auto state = ParseEnum<EOperationState>(FromUnversionedValue<TStringBuf>(row[stateIndex]));

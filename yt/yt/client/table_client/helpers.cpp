@@ -47,7 +47,7 @@ void YTreeNodeToUnversionedValue(TUnversionedOwningRowBuilder* builder, const IN
             builder->AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id, aggregate));
             break;
         default:
-            builder->AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id, aggregate));
+            builder->AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id, aggregate));
             break;
     }
 }
@@ -89,7 +89,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
                 rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id));
                 break;
             case EValueType::Any:
-                rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id));
+                rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id));
                 break;
             case EValueType::Null:
             case EValueType::Composite:
@@ -207,7 +207,7 @@ TVersionedRow YsonToVersionedRow(
                 builder.AddValue(MakeVersionedStringValue(value->GetValue<TString>(), timestamp, id, aggregate));
                 break;
             default:
-                builder.AddValue(MakeVersionedAnyValue(ConvertToYsonString(value).GetData(), timestamp, id, aggregate));
+                builder.AddValue(MakeVersionedAnyValue(ConvertToYsonString(value).AsStringBuf(), timestamp, id, aggregate));
                 break;
         }
     }
@@ -259,7 +259,7 @@ TUnversionedOwningRow YsonToKey(const TString& yson)
                 break;
             default:
                 keyBuilder.AddValue(MakeUnversionedAnyValue(
-                    ConvertToYsonString(keyPart).GetData(),
+                    ConvertToYsonString(keyPart).AsStringBuf(),
                     id));
                 break;
         }
@@ -270,7 +270,7 @@ TUnversionedOwningRow YsonToKey(const TString& yson)
 
 TString KeyToYson(TUnversionedRow row)
 {
-    return ConvertToYsonString(row, EYsonFormat::Text).GetData();
+    return ConvertToYsonString(row, EYsonFormat::Text).ToString();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,13 +374,13 @@ void FromUnversionedValue(bool* value, TUnversionedValue unversionedValue)
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const TYsonString& value, const TRowBufferPtr& rowBuffer, int id)
 {
     YT_ASSERT(value.GetType() == EYsonType::Node);
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(value.GetData(), id));
+    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(value.AsStringBuf(), id));
 }
 
 void FromUnversionedValue(TYsonString* value, TUnversionedValue unversionedValue)
 {
     if (unversionedValue.Type != EValueType::Any) {
-        THROW_ERROR_EXCEPTION("Cannot parse YSON string value from %Qlv",
+        THROW_ERROR_EXCEPTION("Cannot parse YSON string from %Qlv",
             unversionedValue.Type);
     }
     *value = TYsonString(TString(unversionedValue.Data.String, unversionedValue.Length));
@@ -391,13 +391,13 @@ void FromUnversionedValue(TYsonString* value, TUnversionedValue unversionedValue
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYson::TYsonStringBuf& value, const TRowBufferPtr& rowBuffer, int id)
 {
     YT_ASSERT(value.GetType() == EYsonType::Node);
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(value.GetData(), id));
+    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(value.AsStringBuf(), id));
 }
 
 void FromUnversionedValue(NYson::TYsonStringBuf* value, TUnversionedValue unversionedValue)
 {
     if (unversionedValue.Type != EValueType::Any) {
-        THROW_ERROR_EXCEPTION("Cannot parse YSON string value from %Qlv",
+        THROW_ERROR_EXCEPTION("Cannot parse YSON string from %Qlv",
             unversionedValue.Type);
     }
     *value = TYsonStringBuf(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
@@ -462,11 +462,17 @@ void ToUnversionedValue(TUnversionedValue* unversionedValue, TInstant value, con
 
 void FromUnversionedValue(TInstant* value, TUnversionedValue unversionedValue)
 {
-    if (unversionedValue.Type != EValueType::Uint64) {
-        THROW_ERROR_EXCEPTION("Cannot parse instant from %Qlv",
-            unversionedValue.Type);
+    switch (unversionedValue.Type) {
+        case EValueType::Int64:
+            *value = TInstant::MicroSeconds(CheckedIntegralCast<ui64>(unversionedValue.Data.Int64));
+            break;
+        case EValueType::Uint64:
+            *value = TInstant::MicroSeconds(unversionedValue.Data.Uint64);
+            break;
+        default:
+            THROW_ERROR_EXCEPTION("Cannot parse instant from %Qlv",
+                unversionedValue.Type);
     }
-    *value = TInstant::MicroSeconds(unversionedValue.Data.Uint64);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -478,18 +484,24 @@ void ToUnversionedValue(TUnversionedValue* unversionedValue, TDuration value, co
 
 void FromUnversionedValue(TDuration* value, TUnversionedValue unversionedValue)
 {
-    if (unversionedValue.Type != EValueType::Uint64) {
-        THROW_ERROR_EXCEPTION("Cannot parse duration from %Qlv",
-            unversionedValue.Type);
+    switch (unversionedValue.Type) {
+        case EValueType::Int64:
+            *value = TDuration::MicroSeconds(CheckedIntegralCast<ui64>(unversionedValue.Data.Int64));
+            break;
+        case EValueType::Uint64:
+            *value = TDuration::MicroSeconds(unversionedValue.Data.Uint64);
+            break;
+        default:
+            THROW_ERROR_EXCEPTION("Cannot parse duration from %Qlv",
+                unversionedValue.Type);
     }
-    *value = TDuration::MicroSeconds(unversionedValue.Data.Uint64);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const IMapNodePtr& value, const TRowBufferPtr& rowBuffer, int id)
 {
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id));
+    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id));
 }
 
 void FromUnversionedValue(IMapNodePtr* value, TUnversionedValue unversionedValue)
@@ -501,7 +513,7 @@ void FromUnversionedValue(IMapNodePtr* value, TUnversionedValue unversionedValue
         THROW_ERROR_EXCEPTION("Cannot parse YSON map from %Qlv",
             unversionedValue.Type);
     }
-    *value = ConvertTo<IMapNodePtr>(TYsonString(unversionedValue.Data.String, unversionedValue.Length));
+    *value = ConvertTo<IMapNodePtr>(FromUnversionedValue<TYsonStringBuf>(unversionedValue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

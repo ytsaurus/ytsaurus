@@ -445,7 +445,7 @@ public:
             NTabletClient::NProto::TCreateTabletSlotInfo protoInfo;
             ToProto(protoInfo.mutable_cell_id(), TGuid{});
             protoInfo.set_peer_id(0);
-            protoInfo.set_options(ConvertToYsonString(*options).GetData());
+            protoInfo.set_options(ConvertToYsonString(*options).ToString());
             protoInfo.set_tablet_cell_bundle("b");
 
             CreateSlot(protoInfo);

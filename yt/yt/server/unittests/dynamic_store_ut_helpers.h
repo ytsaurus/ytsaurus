@@ -269,7 +269,7 @@ protected:
         }
 
         auto expectedRowParts = ConvertTo<THashMap<TString, INodePtr>>(
-            TYsonString(yson, EYsonType::MapFragment));
+            TYsonString(TString(yson), EYsonType::MapFragment));
 
         for (int index = 0; index < row.GetCount(); ++index) {
             const auto& value = row[index];

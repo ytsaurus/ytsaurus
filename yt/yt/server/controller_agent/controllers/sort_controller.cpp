@@ -3403,8 +3403,8 @@ private:
         {
             RootPartitionJobSpecTemplate.set_type(static_cast<int>(EJobType::Partition));
             auto* schedulerJobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig)).GetData());
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(RootPartitionJobIOConfig).GetData());
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig)).ToString());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(RootPartitionJobIOConfig).ToString());
             SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
             auto* partitionJobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
@@ -3416,8 +3416,8 @@ private:
         {
             PartitionJobSpecTemplate.set_type(static_cast<int>(EJobType::Partition));
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).GetData());
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).GetData());
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).ToString());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).ToString());
             SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
@@ -3431,10 +3431,10 @@ private:
             auto* schedulerJobSpecExt = sortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
             if (SimpleSort) {
-                schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).GetData());
+                schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).ToString());
                 SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
             } else {
-                schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+                schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
                 SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
             }
 
@@ -3446,14 +3446,14 @@ private:
             IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
             IntermediateSortJobSpecTemplate.set_type(static_cast<int>(GetIntermediateSortJobType()));
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).GetData());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).ToString());
         }
 
         {
             FinalSortJobSpecTemplate = sortJobSpecTemplate;
             FinalSortJobSpecTemplate.set_type(static_cast<int>(GetFinalSortJobType()));
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).GetData());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).ToString());
         }
 
         {
@@ -3461,10 +3461,10 @@ private:
             auto* schedulerJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* mergeJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
-            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
             SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
 
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).GetData());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).ToString());
 
             ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
             ToProto(mergeJobSpecExt->mutable_sort_columns(), Spec->SortBy);
@@ -3475,10 +3475,10 @@ private:
             auto* schedulerJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* mergeJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
-            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
             SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
 
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).GetData());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).ToString());
 
             ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
         }
@@ -4166,14 +4166,14 @@ private:
 
             auto* schedulerJobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig)).GetData());
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig)).ToString());
             SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
             if (Spec->InputQuery) {
                 WriteInputQueryToJobSpec(schedulerJobSpecExt);
             }
 
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(RootPartitionJobIOConfig).GetData());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(RootPartitionJobIOConfig).ToString());
 
             auto* partitionJobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
@@ -4193,11 +4193,11 @@ private:
         {
             PartitionJobSpecTemplate.set_type(static_cast<int>(EJobType::Partition));
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).GetData());
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig)).ToString());
 
             SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
 
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).GetData());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).ToString());
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
@@ -4212,9 +4212,9 @@ private:
         auto intermediateReaderOptions = New<TTableReaderOptions>();
         {
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).GetData());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).ToString());
 
-            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
             SetDataSourceDirectory(schedulerJobSpecExt, intermediateDataSourceDirectory);
 
             if (Spec->HasNontrivialReduceCombiner()) {
@@ -4244,10 +4244,10 @@ private:
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
-            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
             SetDataSourceDirectory(schedulerJobSpecExt, intermediateDataSourceDirectory);
 
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).GetData());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).ToString());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
             reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
@@ -4267,10 +4267,10 @@ private:
             auto* schedulerJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
-            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
+            schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
             SetDataSourceDirectory(schedulerJobSpecExt, intermediateDataSourceDirectory);
 
-            schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).GetData());
+            schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).ToString());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(Spec->SortBy));
             reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());

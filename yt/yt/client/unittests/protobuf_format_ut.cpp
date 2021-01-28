@@ -39,14 +39,14 @@ using namespace NProtobufFormatTest;
 
 #define EXPECT_NODES_EQUAL(a, b) \
     EXPECT_TRUE(AreNodesEqual((a), (b))) \
-        << #a ": " << ConvertToYsonString((a), EYsonFormat::Text).GetData() \
-        << "\n\n" #b ": " << ConvertToYsonString((b), EYsonFormat::Text).GetData();
+        << #a ": " << ConvertToYsonString((a), EYsonFormat::Text).ToString() \
+        << "\n\n" #b ": " << ConvertToYsonString((b), EYsonFormat::Text).ToString();
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ConvertToTextYson(const INodePtr& node)
 {
-    return ConvertToYsonString(node, EYsonFormat::Text).GetData();
+    return ConvertToYsonString(node, EYsonFormat::Text).ToString();
 }
 
 // Hardcoded serialization of file descriptor used in old format description.
@@ -1984,11 +1984,11 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
         .EndList();
 
     TUnversionedRowBuilder builder;
-    builder.AddValue(MakeUnversionedCompositeValue(firstYson.GetData(), firstId));
-    builder.AddValue(MakeUnversionedCompositeValue(secondYson.GetData(), secondId));
-    builder.AddValue(MakeUnversionedCompositeValue(repeatedMessageYson.GetData(), repeatedMessageId));
-    builder.AddValue(MakeUnversionedCompositeValue(repeatedInt64Yson.GetData(), repeatedInt64Id));
-    builder.AddValue(MakeUnversionedCompositeValue(anotherRepeatedInt64Yson.GetData(), anotherRepeatedInt64Id));
+    builder.AddValue(MakeUnversionedCompositeValue(firstYson.ToString(), firstId));
+    builder.AddValue(MakeUnversionedCompositeValue(secondYson.ToString(), secondId));
+    builder.AddValue(MakeUnversionedCompositeValue(repeatedMessageYson.ToString(), repeatedMessageId));
+    builder.AddValue(MakeUnversionedCompositeValue(repeatedInt64Yson.ToString(), repeatedInt64Id));
+    builder.AddValue(MakeUnversionedCompositeValue(anotherRepeatedInt64Yson.ToString(), anotherRepeatedInt64Id));
     builder.AddValue(MakeUnversionedInt64Value(4321, anyFieldId));
 
     builder.AddValue(MakeUnversionedInt64Value(-64, int64FieldId));
@@ -2003,9 +2003,9 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     const auto HelloWorldInRussian = "\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!";
     builder.AddValue(MakeUnversionedStringValue(HelloWorldInRussian, utf8FieldId));
 
-    builder.AddValue(MakeUnversionedCompositeValue(repeatedOptionalAnyYson.GetData(), repeatedOptionalAnyFieldId));
+    builder.AddValue(MakeUnversionedCompositeValue(repeatedOptionalAnyYson.ToString(), repeatedOptionalAnyFieldId));
 
-    builder.AddValue(MakeUnversionedCompositeValue(otherComplexFieldYson.GetData(), otherComplexFieldId));
+    builder.AddValue(MakeUnversionedCompositeValue(otherComplexFieldYson.ToString(), otherComplexFieldId));
 
     builder.AddValue(MakeUnversionedCompositeValue("[12;-10;123456789000;]", packedRepeatedInt64FieldId));
 
@@ -2236,13 +2236,13 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
     firstSubfield2->set_key("key2");
     firstSubfield2->set_value("value2");
 
-    first->set_any_int64_field(BuildYsonStringFluently().Value(4422).GetData());
+    first->set_any_int64_field(BuildYsonStringFluently().Value(4422).ToString());
     first->set_any_map_field(
         BuildYsonStringFluently()
             .BeginMap()
                 .Item("key").Value("value")
             .EndMap()
-        .GetData());
+        .ToString());
 
     first->add_repeated_optional_any_field("%false");
     first->add_repeated_optional_any_field("42");
@@ -2326,7 +2326,7 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         .BeginMap()
             .Item("other_complex_field").Value(otherComplexField)
         .EndMap();
-    message.set_other_columns_field(otherColumnsYson.GetData());
+    message.set_other_columns_field(otherColumnsYson.ToString());
 
     message.add_packed_repeated_int64_field(-123456789000LL);
     message.add_packed_repeated_int64_field(0);
@@ -2505,22 +2505,22 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
 
         EXPECT_NODES_EQUAL(
             GetComposite(rowCollector.GetRowValue(rowIndex, "packed_repeated_int64_field")),
-            ConvertToNode(TYsonString("[-123456789000;0]")));
+            ConvertToNode(TYsonString(TStringBuf("[-123456789000;0]"))));
 
         EXPECT_NODES_EQUAL(
             GetComposite(rowCollector.GetRowValue(rowIndex, "optional_repeated_int64_field")),
-            ConvertToNode(TYsonString("[-4242]")));
+            ConvertToNode(TYsonString(TStringBuf("[-4242]"))));
 
         EXPECT_NODES_EQUAL(
             GetComposite(rowCollector.GetRowValue(rowIndex, "oneof_field")),
-            ConvertToNode(TYsonString("[1; \"spam\"]")));
+            ConvertToNode(TYsonString(TStringBuf("[1; \"spam\"]"))));
 
         EXPECT_FALSE(rowCollector.FindRowValue(rowIndex, "optional_oneof_field"));
 
         // map_field.
         EXPECT_NODES_EQUAL(
             SortMapByKey(GetComposite(rowCollector.GetRowValue(rowIndex, "map_field"))),
-            ConvertToNode(TYsonString("[[777; [key777; value777]]; [888; [key888; value888]]]")));
+            ConvertToNode(TYsonString(TStringBuf("[[777; [key777; value777]]; [888; [key888; value888]]]"))));
     }
 }
 
@@ -2670,8 +2670,8 @@ TEST(TProtobufFormat, WriteSeveralTables)
 
     {
         TUnversionedRowBuilder builder;
-        builder.AddValue(MakeUnversionedCompositeValue(embeddedYson.GetData(), embeddedId));
-        builder.AddValue(MakeUnversionedCompositeValue(repeatedInt64Yson.GetData(), repeatedInt64Id));
+        builder.AddValue(MakeUnversionedCompositeValue(embeddedYson.ToString(), embeddedId));
+        builder.AddValue(MakeUnversionedCompositeValue(repeatedInt64Yson.ToString(), repeatedInt64Id));
         builder.AddValue(MakeUnversionedInt64Value(4321, anyFieldId));
         writer->Write({builder.GetRow()});
     }
@@ -3339,7 +3339,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
     }
 
     if (IsNewFormat()) {
-        builder.AddValue(MakeUnversionedAnyValue(ysonString.GetData(), anyWithMapId));
+        builder.AddValue(MakeUnversionedAnyValue(ysonString.ToString(), anyWithMapId));
         builder.AddValue(MakeUnversionedInt64Value(22, anyWithInt64Id));
         builder.AddValue(MakeUnversionedStringValue("some_string", anyWithStringId));
 
@@ -3347,7 +3347,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
         builder.AddValue(MakeUnversionedDoubleValue(-123.456, otherDoubleColumnId));
         builder.AddValue(MakeUnversionedStringValue("some_string", otherStringColumnId));
         builder.AddValue(MakeUnversionedBooleanValue(true, otherBooleanColumnId));
-        builder.AddValue(MakeUnversionedAnyValue(ysonString.GetData(), otherAnyColumnId));
+        builder.AddValue(MakeUnversionedAnyValue(ysonString.ToString(), otherAnyColumnId));
         builder.AddValue(MakeUnversionedNullValue(otherNullColumnId));
     }
 
@@ -3475,10 +3475,10 @@ TEST_P(TProtobufFormatAllFields, Parser)
         .EndMap();
 
     if (IsNewFormat()) {
-        message.set_any_field_with_map(ConvertToYsonString(mapNode).GetData());
-        message.set_any_field_with_int64(BuildYsonStringFluently().Value(22).GetData());
-        message.set_any_field_with_string(BuildYsonStringFluently().Value("some_string").GetData());
-        message.set_other_columns_field(ConvertToYsonString(otherColumnsNode).GetData());
+        message.set_any_field_with_map(ConvertToYsonString(mapNode).ToString());
+        message.set_any_field_with_int64(BuildYsonStringFluently().Value(22).ToString());
+        message.set_any_field_with_string(BuildYsonStringFluently().Value("some_string").ToString());
+        message.set_other_columns_field(ConvertToYsonString(otherColumnsNode).ToString());
     }
 
     auto rowCollector = ParseRows(
@@ -3829,8 +3829,8 @@ TEST_F(TProtobufFormatCompat, Parse)
         auto collector = ParseRows(message, config, GetFirstMiddleSchema());
         EXPECT_NODES_EQUAL(
             GetComposite(collector.GetRowValue(0, "a")),
-            ConvertToNode(TYsonString("[1;Sandiego]")));
-        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo]")));
+            ConvertToNode(TYsonString(TStringBuf("[1;Sandiego]"))));
+        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString(TStringBuf("[foo]"))));
         EXPECT_FALSE(collector.GetNameTable()->FindId("c"));
     }
     {
@@ -3838,8 +3838,8 @@ TEST_F(TProtobufFormatCompat, Parse)
         auto collector = ParseRows(message, config, GetSecondMiddleSchema());
         EXPECT_NODES_EQUAL(
             GetComposite(collector.GetRowValue(0, "a")),
-            ConvertToNode(TYsonString("[1;Sandiego]")));
-        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo;bar]")));
+            ConvertToNode(TYsonString(TStringBuf("[1;Sandiego]"))));
+        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString(TStringBuf("[foo;bar]"))));
         EXPECT_FALSE(collector.GetNameTable()->FindId("c"));
     }
     {
@@ -3847,8 +3847,8 @@ TEST_F(TProtobufFormatCompat, Parse)
         auto collector = ParseRows(message, config, GetThirdMiddleSchema());
         EXPECT_NODES_EQUAL(
             GetComposite(collector.GetRowValue(0, "a")),
-            ConvertToNode(TYsonString("[1;Sandiego]")));
-        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo;bar;#]")));
+            ConvertToNode(TYsonString(TStringBuf("[1;Sandiego]"))));
+        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString(TStringBuf("[foo;bar;#]"))));
         EXPECT_FALSE(collector.GetNameTable()->FindId("c"));
     }
     {
@@ -3856,8 +3856,8 @@ TEST_F(TProtobufFormatCompat, Parse)
         auto collector = ParseRows(message, config, GetLateSchema());
         EXPECT_NODES_EQUAL(
             GetComposite(collector.GetRowValue(0, "a")),
-            ConvertToNode(TYsonString("[1;Sandiego]")));
-        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo;bar;#]")));
+            ConvertToNode(TYsonString(TStringBuf("[1;Sandiego]"))));
+        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString(TStringBuf("[foo;bar;#]"))));
         EXPECT_TRUE(collector.GetNameTable()->FindId("c"));
     }
 }
@@ -4017,7 +4017,7 @@ TEST_F(TProtobufFormatRuntimeErrors, ParseStruct)
         auto collector = ParseRows(message, GetConfigWithStruct(), GetSchemaWithStruct());
         EXPECT_NODES_EQUAL(
             GetComposite(collector.GetRowValue(0, "a")),
-            ConvertToNode(TYsonString("[17;foobar]")));
+            ConvertToNode(TYsonString(TStringBuf("[17;foobar]"))));
     }
 }
 

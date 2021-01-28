@@ -380,7 +380,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestNestedGroups)
     Sleep(TDuration::Seconds(1.5));
 
     auto discoveryClient = CreateDiscoveryClient();
-    
+
     for (const auto& [groupId, memberId] : testMembers) {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& members = membersFuture.Get().ValueOrThrow();
@@ -398,8 +398,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestNestedGroups)
         auto groupMetaFuture = discoveryClient->GetGroupMeta(groupId);
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         if (index == 1) {
-            EXPECT_THROW_WITH_SUBSTRING(groupMetaFuture.Get().ThrowOnError(), "does not exist");    
-            EXPECT_THROW_WITH_SUBSTRING(membersFuture.Get().ThrowOnError(), "does not exist");    
+            EXPECT_THROW_WITH_SUBSTRING(groupMetaFuture.Get().ThrowOnError(), "does not exist");
+            EXPECT_THROW_WITH_SUBSTRING(membersFuture.Get().ThrowOnError(), "does not exist");
         } else {
             auto groupMeta = groupMetaFuture.Get().ValueOrThrow();
             EXPECT_EQ(1, groupMeta.MemberCount);
@@ -501,8 +501,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestYPath)
     EXPECT_THROW(SyncYPathGet(ypathService, "/sample_group1/@members/sample_member1/@test/abc"), std::exception);
     EXPECT_THROW(SyncYPathGet(ypathService, "/sample_group1/@members/sample_member1/@qq/abc"), std::exception);
 
-    attributes->Set("q1", TYsonString("{q=w}"));
-    attributes->Set("q2", TYsonString("{q={w=e}}"));
+    attributes->Set("q1", TYsonString(TStringBuf("{q=w}")));
+    attributes->Set("q2", TYsonString(TStringBuf("{q={w=e}}")));
 
     Sleep(TDuration::Seconds(5));
 
@@ -512,7 +512,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestYPath)
 
     EXPECT_EQ(ConvertToYsonString("e", EYsonFormat::Binary),
         SyncYPathGet(ypathService, "/sample_group1/@members/sample_member1/@q2/q/w"));
-    
+
     EXPECT_EQ(std::vector<TString>{"q"},
         SyncYPathList(ypathService, "/sample_group1/@members/sample_member1/@q2"));
     EXPECT_EQ(std::vector<TString>{"w"},

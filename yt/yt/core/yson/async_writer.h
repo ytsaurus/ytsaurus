@@ -41,7 +41,8 @@ private:
     TStringStream Stream_;
     TBufferedBinaryYsonWriter SyncWriter_;
 
-    std::vector<TFuture<TString>> AsyncSegments_;
+    using TSegment = std::pair<TYsonString, bool>;
+    std::vector<TFuture<TSegment>> AsyncSegments_;
 
 
     void FlushCurrentSegment();
