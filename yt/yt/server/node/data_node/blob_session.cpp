@@ -70,28 +70,32 @@ TFuture<TChunkInfo> TBlobSession::DoFinish(
     YT_VERIFY(chunkMeta);
 
     if (!blockCount) {
-        THROW_ERROR_EXCEPTION("Attempt to finish a blob session %v without specifying block count",
-            SessionId_);
+        return MakeFuture<TChunkInfo>(TError("Attempt to finish a blob session %v without specifying block count",
+            SessionId_));
     }
 
     if (*blockCount != BlockCount_) {
-        THROW_ERROR_EXCEPTION("Block count mismatch in blob session %v: expected %v, got %v",
+        return MakeFuture<TChunkInfo>(TError("Block count mismatch in blob session %v: expected %v, got %v",
             SessionId_,
             BlockCount_,
-            *blockCount);
+            *blockCount));
     }
 
     for (int blockIndex = WindowStartBlockIndex_; blockIndex < Window_.size(); ++blockIndex) {
         const auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
-            THROW_ERROR_EXCEPTION(
+            return MakeFuture<TChunkInfo>(TError(
                 NChunkClient::EErrorCode::WindowError,
                 "Attempt to finish a session with an unflushed block %v",
-                TBlockId(GetChunkId(), blockIndex));
+                TBlockId(GetChunkId(), blockIndex)));
         }
     }
 
-    return MakeFuture(CloseWriter(chunkMeta));
+    try {
+        return MakeFuture(CloseWriter(chunkMeta));
+    } catch (const std::exception& ex) {
+        return MakeFuture<TChunkInfo>(ex);
+    }
 }
 
 TFuture<void> TBlobSession::DoPutBlocks(
@@ -466,8 +470,6 @@ void TBlobSession::AbortWriter()
     ReleaseSpace();
 
     Finished_.Fire(Error_);
-
-    Error_.ThrowOnError();
 }
 
 TChunkInfo TBlobSession::CloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
