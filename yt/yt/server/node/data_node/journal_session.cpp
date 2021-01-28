@@ -23,7 +23,7 @@ using namespace NConcurrency;
 TFuture<void> TJournalSession::DoStart()
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
-    
+
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
     auto asyncChangelog = dispatcher->CreateChangelog(
         Location_,
@@ -64,10 +64,10 @@ TFuture<TChunkInfo> TJournalSession::DoFinish(
 
     if (blockCount) {
         if (*blockCount != Changelog_->GetRecordCount()) {
-            THROW_ERROR_EXCEPTION("Block count mismatch in journal session %v: expected %v, got %v",
+            return MakeFuture<TChunkInfo>(TError("Block count mismatch in journal session %v: expected %v, got %v",
                 SessionId_,
                 Changelog_->GetRecordCount(),
-                *blockCount);
+                *blockCount));
         }
         result = result.Apply(BIND(&TJournalChunk::Seal, Chunk_)
             .AsyncVia(SessionInvoker_));
@@ -170,7 +170,7 @@ void TJournalSession::OnFinished()
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->UpdateExistingChunk(Chunk_);
     }
-    
+
     Finished_.Fire(TError());
 }
 
