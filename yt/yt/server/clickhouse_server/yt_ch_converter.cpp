@@ -4,6 +4,7 @@
 #include "columnar_conversion.h"
 
 #include <yt/client/table_client/helpers.h>
+#include <yt/client/table_client/logical_type.h>
 
 #include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/writer.h>
@@ -577,7 +578,7 @@ public:
     }
 
 private:
-    IConverterPtr UnderlyingConverter_;
+    const IConverterPtr UnderlyingConverter_;
     int NestingLevel_;
     DB::ColumnVector<DB::UInt8>::MutablePtr NullColumn_;
 };
@@ -869,12 +870,12 @@ private:
 class TYTCHConverter::TImpl
 {
 public:
-    TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings)
+    TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings, bool enableReadOnlyConversions)
         : Descriptor_(std::move(descriptor))
         , Settings_(std::move(settings))
-    {
-        RootConverter_ = CreateConverter(Descriptor_, /* isOutermost */ true);
-    }
+        , EnableReadOnlyConversions_(enableReadOnlyConversions)
+        , RootConverter_(CreateConverter(Descriptor_, /* isOutermost */ true))
+    { }
 
     void ConsumeUnversionedValues(TRange<TUnversionedValue> values)
     {
@@ -915,8 +916,19 @@ public:
 private:
     TComplexTypeFieldDescriptor Descriptor_;
     TCompositeSettingsPtr Settings_;
+    bool EnableReadOnlyConversions_;
 
     IConverterPtr RootConverter_;
+
+    void ValidateReadOnly(const TComplexTypeFieldDescriptor& descriptor)
+    {
+        if (!EnableReadOnlyConversions_) {
+            THROW_ERROR_EXCEPTION(
+                "Field %Qv has type %v which is supported only for reading",
+                descriptor.GetDescription(),
+                *descriptor.GetType());
+        }
+    }
 
     IConverterPtr CreateSimpleLogicalTypeConverter(ESimpleLogicalValueType valueType, const TComplexTypeFieldDescriptor& descriptor)
     {
@@ -972,6 +984,10 @@ private:
             nonOptionalDescriptor.GetType()->GetMetatype() == ELogicalMetatype::Simple;
 
         auto underlyingConverter = CreateConverter(nonOptionalDescriptor);
+
+        if (!underlyingConverter->GetDataType()->canBeInsideNullable() || nestingLevel >= 2) {
+            ValidateReadOnly(descriptor);
+        }
 
         if (isV1Optional) {
             return std::make_unique<TOptionalConverter<true>>(std::move(underlyingConverter), nestingLevel);
@@ -1040,12 +1056,14 @@ private:
         } else if (type->GetMetatype() == ELogicalMetatype::List) {
             return CreateListConverter(descriptor);
         } else if (type->GetMetatype() == ELogicalMetatype::Dict) {
+            ValidateReadOnly(descriptor);
             return CreateDictConverter(descriptor);
         } else if (type->GetMetatype() == ELogicalMetatype::Tuple) {
             return CreateTupleConverter(descriptor);
         } else if (type->GetMetatype() == ELogicalMetatype::Struct) {
             return CreateStructConverter(descriptor);
         } else {
+            ValidateReadOnly(descriptor);
             // Perform fallback to raw yson.
             return std::make_unique<TRawYsonToStringConverter>(descriptor, Settings_);
         }
@@ -1056,8 +1074,9 @@ private:
 
 TYTCHConverter::TYTCHConverter(
     TComplexTypeFieldDescriptor descriptor,
-    TCompositeSettingsPtr settings)
-    : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings)))
+    TCompositeSettingsPtr settings,
+    bool enableReadOnlyConversions)
+    : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), enableReadOnlyConversions))
 { }
 
 void TYTCHConverter::ConsumeUnversionedValues(TRange<TUnversionedValue> values)
@@ -1092,6 +1111,7 @@ void TYTCHConverter::ConsumeYtColumn(
 }
 
 TYTCHConverter::~TYTCHConverter() = default;
+
 TYTCHConverter::TYTCHConverter(
     TYTCHConverter&& other)
     : Impl_(std::move(other.Impl_))

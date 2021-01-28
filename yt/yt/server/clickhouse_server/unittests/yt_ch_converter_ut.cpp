@@ -749,6 +749,26 @@ TEST_F(TTestYTCHConversion, TestIntegerUpcast)
     ExpectDataConversion<DB::ColumnInt32>(int32Descriptor, ytInt16Column, {DB::Field(42), DB::Field(-17)});
 }
 
+TEST_F(TTestYTCHConversion, TestReadOnlyConversions)
+{
+    std::vector<TColumnSchema> readOnlyColumnSchemas{
+        TColumnSchema(
+            /* name */ "",
+            OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Double)))),
+        TColumnSchema(
+            /* name */ "",
+            OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint8)))),
+        TColumnSchema(
+            /* name */ "",
+            DictLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32), SimpleLogicalType(ESimpleLogicalValueType::String))),
+    };
+    for (const auto& columnSchema : readOnlyColumnSchemas) {
+        TComplexTypeFieldDescriptor descriptor(columnSchema);
+        EXPECT_THROW(TYTCHConverter(descriptor, Settings_, /* enableReadOnlyConversions */ false), std::exception)
+            << Format("Conversion of %v did not throw", *columnSchema.LogicalType());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

@@ -42,7 +42,7 @@ using namespace NYson;
 using namespace NLogging;
 
 // Used only for YT_LOG_FATAL below.
-TLogger Logger("CHYTConverter");
+static const TLogger Logger("CHYTConverter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,7 +250,7 @@ private:
     const DB::ColumnUInt8* NullColumn_ = nullptr;
     const DB::ColumnUInt8::Container* NullData_ = nullptr;
     i64 CurrentValueIndex_ = 0;
-    IConverterPtr UnderlyingConverter_;
+    const IConverterPtr UnderlyingConverter_;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -311,7 +311,7 @@ public:
 private:
     const DB::ColumnArray::Offsets* Offsets_ = nullptr;
     i64 CurrentValueIndex_ = 0;
-    IConverterPtr UnderlyingConverter_;
+    const IConverterPtr UnderlyingConverter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,8 +379,8 @@ public:
     }
 
 private:
-    std::vector<IConverterPtr> UnderlyingConverters_;
-    std::optional<std::vector<TString>> ElementNames_;
+    const std::vector<IConverterPtr> UnderlyingConverters_;
+    const std::optional<std::vector<TString>> ElementNames_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -395,9 +395,8 @@ public:
     TImpl(DB::DataTypePtr dataType, TCompositeSettingsPtr settings)
         : DataType_(std::move(dataType))
         , Settings_(std::move(settings))
-    {
-        RootConverter_ = CreateConverter(DataType_);
-    }
+        , RootConverter_(CreateConverter(DataType_))
+    { }
 
     TLogicalTypePtr GetLogicalType() const
     {
@@ -463,10 +462,10 @@ public:
     }
 
 private:
-    DB::DataTypePtr DataType_;
+    const DB::DataTypePtr DataType_;
     TCompositeSettingsPtr Settings_;
 
-    IConverterPtr RootConverter_;
+    const IConverterPtr RootConverter_;
 
     DB::ColumnPtr CurrentColumn_;
     std::vector<TUnversionedValue> CurrentValues_;
@@ -583,6 +582,7 @@ TRange<TUnversionedValue> TCHYTConverter::ConvertColumnToUnversionedValues(
 }
 
 TCHYTConverter::~TCHYTConverter() = default;
+
 TCHYTConverter::TCHYTConverter(
     TCHYTConverter&& other)
     : Impl_(std::move(other.Impl_))

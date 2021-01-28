@@ -1,12 +1,11 @@
 #pragma once
 
+#include "private.h"
+
 #include <yt/client/table_client/logical_type.h>
 #include <yt/client/table_client/row_batch.h>
 
-#include "private.h"
-
-namespace NYT::NClickHouseServer
-{
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,4 +47,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NClickHouseServer

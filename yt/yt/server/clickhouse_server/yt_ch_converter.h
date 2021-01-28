@@ -1,12 +1,11 @@
 #pragma once
 
+#include "private.h"
+
 #include <yt/client/table_client/logical_type.h>
 #include <yt/client/table_client/row_batch.h>
 
-#include "private.h"
-
-namespace NYT::NClickHouseServer
-{
+namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,9 +24,13 @@ namespace NYT::NClickHouseServer
 class TYTCHConverter
 {
 public:
+    //! `enableReadOnlyConversions` option enables read-only compatibility conversion options:
+    //! - optional<T> -> T' when Nullable(T') is not available in CH;
+    //! - dict<K,V> -> List(Tuple(K',V'));
     TYTCHConverter(
         NTableClient::TComplexTypeFieldDescriptor descriptor,
-        TCompositeSettingsPtr settings);
+        TCompositeSettingsPtr settings,
+        bool enableReadOnlyConversions = true);
 
     TYTCHConverter(TYTCHConverter&& other);
 
@@ -64,4 +67,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NClickHouseServer
