@@ -151,10 +151,10 @@ bool UseLocalModeOptimization(const TAuth& auth, const IClientRetryPolicyPtr& cl
             localModeAttr,
             TGetOptions()
         ).AsString();
-        isLocalMode = (fqdn == TProcessState::Get()->HostName);
-        LOG_DEBUG("Checking local mode; LocalModeFqdn: %s HostName: %s IsLocalMode: %s",
+        isLocalMode = (fqdn == TProcessState::Get()->FqdnHostName);
+        LOG_DEBUG("Checking local mode; LocalModeFqdn: %s FqdnHostName: %s IsLocalMode: %s",
             fqdn.c_str(),
-            TProcessState::Get()->HostName.c_str(),
+            TProcessState::Get()->FqdnHostName.c_str(),
             isLocalMode ? "true" : "false");
     }
 
@@ -1207,7 +1207,7 @@ void BuildCommonOperationPart(const TOperationSpecBase<T>& baseSpec, const TOper
     fluent
         .Item("started_by")
         .BeginMap()
-            .Item("hostname").Value(properties->HostName)
+            .Item("hostname").Value(properties->FqdnHostName)
             .Item("pid").Value(properties->Pid)
             .Item("user").Value(properties->UserName)
             .Item("command").List(properties->CommandLine)

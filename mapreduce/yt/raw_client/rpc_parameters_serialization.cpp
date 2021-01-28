@@ -69,7 +69,7 @@ static TString GetDefaultTransactionTitle()
     const auto processState = TProcessState::Get();
     TStringStream res;
 
-    res << "User transaction. Created by: " << processState->UserName << " on " << processState->HostName
+    res << "User transaction. Created by: " << processState->UserName << " on " << processState->FqdnHostName
         << " client: " << processState->ClientVersion << " pid: " << processState->Pid;
     if (!processState->CommandLine.empty()) {
         res << " program: " << processState->CommandLine[0];

@@ -149,7 +149,7 @@ struct TConfig
 
 struct TProcessState
 {
-    TString HostName;
+    TString FqdnHostName;
     TString UserName;
     TVector<TString> CommandLine;
     int Pid;
