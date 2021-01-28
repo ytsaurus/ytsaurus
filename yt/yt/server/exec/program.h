@@ -18,6 +18,7 @@
 
 #ifdef _unix_
     #include <sys/resource.h>
+    #include <unistd.h>
 #endif
 
 namespace NYT::NExec {
@@ -42,7 +43,6 @@ protected:
         auto config = GetConfig();
 
         JobId_ = config->JobId;
-        ExecutorStderr_ = TFile{"../executor_stderr", EOpenModeFlag::WrOnly | EOpenModeFlag::ForAppend | EOpenModeFlag::OpenAlways};
 
         if (HandleConfigOptions()) {
             return;
@@ -60,7 +60,7 @@ protected:
         if (config->Uid > 0) {
             SetUid(config->Uid);
         }
-
+            
         TError executorError;
 
         try {
@@ -106,10 +106,29 @@ protected:
         } catch (const std::exception& ex) {
             executorError = ex;
         }
+        
+        try {
+            OpenExecutorStderr();
+            LogToStderr("Executor initialized");
+        } catch (const std::exception& ex) {
+            Exit(17);
+        }
 
         if (!executorError.IsOK()) {
-            LogToStderr(Format("Failed to prepare pipes, unexpected executor error\n%v", executorError));
+            LogToStderr(Format("Failed to prepare pipes, unexpected executor error\n%v\n", executorError));
             Exit(4);
+        }
+
+        // NB: intentionally open executor_stderr after processing pipes to avoid fd clashes.
+        try {
+            if (ExecutorStderr_.GetHandle() == STDOUT_FILENO) {
+                auto newFile = ExecutorStderr_.Duplicate();
+                ExecutorStderr_.Close();
+                ExecutorStderr_ = newFile;
+            }
+            LogToStderr("Stderr redirected");
+        } catch (const std::exception& ex) {
+            Exit(18);
         }
 
         std::vector<char*> env;
@@ -166,6 +185,11 @@ private:
 
         ExecutorStderr_.Write(logRecord.data(), logRecord.size());
         ExecutorStderr_.Flush();
+    }
+
+    void OpenExecutorStderr()
+    {
+        ExecutorStderr_ = TFile{"../pipes/executor_stderr", EOpenModeFlag::WrOnly | EOpenModeFlag::ForAppend | EOpenModeFlag::OpenAlways};
     }
 
     mutable TFile ExecutorStderr_;
