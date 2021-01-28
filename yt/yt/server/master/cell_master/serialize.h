@@ -128,6 +128,7 @@ DEFINE_ENUM(EMasterReign,
     ((OrderedRemoteDynamicStoreReader)                              (1444))  // ifsmirnov
     ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
     ((ChunkFeatures)                                                (1446))  // gritukan
+    ((IncreaseUploadReplicationFactorUponFlush)                     (1447))  // akozhikhov
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42

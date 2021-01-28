@@ -480,6 +480,9 @@ public:
     // COMPAT(ifsmirnov): YT-13541
     bool AccumulatePreloadPendingStoreCountCorrectly;
 
+    // COMPAT(akozhikhov): YT-14187
+    bool IncreaseUploadReplicationFactor;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -543,6 +546,8 @@ public:
         RegisterParameter("accumulate_preload_pending_store_count_correctly", AccumulatePreloadPendingStoreCountCorrectly)
             .Default(false)
             .DontSerializeDefault();
+        RegisterParameter("increase_upload_replication_factor", IncreaseUploadReplicationFactor)
+            .Default(false);
 
         // COMPAT(savrus) Special parameter to apply old file configs on fly.
         RegisterParameter("compatibility_version", CompatibilityVersion)

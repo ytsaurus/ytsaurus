@@ -49,6 +49,8 @@ public:
     bool EnableTabletDynamicMemoryLimit;
     std::optional<TString> SolomonTag;
     std::optional<double> MaxBackingStoreMemoryRatio;
+    // COMPAT(akozhikhov): YT-14187
+    bool IncreaseUploadReplicationFactor;
 
     TDynamicTabletCellOptions()
     {
@@ -71,6 +73,8 @@ public:
             .DontSerializeDefault();
         RegisterParameter("max_backing_store_memory_ratio", MaxBackingStoreMemoryRatio)
             .Default();
+        RegisterParameter("increase_upload_replication_factor", IncreaseUploadReplicationFactor)
+            .Default(false);
 
         RegisterPostprocessor([&] {
             if (!EnableForcedRotationBackingMemoryAccounting &&

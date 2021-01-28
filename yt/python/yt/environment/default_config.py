@@ -144,6 +144,7 @@ b"""
 
     tablet_manager = {
         accumulate_preload_pending_store_count_correctly = %true;
+        increase_upload_replication_factor = %true;
     };
 }
 """)

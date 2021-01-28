@@ -664,6 +664,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         writerOptions->ValidateResourceUsageIncrease = false;
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
+        writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Client_,
