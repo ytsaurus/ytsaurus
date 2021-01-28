@@ -20,9 +20,9 @@
 #include <yt/server/node/data_node/location.h>
 #include <yt/server/node/data_node/master_connector.h>
 #include <yt/server/node/data_node/network_statistics.h>
-#include <yt/server/node/data_node/peer_block_distributor.h>
-#include <yt/server/node/data_node/peer_block_table.h>
-#include <yt/server/node/data_node/peer_block_updater.h>
+#include <yt/server/node/data_node/p2p_block_distributor.h>
+#include <yt/server/node/data_node/block_peer_table.h>
+#include <yt/server/node/data_node/block_peer_updater.h>
 #include <yt/server/node/data_node/private.h>
 #include <yt/server/node/data_node/session_manager.h>
 #include <yt/server/node/data_node/table_schema_cache.h>
@@ -329,9 +329,9 @@ void TBootstrap::DoInitialize()
 
     NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
 
-    PeerBlockDistributor_ = New<TPeerBlockDistributor>(Config_->DataNode->PeerBlockDistributor, this);
-    PeerBlockTable_ = New<TPeerBlockTable>(Config_->DataNode->PeerBlockTable, this);
-    PeerBlockUpdater_ = New<TPeerBlockUpdater>(Config_->DataNode, this);
+    P2PBlockDistributor_ = New<TP2PBlockDistributor>(this);
+    BlockPeerTable_ = New<TBlockPeerTable>(this);
+    BlockPeerUpdater_ = New<TBlockPeerUpdater>(this);
 
     SessionManager_ = New<TSessionManager>(Config_->DataNode, this);
 
@@ -740,8 +740,8 @@ void TBootstrap::DoRun()
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
 
     // Do not start subsystems until everything is initialized.
-    PeerBlockUpdater_->Start();
-    PeerBlockDistributor_->Start();
+    BlockPeerUpdater_->Start();
+    P2PBlockDistributor_->Start();
     MasterConnector_->Start();
     SchedulerConnector_->Start();
     StoreCompactor_->Start();
@@ -954,19 +954,19 @@ const IBlockCachePtr& TBootstrap::GetBlockCache() const
     return BlockCache_;
 }
 
-const TPeerBlockDistributorPtr& TBootstrap::GetPeerBlockDistributor() const
+const TP2PBlockDistributorPtr& TBootstrap::GetP2PBlockDistributor() const
 {
-    return PeerBlockDistributor_;
+    return P2PBlockDistributor_;
 }
 
-const TPeerBlockTablePtr& TBootstrap::GetPeerBlockTable() const
+const TBlockPeerTablePtr& TBootstrap::GetBlockPeerTable() const
 {
-    return PeerBlockTable_;
+    return BlockPeerTable_;
 }
 
-const TPeerBlockUpdaterPtr& TBootstrap::GetPeerBlockUpdater() const
+const TBlockPeerUpdaterPtr& TBootstrap::GetBlockPeerUpdater() const
 {
-    return PeerBlockUpdater_;
+    return BlockPeerUpdater_;
 }
 
 const IBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const

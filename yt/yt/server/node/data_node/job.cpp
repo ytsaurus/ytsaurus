@@ -8,6 +8,7 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 #include "master_connector.h"
+#include "block_peer_table.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
@@ -524,10 +525,23 @@ private:
 
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int mediumIndex = JobSpecExt_.medium_index();
+        auto replicas = FromProto<TChunkReplicaList>(JobSpecExt_.replicas());
+        auto replicasExpirationDeadline = FromProto<TInstant>(JobSpecExt_.replicas_expiration_deadline());
 
-        YT_LOG_INFO("Chunk removal job started (ChunkId: %v@v)",
+        YT_LOG_INFO("Chunk removal job started (ChunkId: %v@v, Replicas: %v, ReplicasExpirationDeadline: %v)",
             chunkId,
-            mediumIndex);
+            mediumIndex,
+            replicas,
+            replicasExpirationDeadline);
+
+        if (!replicas.empty()) {
+            const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
+            auto peerList = blockPeerTable->FindOrCreatePeerList(chunkId, true);
+            for (auto replica : replicas) {
+                auto nodeId = replica.GetNodeId();
+                peerList->AddPeer(nodeId, replicasExpirationDeadline);
+            }
+        }
 
         auto chunk = GetLocalChunkOrThrow(chunkId, mediumIndex);
         const auto& chunkStore = Bootstrap_->GetChunkStore();

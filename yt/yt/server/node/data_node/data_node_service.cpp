@@ -9,9 +9,9 @@
 #include "location.h"
 #include "master_connector.h"
 #include "network_statistics.h"
-#include "peer_block_table.h"
-#include "peer_block_updater.h"
-#include "peer_block_distributor.h"
+#include "block_peer_table.h"
+#include "block_peer_updater.h"
+#include "p2p_block_distributor.h"
 #include "session.h"
 #include "session_manager.h"
 #include "table_schema_cache.h"
@@ -391,42 +391,54 @@ private:
             blockManager->PutCachedBlock(blockId, block, sourceDescriptor);
         }
 
-        // We mimic TPeerBlockUpdater behavior here.
-        const auto& peerBlockUpdater = Bootstrap_->GetPeerBlockUpdater();
-        auto expirationTime = peerBlockUpdater->GetPeerUpdateExpirationTime().ToDeadLine();
-        response->set_expiration_time(ToProto<i64>(expirationTime));
+        // We mimic TBlockPeerUpdater behavior here.
+        const auto& peerBlockUpdater = Bootstrap_->GetBlockPeerUpdater();
+        auto expirationDeadline = peerBlockUpdater->GetPeerUpdateExpirationTime().ToDeadLine();
+        response->set_expiration_deadline(ToProto<i64>(expirationDeadline));
 
         context->Reply();
     }
 
-    template <class TRequest, class TResponse>
+    template <class TContext>
     void SuggestPeersWithBlocks(
-        const TRequest* request,
-        TResponse* response,
+        const TContext& context,
         TNodeId requesterNodeId = InvalidNodeId,
         TInstant requesterExpirationTime = {})
     {
+        const auto* request = &context->Request();
+        auto* response = &context->Response();
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
+        const auto& peerBlockTable = Bootstrap_->GetBlockPeerTable();
         for (int blockIndex : request->block_indexes()) {
             auto blockId = TBlockId(chunkId, blockIndex);
-            auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, requesterNodeId != InvalidNodeId);
-            if (peerData) {
-                auto peers = peerData->GetPeers();
-                if (!peers.empty()) {
+            auto peerList = peerBlockTable->FindOrCreatePeerList(blockId, requesterNodeId != InvalidNodeId);
+            if (peerList) {
+                if (auto peers = peerList->GetPeers(); !peers.empty()) {
                     auto* peerDescriptor = response->add_peer_descriptors();
                     peerDescriptor->set_block_index(blockIndex);
                     for (auto peer : peers) {
                         peerDescriptor->add_node_ids(peer);
                     }
-                    YT_LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
+                    YT_LOG_DEBUG("Block peers suggested (BlockId: %v, PeerCount: %v)",
                         blockId,
                         peers.size());
                 }
             }
             if (requesterNodeId != InvalidNodeId) {
                 // Register the peer we're replying to.
-                peerData->AddPeer(requesterNodeId, requesterExpirationTime);
+                peerList->AddPeer(requesterNodeId, requesterExpirationTime);
+            }
+        }
+        if (context->IsClientFeatureSupported(EChunkClientFeature::AllBlocksIndex)) {
+            if (auto peerList = peerBlockTable->FindOrCreatePeerList(chunkId, false)) {
+                if (auto peers = peerList->GetPeers(); !peers.empty()) {
+                    auto* peerDescriptor = response->add_peer_descriptors();
+                    peerDescriptor->set_block_index(AllBlocksIndex);
+                    ToProto(peerDescriptor->mutable_node_ids(), peers);
+                    YT_LOG_DEBUG("Chunk peers suggested (ChunkId: %v, PeerCount: %v)",
+                        chunkId,
+                        peers.size());
+                }
             }
         }
     }
@@ -466,9 +478,7 @@ private:
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
 
-        SuggestPeersWithBlocks(
-            request,
-            response);
+        SuggestPeersWithBlocks(context);
 
         context->SetResponseInfo(
             "HasCompleteChunk: %v, NetThrottling: %v, NetOutQueueSize: %v, "
@@ -532,15 +542,14 @@ private:
                 context->GetEndpointAttributes().Get("network", DefaultNetworkName));
         }
 
-        bool hasRequester = request->has_peer_node_id() && request->has_peer_expiration_time();
+        bool hasRequester = request->has_peer_node_id() && request->has_peer_expiration_deadline();
         auto requesterNodeId = hasRequester ? request->peer_node_id() : InvalidNodeId;
-        auto requesterExpirationTime = hasRequester ? FromProto<TInstant>(request->peer_expiration_time()) : TInstant();
+        auto requesterExpirationDeadline = hasRequester ? FromProto<TInstant>(request->peer_expiration_deadline()) : TInstant();
 
         SuggestPeersWithBlocks(
-            request,
-            response,
+            context,
             requesterNodeId,
-            requesterExpirationTime);
+            requesterExpirationDeadline);
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
@@ -566,7 +575,7 @@ private:
                 .ValueOrThrow();
             for (int index = 0; index < blocks.size() && index < blockIndexes.size(); ++index) {
                 if (const auto& block = blocks[index]) {
-                    Bootstrap_->GetPeerBlockDistributor()->OnBlockRequested(
+                    Bootstrap_->GetP2PBlockDistributor()->OnBlockRequested(
                         TBlockId(chunkId, blockIndexes[index]),
                         block.Size());
                 }
@@ -1435,22 +1444,22 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
-        auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
+        auto expirationDeadline = FromProto<TInstant>(request->peer_expiration_deadline());
 
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
         const auto* nodeDescriptor = nodeDirectory->FindDescriptor(request->peer_node_id());
 
-        context->SetRequestInfo("PeerNodeId: %v, PeerAddress: %v, ExpirationTime: %v, BlockCount: %v",
+        context->SetRequestInfo("PeerNodeId: %v, PeerAddress: %v, ExpirationDeadline: %v, BlockCount: %v",
             request->peer_node_id(),
             (nodeDescriptor ? nodeDescriptor : &NullNodeDescriptor())->GetDefaultAddress(),
-            expirationTime,
+            expirationDeadline,
             request->block_ids_size());
 
-        const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
+        const auto& peerBlockTable = Bootstrap_->GetBlockPeerTable();
         for (const auto& protoBlockId : request->block_ids()) {
             auto blockId = FromProto<TBlockId>(protoBlockId);
-            auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, true);
-            peerData->AddPeer(request->peer_node_id(), expirationTime);
+            auto peerList = peerBlockTable->FindOrCreatePeerList(blockId, true);
+            peerList->AddPeer(request->peer_node_id(), expirationDeadline);
         }
 
         context->Reply();

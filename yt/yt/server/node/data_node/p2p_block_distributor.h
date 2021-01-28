@@ -20,11 +20,11 @@ namespace NYT::NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Class responsible for distribution of hot blocks to the peers.
-class TPeerBlockDistributor
+class TP2PBlockDistributor
     : public TRefCounted
 {
 public:
-    TPeerBlockDistributor(TPeerBlockDistributorConfigPtr config, NClusterNode::TBootstrap* bootstrap);
+    explicit TP2PBlockDistributor(NClusterNode::TBootstrap* bootstrap);
 
     //! Method that should be called on each block request.
     void OnBlockRequested(TBlockId blockId, i64 blockSize);
@@ -33,8 +33,8 @@ public:
     void Start();
 
 private:
-    const TPeerBlockDistributorConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
+    const TP2PBlockDistributorConfigPtr Config_;
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
     //! Blocks that were requested since last iteration of distribution. This stack
@@ -105,7 +105,7 @@ private:
     std::vector<std::pair<NNodeTrackerClient::TNodeId, const NNodeTrackerClient::TNodeDescriptor*>> ChooseDestinationNodes(
         const THashMap<TNodeId, NNodeTrackerClient::TNodeDescriptor>& nodeSet,
         const std::vector<std::pair<NNodeTrackerClient::TNodeId, NNodeTrackerClient::TNodeDescriptor>>& nodes,
-        const TBlockPeerDataPtr& peerData,
+        const TCachedPeerListPtr& peerList,
         THashSet<NNodeTrackerClient::TNodeId>* preferredPeers) const;
 
     void UpdateTransmittedBytes();
@@ -121,7 +121,7 @@ private:
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspPopulateCachePtr& rspOrError);
 };
 
-DEFINE_REFCOUNTED_TYPE(TPeerBlockDistributor)
+DEFINE_REFCOUNTED_TYPE(TP2PBlockDistributor)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -90,9 +90,9 @@ public:
     const NDataNode::TChunkBlockManagerPtr& GetChunkBlockManager() const;
     NDataNode::TNetworkStatistics& GetNetworkStatistics() const;
     const NChunkClient::IBlockCachePtr& GetBlockCache() const;
-    const NDataNode::TPeerBlockDistributorPtr& GetPeerBlockDistributor() const;
-    const NDataNode::TPeerBlockTablePtr& GetPeerBlockTable() const;
-    const NDataNode::TPeerBlockUpdaterPtr& GetPeerBlockUpdater() const;
+    const NDataNode::TP2PBlockDistributorPtr& GetP2PBlockDistributor() const;
+    const NDataNode::TBlockPeerTablePtr& GetBlockPeerTable() const;
+    const NDataNode::TBlockPeerUpdaterPtr& GetBlockPeerUpdater() const;
     const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const;
     const NDataNode::TTableSchemaCachePtr& GetTableSchemaCache() const;
     const NDataNode::IJournalDispatcherPtr& GetJournalDispatcher() const;
@@ -168,9 +168,9 @@ private:
     std::unique_ptr<NDataNode::TNetworkStatistics> NetworkStatistics_;
     NChunkClient::IClientBlockCachePtr ClientBlockCache_;
     NChunkClient::IBlockCachePtr BlockCache_;
-    NDataNode::TPeerBlockTablePtr PeerBlockTable_;
-    NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater_;
-    NDataNode::TPeerBlockDistributorPtr PeerBlockDistributor_;
+    NDataNode::TBlockPeerTablePtr BlockPeerTable_;
+    NDataNode::TBlockPeerUpdaterPtr BlockPeerUpdater_;
+    NDataNode::TP2PBlockDistributorPtr P2PBlockDistributor_;
     NDataNode::IBlobReaderCachePtr BlobReaderCache_;
     NDataNode::TTableSchemaCachePtr TableSchemaCache_;
     NDataNode::IJournalDispatcherPtr JournalDispatcher_;

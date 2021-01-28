@@ -321,6 +321,10 @@ public:
     //! The number of oldest part-missing chunks to be remembered by the replicator.
     int MaxOldestPartMissingChunks;
 
+    //! When a node executes a chunk removal job, it will keep the set of known
+    //! chunk replicas (and suggest these to others) for some time.
+    TDuration ChunkRemovalJobReplicasExpirationTime;
+
     TDynamicChunkManagerConfig()
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
@@ -450,6 +454,9 @@ public:
 
         RegisterParameter("max_oldest_part_missing_chunks", MaxOldestPartMissingChunks)
             .Default(100);
+
+        RegisterParameter("chunk_removal_job_replicas_expiration_time", ChunkRemovalJobReplicasExpirationTime)
+            .Default(TDuration::Minutes(15));
 
         RegisterPreprocessor([&] () {
             JobThrottler->Limit = 10000;

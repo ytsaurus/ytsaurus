@@ -1118,6 +1118,7 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
 
         auto req = proxy.ProbeBlockSet();
+        req->DeclareClientFeature(EChunkClientFeature::AllBlocksIndex);
         req->SetHeavy(true);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
@@ -1388,25 +1389,28 @@ private:
             for (auto peerNodeId : peerDescriptor.node_ids()) {
                 auto maybeSuggestedDescriptor = reader->NodeDirectory_->FindDescriptor(peerNodeId);
                 if (!maybeSuggestedDescriptor) {
-                    YT_LOG_DEBUG("Cannot resolve peer descriptor (Block: %v, NodeId: %v)",
-                        blockIndex,
+                    YT_LOG_DEBUG("Cannot resolve peer descriptor (NodeId: %v)",
                         peerNodeId);
                     continue;
                 }
 
-                auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_);
-                if (suggestedAddress) {
+                if (auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_)) {
                     if (AddPeer(*suggestedAddress, *maybeSuggestedDescriptor, EPeerType::Peer)) {
                         addedNewPeers = true;
                     }
-                    PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
-                    YT_LOG_DEBUG("Peer descriptor received (Block: %v, SuggestedAddress: %v)",
-                        blockIndex,
-                        *suggestedAddress);
+                    if (blockIndex == AllBlocksIndex) {
+                        YT_LOG_DEBUG("Chunk peer descriptor received (SuggestedAddress: %v)",
+                            *suggestedAddress);
+                    } else {
+                        PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
+                        YT_LOG_DEBUG("Block peer descriptor received (Block: %v, SuggestedAddress: %v)",
+                            blockIndex,
+                            *suggestedAddress);
+                    }
                 } else {
-                    YT_LOG_WARNING("Peer suggestion ignored, required network is missing (Block: %v, SuggestedAddress: %v)",
-                        blockIndex,
-                        maybeSuggestedDescriptor->GetDefaultAddress());
+                    YT_LOG_WARNING("Peer suggestion ignored, required network is missing (SuggestedAddress: %v, Networks: )",
+                        maybeSuggestedDescriptor->GetDefaultAddress(),
+                        Networks_);
                 }
             }
         }
@@ -1484,6 +1488,7 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
 
         auto req = proxy.GetBlockSet();
+        req->DeclareClientFeature(EChunkClientFeature::AllBlocksIndex);
         req->SetHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
@@ -1492,9 +1497,9 @@ private:
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
         req->Header().set_response_memory_zone(static_cast<i32>(EMemoryZone::Undumpable));
         if (ReaderOptions_->EnableP2P && reader->LocalNodeId_) {
-            auto expirationTime = TInstant::Now() + ReaderConfig_->PeerExpirationTimeout;
             req->set_peer_node_id(*reader->LocalNodeId_);
-            req->set_peer_expiration_time(expirationTime.GetValue());
+            auto expirationDeadline = TInstant::Now() + ReaderConfig_->PeerExpirationTimeout;
+            req->set_peer_expiration_deadline(ToProto<ui64>(expirationDeadline));
         }
 
         NProfiling::TWallTimer dataWaitTimer;

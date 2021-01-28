@@ -27,7 +27,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "data_node": {
-            "peer_block_distributor": {
+            "p2p_block_distributor": {
                 "iteration_period": 100,  # 0.1 sec
                 "window_length": 1000,  # 1 sec,
                 # In tests we are always trying to distribute something.
@@ -116,7 +116,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
 class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSynthetic):
     DELTA_NODE_CONFIG = {
         "data_node": {
-            "peer_block_distributor": {
+            "p2p_block_distributor": {
                 "iteration_period": 100,  # 0.1 sec
                 "window_length": 1000,  # 1 sec,
                 # In tests we are always trying to distribute something.

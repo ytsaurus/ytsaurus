@@ -41,6 +41,12 @@ message TRemoveChunkJobSpecExt
 
     // Medium where the chunk replica resides.
     required int32 medium_index = 2;
+
+    // All known stored chunk replicas (excluding the one being removed).
+    repeated fixed32 replicas = 3;
+
+    // Time to keep and suggest #replicas to others.
+    optional uint64 replicas_expiration_deadline = 4;
 }
 
 message TRepairChunkJobSpecExt

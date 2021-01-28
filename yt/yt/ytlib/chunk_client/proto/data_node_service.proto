@@ -17,9 +17,12 @@ import "yt/client/table_client/proto/wire_protocol.proto";
 
 message TPeerDescriptor
 {
+    // AllBlocksIndex means that the whole chunk is likely to be present
+    // at these nodes.
     required int32 block_index = 1;
-    reserved 2;
     repeated int32 node_ids = 3;
+
+    reserved 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,10 +114,10 @@ message TRspFlushBlocks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// This request is used to distribute blocks around the cluster by TPeerBlockDistributor.
+// This request is used to distribute blocks around the cluster by TP2PBlockDistributor.
 // Blocks are sent as attachments. If node accepts to put blocks in her cache
-// (currently node does not have an option to decline), it responds with an expiration time,
-// such that the originator node can mention her as a peer within this time (cf. TPeerBlockUpdater).
+// (currently node does not have an option to decline), it responds with an expiration deadline,
+// such that the originator node can mention her as a peer within this time (cf. TBlockPeerUpdater).
 
 message TReqPopulateCache
 {
@@ -129,7 +132,7 @@ message TReqPopulateCache
 
 message TRspPopulateCache
 {
-    required int64 expiration_time = 1;
+    required uint64 expiration_deadline = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,7 +160,7 @@ message TReqGetBlockSet
 {
     required NYT.NProto.TGuid chunk_id = 1;
     repeated int32 block_indexes = 2;
-    optional uint64 peer_expiration_time = 4;
+    optional uint64 peer_expiration_deadline = 4;
     optional bool populate_cache = 5 [default = true];
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 6;
     // COMPAT(babenko): drop once all clusters support ProbeBlockSet
@@ -304,7 +307,7 @@ message TReqUpdatePeer
 {
     reserved 2;
     repeated TBlockId block_ids = 1;
-    required uint64 peer_expiration_time = 3;
+    required uint64 peer_expiration_deadline = 3;
     required int32 peer_node_id = 4;
 }
 

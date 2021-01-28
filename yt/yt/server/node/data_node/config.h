@@ -25,14 +25,14 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPeerBlockTableConfig
+class TBlockPeerTableConfig
     : public NYTree::TYsonSerializable
 {
 public:
     int MaxPeersPerBlock;
     TDuration SweepPeriod;
 
-    TPeerBlockTableConfig()
+    TBlockPeerTableConfig()
     {
         RegisterParameter("max_peers_per_block", MaxPeersPerBlock)
             .GreaterThan(0)
@@ -42,11 +42,11 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TPeerBlockTableConfig)
+DEFINE_REFCOUNTED_TYPE(TBlockPeerTableConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPeerBlockDistributorConfig
+class TP2PBlockDistributorConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -91,7 +91,7 @@ public:
     //! Node tag filter defining which nodes will be considered as candidates for distribution.
     TBooleanFormula NodeTagFilter;
 
-    TPeerBlockDistributorConfig()
+    TP2PBlockDistributorConfig()
     {
         RegisterParameter("iteration_period", IterationPeriod)
             .Default(TDuration::Seconds(1));
@@ -122,7 +122,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TPeerBlockDistributorConfig)
+DEFINE_REFCOUNTED_TYPE(TP2PBlockDistributorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -617,10 +617,10 @@ public:
     //! Timeout for "PutBlocks" requests to other data nodes.
     TDuration NodeRpcTimeout;
 
-    //! Period between peer updates (see TPeerBlockUpdater).
+    //! Period between peer updates (see TBlockPeerUpdater).
     TDuration PeerUpdatePeriod;
 
-    //! Peer update expiration time (see TPeerBlockUpdater).
+    //! Peer update expiration time (see TBlockPeerUpdater).
     TDuration PeerUpdateExpirationTime;
 
     //! Read requests are throttled when the number of bytes queued at Bus layer exceeds this limit.
@@ -666,10 +666,10 @@ public:
     TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
     //! Keeps chunk peering information.
-    TPeerBlockTableConfigPtr PeerBlockTable;
+    TBlockPeerTableConfigPtr BlockPeerTable;
 
     //! Distributes blocks when node is under heavy load.
-    TPeerBlockDistributorConfigPtr PeerBlockDistributor;
+    TP2PBlockDistributorConfigPtr P2PBlockDistributor;
 
     //! Runs periodic checks against disks.
     TDiskHealthCheckerConfigPtr DiskHealthChecker;
@@ -861,9 +861,10 @@ public:
         RegisterParameter("read_rps_out_throttler", Throttlers[EDataNodeThrottlerKind::ReadRpsOut])
             .Optional();
 
-        RegisterParameter("peer_block_table", PeerBlockTable)
+        RegisterParameter("block_peer_table", BlockPeerTable)
             .DefaultNew();
-        RegisterParameter("peer_block_distributor", PeerBlockDistributor)
+        RegisterParameter("p2p_block_distributor", P2PBlockDistributor)
+            .Alias("peer_block_distributor")
             .DefaultNew();
 
         RegisterParameter("disk_health_checker", DiskHealthChecker)

@@ -1,8 +1,9 @@
-#include "peer_block_table.h"
+#include "block_peer_table.h"
 #include "private.h"
 #include "config.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -26,13 +27,13 @@ static const auto& Logger = P2PLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockPeerData::TBlockPeerData(int entryCountLimit)
+TCachedPeerList::TCachedPeerList(int entryCountLimit)
     : EntryCountLimit_(entryCountLimit)
 { }
 
-TBlockPeerData::TNodeIdList TBlockPeerData::GetPeers()
+TCachedPeerList::TNodeIdList TCachedPeerList::GetPeers()
 {
-    TBlockPeerData::TNodeIdList result;
+    TCachedPeerList::TNodeIdList result;
     {
         auto guard = Guard(Lock_);
         result.reserve(Entries_.size());
@@ -42,13 +43,13 @@ TBlockPeerData::TNodeIdList TBlockPeerData::GetPeers()
     return result;
 }
 
-void TBlockPeerData::AddPeer(TNodeId nodeId, TInstant expirationTime)
+void TCachedPeerList::AddPeer(TNodeId nodeId, TInstant expirationTime)
 {
     auto guard = Guard(Lock_);
     Entries_.push_back({nodeId, expirationTime});
 }
 
-bool TBlockPeerData::Sweep()
+bool TCachedPeerList::Sweep()
 {
     auto guard = Guard(Lock_);
     DoSweep([&] (const auto& /*entry*/) { });
@@ -56,7 +57,7 @@ bool TBlockPeerData::Sweep()
 }
 
 template <class F>
-void TBlockPeerData::DoSweep(F&& func)
+void TCachedPeerList::DoSweep(F&& func)
 {
     auto now = NProfiling::GetInstant();
 
@@ -64,7 +65,7 @@ void TBlockPeerData::DoSweep(F&& func)
     auto destIt = sourceIt;
     while (sourceIt != Entries_.end()) {
         auto& entry = *sourceIt;
-        if (entry.ExpirationTime < now) {
+        if (entry.ExpirationDeadline < now) {
             ++sourceIt;
         } else {
             func(entry);
@@ -80,7 +81,7 @@ void TBlockPeerData::DoSweep(F&& func)
             [] (const auto& entry) { return entry.NodeId; });
         Sort(
             Entries_,
-            [] (const auto& lhs, const auto& rhs) { return lhs.ExpirationTime > rhs.ExpirationTime; });
+            [] (const auto& lhs, const auto& rhs) { return lhs.ExpirationDeadline > rhs.ExpirationDeadline; });
         // NB: SortUniqueBy could have already pruned the vector.
         if (Entries_.size() > EntryCountLimit_) {
             Entries_.erase(Entries_.begin() + EntryCountLimit_, Entries_.end());
@@ -90,26 +91,24 @@ void TBlockPeerData::DoSweep(F&& func)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeerBlockTable::TPeerBlockTable(
-    TPeerBlockTableConfigPtr config,
-    TBootstrap* bootstrap)
-    : Config_(config)
+TBlockPeerTable::TBlockPeerTable(TBootstrap* bootstrap)
+    : Config_(bootstrap->GetConfig()->DataNode->BlockPeerTable)
     , SweepExecutor_(New<TPeriodicExecutor>(
         bootstrap->GetStorageHeavyInvoker(),
-        BIND(&TPeerBlockTable::OnSweep, MakeWeak(this)),
+        BIND(&TBlockPeerTable::OnSweep, MakeWeak(this)),
         Config_->SweepPeriod))
 {
     SweepExecutor_->Start();
 }
 
-TBlockPeerDataPtr TPeerBlockTable::FindOrCreatePeerData(const TBlockId& blockId, bool insert)
+TCachedPeerListPtr TBlockPeerTable::FindOrCreatePeerList(const TBlockId& blockId, bool insert)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
         auto guard = ReaderGuard(Lock_);
-        auto it = BlockIdToData_.find(blockId);
-        if (it != BlockIdToData_.end()) {
+        auto it = BlockIdToPeerList_.find(blockId);
+        if (it != BlockIdToPeerList_.end()) {
             return it->second;
         }
     }
@@ -120,25 +119,32 @@ TBlockPeerDataPtr TPeerBlockTable::FindOrCreatePeerData(const TBlockId& blockId,
 
     {
         auto guard = WriterGuard(Lock_);
-        auto it = BlockIdToData_.find(blockId);
-        if (it == BlockIdToData_.end()) {
-            it = BlockIdToData_.emplace(blockId, New<TBlockPeerData>(Config_->MaxPeersPerBlock)).first;
+        auto it = BlockIdToPeerList_.find(blockId);
+        if (it == BlockIdToPeerList_.end()) {
+            it = BlockIdToPeerList_.emplace(blockId, New<TCachedPeerList>(Config_->MaxPeersPerBlock)).first;
         }
         return it->second;
     }
 }
 
-void TPeerBlockTable::OnSweep()
+TCachedPeerListPtr TBlockPeerTable::FindOrCreatePeerList(TChunkId chunkId, bool insert)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return FindOrCreatePeerList(TBlockId(chunkId, AllBlocksIndex), insert);
+}
+
+void TBlockPeerTable::OnSweep()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     YT_LOG_DEBUG("Starting expired peers sweep");
 
-    std::vector<std::pair<TBlockId, TBlockPeerDataPtr>> snapshot;
+    std::vector<std::pair<TBlockId, TCachedPeerListPtr>> snapshot;
     {
         auto guard = ReaderGuard(Lock_);
-        snapshot.reserve(BlockIdToData_.size());
-        for (const auto& pair : BlockIdToData_) {
+        snapshot.reserve(BlockIdToPeerList_.size());
+        for (const auto& pair : BlockIdToPeerList_) {
             snapshot.push_back(pair);
         }
     }
@@ -156,7 +162,7 @@ void TPeerBlockTable::OnSweep()
     if (!blockIdsToEvict.empty()) {
         auto guard = WriterGuard(Lock_);
         for (auto blockId : blockIdsToEvict) {
-            BlockIdToData_.erase(blockId);
+            BlockIdToPeerList_.erase(blockId);
         }
     }
 

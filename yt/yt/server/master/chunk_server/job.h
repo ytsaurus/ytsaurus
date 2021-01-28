@@ -25,6 +25,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
     DEFINE_BYVAL_RO_PROPERTY(bool, Decommission);
 
+    //! Could be null for removal jobs issued against non-existing chunks.
+    DEFINE_BYVAL_RO_PROPERTY(TChunk*, Chunk);
     //! Can't make it TChunkPtrWithIndexes since removal jobs may refer to nonexistent chunks.
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkIdWithIndexes, ChunkIdWithIndexes);
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
@@ -46,6 +48,7 @@ public:
 
     static TJobPtr CreateRemove(
         TJobId jobId,
+        TChunk* chunk,
         const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
         NNodeTrackerServer::TNode* node);
 
@@ -66,6 +69,7 @@ private:
     TJob(
         EJobType type,
         TJobId jobId,
+        TChunk* chunk,
         const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
         NNodeTrackerServer::TNode* node,
         const TNodePtrWithIndexesList& targetReplicas,

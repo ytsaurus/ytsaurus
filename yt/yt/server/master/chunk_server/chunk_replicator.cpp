@@ -1048,6 +1048,7 @@ bool TChunkReplicator::CreateRemovalJob(
 
     *job = TJob::CreateRemove(
         JobTracker_->GenerateJobId(),
+        IsObjectAlive(chunk) ? chunk : nullptr,
         chunkIdWithIndexes,
         node);
 
