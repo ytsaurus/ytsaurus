@@ -8,7 +8,7 @@ import os
 import struct
 
 
-class Enumeration:
+class Enumeration(object):
     def __init__(self, dict_):
         self._name_to_value = dict_
         self._value_to_name = {value: name for name, value in dict_.items()}
@@ -24,7 +24,7 @@ def create_enumerations(dict_):
     return {name: Enumeration(d) for name, d in dict_.items()}
 
 
-class BytesReader:
+class BytesReader(object):
     def __init__(self, inp):
         self.inp = inp
 
@@ -149,20 +149,27 @@ def create_type_name_to_type_info():
 TYPE_NAME_TO_TYPE_INFO = create_type_name_to_type_info()
 
 
-class LenvalFormat:
+class LenvalFormat(object):
     TABLE_INDEX = "table_index"
     KEY_SWITCH = "key_switch"
     RANGE_INDEX = "range_index"
     ROW_INDEX = "row_index"
+    TABLET_INDEX = "tablet_index"
 
     TABLE_INDEX_VALUE = -1
     KEY_SWITCH_VALUE = -2
     RANGE_INDEX_VALUE = -3
     ROW_INDEX_VALUE = -4
+    END_OF_STREAM_VALUE = -5
+    TABLET_INDEX_VALUE = -6
 
 
 class LenvalReader(LenvalFormat, BytesReader):
-    DATA = "data"
+    def __init__(self, stream):
+        super(LenvalReader, self).__init__(stream)
+        self._row_index = 0
+        self._table_index = 0
+        self._tablet_index = 0
 
     def _read_int(self):
         result = self._try_read_int()
@@ -175,20 +182,36 @@ class LenvalReader(LenvalFormat, BytesReader):
             return None
         return struct.unpack("<i", chunk)[0]
 
+    def _read_int64(self):
+        chunk = self.try_read_chunk(8)
+        assert chunk is not None
+        return struct.unpack("<q", chunk)[0]
+
     def read_next(self):
         lenval_value = self._try_read_int()
         if lenval_value is None:
             return None
         if lenval_value >= 0:
-            return (self.DATA, self.read_chunk(lenval_value))
+            attrs = {
+                "row_index": self._row_index,
+                "table_index": self._table_index,
+                "tablet_index": self._tablet_index,
+            }
+            self._row_index += 1
+            return (self.read_chunk(lenval_value), attrs)
         elif lenval_value == self.TABLE_INDEX_VALUE:
-            return (self.TABLE_INDEX, self._read_int())
+            self._table_index = self._read_int()
+            return self.read_next()
         elif lenval_value == self.KEY_SWITCH_VALUE:
-            return (self.KEY_SWITCH,)
+            return self.read_next()
         elif lenval_value == self.RANGE_INDEX_VALUE:
-            return (self.RANGE_INDEX, self._read_int())
+            return self.read_next()
         elif lenval_value == self.ROW_INDEX_VALUE:
-            return (self.ROW_INDEX, self._read_int())
+            self._row_index = self._read_int64()
+            return self.read_next()
+        elif lenval_value == self.TABLET_INDEX_VALUE:
+            self._tablet_index = self._read_int64()
+            return self.read_next()
         else:
             assert False, "Unexpected lenval value {}".format(lenval_value)
 
@@ -297,7 +320,7 @@ def parse_protobuf_message(message, field_configs, enumerations):
     return result
 
 
-def parse_lenval_protobuf(data, format):
+def parse_lenval_protobuf(data, format, enable_control_attributes=False):
     bufio = StringIO(data)
     result = []
     reader = LenvalReader(bufio)
@@ -309,20 +332,18 @@ def parse_lenval_protobuf(data, format):
         item = reader.read_next()
         if item is None:
             return result
-        if item[0] == LenvalReader.DATA:
-            result.append(
-                parse_protobuf_message(
-                    item[1],
-                    proto_config["columns"],
-                    enumerations,
-                )
-            )
-        else:
-            # Currently skipped.
-            pass
+        data, attrs = item
+        message = parse_protobuf_message(
+            data,
+            proto_config["columns"],
+            enumerations,
+        )
+        if enable_control_attributes:
+            message = yt.yson.to_yson_type(message, attributes=attrs)
+        result.append(message)
 
 
-class LenvalWriter:
+class LenvalWriter(object):
     def __init__(self, output):
         self.output = output
 
@@ -331,7 +352,7 @@ class LenvalWriter:
         self.output.write(data)
 
 
-class ProtobufWriter:
+class ProtobufWriter(object):
     def __init__(self, output):
         self.output = output
 
