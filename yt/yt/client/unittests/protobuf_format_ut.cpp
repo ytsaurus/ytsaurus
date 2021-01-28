@@ -382,6 +382,7 @@ struct TLenvalEntry
 {
     TString RowData;
     ui32 TableIndex;
+    ui64 TabletIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -402,30 +403,41 @@ public:
         } else if (read < sizeof(rowSize)) {
             THROW_ERROR_EXCEPTION("corrupted lenval: can't read row length");
         }
-        if (rowSize == LenvalTableIndexMarker) {
-            ui32 tableIndex;
-            read = Input_->Load(&tableIndex, sizeof(tableIndex));
-            if (read != sizeof(tableIndex)) {
-                THROW_ERROR_EXCEPTION("corrupted lenval: can't read table index");
+        switch (rowSize) {
+            case LenvalTableIndexMarker: {
+                ui32 tableIndex;
+                read = Input_->Load(&tableIndex, sizeof(tableIndex));
+                if (read != sizeof(tableIndex)) {
+                    THROW_ERROR_EXCEPTION("corrupted lenval: can't read table index");
+                }
+                CurrentTableIndex_ = tableIndex;
+                return Next();
             }
-            CurrentTableIndex_ = tableIndex;
-            return Next();
-        } else if (rowSize == LenvalEndOfStream) {
-            EndOfStream_ = true;
-            return std::nullopt;
-        } else if (
-            rowSize == LenvalKeySwitch ||
-            rowSize == LenvalRangeIndexMarker ||
-            rowSize == LenvalRowIndexMarker)
-        {
-            THROW_ERROR_EXCEPTION("marker is unsupported");
-        } else {
-            TLenvalEntry result;
-            result.RowData.resize(rowSize);
-            result.TableIndex = CurrentTableIndex_;
-            Input_->Load(result.RowData.Detach(), rowSize);
+            case LenvalTabletIndexMarker: {
+                ui64 tabletIndex;
+                read = Input_->Load(&tabletIndex, sizeof(tabletIndex));
+                if (read != sizeof(tabletIndex)) {
+                    THROW_ERROR_EXCEPTION("corrupted lenval: can't read tablet index");
+                }
+                CurrentTabletIndex_ = tabletIndex;
+                return Next();
+            }
+            case LenvalEndOfStream:
+                EndOfStream_ = true;
+                return std::nullopt;
+            case LenvalKeySwitch:
+            case LenvalRangeIndexMarker:
+            case LenvalRowIndexMarker:
+                THROW_ERROR_EXCEPTION("marker is unsupported");
+            default: {
+                TLenvalEntry result;
+                result.RowData.resize(rowSize);
+                result.TableIndex = CurrentTableIndex_;
+                result.TabletIndex = CurrentTabletIndex_;
+                Input_->Load(result.RowData.Detach(), rowSize);
 
-            return result;
+                return result;
+            }
         }
     }
 
@@ -437,6 +449,7 @@ public:
 private:
     IInputStream* Input_;
     ui32 CurrentTableIndex_ = 0;
+    ui64 CurrentTabletIndex_ = 0;
     bool EndOfStream_ = false;
 };
 
@@ -1182,6 +1195,84 @@ TEST(TProtobufFormat, TestWriteZeroColumns)
         .ThrowOnError();
 
     ASSERT_EQ(result, "\0\0\0\0\0\0\0\0"sv);
+}
+
+TEST(TProtobufFormat, TestTabletIndex)
+{
+    auto config = ParseFormatConfigFromNode(BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("int64_field")
+                            .Item("field_number").Value(3)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap());
+
+    auto nameTable = New<TNameTable>();
+    auto int64FieldId = nameTable->RegisterName("int64_field");
+    auto tabletIndexId = nameTable->RegisterName(TabletIndexColumnName);
+
+    TString result;
+    TStringOutput resultStream(result);
+    auto controlAttributesConfig = New<TControlAttributesConfig>();
+    controlAttributesConfig->EnableTabletIndex = true;
+
+    auto writer = CreateWriterForProtobuf(
+        config,
+        {New<TTableSchema>()},
+        nameTable,
+        CreateAsyncAdapter(&resultStream),
+        true,
+        controlAttributesConfig,
+        0);
+
+    writer->Write({
+        MakeRow({
+            MakeUnversionedInt64Value(1LL << 50, tabletIndexId),
+            MakeUnversionedInt64Value(-2345, int64FieldId),
+        }).Get(),
+        MakeRow({
+            MakeUnversionedInt64Value(12, tabletIndexId),
+            MakeUnversionedInt64Value(2345, int64FieldId),
+        }).Get(),
+    });
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    TStringInput si(result);
+    TLenvalParser parser(&si);
+    {
+        auto row = parser.Next();
+        ASSERT_TRUE(row);
+        ASSERT_EQ(row->TabletIndex, 1LL << 50);
+        NYT::TMessage message;
+        ASSERT_TRUE(message.ParseFromString(row->RowData));
+        ASSERT_EQ(message.int64_field(), -2345);
+    }
+    {
+        auto row = parser.Next();
+        ASSERT_TRUE(row);
+        ASSERT_EQ(row->TabletIndex, 12);
+        NYT::TMessage message;
+        ASSERT_TRUE(message.ParseFromString(row->RowData));
+        ASSERT_EQ(message.int64_field(), 2345);
+    }
+    {
+        auto row = parser.Next();
+        ASSERT_FALSE(row);
+    }
 }
 
 TEST(TProtobufFormat, TestContext)

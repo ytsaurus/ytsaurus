@@ -879,6 +879,12 @@ private:
         WritePod(*StreamWriter_, static_cast<ui32>(tableIndex));
     }
 
+    virtual void WriteTabletIndex(i64 tabletIndex) override
+    {
+        WritePod(*StreamWriter_, static_cast<ui32>(LenvalTabletIndexMarker));
+        WritePod(*StreamWriter_, static_cast<ui64>(tabletIndex));
+    }
+
     virtual void WriteRangeIndex(i64 rangeIndex) override
     {
         WritePod(*StreamWriter_, static_cast<ui32>(LenvalRangeIndexMarker));

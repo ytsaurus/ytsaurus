@@ -15,11 +15,11 @@ def assert_rowsets_equal(first, second):
         assert row_first == row_second, "Mismatch at index {}".format(i)
 
 
-def create_protobuf_format(configs, enumerations):
-    format = yson.YsonString("protobuf")
-    format.attributes["tables"] = configs
-    format.attributes["enumerations"] = ENUMERATIONS
-    return format
+def create_protobuf_format(configs, enumerations={}):
+    return yson.to_yson_type("protobuf", attributes={
+        "tables": configs,
+        "enumerations": enumerations,
+    })
 
 
 ENUMERATIONS = {
@@ -108,6 +108,8 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    USE_DYNAMIC_TABLES = True
+
     @authors("levysotsky")
     def test_protobuf_read(self):
         create("table", "//tmp/t")
@@ -135,7 +137,7 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
     def _generate_random_rows(self, count):
         rows = []
         random.seed(42)
-        enum_names = ENUMERATIONS["MyEnum"].keys()
+        enum_names = list(ENUMERATIONS["MyEnum"].keys())
         for _ in xrange(count):
             rows.append(
                 {
@@ -328,6 +330,55 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         parsed_rows = protobuf_format.parse_lenval_protobuf(protobuf_dump, format)
         assert_rowsets_equal(parsed_rows, PROTOBUF_SCHEMALESS_TABLE_ROWS)
         assert_items_equal(read_table("//tmp/t_out"), SCHEMALESS_TABLE_ROWS)
+
+    @authors("levysotsky")
+    def test_tablet_index(self):
+        table = "//tmp/t"
+        sync_create_cells(1)
+        schema = [
+            {
+                "name": "a",
+                "type_v3": "int64",
+            },
+        ]
+        create("table", table, attributes={"schema": schema, "dynamic": True})
+        sync_reshard_table("//tmp/t", 10)
+        sync_mount_table(table)
+
+        rows = [
+            ({"a": 1, "$tablet_index": 0}, 0),
+            ({"a": 17, "$tablet_index": 0}, 1),
+            ({"a": 3, "$tablet_index": 4}, 0),
+            ({"a": 2, "$tablet_index": 6}, 0),
+            ({"a": 27, "$tablet_index": 6}, 1),
+        ]
+        for row, row_index in rows:
+            insert_rows(table, [row])
+
+        sync_unmount_table(table)
+
+        config = {
+            "columns": [
+                {
+                    "name": "a",
+                    "field_number": 1,
+                    "proto_type": "int64",
+                },
+            ],
+        }
+        format = create_protobuf_format([config])
+        control_attributes = {
+            "enable_tablet_index": True,
+            "enable_row_index": True,
+        }
+        data = read_table(table, output_format=format, control_attributes=control_attributes)
+        parsed_rows = protobuf_format.parse_lenval_protobuf(data, format, enable_control_attributes=True)
+        parsed_rows.sort(key=lambda row: row.attributes["tablet_index"])
+        assert len(parsed_rows) == len(rows)
+        for (row, row_index), parsed_row in zip(rows, parsed_rows):
+            assert parsed_row["a"] == row["a"]
+            assert parsed_row.attributes["tablet_index"] == row["$tablet_index"]
+            assert parsed_row.attributes["row_index"] == row_index
 
 
 SCHEMA = [
