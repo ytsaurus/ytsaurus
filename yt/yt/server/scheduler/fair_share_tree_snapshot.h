@@ -51,6 +51,8 @@ struct IFairShareTreeHost
     : public virtual TRefCounted
 {
     virtual TResourceTree* GetResourceTree() = 0;
+
+    virtual NProfiling::TRegistry GetProfiler() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFairShareTreeHost)

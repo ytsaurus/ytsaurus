@@ -4,17 +4,17 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMeteringStatistics::TMeteringStatistics(TJobResources strongGuaranteeResources, TJobResources allocatedResources, TJobMetrics jobMetrics)
-    : StrongGuaranteeResources_(std::move(strongGuaranteeResources))
-    , AllocatedResources_(std::move(allocatedResources))
-    , JobMetrics_(std::move(jobMetrics))
+TMeteringStatistics::TMeteringStatistics(
+    const TJobResources& strongGuaranteeResources,
+    const TJobResources& allocatedResources)
+    : StrongGuaranteeResources_(strongGuaranteeResources)
+    , AllocatedResources_(allocatedResources)
 { }
 
 TMeteringStatistics& TMeteringStatistics::operator+=(const TMeteringStatistics &other)
 {
     StrongGuaranteeResources_ += other.StrongGuaranteeResources_;
     AllocatedResources_ += other.AllocatedResources_;
-    JobMetrics_ += other.JobMetrics_;
     return *this;
 }
 
@@ -22,7 +22,6 @@ TMeteringStatistics& TMeteringStatistics::operator-=(const TMeteringStatistics &
 {
     StrongGuaranteeResources_ -= other.StrongGuaranteeResources_;
     AllocatedResources_ -= other.AllocatedResources_;
-    JobMetrics_ -= other.JobMetrics_;
     return *this;
 }
 

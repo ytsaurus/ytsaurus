@@ -12,13 +12,11 @@ class TMeteringStatistics
 {
     DEFINE_BYREF_RO_PROPERTY(TJobResources, StrongGuaranteeResources);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AllocatedResources);
-    DEFINE_BYREF_RO_PROPERTY(TJobMetrics, JobMetrics);
 
 public:
     TMeteringStatistics(
-        TJobResources strongGuaranteeResources,
-        TJobResources allocatedResources,
-        TJobMetrics jobMetrics);
+        const TJobResources& strongGuaranteeResources,
+        const TJobResources& allocatedResources);
 
     TMeteringStatistics& operator+=(const TMeteringStatistics& other);
     TMeteringStatistics& operator-=(const TMeteringStatistics& other);

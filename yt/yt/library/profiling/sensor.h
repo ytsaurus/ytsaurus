@@ -164,13 +164,13 @@ public:
      */
     TRegistry WithSparse() const;
 
-    //! WithSparse sets sparse flags on all sensors created using returned registry.
+    //! WithGlobal marks all sensors as global.
     /*!
      *  Global sensors are exported without host= tag and instance tags.
      */
     TRegistry WithGlobal() const;
 
-    //! WithSparse sets hot flag on all sensors created using returned registry.
+    //! WithHot sets hot flag on all sensors created using returned registry.
     /*!
      *  Hot sensors are implemented using per-cpu sharding, that increases
      *  performance under contention, but also increases memory consumption.

@@ -1562,15 +1562,7 @@ private:
         for (const auto& [key, value] : newStatistics) {
             auto it = MeteringStatistics_.find(key);
             if (it != MeteringStatistics_.end()) {
-                // NB(mrkastep): Here we check if the metrics have actually increased before subtracting them.
-                // This might not be true if the pool has been removed and created again between metering iterations.
-                // Such a recreation can still be missed if the metrics have increased above the previous value
-                // after recreation, but such case is considered too rare and negligible to account for it.
-                const auto& oldMetrics = it->second.JobMetrics();
-                const auto& newMetrics = value.JobMetrics();
-                const auto& metricsDelta = Dominates(newMetrics, oldMetrics) ? newMetrics - oldMetrics : newMetrics;
-
-                TMeteringStatistics delta(value.StrongGuaranteeResources(), value.AllocatedResources(), metricsDelta);
+                TMeteringStatistics delta(value.StrongGuaranteeResources(), value.AllocatedResources());
                 Host->LogResourceMetering(key, delta, LastMeteringStatisticsUpdateTime_, now);
             } else {
                 Host->LogResourceMetering(key, value, LastMeteringStatisticsUpdateTime_, now);

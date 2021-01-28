@@ -1081,15 +1081,20 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
     : TSchedulerElement(host, treeHost, std::move(treeConfig), treeId, id, elementKind, logger)
-    , ProducerBuffer_(New<TBufferedProducer>())
-{ }
+    , Profiler_(TreeHost_->GetProfiler()
+        .WithRequiredTag("pool", id, -1))
+    , BufferedProducer_(New<TBufferedProducer>())
+{
+    Profiler_.AddProducer("/pools", BufferedProducer_);
+}
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
     const TCompositeSchedulerElement& other,
     TCompositeSchedulerElement* clonedParent)
     : TSchedulerElement(other, clonedParent)
     , TCompositeSchedulerElementFixedState(other)
-    , ProducerBuffer_(other.ProducerBuffer_)
+    , Profiler_(other.Profiler_)
+    , BufferedProducer_(other.BufferedProducer_)
 {
     auto cloneChildren = [&] (
         const std::vector<TSchedulerElementPtr>& list,
@@ -1431,6 +1436,11 @@ bool TCompositeSchedulerElement::HasAggressivelyStarvingElements(TFairShareConte
     return false;
 }
 
+NProfiling::TRegistry TCompositeSchedulerElement::GetProfiler() const
+{
+    return Profiler_;
+}
+
 TFairShareScheduleJobResult TCompositeSchedulerElement::ScheduleJob(TFairShareContext* context, bool ignorePacking)
 {
     auto& attributes = context->DynamicAttributesFor(this);
@@ -1531,11 +1541,6 @@ void TCompositeSchedulerElement::SetMode(ESchedulingMode mode)
     Mode_ = mode;
 }
 
-void TCompositeSchedulerElement::RegisterProfiler(const NProfiling::TRegistry& profiler)
-{
-    profiler.AddProducer("/pools", ProducerBuffer_);
-}
-
 void TCompositeSchedulerElement::ProfileFull(bool profilingCompatibilityEnabled)
 {
     TSensorBuffer buffer;
@@ -1551,7 +1556,7 @@ void TCompositeSchedulerElement::ProfileFull(bool profilingCompatibilityEnabled)
         ProfileResources(&buffer, GetSpecifiedStrongGuaranteeResources(), "/strong_guarantee_resources");
         ProfileResources(&buffer, EffectiveStrongGuaranteeResources(), "/effective_strong_guarantee_resources");
     }
-    ProducerBuffer_->Update(std::move(buffer));
+    BufferedProducer_->Update(std::move(buffer));
 }
 
 template <class TValue, class TGetter, class TSetter>
@@ -2201,7 +2206,7 @@ void TCompositeSchedulerElement::BuildResourceMetering(const std::optional<TMete
     YT_VERIFY(key || parentKey);
 
     if (key) {
-        YT_VERIFY(statistics->insert({*key, TMeteringStatistics(GetSpecifiedStrongGuaranteeResources(), ResourceUsageAtUpdate(), GetJobMetrics())}).second);
+        YT_VERIFY(statistics->insert({*key, TMeteringStatistics(GetSpecifiedStrongGuaranteeResources(), ResourceUsageAtUpdate())}).second);
     }
 
     for (const auto& child : EnabledChildren_) {
@@ -2668,7 +2673,6 @@ TOperationElementFixedState::TOperationElementFixedState(
     TFairShareStrategyOperationControllerConfigPtr controllerConfig)
     : OperationId_(operation->GetId())
     , UnschedulableReason_(operation->CheckUnschedulable())
-    , SlotIndex_(std::nullopt)
     , UserName_(operation->GetAuthenticatedUser())
     , Operation_(operation)
     , ControllerConfig_(std::move(controllerConfig))
@@ -3253,7 +3257,7 @@ TOperationElement::TOperationElement(
     , OperationElementSharedState_(New<TOperationElementSharedState>(Spec_->UpdatePreemptableJobsListLoggingPeriod, Logger))
     , Controller_(std::move(controller))
     , SchedulingTagFilter_(Spec_->SchedulingTagFilter)
-    , ProducerBuffer_(New<TBufferedProducer>())
+    , BufferedProducer_(New<TBufferedProducer>())
 { }
 
 TOperationElement::TOperationElement(
@@ -3269,7 +3273,7 @@ TOperationElement::TOperationElement(
     , Controller_(other.Controller_)
     , RunningInThisPoolTree_(other.RunningInThisPoolTree_)
     , SchedulingTagFilter_(other.SchedulingTagFilter_)
-    , ProducerBuffer_(other.ProducerBuffer_)
+    , BufferedProducer_(other.BufferedProducer_)
 { }
 
 double TOperationElement::GetFairShareStarvationTolerance() const
@@ -3295,7 +3299,6 @@ void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
     TotalNeededResources_ = Controller_->GetNeededResources();
 
     UnschedulableReason_ = ComputeUnschedulableReason();
-    SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
     ResourceUsageAtUpdate_ = GetInstantResourceUsage();
     // Must be calculated after ResourceUsageAtUpdate_
     ResourceDemand_ = ComputeResourceDemand();
@@ -3994,52 +3997,11 @@ std::optional<int> TOperationElement::GetMaybeSlotIndex() const
     return SlotIndex_;
 }
 
-void TOperationElement::RegisterProfiler(std::optional<int> slotIndex, const NProfiling::TRegistry& profiler)
-{
-    YT_VERIFY(GetParent());
-
-    if (slotIndex) {
-        profiler
-            .WithTag("pool", GetParent()->GetId(), -1)
-            .WithRequiredTag("slot_index", ToString(*slotIndex), -1)
-            .AddProducer("/operations_by_slot", ProducerBuffer_);
-    }
-
-    auto parent = GetParent();
-    while (parent != nullptr) {
-        bool enableProfiling = false;
-        if (!parent->IsRoot()) {
-            const auto* pool = static_cast<const TPool*>(parent);
-            if (pool->GetConfig()->EnableByUserProfiling) {
-                enableProfiling = *pool->GetConfig()->EnableByUserProfiling;
-            } else {
-                enableProfiling = TreeConfig_->EnableByUserProfiling;
-            }
-        } else {
-            enableProfiling = TreeConfig_->EnableByUserProfiling;
-        }
-
-        if (enableProfiling) {
-            auto userProfiler = profiler
-                .WithTag("pool", parent->GetId(), -1)
-                .WithRequiredTag("user_name", GetUserName(), -1);
-
-            if (auto customTag = GetCustomProfilingTag()) {
-                userProfiler = userProfiler.WithTag("custom", *customTag, -1);
-            }
-
-            userProfiler.AddProducer("/operations_by_user", ProducerBuffer_);
-        }
-
-        parent = parent->GetParent();
-    }
-}
-
 void TOperationElement::ProfileFull(bool profilingCompatibilityEnabled)
 {
     TSensorBuffer buffer;
     Profile(&buffer, profilingCompatibilityEnabled);
-    ProducerBuffer_->Update(std::move(buffer));
+    BufferedProducer_->Update(std::move(buffer));
 }
 
 TString TOperationElement::GetUserName() const
@@ -4281,24 +4243,29 @@ EResourceTreeIncreaseResult TOperationElement::TryIncreaseHierarchicalResourceUs
         availableResourceLimitsOutput);
 }
 
-void TOperationElement::AttachParent(TCompositeSchedulerElement* newParent, bool enabled)
+void TOperationElement::AttachParent(TCompositeSchedulerElement* newParent, int slotIndex)
 {
     YT_VERIFY(Mutable_);
     YT_VERIFY(!Parent_);
 
     Parent_ = newParent;
+    SlotIndex_ = slotIndex;
     TreeHost_->GetResourceTree()->AttachParent(ResourceTreeElement_, newParent->ResourceTreeElement_);
 
     newParent->IncreaseOperationCount(1);
-    newParent->AddChild(this, enabled);
+    newParent->AddChild(this, /* enabled */ false);
+
+    UpdateProfilers();
 
     YT_LOG_DEBUG("Operation attached to pool (Pool: %v)", newParent->GetId());
 }
 
-void TOperationElement::ChangeParent(TCompositeSchedulerElement* parent)
+void TOperationElement::ChangeParent(TCompositeSchedulerElement* parent, int slotIndex)
 {
     YT_VERIFY(Mutable_);
     YT_VERIFY(Parent_);
+
+    SlotIndex_ = slotIndex;
 
     auto oldParentId = Parent_->GetId();
     if (RunningInThisPoolTree_) {
@@ -4314,6 +4281,8 @@ void TOperationElement::ChangeParent(TCompositeSchedulerElement* parent)
     RunningInThisPoolTree_ = false;  // for consistency
     Parent_->IncreaseOperationCount(1);
     Parent_->AddChild(this, enabled);
+
+    UpdateProfilers();
 
     YT_LOG_DEBUG("Operation changed pool (OldPool: %v, NewPool: %v)",
         oldParentId,
@@ -4347,9 +4316,49 @@ void TOperationElement::MarkOperationRunningInPool()
     YT_LOG_INFO("Operation is running in pool (Pool: %v)", Parent_->GetId());
 }
 
-bool TOperationElement::IsOperationRunningInPool()
+bool TOperationElement::IsOperationRunningInPool() const
 {
     return RunningInThisPoolTree_;
+}
+    
+void TOperationElement::UpdateProfilers()
+{
+    YT_VERIFY(GetParent());
+    YT_VERIFY(SlotIndex_ != UndefinedSlotIndex);
+
+    auto treeProfiler = TreeHost_->GetProfiler();
+
+    BufferedProducer_ = New<TBufferedProducer>();
+    
+    treeProfiler
+        .WithRequiredTag("pool", GetParent()->GetId(), -1)
+        .WithRequiredTag("slot_index", ToString(SlotIndex_), -1)
+        .AddProducer("/operations_by_slot", BufferedProducer_);
+
+    auto parent = GetParent();
+    while (parent != nullptr) {
+        bool enableProfiling = false;
+        if (!parent->IsRoot()) {
+            const auto* pool = static_cast<const TPool*>(parent);
+            enableProfiling = pool->GetConfig()->EnableByUserProfiling.value_or(TreeConfig_->EnableByUserProfiling);
+        } else {
+            enableProfiling = TreeConfig_->EnableByUserProfiling;
+        }
+
+        if (enableProfiling) {
+            auto userProfiler = treeProfiler
+                .WithTag("pool", parent->GetId(), -1)
+                .WithRequiredTag("user_name", GetUserName(), -1);
+
+            if (auto customTag = GetCustomProfilingTag()) {
+                userProfiler = userProfiler.WithTag("custom", *customTag, -1);
+            }
+
+            userProfiler.AddProducer("/operations_by_user", BufferedProducer_);
+        }
+
+        parent = parent->GetParent();
+    }
 }
 
 TFairShareStrategyPackingConfigPtr TOperationElement::GetPackingConfig() const
