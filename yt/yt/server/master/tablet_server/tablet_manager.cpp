@@ -6186,6 +6186,11 @@ private:
         try {
             auto config = CloneYsonSerializable(GetDynamicConfig()->ChunkWriter);
             config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
+            if (GetDynamicConfig()->IncreaseUploadReplicationFactor ||
+                table->GetTabletCellBundle()->GetDynamicOptions()->IncreaseUploadReplicationFactor)
+            {
+                config->UploadReplicationFactor = DefaultReplicationFactor;
+            }
 
             *writerConfig = UpdateYsonSerializable(
                 config,
