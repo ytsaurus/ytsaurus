@@ -30,14 +30,18 @@ TSchedulerPoolProxy::TSchedulerPoolProxy(
 
 TSchedulerPoolProxy::TProxyBasePtr TSchedulerPoolProxy::ResolveNameOrThrow(const TString& name)
 {
-    auto poolTreeName = GetPoolTreeName(GetThisImpl());
+    auto poolTreeName = GetMaybePoolTreeName(GetThisImpl());
+    if (!poolTreeName) {
+        THROW_ERROR_EXCEPTION("Failed to resolve pool tree name");
+    }
+
     const auto& schedulerPoolManager = Bootstrap_->GetSchedulerPoolManager();
-    return GetProxy(schedulerPoolManager->FindPoolTreeOrSchedulerPoolOrThrow(poolTreeName, name));
+    return GetProxy(schedulerPoolManager->FindPoolTreeOrSchedulerPoolOrThrow(*poolTreeName, name));
 }
 
-TString TSchedulerPoolProxy::GetPoolTreeName(const TSchedulerPool* schedulerPool)
+std::optional<TString> TSchedulerPoolProxy::GetMaybePoolTreeName(const TSchedulerPool* schedulerPool)
 {
-    return Bootstrap_->GetSchedulerPoolManager()->GetPoolTreeName(schedulerPool);
+    return Bootstrap_->GetSchedulerPoolManager()->GetMaybePoolTreeName(schedulerPool);
 }
 
 std::unique_ptr<NObjectServer::TNonversionedMapObjectFactoryBase<TSchedulerPool>> TSchedulerPoolProxy::CreateObjectFactory() const
@@ -187,8 +191,12 @@ void TSchedulerPoolProxy::ValidateChildNameAvailability(const TString& newChildN
 {
     TNonversionedMapObjectProxyBase::ValidateChildNameAvailability(newChildName);
 
-    auto poolTreeName = GetPoolTreeName(GetThisImpl());
-    if (Bootstrap_->GetSchedulerPoolManager()->FindSchedulerPoolByName(poolTreeName, newChildName)) {
+    auto poolTreeName = GetMaybePoolTreeName(GetThisImpl());
+    if (!poolTreeName) {
+        THROW_ERROR_EXCEPTION("Failed to resolve pool tree name");
+    }
+
+    if (Bootstrap_->GetSchedulerPoolManager()->FindSchedulerPoolByName(*poolTreeName, newChildName)) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::AlreadyExists,
             "Pool tree %Qv already contains pool with name %Qv",

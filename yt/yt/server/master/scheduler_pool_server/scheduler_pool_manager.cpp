@@ -157,16 +157,18 @@ public:
 
     void RegisterPoolName(const TString& name, TSchedulerPool* schedulerPool)
     {
-        auto poolTreeName = GetPoolTreeName(schedulerPool);
-        auto it = PoolTreeToPoolsMap_.find(poolTreeName);
+        auto maybePoolTreeName = GetMaybePoolTreeName(schedulerPool);
+        YT_VERIFY(maybePoolTreeName);
+        auto it = PoolTreeToPoolsMap_.find(*maybePoolTreeName);
         YT_VERIFY(it != PoolTreeToPoolsMap_.end());
         YT_VERIFY(it->second.emplace(name, schedulerPool).second);
     }
 
     void UnregisterPoolName(const TString& name, TSchedulerPool* schedulerPool)
     {
-        auto poolTreeName = GetPoolTreeName(schedulerPool);
-        auto it = PoolTreeToPoolsMap_.find(poolTreeName);
+        auto maybePoolTreeName = GetMaybePoolTreeName(schedulerPool);
+        YT_VERIFY(maybePoolTreeName);
+        auto it = PoolTreeToPoolsMap_.find(*maybePoolTreeName);
         YT_VERIFY(it != PoolTreeToPoolsMap_.end());
         YT_VERIFY(it->second.erase(name) == 1);
     }
@@ -223,13 +225,17 @@ public:
         }
     }
 
-    TString GetPoolTreeName(const TSchedulerPool* schedulerPool) noexcept
+    std::optional<TString> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept
     {
         while (auto* parent = schedulerPool->GetParent()) {
             schedulerPool = parent;
         }
-        YT_VERIFY(schedulerPool->IsRoot());
-        return schedulerPool->GetMaybePoolTree()->GetTreeName();
+
+        if (!schedulerPool->IsRoot()) {
+            return {};
+        }
+
+        return std::optional(schedulerPool->GetMaybePoolTree()->GetTreeName());
     }
 
 private:
@@ -512,9 +518,9 @@ TSchedulerPool* TSchedulerPoolManager::FindPoolTreeOrSchedulerPoolOrThrow(const 
     return Impl_->FindSchedulerPoolOrRootPoolOrThrow(treeName, name);
 }
 
-TString TSchedulerPoolManager::GetPoolTreeName(const TSchedulerPool* schedulerPool) noexcept
+std::optional<TString> TSchedulerPoolManager::GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept
 {
-    return Impl_->GetPoolTreeName(schedulerPool);
+    return Impl_->GetMaybePoolTreeName(schedulerPool);
 }
 
 TSchedulerPool* TSchedulerPoolManager::CreateSchedulerPool()
