@@ -451,7 +451,7 @@ private:
             }
 
             return AllSucceeded(std::vector<TFuture<void>>{
-                CheckTableExists(),
+                CheckTableAttributes(),
                 CheckBundleHealth()
             });
         }
@@ -461,10 +461,12 @@ private:
             return GetAsyncTabletCellBundleName()
                 .Apply(BIND([client = Client_, clusterName = ClusterName_, bundleHealthCache = BundleHealthCache_] (const TErrorOr<TString>& bundleNameOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
+
                     const auto& bundleName = bundleNameOrError.Value();
                     return bundleHealthCache->Get({client, clusterName, bundleName});
                 })).Apply(BIND([] (const TErrorOr<ETabletCellHealth>& healthOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(healthOrError, "Error getting tablet cell bundle health");
+
                     auto health = healthOrError.Value();
                     if (health != ETabletCellHealth::Good) {
                         THROW_ERROR_EXCEPTION("Bad tablet cell health %Qlv",
@@ -473,14 +475,20 @@ private:
                 }));
         }
 
-        TFuture<void> CheckTableExists()
+        TFuture<void> CheckTableAttributes()
         {
-            return Client_->NodeExists(Path_)
-                .Apply(BIND([] (const TErrorOr<bool>& result) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking table existence");
-                    auto exists = result.Value();
-                    if (!exists) {
-                        THROW_ERROR_EXCEPTION("Table does not exist");
+            TGetNodeOptions options;
+            options.Attributes = {"preload_state"};
+
+            return Client_->GetNode(Path_, options)
+                .Apply(BIND([] (const TErrorOr<TYsonString>& resultOrError) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error checking table attributes");
+
+                    auto resultNode = ConvertToNode(resultOrError.Value());
+                    auto preloadState = resultNode->Attributes().Get<NTabletNode::EStorePreloadState>("preload_state");
+                    if (NTabletNode::EStorePreloadState::Complete != preloadState) {
+                        THROW_ERROR_EXCEPTION("Table preload is not completed yet, actual preload state: %v",
+                            preloadState);
                     }
                 }));
         }
