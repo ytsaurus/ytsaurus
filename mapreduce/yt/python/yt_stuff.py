@@ -283,7 +283,7 @@ class YtStuff(object):
                 "--id", self.yt_id,
                 "--path", os.path.abspath(self.yt_work_dir),
                 "--fqdn", self.config.fqdn,
-                "--rpc-proxy",
+                "--rpc-proxy-count", "1"
             ]
 
             if get_value(self.config.enable_debug_logging, True):
