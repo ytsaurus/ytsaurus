@@ -60,13 +60,13 @@ TString GetString(const TUnversionedValue& row)
 NYTree::INodePtr GetAny(const NTableClient::TUnversionedValue& row)
 {
     EnsureTypesMatch(EValueType::Any, row.Type);
-    return NYTree::ConvertToNode(NYson::TYsonString(row.Data.String, row.Length));
+    return NYTree::ConvertToNode(NYson::TYsonString(TString(row.Data.String, row.Length)));
 }
 
 NYTree::INodePtr GetComposite(const NTableClient::TUnversionedValue& row)
 {
     EnsureTypesMatch(EValueType::Composite, row.Type);
-    return NYTree::ConvertToNode(NYson::TYsonString(row.Data.String, row.Length));
+    return NYTree::ConvertToNode(NYson::TYsonString(TString(row.Data.String, row.Length)));
 }
 
 bool IsNull(const NTableClient::TUnversionedValue& row)

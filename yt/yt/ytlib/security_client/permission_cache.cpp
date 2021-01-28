@@ -54,7 +54,7 @@ bool TPermissionKey::operator == (const TPermissionKey& other) const
 TString ToString(const TPermissionKey& key)
 {
     return Format("%v:%v:%v:%v",
-        key.Object.has_value() ? TStringBuf(*key.Object) : TStringBuf(key.Acl->GetData()),
+        key.Object ? TStringBuf(*key.Object) : key.Acl->AsStringBuf(),
         key.User,
         key.Permission,
         key.Columns);
@@ -175,7 +175,7 @@ NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
         auto typedReq = TMasterYPathProxy::CheckPermissionByAcl();
         typedReq->set_user(key.User);
         typedReq->set_permission(static_cast<int>(key.Permission));
-        typedReq->set_acl(key.Acl->GetData());
+        typedReq->set_acl(key.Acl->ToString());
         typedReq->set_ignore_missing_subjects(true);
         req = std::move(typedReq);
     }

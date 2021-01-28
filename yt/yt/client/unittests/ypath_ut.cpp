@@ -302,7 +302,7 @@ TEST_F(TYPathTest, ParseRichYPath1)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString("{a=b;columns=[a;b]; ranges=[{upper_limit={key=[2]};lower_limit={key=[1]}}]}"))));
+            ConvertToNode(TYsonString(TStringBuf("{a=b;columns=[a;b]; ranges=[{upper_limit={key=[2]};lower_limit={key=[1]}}]}")))));
 }
 
 TEST_F(TYPathTest, ParseRichYPath2)
@@ -312,7 +312,7 @@ TEST_F(TYPathTest, ParseRichYPath2)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString("{a=b}"))));
+            ConvertToNode(TYsonString(TStringBuf("{a=b}")))));
 }
 
 TEST_F(TYPathTest, ParseRichYPath3)
@@ -332,7 +332,7 @@ TEST_F(TYPathTest, ParseRichYPath4)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString("{ranges=[{}]}"))));
+            ConvertToNode(TYsonString(TStringBuf("{ranges=[{}]}")))));
 }
 
 TEST_F(TYPathTest, ParseRichYPath5)
@@ -342,7 +342,8 @@ TEST_F(TYPathTest, ParseRichYPath5)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString("{ranges=[{lower_limit={key=[x;y]};upper_limit={key=[a;b]}}]}"))));
+            ConvertToNode(TYsonString(TStringBuf(
+                "{ranges=[{lower_limit={key=[x;y]};upper_limit={key=[a;b]}}]}")))));
 }
 
 TEST_F(TYPathTest, ParseRichYPath6)
@@ -352,11 +353,11 @@ TEST_F(TYPathTest, ParseRichYPath6)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString(
+            ConvertToNode(TYsonString(TStringBuf(
                 "{ranges=["
                     "{lower_limit={row_index=1};upper_limit={row_index=2}};"
                     "{lower_limit={key=[x]};upper_limit={key=[y]}}"
-                "]}"))));
+                "]}")))));
 }
 
 TEST_F(TYPathTest, ParseRichYPath7)
@@ -366,10 +367,10 @@ TEST_F(TYPathTest, ParseRichYPath7)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString(
+            ConvertToNode(TYsonString(TStringBuf(
                 "{ranges=["
                     "{lower_limit={key=[x]};upper_limit={row_index=1000}};"
-                "]}"))));
+                "]}")))));
 }
 
 TEST_F(TYPathTest, ParseRichYPath8)
@@ -379,7 +380,7 @@ TEST_F(TYPathTest, ParseRichYPath8)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString("{a=b}"))));
+            ConvertToNode(TYsonString(TStringBuf("{a=b}")))));
 }
 
 TEST_F(TYPathTest, ParseRichYPath9)
@@ -748,7 +749,7 @@ public:
 
     static void ExpectEqual(INodePtr node, const TString& ysonString)
     {
-        EXPECT_EQ(ConvertToYsonString(node, EYsonFormat::Text).GetData(), ysonString);
+        EXPECT_EQ(ConvertToYsonString(node, EYsonFormat::Text).AsStringBuf(), ysonString);
     }
 };
 

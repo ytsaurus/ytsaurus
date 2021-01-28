@@ -1011,7 +1011,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
     visitor.Run(TrunkNode_);
     visitor.Finish().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {
-            response->set_value(resultOrError.Value().GetData());
+            response->set_value(resultOrError.Value().ToString());
             context->Reply();
         } else {
             context->Reply(resultOrError);
@@ -2704,7 +2704,7 @@ void TMapNodeProxy::ListSelf(
     writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().GetData());
+                response->set_value(resultOrError.Value().ToString());
                 context->Reply();
             } else {
                 context->Reply(resultOrError);

@@ -90,13 +90,10 @@ void TAsyncYsonWriter::OnRaw(TFuture<TYsonString> asyncStr)
     FlushCurrentSegment();
     AsyncSegments_.push_back(asyncStr.Apply(
         BIND([topLevel = SyncWriter_.GetDepth() == 0, type = Type_] (const TYsonString& ysonStr) {
-            auto str = ysonStr.GetData();
-            if (ysonStr.GetType() == EYsonType::Node) {
-                if (!topLevel || type != EYsonType::Node) {
-                    str += NDetail::ItemSeparatorSymbol;
-                }
-            }
-            return str;
+            return TSegment{
+                ysonStr,
+                ysonStr.GetType() == EYsonType::Node && (!topLevel || type != EYsonType::Node)
+            };
         })));
 }
 
@@ -104,16 +101,22 @@ TFuture<TYsonString> TAsyncYsonWriter::Finish(IInvokerPtr invoker)
 {
     FlushCurrentSegment();
 
-    auto callback = BIND([type = Type_] (std::vector<TString>&& segments) {
+    auto callback = BIND([type = Type_] (std::vector<TSegment>&& segments) {
         size_t length = 0;
-        for (const auto& segment : segments) {
-            length += segment.length();
+        for (const auto& [ysonStr, trailingSeparator] : segments) {
+            length += ysonStr.AsStringBuf().length();
+            if (trailingSeparator) {
+                length += 1;
+            }
         }
 
         TString result;
         result.reserve(length);
-        for (const auto& segment : segments) {
-            result.append(segment);
+        for (const auto& [ysonStr, trailingSeparator] : segments) {
+            result.append(ysonStr.AsStringBuf());
+            if (trailingSeparator) {
+                result.append(NDetail::ItemSeparatorSymbol);
+            }
         }
 
         return TYsonString(result, type);
@@ -131,7 +134,7 @@ void TAsyncYsonWriter::FlushCurrentSegment()
 {
     SyncWriter_.Flush();
     if (!Stream_.Str().empty()) {
-        AsyncSegments_.push_back(MakeFuture(Stream_.Str()));
+        AsyncSegments_.push_back(MakeFuture(TSegment{Stream_.Str(), false}));
         Stream_.Str().clear();
     }
 }

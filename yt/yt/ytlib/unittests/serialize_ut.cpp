@@ -16,7 +16,8 @@ using namespace NSecurityClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 template<typename TOriginal, typename TResult = TOriginal>
-void TestSerializationDeserialization(const TOriginal& original) {
+void TestSerializationDeserialization(const TOriginal& original)
+{
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<TResult>(yson);
     EXPECT_EQ(original, deserialized);
@@ -24,11 +25,12 @@ void TestSerializationDeserialization(const TOriginal& original) {
 
 // TODO(levysotsky): Consider uniting this function with the previous one
 // when all types are pull-parser-deserializable.
-template<typename TOriginal, typename TResult = TOriginal>
-void TestSerializationDeserializationPullParser(const TOriginal& original) {
+template <typename TOriginal, typename TResult = TOriginal>
+void TestSerializationDeserializationPullParser(const TOriginal& original)
+{
     auto yson = ConvertToYsonString(original);
     TResult deserialized;
-    TMemoryInput input(yson.GetData());
+    TMemoryInput input(yson.AsStringBuf());
     TYsonPullParser parser(&input, EYsonType::Node);
     TYsonPullParserCursor cursor(&parser);
     Deserialize(deserialized, &cursor);

@@ -564,27 +564,27 @@ void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operati
     }
 
     if (operation.BriefSpec) {
-        protoOperation->set_brief_spec(operation.BriefSpec.GetData());
+        protoOperation->set_brief_spec(operation.BriefSpec.ToString());
     }
     if (operation.Spec) {
-        protoOperation->set_spec(operation.Spec.GetData());
+        protoOperation->set_spec(operation.Spec.ToString());
     }
     if (operation.FullSpec) {
-        protoOperation->set_full_spec(operation.FullSpec.GetData());
+        protoOperation->set_full_spec(operation.FullSpec.ToString());
     }
     if (operation.UnrecognizedSpec) {
-        protoOperation->set_unrecognized_spec(operation.UnrecognizedSpec.GetData());
+        protoOperation->set_unrecognized_spec(operation.UnrecognizedSpec.ToString());
     }
 
     if (operation.BriefProgress) {
-        protoOperation->set_brief_progress(operation.BriefProgress.GetData());
+        protoOperation->set_brief_progress(operation.BriefProgress.ToString());
     }
     if (operation.Progress) {
-        protoOperation->set_progress(operation.Progress.GetData());
+        protoOperation->set_progress(operation.Progress.ToString());
     }
 
     if (operation.RuntimeParameters) {
-        protoOperation->set_runtime_parameters(operation.RuntimeParameters.GetData());
+        protoOperation->set_runtime_parameters(operation.RuntimeParameters.ToString());
     }
 
     if (operation.Suspended) {
@@ -592,18 +592,18 @@ void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operati
     }
 
     if (operation.Events) {
-        protoOperation->set_events(operation.Events.GetData());
+        protoOperation->set_events(operation.Events.ToString());
     }
     if (operation.Result) {
-        protoOperation->set_result(operation.Result.GetData());
+        protoOperation->set_result(operation.Result.ToString());
     }
 
     if (operation.SlotIndexPerPoolTree) {
-        protoOperation->set_slot_index_per_pool_tree(operation.SlotIndexPerPoolTree.GetData());
+        protoOperation->set_slot_index_per_pool_tree(operation.SlotIndexPerPoolTree.ToString());
     }
 
     if (operation.TaskNames) {
-        protoOperation->set_task_names(operation.TaskNames.GetData());
+        protoOperation->set_task_names(operation.TaskNames.ToString());
     }
 }
 
@@ -757,16 +757,16 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     }
 
     if (job.Error) {
-        protoJob->set_error(job.Error.GetData());
+        protoJob->set_error(job.Error.ToString());
     }
     if (job.BriefStatistics) {
-        protoJob->set_brief_statistics(job.BriefStatistics.GetData());
+        protoJob->set_brief_statistics(job.BriefStatistics.ToString());
     }
     if (job.InputPaths) {
-        protoJob->set_input_paths(job.InputPaths.GetData());
+        protoJob->set_input_paths(job.InputPaths.ToString());
     }
     if (job.CoreInfos) {
-        protoJob->set_core_infos(job.CoreInfos.GetData());
+        protoJob->set_core_infos(job.CoreInfos.ToString());
     }
     if (job.JobCompetitionId) {
         ToProto(protoJob->mutable_job_competition_id(), job.JobCompetitionId);
@@ -778,7 +778,7 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
         protoJob->set_is_stale(*job.IsStale);
     }
     if (job.ExecAttributes) {
-        protoJob->set_exec_attributes(job.ExecAttributes.GetData());
+        protoJob->set_exec_attributes(job.ExecAttributes.ToString());
     }
     if (job.TaskName) {
         protoJob->set_task_name(*job.TaskName);

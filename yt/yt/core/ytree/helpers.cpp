@@ -221,7 +221,7 @@ void ToProto(NProto::TAttributeDictionary* protoAttributes, const IAttributeDict
     for (const auto& [key, value] : pairs) {
         auto* protoAttribute = protoAttributes->add_attributes();
         protoAttribute->set_key(key);
-        protoAttribute->set_value(value.GetData());
+        protoAttribute->set_value(value.ToString());
     }
 }
 

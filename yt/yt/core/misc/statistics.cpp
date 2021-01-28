@@ -143,7 +143,7 @@ void TStatistics::AddSample(const NYPath::TYPath& path, const INodePtr& sample)
         default:
             THROW_ERROR_EXCEPTION(
                 "Invalid statistics type: expected map or integral type but found %v of type %v",
-                ConvertToYsonString(sample, EYsonFormat::Text).GetData(),
+                ConvertToYsonString(sample, EYsonFormat::Text).AsStringBuf(),
                 sample->GetType());
     }
 }

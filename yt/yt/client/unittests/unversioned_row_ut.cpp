@@ -73,8 +73,8 @@ TEST(TUnversionedValue, TestConversionToYsonTokenWriter)
                     .Value(2)
             .EndMap();
         EXPECT_TRUE(AreNodesEqual(parsed, expected))
-            << "parsed: " << ConvertToYsonString(parsed, EYsonFormat::Pretty).GetData()
-            << "\nexpected: " << ConvertToYsonString(expected, EYsonFormat::Pretty).GetData();
+            << "parsed: " << ConvertToYsonString(parsed, EYsonFormat::Pretty).AsStringBuf()
+            << "\nexpected: " << ConvertToYsonString(expected, EYsonFormat::Pretty).AsStringBuf();
     }
 }
 
@@ -111,7 +111,7 @@ TEST(TMakeUnversionedOwningRow, SingleValue)
     CheckSingleValue(TString("hello"));
     CheckSingleValue(TStringBuf("hello"));
     CheckSingleValue(true);
-    CheckSingleValue(TYsonString("{a=1}"));
+    CheckSingleValue(TYsonString(TStringBuf("{a=1}")));
     CheckSingleValue(static_cast<i64>(-123));
     CheckSingleValue(static_cast<ui64>(123));
     CheckSingleValue(static_cast<i32>(-17));

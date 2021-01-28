@@ -591,7 +591,7 @@ void TSupportsAttributes::GetAttribute(
             context->Reply(ysonOrError);
             return;
         }
-        response->set_value(ysonOrError.Value().GetData());
+        response->set_value(ysonOrError.Value().ToString());
         context->Reply();
     }));
 }
@@ -685,7 +685,7 @@ void TSupportsAttributes::ListAttribute(
 
     DoListAttribute(path).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (ysonOrError.IsOK()) {
-            response->set_value(ysonOrError.Value().GetData());
+            response->set_value(ysonOrError.Value().ToString());
             context->Reply();
         } else {
             context->Reply(ysonOrError);

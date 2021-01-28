@@ -315,10 +315,9 @@ void TLocation::Disable(const TError& reason)
     // Location will be disabled during the scan in the restart process.
     auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
     try {
-        auto errorData = ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).GetData();
         TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
         TUnbufferedFileOutput fileOutput(file);
-        fileOutput << errorData;
+        fileOutput << ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).AsStringBuf();
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Error creating location lock file");
         // Exit anyway.

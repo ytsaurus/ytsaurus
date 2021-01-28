@@ -136,19 +136,17 @@ void TInputChunkMapping::ValidateSortedChunkConsistency(
 
         TYsonString oldBoundaryKeysYson;
         if (oldBoundaryKeys) {
-            oldBoundaryKeysYson = TYsonString(BuildYsonStringFluently()
-                .Value(*oldBoundaryKeys)
-                .GetData());
+            oldBoundaryKeysYson = BuildYsonStringFluently()
+                .Value(*oldBoundaryKeys);
         } else {
-            oldBoundaryKeysYson = TYsonString("#");
+            oldBoundaryKeysYson = TYsonString(TStringBuf("#"));
         }
         TYsonString newBoundaryKeysYson;
         if (newBoundaryKeys) {
-            newBoundaryKeysYson = TYsonString(BuildYsonStringFluently()
-                .Value(*newBoundaryKeys)
-                .GetData());
+            newBoundaryKeysYson = BuildYsonStringFluently()
+                .Value(*newBoundaryKeys);
         } else {
-            newBoundaryKeysYson = TYsonString("#");
+            newBoundaryKeysYson = TYsonString(TStringBuf("#"));
         }
         THROW_ERROR_EXCEPTION("Corresponding chunks in old and new stripes have different boundary keys")
             << TErrorAttribute("old_chunk_id", oldChunk->ChunkId())

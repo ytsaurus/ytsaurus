@@ -143,7 +143,7 @@ void BuildFileSpecs(
                     descriptor->set_executable(file.Executable);
                     break;
                 case EObjectType::Table:
-                    descriptor->set_format(file.Format.GetData());
+                    descriptor->set_format(file.Format.ToString());
                     break;
                 default:
                     YT_ABORT();

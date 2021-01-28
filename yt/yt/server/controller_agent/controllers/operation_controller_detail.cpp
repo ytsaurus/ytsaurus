@@ -1736,7 +1736,7 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
 
         auto path = GetOperationPath(OperationId) + "/@output_completion_transaction_id";
         auto req = TYPathProxy::Set(path);
-        req->set_value(ConvertToYsonString(OutputCompletionTransaction->GetId()).GetData());
+        req->set_value(ConvertToYsonString(OutputCompletionTransaction->GetId()).ToString());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
@@ -1753,7 +1753,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
         auto path = GetOperationPath(OperationId) + "/@committed";
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, OutputCompletionTransaction ? OutputCompletionTransaction->GetId() : NullTransactionId);
-        req->set_value(ConvertToYsonString(true).GetData());
+        req->set_value(ConvertToYsonString(true).ToString());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
@@ -1796,7 +1796,7 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
 
         auto path = GetOperationPath(OperationId) + "/@debug_completion_transaction_id";
         auto req = TYPathProxy::Set(path);
-        req->set_value(ConvertToYsonString(DebugCompletionTransaction->GetId()).GetData());
+        req->set_value(ConvertToYsonString(DebugCompletionTransaction->GetId()).ToString());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
@@ -2397,13 +2397,13 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                 if (table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core) {
                     auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@part_size");
                     SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
-                    req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
+                    req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).ToString());
                     batchReq->AddRequest(req);
                 }
                 if (table->OutputType == EOutputTableType::Core) {
                     auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@sparse");
                     SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
-                    req->set_value(ConvertToYsonString(true).GetData());
+                    req->set_value(ConvertToYsonString(true).ToString());
                     batchReq->AddRequest(req);
                 }
             }
@@ -2974,7 +2974,7 @@ void TOperationControllerBase::BuildJobAttributes(
     i64 stderrSize,
     TFluentMap fluent) const
 {
-    static const auto EmptyMapYson = TYsonString("{}");
+    static const auto EmptyMapYson = TYsonString(TStringBuf("{}"));
 
     fluent
         .Item("job_type").Value(job->JobType)
@@ -4267,7 +4267,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
             joblet);
     }
 
-    schedulerJobSpecExt->set_acl(ConvertToYsonString(Acl).GetData());
+    schedulerJobSpecExt->set_acl(ConvertToYsonString(Acl).ToString());
 }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
@@ -5845,7 +5845,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
                 if (table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
                     auto overlappingStoreCount = TryGetInt64(
-                        attributes->GetYson("tablet_statistics").GetData(),
+                        attributes->GetYson("tablet_statistics").ToString(),
                         "/overlapping_store_count");
                     if (!overlappingStoreCount) {
                         THROW_ERROR_EXCEPTION("Output table %v does not have @tablet_statistics/overlapping_store_count attribute",
@@ -5893,7 +5893,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
             YT_LOG_INFO("Output table attributes fetched (Path: %v, Options: %v, UploadTransactionId: %v)",
                 path,
-                ConvertToYsonString(table->TableWriterOptions, EYsonFormat::Text).GetData(),
+                ConvertToYsonString(table->TableWriterOptions, EYsonFormat::Text).ToString(),
                 table->UploadTransactionId);
         }
     }
@@ -8305,8 +8305,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             outputFormat = *config->OutputFormat;
         }
 
-        jobSpec->set_input_format(ConvertToYsonString(inputFormat).GetData());
-        jobSpec->set_output_format(ConvertToYsonString(outputFormat).GetData());
+        jobSpec->set_input_format(ConvertToYsonString(inputFormat).ToString());
+        jobSpec->set_output_format(ConvertToYsonString(outputFormat).ToString());
     }
 
     jobSpec->set_enable_gpu_layers(config->EnableGpuLayers);
@@ -8453,13 +8453,13 @@ void TOperationControllerBase::AddStderrOutputSpecs(
 {
     auto* stderrTableSpec = jobSpec->mutable_stderr_table_spec();
     auto* outputSpec = stderrTableSpec->mutable_output_table_spec();
-    outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable_->TableWriterOptions).GetData());
+    outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable_->TableWriterOptions).ToString());
     outputSpec->set_table_schema(SerializeToWireProto(StderrTable_->TableUploadOptions.TableSchema));
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->StderrTableChunkListId);
 
     auto writerConfig = GetStderrTableWriterConfig();
     YT_VERIFY(writerConfig);
-    stderrTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).GetData());
+    stderrTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).ToString());
 }
 
 void TOperationControllerBase::AddCoreOutputSpecs(
@@ -8468,13 +8468,13 @@ void TOperationControllerBase::AddCoreOutputSpecs(
 {
     auto* coreTableSpec = jobSpec->mutable_core_table_spec();
     auto* outputSpec = coreTableSpec->mutable_output_table_spec();
-    outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable_->TableWriterOptions).GetData());
+    outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable_->TableWriterOptions).ToString());
     outputSpec->set_table_schema(SerializeToWireProto(CoreTable_->TableUploadOptions.TableSchema));
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->CoreTableChunkListId);
 
     auto writerConfig = GetCoreTableWriterConfig();
     YT_VERIFY(writerConfig);
-    coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).GetData());
+    coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).ToString());
 }
 
 i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
@@ -8812,7 +8812,7 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         auto* schedulerJobSpecExt = AutoMergeJobSpecTemplates_[tableIndex]
             .MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_table_reader_options(
-            ConvertToYsonString(CreateTableReaderOptions(Spec_->AutoMerge->JobIO)).GetData());
+            ConvertToYsonString(CreateTableReaderOptions(Spec_->AutoMerge->JobIO)).ToString());
 
         auto dataSourceDirectory = New<TDataSourceDirectory>();
         // NB: chunks read by auto-merge jobs have table index set to output table index,
@@ -8827,7 +8827,7 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         NChunkClient::NProto::TDataSourceDirectoryExt dataSourceDirectoryExt;
         ToProto(&dataSourceDirectoryExt, dataSourceDirectory);
         SetProtoExtension(schedulerJobSpecExt->mutable_extensions(), dataSourceDirectoryExt);
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).GetData());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->AutoMerge->JobIO).ToString());
     }
 }
 

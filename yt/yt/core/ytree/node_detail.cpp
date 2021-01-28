@@ -63,7 +63,7 @@ void TNodeBase::GetSelf(
     writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().GetData());
+                response->set_value(resultOrError.Value().ToString());
                 context->Reply();
             } else {
                 context->Reply(resultOrError);
@@ -100,7 +100,7 @@ void TNodeBase::GetKeySelf(
     }
 
     context->SetResponseInfo("Key: %v", key);
-    response->set_value(ConvertToYsonString(key).GetData());
+    response->set_value(ConvertToYsonString(key).ToString());
 
     context->Reply();
 }
@@ -343,7 +343,7 @@ void TMapNodeMixin::ListSelf(
     writer.Finish(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().GetData());
+                response->set_value(resultOrError.Value().ToString());
                 context->Reply();
             } else {
                 context->Reply(resultOrError);

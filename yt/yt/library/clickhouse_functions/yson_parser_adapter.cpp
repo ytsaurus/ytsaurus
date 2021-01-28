@@ -12,8 +12,9 @@ using namespace NYTree;
 bool TYsonParserAdapter::Object::find(const std::string_view & key, Element & result) const
 {
     auto child = MapNode_->FindChild(TString(key));
-    if (!child)
+    if (!child) {
         return false;
+    }
     result = child;
     return true;
 }
@@ -32,22 +33,19 @@ TYsonParserAdapter::Object::Iterator TYsonParserAdapter::Object::end() const
 
 std::shared_ptr<std::vector<std::pair<TString, NYTree::INodePtr>>> TYsonParserAdapter::Object::GetKeyValuePairs() const
 {
-    if (!KeyValuePairs_)
+    if (!KeyValuePairs_) {
         KeyValuePairs_ = std::make_shared<std::vector<std::pair<TString, NYTree::INodePtr>>>(MapNode_->GetChildren());
+    }
     return KeyValuePairs_;
 }
 
-bool TYsonParserAdapter::parse(const std::string_view & yson, Element & result)
+bool TYsonParserAdapter::parse(const std::string_view& yson, Element& result)
 {
-    try
-    {
-        TYsonStringBuf ysonString(yson.data(), yson.size());
-        Root_ = ConvertToNode(ysonString);
+    try {
+        Root_ = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data(), yson.size())));
         result = Root_;
         return true;
-    }
-    catch (const std::exception& /* ex */)
-    {
+    } catch (const std::exception& /* ex */) {
         return false;
     }
 }

@@ -202,7 +202,7 @@ private:
             for (const auto& [key, child] : mapNode->GetChildren()) {
                 auto* protoItem = protoClusterDirectory->add_items();
                 protoItem->set_name(key);
-                protoItem->set_config(ConvertToYsonString(child).GetData());
+                protoItem->set_config(ConvertToYsonString(child).ToString());
             }
         }
 
@@ -261,7 +261,7 @@ private:
         if (populateFeatures) {
             const auto& configManager = Bootstrap_->GetConfigManager();
             const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
-            response->set_features(CreateFeatureRegistryYson(chunkManagerConfig->DeprecatedCodecIds).GetData());
+            response->set_features(CreateFeatureRegistryYson(chunkManagerConfig->DeprecatedCodecIds).ToString());
         }
 
         context->Reply();

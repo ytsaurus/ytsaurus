@@ -63,10 +63,10 @@ void FromProto(NControllerAgent::TControllerTransactionIds* transactionIds, cons
 
 void ToProto(NProto::TInitializeOperationResult* resultProto, const TOperationControllerInitializeResult& result)
 {
-    resultProto->set_mutable_attributes(result.Attributes.Mutable.GetData());
-    resultProto->set_brief_spec(result.Attributes.BriefSpec.GetData());
-    resultProto->set_full_spec(result.Attributes.FullSpec.GetData());
-    resultProto->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.GetData());
+    resultProto->set_mutable_attributes(result.Attributes.Mutable.ToString());
+    resultProto->set_brief_spec(result.Attributes.BriefSpec.ToString());
+    resultProto->set_full_spec(result.Attributes.FullSpec.ToString());
+    resultProto->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.ToString());
     ToProto(resultProto->mutable_transaction_ids(), result.TransactionIds);
 }
 
@@ -75,7 +75,7 @@ void ToProto(NProto::TInitializeOperationResult* resultProto, const TOperationCo
 void ToProto(NProto::TPrepareOperationResult* resultProto, const TOperationControllerPrepareResult& result)
 {
     if (result.Attributes) {
-        resultProto->set_attributes(result.Attributes.GetData());
+        resultProto->set_attributes(result.Attributes.ToString());
     }
 }
 
@@ -92,7 +92,7 @@ void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationC
 
 void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationControllerReviveResult& result)
 {
-    resultProto->set_attributes(result.Attributes.GetData());
+    resultProto->set_attributes(result.Attributes.ToString());
     resultProto->set_revived_from_snapshot(result.RevivedFromSnapshot);
     for (const auto& job : result.RevivedJobs) {
         auto* jobProto = resultProto->add_revived_jobs();

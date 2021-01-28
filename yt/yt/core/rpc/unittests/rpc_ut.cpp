@@ -460,7 +460,8 @@ TYPED_TEST(TRpcTest, Send)
 TYPED_TEST(TRpcTest, RetryingSend)
 {
     auto config = New<TRetryingChannelConfig>();
-    config->Load(ConvertTo<NYTree::INodePtr>(TYsonString("{retry_backoff_time=10}")));
+    config->Load(ConvertTo<INodePtr>(TYsonString(TStringBuf(
+        "{retry_backoff_time=10}"))));
 
     IChannelPtr channel = CreateRetryingChannel(
         std::move(config),
@@ -753,15 +754,14 @@ TYPED_TEST(TNotGrpcTest, LaggyStreamingRequest)
 
 TYPED_TEST(TNotGrpcTest, VeryLaggyStreamingRequest)
 {
-    auto configText = R"({
+    auto configText = TString(R"({
         services = {
             MyService = {
                 pending_payloads_timeout = 250;
             };
         };
-    })";
-    auto config = NYTree::ConvertTo<TServerConfigPtr>(
-        NYson::TYsonString(configText));
+    })");
+    auto config = ConvertTo<TServerConfigPtr>(TYsonString(configText));
     this->Server_->Configure(config);
 
     TMyProxy proxy(this->CreateChannel());

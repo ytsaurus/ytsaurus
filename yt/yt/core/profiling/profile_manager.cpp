@@ -421,7 +421,7 @@ private:
                             .EndMap()
                             .Item("metric_type").Value(sample.MetricType)
                         .EndMap();
-                }).GetData());
+                }).ToString());
 
             context->Reply();
         }

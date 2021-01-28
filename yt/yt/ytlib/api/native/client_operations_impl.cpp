@@ -18,8 +18,8 @@ TOperationId TClient::DoStartOperation(
     auto req = SchedulerProxy_->StartOperation();
     SetTransactionId(req, options, true);
     SetMutationId(req, options);
-    req->set_type(static_cast<int>(type));
-    req->set_spec(spec.GetData());
+    req->set_type(ToProto<int>(type));
+    req->set_spec(spec.ToString());
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -82,7 +82,7 @@ void TClient::DoUpdateOperationParameters(
 {
     auto req = SchedulerProxy_->UpdateOperationParameters();
     ToProto(req, operationIdOrAlias);
-    req->set_parameters(parameters.GetData());
+    req->set_parameters(parameters.ToString());
 
     WaitFor(req->Invoke())
         .ThrowOnError();

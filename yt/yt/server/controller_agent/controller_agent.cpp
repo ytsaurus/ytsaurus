@@ -1396,7 +1396,7 @@ private:
                 }
 
                 if (preparedRequest.SuspiciousJobsSent) {
-                    protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().GetData());
+                    protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().ToString());
                 }
 
                 protoOperation->set_pending_job_count(controller->GetPendingJobCount());

@@ -62,7 +62,7 @@ INodePtr DownloadClusterConnection(
                     .EndAttributes()
                     .Value("yson")
             .EndMap()
-            .GetData());
+            .ToString());
 
     auto path = remoteClusterProxyAddress + "/api/v4/get?path=//sys/@cluster_connection";
     auto rsp = WaitFor(client->Get(path, headers))

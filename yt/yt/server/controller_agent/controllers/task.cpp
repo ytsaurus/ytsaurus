@@ -1220,9 +1220,9 @@ void TTask::AddOutputTableSpecs(
     for (int index = 0; index < streamDescriptors.size(); ++index) {
         const auto& streamDescriptor = streamDescriptors[index];
         auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
-        outputSpec->set_table_writer_options(ConvertToYsonString(streamDescriptor.TableWriterOptions).GetData());
+        outputSpec->set_table_writer_options(ConvertToYsonString(streamDescriptor.TableWriterOptions).ToString());
         if (streamDescriptor.TableWriterConfig) {
-            outputSpec->set_table_writer_config(streamDescriptor.TableWriterConfig.GetData());
+            outputSpec->set_table_writer_config(streamDescriptor.TableWriterConfig.ToString());
         }
         const auto& outputTableSchema = streamDescriptor.TableUploadOptions.TableSchema;
         outputSpec->set_table_schema(GetOrCacheSerializedSchema(outputTableSchema));
@@ -1340,7 +1340,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
             ApproximateSizesBoostFactor));
     }
 
-    schedulerJobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor).GetData());
+    schedulerJobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor).ToString());
 
     if (schedulerJobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
         auto error = TError(

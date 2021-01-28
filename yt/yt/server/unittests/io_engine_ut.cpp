@@ -41,7 +41,7 @@ TEST_P(TReadWriteTest, Simple)
     const auto& args = GetParam();
     const auto& type = std::get<0>(args);
     const auto config = NYTree::ConvertTo<NYTree::INodePtr>(
-        NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
+        NYson::TYsonString(TString(std::get<1>(args))));
 
     auto engine = CreateIOEngine(type, config);
     TString fName = GenerateRandomFileName("IOEngineTestWrite");
@@ -90,7 +90,7 @@ TEST_P(TReadWriteTest, ReadAll)
     const auto& args = GetParam();
     const auto& type = std::get<0>(args);
     const auto config = NYTree::ConvertTo<NYTree::INodePtr>(
-        NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
+        NYson::TYsonString(TString(std::get<1>(args))));
 
     auto engine = CreateIOEngine(type, config);
     TString fName = GenerateRandomFileName("IOEngineTestReadAll");

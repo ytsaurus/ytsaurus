@@ -114,7 +114,7 @@ bool TChunkTreeStatistics::operator != (const TChunkTreeStatistics& other) const
 
 TString ToString(const TChunkTreeStatistics& statistics)
 {
-    return ConvertToYsonString(statistics, EYsonFormat::Text).GetData();
+    return ConvertToYsonString(statistics, EYsonFormat::Text).ToString();
 }
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer, const TChunkManagerPtr& chunkManager)

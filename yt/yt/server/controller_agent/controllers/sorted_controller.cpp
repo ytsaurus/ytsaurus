@@ -829,10 +829,10 @@ public:
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::SortedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         auto* mergeJobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
         SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
 
         ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(PrimarySortColumns_));
         ToProto(mergeJobSpecExt->mutable_sort_columns(), PrimarySortColumns_);
@@ -1030,11 +1030,11 @@ public:
 
         JobSpecTemplate_.set_type(static_cast<int>(GetJobType()));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).GetData());
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
         SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).GetData());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
 
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),

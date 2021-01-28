@@ -42,8 +42,8 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
     protoSpec->set_subquery_index(spec.SubqueryIndex);
     protoSpec->set_table_index(spec.TableIndex);
     protoSpec->set_initial_query(spec.InitialQuery);
-    protoSpec->set_table_reader_config(ConvertToYsonString(spec.TableReaderConfig).GetData());
-    protoSpec->set_query_settings(ConvertToYsonString(spec.QuerySettings).GetData());
+    protoSpec->set_table_reader_config(ConvertToYsonString(spec.TableReaderConfig).ToString());
+    protoSpec->set_query_settings(ConvertToYsonString(spec.QuerySettings).ToString());
 }
 
 void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)

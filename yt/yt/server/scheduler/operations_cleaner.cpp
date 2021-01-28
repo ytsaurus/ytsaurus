@@ -195,7 +195,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     parts.push_back(FormatEnum(request.State));
     parts.push_back(FormatEnum(request.OperationType));
     if (auto node = runtimeParametersMapNode->FindChild("annotations")) {
-        parts.push_back(ConvertToYsonString(node, EYsonFormat::Text).GetData());
+        parts.push_back(ConvertToYsonString(node, EYsonFormat::Text).ToString());
     }
 
     for (const auto& key : {"pool", "title"}) {
@@ -241,7 +241,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
 bool HasFailedJobs(const TYsonString& briefProgress)
 {
     YT_VERIFY(briefProgress);
-    auto failedJobs = NYTree::TryGetInt64(briefProgress.GetData(), "/jobs/failed");
+    auto failedJobs = NYTree::TryGetInt64(briefProgress.AsStringBuf(), "/jobs/failed");
     return failedJobs && *failedJobs > 0;
 }
 
@@ -250,7 +250,7 @@ bool HasFailedJobs(const TYsonString& briefProgress)
 bool NeedProgressInRequest(const TYsonString& progress)
 {
     YT_VERIFY(progress);
-    auto stateString = NYTree::TryGetString(progress.GetData(), "/state");
+    auto stateString = NYTree::TryGetString(progress.AsStringBuf(), "/state");
     if (!stateString) {
         return false;
     }
@@ -277,42 +277,42 @@ TUnversionedRow BuildOrderedByIdTableRow(
     builder.AddValue(MakeUnversionedStringValue(request.AuthenticatedUser, index.AuthenticatedUser));
     builder.AddValue(MakeUnversionedStringValue(operationType, index.OperationType));
     if (request.Progress && NeedProgressInRequest(request.Progress)) {
-        builder.AddValue(MakeUnversionedAnyValue(request.Progress.GetData(), index.Progress));
+        builder.AddValue(MakeUnversionedAnyValue(request.Progress.AsStringBuf(), index.Progress));
     }
     if (request.BriefProgress && NeedProgressInRequest(request.BriefProgress)) {
-        builder.AddValue(MakeUnversionedAnyValue(request.BriefProgress.GetData(), index.BriefProgress));
+        builder.AddValue(MakeUnversionedAnyValue(request.BriefProgress.AsStringBuf(), index.BriefProgress));
     }
-    builder.AddValue(MakeUnversionedAnyValue(request.Spec.GetData(), index.Spec));
+    builder.AddValue(MakeUnversionedAnyValue(request.Spec.AsStringBuf(), index.Spec));
     if (request.BriefSpec) {
-        builder.AddValue(MakeUnversionedAnyValue(request.BriefSpec.GetData(), index.BriefSpec));
+        builder.AddValue(MakeUnversionedAnyValue(request.BriefSpec.AsStringBuf(), index.BriefSpec));
     }
     builder.AddValue(MakeUnversionedInt64Value(request.StartTime.MicroSeconds(), index.StartTime));
     builder.AddValue(MakeUnversionedInt64Value(request.FinishTime.MicroSeconds(), index.FinishTime));
     builder.AddValue(MakeUnversionedStringValue(filterFactors, index.FilterFactors));
-    builder.AddValue(MakeUnversionedAnyValue(request.Result.GetData(), index.Result));
-    builder.AddValue(MakeUnversionedAnyValue(request.Events.GetData(), index.Events));
+    builder.AddValue(MakeUnversionedAnyValue(request.Result.AsStringBuf(), index.Result));
+    builder.AddValue(MakeUnversionedAnyValue(request.Events.AsStringBuf(), index.Events));
     if (request.Alerts) {
-        builder.AddValue(MakeUnversionedAnyValue(request.Alerts.GetData(), index.Alerts));
+        builder.AddValue(MakeUnversionedAnyValue(request.Alerts.AsStringBuf(), index.Alerts));
     }
     if (version >= 17) {
         if (request.UnrecognizedSpec) {
-            builder.AddValue(MakeUnversionedAnyValue(request.UnrecognizedSpec.GetData(), index.UnrecognizedSpec));
+            builder.AddValue(MakeUnversionedAnyValue(request.UnrecognizedSpec.AsStringBuf(), index.UnrecognizedSpec));
         }
         if (request.FullSpec) {
-            builder.AddValue(MakeUnversionedAnyValue(request.FullSpec.GetData(), index.FullSpec));
+            builder.AddValue(MakeUnversionedAnyValue(request.FullSpec.AsStringBuf(), index.FullSpec));
         }
     }
 
     if (version >= 22 && request.RuntimeParameters) {
-        builder.AddValue(MakeUnversionedAnyValue(request.RuntimeParameters.GetData(), index.RuntimeParameters));
+        builder.AddValue(MakeUnversionedAnyValue(request.RuntimeParameters.AsStringBuf(), index.RuntimeParameters));
     }
 
     if (version >= 27 && request.SlotIndexPerPoolTree) {
-        builder.AddValue(MakeUnversionedAnyValue(request.SlotIndexPerPoolTree.GetData(), index.SlotIndexPerPoolTree));
+        builder.AddValue(MakeUnversionedAnyValue(request.SlotIndexPerPoolTree.AsStringBuf(), index.SlotIndexPerPoolTree));
     }
 
     if (version >= 35 && request.TaskNames) {
-        builder.AddValue(MakeUnversionedAnyValue(request.TaskNames.GetData(), index.TaskNames));
+        builder.AddValue(MakeUnversionedAnyValue(request.TaskNames.AsStringBuf(), index.TaskNames));
     }
 
     return rowBuffer->Capture(builder.GetRow());
@@ -352,7 +352,7 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
 
     if (version >= 24) {
         if (pools) {
-            builder.AddValue(MakeUnversionedAnyValue(pools.GetData(), index.Pools));
+            builder.AddValue(MakeUnversionedAnyValue(pools.AsStringBuf(), index.Pools));
         }
         if (request.BriefProgress) {
             builder.AddValue(MakeUnversionedBooleanValue(HasFailedJobs(request.BriefProgress), index.HasFailedJobs));
@@ -360,7 +360,7 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     }
 
     if (version >= 30 && acl) {
-        builder.AddValue(MakeUnversionedAnyValue(acl.GetData(), index.Acl));
+        builder.AddValue(MakeUnversionedAnyValue(acl.AsStringBuf(), index.Acl));
     }
 
     return rowBuffer->Capture(builder.GetRow());
@@ -1203,7 +1203,7 @@ private:
 
         auto operations = FetchOperationsFromCypressForCleaner(
             listOperationsResult.OperationsToArchive,
-            createBatchRequest, 
+            createBatchRequest,
             Config_->ParseOperationAttributesBatchSize);
 
         // Controller agent reports brief_progress only to archive,
@@ -1371,7 +1371,7 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
             for (int index = startIndex; index < std::min(operationCount, startIndex + parseOperationAttributesBatchSize); ++index) {
                 operationDataToParseBatch.push_back({TYsonString(rsps[index].Value()->value()), operationIds[index]});
             }
-            
+
             futures.push_back(process_batch
                 .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
                 .Run(std::move(operationDataToParseBatch))

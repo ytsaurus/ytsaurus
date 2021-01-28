@@ -48,7 +48,7 @@ TEST_P(TWriteFileChunkTest, Simple)
     const auto& args = GetParam();
     const auto& type = std::get<0>(args);
     const auto config = NYTree::ConvertTo<NYTree::INodePtr>(
-        NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
+        NYson::TYsonString(TString(std::get<1>(args))));
 
     auto engine = CreateIOEngine(type, config);
     auto fileName = GenerateRandomFileName("TFileWriterTest");
@@ -95,7 +95,7 @@ TEST_P(TWriteFileChunkTest, Specific)
     const auto& args = GetParam();
     const auto& type = std::get<0>(args);
     const auto config = NYTree::ConvertTo<NYTree::INodePtr>(
-        NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
+        NYson::TYsonString(TString(std::get<1>(args))));
 
     auto engine = CreateIOEngine(type, config);
     auto fileName = GenerateRandomFileName("TFileWriterTestSpecific");
@@ -136,7 +136,7 @@ TEST_P(TWriteFileChunkTest, Random)
     const auto& args = GetParam();
     const auto& type = std::get<0>(args);
     const auto config = NYTree::ConvertTo<NYTree::INodePtr>(
-        NYson::TYsonString(std::get<1>(args), NYson::EYsonType::Node));
+        NYson::TYsonString(TString(std::get<1>(args))));
 
     auto engine = CreateIOEngine(type, config);
     auto fileName = GenerateRandomFileName("TFileWriterTestRandom");

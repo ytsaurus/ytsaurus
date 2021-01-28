@@ -137,7 +137,7 @@ protected:
     void AddWriteSubrequest(const TReqExecuteBatchPtr& batchReq)
     {
         auto req = TCypressYPathProxy::Set(GetRecentTablePath() + "/@replication_factor");
-        req->set_value(TYsonString("3").GetData());
+        req->set_value(TYsonString(TStringBuf("3")).ToString());
         GenerateMutationId(req);
         batchReq->AddRequest(req, GenerateRequestKey("set"));
     }

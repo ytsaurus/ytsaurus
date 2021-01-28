@@ -327,7 +327,7 @@ std::vector<TString> TConnection::DiscoverProxiesViaHttp()
                     .EndAttributes()
                     .Value("yson")
                     .OptionalItem("role", Config_->ProxyRole)
-                .EndMap().GetData());
+                .EndMap().ToString());
 
         auto url = NormalizeHttpProxyUrl(*Config_->ClusterUrl) + "/api/v4/discover_proxies";
         auto rsp = WaitFor(client->Get(url, headers))

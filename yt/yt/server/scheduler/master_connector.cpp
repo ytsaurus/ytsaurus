@@ -183,7 +183,7 @@ public:
                         .EndAttributes()
                         .BeginMap().EndMap()
                     .EndMap()
-                    .GetData();
+                    .ToString();
 
                 auto req = TYPathProxy::Set(GetOperationPath(operationId));
                 req->set_value(operationYson);
@@ -262,7 +262,7 @@ public:
         for (const auto& [key, value] : attributes->ListPairs()) {
             auto* subrequest = req->add_subrequests();
             subrequest->set_key(key);
-            subrequest->set_value(value.GetData());
+            subrequest->set_value(value.ToString());
         }
         batchReq->AddRequest(req);
 
@@ -338,7 +338,7 @@ public:
 
         auto* attribute = req->mutable_node_attributes()->add_attributes();
         attribute->set_key("value");
-        attribute->set_value(ConvertToYsonString(persistentStrategyState, EYsonFormat::Binary).GetData());
+        attribute->set_value(ConvertToYsonString(persistentStrategyState, EYsonFormat::Binary).ToString());
 
         GenerateMutationId(req);
         batchReq->AddRequest(req);
@@ -379,7 +379,7 @@ public:
 
         auto* attribute = req->mutable_node_attributes()->add_attributes();
         attribute->set_key("value");
-        attribute->set_value(ConvertToYsonString(persistentSegmentsState, EYsonFormat::Binary).GetData());
+        attribute->set_value(ConvertToYsonString(persistentSegmentsState, EYsonFormat::Binary).ToString());
 
         GenerateMutationId(req);
         batchReq->AddRequest(req);
@@ -733,7 +733,7 @@ private:
             }
             {
                 auto req = TCypressYPathProxy::Set(path + "/@annotations");
-                req->set_value(ConvertToYsonString(Owner_->Bootstrap_->GetConfig()->CypressAnnotations).GetData());
+                req->set_value(ConvertToYsonString(Owner_->Bootstrap_->GetConfig()->CypressAnnotations).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
@@ -788,19 +788,19 @@ private:
             auto addresses = Owner_->Bootstrap_->GetLocalAddresses();
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@addresses");
-                req->set_value(ConvertToYsonString(addresses).GetData());
+                req->set_value(ConvertToYsonString(addresses).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/orchid&/@remote_addresses");
-                req->set_value(ConvertToYsonString(addresses).GetData());
+                req->set_value(ConvertToYsonString(addresses).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@connection_time");
-                req->set_value(ConvertToYsonString(TInstant::Now()).GetData());
+                req->set_value(ConvertToYsonString(TInstant::Now()).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
@@ -873,7 +873,7 @@ private:
         std::vector<TOperationPtr> ParseOperationsBatch(
             const std::vector<TOperationDataToParse>& rspValuesChunk,
             const int parseOperationAttributesBatchSize,
-            const bool skipOperationsWithMalformedSpecDuringRevival) 
+            const bool skipOperationsWithMalformedSpecDuringRevival)
         {
             std::vector<TOperationPtr> result;
             result.reserve(parseOperationAttributesBatchSize);
@@ -988,7 +988,7 @@ private:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
             const auto& batchRsp = batchRspOrError.Value();
-            
+
             YT_LOG_INFO("Attributes for unfinished operations fetched");
 
             {
@@ -996,7 +996,7 @@ private:
 
                 std::vector<TFuture<std::vector<TOperationPtr>>> futures;
                 futures.reserve(RoundUp(operationsCount, chunkSize));
-                
+
                 for (auto startIndex = 0; startIndex < operationsCount; startIndex += chunkSize) {
                     std::vector<TOperationDataToParse> operationsDataToParseBatch;
 
@@ -1005,16 +1005,16 @@ private:
                         const auto& operationId = OperationIds_[index];
 
                         const auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                                startResponseIndex[operationId] * static_cast<int>(ERequestPart::NumOfParts) + 
+                                startResponseIndex[operationId] * static_cast<int>(ERequestPart::NumOfParts) +
                                 static_cast<int>(ERequestPart::Attributes)
                             )
                             .ValueOrThrow();
 
                         const auto secureVaultRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(
-                                startResponseIndex[operationId] * static_cast<int>(ERequestPart::NumOfParts) + 
+                                startResponseIndex[operationId] * static_cast<int>(ERequestPart::NumOfParts) +
                                 static_cast<int>(ERequestPart::SecureVault));
 
-                        if (!secureVaultRspOrError.IsOK() && 
+                        if (!secureVaultRspOrError.IsOK() &&
                             secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
                             THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation (OperationId: %v)",
                                 operationId)
@@ -1031,9 +1031,9 @@ private:
                     }
 
                     futures.push_back(BIND(
-                            &TRegistrationPipeline::ParseOperationsBatch, 
-                            MakeStrong(this), 
-                            std::move(operationsDataToParseBatch), 
+                            &TRegistrationPipeline::ParseOperationsBatch,
+                            MakeStrong(this),
+                            std::move(operationsDataToParseBatch),
                             chunkSize,
                             Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival
                         )
@@ -1059,7 +1059,7 @@ private:
                 [] (const TOperationPtr& lhs, const TOperationPtr& rhs) {
                     return static_cast<int>(lhs->GetState()) > static_cast<int>(rhs->GetState());
                 });
-            
+
             YT_LOG_INFO("Operation objects created from attributes");
         }
 
@@ -1195,7 +1195,7 @@ private:
             for (auto& operation : operations) {
                 operationsCleaner->SubmitForArchivation(std::move(operation));
             }
-            
+
             YT_LOG_INFO("Operations submitted to cleaner");
         }
 
@@ -1555,7 +1555,7 @@ private:
                 auto aclBatchReq = StartObjectBatchRequest();
                 auto req = TYPathProxy::Set(GetJobsPath(operation->GetId()) + "/@acl");
                 auto operationNodeAcl = MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl);
-                req->set_value(ConvertToYsonString(operationNodeAcl).GetData());
+                req->set_value(ConvertToYsonString(operationNodeAcl).ToString());
                 aclBatchReq->AddRequest(req, "set_acl");
 
                 auto aclBatchRspOrError = WaitFor(aclBatchReq->Invoke());
@@ -1579,56 +1579,56 @@ private:
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_key("suspended");
-                req->set_value(ConvertToYsonString(operation->GetSuspended()).GetData());
+                req->set_value(ConvertToYsonString(operation->GetSuspended()).ToString());
             }
 
             // Set events.
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_key("events");
-                req->set_value(ConvertToYsonString(operation->Events()).GetData());
+                req->set_value(ConvertToYsonString(operation->Events()).ToString());
             }
 
             // Set result.
             if (operation->IsFinishedState()) {
                 auto req = multisetReq->add_subrequests();
                 req->set_key("result");
-                req->set_value(operation->BuildResultString().GetData());
+                req->set_value(operation->BuildResultString().ToString());
             }
 
             // Set end time, if given.
             if (operation->GetFinishTime()) {
                 auto req = multisetReq->add_subrequests();
                 req->set_key("finish_time");
-                req->set_value(ConvertToYsonString(*operation->GetFinishTime()).GetData());
+                req->set_value(ConvertToYsonString(*operation->GetFinishTime()).ToString());
             }
 
             // Set state.
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_key("state");
-                req->set_value(ConvertToYsonString(operation->GetState()).GetData());
+                req->set_value(ConvertToYsonString(operation->GetState()).ToString());
             }
 
             // Set alerts.
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_key("alerts");
-                req->set_value(operation->BuildAlertsString().GetData());
+                req->set_value(operation->BuildAlertsString().ToString());
             }
 
             // Set runtime parameters.
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_key("runtime_parameters");
-                req->set_value(ConvertToYsonString(operation->GetRuntimeParameters()).GetData());
+                req->set_value(ConvertToYsonString(operation->GetRuntimeParameters()).ToString());
             }
 
             // Set initial aggregated min needed resources.
             if (auto initialMinNeededResources = operation->GetInitialAggregatedMinNeededResources()) {
                 auto req = multisetReq->add_subrequests();
                 req->set_key("initial_aggregated_min_needed_resources");
-                req->set_value(ConvertToYsonString(*initialMinNeededResources).GetData());
+                req->set_value(ConvertToYsonString(*initialMinNeededResources).ToString());
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");
@@ -1769,7 +1769,7 @@ private:
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
         auto req = TYPathProxy::Set("//sys/scheduler/@alerts");
-        req->set_value(ConvertToYsonString(alerts).GetData());
+        req->set_value(ConvertToYsonString(alerts).ToString());
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
@@ -1793,7 +1793,7 @@ private:
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
         auto req = TYPathProxy::Set(FromObjectId(LockTransaction_->GetId()) + "/@timeout");
-        req->set_value(ConvertToYsonString(timeout.MilliSeconds()).GetData());
+        req->set_value(ConvertToYsonString(timeout.MilliSeconds()).ToString());
         auto rspOrError = WaitFor(proxy.Execute(req));
 
         if (!rspOrError.IsOK()) {

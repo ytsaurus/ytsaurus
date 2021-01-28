@@ -50,11 +50,10 @@ TEST(TKeyTest, Serialization)
     TKey key = TKey::FromRow(row);
 
     EXPECT_EQ(
-        ConvertToYsonString(key, EYsonFormat::Text).GetData(),
+        ConvertToYsonString(key, EYsonFormat::Text).AsStringBuf(),
         "[3.14;-42;27u;\"Foo\";]");
-
     EXPECT_EQ(
-        ConvertToYsonString(TKey(), EYsonFormat::Text).GetData(),
+        ConvertToYsonString(TKey(), EYsonFormat::Text).AsStringBuf(),
         "#");
 }
 

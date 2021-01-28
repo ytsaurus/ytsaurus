@@ -51,7 +51,7 @@ public:
         auto* proxy = GetOrCreateJobProberProxy();
         auto req = proxy->PollJobShell();
         ToProto(req->mutable_job_id(), JobId_);
-        ToProto(req->mutable_parameters(), parameters.GetData());
+        ToProto(req->mutable_parameters(), parameters.ToString());
         req->set_subcontainer(jobShellDescriptor.Subcontainer);
 
         auto rspOrError = WaitFor(req->Invoke());

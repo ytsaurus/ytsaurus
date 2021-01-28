@@ -121,8 +121,8 @@ TEST_F(TYsonParserTest, Infinity)
     {
         EXPECT_THROW(Run("  +inf  "), std::exception);
     }
-    EXPECT_THROW(NYTree::ConvertToNode(TYsonString("%infinity")), std::exception);
-    EXPECT_THROW(NYTree::ConvertToNode(TYsonString("%+infinity")), std::exception);
+    EXPECT_THROW(NYTree::ConvertToNode(TYsonString(TStringBuf("%infinity"))), std::exception);
+    EXPECT_THROW(NYTree::ConvertToNode(TYsonString(TStringBuf("%+infinity"))), std::exception);
 }
 
 TEST_F(TYsonParserTest, StringStartingWithLetter)

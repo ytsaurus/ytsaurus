@@ -49,7 +49,7 @@ public:
                     value = node->AsString()->GetValue();
                     break;
                 default:
-                    value = ConvertToYsonString(node, EYsonFormat::Text).GetData();
+                    value = ConvertToYsonString(node, EYsonFormat::Text).AsStringBuf();
                     break;
             }
             return true;

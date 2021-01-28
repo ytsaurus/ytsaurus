@@ -327,7 +327,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
 
     auto lowerReadLimit = ReadLimitFromLegacyReadLimit(legacyReadRange.LowerLimit(), /* isUpper */ false, keyColumnCount);
     auto upperReadLimit = ReadLimitFromLegacyReadLimit(legacyReadRange.UpperLimit(), /* isUpper */ true, keyColumnCount);
-    
+
     auto chunkReader = CreateSchemalessRangeChunkReader(
         std::move(chunkState),
         ChunkMeta_,
@@ -351,13 +351,13 @@ INSTANTIATE_TEST_SUITE_P(Unsorted,
             EOptimizeFor::Scan,
             EOptimizeFor::Lookup),
         ::testing::Values(
-            ConvertTo<TTableSchema>(TYsonString("<strict=%false>[]")),
-            ConvertTo<TTableSchema>(TYsonString("<strict=%false>[{name = c0; type = any}; {name = c1; type = int64}; {name = c2; type = uint64}; ]")),
-            ConvertTo<TTableSchema>(TYsonString("<strict=%true>[{name = c0; type = any}; {name = c1; type = int64}; "
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%false>[]"))),
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%false>[{name = c0; type = any}; {name = c1; type = int64}; {name = c2; type = uint64}; ]"))),
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true>[{name = c0; type = any}; {name = c1; type = int64}; "
                 "{name = c2; type = uint64}; {name = c3; type = string}; {name = c4; type = boolean}; {name = c5; type = double}; "
-                "{name = c6; type = any};]")),
-            ConvertTo<TTableSchema>(TYsonString("<strict=%false>[{name = c0; type = any}; {name = c1; type = int64}; "
-                "{name = c2; type = uint64}; {name = c3; type = string}; {name = c4; type = boolean}; {name = c5; type = double}; {name = c6; type = any};]"))),
+                "{name = c6; type = any};]"))),
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%false>[{name = c0; type = any}; {name = c1; type = int64}; "
+                "{name = c2; type = uint64}; {name = c3; type = string}; {name = c4; type = boolean}; {name = c5; type = double}; {name = c6; type = any};]")))),
         ::testing::Values(TColumnFilter(), TColumnFilter({2, 4})),
         ::testing::Values(
             TLegacyReadRange(),
@@ -372,18 +372,18 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
             EOptimizeFor::Scan,
             EOptimizeFor::Lookup),
         ::testing::Values(
-            ConvertTo<TTableSchema>(TYsonString("<strict=%false>["
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%false>["
                 "{name = c0; type = any; sort_order = ascending};"
                 "{name = c1; type = any; sort_order = ascending};"
-                "{name = c2; type = any; sort_order = ascending}]")),
-            ConvertTo<TTableSchema>(TYsonString("<strict=%true>["
+                "{name = c2; type = any; sort_order = ascending}]"))),
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true>["
                 "{name = c0; type = any; sort_order = ascending};"
                 "{name = c1; type = int64; sort_order = ascending};"
                 "{name = c2; type = uint64; sort_order = ascending};"
                 "{name = c3; type = string; sort_order = ascending};"
                 "{name = c4; type = boolean; sort_order = ascending};"
                 "{name = c5; type = double; sort_order = ascending};"
-                "{name = c6; type = any};]"))),
+                "{name = c6; type = any};]")))),
         ::testing::Values(TColumnFilter(), TColumnFilter({0, 5})),
         ::testing::Values(
             TLegacyReadRange(),
@@ -409,7 +409,7 @@ protected:
 
     static constexpr int N = 100003;
 
-    const TTableSchemaPtr Schema_ = ConvertTo<TTableSchemaPtr>(TYsonString(
+    const TTableSchemaPtr Schema_ = ConvertTo<TTableSchemaPtr>(TYsonString(TStringBuf(
         "<strict=%true>["
             "{name = c1; type = int64; sort_order = ascending};"
             "{name = c2; type = uint64};"
@@ -417,7 +417,7 @@ protected:
             "{name = c4; type = boolean};"
             "{name = c5; type = double};"
             "{name = c6; type = any};"
-        "]"));
+        "]")));
 
     virtual void SetUp() override
     {
@@ -816,17 +816,17 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
             EOptimizeFor::Scan,
             EOptimizeFor::Lookup),
         ::testing::Values(
-            ConvertTo<TTableSchema>(TYsonString("<strict=%true;unique_keys=%true>["
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
                 "{name = c1; type = boolean; sort_order = ascending};"
                 "{name = c2; type = uint64; sort_order = ascending};"
                 "{name = c3; type = int64; sort_order = ascending};"
-                "{name = c4; type = double};]")),
-            ConvertTo<TTableSchema>(TYsonString("<strict=%true;unique_keys=%true>["
+                "{name = c4; type = double};]"))),
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
                 "{name = c1; type = int64; sort_order = ascending};"
                 "{name = c2; type = uint64; sort_order = ascending};"
                 "{name = c3; type = string; sort_order = ascending};"
                 "{name = c4; type = boolean; sort_order = ascending};"
-                "{name = c5; type = any};]")))));
+                "{name = c5; type = any};]"))))));
 
 ////////////////////////////////////////////////////////////////////////////////
 

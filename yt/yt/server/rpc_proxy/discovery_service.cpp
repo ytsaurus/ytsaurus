@@ -176,19 +176,19 @@ private:
             }
             {
                 auto req = TYPathProxy::Set(path + "/@" + VersionAttributeName);
-                req->set_value(ConvertToYsonString(GetVersion()).GetData());
+                req->set_value(ConvertToYsonString(GetVersion()).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TYPathProxy::Set(path + "/@" + StartTimeAttributeName);
-                req->set_value(ConvertToYsonString(TInstant::Now().ToString()).GetData());
+                req->set_value(ConvertToYsonString(TInstant::Now().ToString()).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TCypressYPathProxy::Set(path + "/@annotations");
-                req->set_value(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).GetData());
+                req->set_value(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
@@ -254,7 +254,7 @@ private:
             req->set_type(static_cast<int>(EObjectType::MapNode));
             auto* attr = req->mutable_node_attributes()->add_attributes();
             attr->set_key(ExpirationTimeAttributeName);
-            attr->set_value(ConvertToYsonString(TInstant::Now() + Config_->AvailabilityPeriod).GetData());
+            attr->set_value(ConvertToYsonString(TInstant::Now() + Config_->AvailabilityPeriod).ToString());
             req->set_force(true);
             batchReq->AddRequest(req);
         }

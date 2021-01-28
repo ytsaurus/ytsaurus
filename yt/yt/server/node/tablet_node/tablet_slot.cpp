@@ -330,7 +330,7 @@ public:
 
                 if (unrecognized->GetChildCount() > 0) {
                     THROW_ERROR_EXCEPTION("Dynamic options contains unrecognized parameters (Unrecognized: %v)",
-                        ConvertToYsonString(unrecognized, EYsonFormat::Text).GetData());
+                        ConvertToYsonString(unrecognized, EYsonFormat::Text).AsStringBuf());
                 }
             }
 
@@ -376,7 +376,7 @@ public:
 
         if (configureInfo.has_options()) {
             YT_LOG_DEBUG("Tablet cell options updated to: %v",
-                ConvertToYsonString(TYsonString(configureInfo.options()), EYsonFormat::Text).GetData());
+                ConvertToYsonString(TYsonString(configureInfo.options()), EYsonFormat::Text).AsStringBuf());
             Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(configureInfo.options()));
         }
 

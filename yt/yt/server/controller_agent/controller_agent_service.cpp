@@ -79,18 +79,18 @@ private:
         auto result = WaitFor(controllerAgent->BuildOperationInfo(operationId))
             .ValueOrThrow();
 
-        response->set_progress(result.Progress.GetData());
-        response->set_brief_progress(result.BriefProgress.GetData());
-        response->set_running_jobs(result.RunningJobs.GetData());
+        response->set_progress(result.Progress.ToString());
+        response->set_brief_progress(result.BriefProgress.ToString());
+        response->set_running_jobs(result.RunningJobs.ToString());
         // COMPAT(gritukan)
         if (result.JobSplitter) {
-            response->set_job_splitter(result.JobSplitter.GetData());
+            response->set_job_splitter(result.JobSplitter.ToString());
         } else {
             response->set_job_splitter("{}");
         }
         response->set_controller_memory_usage(result.MemoryUsage);
         response->set_controller_state(static_cast<i32>(result.ControllerState));
-        response->set_alerts(result.Alerts.GetData());
+        response->set_alerts(result.Alerts.ToString());
 
         context->Reply();
     }
@@ -109,7 +109,7 @@ private:
 
         auto info = WaitFor(controllerAgent->BuildJobInfo(operationId, jobId))
             .ValueOrThrow();
-        response->set_info(info.GetData());
+        response->set_info(info.ToString());
 
         context->Reply();
     }

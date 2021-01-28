@@ -1080,9 +1080,10 @@ TFuture<void> TJobController::TImpl::PrepareHeartbeatRequest(
                     case EJobState::Failed:
                         *jobStatus->mutable_result() = job->GetResult();
                         if (auto statistics = job->GetStatistics()) {
-                            completedJobsStatisticsSize += statistics.GetData().size();
+                            auto statisticsString = statistics.ToString();
+                            completedJobsStatisticsSize += statisticsString.size();
                             job->ResetStatisticsLastSendTime();
-                            jobStatus->set_statistics(statistics.GetData());
+                            jobStatus->set_statistics(statisticsString);
                         }
                         break;
 
@@ -1102,13 +1103,14 @@ TFuture<void> TJobController::TImpl::PrepareHeartbeatRequest(
                     });
 
                 i64 runningJobsStatisticsSize = 0;
-
                 for (const auto& [job, jobStatus] : runningJobs) {
-                    auto statistics = job->GetStatistics();
-                    if (statistics && StatisticsThrottler_->TryAcquire(statistics.GetData().size())) {
-                        runningJobsStatisticsSize += statistics.GetData().size();
-                        job->ResetStatisticsLastSendTime();
-                        jobStatus->set_statistics(statistics.GetData());
+                    if (auto statistics = job->GetStatistics()) {
+                        auto statisticsString = statistics.ToString();
+                        if (StatisticsThrottler_->TryAcquire(statisticsString.size())) {
+                            runningJobsStatisticsSize += statisticsString.size();
+                            job->ResetStatisticsLastSendTime();
+                            jobStatus->set_statistics(statisticsString);
+                        }
                     }
                 }
 

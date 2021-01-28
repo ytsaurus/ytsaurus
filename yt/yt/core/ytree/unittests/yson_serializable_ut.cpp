@@ -488,7 +488,7 @@ TEST(TYsonSerializableTest, Save)
 
     EXPECT_TRUE(AreNodesEqual(
         ConvertToNode(TYsonString(expectedYson)),
-        ConvertToNode(TYsonString(output.GetData()))));
+        ConvertToNode(output)));
 }
 
 TEST(TYsonSerializableTest, TestConfigUpdate)
@@ -500,12 +500,12 @@ TEST(TYsonSerializableTest, TestConfigUpdate)
     }
 
     {
-        auto newConfig = UpdateYsonSerializable(config, ConvertToNode(TYsonString("{\"sub\"={\"my_int\"=150}}")));
+        auto newConfig = UpdateYsonSerializable(config, ConvertToNode(TYsonString(TStringBuf("{\"sub\"={\"my_int\"=150}}"))));
         EXPECT_EQ(newConfig->Subconfig->MyInt, 150);
     }
 
     {
-        auto newConfig = UpdateYsonSerializable(config, ConvertToNode(TYsonString("{\"sub\"={\"my_int_\"=150}}")));
+        auto newConfig = UpdateYsonSerializable(config, ConvertToNode(TYsonString(TStringBuf("{\"sub\"={\"my_int_\"=150}}"))));
         EXPECT_EQ(newConfig->Subconfig->MyInt, 200);
     }
 }
@@ -580,7 +580,7 @@ TEST(TYsonSerializableTest, SaveLite)
 
     EXPECT_TRUE(AreNodesEqual(
         ConvertToNode(TYsonString(expectedYson)),
-        ConvertToNode(TYsonString(output.GetData()))));
+        ConvertToNode(output)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -751,7 +751,7 @@ TEST(TYsonSerializableTest, EnumAsKeyToYHash)
     };
 
     TString serialized = "{\"value0\"=\"abc\";}";
-    ASSERT_EQ(serialized, ConvertToYsonString(original, EYsonFormat::Text).GetData());
+    ASSERT_EQ(serialized, ConvertToYsonString(original, EYsonFormat::Text).AsStringBuf());
 
     Deserialize(deserialized, ConvertToNode(TYsonString(serialized, EYsonType::Node)));
 
@@ -776,13 +776,13 @@ TEST(TYsonSerializableTest, NullableWithNonNullDefault)
     };
 
     {
-        auto config = ConvertTo<TIntrusivePtr<TConfig>>(TYsonString("{}"));
+        auto config = ConvertTo<TIntrusivePtr<TConfig>>(TYsonString(TStringBuf("{}")));
         EXPECT_EQ(123, *config->Value);
         EXPECT_EQ(123, ConvertToNode(config)->AsMap()->GetChildOrThrow("value")->GetValue<i64>());
     }
 
     {
-        auto config = ConvertTo<TIntrusivePtr<TConfig>>(TYsonString("{value=#}"));
+        auto config = ConvertTo<TIntrusivePtr<TConfig>>(TYsonString(TStringBuf("{value=#}")));
         EXPECT_FALSE(config->Value);
         EXPECT_EQ(ENodeType::Entity, ConvertToNode(config)->AsMap()->GetChildOrThrow("value")->GetType());
     }
@@ -816,7 +816,7 @@ TEST(TYsonSerializableTest, DontSerializeDefault)
         TString expectedYson = "{\"value\"=123;}";
         EXPECT_TRUE(AreNodesEqual(
             ConvertToNode(TYsonString(expectedYson)),
-            ConvertToNode(TYsonString(output.GetData()))));
+            ConvertToNode(output)));
     }
 
     {
@@ -827,7 +827,7 @@ TEST(TYsonSerializableTest, DontSerializeDefault)
         TString expectedYson = "{\"value\"=123;\"other_value\"=789;}";
         EXPECT_TRUE(AreNodesEqual(
             ConvertToNode(TYsonString(expectedYson)),
-            ConvertToNode(TYsonString(output.GetData()))));
+            ConvertToNode(output)));
     }
 }
 

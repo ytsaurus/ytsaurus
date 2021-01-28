@@ -815,8 +815,8 @@ TEST_P(TComputedColumnTest, Join)
 
     TTableSchema tableSchema1;
     TTableSchema tableSchema2;
-    Deserialize(tableSchema1, ConvertToNode(TYsonString(schemaString1)));
-    Deserialize(tableSchema2, ConvertToNode(TYsonString(schemaString2)));
+    Deserialize(tableSchema1, ConvertToNode(TYsonString(TString(schemaString1))));
+    Deserialize(tableSchema2, ConvertToNode(TYsonString(TString(schemaString2))));
 
     SetSchema(tableSchema1);
     SetSecondarySchema(tableSchema2);

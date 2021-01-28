@@ -1600,7 +1600,7 @@ void ListContains(
     TUnversionedValue* ysonList,
     TUnversionedValue* what)
 {
-    const auto node = NYTree::ConvertToNode(NYson::TYsonString(ysonList->Data.String, ysonList->Length));
+    const auto node = NYTree::ConvertToNode(FromUnversionedValue<NYson::TYsonStringBuf>(*ysonList));
 
     bool found;
     switch (what->Type) {
@@ -1620,8 +1620,8 @@ void ListContains(
             found = ListContainsImpl<double>(node, what->Data.Double);
             break;
         default:
-            THROW_ERROR_EXCEPTION("ListContains() is not implemented for type %v",
-                ToString(what->Type));
+            THROW_ERROR_EXCEPTION("ListContains is not implemented for %Qlv values",
+                what->Type);
     }
 
     *result = MakeUnversionedBooleanValue(found);
@@ -1761,11 +1761,12 @@ void HasPermissions(
     using namespace NYson;
 
     auto acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(
-        TYsonString(ysonAcl->Data.String, ysonAcl->Length));
+        FromUnversionedValue<TYsonStringBuf>(*ysonAcl));
+    // NB: "subjectClosure" and "permissions" are being passed as strings.
     auto subjectClosure = ConvertTo<THashSet<TString>>(
-        TYsonString(ysonSubjectClosureList->Data.String, ysonSubjectClosureList->Length));
+        TYsonStringBuf(FromUnversionedValue<TStringBuf>(*ysonSubjectClosureList)));
     auto permissions = ConvertTo<EPermissionSet>(
-        TYsonString(ysonPermissionList->Data.String, ysonPermissionList->Length));
+        TYsonStringBuf(FromUnversionedValue<TStringBuf>(*ysonPermissionList)));
 
     auto action = CheckPermissionsByAclAndSubjectClosure(acl, subjectClosure, permissions);
     *result = MakeUnversionedBooleanValue(action == NSecurityClient::ESecurityAction::Allow);

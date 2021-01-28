@@ -816,11 +816,11 @@ TEST_P(TInferSchemaTest, Basic)
 
     std::vector<TTableSchemaPtr> schemas;
     for (const auto* schemaString : schemaStrings) {
-        schemas.push_back(ConvertTo<TTableSchemaPtr>(TYsonString(schemaString)));
+        schemas.push_back(ConvertTo<TTableSchemaPtr>(TYsonString(TString(schemaString))));
     }
 
     TTableSchema resultSchema;
-    Deserialize(resultSchema, ConvertToNode(TYsonString(resultSchemaString)));
+    Deserialize(resultSchema, ConvertToNode(TYsonString(TString(resultSchemaString))));
 
     EXPECT_EQ(resultSchema, *InferInputSchema(schemas, discardKeyColumns));
 }
@@ -863,7 +863,7 @@ TEST_P(TInferSchemaInvalidTest, Basic)
 
     std::vector<TTableSchemaPtr> schemas;
     for (const auto* schemaString : schemaStrings) {
-        schemas.push_back(ConvertTo<TTableSchemaPtr>(TYsonString(schemaString)));
+        schemas.push_back(ConvertTo<TTableSchemaPtr>(TYsonString(TString(schemaString))));
     }
 
     EXPECT_THROW(InferInputSchema(schemas, true), std::exception);

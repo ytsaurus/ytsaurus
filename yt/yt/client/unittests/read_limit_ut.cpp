@@ -27,10 +27,11 @@ NTableClient::TUnversionedOwningRow MakeRow(std::vector<int> values)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 template <typename T>
 TString DumpToYson(T obj)
 {
-    return ConvertToYsonString(obj, NYson::EYsonFormat::Text).GetData();
+    return ConvertToYsonString(obj, NYson::EYsonFormat::Text).ToString();
 }
 
 TEST(TLegacyReadLimitTest, Simple)
@@ -52,7 +53,7 @@ TEST(TLegacyReadRangeTest, Simple)
 
 TEST(TLegacyReadRangeTest, Simple2)
 {
-    auto range = ConvertTo<TLegacyReadRange>(TYsonString("{lower_limit={row_index=1};upper_limit={row_index=2}}"));
+    auto range = ConvertTo<TLegacyReadRange>(TYsonString(TStringBuf("{lower_limit={row_index=1};upper_limit={row_index=2}}")));
     EXPECT_EQ(1, range.LowerLimit().GetRowIndex());
     EXPECT_EQ(2, range.UpperLimit().GetRowIndex());
 }

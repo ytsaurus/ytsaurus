@@ -5,13 +5,15 @@
 
 #include <yt/core/actions/callback.h>
 
+#include <yt/core/misc/property.h>
+
 namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A callback capable of generating YSON by calling appropriate
 //! methods for its IYsonConsumer argument.
-typedef TCallback<void(IYsonConsumer*)> TYsonCallback;
+using TYsonCallback = TCallback<void(IYsonConsumer*)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

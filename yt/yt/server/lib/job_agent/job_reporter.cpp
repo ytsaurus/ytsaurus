@@ -472,7 +472,7 @@ private:
                 }
                 if (GetSharedData()->GetOperationArchiveVersion() >= Lz4AndBriefStatisticsVersion) {
                     briefStatisticsYsonString = BuildBriefStatistics(ConvertToNode(TYsonStringBuf(*statistics.Statistics())));
-                    builder.AddValue(MakeUnversionedAnyValue(briefStatisticsYsonString.GetData(), Table_.Index.BriefStatistics));
+                    builder.AddValue(MakeUnversionedAnyValue(briefStatisticsYsonString.AsStringBuf(), Table_.Index.BriefStatistics));
                 }
             }
             if (statistics.Events()) {
@@ -483,7 +483,7 @@ private:
             }
             if (GetSharedData()->GetOperationArchiveVersion() >= 31 && statistics.CoreInfos()) {
                 coreInfosYsonString = ConvertToYsonString(*statistics.CoreInfos());
-                builder.AddValue(MakeUnversionedAnyValue(coreInfosYsonString.GetData(), Table_.Index.CoreInfos));
+                builder.AddValue(MakeUnversionedAnyValue(coreInfosYsonString.AsStringBuf(), Table_.Index.CoreInfos));
             }
             if (GetSharedData()->GetOperationArchiveVersion() >= 18) {
                 builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), Table_.Index.UpdateTime));

@@ -598,7 +598,7 @@ TOperationSpecBase::TOperationSpecBase()
         }
 
         constexpr int MaxAnnotationsYsonTextLength = 10_KB;
-        if (ConvertToYsonString(Annotations, EYsonFormat::Text).GetData().size() > MaxAnnotationsYsonTextLength) {
+        if (ConvertToYsonString(Annotations, EYsonFormat::Text).AsStringBuf().size() > MaxAnnotationsYsonTextLength) {
             THROW_ERROR_EXCEPTION("Length of annotations YSON text representation should not exceed %v",
                 MaxAnnotationsYsonTextLength);
         }

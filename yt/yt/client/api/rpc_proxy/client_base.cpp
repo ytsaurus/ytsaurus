@@ -289,7 +289,7 @@ TFuture<void> TClientBase::SetNode(
     SetTimeoutOptions(*req, options);
 
     req->set_path(path);
-    req->set_value(value.GetData());
+    req->set_value(value.ToString());
     req->set_recursive(options.Recursive);
     req->set_force(options.Force);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
@@ -318,7 +318,7 @@ TFuture<void> TClientBase::MultisetAttributesNode(
     for (const auto& [attribute, value] : children) {
         auto* protoSubrequest = req->add_subrequests();
         protoSubrequest->set_attribute(attribute);
-        protoSubrequest->set_value(ConvertToYsonString(value).GetData());
+        protoSubrequest->set_value(ConvertToYsonString(value).ToString());
     }
 
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
@@ -563,7 +563,7 @@ TFuture<IFileReaderPtr> TClientBase::CreateFileReader(
         req->set_length(*options.Length);
     }
     if (options.Config) {
-        req->set_config(ConvertToYsonString(*options.Config).GetData());
+        req->set_config(ConvertToYsonString(*options.Config).ToString());
     }
 
     ToProto(req->mutable_transactional_options(), options);
@@ -584,7 +584,7 @@ IFileWriterPtr TClientBase::CreateFileWriter(
 
     req->set_compute_md5(options.ComputeMD5);
     if (options.Config) {
-        req->set_config(ConvertToYsonString(*options.Config).GetData());
+        req->set_config(ConvertToYsonString(*options.Config).ToString());
     }
 
     ToProto(req->mutable_transactional_options(), options);
@@ -612,7 +612,7 @@ IJournalReaderPtr TClientBase::CreateJournalReader(
         req->set_row_count(*options.RowCount);
     }
     if (options.Config) {
-        req->set_config(ConvertToYsonString(*options.Config).GetData());
+        req->set_config(ConvertToYsonString(*options.Config).ToString());
     }
 
     ToProto(req->mutable_transactional_options(), options);
@@ -632,7 +632,7 @@ IJournalWriterPtr TClientBase::CreateJournalWriter(
     req->set_path(path);
 
     if (options.Config) {
-        req->set_config(ConvertToYsonString(*options.Config).GetData());
+        req->set_config(ConvertToYsonString(*options.Config).ToString());
     }
     req->set_enable_multiplexing(options.EnableMultiplexing);
     req->set_enable_chunk_preallocation(options.EnableChunkPreallocation);
@@ -662,7 +662,7 @@ TFuture<ITableReaderPtr> TClientBase::CreateTableReader(
     req->set_enable_row_index(options.EnableRowIndex);
     req->set_enable_range_index(options.EnableRangeIndex);
     if (options.Config) {
-        req->set_config(ConvertToYsonString(*options.Config).GetData());
+        req->set_config(ConvertToYsonString(*options.Config).ToString());
     }
 
     ToProto(req->mutable_transactional_options(), options);
@@ -681,7 +681,7 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
     ToProto(req->mutable_path(), path);
 
     if (options.Config) {
-        req->set_config(ConvertToYsonString(*options.Config).GetData());
+        req->set_config(ConvertToYsonString(*options.Config).ToString());
     }
 
     ToProto(req->mutable_transactional_options(), options);

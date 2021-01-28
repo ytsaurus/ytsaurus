@@ -234,8 +234,8 @@ TEST_F(TLookupFilterTest, TestLookupAll)
     auto schema = ConvertTo<TTableSchema>(TYsonString(
         su + "[" + ku0 + ku1 + ku2 + v3 + v4 + v5 + "]"));
 
-    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).GetData();
-    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).GetData();
+    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).ToString();
+    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).ToString();
     EXPECT_EQ(expectedSchema, actualSchema);
 }
 
@@ -260,8 +260,8 @@ TEST_F(TLookupFilterTest, TestVersionedLookupAll)
     auto schema = ConvertTo<TTableSchema>(TYsonString(
         su + "[" + ku0 + ku1 + ku2 + v3 + v4 + v5 + "]"));
 
-    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).GetData();
-    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).GetData();
+    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).ToString();
+    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).ToString();
     EXPECT_EQ(expectedSchema, actualSchema);
 }
 
@@ -302,8 +302,8 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
         << "expectedSchema: " << schemaString << std::endl;
 
     auto schema = ConvertTo<TTableSchema>(TYsonString(schemaString));
-    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).GetData();
-    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).GetData();
+    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).ToString();
+    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).ToString();
     EXPECT_EQ(expectedSchema, actualSchema)
         << "key: " << keyString << std::endl
         << "namedColumns: " << ::testing::PrintToString(namedColumns) << std::endl
@@ -359,8 +359,8 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
         << "expectedSchema: " << schemaString << std::endl;
 
     auto schema = ConvertTo<TTableSchema>(TYsonString(schemaString));
-    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).GetData();
-    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).GetData();
+    auto actualSchema = ConvertToYsonString(res->GetSchema(), EYsonFormat::Text).ToString();
+    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).ToString();
     EXPECT_EQ(expectedSchema, actualSchema)
         << "key: " << keyString << std::endl
         << "namedColumns: " << ::testing::PrintToString(namedColumns) << std::endl

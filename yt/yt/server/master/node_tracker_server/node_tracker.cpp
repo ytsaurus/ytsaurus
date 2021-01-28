@@ -902,7 +902,7 @@ private:
             {
                 auto nodePath = GetNodePath(node);
                 auto req = TCypressYPathProxy::Set(nodePath + "/@" + BanMessageAttributeName);
-                req->set_value(ConvertToYsonString("The node has never been seen before and has been banned provisionally.").GetData());
+                req->set_value(ConvertToYsonString("The node has never been seen before and has been banned provisionally").ToString());
                 auto rootService = Bootstrap_->GetObjectManager()->GetRootService();
                 SyncExecuteVerb(rootService, req);
             }
@@ -1449,7 +1449,7 @@ private:
         try {
             // Update "orchid" child.
             auto req = TYPathProxy::Set(nodePath + "/orchid&/@remote_addresses");
-            req->set_value(ConvertToYsonString(node->GetAddressesOrThrow(EAddressType::InternalRpc)).GetData());
+            req->set_value(ConvertToYsonString(node->GetAddressesOrThrow(EAddressType::InternalRpc)).ToString());
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error updating cluster node in Cypress");
@@ -1590,7 +1590,7 @@ private:
         for (const auto& tag : node->NodeTags()) {
             request.add_tags(tag);
         }
-        request.set_cypress_annotations(node->GetAnnotations().GetData());
+        request.set_cypress_annotations(node->GetAnnotations().ToString());
         request.set_build_version(node->GetVersion());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();

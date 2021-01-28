@@ -61,7 +61,7 @@ private:
             ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
             : std::nullopt;
 
-        response->set_value(GroupTree_->List(path, attributeKeys).GetData());
+        response->set_value(GroupTree_->List(path, attributeKeys).ToString());
 
         context->Reply();
     }
@@ -69,12 +69,12 @@ private:
     DECLARE_YPATH_SERVICE_METHOD(NYT::NYTree::NProto, Get)
     {
         const auto& path = GetRequestTargetYPath(context->RequestHeader());
-        
+
         auto attributeKeys = request->has_attributes()
             ? std::make_optional(FromProto<std::vector<TString>>(request->attributes().keys()))
             : std::nullopt;
 
-        response->set_value(GroupTree_->Get(path, attributeKeys).GetData());
+        response->set_value(GroupTree_->Get(path, attributeKeys).ToString());
 
         context->Reply();
     }

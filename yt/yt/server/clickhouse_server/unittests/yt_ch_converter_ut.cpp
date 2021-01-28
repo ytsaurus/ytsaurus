@@ -142,7 +142,7 @@ TYsonStringBufs ToYsonStringBufs(std::vector<TString>& ysonStrings)
         if (ysonString.empty()) {
             result.emplace_back();
         } else {
-            result.emplace_back(ysonString.data(), ysonString.size());
+            result.emplace_back(ysonString);
         }
     }
 
@@ -156,7 +156,7 @@ std::pair<TUnversionedValues, std::any> YsonStringBufsToVariadicUnversionedValue
     TStatelessLexer lexer;
     for (const auto& yson : ysons) {
         if (yson) {
-            result.emplace_back(MakeUnversionedValue(yson.GetData(), /* id */ 0, lexer));
+            result.emplace_back(MakeUnversionedValue(yson.AsStringBuf(), /* id */ 0, lexer));
         } else {
             result.emplace_back(MakeUnversionedNullValue());
         }
@@ -171,7 +171,7 @@ std::pair<TUnversionedValues, std::any> YsonStringBufsToAnyUnversionedValues(TYs
     TUnversionedValues result;
     for (const auto& yson : ysons) {
         if (yson) {
-            result.emplace_back(rowBuffer->Capture(MakeUnversionedAnyValue(yson.GetData())));
+            result.emplace_back(rowBuffer->Capture(MakeUnversionedAnyValue(yson.AsStringBuf())));
         } else {
             result.emplace_back(MakeUnversionedNullValue());
         }
@@ -250,7 +250,7 @@ TEST_F(TTestYTCHConversion, TestAnyPassthrough)
 
         std::vector<DB::Field> expectedFields;
         for (const auto& yson : ysons) {
-            expectedFields.emplace_back(std::string(ConvertToYsonString(TYsonString(yson), ysonFormat).GetData()));
+            expectedFields.emplace_back(std::string(ConvertToYsonString(TYsonString(yson), ysonFormat).AsStringBuf()));
         }
 
         ExpectDataConversion(descriptor, anyYsons, expectedFields);

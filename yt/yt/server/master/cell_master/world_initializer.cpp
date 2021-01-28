@@ -762,7 +762,7 @@ private:
         const TYPath& path,
         TTransactionId transactionId,
         EObjectType type,
-        const TYsonString& attributes = TYsonString("{}"),
+        const TYsonString& attributes = TYsonString(TStringBuf("{}")),
         bool force = false)
     {
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
@@ -788,7 +788,7 @@ private:
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Set(path);
         SetTransactionId(req, transactionId);
-        req->set_value(value.GetData());
+        req->set_value(value.ToString());
         ScheduledMutations_.push_back(ExecuteVerb(service, req).AsVoid());
     }
 

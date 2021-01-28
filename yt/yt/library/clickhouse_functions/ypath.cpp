@@ -137,8 +137,7 @@ public:
 
             const auto& yson = columnYson->getDataAt(i);
             const auto& path = columnPath->getDataAt(i);
-            // TODO(dakovalkov): Remove string copy after YT-11723.
-            auto node = ConvertToNode(TYsonString(yson.data, yson.size));
+            auto node = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data, yson.size)));
 
             INodePtr subNode = nullptr;
             if constexpr (Strict) {
@@ -396,9 +395,9 @@ public:
             const auto& yson = columnYson->getDataAt(i);
             const auto& path = columnPath->getDataAt(i);
             // TODO(dakovalkov): Remove string copy after YT-11723.
-            auto node = ConvertToNode(TYsonString(yson.data, yson.size));
+            auto node = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data, yson.size)));
 
-            INodePtr subNode = nullptr;
+            INodePtr subNode;
             if constexpr (Strict) {
                 subNode = GetNodeByYPath(node, TString(path.data, path.size));
             } else {
@@ -406,7 +405,7 @@ public:
             }
 
             if (subNode) {
-                columnTo->insert(toField(ConvertToYsonString(subNode, format).GetData()));
+                columnTo->insert(toField(ConvertToYsonString(subNode, format).ToString()));
             } else {
                 columnTo->insertDefault();
             }
@@ -474,7 +473,7 @@ public:
         return true;
     }
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & returnType, size_t inputRowCount) const override
+    virtual ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & returnType, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = arguments[0].column.get();
         const IColumn* columnYson = columnYsonOrNull;
@@ -502,10 +501,9 @@ public:
 
             const auto& yson = columnYson->getDataAt(i);
             const auto& path = columnPath->getDataAt(i);
-            // TODO(dakovalkov): Remove string copy after YT-11723.
-            auto node = ConvertToNode(TYsonString(yson.data, yson.size));
+            auto node = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data, yson.size)));
 
-            INodePtr subNode = nullptr;
+            INodePtr subNode;
             if constexpr (Strict) {
                 subNode = GetNodeByYPath(node, TString(path.data, path.size));
             } else {

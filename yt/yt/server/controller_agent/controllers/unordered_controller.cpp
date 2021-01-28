@@ -479,7 +479,7 @@ protected:
     {
         JobSpecTemplate.set_type(static_cast<int>(GetJobType()));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).GetData());
+        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).ToString());
 
         SetDataSourceDirectory(schedulerJobSpecExt, BuildDataSourceDirectoryFromInputTables(InputTables_));
 
@@ -487,7 +487,7 @@ protected:
             WriteInputQueryToJobSpec(schedulerJobSpecExt);
         }
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).GetData());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).ToString());
     }
 };
 

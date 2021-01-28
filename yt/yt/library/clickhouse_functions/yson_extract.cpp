@@ -90,10 +90,11 @@ public:
     static bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
     {
         ColumnString & col_str = static_cast<ColumnString &>(dest);
-        auto & chars = col_str.getChars();
+        auto& chars = col_str.getChars();
         auto ysonString = ConvertToYsonString(element.GetNode());
         // Add +1 to save zero at the end of the string.
-        chars.insert(ysonString.GetData().data(), ysonString.GetData().data() + ysonString.GetData().size() + 1);
+        auto ysonStringBuf = ysonString.AsStringBuf();
+        chars.insert(ysonStringBuf.data(), ysonStringBuf.data() + ysonStringBuf.size() + 1);
         col_str.getOffsets().push_back(chars.size());
         return true;
     }

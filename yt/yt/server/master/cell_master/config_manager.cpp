@@ -97,7 +97,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto req = TYPathProxy::Set("//sys/@config");
-        req->set_value(ConvertToYsonString(GetConfig()).GetData());
+        req->set_value(ConvertToYsonString(GetConfig()).ToString());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(req, cellTag);
@@ -110,7 +110,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             auto req = TYPathProxy::Set("//sys/@config");
-            req->set_value(ConvertToYsonString(GetConfig()).GetData());
+            req->set_value(ConvertToYsonString(GetConfig()).ToString());
             multicellManager->PostToSecondaryMasters(req);
         }
     }

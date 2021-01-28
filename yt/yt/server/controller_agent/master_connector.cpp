@@ -474,7 +474,7 @@ private:
         }
         {
             auto req = TCypressYPathProxy::Set(path + "/@annotations");
-            req->set_value(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).GetData());
+            req->set_value(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -491,7 +491,7 @@ private:
         }
         {
             auto req = TYPathProxy::Set(path + "/@connection_time");
-            req->set_value(ConvertToYsonString(TInstant::Now()).GetData());
+            req->set_value(ConvertToYsonString(TInstant::Now()).ToString());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -633,7 +633,7 @@ private:
         // Update controller agent address.
         {
             auto req = TYPathProxy::Set(operationPath + "/@controller_agent_address");
-            req->set_value(ConvertToYsonString(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).GetData());
+            req->set_value(ConvertToYsonString(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).ToString());
             batchReq->AddRequest(req, "set_controller_agent_address");
         }
         // Update controller agent orchid, it should point to this controller agent.
@@ -835,8 +835,8 @@ private:
         TUnversionedRowBuilder builder;
         builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi));
         builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo));
-        builder.AddValue(MakeUnversionedAnyValue(progress.GetData(), tableDescriptor.Index.Progress));
-        builder.AddValue(MakeUnversionedAnyValue(briefProgress.GetData(), tableDescriptor.Index.BriefProgress));
+        builder.AddValue(MakeUnversionedAnyValue(progress.ToString(), tableDescriptor.Index.Progress));
+        builder.AddValue(MakeUnversionedAnyValue(briefProgress.ToString(), tableDescriptor.Index.BriefProgress));
 
         auto rowBuffer = New<TRowBuffer>();
         auto row = rowBuffer->Capture(builder.GetRow());
@@ -882,13 +882,13 @@ private:
         {
             auto req = multisetReq->add_subrequests();
             req->set_key("progress");
-            req->set_value(progress.GetData());
+            req->set_value(progress.ToString());
         }
 
         {
             auto req = multisetReq->add_subrequests();
             req->set_key("brief_progress");
-            req->set_value(briefProgress.GetData());
+            req->set_value(briefProgress.ToString());
         }
 
         batchReq->AddRequest(multisetReq, "update_op_node");
@@ -1445,7 +1445,7 @@ private:
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
         auto req = TYPathProxy::Set(GetInstancePath() + "/@alerts");
-        req->set_value(ConvertToYsonString(alerts).GetData());
+        req->set_value(ConvertToYsonString(alerts).ToString());
         req->set_recursive(true);
 
         auto rspOrError = WaitFor(proxy.Execute(req));

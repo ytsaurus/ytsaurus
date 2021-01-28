@@ -31,7 +31,7 @@ void TestSerializationDeserializationPullParser(const TOriginal& original)
 {
     auto yson = ConvertToYsonString(original);
     TResult deserialized;
-    TMemoryInput input(yson.GetData());
+    TMemoryInput input(yson.ToString());
     TYsonPullParser parser(&input, EYsonType::Node);
     TYsonPullParserCursor cursor(&parser);
     Deserialize(deserialized, &cursor);
@@ -69,13 +69,12 @@ TString RemoveSpaces(const TString& str)
 
 TEST(TYTreeSerializationTest, All)
 {
-    TYsonString canonicalYson(
+    TYsonString canonicalYson(TStringBuf(
         "<\"acl\"={\"execute\"=[\"*\";];};>"
-        "{\"mode\"=755;\"path\"=\"/home/sandello\";}"
-    );
+        "{\"mode\"=755;\"path\"=\"/home/sandello\";}"));
     auto root = ConvertToNode(canonicalYson);
     auto deserializedYson = ConvertToYsonString(root, NYson::EYsonFormat::Text);
-    EXPECT_EQ(RemoveSpaces(canonicalYson.GetData()), deserializedYson.GetData());
+    EXPECT_EQ(RemoveSpaces(canonicalYson.ToString()), deserializedYson.ToString());
 }
 
 TEST(TCustomTypeSerializationTest, TInstant)
@@ -101,7 +100,7 @@ TEST(TCustomTypeSerializationTest, Optional)
     {
         std::optional<int> value;
         auto yson = ConvertToYsonString(value);
-        EXPECT_EQ(TString("#"), yson.GetData());
+        EXPECT_EQ(TString("#"), yson.ToString());
         EXPECT_EQ(value, ConvertTo<std::optional<int>>(yson));
         TestSerializationDeserialization(value);
     }

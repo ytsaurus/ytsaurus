@@ -1177,10 +1177,10 @@ public:
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
 
                 TReqRemountTablet request;
-                request.set_mount_config(serializedMountConfig.GetData());
-                request.set_reader_config(serializedReaderConfig.GetData());
-                request.set_writer_config(serializedWriterConfig.GetData());
-                request.set_writer_options(serializedWriterOptions.GetData());
+                request.set_mount_config(serializedMountConfig.ToString());
+                request.set_reader_config(serializedReaderConfig.ToString());
+                request.set_writer_config(serializedWriterConfig.ToString());
+                request.set_writer_options(serializedWriterOptions.ToString());
                 ToProto(request.mutable_tablet_id(), tablet->GetId());
 
                 auto* mailbox = hiveManager->GetMailbox(cell->GetId());
@@ -3247,10 +3247,10 @@ private:
                 } else {
                     req.set_trimmed_row_count(tablet->GetTrimmedRowCount());
                 }
-                req.set_mount_config(serializedMountConfig.GetData());
-                req.set_reader_config(serializedReaderConfig.GetData());
-                req.set_writer_config(serializedWriterConfig.GetData());
-                req.set_writer_options(serializedWriterOptions.GetData());
+                req.set_mount_config(serializedMountConfig.ToString());
+                req.set_reader_config(serializedReaderConfig.ToString());
+                req.set_writer_config(serializedWriterConfig.ToString());
+                req.set_writer_options(serializedWriterOptions.ToString());
                 req.set_atomicity(static_cast<int>(table->GetAtomicity()));
                 req.set_commit_ordering(static_cast<int>(table->GetCommitOrdering()));
                 req.set_freeze(freeze);
@@ -3936,10 +3936,10 @@ private:
         newConfig->CompatibilityVersion = 1;
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating dynamic tablet config (NewConfig: %v)",
-            ConvertToYsonString(newConfig, EYsonFormat::Text).GetData());
+            ConvertToYsonString(newConfig, EYsonFormat::Text).ToString());
 
         auto req = TYPathProxy::Set("//sys/@config/tablet_manager");
-        req->set_value(ConvertToYsonString(newConfig).GetData());
+        req->set_value(ConvertToYsonString(newConfig).ToString());
         auto rootService = Bootstrap_->GetObjectManager()->GetRootService();
         ExecuteVerb(rootService, req);
     }
@@ -4564,8 +4564,8 @@ private:
             table->GetId(),
             table->GetLastMountTransactionId(),
             table->GetPrimaryLastMountTransactionId(),
-            ConvertToYsonString(table->TabletCountByState(), EYsonFormat::Text).GetData(),
-            ConvertToYsonString(table->TabletCountByExpectedState(), EYsonFormat::Text).GetData());
+            ConvertToYsonString(table->TabletCountByState(), EYsonFormat::Text).ToString(),
+            ConvertToYsonString(table->TabletCountByExpectedState(), EYsonFormat::Text).ToString());
 
 
         if (table->TabletCountByExpectedState()[ETabletState::Unmounting] > 0 ||

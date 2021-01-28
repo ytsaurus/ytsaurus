@@ -104,11 +104,11 @@ void TModifyRowsTest::CheckTableContents(
 
     EXPECT_EQ(actual, expected);
 
-    auto schema = ConvertTo<TTableSchema>(TYsonString(
-        "<unique_keys=%false;strict=%true>[{name=key;type=int64};{name=value;type=int64};]"));
+    auto schema = ConvertTo<TTableSchema>(TYsonString(TStringBuf(
+        "<unique_keys=%false;strict=%true>[{name=key;type=int64};{name=value;type=int64};]")));
 
-    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).GetData();
-    auto actualSchema = ConvertToYsonString(res.Rowset->GetSchema(), EYsonFormat::Text).GetData();
+    auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).ToString();
+    auto actualSchema = ConvertToYsonString(res.Rowset->GetSchema(), EYsonFormat::Text).ToString();
     EXPECT_EQ(expectedSchema, actualSchema);
 }
 

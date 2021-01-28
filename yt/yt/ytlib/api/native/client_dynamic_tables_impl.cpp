@@ -401,7 +401,7 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
 
     std::optional<TString> retentionConfig;
     if (options.RetentionConfig) {
-        retentionConfig = ConvertToYsonString(options.RetentionConfig).GetData();
+        retentionConfig = ConvertToYsonString(options.RetentionConfig).ToString();
     }
 
     return CallAndRetryIfMetadataCacheIsInconsistent([&] () {

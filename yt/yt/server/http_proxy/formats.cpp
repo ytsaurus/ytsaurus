@@ -70,7 +70,7 @@ static INodePtr GetDefaultFormatNodeForDataType(EDataType dataType)
     if (dataType == EDataType::Structured) {
         return ConvertToNode("json");
     } else if (dataType == EDataType::Tabular) {
-        return ConvertToNode(TYsonString("<format=text>yson"));
+        return ConvertToNode(TYsonString(TStringBuf("<format=text>yson")));
     } else {
         return ConvertToNode("yson");
     }

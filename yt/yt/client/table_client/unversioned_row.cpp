@@ -327,13 +327,13 @@ TString ToString(const TUnversionedValue& value)
         case EValueType::Any:
             builder.AppendString(ConvertToYsonString(
                 TYsonString(TString(value.Data.String, value.Length)),
-                EYsonFormat::Text).GetData());
+                EYsonFormat::Text).AsStringBuf());
             break;
 
         case EValueType::Composite:
             builder.AppendString(ConvertToYsonString(
                 TYsonString(TString(value.Data.String, value.Length)),
-                EYsonFormat::Text).GetData());
+                EYsonFormat::Text).AsStringBuf());
             builder.AppendFormat("@%v", value.Type);
             break;
     }

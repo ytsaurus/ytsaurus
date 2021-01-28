@@ -72,7 +72,7 @@ TEST(TYPathServiceCombinerTest, DynamicAndStatic)
     EXPECT_EQ((std::vector<TString> { "static_key1", "static_key2", "error_key" }), SyncYPathList(combinedService, ""));
 
     SyncYPathSet(dynamicService, "/dynamic_key1", ConvertToYsonString(3.1415926));
-    SyncYPathSet(dynamicService, "/dynamic_key2", TYsonString("#"));
+    SyncYPathSet(dynamicService, "/dynamic_key2", TYsonString(TStringBuf("#")));
 
     // Give service time to rebuild key mapping.
     Sleep(TDuration::MilliSeconds(200));
@@ -81,7 +81,7 @@ TEST(TYPathServiceCombinerTest, DynamicAndStatic)
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/dynamic_key1"));
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/error_key"));
     EXPECT_EQ((std::vector<TString> { "static_key1", "static_key2", "error_key", "dynamic_key1", "dynamic_key2" }), SyncYPathList(combinedService, ""));
-    EXPECT_EQ(TYsonString("#"), SyncYPathGet(combinedService, "/dynamic_key2"));
+    EXPECT_EQ(TYsonString(TStringBuf("#")), SyncYPathGet(combinedService, "/dynamic_key2"));
 
     SyncYPathSet(dynamicService, "/error_key", ConvertToYsonString(42));
 
@@ -104,7 +104,7 @@ TEST(TYPathServiceCombinerTest, DynamicAndStatic)
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/dynamic_key1"));
     EXPECT_EQ(true, SyncYPathExists(combinedService, "/error_key"));
     EXPECT_EQ((std::vector<TString> { "static_key1", "static_key2", "error_key", "dynamic_key1", "dynamic_key2" }), SyncYPathList(combinedService, ""));
-    EXPECT_EQ(TYsonString("#"), SyncYPathGet(combinedService, "/dynamic_key2"));
+    EXPECT_EQ(TYsonString(TStringBuf(TStringBuf("#"))), SyncYPathGet(combinedService, "/dynamic_key2"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -265,8 +265,8 @@ public:
             securityManager->ValidatePermission(account, EPermission::Use);
         }
 
-        auto snapshotAcl = ConvertToYsonString(options->SnapshotAcl, EYsonFormat::Binary).GetData();
-        auto changelogAcl = ConvertToYsonString(options->ChangelogAcl, EYsonFormat::Binary).GetData();
+        auto snapshotAcl = ConvertToYsonString(options->SnapshotAcl, EYsonFormat::Binary).ToString();
+        auto changelogAcl = ConvertToYsonString(options->ChangelogAcl, EYsonFormat::Binary).ToString();
 
         cellBundle->SetOptions(std::move(options));
 
@@ -1101,7 +1101,7 @@ private:
             protoInfo->set_peer_id(peerId);
 
             const auto* cellBundle = cell->GetCellBundle();
-            protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).GetData());
+            protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).ToString());
 
             protoInfo->set_tablet_cell_bundle(cellBundle->GetName());
 
@@ -1134,7 +1134,7 @@ private:
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
             protoInfo->set_abandon_leader_lease_during_recovery(GetDynamicConfig()->AbandonLeaderLeaseDuringRecovery);
-            protoInfo->set_options(ConvertToYsonString(cell->GetCellBundle()->GetOptions()).GetData());
+            protoInfo->set_options(ConvertToYsonString(cell->GetCellBundle()->GetOptions()).ToString());
 
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot configuration update requested "
@@ -1165,7 +1165,7 @@ private:
 
             const auto* cellBundle = cell->GetCellBundle();
             protoInfo->set_dynamic_config_version(cellBundle->GetDynamicConfigVersion());
-            protoInfo->set_dynamic_options(ConvertToYsonString(cellBundle->GetDynamicOptions()).GetData());
+            protoInfo->set_dynamic_options(ConvertToYsonString(cellBundle->GetDynamicOptions()).ToString());
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
                 node->GetDefaultAddress(),
