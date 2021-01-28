@@ -16,7 +16,7 @@
 
 #include <google/protobuf/message.h>
 
-#include <statbox/ydl/runtime/cpp/gen_support/traits.h>
+#include <statbox/ydl/runtime/cpp/traits/traits.h>
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
