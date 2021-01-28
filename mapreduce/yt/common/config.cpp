@@ -234,7 +234,7 @@ TConfig* TConfig::Get()
 TProcessState::TProcessState()
 {
     try {
-        HostName = ::HostName();
+        FqdnHostName = ::FQDNHostName();
     } catch (const yexception& e) {
         ythrow yexception() << "Cannot get host name: " << e.what();
     }
