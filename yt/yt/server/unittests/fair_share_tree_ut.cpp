@@ -399,6 +399,11 @@ public:
         return ResourceTree_.Get();
     }
 
+    virtual NProfiling::TRegistry GetProfiler() const override
+    {
+        return NProfiling::TRegistry{};
+    }
+
 private:
     TResourceTreePtr ResourceTree_;
 };
@@ -483,6 +488,7 @@ protected:
     TOperationElementPtr CreateTestOperationElement(
         ISchedulerStrategyHost* host,
         IOperationStrategyHost* operation,
+        TCompositeSchedulerElement* parent,
         TOperationFairShareTreeRuntimeParametersPtr operationOptions = nullptr)
     {
         auto operationController = New<TFairShareStrategyOperationController>(operation, SchedulerConfig_);
@@ -490,7 +496,7 @@ protected:
             operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
             operationOptions->Weight = 1.0;
         }
-        return New<TOperationElement>(
+        auto operationElement = New<TOperationElement>(
             TreeConfig_,
             New<TStrategyOperationSpec>(),
             operationOptions,
@@ -501,6 +507,10 @@ protected:
             operation,
             "default",
             SchedulerLogger);
+        operationElement->AttachParent(parent, SlotIndex_++);
+        parent->EnableChild(operationElement);
+        operationElement->Enable();
+        return operationElement;
     }
 
     std::pair<TOperationElementPtr, TIntrusivePtr<TOperationStrategyHostMock>> CreateOperationWithJobs(
@@ -514,9 +524,7 @@ protected:
         jobResources.SetMemory(10_MB);
 
         auto operationHost = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
-        auto operationElement = CreateTestOperationElement(host, operationHost.Get());
-        operationElement->Enable();
-        operationElement->AttachParent(parent, true);
+        auto operationElement = CreateTestOperationElement(host, operationHost.Get(), parent);
         return {operationElement, operationHost};
     }
 
@@ -568,6 +576,8 @@ protected:
 
         context.FinishStage();
     }
+
+    int SlotIndex_ = 0;
 };
 
 
@@ -645,6 +655,10 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     }
 
     for (int i = 0; i < OperationCount; ++i) {
+        TCompositeSchedulerElement* parent = i < 2
+            ? poolA.Get()
+            : poolC.Get();
+
         TOperationFairShareTreeRuntimeParametersPtr operationOptions;
         if (i == 2) {
             // We need this to ensure FIFO order of operations 2 and 3.
@@ -652,16 +666,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
             operationOptions->Weight = 10.0;
         }
 
-        operationElements[i] = CreateTestOperationElement(host.Get(), operations[i].Get(), operationOptions);
-    }
-
-    operationElements[0]->AttachParent(poolA.Get(), true);
-    operationElements[1]->AttachParent(poolA.Get(), true);
-    operationElements[2]->AttachParent(poolC.Get(), true);
-    operationElements[3]->AttachParent(poolC.Get(), true);
-
-    for (auto& operationElement : operationElements) {
-        operationElement->Enable();
+        operationElements[i] = CreateTestOperationElement(host.Get(), operations[i].Get(), parent, operationOptions);
     }
 
     {
@@ -896,10 +901,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
     auto rootElement = CreateTestRootElement(host.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptions);
-
-    operationElementX->AttachParent(rootElement.Get(), true);
-    operationElementX->Enable();
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), rootElement.Get(), operationOptions);
 
     std::vector<TJobId> jobIds;
     for (int i = 0; i < 150; ++i) {
@@ -955,10 +957,7 @@ TEST_F(TFairShareTreeTest, TestBestAllocationShare)
     auto rootElement = CreateTestRootElement(host.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(3, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptions);
-
-    operationElementX->AttachParent(rootElement.Get(), true);
-    operationElementX->Enable();
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), rootElement.Get(), operationOptions);
 
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&updateContext);
@@ -1024,6 +1023,8 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     }
 
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(execNodes.size(), nodeResources));
+    
+    auto rootElement = CreateTestRootElement(host.Get());
 
     // Create an operation with 2 jobs.
     TJobResourcesWithQuota operationJobResources;
@@ -1034,12 +1035,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
-
-    auto operationElement = CreateTestOperationElement(host.Get(), operation.Get(), operationOptions);
-
-    // Root element.
-    auto rootElement = CreateTestRootElement(host.Get());
-    operationElement->AttachParent(rootElement.Get(), true);
+    auto operationElement = CreateTestOperationElement(host.Get(), operation.Get(), rootElement.Get(), operationOptions);
 
     // We run operation with 2 jobs and simulate 3 concurrent heartbeats.
     // Two of them must succeed and call controller ScheduleJob,
@@ -1137,10 +1133,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareOneLargeOperation)
     operationOptions->Weight = 1.0;
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptions);
-
-    operationElementX->AttachParent(poolA.Get(), true);
-    operationElementX->Enable();
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), poolA.Get(), operationOptions);
 
     // Update tree
     TUpdateFairShareContext updateContext;
@@ -1183,10 +1176,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareOneSmallOperation)
     operationOptions->Weight = 1.0;
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptions);
-
-    operationElementX->AttachParent(poolA.Get(), true);
-    operationElementX->Enable();
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), poolA.Get(), operationOptions);
 
     // Update tree
     TUpdateFairShareContext updateContext;
@@ -1229,10 +1219,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareTwoComplementaryOperations)
     operationOptions1->Weight = 1.0;
 
     auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
-    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), operationOptions1);
-
-    operationElement1->AttachParent(poolA.Get(), true);
-    operationElement1->Enable();
+    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), poolA.Get(), operationOptions1);
 
     // Second operation with symmetric resource demand
     const int jobCount2 = 100;
@@ -1245,10 +1232,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareTwoComplementaryOperations)
     operationOptions2->Weight = 1.0;
 
     auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
-    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), operationOptions2);
-
-    operationElement2->AttachParent(poolA.Get(), true);
-    operationElement2->Enable();
+    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), poolA.Get(), operationOptions2);
 
     // Update tree
     TUpdateFairShareContext updateContext;
@@ -1292,10 +1276,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareComplexCase)
     operationOptions1->Weight = 1.0;
 
     auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
-    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), operationOptions1);
-
-    operationElement1->AttachParent(poolA.Get(), true);
-    operationElement1->Enable();
+    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), poolA.Get(), operationOptions1);
 
     // Create an operation with resource demand proportion <3, 1> and large jobCount in PoolA
     const int jobCount2 = 1000;
@@ -1308,10 +1289,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareComplexCase)
     operationOptions2->Weight = 1.0;
 
     auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
-    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), operationOptions2);
-
-    operationElement2->AttachParent(poolA.Get(), true);
-    operationElement2->Enable();
+    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), poolA.Get(), operationOptions2);
 
     // Create operation with resource demand proportion <1, 5> and large jobCount in PoolB
     const int jobCount3 = 1000;
@@ -1324,10 +1302,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareComplexCase)
     operationOptions3->Weight = 1.0;
 
     auto operation3 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount3, jobResources3));
-    auto operationElement3 = CreateTestOperationElement(host.Get(), operation3.Get(), operationOptions3);
-
-    operationElement3->AttachParent(poolB.Get(), true);
-    operationElement3->Enable();
+    auto operationElement3 = CreateTestOperationElement(host.Get(), operation3.Get(), poolB.Get(), operationOptions3);
 
     // Update tree
     TUpdateFairShareContext updateContext;
@@ -1380,10 +1355,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShare)
     operationOptions1->Weight = 10.0;
 
     auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
-    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), operationOptions1);
-
-    operationElement1->AttachParent(poolA.Get(), true);
-    operationElement1->Enable();
+    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), poolA.Get(), operationOptions1);
 
     // Create an operation with resource demand proportion <1, 1, 0>, weight=1, and large jobCount in PoolA
     const int jobCount2 = 1000;
@@ -1397,10 +1369,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShare)
     operationOptions2->Weight = 1.0;
 
     auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
-    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), operationOptions2);
-
-    operationElement2->AttachParent(poolA.Get(), true);
-    operationElement2->Enable();
+    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), poolA.Get(), operationOptions2);
 
     // Update tree
     TUpdateFairShareContext updateContext;
@@ -1459,10 +1428,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShareFunctionIsLe
     operationOptions1->Weight = 10.0;
 
     auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
-    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), operationOptions1);
-
-    operationElement1->AttachParent(poolA.Get(), true);
-    operationElement1->Enable();
+    auto operationElement1 = CreateTestOperationElement(host.Get(), operation1.Get(), poolA.Get(), operationOptions1);
 
     // Create an operation with resource demand proportion <1, 1, 0>, weight=1, and large jobCount in PoolA.
     const int jobCount2 = 1000;
@@ -1476,10 +1442,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShareFunctionIsLe
     operationOptions2->Weight = 1.0;
 
     auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
-    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), operationOptions2);
-
-    operationElement2->AttachParent(poolA.Get(), true);
-    operationElement2->Enable();
+    auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), poolA.Get(), operationOptions2);
 
     // Update tree.
     TUpdateFairShareContext updateContext;
@@ -1530,10 +1493,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareImpreciseComposition)
     operationOptions->Weight = 1.0;
 
     auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList{});
-    auto operationElementA = CreateTestOperationElement(host.Get(), operationA.Get(), operationOptions);
-
-    operationElementA->AttachParent(pool.Get(), true);
-    operationElementA->Enable();
+    auto operationElementA = CreateTestOperationElement(host.Get(), operationA.Get(), pool.Get(), operationOptions);
 
     TJobResourcesWithQuota jobResourcesB;
     jobResourcesB.SetUserSlots(3);
@@ -1541,10 +1501,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareImpreciseComposition)
     jobResourcesB.SetMemory(1207959552);
 
     auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResourcesB));
-    auto operationElementB = CreateTestOperationElement(host.Get(), operationB.Get(), operationOptions);
-
-    operationElementB->AttachParent(pool.Get(), true);
-    operationElementB->Enable();
+    auto operationElementB = CreateTestOperationElement(host.Get(), operationB.Get(), pool.Get(), operationOptions);
 
     operationElementA->OnJobStarted(
         TGuid::Create(),
@@ -1572,6 +1529,8 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
 
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
 
+    auto rootElement = CreateTestRootElement(host.Get());
+
     // Create an operation with 4 jobs.
     TJobResourcesWithQuota jobResources;
     jobResources.SetCpu(10);
@@ -1581,13 +1540,7 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({}));
-
-    auto operationElement = CreateTestOperationElement(host.Get(), operation.Get(), operationOptions);
-
-    // Root element.
-    auto rootElement = CreateTestRootElement(host.Get());
-    operationElement->AttachParent(rootElement.Get(), true);
-    operationElement->Enable();
+    auto operationElement = CreateTestOperationElement(host.Get(), operation.Get(), rootElement.Get(), operationOptions);
 
     std::vector<TJobId> jobIds;
     for (int i = 0; i < 4; ++i) {
@@ -2254,9 +2207,11 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         // Operation with 2 jobs.
 
         operations[opIndex] = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
-        operationElements[opIndex] = CreateTestOperationElement(host.Get(), operations[opIndex].Get(), operationOptions);
-        operationElements[opIndex]->AttachParent(rootElement.Get(), true);
-        operationElements[opIndex]->Enable();
+        operationElements[opIndex] = CreateTestOperationElement(
+            host.Get(),
+            operations[opIndex].Get(),
+            rootElement.Get(),
+            operationOptions);
     }
 
     // Expect 2 ScheduleJob calls for each operation.

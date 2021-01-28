@@ -31,6 +31,7 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr int UnassignedTreeIndex = -1;
+static constexpr int UndefinedSlotIndex = -1;
 static constexpr int EmptySchedulingTagFilterIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -396,7 +397,7 @@ public:
     virtual void UpdateSchedulableAttributesFromDynamicAttributes(TDynamicAttributesList* dynamicAttributesList);
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) = 0;
-    
+
     virtual void CalculateCurrentResourceUsage(TFairShareContext* context) = 0;
 
     virtual void PrescheduleJob(TFairShareContext* context, EPrescheduleJobOperationCriterion operationCriterion, bool aggressiveStarvationEnabled) = 0;
@@ -645,6 +646,8 @@ public:
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
+    NProfiling::TRegistry GetProfiler() const;
+
     void AddChild(TSchedulerElement* child, bool enabled = true);
     void EnableChild(const TSchedulerElementPtr& child);
     void DisableChild(const TSchedulerElementPtr& child);
@@ -659,7 +662,6 @@ public:
     ESchedulingMode GetMode() const;
     void SetMode(ESchedulingMode);
 
-    void RegisterProfiler(const NProfiling::TRegistry& profiler);
     void ProfileFull(bool profilingCompatibilityEnabled);
 
     virtual int GetMaxOperationCount() const = 0;
@@ -709,7 +711,8 @@ public:
     virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
 
 protected:
-    NProfiling::TBufferedProducerPtr ProducerBuffer_;
+    NProfiling::TRegistry Profiler_;
+    NProfiling::TBufferedProducerPtr BufferedProducer_;
 
     using TChildMap = THashMap<TSchedulerElementPtr, int>;
     using TChildList = std::vector<TSchedulerElementPtr>;
@@ -887,7 +890,7 @@ protected:
 
     const TOperationId OperationId_;
     std::optional<EUnschedulableReason> UnschedulableReason_;
-    std::optional<int> SlotIndex_;
+    int SlotIndex_ = UndefinedSlotIndex;
     TString UserName_;
     IOperationStrategyHost* const Operation_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
@@ -1111,6 +1114,9 @@ public:
 
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
+
+    NProfiling::TRegistry GetProfiler() const;
+
     bool IsPreemptionAllowed(
         bool isAggressivePreemption,
         const TDynamicAttributesList& dynamicAttributesList,
@@ -1135,7 +1141,6 @@ public:
 
     std::optional<int> GetMaybeSlotIndex() const;
 
-    void RegisterProfiler(std::optional<int> slotIndex, const NProfiling::TRegistry& profiler);
     void ProfileFull(bool profilingCompatibilityEnabled);
 
     TString GetUserName() const;
@@ -1175,12 +1180,14 @@ public:
         const TJobResources& delta,
         TJobResources* availableResourceLimitsOutput = nullptr);
 
-    void AttachParent(TCompositeSchedulerElement* newParent, bool enabled);
-    void ChangeParent(TCompositeSchedulerElement* newParent);
+    void AttachParent(TCompositeSchedulerElement* newParent, int slotIndex);
+    void ChangeParent(TCompositeSchedulerElement* newParent, int slotIndex);
     void DetachParent();
 
     void MarkOperationRunningInPool();
-    bool IsOperationRunningInPool();
+    bool IsOperationRunningInPool() const;
+
+    void UpdateProfilers();
 
     void UpdateAncestorsDynamicAttributes(
         TFairShareContext* context,
@@ -1220,7 +1227,7 @@ private:
     bool RunningInThisPoolTree_ = false;
     TSchedulingTagFilter SchedulingTagFilter_;
 
-    NProfiling::TBufferedProducerPtr ProducerBuffer_;
+    NProfiling::TBufferedProducerPtr BufferedProducer_;
 
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 

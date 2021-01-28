@@ -118,7 +118,9 @@ public:
         , TreeHost_(treeHost)
         , FeasibleInvokers_(feasibleInvokers)
         , TreeId_(std::move(treeId))
-        , TreeProfiler_(SchedulerProfiler.WithRequiredTag("tree", TreeId_))
+        , TreeProfiler_(SchedulerProfiler
+            .WithGlobal()
+            .WithRequiredTag("tree", TreeId_))
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
         , NonPreemptiveSchedulingStage_(
             /* nameInLogs */ "Non preemptive",
@@ -136,14 +138,11 @@ public:
         , FairShareUpdateTimer_(TreeProfiler_.Timer("/fair_share_update_time"))
         , FairShareFluentLogTimer_(TreeProfiler_.Timer("/fair_share_fluent_log_time"))
         , FairShareTextLogTimer_(TreeProfiler_.Timer("/fair_share_text_log_time"))
-        , PoolCountGauge_(TreeProfiler_.WithGlobal().Gauge("/pools/pool_count"))
+        , PoolCountGauge_(TreeProfiler_.Gauge("/pools/pool_count"))
     {
         RootElement_ = New<TRootElement>(StrategyHost_, this, Config_, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
 
-        DoRegisterPoolProfilingCounters(RootElement_->GetId());
-        RootElement_->RegisterProfiler(TreeProfiler_
-            .WithGlobal()
-            .WithRequiredTag("pool", RootElement_->GetId(), -1));
+        DoRegisterPoolProfilingCounters(RootElement_);
 
         YT_LOG_INFO("Fair share tree created");
     }
@@ -151,6 +150,11 @@ public:
     virtual TFairShareStrategyTreeConfigPtr GetConfig() const override
     {
         return Config_;
+    }
+
+    virtual NProfiling::TRegistry GetProfiler() const
+    {
+        return TreeProfiler_;
     }
 
     virtual void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) override
@@ -231,6 +235,8 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+        TForbidContextSwitchGuard contextSwitchGuard;
+
         auto operationId = state->GetHost()->GetId();
 
         auto operationElement = New<TOperationElement>(
@@ -253,7 +259,10 @@ public:
         auto poolName = state->GetPoolNameByTreeId(TreeId_);
         auto pool = GetOrCreatePool(poolName, state->GetHost()->GetAuthenticatedUser());
 
-        operationElement->AttachParent(pool.Get(), /* enabled */ false);
+        int slotIndex = AllocateOperationSlotIndex(state, pool->GetId());
+        state->GetHost()->SetSlotIndex(TreeId_, slotIndex);
+
+        operationElement->AttachParent(pool.Get(), slotIndex);
 
         bool isRunningInPool = OnOperationAddedToPool(state, operationElement);
         if (isRunningInPool) {
@@ -338,7 +347,11 @@ public:
 
         auto oldParent = element->GetMutableParent();
         auto newParent = GetOrCreatePool(newPool, state->GetHost()->GetAuthenticatedUser());
-        element->ChangeParent(newParent.Get());
+
+        int slotIndex = AllocateOperationSlotIndex(state, newParent->GetId());
+        state->GetHost()->SetSlotIndex(TreeId_, slotIndex);
+
+        element->ChangeParent(newParent.Get(), slotIndex);
 
         OnOperationRemovedFromPool(state, element, oldParent);
 
@@ -1697,10 +1710,7 @@ private:
         YT_VERIFY(Pools_.emplace(pool->GetId(), pool).second);
         YT_VERIFY(PoolToMinUnusedSlotIndex_.emplace(pool->GetId(), 0).second);
 
-        DoRegisterPoolProfilingCounters(pool->GetId());
-        pool->RegisterProfiler(TreeProfiler_
-            .WithGlobal()
-            .WithRequiredTag("pool", pool->GetId(), -1));
+        DoRegisterPoolProfilingCounters(pool);
     }
 
     void RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
@@ -1798,21 +1808,19 @@ private:
         return pool;
     }
 
-    void DoRegisterPoolProfilingCounters(const TString& poolName)
+    void DoRegisterPoolProfilingCounters(const TCompositeSchedulerElementPtr& element)
     {
-        auto poolProfiler = TreeProfiler_
-            .WithTag("pool", poolName, -1)
-            .WithGlobal();
+        auto elementProfiler = element->GetProfiler();
 
         TUnregisterOperationCounters counters;
-        counters.BannedCounter = poolProfiler.Counter("/pools/banned_operation_count");
+        counters.BannedCounter = elementProfiler.Counter("/pools/banned_operation_count");
 
         for (auto state : TEnumTraits<EOperationState>::GetDomainValues()) {
-            counters.FinishedCounters[state] = poolProfiler
+            counters.FinishedCounters[state] = elementProfiler
                 .WithTag("state", FormatEnum(state), -1)
                 .Counter("/pools/finished_operation_count");
         }
-        PoolToUnregisterOperationCounters_.emplace(poolName, std::move(counters));
+        PoolToUnregisterOperationCounters_.emplace(element->GetId(), std::move(counters));
     }
 
     bool TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
@@ -1834,42 +1842,42 @@ private:
         }
     }
 
-    std::optional<int> AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
+    int AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
     {
-        auto slotIndex = state->GetHost()->FindSlotIndex(TreeId_);
+        auto currentSlotIndex = state->GetHost()->FindSlotIndex(TreeId_);
 
-        if (slotIndex) {
+        if (currentSlotIndex) {
             // Revive case
-            if (TryAllocatePoolSlotIndex(poolName, *slotIndex)) {
+            if (TryAllocatePoolSlotIndex(poolName, *currentSlotIndex)) {
                 YT_LOG_DEBUG("Operation slot index reused (OperationId: %v, Pool: %v, SlotIndex: %v)",
                     state->GetHost()->GetId(),
                     poolName,
-                    *slotIndex);
-                return slotIndex;
+                    *currentSlotIndex);
+                return *currentSlotIndex;
             }
             YT_LOG_ERROR("Failed to reuse slot index during revive (OperationId: %v, Pool: %v, SlotIndex: %v)",
                 state->GetHost()->GetId(),
                 poolName,
-                *slotIndex);
+                *currentSlotIndex);
         }
 
+        int newSlotIndex = UndefinedSlotIndex;
         auto it = PoolToSpareSlotIndices_.find(poolName);
         if (it == PoolToSpareSlotIndices_.end() || it->second.empty()) {
             auto& minUnusedIndex = GetOrCrash(PoolToMinUnusedSlotIndex_, poolName);
-            slotIndex = minUnusedIndex;
+            newSlotIndex = minUnusedIndex;
             ++minUnusedIndex;
         } else {
             auto spareIndexIt = it->second.begin();
-            slotIndex = *spareIndexIt;
+            newSlotIndex = *spareIndexIt;
             it->second.erase(spareIndexIt);
         }
 
-        state->GetHost()->SetSlotIndex(TreeId_, *slotIndex);
         YT_LOG_DEBUG("Operation slot index allocated (OperationId: %v, Pool: %v, SlotIndex: %v)",
             state->GetHost()->GetId(),
             poolName,
-            *slotIndex);
-        return slotIndex;
+            newSlotIndex);
+        return newSlotIndex;
     }
 
     void ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
@@ -2006,9 +2014,6 @@ private:
         const TFairShareStrategyOperationStatePtr& state,
         const TOperationElementPtr& operationElement)
     {
-        auto slotIndex = AllocateOperationSlotIndex(state, operationElement->GetParent()->GetId());
-        operationElement->RegisterProfiler(slotIndex, TreeProfiler_.WithGlobal());
-
         auto violatedPool = FindPoolViolatingMaxRunningOperationCount(operationElement->GetMutableParent());
         if (!violatedPool) {
             operationElement->MarkOperationRunningInPool();
