@@ -29,6 +29,24 @@ struct ISensorWriter
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TWithTagGuard
+{
+public:
+    explicit TWithTagGuard(ISensorWriter* writer);
+    // NB: For convenience.
+    TWithTagGuard(ISensorWriter* writer, const TTag& tag);
+
+    ~TWithTagGuard();
+
+    void AddTag(const TTag& tag);
+
+private:
+    ISensorWriter* Writer_;
+    int AddedTagCount_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSensorBuffer final
     : public ISensorWriter
 {

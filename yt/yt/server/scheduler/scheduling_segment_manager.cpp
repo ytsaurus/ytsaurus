@@ -201,42 +201,34 @@ void TNodeSchedulingSegmentManager::LogAndProfileSegmentsInTree(
             treeId);
     }
 
-    sensorWriter->PushTag(TTag{ProfilingPoolTreeKey, treeId});
-    auto finally = Finally([&] { sensorWriter->PopTag(); });
+    TWithTagGuard treeTagGuard(sensorWriter, TTag{ProfilingPoolTreeKey, treeId});
     if (segmentedSchedulingEnabled) {
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
             auto profileResourceAmountPerSegment = [&] (const TString& sensorName, const TSegmentToResourceAmount& resourceAmountMap) {
                 const auto& valueAtSegment = resourceAmountMap.At(segment);
                 if (IsDataCenterAwareSchedulingSegment(segment)) {
                     for (const auto& dataCenter : strategyTreeState.DataCenters) {
-                        sensorWriter->PushTag(TTag{"data_center", ToString(dataCenter)});
+                        TWithTagGuard guard(sensorWriter, TTag{"data_center", ToString(dataCenter)});
                         sensorWriter->AddGauge(sensorName, valueAtSegment.GetOrDefaultAt(dataCenter));
-                        sensorWriter->PopTag();
                     }
                 } else {
                     sensorWriter->AddGauge(sensorName, valueAtSegment.GetOrDefault());
                 }
             };
 
-            sensorWriter->PushTag(TTag{"segment", FormatEnum(segment)});
+            TWithTagGuard guard(sensorWriter, TTag{"segment", FormatEnum(segment)});
             profileResourceAmountPerSegment("/fair_resource_amount", strategyTreeState.FairResourceAmountPerSegment);
             profileResourceAmountPerSegment("/current_resource_amount", currentResourceAmountPerSegment);
-            sensorWriter->PopTag();
         }
     } else {
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-            sensorWriter->PushTag(TTag{"segment", FormatEnum(segment)});
+            TWithTagGuard guard(sensorWriter, TTag{"segment", FormatEnum(segment)});
             if (IsDataCenterAwareSchedulingSegment(segment)) {
-                sensorWriter->PushTag(TTag{"data_center", ToString(NullDataCenter)});
+                guard.AddTag(TTag{"data_center", ToString(NullDataCenter)});
             }
 
             sensorWriter->AddGauge("/fair_resource_amount", 0.0);
             sensorWriter->AddGauge("/current_resource_amount", 0.0);
-
-            if (IsDataCenterAwareSchedulingSegment(segment)) {
-                sensorWriter->PopTag();
-            }
-            sensorWriter->PopTag();
         }
     }
 }
