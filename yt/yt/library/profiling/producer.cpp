@@ -6,6 +6,34 @@ namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TWithTagGuard::TWithTagGuard(ISensorWriter* writer)
+    : Writer_(writer)
+{
+    YT_VERIFY(Writer_);
+}
+
+TWithTagGuard::TWithTagGuard(ISensorWriter* writer, const TTag& tag)
+    : Writer_(writer)
+{
+    YT_VERIFY(Writer_);
+    AddTag(tag);
+}
+
+void TWithTagGuard::AddTag(const TTag& tag)
+{
+    Writer_->PushTag(tag);
+    ++AddedTagCount_;
+}
+
+TWithTagGuard::~TWithTagGuard()
+{
+    for (int i = 0; i < AddedTagCount_; ++i) {
+        Writer_->PopTag();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSensorBuffer::PushTag(const TTag& tag)
 {
     Tags_.push_back(tag);
