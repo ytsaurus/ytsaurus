@@ -22,22 +22,6 @@ def is_inside_arcadia(inside_arcadia):
         inside_arcadia = int(yatest_common.get_param("inside_arcadia", True))
     return inside_arcadia
 
-def is_inside_distbuild():
-    if yatest_common is None:
-        return False
-
-    if os.environ.get("YT_OUTPUT"):
-        return False
-
-    if yatest_common.get_param("teamcity"):
-        return False
-
-    if yatest_common.get_param("yt.localbuild"):
-        return False
-
-    return True
-
-
 def search_binary_path(binary_name, build_path_suffix=None, cwd_suffix=None):
     """
     Search for binary with given name somewhere in file system depending on keyword arguments.
