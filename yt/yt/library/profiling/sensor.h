@@ -125,9 +125,22 @@ TString ToString(const TSensorOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! TRegistry stores common settings of profiling counters.
 class TRegistry
 {
 public:
+    //! Default constructor creates null registry. Every method of null registry is no-op.
+    /*!
+     *  Default constructor is useful for implementing optional profiling. E.g:
+     *
+     *      TCache CreateCache(TRegistry& registry = {});
+     *
+     *      void Example()
+     *      {
+     *          auto cache = CreateCache(); // Create cache without profiling
+     *          auto profiledCache = CreateCache(TRegistry{"/my_cache"}); // Enable profiling
+     *      }
+     */
     TRegistry() = default;
 
     static constexpr auto DefaultNamespace = "yt";
