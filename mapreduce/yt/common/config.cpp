@@ -236,7 +236,11 @@ TProcessState::TProcessState()
     try {
         FqdnHostName = ::FQDNHostName();
     } catch (const yexception& e) {
-        ythrow yexception() << "Cannot get host name: " << e.what();
+        try {
+            FqdnHostName = ::HostName();
+        } catch (const yexception& e) {
+            ythrow yexception() << "Cannot get fqdn and host name: " << e.what();
+        }
     }
 
     try {
