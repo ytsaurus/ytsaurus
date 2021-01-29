@@ -212,57 +212,57 @@ class YTInstance(object):
         self._default_client_config = {"enable_token": False}
 
         self._open_port_iterator = _get_ports_generator(yt_config)
-        self._prepare_environment(yt_config, self._open_port_iterator, modify_configs_func)
+        self._prepare_environment(self._open_port_iterator, modify_configs_func)
 
-    def _prepare_directories(self, yt_config):
+    def _prepare_directories(self):
         master_dirs = []
         master_tmpfs_dirs = [] if self._tmpfs_path else None
 
-        for cell_index in xrange(yt_config.secondary_cell_count + 1):
+        for cell_index in xrange(self.yt_config.secondary_cell_count + 1):
             name = self._get_master_name("master", cell_index)
-            master_dirs.append([os.path.join(self.runtime_data_path, name, str(i)) for i in xrange(yt_config.master_count)])
+            master_dirs.append([os.path.join(self.runtime_data_path, name, str(i)) for i in xrange(self.yt_config.master_count)])
             for dir_ in master_dirs[cell_index]:
                 makedirp(dir_)
 
             if self._tmpfs_path is not None:
-                master_tmpfs_dirs.append([os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(yt_config.master_count)])
+                master_tmpfs_dirs.append([os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(self.yt_config.master_count)])
 
                 for dir_ in master_tmpfs_dirs[cell_index]:
                     makedirp(dir_)
 
-        clock_dirs = [os.path.join(self.runtime_data_path, "clock", str(i)) for i in xrange(yt_config.clock_count)]
+        clock_dirs = [os.path.join(self.runtime_data_path, "clock", str(i)) for i in xrange(self.yt_config.clock_count)]
         for dir_ in clock_dirs:
             makedirp(dir_)
 
         clock_tmpfs_dirs = None
         if self._tmpfs_path is not None:
-            clock_tmpfs_dirs = [os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(yt_config.clock_count)]
+            clock_tmpfs_dirs = [os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(self.yt_config.clock_count)]
             for dir_ in clock_tmpfs_dirs:
                 makedirp(dir_)
 
-        scheduler_dirs = [os.path.join(self.runtime_data_path, "scheduler", str(i)) for i in xrange(yt_config.scheduler_count)]
+        scheduler_dirs = [os.path.join(self.runtime_data_path, "scheduler", str(i)) for i in xrange(self.yt_config.scheduler_count)]
         for dir_ in scheduler_dirs:
             makedirp(dir_)
 
-        controller_agent_dirs = [os.path.join(self.runtime_data_path, "controller_agent", str(i)) for i in xrange(yt_config.controller_agent_count)]
+        controller_agent_dirs = [os.path.join(self.runtime_data_path, "controller_agent", str(i)) for i in xrange(self.yt_config.controller_agent_count)]
         for dir_ in controller_agent_dirs:
             makedirp(dir_)
 
-        node_dirs = [os.path.join(self.runtime_data_path, "node", str(i)) for i in xrange(yt_config.node_count)]
+        node_dirs = [os.path.join(self.runtime_data_path, "node", str(i)) for i in xrange(self.yt_config.node_count)]
         for dir_ in node_dirs:
             makedirp(dir_)
 
         node_tmpfs_dirs = None
         if self._tmpfs_path is not None:
-            node_tmpfs_dirs = [os.path.join(self._tmpfs_path, "node", str(i)) for i in xrange(yt_config.node_count)]
+            node_tmpfs_dirs = [os.path.join(self._tmpfs_path, "node", str(i)) for i in xrange(self.yt_config.node_count)]
             for dir_ in node_tmpfs_dirs:
                 makedirp(dir_)
 
-        http_proxy_dirs = [os.path.join(self.runtime_data_path, "http_proxy", str(i)) for i in xrange(yt_config.http_proxy_count)]
+        http_proxy_dirs = [os.path.join(self.runtime_data_path, "http_proxy", str(i)) for i in xrange(self.yt_config.http_proxy_count)]
         for dir_ in http_proxy_dirs:
             makedirp(dir_)
 
-        rpc_proxy_dirs = [os.path.join(self.runtime_data_path, "rpc_proxy", str(i)) for i in xrange(yt_config.rpc_proxy_count)]
+        rpc_proxy_dirs = [os.path.join(self.runtime_data_path, "rpc_proxy", str(i)) for i in xrange(self.yt_config.rpc_proxy_count)]
         for dir_ in rpc_proxy_dirs:
             makedirp(dir_)
 
@@ -277,53 +277,52 @@ class YTInstance(object):
                 "http_proxy": http_proxy_dirs,
                 "rpc_proxy": rpc_proxy_dirs}
 
-    def _prepare_environment(self, yt_config, ports_generator, modify_configs_func):
+    def _prepare_environment(self, ports_generator, modify_configs_func):
         logger.info("Preparing cluster instance as follows:")
-        logger.info("  clocks             %d", yt_config.clock_count)
-        logger.info("  masters            %d (%d nonvoting)", yt_config.master_count, yt_config.nonvoting_master_count)
-        logger.info("  nodes              %d", yt_config.node_count)
-        logger.info("  schedulers         %d", yt_config.scheduler_count)
-        logger.info("  controller agents  %d", yt_config.controller_agent_count)
+        logger.info("  clocks             %d", self.yt_config.clock_count)
+        logger.info("  masters            %d (%d nonvoting)", self.yt_config.master_count, self.yt_config.nonvoting_master_count)
+        logger.info("  nodes              %d", self.yt_config.node_count)
+        logger.info("  schedulers         %d", self.yt_config.scheduler_count)
+        logger.info("  controller agents  %d", self.yt_config.controller_agent_count)
 
-        if yt_config.secondary_cell_count > 0:
-            logger.info("  secondary cells    %d", yt_config.secondary_cell_count)
+        if self.yt_config.secondary_cell_count > 0:
+            logger.info("  secondary cells    %d", self.yt_config.secondary_cell_count)
 
-        logger.info("  HTTP proxies       %d", yt_config.http_proxy_count)
-        logger.info("  RPC proxies        %d", yt_config.rpc_proxy_count)
-        logger.info("  working dir        %s", yt_config.path)
+        logger.info("  HTTP proxies       %d", self.yt_config.http_proxy_count)
+        logger.info("  RPC proxies        %d", self.yt_config.rpc_proxy_count)
+        logger.info("  working dir        %s", self.yt_config.path)
 
-        if yt_config.master_count == 0:
+        if self.yt_config.master_count == 0:
             logger.warning("Master count is zero. Instance is not prepared.")
             return
 
-        dirs = self._prepare_directories(yt_config)
+        dirs = self._prepare_directories()
 
-        cluster_configuration = build_configs(yt_config, ports_generator, dirs, self.logs_path)
+        cluster_configuration = build_configs(self.yt_config, ports_generator, dirs, self.logs_path)
 
-        modify_cluster_configuration(yt_config, cluster_configuration)
+        modify_cluster_configuration(self.yt_config, cluster_configuration)
 
         if modify_configs_func:
             modify_configs_func(cluster_configuration, self.abi_version)
 
         self._cluster_configuration = cluster_configuration
 
-        if yt_config.master_count + yt_config.secondary_cell_count > 0:
+        if self.yt_config.master_count + self.yt_config.secondary_cell_count > 0:
             self._prepare_masters(cluster_configuration["master"])
-        if yt_config.clock_count > 0:
+        if self.yt_config.clock_count > 0:
             self._prepare_clocks(cluster_configuration["clock"])
-        if yt_config.node_count > 0:
+        if self.yt_config.node_count > 0:
             self._prepare_nodes(cluster_configuration["node"])
-        if yt_config.scheduler_count > 0:
+        if self.yt_config.scheduler_count > 0:
             self._prepare_schedulers(cluster_configuration["scheduler"])
-        if yt_config.controller_agent_count > 0:
+        if self.yt_config.controller_agent_count > 0:
             self._prepare_controller_agents(cluster_configuration["controller_agent"])
-        if yt_config.http_proxy_count > 0:
+        if self.yt_config.http_proxy_count > 0:
             self._prepare_http_proxies(cluster_configuration["http_proxy"])
-        if yt_config.rpc_proxy_count > 0:
+        if self.yt_config.rpc_proxy_count > 0:
             self._prepare_rpc_proxies(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"])
 
         self._prepare_drivers(
-            yt_config,
             cluster_configuration["driver"],
             cluster_configuration["rpc_driver"],
             cluster_configuration["master"],
@@ -1126,8 +1125,8 @@ class YTInstance(object):
             if not error.is_resolve_error():
                 raise
 
-    def _prepare_drivers(self, yt_config, driver_configs, rpc_driver_config, master_configs, clock_configs):
-        for cell_index in xrange(yt_config.secondary_cell_count + 1):
+    def _prepare_drivers(self, driver_configs, rpc_driver_config, master_configs, clock_configs):
+        for cell_index in xrange(self.yt_config.secondary_cell_count + 1):
             if cell_index == 0:
                 tag = master_configs["primary_cell_tag"]
                 name = "driver"
@@ -1148,7 +1147,7 @@ class YTInstance(object):
             self.configs[name] = config
             self.config_paths[name] = config_path
 
-        if yt_config.clock_count > 0:
+        if self.yt_config.clock_count > 0:
             name = "clock_driver"
             config_path = os.path.join(self.configs_path, "clock-driver.yson")
 
@@ -1163,7 +1162,7 @@ class YTInstance(object):
             self.configs[name] = config
             self.config_paths[name] = config_path
 
-        if yt_config.rpc_proxy_count > 0:
+        if self.yt_config.rpc_proxy_count > 0:
             name = "rpc_driver"
             config_path = os.path.join(self.configs_path, "rpc-driver.yson")
 
@@ -1180,7 +1179,7 @@ class YTInstance(object):
 
         config_path = os.path.join(self.configs_path, "driver-logging.yson")
 
-        config = _init_logging(self.logs_path, "driver", yt_config)
+        config = _init_logging(self.logs_path, "driver", self.yt_config)
         write_config(config, config_path)
 
         self.configs["driver_logging"] = config
