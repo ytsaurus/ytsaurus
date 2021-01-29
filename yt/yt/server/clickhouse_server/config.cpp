@@ -189,7 +189,7 @@ TYtConfig::TYtConfig()
     RegisterParameter("memory_watchdog", MemoryWatchdog)
         .Default(New<TMemoryWatchdogConfig>());
 
-    RegisterParameter("table_writer_config", TableWriterConfig)
+    RegisterParameter("table_writer", TableWriter)
         .DefaultNew();
 
     RegisterParameter("discovery", Discovery)

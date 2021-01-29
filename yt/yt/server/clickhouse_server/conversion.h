@@ -14,9 +14,15 @@ namespace NYT::NClickHouseServer {
 
 // YT logical type system -> CH data type system.
 
-DB::DataTypePtr ToDataType(const NTableClient::TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings);
+DB::DataTypePtr ToDataType(
+    const NTableClient::TComplexTypeFieldDescriptor& descriptor,
+    const TCompositeSettingsPtr& settings,
+    bool enableReadOnlyConversions = true);
 
-DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings);
+DB::DataTypes ToDataTypes(
+    const NTableClient::TTableSchema& schema,
+    const TCompositeSettingsPtr& settings,
+    bool enableReadOnlyConversions = true);
 
 DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings);
 
@@ -26,7 +32,8 @@ DB::Block ToHeaderBlock(const NTableClient::TTableSchema& schema, const TComposi
 
 NTableClient::TTableSchema ToTableSchema(
     const DB::ColumnsDescription& columns,
-    const NTableClient::TKeyColumns& keyColumns);
+    const NTableClient::TKeyColumns& keyColumns,
+    const TCompositeSettingsPtr& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +52,12 @@ DB::Block ToBlock(
     const NTableClient::TRowBufferPtr& rowBuffer,
     const DB::Block& headerBlock,
     const TCompositeSettingsPtr& compositeSettings);
+
+TSharedRange<NTableClient::TUnversionedRow> ToRowRange(
+    const DB::Block& block,
+    const std::vector<DB::DataTypePtr>& dataTypes,
+    const std::vector<int>& columnIndexToId,
+    const TCompositeSettingsPtr& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
