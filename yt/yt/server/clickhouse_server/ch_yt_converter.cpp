@@ -27,6 +27,7 @@
 #include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypeDate.h>
+#include <DataTypes/DataTypeCustom.h>
 #include <DataTypes/DataTypeDateTime.h>
 
 #include <library/cpp/iterator/functools.h>
@@ -76,6 +77,7 @@ using IConverterPtr = std::unique_ptr<IConverter>;
 
 //////////////////////////////////////////////////////////////////////////////////
 
+//! Value TypeId == Nothing is a special value that corresponds to YtBoolean.
 template <DB::TypeIndex TypeId>
 class TSimpleValueConverter
     : public IConverter
@@ -126,6 +128,14 @@ public:
                 auto stringRef = ColumnString_->DB::ColumnString::getDataAt(index);
                 values[index].Data.String = stringRef.data;
                 values[index].Length = stringRef.size;
+            } else if constexpr (TypeId == DB::TypeIndex::Nothing) {
+                // We need to validate UInt8 to be actually boolean.
+                auto* typedData = reinterpret_cast<const DB::UInt8*>(Data_);
+                values[index].Type = EValueType::Boolean;
+                if (typedData[index] > 1) {
+                    THROW_ERROR_EXCEPTION("Cannot convert value %v to YT boolean", typedData[index]);
+                }
+                values[index].Data.Boolean = typedData[index];
             } else {
                 THROW_ERROR_EXCEPTION(
                     "Conversion of ClickHouse type %v to YT type system is not supported",
@@ -169,7 +179,19 @@ public:
             // Use fully qualified method to prevent virtual call.
             auto stringRef = ColumnString_->DB::ColumnString::getDataAt(CurrentValueIndex_);
             writer->WriteBinaryString(TStringBuf(stringRef.data, stringRef.size));
+        } else if constexpr (TypeId == DB::TypeIndex::Nothing) {
+            // We need to validate UInt8 to be actually boolean.
+            auto* typedData = reinterpret_cast<const DB::UInt8*>(Data_);
+            if (typedData[CurrentValueIndex_] > 1) {
+                THROW_ERROR_EXCEPTION("Cannot convert value %v to YT boolean", typedData[CurrentValueIndex_]);
+            }
+            writer->WriteBinaryBoolean(typedData[CurrentValueIndex_]);
+        } else {
+            THROW_ERROR_EXCEPTION(
+                "Conversion of ClickHouse type %v to YT type system is not supported",
+                DataType_->getName());
         }
+
         ++CurrentValueIndex_;
 
         #undef XX
@@ -484,7 +506,6 @@ private:
             XX(Int16, Int16)
             XX(Int32, Int32)
             XX(Int64, Int64)
-            XX(UInt8, Uint8)
             XX(UInt16, Uint16)
             XX(UInt32, Uint32)
             XX(UInt64, Uint64)
@@ -494,6 +515,18 @@ private:
             XX(Date, Date)
             XX(DateTime, Datetime)
             XX(Interval, Interval)
+
+            case DB::TypeIndex::UInt8:
+                if (dataType->getCustomName()->getName() == "YtBoolean") {
+                    // Nothing is a special value standing for YT boolean for simplicity.
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::Nothing>>(
+                        dataType,
+                        ESimpleLogicalValueType::Boolean);
+                } else {
+                    return std::make_unique<TSimpleValueConverter<DB::TypeIndex::UInt8>>(
+                        dataType,
+                        ESimpleLogicalValueType::Uint8);
+                }
 
             #undef XX
 

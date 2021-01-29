@@ -3,6 +3,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/clickhouse_server/ch_yt_converter.h>
+#include <yt/server/clickhouse_server/data_type_boolean.h>
 #include <yt/server/clickhouse_server/config.h>
 
 #include <yt/ytlib/table_client/helpers.h>
@@ -144,6 +145,30 @@ TEST_F(TTestCHYTConversion, TestInt16)
     ExpectConversion(column, SimpleLogicalType(ESimpleLogicalValueType::Int16), expectedValueYsons);
 }
 
+TEST_F(TTestCHYTConversion, TestBoolean)
+{
+    auto dataType = GetDataTypeBoolean();
+
+    auto validColumn = MakeColumn(dataType, {
+        DB::UInt8(0),
+        DB::UInt8(1),
+    });
+
+    auto invalidColumn = MakeColumn(dataType, {
+        DB::UInt8(2),
+    });
+
+    std::vector<TStringBuf> expectedValueYsons = {
+        "%false",
+        "%true",
+    };
+
+    Converter_.emplace(dataType, Settings_);
+
+    ExpectConversion(validColumn, SimpleLogicalType(ESimpleLogicalValueType::Boolean), expectedValueYsons);
+    EXPECT_THROW(Converter_->ConvertColumnToUnversionedValues(invalidColumn), std::exception);
+}
+
 TEST_F(TTestCHYTConversion, TestFloat32)
 {
     auto dataType = std::make_shared<DB::DataTypeFloat32>();
@@ -263,26 +288,28 @@ TEST_F(TTestCHYTConversion, TestArrayNullableString)
     ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
 }
 
-TEST_F(TTestCHYTConversion, TestTupleUInt32String)
+TEST_F(TTestCHYTConversion, TestTupleUInt32StringBoolean)
 {
     auto dataType = std::make_shared<DB::DataTypeTuple>(std::vector<DB::DataTypePtr>{
         std::make_shared<DB::DataTypeUInt32>(),
         std::make_shared<DB::DataTypeString>(),
+        GetDataTypeBoolean(),
     });
 
     auto column = MakeColumn(dataType, {
-        DB::Tuple{DB::UInt32(42), DB::String("foo")},
-        DB::Tuple{DB::UInt32(123), DB::String("bar")},
+        DB::Tuple{DB::UInt32(42), DB::String("foo"), DB::UInt8(0)},
+        DB::Tuple{DB::UInt32(123), DB::String("bar"), DB::UInt8(1)},
     });
 
     std::vector<TStringBuf> expectedValueYsons = {
-        "[42u;foo]",
-        "[123u;bar]",
+        "[42u;foo;%false]",
+        "[123u;bar;%true]",
     };
 
     auto expectedLogicalType = TupleLogicalType({
         SimpleLogicalType(ESimpleLogicalValueType::Uint32),
         SimpleLogicalType(ESimpleLogicalValueType::String),
+        SimpleLogicalType(ESimpleLogicalValueType::Boolean),
     });
 
     Converter_.emplace(dataType, Settings_);

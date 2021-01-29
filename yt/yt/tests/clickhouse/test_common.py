@@ -1454,3 +1454,15 @@ class TestCustomSettings(ClickHouseTestBase):
                             clique.make_query("select * from `//tmp/t`", settings=settings)
                     else:
                         assert clique.make_query("select * from `//tmp/t`", settings=settings) == [{"a": 1}]
+
+    @authors("max42")
+    def test_boolean(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "boolean", "required": True}]})
+        write_table("//tmp/t", [{"b": False}, {"b": True}])
+        with Clique(1) as clique:
+            assert clique.make_query("select b, 2 * b as two_b  from `//tmp/t`") == \
+                   [{"b": 0, "two_b": 0}, {"b": 1, "two_b": 2}]
+            assert clique.make_query("select toTypeName(b) as tb, toTypeName(2 * b) as t2b from `//tmp/t` limit 1") == \
+                   [{"tb": "YtBoolean", "t2b": "UInt16"}]
+            assert get_schema_from_description(clique.make_query("describe `//tmp/t`")) == \
+                   [{"name": "b", "type": "YtBoolean"}]
