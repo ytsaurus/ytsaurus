@@ -11,6 +11,7 @@ const TEnumIndexedVector<ESandboxKind, TString> SandboxDirectoryNames{
     "pipes",
     "tmp",
     "cores",
+    "logs"
 };
 
 ////////////////////////////////////////////////////////////////////////////////

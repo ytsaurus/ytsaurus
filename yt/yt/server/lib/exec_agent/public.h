@@ -45,6 +45,7 @@ DEFINE_ENUM(ESandboxKind,
     (Pipes)
     (Tmp)
     (Cores)
+    (Logs)
 );
 
 DEFINE_ENUM(EJobEnvironmentType,

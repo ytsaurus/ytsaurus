@@ -864,6 +864,9 @@ void TSlotLocation::CreateSandboxDirectories(int slotIndex)
 
         // Node should have access to user sandbox during job preparation.
         ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::User), getuid(), 0755);
+        
+        // Process executor should have access to write logs before process start.
+        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::Logs), userId, 0755);
     } catch (const std::exception& ex) {
         auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to create sandbox directories for slot %v", slotPath)
             << ex;

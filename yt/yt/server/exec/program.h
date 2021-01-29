@@ -109,7 +109,6 @@ protected:
         
         try {
             OpenExecutorStderr();
-            LogToStderr("Executor initialized");
         } catch (const std::exception& ex) {
             Exit(17);
         }
@@ -126,7 +125,6 @@ protected:
                 ExecutorStderr_.Close();
                 ExecutorStderr_ = newFile;
             }
-            LogToStderr("Stderr redirected");
         } catch (const std::exception& ex) {
             Exit(18);
         }
@@ -189,7 +187,7 @@ private:
 
     void OpenExecutorStderr()
     {
-        ExecutorStderr_ = TFile{"../pipes/executor_stderr", EOpenModeFlag::WrOnly | EOpenModeFlag::ForAppend | EOpenModeFlag::OpenAlways};
+        ExecutorStderr_ = TFile{"../logs/executor_stderr", EOpenModeFlag::WrOnly | EOpenModeFlag::ForAppend | EOpenModeFlag::OpenAlways};
     }
 
     mutable TFile ExecutorStderr_;
