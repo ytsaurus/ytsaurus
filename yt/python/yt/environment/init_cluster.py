@@ -392,6 +392,7 @@ def _initialize_world(client, environment, yt_config):
         logger.info("Tablet cells are ready")
 
     if yt_config.init_operations_archive:
+        import yt.environment.init_operation_archive as yt_env_init_operation_archive
         yt_env_init_operation_archive.create_tables_latest_version(client)
 
     # Used to automatically determine local mode from python wrapper.
