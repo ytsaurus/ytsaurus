@@ -196,6 +196,8 @@ def add_start_subparser(subparsers):
 
     parser.add_argument("--forbid-chunk-storage-in-tmpfs", action="store_true", default=False,
                         help="disables chunk storage in tmpfs")
+    parser.add_argument("--node-chunk-store-quota", type=int,
+                        help="size for node chunk storage in bytes")
 
     parser.add_argument("--wait-tablet-cell-initialization", action="store_true", default=False,
                         help="wait until tablet cell (created during world initialization) health is good")
