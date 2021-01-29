@@ -74,9 +74,6 @@ class YtTestEnvironment(object):
 
         self.binaries_path = None
         if yatest_common is not None:
-            if need_suid and arcadia_interop.is_inside_distbuild():
-                pytest.skip()
-
             ytrecipe = os.environ.get("YT_OUTPUT") is not None
 
             suffix = "need_suid_" + str(int(need_suid))

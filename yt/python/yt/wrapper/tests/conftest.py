@@ -137,9 +137,6 @@ def test_environment_multicell(request):
 
 @pytest.fixture(scope="class")
 def test_environment_job_archive(request):
-    if arcadia_interop.is_inside_distbuild():
-        pytest.skip("porto is not available inside distbuild")
-
     environment = init_environment_for_test_session(
         request,
         "job_archive",
@@ -175,9 +172,6 @@ def test_environment_job_archive(request):
 
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
 def test_environment_with_porto(request):
-    if arcadia_interop.is_inside_distbuild():
-        pytest.skip("porto is not available inside distbuild")
-
     environment = init_environment_for_test_session(
         request,
         request.param,
