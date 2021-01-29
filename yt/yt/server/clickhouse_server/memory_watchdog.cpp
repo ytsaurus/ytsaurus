@@ -19,7 +19,7 @@ namespace NYT::NClickHouseServer {
 using namespace NConcurrency;
 using namespace NLogging;
 
-TLogger Logger("MemoryWatchdog");
+static const TLogger Logger("MemoryWatchdog");
 
 ////////////////////////////////////////////////////////////////////////////////
 

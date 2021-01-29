@@ -17,6 +17,9 @@
 namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
+using namespace NLogging;
+
+static const TLogger Logger("Conversion");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -308,8 +311,9 @@ TSharedRange<TUnversionedRow> ToRowRange(
         int id = columnIndexToId[columnIndex];
         YT_VERIFY(valueRange.size() == rowCount);
         for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-            mutableRows[rowIndex][columnIndex] = valueRange[rowIndex];
-            mutableRows[rowIndex][columnIndex].Id = id;
+            auto& value = mutableRows[rowIndex][columnIndex];
+            value = valueRange[rowIndex];
+            value.Id = id;
         }
     }
 
