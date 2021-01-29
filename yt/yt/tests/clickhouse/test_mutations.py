@@ -6,6 +6,7 @@ from base import ClickHouseTestBase, QueryFailedError, Clique
 from helpers import get_object_attribute_cache_config, get_schema_from_description
 
 import time
+import copy
 
 
 class TestMutations(ClickHouseTestBase):
@@ -52,6 +53,81 @@ class TestMutations(ClickHouseTestBase):
                 {"i64": -2, "ui64": 2, "str": "xyz", "dbl": 2.71, "bool": False},
             ]
             assert get("//tmp/t/@chunk_count") == 1
+
+    @authors("max42")
+    def test_insert_values_complex(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "list_i64", "type_v3": {"type_name": "list", "item": "int64"}},
+                    {"name": "tuple_dbl_bool",
+                     "type_v3": {"type_name": "tuple",
+                                 "elements": [{"type": "double"}, {"type": "bool"}]}},
+                    {"name": "struct_ui8_str",
+                     "type_v3": {"type_name": "struct",
+                                 "members": [{"name": "ui8", "type": "uint8"}, {"name": "str", "type": "string"}]}},
+                    {"name": "list_optional_i32",
+                     "type_v3": {"type_name": "list", "item": {"type_name": "optional", "item": "int32"}}},
+                ]
+            },
+        )
+        with Clique(1) as clique:
+            clique.make_query("insert into `//tmp/t`(list_i64) values ([2,-3]), ([]), ([42])")
+            clique.make_query("insert into `//tmp/t`(tuple_dbl_bool) values ((3.14,1)), ((-2.71,0)), ((0.0,1))")
+            clique.make_query("insert into `//tmp/t`(struct_ui8_str) values ((42,'foo')), ((0,'bar')), ((255,'baz'))")
+            clique.make_query("insert into `//tmp/t`(list_optional_i32) values ([23, NULL]), ([]), ([57])")
+            clique.make_query("insert into `//tmp/t`(list_i64, tuple_dbl_bool, struct_ui8_str, list_optional_i32) "
+                              "values ([9,8,7], (6.02,0), (17,'qux'), [NULL,57,NULL,18])")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t`(list_i64) values (42)")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t`(list_i64) values ('foo')")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t`(list_i64) values (('foo', 'bar'))")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t`(tuple_dbl_bool) values ((3.14))")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t`(tuple_dbl_bool) values ((3.14,1,'foo'))")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t`(tuple_dbl_bool) values (('foo',1))")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t`(struct_ui8_str) values ((42))")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t`(struct_ui8_str) values ((42,'foo',3.14))")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t`(struct_ui8_str) values (('foo',42))")
+            # TODO(max42): this crashes due to CH bug: CHYT-535
+            # with raises_yt_error(QueryFailedError):
+            #     clique.make_query("insert into `//tmp/t`(struct_ui8_str) values ((NULL,'foo'))")
+
+            def populate_with_defaults(rows):
+                defaults = {"list_i64": [], "tuple_dbl_bool": [0.0, False], "struct_ui8_str": {"ui8": 0, "str": ""},
+                            "list_optional_i32": []}
+                result = []
+                for row in rows:
+                    cloned_row = copy.deepcopy(defaults)
+                    cloned_row.update(row)
+                    result.append(cloned_row)
+                return result
+
+            assert read_table("//tmp/t") == populate_with_defaults([
+                {"list_i64": [2, -3]},
+                {"list_i64": []},
+                {"list_i64": [42]},
+                {"tuple_dbl_bool": [3.14, True]},
+                {"tuple_dbl_bool": [-2.71, False]},
+                {"tuple_dbl_bool": [0.0, True]},
+                {"struct_ui8_str": {"ui8": 42, "str": "foo"}},
+                {"struct_ui8_str": {"ui8": 0, "str": "bar"}},
+                {"struct_ui8_str": {"ui8": 255, "str": "baz"}},
+                {"list_optional_i32": [23, None]},
+                {"list_optional_i32": []},
+                {"list_optional_i32": [57]},
+                {"list_i64": [9, 8, 7], "tuple_dbl_bool": [6.02, False], "struct_ui8_str": {"ui8": 17, "str": "qux"},
+                 "list_optional_i32": [None, 57, None, 18]}
+            ])
 
     @authors("max42")
     def test_insert_select(self):

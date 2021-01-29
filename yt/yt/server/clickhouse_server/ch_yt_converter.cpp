@@ -2,6 +2,8 @@
 
 #include "std_helpers.h"
 #include "config.h"
+#include "data_type_boolean.h"
+#include "format.h"
 #include "columnar_conversion.h"
 
 #include <yt/client/table_client/helpers.h>
@@ -517,7 +519,7 @@ private:
             XX(Interval, Interval)
 
             case DB::TypeIndex::UInt8:
-                if (dataType->getCustomName()->getName() == "YtBoolean") {
+                if (dataType->getCustomName() && dataType->getCustomName()->getName() == "YtBoolean") {
                     // Nothing is a special value standing for YT boolean for simplicity.
                     return std::make_unique<TSimpleValueConverter<DB::TypeIndex::Nothing>>(
                         dataType,
