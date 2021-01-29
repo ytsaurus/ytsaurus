@@ -610,11 +610,20 @@ public:
         }
         const auto& table = Tables_.front();
         auto path = table->Path;
+
+        auto dataTypes = ToDataTypes(*table->Schema, QueryContext_->Settings->Composite, /* enableReadOnlyConversions */ false);
+        YT_LOG_DEBUG(
+            "Inferred ClickHouse data types from YT schema (Schema: %v, DataTypes: %v)",
+            table->Schema,
+            dataTypes);
+
         if (table->Dynamic) {
             return CreateDynamicTableBlockOutputStream(
                 path,
                 table->Schema,
+                dataTypes,
                 QueryContext_->Settings->DynamicTable,
+                QueryContext_->Settings->Composite,
                 QueryContext_->Client(),
                 QueryContext_->Logger);
         } else {
@@ -623,7 +632,9 @@ public:
             return CreateStaticTableBlockOutputStream(
                 path,
                 table->Schema,
-                QueryContext_->Host->GetConfig()->TableWriterConfig,
+                dataTypes,
+                QueryContext_->Host->GetConfig()->TableWriter,
+                QueryContext_->Settings->Composite,
                 QueryContext_->Client(),
                 QueryContext_->Logger);
         }
@@ -667,7 +678,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
             auto* identifier = dynamic_cast<DB::ASTIdentifier*>(child.get());
             if (!identifier) {
                 THROW_ERROR_EXCEPTION("CHYT does not support compound expressions as parts of key")
-                        << TErrorAttribute("expression", child->getColumnName());
+                    << TErrorAttribute("expression", child->getColumnName());
             }
             keyColumns.emplace_back(identifier->getColumnName());
         }
@@ -695,7 +706,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
     // Underscore indicates that the columns should be ignored, and that schema should be taken from the attributes.
     if (args.columns.getNamesOfPhysical() != std::vector<std::string>{"_"}) {
-        auto schema = ToTableSchema(args.columns, keyColumns);
+        auto schema = ToTableSchema(args.columns, keyColumns, queryContext->Settings->Composite);
         YT_LOG_DEBUG("Inferred table schema from columns (Schema: %v)", schema);
         attributes->Set("schema", schema);
     } else if (attributes->Contains("schema")) {

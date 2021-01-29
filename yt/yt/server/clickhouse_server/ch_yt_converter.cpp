@@ -580,6 +580,9 @@ private:
             case DB::TypeIndex::Float32:
             case DB::TypeIndex::Float64:
             case DB::TypeIndex::String:
+            case DB::TypeIndex::Date:
+            case DB::TypeIndex::DateTime:
+            case DB::TypeIndex::Interval:
                 return CreateSimpleValueConverter(dataType);
             case DB::TypeIndex::Nullable:
                 return CreateNullableConverter(dataType);

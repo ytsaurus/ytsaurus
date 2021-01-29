@@ -1,9 +1,11 @@
 #include "conversion.h"
 
 #include "yt_ch_converter.h"
+#include "ch_yt_converter.h"
 #include "config.h"
 
 #include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -18,20 +20,20 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings)
+DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const TCompositeSettingsPtr& settings, bool enableReadOnlyConversions)
 {
-    TYTCHConverter converter(descriptor, settings);
+    TYTCHConverter converter(descriptor, settings, enableReadOnlyConversions);
     return converter.GetDataType();
 }
 
-DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings)
+DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings, bool enableReadOnlyConversions)
 {
     DB::DataTypes result;
     result.reserve(schema.GetColumnCount());
 
     for (const auto& column : schema.Columns()) {
         TComplexTypeFieldDescriptor descriptor(column);
-        result.emplace_back(ToDataType(std::move(descriptor), settings));
+        result.emplace_back(ToDataType(std::move(descriptor), settings, enableReadOnlyConversions));
     }
 
     return result;
@@ -88,48 +90,13 @@ EValueType ToValueType(DB::Field::Types::Which which)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogicalTypePtr ToLogicalType(const DB::DataTypePtr& type)
+TLogicalTypePtr ToLogicalType(const DB::DataTypePtr& type, const TCompositeSettingsPtr& settings)
 {
-    // TODO(max42): rewrite this using CH -> YT converter.
-    if (type->isNullable()) {
-        return OptionalLogicalType(ToLogicalType(DB::removeNullable(type)));
-    }
-    switch (type->getTypeId()) {
-        case DB::TypeIndex::Int64:
-            return SimpleLogicalType(ESimpleLogicalValueType::Int64);
-        case DB::TypeIndex::Int32:
-            return SimpleLogicalType(ESimpleLogicalValueType::Int32);
-        case DB::TypeIndex::Int16:
-            return SimpleLogicalType(ESimpleLogicalValueType::Int16);
-        case DB::TypeIndex::Int8:
-            return SimpleLogicalType(ESimpleLogicalValueType::Int8);
-        case DB::TypeIndex::UInt64:
-            return SimpleLogicalType(ESimpleLogicalValueType::Uint64);
-        case DB::TypeIndex::UInt32:
-            return SimpleLogicalType(ESimpleLogicalValueType::Uint32);
-        case DB::TypeIndex::UInt16:
-            return SimpleLogicalType(ESimpleLogicalValueType::Uint16);
-        case DB::TypeIndex::UInt8:
-            return SimpleLogicalType(ESimpleLogicalValueType::Uint8);
-        case DB::TypeIndex::Float32:
-        case DB::TypeIndex::Float64:
-            return SimpleLogicalType(ESimpleLogicalValueType::Double);
-        case DB::TypeIndex::String:
-        case DB::TypeIndex::FixedString:
-            return SimpleLogicalType(ESimpleLogicalValueType::String);
-        case DB::TypeIndex::Date:
-            return SimpleLogicalType(ESimpleLogicalValueType::Date);
-        case DB::TypeIndex::DateTime:
-            return SimpleLogicalType(ESimpleLogicalValueType::Datetime);
-        // TODO(dakovalkov): https://github.com/yandex/ClickHouse/pull/7170.
-        // case DB::TypeIndex::DateTime64:
-        //     return SimpleLogicalType(ESimpleLogicalValueType::Timestamp);
-        default:
-            THROW_ERROR_EXCEPTION("ClickHouse type %Qv is not supported", type->getFamilyName());
-    }
+    TCHYTConverter converter(type, settings);
+    return converter.GetLogicalType();
 }
 
-TTableSchema ToTableSchema(const DB::ColumnsDescription& columns, const TKeyColumns& keyColumns)
+TTableSchema ToTableSchema(const DB::ColumnsDescription& columns, const TKeyColumns& keyColumns, const TCompositeSettingsPtr& settings)
 {
     std::vector<TString> columnOrder;
     THashSet<TString> usedColumns;
@@ -154,7 +121,7 @@ TTableSchema ToTableSchema(const DB::ColumnsDescription& columns, const TKeyColu
     for (int index = 0; index < static_cast<int>(columnOrder.size()); ++index) {
         const auto& name = columnOrder[index];
         const auto& column = columns.get(name);
-        const auto& type = ToLogicalType(column.type);
+        const auto& type = ToLogicalType(column.type, settings);
         std::optional<ESortOrder> sortOrder;
         if (index < static_cast<int>(keyColumns.size())) {
             sortOrder = ESortOrder::Ascending;
@@ -309,6 +276,51 @@ DB::Block ToBlock(
     }
 
     return block;
+}
+
+TSharedRange<TUnversionedRow> ToRowRange(
+    const DB::Block& block,
+    const std::vector<DB::DataTypePtr>& dataTypes,
+    const std::vector<int>& columnIndexToId,
+    const TCompositeSettingsPtr& settings)
+{
+    int columnCount = columnIndexToId.size();
+    i64 rowCount = block.rows();
+    const auto& columns = block.getColumns();
+    YT_VERIFY(columns.size() == columnCount);
+
+    std::vector<TCHYTConverter> converters;
+    converters.reserve(columnCount);
+    for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+        converters.emplace_back(dataTypes[columnIndex], settings);
+    }
+
+    TRowBufferPtr rowBuffer = New<TRowBuffer>();
+    std::vector<TMutableUnversionedRow> mutableRows(rowCount);
+
+    for (i64 rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        mutableRows[rowIndex] = rowBuffer->AllocateUnversioned(columnCount);
+    }
+
+    for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+        auto& converter = converters[columnIndex];
+        auto valueRange = converter.ConvertColumnToUnversionedValues(columns[columnIndex]);
+        int id = columnIndexToId[columnIndex];
+        YT_VERIFY(valueRange.size() == rowCount);
+        for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+            mutableRows[rowIndex][columnIndex] = valueRange[rowIndex];
+            mutableRows[rowIndex][columnIndex].Id = id;
+        }
+    }
+
+    std::vector<TUnversionedRow> rows(rowCount);
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        rows[rowIndex] = mutableRows[rowIndex];
+    }
+
+    // Rows are backed up by row buffer, string data is backed up converters (which
+    // hold original columns if necessary).
+    return MakeSharedRange(rows, std::move(converters), std::move(rowBuffer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

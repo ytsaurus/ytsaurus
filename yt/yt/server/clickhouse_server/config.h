@@ -221,7 +221,7 @@ public:
     //! User for communication with YT.
     TString User;
 
-    NTableClient::TTableWriterConfigPtr TableWriterConfig;
+    NTableClient::TTableWriterConfigPtr TableWriter;
 
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 

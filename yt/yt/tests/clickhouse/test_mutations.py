@@ -5,7 +5,6 @@ from base import ClickHouseTestBase, QueryFailedError, Clique
 
 from helpers import get_object_attribute_cache_config, get_schema_from_description
 
-import copy
 import time
 
 
@@ -260,15 +259,13 @@ class TestMutations(ClickHouseTestBase):
             {"name": "dbl", "type": "double", "required": False},
             {"name": "bool", "type": "boolean", "required": False},
         ]
-        schema_copied = copy.deepcopy(schema)
-        schema_copied[4]["type"] = "uint8"
         create("table", "//tmp/s1", attributes={"schema": schema, "compression_codec": "snappy"})
 
         with Clique(1) as clique:
             clique.make_query('show create table "//tmp/s1"')
             clique.make_query('create table "//tmp/s2" as "//tmp/s1" engine YtTable() order by i64')
             assert normalize_schema(get("//tmp/s2/@schema")) == make_schema(
-                schema_copied, strict=True, unique_keys=False
+                schema, strict=True, unique_keys=False
             )
 
             # This is wrong.

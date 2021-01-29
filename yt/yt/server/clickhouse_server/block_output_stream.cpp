@@ -33,11 +33,16 @@ class TBlockOutputStreamBase
     : public DB::IBlockOutputStream
 {
 public:
-    TBlockOutputStreamBase(TTableSchemaPtr schema, const TLogger& logger)
+    TBlockOutputStreamBase(
+        TTableSchemaPtr schema,
+        std::vector<DB::DataTypePtr> dataTypes,
+        const TCompositeSettingsPtr& compositeSettings,
+        const TLogger& logger)
         : NameTable_(New<TNameTable>())
         , Logger(logger)
-        , RowBuffer_(New<TRowBuffer>())
         , Schema_(std::move(schema))
+        , DataTypes_(std::move(dataTypes))
+        , CompositeSettings_(std::move(compositeSettings))
     {
         HeaderBlock_ = ToHeaderBlock(*Schema_, New<TCompositeSettings>());
 
@@ -55,91 +60,9 @@ public:
     {
         YT_LOG_TRACE("Writing block (RowCount: %v, ColumnCount: %v, ByteCount: %v)", block.rows(), block.columns(), block.bytes());
 
-        int rowCount = block.rows();
-        int columnCount = block.columns();
+        auto rowRange = ToRowRange(block, DataTypes_, PositionToId_, CompositeSettings_);
 
-        std::vector<DB::ColumnPtr> columns(columnCount);
-        std::vector<DB::ColumnPtr> nestedColumns(columnCount);
-        for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
-            auto column = block.getByPosition(columnIndex).column;
-            if (auto* nullableColumn = DB::checkAndGetColumn<DB::ColumnNullable>(column.get())) {
-                nestedColumns[columnIndex] = nullableColumn->getNestedColumnPtr();
-            } else {
-                nestedColumns[columnIndex] = column;
-            }
-            columns[columnIndex] = std::move(column);
-        }
-
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(rowCount);
-
-        for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-            auto row = RowBuffer_->AllocateUnversioned(columnCount);
-
-            for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
-                const EValueType columnType = Schema_->Columns()[columnIndex].GetPhysicalType();
-                auto& value = row[columnIndex];
-                value.Id = PositionToId_[columnIndex];
-                value.Aggregate = false;
-
-                if (columns[columnIndex]->isNullAt(rowIndex)) {
-                    if (Schema_->Columns()[columnIndex].Required()) {
-                        THROW_ERROR_EXCEPTION("Value NULL is not allowed in required column %Qv",
-                            Schema_->Columns()[columnIndex].Name());
-                    }
-                    value.Type = EValueType::Null;
-                } else {
-                    const auto& column = nestedColumns[columnIndex];
-                    value.Type = columnType;
-                    switch (columnType) {
-                        case EValueType::Int64: {
-                            value.Data.Int64 = column->getInt(rowIndex);
-                            break;
-                        }
-                        case EValueType::Uint64: {
-                            value.Data.Uint64 = column->getUInt(rowIndex);
-                            break;
-                        }
-                        case EValueType::Double: {
-                            value.Data.Double = column->getFloat64(rowIndex);
-                            break;
-                        }
-                        case EValueType::Boolean: {
-                            ui64 boolValue = column->getUInt(rowIndex);
-                            if (boolValue > 1) {
-                                THROW_ERROR_EXCEPTION("Cannot convert value %v to boolean", boolValue);
-                            }
-                            value.Data.Boolean = boolValue;
-                            break;
-                        }
-                        case EValueType::String: {
-                            StringRef stringValue = column->getDataAt(rowIndex);
-                            value.Data.String = stringValue.data;
-                            value.Length = stringValue.size;
-                            break;
-                        }
-                        default: {
-                            THROW_ERROR_EXCEPTION("Unexpected data type %Qlv", value.Type);
-                        }
-                    }
-                }
-            }
-            rows.push_back(row);
-        }
-
-        struct TRowsHolder
-            : public TRefCounted
-        {
-            TRowBufferPtr RowBuffer;
-            std::vector<DB::ColumnPtr> Columns;
-        };
-        auto holder = New<TRowsHolder>();
-        holder->RowBuffer = RowBuffer_;
-        holder->Columns = std::move(columns);
-
-        DoWriteRows(std::move(rows), holder);
-
-        RowBuffer_->Clear();
+        DoWriteRows(std::move(rowRange));
     }
 
 protected:
@@ -148,13 +71,14 @@ protected:
 
     using THolderPtr = TIntrusivePtr<TRefCounted>;
     // Holder contains smart pointers to data referred by rows. Rows can be accessed safely as long as holder is alive.
-    virtual void DoWriteRows(std::vector<TUnversionedRow> rows, THolderPtr holder) = 0;
+    virtual void DoWriteRows(TSharedRange<TUnversionedRow> rows) = 0;
 
 private:
-    TRowBufferPtr RowBuffer_;
     TTableSchemaPtr Schema_;
+    std::vector<DB::DataTypePtr> DataTypes_;
     std::vector<int> PositionToId_;
     DB::Block HeaderBlock_;
+    TCompositeSettingsPtr CompositeSettings_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,10 +90,12 @@ public:
     TStaticTableBlockOutputStream(
         TRichYPath path,
         TTableSchemaPtr schema,
+        std::vector<DB::DataTypePtr> dataTypes,
         TTableWriterConfigPtr config,
+        TCompositeSettingsPtr compositeSettings,
         NNative::IClientPtr client,
         const TLogger& logger)
-        : TBlockOutputStreamBase(std::move(schema), logger)
+        : TBlockOutputStreamBase(std::move(schema), std::move(dataTypes), std::move(compositeSettings), logger)
     {
         Writer_ = WaitFor(CreateSchemalessTableWriter(
             std::move(config),
@@ -192,7 +118,7 @@ public:
 private:
     IUnversionedWriterPtr Writer_;
 
-    virtual void DoWriteRows(std::vector<TUnversionedRow> rows, THolderPtr holder)
+    virtual void DoWriteRows(TSharedRange<TUnversionedRow> rows)
     {
         if (!Writer_->Write(rows)) {
             WaitFor(Writer_->GetReadyEvent())
@@ -210,27 +136,27 @@ public:
     TDynamicTableBlockOutputStream(
         TRichYPath path,
         TTableSchemaPtr schema,
-        TDynamicTableSettingsPtr settings,
+        std::vector<DB::DataTypePtr> dataTypes,
+        TDynamicTableSettingsPtr dynamicTableSettings,
+        TCompositeSettingsPtr compositeSettings,
         NNative::IClientPtr client,
         const TLogger& logger)
-        : TBlockOutputStreamBase(std::move(schema), logger)
+        : TBlockOutputStreamBase(std::move(schema), std::move(dataTypes), std::move(compositeSettings), logger)
         , Path_(std::move(path))
-        , Settings_(std::move(settings))
+        , DynamicTableSettings_(std::move(dynamicTableSettings))
         , Client_(std::move(client))
     { }
 
 private:
     TRichYPath Path_;
-    TDynamicTableSettingsPtr Settings_;
+    TDynamicTableSettingsPtr DynamicTableSettings_;
     NNative::IClientPtr Client_;
 
-    virtual void DoWriteRows(std::vector<TUnversionedRow> rows, THolderPtr holder) override
+    virtual void DoWriteRows(TSharedRange<TUnversionedRow> range) override
     {
-        i64 rowCount = rows.size();
-        int rowsPerWrite = Settings_->MaxRowsPerWrite;
+        i64 rowCount = range.size();
+        int rowsPerWrite = DynamicTableSettings_->MaxRowsPerWrite;
         int writeCount = (rowCount + rowsPerWrite - 1) / rowsPerWrite;
-
-        auto range = MakeSharedRange<TUnversionedRow>(std::move(rows), std::move(holder));
 
         for (int writeIndex = 0; writeIndex < writeCount; ++writeIndex) {
             int from = writeIndex * rowCount / writeCount;
@@ -239,9 +165,9 @@ private:
             bool isWritten = false;
             std::vector<TError> errors;
 
-            for (int retryIndex = 0; retryIndex <= Settings_->WriteRetryCount; ++retryIndex) {
+            for (int retryIndex = 0; retryIndex <= DynamicTableSettings_->WriteRetryCount; ++retryIndex) {
                 if (retryIndex != 0) {
-                    NConcurrency::TDelayedExecutor::WaitForDuration(Settings_->WriteRetryBackoff);
+                    NConcurrency::TDelayedExecutor::WaitForDuration(DynamicTableSettings_->WriteRetryBackoff);
                 }
 
                 auto error = TryWriteRowRange(range.Slice(from, to));
@@ -268,7 +194,7 @@ private:
     TError TryWriteRowRange(TSharedRange<TUnversionedRow> rows)
     {
         TTransactionStartOptions transactionStartOptions {
-            .Atomicity = Settings_->TransactionAtomicity,
+            .Atomicity = DynamicTableSettings_->TransactionAtomicity,
         };
         auto transactionOrError = WaitFor(
             Client_->StartTransaction(
@@ -312,14 +238,18 @@ private:
 DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
     TRichYPath path,
     TTableSchemaPtr schema,
+    std::vector<DB::DataTypePtr> dataTypes,
     TTableWriterConfigPtr config,
+    TCompositeSettingsPtr compositeSettings,
     NNative::IClientPtr client,
     const TLogger& logger)
 {
     return std::make_shared<TStaticTableBlockOutputStream>(
         std::move(path),
         std::move(schema),
+        std::move(dataTypes),
         std::move(config),
+        std::move(compositeSettings),
         std::move(client),
         logger);
 }
@@ -329,14 +259,18 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
 DB::BlockOutputStreamPtr CreateDynamicTableBlockOutputStream(
     TRichYPath path,
     TTableSchemaPtr schema,
-    TDynamicTableSettingsPtr settings,
+    std::vector<DB::DataTypePtr> dataTypes,
+    TDynamicTableSettingsPtr dynamicTableSettings,
+    TCompositeSettingsPtr compositeSettings,
     NNative::IClientPtr client,
     const TLogger& logger)
 {
     return std::make_shared<TDynamicTableBlockOutputStream>(
         std::move(path),
         std::move(schema),
-        std::move(settings),
+        std::move(dataTypes),
+        std::move(dynamicTableSettings),
+        std::move(compositeSettings),
         std::move(client),
         logger);
 }
