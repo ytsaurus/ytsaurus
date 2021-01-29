@@ -5,6 +5,7 @@
 #include <yt/server/clickhouse_server/yt_ch_converter.h>
 #include <yt/server/clickhouse_server/config.h>
 #include <yt/server/clickhouse_server/helpers.h>
+#include <yt/server/clickhouse_server/data_type_boolean.h>
 
 #include <yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/ytlib/table_chunk_format/column_writer.h>
@@ -373,7 +374,7 @@ TEST_F(TTestYTCHConversion, TestSimpleTypes)
     testAsType(ysonsInt64, ESimpleLogicalValueType::Int64, std::make_shared<DB::DataTypeNumber<i64>>(), i64(), i64());
     testAsType(ysonsInt64, ESimpleLogicalValueType::Interval, std::make_shared<DB::DataTypeNumber<i64>>(), i64(), i64());
     testAsType(ysonsUint8, ESimpleLogicalValueType::Uint8, std::make_shared<DB::DataTypeNumber<DB::UInt8>>(), DB::UInt8(), DB::UInt8());
-    testAsType(ysonsBool, ESimpleLogicalValueType::Boolean, std::make_shared<DB::DataTypeNumber<DB::UInt8>>(), bool(), DB::UInt8());
+    testAsType(ysonsBool, ESimpleLogicalValueType::Boolean, GetDataTypeBoolean(), bool(), DB::UInt8());
     testAsType(ysonsUint16, ESimpleLogicalValueType::Uint16, std::make_shared<DB::DataTypeNumber<ui16>>(), ui16(), ui16());
     testAsType(ysonsUint32, ESimpleLogicalValueType::Uint32, std::make_shared<DB::DataTypeNumber<ui32>>(), ui32(), ui32());
     testAsType(ysonsUint64, ESimpleLogicalValueType::Uint64, std::make_shared<DB::DataTypeNumber<ui64>>(), ui64(), ui64());

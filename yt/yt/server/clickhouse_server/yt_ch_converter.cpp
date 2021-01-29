@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "columnar_conversion.h"
+#include "data_type_boolean.h"
 
 #include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/logical_type.h>
@@ -943,7 +944,6 @@ private:
 
             #define CASE_NUMERIC(caseValueType, TCppType) CASE(caseValueType, TCppType, DB::ColumnVector<TCppType>, std::make_shared<DB::DataTypeNumber<TCppType>>())
 
-            CASE_NUMERIC(ESimpleLogicalValueType::Boolean, DB::UInt8)
             CASE_NUMERIC(ESimpleLogicalValueType::Uint8, DB::UInt8)
             CASE_NUMERIC(ESimpleLogicalValueType::Uint16, ui16)
             CASE_NUMERIC(ESimpleLogicalValueType::Uint32, ui32)
@@ -956,6 +956,7 @@ private:
             CASE_NUMERIC(ESimpleLogicalValueType::Double, double)
             CASE_NUMERIC(ESimpleLogicalValueType::Interval, i64)
             CASE_NUMERIC(ESimpleLogicalValueType::Timestamp, ui64)
+            CASE(ESimpleLogicalValueType::Boolean, DB::UInt8, DB::ColumnVector<DB::UInt8>, GetDataTypeBoolean())
             // TODO(max42): specify timezone explicitly here.
             CASE(ESimpleLogicalValueType::Date, ui16, DB::ColumnVector<ui16>, std::make_shared<DB::DataTypeDate>())
             CASE(ESimpleLogicalValueType::Datetime, ui32, DB::ColumnVector<ui32>, std::make_shared<DB::DataTypeDateTime>())

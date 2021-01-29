@@ -2,6 +2,7 @@
 
 #include "clickhouse_invoker.h"
 #include "clickhouse_service_proxy.h"
+#include "data_type_boolean.h"
 #include "query_context.h"
 #include "query_registry.h"
 #include "poco_config.h"
@@ -654,6 +655,7 @@ private:
         RegisterConcatenatingTableFunctions();
         RegisterTableDictionarySource(Owner_);
         RegisterStorageDistributor();
+        RegisterDataTypeBoolean();
     }
 };
 
