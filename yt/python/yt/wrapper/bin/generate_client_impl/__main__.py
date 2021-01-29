@@ -8,6 +8,18 @@ import inspect
 from copy import deepcopy
 
 
+def _fix_indentation(text, width):
+    indentation = " " * width
+    lines = []
+    for line in text.split("\n"):
+        if all(map(str.isspace, line)):
+            line = ""
+        else:
+            line = indentation + line.lstrip()
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def main():
     os.environ["YT_OLD_STYLE_CLIENT"] = "1"
 
@@ -45,7 +57,7 @@ class YtClient(ClientState):
 ''')
         for name in client_api.all_names:
             func = getattr(client_api, name)
-            doc = func.__doc__
+            doc = _fix_indentation(func.__doc__, 8)
 
             is_class = False
             if inspect.isclass(func):
@@ -97,7 +109,7 @@ class YtClient(ClientState):
                 fout.write('''
     def {name}(self, {args}, {kwargs}):
         \"\"\"
-        {doc}
+{doc}
         \"\"\"
         return client_api.{name}({args}, client=self, {kwargs_passed})
 '''.format(name=name, args=", ".join(args), kwargs=", ".join(kwargs), kwargs_passed=", ".join(kwargs_passed), doc=doc))
@@ -105,7 +117,7 @@ class YtClient(ClientState):
                 fout.write('''
     def {name}(self, {args}):
         \"\"\"
-        {doc}
+{doc}
         \"\"\"
         return client_api.{name}({args}, client=self)
 '''.format(name=name, args=", ".join(args), doc=doc))
@@ -113,7 +125,7 @@ class YtClient(ClientState):
                 fout.write('''
     def {name}(self, {kwargs}):
         \"\"\"
-        {doc}
+{doc}
         \"\"\"
         return client_api.{name}(client=self, {kwargs_passed})
 '''.format(name=name, kwargs=", ".join(kwargs), kwargs_passed=", ".join(kwargs_passed), doc=doc))
@@ -121,7 +133,7 @@ class YtClient(ClientState):
                 fout.write('''
     def {name}(self):
         \"\"\"
-        {doc}
+{doc}
         \"\"\"
         return client_api.{name}(client=self)
 '''.format(name=name, doc=doc))
