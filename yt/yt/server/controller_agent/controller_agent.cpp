@@ -1272,17 +1272,21 @@ private:
         request->set_agent_id(Bootstrap_->GetAgentId());
         ToProto(request->mutable_incarnation_id(), IncarnationId_);
 
+        THashSet<TOperationId> finishedOperationIds;
+
         OperationEventsOutbox_->BuildOutcoming(
             request->mutable_agent_to_scheduler_operation_events(),
-            [] (auto* protoEvent, const auto& event) {
+            [&finishedOperationIds] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                 switch (event.EventType) {
                     case EAgentToSchedulerOperationEventType::Completed:
+                        finishedOperationIds.insert(event.OperationId);
                         break;
                     case EAgentToSchedulerOperationEventType::Aborted:
                     case EAgentToSchedulerOperationEventType::Failed:
                     case EAgentToSchedulerOperationEventType::Suspended:
+                        finishedOperationIds.insert(event.OperationId);
                         ToProto(protoEvent->mutable_error(), event.Error);
                         break;
                     case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
@@ -1374,35 +1378,37 @@ private:
         preparedRequest.OperationAlertsSent = LastOperationAlertsSendTime_ + Config_->OperationAlertsPushPeriod < now;
         preparedRequest.SuspiciousJobsSent = LastSuspiciousJobsSendTime_ + Config_->SuspiciousJobsPushPeriod < now;
 
-        if (preparedRequest.OperationsSent) {
-            for (const auto& [operationId, operation] : GetOperations()) {
-                auto controller = operation->GetController();
-
-                auto* protoOperation = request->add_operations();
-                ToProto(protoOperation->mutable_operation_id(), operationId);
-
-                if (preparedRequest.OperationJobMetricsSent) {
-                    auto jobMetricsDelta = controller->PullJobMetricsDelta();
-                    ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
-                }
-
-                if (preparedRequest.OperationAlertsSent) {
-                    auto* protoAlerts = protoOperation->mutable_alerts();
-                    for (const auto& [alertType, alert] : controller->GetAlerts()) {
-                        auto* protoAlert = protoAlerts->add_alerts();
-                        protoAlert->set_type(static_cast<int>(alertType));
-                        ToProto(protoAlert->mutable_error(), alert);
-                    }
-                }
-
-                if (preparedRequest.SuspiciousJobsSent) {
-                    protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().ToString());
-                }
-
-                protoOperation->set_pending_job_count(controller->GetPendingJobCount());
-                ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
-                ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
+        for (const auto& [operationId, operation] : GetOperations()) {
+            if (!preparedRequest.OperationsSent && !finishedOperationIds.contains(operationId)) {
+                continue;
             }
+            auto controller = operation->GetController();
+
+            auto* protoOperation = request->add_operations();
+            ToProto(protoOperation->mutable_operation_id(), operationId);
+
+            // We must to sent job metrics for finished operations.
+            if (preparedRequest.OperationJobMetricsSent || finishedOperationIds.contains(operationId)) {
+                auto jobMetricsDelta = controller->PullJobMetricsDelta();
+                ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
+            }
+
+            if (preparedRequest.OperationAlertsSent) {
+                auto* protoAlerts = protoOperation->mutable_alerts();
+                for (const auto& [alertType, alert] : controller->GetAlerts()) {
+                    auto* protoAlert = protoAlerts->add_alerts();
+                    protoAlert->set_type(static_cast<int>(alertType));
+                    ToProto(protoAlert->mutable_error(), alert);
+                }
+            }
+
+            if (preparedRequest.SuspiciousJobsSent) {
+                protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().ToString());
+            }
+
+            protoOperation->set_pending_job_count(controller->GetPendingJobCount());
+            ToProto(protoOperation->mutable_needed_resources(), controller->GetNeededResources());
+            ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
         }
 
         request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);
