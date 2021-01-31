@@ -1296,7 +1296,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 in_="//tmp/input",
                 out="//tmp/output",
                 sort_by="key",
-                spec={"schema_inference_mode": "from_output"},
+                spec={"schema_inference_mode": "from_output", "max_failed_job_count": 1},
             )
 
         erase("//tmp/input")
@@ -1309,7 +1309,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 in_="//tmp/input",
                 out="//tmp/output",
                 sort_by="key",
-                spec={"schema_inference_mode": "from_output"},
+                spec={"schema_inference_mode": "from_output", "max_failed_job_count": 1},
             )
 
     @authors("savrus")
