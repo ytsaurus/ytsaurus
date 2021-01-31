@@ -52,6 +52,7 @@
 #include <yt/server/master/object_server/object_service.h>
 #include <yt/server/master/object_server/request_profiling_manager.h>
 #include <yt/server/master/object_server/sys_node_type_handler.h>
+#include <yt/server/master/object_server/yson_intern_registry.h>
 
 #include <yt/server/master/scheduler_pool_server/cypress_integration.h>
 #include <yt/server/master/scheduler_pool_server/scheduler_pool.h>
@@ -332,6 +333,11 @@ const TWorldInitializerPtr& TBootstrap::GetWorldInitializer() const
 const TObjectManagerPtr& TBootstrap::GetObjectManager() const
 {
     return ObjectManager_;
+}
+
+const IYsonInternRegistryPtr& TBootstrap::GetYsonInternRegistry() const
+{
+    return YsonInternRegistry_;
 }
 
 const TRequestProfilingManagerPtr& TBootstrap::GetRequestProfilingManager() const
@@ -659,6 +665,8 @@ void TBootstrap::DoInitialize()
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
     ObjectManager_ = New<TObjectManager>(this);
+
+    YsonInternRegistry_ = CreateYsonInternRegistry();
 
     RequestProfilingManager_ = New<TRequestProfilingManager>();
 

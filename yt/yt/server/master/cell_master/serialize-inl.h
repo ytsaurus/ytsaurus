@@ -11,6 +11,7 @@
 #include <yt/core/yson/string.h>
 
 #include <yt/server/master/object_server/object.h>
+#include <yt/server/master/object_server/yson_intern_registry.h>
 
 #include <yt/server/master/cypress_server/node.h>
 #include <yt/server/master/cypress_server/serialize.h>
@@ -111,6 +112,53 @@ struct TVersionedObjectRefSerializer
         } else {
             object = nullptr;
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TInternedYsonStringSerializer
+{
+    static inline TEntitySerializationKey UninternedKey = TEntitySerializationKey(-4);
+
+    template <class C>
+    static void Save(C& context, const NYson::TYsonString& str)
+    {
+        using NYT::Save;
+
+        if (str.AsStringBuf().length() < NObjectServer::YsonStringInternLengthThreshold) {
+            Save(context, UninternedKey);
+            Save(context, str);
+            return;
+        }
+
+        auto key = context.RegisterInternedYsonString(str);
+        Save(context, key);
+        if (key == TEntityStreamSaveContext::InlineKey) {
+            Save(context, str);
+        }
+    }
+
+    template <class C>
+    static void Load(C& context, NYson::TYsonString& str)
+    {
+        using NYT::Load;
+
+        auto key = LoadSuspended<TEntitySerializationKey>(context);
+        if (key == UninternedKey) {
+            Load(context, str);
+        } else if (key == TEntityStreamSaveContext::InlineKey) {
+            SERIALIZATION_DUMP_INDENT(context) {
+                auto loadedStr = Load<NYson::TYsonString>(context);
+                const auto& ysonInternRegistry = context.GetBootstrap()->GetYsonInternRegistry();
+                str = ysonInternRegistry->Intern(std::move(loadedStr));
+                YT_VERIFY(context.RegisterInternedYsonString(str) == key);
+                SERIALIZATION_DUMP_WRITE(context, "ysonref %v", key.Index);
+            }
+        } else {
+            str = context.GetInternedYsonString(key);
+            SERIALIZATION_DUMP_WRITE(context, "ysonref %v", key.Index);
         }
     }
 };

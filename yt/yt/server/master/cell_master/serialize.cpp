@@ -39,6 +39,17 @@ EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEntitySerializationKey TSaveContext::RegisterInternedYsonString(NYson::TYsonString str)
+{
+    TYsonStringMap::insert_ctx context;
+    if (auto it = InternedYsonStrings_.find(str, context)) {
+        return it->second;
+    }
+    auto key = static_cast<int>(InternedYsonStrings_.size());
+    InternedYsonStrings_.emplace_direct(context, std::move(str), key);
+    return InlineKey;
+}
+
 EMasterReign TSaveContext::GetVersion()
 {
     return static_cast<EMasterReign>(NHydra::TSaveContext::GetVersion());
@@ -61,6 +72,20 @@ const TSecurityTagsRegistryPtr& TLoadContext::GetInternRegistry() const
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     return securityManager->GetSecurityTagsRegistry();
+}
+
+TEntitySerializationKey TLoadContext::RegisterInternedYsonString(NYson::TYsonString str)
+{
+    auto key = static_cast<int>(InternedYsonStrings_.size());
+    InternedYsonStrings_.push_back(std::move(str));
+    return TEntitySerializationKey(key);
+}
+
+NYson::TYsonString TLoadContext::GetInternedYsonString(TEntitySerializationKey key)
+{
+    YT_ASSERT(key.Index >= 0);
+    YT_ASSERT(key.Index < static_cast<int>(InternedYsonStrings_.size()));
+    return InternedYsonStrings_[key.Index];
 }
 
 EMasterReign TLoadContext::GetVersion()

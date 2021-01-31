@@ -5,6 +5,7 @@
 #include "object_service.h"
 #include "type_handler_detail.h"
 #include "path_resolver.h"
+#include "yson_intern_registry.h"
 
 #include <yt/server/master/table_server/table_node.h>
 
@@ -943,7 +944,7 @@ std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateNonversionedObjectP
         for (const auto& [key, value] : attributes->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
             YT_ASSERT(value);
-            pairs.push_back(std::make_pair(key, value));
+            pairs.emplace_back(key, value);
         }
     }
     return pairs;
@@ -974,7 +975,8 @@ void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYso
 
     auto* object = Proxy_->Object_;
     auto* attributes = object->GetMutableAttributes();
-    attributes->Set(key, value);
+    const auto& ysonInternRegistry = Proxy_->Bootstrap_->GetYsonInternRegistry();
+    attributes->Set(key, ysonInternRegistry->Intern(value));
 }
 
 bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove(const TString& key)

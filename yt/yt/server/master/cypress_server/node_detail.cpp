@@ -12,6 +12,8 @@
 #include <yt/server/master/security_server/account.h>
 #include <yt/server/master/security_server/user.h>
 
+#include <yt/server/master/object_server/yson_intern_registry.h>
+
 #include <yt/client/object_client/helpers.h>
 
 namespace NYT::NCypressServer {
@@ -307,9 +309,10 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     auto keyToAttribute = Load<std::vector<std::pair<TString, TYsonString>>>(*context);
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = trunkNode->GetMutableAttributes();
+        const auto& ysonInternRegistry = Bootstrap_->GetYsonInternRegistry();
         for (const auto& [key, value] : keyToAttribute) {
             // NB: overwriting already existing attributes is essential in the inplace case.
-            clonedAttributes->Set(key, value);
+            clonedAttributes->Set(key, ysonInternRegistry->Intern(value));
         }
     }
 

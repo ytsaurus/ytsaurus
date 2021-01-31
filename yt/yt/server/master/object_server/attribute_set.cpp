@@ -1,4 +1,5 @@
 #include "attribute_set.h"
+#include "yson_intern_registry.h"
 
 #include <yt/server/master/cell_master/serialize.h>
 
@@ -8,16 +9,30 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TAttributeSetSerializer = TMapSerializer<
+    TDefaultSerializer,
+    NCellMaster::TInternedYsonStringSerializer
+>;
+
 void TAttributeSet::Save(NCellMaster::TSaveContext& context) const
 {
-    using NYT::Save;
-    Save(context, Attributes_);
+    TAttributeSetSerializer::Save(context, Attributes_);
 }
 
 void TAttributeSet::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, Attributes_);
+
+    // COMPAT(babenko)
+    if (context.GetVersion() < NCellMaster::EMasterReign::InternedAttributes) {
+        auto attributes = Load<THashMap<TString, NYson::TYsonString>>(context);
+        const auto& ysonInternRegistry = context.GetBootstrap()->GetYsonInternRegistry();
+        for (auto&& [key, value] : attributes) {
+            YT_VERIFY(Attributes_.emplace(std::move(key), ysonInternRegistry->Intern(value)).second);
+        }
+    } else {
+        TAttributeSetSerializer::Load(context, Attributes_);
+    }
 
     for (const auto& [key, value] : Attributes_) {
         MasterMemoryUsage_ += key.size();
