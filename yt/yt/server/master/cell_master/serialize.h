@@ -129,6 +129,7 @@ DEFINE_ENUM(EMasterReign,
     ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
     ((ChunkFeatures)                                                (1446))  // gritukan
     ((IncreaseUploadReplicationFactorUponFlush)                     (1447))  // akozhikhov
+    ((InternedAttributes)                                           (1448))  // babenko
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42
@@ -147,7 +148,13 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TSavedSchemaMap, SavedSchemas);
 
 public:
+    TEntitySerializationKey RegisterInternedYsonString(NYson::TYsonString str);
+
     EMasterReign GetVersion();
+
+private:
+    using TYsonStringMap = THashMap<NYson::TYsonString, TEntitySerializationKey>;
+    TYsonStringMap InternedYsonStrings_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,7 +178,13 @@ public:
     template <class T>
     const TInternRegistryPtr<T>& GetInternRegistry() const;
 
+    NYson::TYsonString GetInternedYsonString(TEntitySerializationKey key);
+    TEntitySerializationKey RegisterInternedYsonString(NYson::TYsonString str);
+
     EMasterReign GetVersion();
+
+private:
+    std::vector<NYson::TYsonString> InternedYsonStrings_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

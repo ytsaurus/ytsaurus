@@ -14,6 +14,8 @@
 #include <yt/server/master/chunk_server/chunk_owner_base.h>
 #include <yt/server/master/chunk_server/medium.h>
 
+#include <yt/server/master/object_server/yson_intern_registry.h>
+
 #include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/master/security_server/access_log.h>
@@ -184,7 +186,8 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
     }
 
     auto* userAttributes = node->GetMutableAttributes();
-    userAttributes->Set(key, value);
+    const auto& ysonInternRegistry = Proxy_->Bootstrap_->GetYsonInternRegistry();
+    userAttributes->Set(key, ysonInternRegistry->Intern(value));
 
     securityManager->UpdateMasterMemoryUsage(node);
 
