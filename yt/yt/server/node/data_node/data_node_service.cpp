@@ -462,7 +462,12 @@ private:
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
 
-        i64 diskQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
+        i64 diskReadQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
+        auto locationThrottler = GetLocationOutThrottler(chunk, workloadDescriptor);
+        i64 diskThrottlerQueueSize = locationThrottler
+            ? locationThrottler->GetQueueTotalCount()
+            : 0LL;
+        i64 diskQueueSize = diskReadQueueSize + diskThrottlerQueueSize;
         response->set_disk_queue_size(diskQueueSize);
 
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
@@ -481,14 +486,16 @@ private:
         SuggestPeersWithBlocks(context);
 
         context->SetResponseInfo(
-            "HasCompleteChunk: %v, NetThrottling: %v, NetOutQueueSize: %v, "
-            "NetThrottlerQueueSize: %v, DiskThrottling: %v, DiskQueueSize: %v",
+            "HasCompleteChunk: %v, "
+            "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v, "
+            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v",
             hasCompleteChunk,
             netThrottling,
             netOutQueueSize,
             netThrottlerQueueSize,
             diskThrottling,
-            diskQueueSize);
+            diskReadQueueSize,
+            diskThrottlerQueueSize);
 
         context->Reply();
     }
@@ -518,7 +525,12 @@ private:
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
 
-        i64 diskQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
+        i64 diskReadQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
+        auto locationThrottler = GetLocationOutThrottler(chunk, workloadDescriptor);
+        i64 diskThrottlerQueueSize = locationThrottler
+            ? locationThrottler->GetQueueTotalCount()
+            : 0LL;
+        i64 diskQueueSize = diskReadQueueSize + diskThrottlerQueueSize;
         response->set_disk_queue_size(diskQueueSize);
 
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
@@ -595,15 +607,17 @@ private:
         i64 blocksSize = GetByteSize(response->Attachments());
 
         context->SetResponseInfo(
-            "HasCompleteChunk: %v, NetThrottling: %v, NetOutQueueSize: %v, "
-            "NetThrottlerQueueSize: %v, DiskThrottling: %v, DiskQueueSize: %v, "
+            "HasCompleteChunk: %v, "
+            "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v, "
+            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v"
             "BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
             hasCompleteChunk,
             netThrottling,
             netOutQueueSize,
             netThrottlerQueueSize,
             diskThrottling,
-            diskQueueSize,
+            diskReadQueueSize,
+            diskThrottlerQueueSize,
             blocksWithData,
             response->peer_descriptors_size(),
             blocksSize);
@@ -642,7 +656,12 @@ private:
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
 
-        i64 diskQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
+        i64 diskReadQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
+        auto locationThrottler = GetLocationOutThrottler(chunk, workloadDescriptor);
+        i64 diskThrottlerQueueSize = locationThrottler
+            ? locationThrottler->GetQueueTotalCount()
+            : 0LL;
+        i64 diskQueueSize = diskReadQueueSize + diskThrottlerQueueSize;
         response->set_disk_queue_size(diskQueueSize);
 
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
@@ -696,15 +715,17 @@ private:
         i64 blocksSize = GetByteSize(response->Attachments());
 
         context->SetResponseInfo(
-            "HasCompleteChunk: %v, NetThrottling: %v, NetOutQueueSize: %v, "
-            "NetThrottlerQueueSize: %v, DiskThrottling: %v, DiskQueueSize: %v, "
+            "HasCompleteChunk: %v, "
+            "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v, "
+            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v"
             "BlocksWithData: %v, BlocksSize: %v",
             hasCompleteChunk,
             netThrottling,
             netOutQueueSize,
             netThrottlerQueueSize,
             diskThrottling,
-            diskQueueSize,
+            diskReadQueueSize,
+            diskThrottlerQueueSize,
             blocksWithData,
             blocksSize);
 
@@ -760,7 +781,12 @@ private:
         }
         YT_VERIFY(!schemaRequested);
 
-        i64 diskQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
+        i64 diskReadQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
+        auto locationThrottler = GetLocationOutThrottler(chunk, workloadDescriptor);
+        i64 diskThrottlerQueueSize = locationThrottler
+            ? locationThrottler->GetQueueTotalCount()
+            : 0LL;
+        i64 diskQueueSize = diskReadQueueSize + diskThrottlerQueueSize;
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
         response->set_disk_queue_size(diskQueueSize);
@@ -1495,6 +1521,14 @@ private:
             return 0;
         }
         return chunk->GetLocation()->GetPendingIOSize(EIODirection::Read, workloadDescriptor);
+    }
+
+    static IThroughputThrottlerPtr GetLocationOutThrottler(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)
+    {
+        if (!chunk) {
+            return nullptr;
+        }
+        return chunk->GetLocation()->GetOutThrottler(workloadDescriptor);
     }
 };
 
