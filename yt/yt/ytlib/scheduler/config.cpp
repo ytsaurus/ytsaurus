@@ -1693,6 +1693,10 @@ TPoolIntegralGuaranteesConfig::TPoolIntegralGuaranteesConfig()
 
     RegisterParameter("resource_flow", ResourceFlow)
         .DefaultNew();
+
+    RegisterParameter("relaxed_share_multiplier_limit", RelaxedShareMultiplierLimit)
+        .InRange(1, 10)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

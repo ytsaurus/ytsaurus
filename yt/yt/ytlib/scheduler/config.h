@@ -217,6 +217,8 @@ public:
 
     TResourceLimitsConfigPtr BurstGuaranteeResources;
 
+    std::optional<double> RelaxedShareMultiplierLimit;
+
     TPoolIntegralGuaranteesConfig();
 };
 
