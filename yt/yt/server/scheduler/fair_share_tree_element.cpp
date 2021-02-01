@@ -2658,7 +2658,8 @@ void TPool::ApplyLimitsForRelaxedPool()
 TResourceVector TPool::GetIntegralShareLimitForRelaxedPool() const
 {
     YT_VERIFY(GetIntegralGuaranteeType() == EIntegralGuaranteeType::Relaxed);
-    return TResourceVector::FromDouble(Attributes_.ResourceFlowRatio) * TreeConfig_->IntegralGuarantees->RelaxedShareMultiplierLimit;
+    auto multiplier = Config_->IntegralGuarantees->RelaxedShareMultiplierLimit.value_or(TreeConfig_->IntegralGuarantees->RelaxedShareMultiplierLimit);
+    return TResourceVector::FromDouble(Attributes_.ResourceFlowRatio) * multiplier;
 }
 
 bool TPool::AreDetailedLogsEnabled() const

@@ -1618,6 +1618,42 @@ TEST_F(TFairShareTreeTest, TestRelaxedPoolFairShareSimple)
     }
 }
 
+TEST_F(TFairShareTreeTest, TestRelaxedPoolWithIncreasedMultiplierLimit)
+{
+    auto host = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto defaultRelaxedPool = CreateTestPool(host.Get(), "defaultRelaxed", CreateRelaxedPoolConfig(/* flowCpu */ 10));
+    defaultRelaxedPool->AttachParent(rootElement.Get());
+
+    auto increasedLimitConfig = CreateRelaxedPoolConfig(/* flowCpu */ 10);
+    increasedLimitConfig->IntegralGuarantees->RelaxedShareMultiplierLimit = 5;
+    auto increasedLimitRelaxedPool = CreateTestPool(host.Get(), "increasedLimitRelaxed", increasedLimitConfig);
+    increasedLimitRelaxedPool->AttachParent(rootElement.Get());
+
+    auto [operationElement1, operationHost1] = CreateOperationWithJobs(100, host.Get(), defaultRelaxedPool.Get());
+    auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, host.Get(), increasedLimitRelaxedPool.Get());
+
+    TJobResources hugeVolume;
+    hugeVolume.SetCpu(10000000000);
+    hugeVolume.SetUserSlots(10000000000);
+    hugeVolume.SetMemory(10000000000_MB);
+    defaultRelaxedPool->InitAccumulatedResourceVolume(hugeVolume);
+    increasedLimitRelaxedPool->InitAccumulatedResourceVolume(hugeVolume);
+
+    {
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = std::nullopt;  // It disables refill stage.
+        rootElement->PreUpdate(&updateContext);
+        rootElement->Update(&updateContext);
+
+        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
+        EXPECT_EQ(unit * 3, defaultRelaxedPool->Attributes().FairShare.IntegralGuarantee);  // Default multiplier is 3.
+        EXPECT_EQ(unit * 5, increasedLimitRelaxedPool->Attributes().FairShare.IntegralGuarantee);
+    }
+}
+
 TEST_F(TFairShareTreeTest, TestBurstPoolFairShareSimple)
 {
     auto host = CreateHostWith10NodesAnd10Cpu();
