@@ -2014,7 +2014,12 @@ protected:
                 const auto& partitionPool = partition->IsRoot()
                     ? RootPartitionPool
                     : partition->ChunkPoolOutput;
-                partitionPool->SubscribeCompleted(BIND([partition] {
+                partitionPool->SubscribeCompleted(BIND([weakPartition = MakeWeak(partition)] {
+                    auto partition = weakPartition.Lock();
+                    if (!partition) {
+                        return;
+                    }
+
                     // Partitioning of #partition data is completed,
                     // so its data can be processed.
                     for (const auto& child : partition->Children) {
