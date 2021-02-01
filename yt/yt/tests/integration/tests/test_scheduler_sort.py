@@ -198,6 +198,8 @@ def sort_maniac(in_, out, sort_by, validate_types=False):
 
 
 class TestSchedulerSortCommands(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 3
+
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
