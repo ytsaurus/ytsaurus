@@ -27,6 +27,7 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Instrumentation.h>
+#include <llvm/Transforms/Instrumentation/MemorySanitizer.h>
 
 #define PRINT_PASSES_TIME
 #ifdef PRINT_PASSES_TIME
@@ -193,7 +194,7 @@ public:
         return Module_;
     }
 
-    llvm::Constant* GetRoutine(const TString& symbol) const
+    llvm::FunctionCallee GetRoutine(const TString& symbol) const
     {
         auto type = RoutineRegistry_->GetTypeBuilder(symbol)(
             const_cast<llvm::LLVMContext&>(Context_));
@@ -324,7 +325,7 @@ private:
 
         functionPassManager = std::make_unique<FunctionPassManager>(Module_);
         if (NSan::MSanIsOn()) {
-            functionPassManager->add(llvm::createMemorySanitizerPass());
+            functionPassManager->add(llvm::createMemorySanitizerLegacyPassPass());
         }
         passManagerBuilder.populateFunctionPassManager(*functionPassManager);
 
@@ -470,7 +471,7 @@ llvm::Module* TCGModule::GetModule() const
     return Impl_->GetModule();
 }
 
-llvm::Constant* TCGModule::GetRoutine(const TString& symbol) const
+llvm::FunctionCallee TCGModule::GetRoutine(const TString& symbol) const
 {
     return Impl_->GetRoutine(symbol);
 }

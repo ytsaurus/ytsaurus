@@ -7,6 +7,8 @@
 
 #include <library/cpp/resource/resource.h>
 
+#include <llvm/ADT/FoldingSet.h>
+
 namespace NYT::NQueryClient {
 namespace NBuiltins {
 
@@ -428,9 +430,9 @@ public:
                                     });
                                 builder->CreateMemCpy(
                                     permanentData,
-                                    1,
+                                    llvm::Align(1),
                                     newData,
-                                    1,
+                                    llvm::Align(1),
                                     valueLength);
                                 return TCGValue::CreateFromValue(
                                     builder,
@@ -498,9 +500,9 @@ public:
                                                     });
                                                 builder->CreateMemCpy(
                                                     permanentData,
-                                                    1,
+                                                    llvm::Align(1),
                                                     newData,
-                                                    1,
+                                                    llvm::Align(1),
                                                     valueLength);
                                                 return permanentData;
                                             },
@@ -559,9 +561,9 @@ public:
                                                     });
                                                 builder->CreateMemCpy(
                                                     permanentData,
-                                                    1,
+                                                    llvm::Align(1),
                                                     newData,
-                                                    1,
+                                                    llvm::Align(1),
                                                     valueLength);
                                                 return permanentData;
                                             },

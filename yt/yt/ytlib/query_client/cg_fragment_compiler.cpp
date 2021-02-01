@@ -2357,9 +2357,9 @@ size_t MakeCodegenFilterFinalizedOp(
 
             builder->CreateMemCpy(
                 builder->CreatePointerCast(finalizedValuesRef, builder->getInt8PtrTy()),
-                8,
+                llvm::Align(8),
                 builder->CreatePointerCast(values, builder->getInt8PtrTy()),
-                8,
+                llvm::Align(8),
                 keySize * sizeof(TValue));
 
             for (int index = 0; index < codegenAggregates.size(); index++) {
@@ -2431,9 +2431,9 @@ size_t MakeCodegenAddStreamOp(
 
             builder->CreateMemCpy(
                 builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()),
-                8,
+                llvm::Align(8),
                 builder->CreatePointerCast(values, builder->getInt8PtrTy()),
-                8,
+                llvm::Align(8),
                 rowSize * sizeof(TValue));
 
             TCGValue::CreateFromValue(
@@ -2952,9 +2952,9 @@ size_t MakeCodegenOrderOp(
 
                 builder->CreateMemCpy(
                     builder->CreatePointerCast(newValuesRef, builder->getInt8PtrTy()),
-                    8,
+                    llvm::Align(8),
                     builder->CreatePointerCast(values, builder->getInt8PtrTy()),
-                    8,
+                    llvm::Align(8),
                     schemaSize * sizeof(TValue));
 
                 auto innerBuilder = TCGExprContext::Make(

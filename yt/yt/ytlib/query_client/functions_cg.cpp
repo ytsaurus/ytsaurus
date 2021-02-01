@@ -15,10 +15,10 @@
 
 #include <llvm/Linker/Linker.h>
 
-#include <llvm-c/Linker.h>
-
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/SourceMgr.h>
+
+#include <llvm/ADT/FoldingSet.h>
 
 using namespace llvm;
 

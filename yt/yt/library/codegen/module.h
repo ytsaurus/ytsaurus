@@ -42,7 +42,7 @@ public:
 
     llvm::Module* GetModule() const;
 
-    llvm::Constant* GetRoutine(const TString& symbol) const;
+    llvm::FunctionCallee GetRoutine(const TString& symbol) const;
 
     void ExportSymbol(const TString& name);
 

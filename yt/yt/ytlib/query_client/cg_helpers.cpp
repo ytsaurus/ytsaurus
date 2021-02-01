@@ -125,7 +125,7 @@ TCGExprContext TCGExprContext::Make(
             builder->getInt8PtrTy()),
         builder->getInt8(static_cast<int>(EValueType::TheBottom)),
         sizeof(TValue) * fragmentInfos.Functions.size(),
-        8);
+        llvm::Align(8));
 
     return TCGExprContext(
         builder,
