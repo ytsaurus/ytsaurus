@@ -34,6 +34,7 @@ void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& origi
     serialized->set_read_time(ToProto<i64>(original.ReadTime));
     serialized->set_write_time(ToProto<i64>(original.WriteTime));
     serialized->set_codegen_time(ToProto<i64>(original.CodegenTime));
+    serialized->set_wait_on_ready_event_time(ToProto<i64>(original.WaitOnReadyEventTime));
     serialized->set_incomplete_input(original.IncompleteInput);
     serialized->set_incomplete_output(original.IncompleteOutput);
     serialized->set_memory_usage(original.MemoryUsage);
@@ -51,6 +52,7 @@ void FromProto(TQueryStatistics* original, const NProto::TQueryStatistics& seria
     original->ReadTime = FromProto<TDuration>(serialized.read_time());
     original->WriteTime = FromProto<TDuration>(serialized.write_time());
     original->CodegenTime = FromProto<TDuration>(serialized.codegen_time());
+    original->WaitOnReadyEventTime = FromProto<TDuration>(serialized.wait_on_ready_event_time());
     original->IncompleteInput = serialized.incomplete_input();
     original->IncompleteOutput = serialized.incomplete_output();
     original->MemoryUsage = serialized.memory_usage();
@@ -92,6 +94,7 @@ void Serialize(const TQueryStatistics& statistics, NYson::IYsonConsumer* consume
         .Item("read_time").Value(statistics.ReadTime.MilliSeconds())
         .Item("write_time").Value(statistics.WriteTime.MilliSeconds())
         .Item("codegen_time").Value(statistics.CodegenTime.MilliSeconds())
+        .Item("wait_on_ready_event_time").Value(statistics.WaitOnReadyEventTime.MilliSeconds())
         .Item("incomplete_input").Value(statistics.IncompleteInput)
         .Item("incomplete_output").Value(statistics.IncompleteOutput)
         .Item("memory_usage").Value(statistics.MemoryUsage)
