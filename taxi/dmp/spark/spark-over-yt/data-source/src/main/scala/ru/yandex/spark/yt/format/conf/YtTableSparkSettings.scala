@@ -34,6 +34,8 @@ object YtTableSparkSettings {
   case object ArrowEnabled extends BooleanConfigEntry("arrow_enabled", Some(true))
 
   // write
+  case object IsTable extends BooleanConfigEntry("is_table", Some(false))
+
   case object SortColumns extends StringListConfigEntry("sort_columns", Some(Nil))
 
   case object WriteSchemaHint extends YtLogicalTypeMapConfigEntry("write_schema_hint", Some(Map.empty))
@@ -59,6 +61,10 @@ object YtTableSparkSettings {
     val excludeOptions: Set[String] = Set(SortColumns, Schema, Path).map(_.name)
   }
 
+  def isTable(configuration: Configuration): Boolean = {
+    configuration.ytConf(IsTable)
+  }
+
   def isTableSorted(configuration: Configuration): Boolean = {
     configuration.getYtConf(SortColumns).exists(_.nonEmpty)
   }
@@ -73,5 +79,6 @@ object YtTableSparkSettings {
     }
     configuration.setYtConf(Schema, schema)
     configuration.setYtConf(Options, options.keys.toSeq)
+    configuration.setYtConf(IsTable, true)
   }
 }

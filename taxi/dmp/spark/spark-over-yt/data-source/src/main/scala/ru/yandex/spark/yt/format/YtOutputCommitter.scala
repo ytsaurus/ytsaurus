@@ -32,7 +32,10 @@ class YtOutputCommitter(jobId: String,
       if (YtTableSparkSettings.isTableSorted(conf)) {
         YtWrapper.createDir(tmpPath, Some(transaction))
       }
-      setupTable(path, conf, transaction)
+      GlobalTableSettings.setTransaction(path, transaction)
+      if (YtTableSparkSettings.isTable(conf)) {
+        setupTable(path, conf, transaction)
+      }
     }
   }
 
@@ -41,7 +44,6 @@ class YtOutputCommitter(jobId: String,
     if (!YtWrapper.exists(path)) {
       val options = YtTableSparkSettings.deserialize(conf)
       YtWrapper.createTable(path, options, Some(transaction))
-      GlobalTableSettings.setTransaction(path, transaction)
     }
   }
 
