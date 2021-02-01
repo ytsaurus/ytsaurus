@@ -13,6 +13,8 @@ import datetime
 
 
 class TestSchedulerMapReduceCommands(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 2
+
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
