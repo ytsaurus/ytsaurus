@@ -34,7 +34,7 @@ TCGIRBuilder::TCGIRBuilder(
     , ClosurePtr_(closurePtr)
 {
     for (auto it = function->arg_begin(); it != function->arg_end(); ++it) {
-        ValuesInContext_.insert(ConvertToPointer(it));
+        getInserter().ValuesInContext.insert(ConvertToPointer(it));
     }
     EntryBlock_ = GetInsertBlock();
 }
@@ -50,7 +50,7 @@ TCGIRBuilder::~TCGIRBuilder()
 Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
 {
     // If |value| belongs to the current context, then we can use it directly.
-    if (ValuesInContext_.count(value) > 0) {
+    if (getInserter().ValuesInContext.count(value) > 0) {
         return value;
     }
 
@@ -164,7 +164,11 @@ llvm::AllocaInst* TCGIRBuilder::CreateAlignedAlloca(
 {
 #if LLVM_VERSION_GE(5, 0)
     const llvm::DataLayout &DL = BB->getParent()->getParent()->getDataLayout();
+#if LLVM_VERSION_GE(11, 0)
+    return Insert(new llvm::AllocaInst(type, DL.getAllocaAddrSpace(), arraySize, llvm::Align(align), name));
+#else
     return Insert(new llvm::AllocaInst(type, DL.getAllocaAddrSpace(), arraySize, align), name);
+#endif
 #else
     return Insert(new llvm::AllocaInst(type, arraySize, align), name);
 #endif

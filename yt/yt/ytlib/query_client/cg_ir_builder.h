@@ -11,19 +11,18 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TContextTrackingInserter
+struct TContextTrackingInserter
+    : public llvm::IRBuilderDefaultInserter
 {
-protected:
-    mutable std::unordered_set<llvm::Value*> ValuesInContext_;
+    mutable std::unordered_set<llvm::Value*> ValuesInContext;
 
-public:
     void InsertHelper(
         llvm::Instruction* instruction,
         const llvm::Twine& name,
         llvm::BasicBlock* basicBlock,
         llvm::BasicBlock::iterator insertPoint) const
     {
-        ValuesInContext_.insert(static_cast<llvm::Value*>(instruction));
+        ValuesInContext.insert(static_cast<llvm::Value*>(instruction));
 
         if (basicBlock) {
             basicBlock->getInstList().insert(insertPoint, instruction);
