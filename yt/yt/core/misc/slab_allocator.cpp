@@ -6,15 +6,14 @@ namespace NYT {
 
 TArenaPool::TArenaPool(
     size_t rank,
-    size_t batchSize,
+    size_t segmentSize,
     IMemoryUsageTrackerPtr memoryTracker)
     : ChunkSize_(NYTAlloc::SmallRankToSize[rank])
-    , BatchSize_(batchSize)
+    , BatchSize_(segmentSize / ChunkSize_)
     , MemoryTracker_(std::move(memoryTracker))
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    , Cookie_(GetRefCountedTypeCookie<TArenaPool>())
-#endif
-{ }
+{
+    YT_VERIFY(ChunkSize_ % sizeof(TFreeListItem) == 0);
+}
 
 void* TArenaPool::Allocate()
 {
@@ -32,17 +31,23 @@ TArenaPool::~TArenaPool()
 {
     FreeList_.ExtractAll();
 
-    if (MemoryTracker_) {
-        size_t totalSize = SegmentsCount_.load() * (sizeof(TFreeListItem) + ChunkSize_ * BatchSize_);
-        MemoryTracker_->Release(totalSize);
-    }
-
+    size_t segmentCount = 0;
     auto* segment = Segments_.ExtractAll();
     while (segment) {
         auto* next = segment->Next.load(std::memory_order_acquire);
         NYTAlloc::Free(segment);
         segment = next;
+        ++segmentCount;
     }
+
+    size_t totalSize = segmentCount * (sizeof(TFreeListItem) + ChunkSize_ * BatchSize_);
+    if (MemoryTracker_) {
+        MemoryTracker_->Release(totalSize);
+    }
+
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TRefCountedTrackerFacade::FreeSpace(GetRefCountedTypeCookie<TArenaPool>(), totalSize);
+#endif
 }
 
 void TArenaPool::Free(void* obj)
@@ -64,6 +69,8 @@ size_t TArenaPool::Unref()
 
 void TArenaPool::AllocateMore()
 {
+    // For large chunks it is better to allocate SegmentSize + sizeof(TFreeListItem) space
+    // than aloocate SegmentSize and use BatchSize_ - 1.
     auto totalSize = sizeof(TFreeListItem) + ChunkSize_ * BatchSize_;
 
     if (MemoryTracker_) {
@@ -71,18 +78,30 @@ void TArenaPool::AllocateMore()
             .ThrowOnError();
     }
 
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TRefCountedTrackerFacade::AllocateSpace(GetRefCountedTypeCookie<TArenaPool>(), totalSize);
+#endif
+
     auto* ptr = NYTAlloc::Allocate(totalSize);
 
     // Save segments in list to free them in destructor.
     Segments_.Put(static_cast<TFreeListItem*>(ptr));
 
-    auto* objs = static_cast<char*>(ptr) + sizeof(TFreeListItem);
+    // First TFreeListItem is for chain of segments.
+    auto head = static_cast<TFreeListItem*>(ptr) + 1;
+    auto current = head;
+    auto step = ChunkSize_ / sizeof(TFreeListItem);
 
-    ++SegmentsCount_;
-
-    for (size_t index = 0; index < BatchSize_; ++index) {
-        FreeList_.Put(reinterpret_cast<TFreeListItem*>(objs + ChunkSize_ * index));
+    // Build chain of chunks.
+    auto chunkCount = BatchSize_;
+    while (chunkCount-- > 1) {
+        auto next = current + step;
+        current->Next.store(next, std::memory_order_release);
+        current = next;
     }
+    current->Next.store(nullptr, std::memory_order_release);
+
+    FreeList_.Put(head, current);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -94,7 +113,8 @@ TSlabAllocator::TSlabAllocator(IMemoryUsageTrackerPtr memoryTracker)
         if (rank == 3) {
             continue;
         }
-        SmallArenas_[rank].reset(new TArenaPool(rank, SegmentSize / rank, memoryTracker));
+        // There is no std::make_unique overload with custom deleter.
+        SmallArenas_[rank].reset(new TArenaPool(rank, SegmentSize, memoryTracker));
     }
 }
 

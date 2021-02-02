@@ -15,6 +15,7 @@ namespace NYT {
 /////////////////////////////////////////////////////////////////////////////
 
 class TArenaPool
+    : public TRefTracked<TArenaPool>
 {
 public:
     struct TFreeListItem
@@ -25,7 +26,7 @@ public:
 
     TArenaPool(
         size_t rank,
-        size_t batchSize,
+        size_t segmentSize,
         IMemoryUsageTrackerPtr memoryTracker);
 
     ~TArenaPool();
@@ -41,14 +42,9 @@ private:
     const size_t BatchSize_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
 
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    const TRefCountedTypeCookie Cookie_;
-#endif
-
     TSimpleFreeList FreeList_;
     TSimpleFreeList Segments_;
     std::atomic<size_t> RefCount_ = {1};
-    std::atomic<size_t> SegmentsCount_ = {0};
 
     void AllocateMore();
 };

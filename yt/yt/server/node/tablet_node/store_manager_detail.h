@@ -123,6 +123,7 @@ protected:
         IChunkStorePtr store,
         TInMemoryChunkDataPtr chunkData);
 
+    bool IsLeader() const;
     bool IsRecovery() const;
     bool IsMutationLoggingEnabled() const;
 

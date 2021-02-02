@@ -16,7 +16,7 @@ private:
 
     struct TLookupTable;
 
-    TIntrusivePtr<TLookupTable> RenewTable(const TIntrusivePtr<TLookupTable>& head);
+    TIntrusivePtr<TLookupTable> RenewTable(const TIntrusivePtr<TLookupTable>& head, size_t capacity);
 
 public:
     using TValuePtr = TIntrusivePtr<T>;
@@ -84,8 +84,10 @@ public:
 
     TInserter GetInserter();
 
+    void SetCapacity(size_t capacity);
+
 private:
-    const size_t Capacity_;
+    std::atomic<size_t> Capacity_;
     TAtomicPtr<TLookupTable> Head_;
 
 };

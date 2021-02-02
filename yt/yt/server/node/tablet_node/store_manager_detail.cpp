@@ -78,6 +78,10 @@ void TStoreManagerBase::StartEpoch(TTabletSlotPtr slot)
 {
     Tablet_->StartEpoch(slot);
 
+    if (IsLeader()) {
+        Tablet_->ConfigureRowCache();
+    }
+
     InitializeRotation();
 
     UpdateInMemoryMode();
@@ -107,6 +111,8 @@ void TStoreManagerBase::StopEpoch()
     }
 
     Tablet_->PreloadStoreIds().clear();
+
+    Tablet_->ResetRowCache();
 }
 
 void TStoreManagerBase::InitializeRotation()
@@ -427,6 +433,10 @@ void TStoreManagerBase::Remount(
     Tablet_->SetWriterOptions(writerOptions);
 
     UpdateInMemoryMode();
+
+    if (IsLeader()) {
+        Tablet_->ConfigureRowCache();
+    }
 }
 
 void TStoreManagerBase::Rotate(bool createNewStore)
@@ -640,6 +650,12 @@ void TStoreManagerBase::UpdateInMemoryMode()
             }
         }
     }
+}
+
+bool TStoreManagerBase::IsLeader() const
+{
+    // NB: HydraManager is null in tests.
+    return HydraManager_ ? HydraManager_->IsLeader() : false;
 }
 
 bool TStoreManagerBase::IsRecovery() const

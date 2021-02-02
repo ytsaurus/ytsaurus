@@ -217,6 +217,7 @@ public:
             counters->CacheHits.Increment(CacheHits_);
             counters->CacheOutdated.Increment(CacheOutdated_);
             counters->CacheMisses.Increment(CacheMisses_);
+            counters->CacheInserts.Increment(CacheInserts_);
             counters->RowCount.Increment(FoundRowCount_);
             counters->DataWeight.Increment(FoundDataWeight_);
             counters->UnmergedRowCount.Increment(UnmergedRowCount_);
@@ -332,6 +333,7 @@ private:
     int CacheHits_ = 0;
     int CacheMisses_ = 0;
     int CacheOutdated_ = 0;
+    int CacheInserts_ = 0;
     int FoundRowCount_ = 0;
     size_t FoundDataWeight_ = 0;
     int UnmergedRowCount_ = 0;
@@ -501,6 +503,8 @@ private:
                         if (revision >= flushIndex) {
                             cachedItem->Revision.compare_exchange_strong(revision, std::numeric_limits<ui32>::max());
                         }
+
+                        ++CacheInserts_;
                     }
                 }
             }

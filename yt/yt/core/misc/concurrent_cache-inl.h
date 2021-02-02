@@ -13,14 +13,17 @@ namespace NYT {
 template <class T>
 struct TConcurrentCache<T>::TLookupTable final
     : public THashTable
+    , public TRefTracked<TLookupTable>
 {
     static constexpr bool EnableHazard = true;
 
+    const size_t Capacity;
     std::atomic<size_t> Size = 0;
     TAtomicPtr<TLookupTable> Next;
 
-    explicit TLookupTable(size_t elementCount)
-        : THashTable(elementCount)
+    explicit TLookupTable(size_t capacity)
+        : THashTable(capacity)
+        , Capacity(capacity)
     { }
 
     bool Insert(TValuePtr item)
@@ -36,14 +39,14 @@ struct TConcurrentCache<T>::TLookupTable final
 
 template <class T>
 TIntrusivePtr<typename TConcurrentCache<T>::TLookupTable>
-TConcurrentCache<T>::RenewTable(const TIntrusivePtr<TLookupTable>& head)
+TConcurrentCache<T>::RenewTable(const TIntrusivePtr<TLookupTable>& head, size_t capacity)
 {
     if (head != Head_) {
         return Head_.Acquire();
     }
 
     // Rotate lookup table.
-    auto newHead = New<TLookupTable>(Capacity_);
+    auto newHead = New<TLookupTable>(capacity);
     newHead->Next = head;
 
     if (Head_.SwapIfCompare(head, newHead)) {
@@ -62,8 +65,10 @@ TConcurrentCache<T>::RenewTable(const TIntrusivePtr<TLookupTable>& head)
 template <class T>
 TConcurrentCache<T>::TConcurrentCache(size_t capacity)
     : Capacity_(capacity)
-    , Head_(New<TLookupTable>(Capacity_))
-{ }
+    , Head_(New<TLookupTable>(capacity))
+{
+    YT_VERIFY(capacity > 0);
+}
 
 template <class T>
 TConcurrentCache<T>::~TConcurrentCache()
@@ -155,8 +160,9 @@ TConcurrentCache<T>::TInserter::TInserter(
 template <class T>
 typename TConcurrentCache<T>::TLookupTable* TConcurrentCache<T>::TInserter::GetTable()
 {
-    if (Primary_->Size >= Parent_->Capacity_) {
-        Primary_ = Parent_->RenewTable(Primary_);
+    auto targetCapacity = Parent_->Capacity_.load(std::memory_order_acquire);
+    if (Primary_->Size >= std::min(targetCapacity, Primary_->Capacity)) {
+        Primary_ = Parent_->RenewTable(Primary_, targetCapacity);
     }
 
     return Primary_.Get();
@@ -167,6 +173,13 @@ typename TConcurrentCache<T>::TInserter TConcurrentCache<T>::GetInserter()
 {
     auto primary = Head_.Acquire();
     return TInserter(this, std::move(primary));
+}
+
+template <class T>
+void TConcurrentCache<T>::SetCapacity(size_t capacity)
+{
+    YT_VERIFY(capacity > 0);
+    Capacity_.store(capacity, std::memory_order_release);
 }
 
 /////////////////////////////////////////////////////////////////////////////
