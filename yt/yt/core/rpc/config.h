@@ -359,6 +359,9 @@ public:
     //! For how long responses are kept in memory.
     TDuration ExpirationTime;
 
+    //! Maximum time an eviction tick can spend.
+    TDuration MaxEvictionTickTime;
+
     //! If |true| then initial warmup is enabled. In particular, #WarmupTime and #ExpirationTime are
     //! checked against each other. If |false| then initial warmup is disabled and #WarmupTime is ignored.
     bool EnableWarmup;
@@ -370,6 +373,8 @@ public:
     {
         RegisterParameter("expiration_time", ExpirationTime)
             .Default(TDuration::Minutes(5));
+        RegisterParameter("max_eviction_busy_time", MaxEvictionTickTime)
+            .Default(TDuration::MilliSeconds(10));
         RegisterParameter("enable_warmup", EnableWarmup)
             .Default(true);
         RegisterParameter("warmup_time", WarmupTime)

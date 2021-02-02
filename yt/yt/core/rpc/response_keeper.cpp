@@ -8,6 +8,8 @@
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/misc/ring_queue.h>
+
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/timing.h>
 
@@ -17,7 +19,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto EvictionPeriod = TDuration::Seconds(1);
+static constexpr auto EvictionPeriod = TDuration::Seconds(1);
+static constexpr auto EvictionTickTimeCheckPeriod = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,13 +163,21 @@ public:
 
         if (remember) {
             // NB: Allow duplicates.
-            if (!FinishedResponses_.emplace(id, response).second) {
+            auto [it, inserted] = FinishedResponses_.emplace(id, response);
+            if (!inserted) {
                 return;
             }
 
-            ResponseEvictionQueue_.push_back(TEvictionItem{id, NProfiling::GetCpuInstant()});
+            auto space = static_cast<i64>(GetByteSize(response));
+            ResponseEvictionQueue_.push(TEvictionItem{
+                id,
+                NProfiling::GetCpuInstant(),
+                space,
+                it
+            });
 
-            UpdateCounters(response, +1);
+            FinishedResponseCount_ += 1;
+            FinishedResponseSpace_ += space;
         }
 
         if (promise) {
@@ -258,7 +269,9 @@ private:
     bool Started_ = false;
     std::atomic<NProfiling::TCpuInstant> WarmupDeadline_ = 0;
 
-    THashMap<TMutationId, TSharedRefArray> FinishedResponses_;
+    using TFinishedResponseMap = THashMap<TMutationId, TSharedRefArray>;
+    TFinishedResponseMap FinishedResponses_;
+
     std::atomic<int> FinishedResponseCount_ = 0;
     std::atomic<i64> FinishedResponseSpace_ = 0;
 
@@ -266,25 +279,16 @@ private:
     {
         TMutationId Id;
         NProfiling::TCpuInstant When;
+        i64 Space;
+        TFinishedResponseMap::iterator Iterator;
     };
 
-    std::deque<TEvictionItem> ResponseEvictionQueue_;
+    TRingQueue<TEvictionItem> ResponseEvictionQueue_;
 
     THashMap<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
 
     DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 
-
-    void UpdateCounters(const TSharedRefArray& data, int delta)
-    {
-        FinishedResponseCount_.fetch_add(delta, std::memory_order_relaxed);
-
-        i64 size = 0;
-        for (const auto& part : data) {
-            size += part.Size();
-        }
-        FinishedResponseSpace_.fetch_add(delta * size, std::memory_order_relaxed);
-    }
 
     void OnEvict()
     {
@@ -294,6 +298,11 @@ private:
             return;
         }
 
+        YT_LOG_DEBUG("Response Keeper eviction tick started");
+
+        NProfiling::TWallTimer timer;
+        int counter = 0;
+
         auto deadline = NProfiling::GetCpuInstant() - NProfiling::DurationToCpuDuration(Config_->ExpirationTime);
         while (!ResponseEvictionQueue_.empty()) {
             const auto& item = ResponseEvictionQueue_.front();
@@ -301,12 +310,24 @@ private:
                 break;
             }
 
-            auto it = FinishedResponses_.find(item.Id);
-            YT_VERIFY(it != FinishedResponses_.end());
-            UpdateCounters(it->second, -1);
-            FinishedResponses_.erase(it);
-            ResponseEvictionQueue_.pop_front();
+            if (++counter % EvictionTickTimeCheckPeriod == 0) {
+                if (timer.GetElapsedTime() > Config_->MaxEvictionTickTime) {
+                    YT_LOG_DEBUG("Response Keeper eviction tick interrupted (ResponseCount: %v)",
+                        counter);
+                    return;
+                }
+            }
+
+            FinishedResponses_.erase(item.Iterator);
+
+            FinishedResponseCount_ -= 1;
+            FinishedResponseSpace_ -= item.Space;
+
+            ResponseEvictionQueue_.pop();
         }
+
+        YT_LOG_DEBUG("Response Keeper eviction tick completed (ResponseCount: %v)",
+            counter);
     }
 };
 
