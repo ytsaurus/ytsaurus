@@ -419,8 +419,11 @@ TFuture<void> TTransactionReplicationSessionWithBoomerangs::Run(bool syncWithUps
     auto syncSession = New<TMultiPhaseCellSyncSession>(Bootstrap_, syncWithUpstream, InitiatorRequest_.RequestId);
     auto cellTags = GetCellTagsToSyncWithBeforeInvocation();
     auto syncFuture = syncSession->Sync(cellTags);
+    auto automatonInvoker = Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionManager);
     return syncFuture
-        .Apply(BIND(&TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequests, MakeStrong(this)))
+        .Apply(
+            BIND(&TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequests, MakeStrong(this))
+            .AsyncVia(std::move(automatonInvoker)))
         .Apply(BIND([context = std::move(context)] (const TErrorOr<TMutationResponse>& result) {
             if (context->IsReplied()) {
                 return;
@@ -475,80 +478,76 @@ void TTransactionReplicationSessionWithBoomerangs::ConstructReplicationRequests(
 
 TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequests()
 {
-    auto automatonInvoker = Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionManager);
-    return BIND([this, this_ = MakeStrong(this)] () {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (ReplicationRequestCellTags_.empty()) {
-            return Mutation_->Commit();
-        }
+    if (ReplicationRequestCellTags_.empty()) {
+        return Mutation_->Commit();
+    }
 
-        auto keptResult = BeginRequestInResponseKeeper();
-        if (keptResult) {
-            // Highly unlikely, considering that just a few moments ago some of request transactions were remote.
-            return keptResult
-                .Apply(BIND([] (const TSharedRefArray& data) {
-                    return TMutationResponse{EMutationResponseOrigin::ResponseKeeper, data};
-                }));
-        }
-        keptResult = FindRequestInResponseKeeper();
-        YT_VERIFY(keptResult);
-
-        auto asyncResults = DoInvokeReplicationRequests();
-        YT_VERIFY(!asyncResults.empty());
-        // NB: this loop is just for logging.
-        for (auto requestIndex = 0; requestIndex < asyncResults.size(); ++requestIndex) {
-            auto& future = asyncResults[requestIndex];
-            future.Subscribe(BIND([requestIndex, this, this_ = MakeStrong(this)] (const TErrorOr<TRspReplicateTransactionsPtr>& rspOrError)
-            {
-                if (!rspOrError.IsOK()) {
-                    YT_VERIFY(requestIndex < ReplicationRequestCellTags_.size());
-                    auto cellTag = ReplicationRequestCellTags_[requestIndex];
-
-                    for (auto transactionId : RemoteTransactionIds_) {
-                        if (CellTagFromId(transactionId) != cellTag) {
-                            continue;
-                        }
-
-                        YT_LOG_DEBUG(rspOrError, "Remote transaction replication failed (InitiatorRequest: %v, TransactionId: %v)",
-                            InitiatorRequest_,
-                            transactionId);
-                    }
-                }
-            }));
-        }
-
-        YT_LOG_DEBUG("Request is awaiting boomerang mutation to be applied (Request: %v, MutationId: %v)",
-            InitiatorRequest_,
-            Mutation_->GetMutationId());
-
-        // NB: the actual responses are irrelevant, because boomerang arrival
-        // implicitly signifies a sync with corresponding cell. Absence of errors,
-        // on the other hand, is crucial.
-        return AllSucceeded(std::move(asyncResults)).AsVoid()
-            .Apply(BIND([this, this_ = MakeStrong(this), keptResult = std::move(keptResult)] (const TError& error) {
-                if (!error.IsOK()) {
-                    YT_LOG_DEBUG(error, "Request is no longer awaiting boomerang mutation to be applied (Request: %v, MutationId: %v)",
-                        InitiatorRequest_,
-                        Mutation_->GetMutationId());
-
-                    EndRequestInResponseKeeper(error);
-
-                    return MakeFuture<TSharedRefArray>(
-                        error.Wrap("Failed to replicate necessary remote transactions")
-                            << TErrorAttribute("mutation_id", Mutation_->GetMutationId())
-                            << TErrorAttribute("request_id", InitiatorRequest_.RequestId));
-                }
-
-                YT_VERIFY(keptResult);
-                return keptResult;
-            })
-            .AsyncVia(GetCurrentInvoker()))
+    auto keptResult = BeginRequestInResponseKeeper();
+    if (keptResult) {
+        // Highly unlikely, considering that just a few moments ago some of request transactions were remote.
+        return keptResult
             .Apply(BIND([] (const TSharedRefArray& data) {
                 return TMutationResponse{EMutationResponseOrigin::ResponseKeeper, data};
             }));
-    })
-    .AsyncVia(std::move(automatonInvoker))
-    .Run();
+    }
+    keptResult = FindRequestInResponseKeeper();
+    YT_VERIFY(keptResult);
+
+    auto asyncResults = DoInvokeReplicationRequests();
+    YT_VERIFY(!asyncResults.empty());
+    // NB: this loop is just for logging.
+    for (auto requestIndex = 0; requestIndex < asyncResults.size(); ++requestIndex) {
+        auto& future = asyncResults[requestIndex];
+        future.Subscribe(BIND([requestIndex, this, this_ = MakeStrong(this)] (const TErrorOr<TRspReplicateTransactionsPtr>& rspOrError)
+        {
+            if (!rspOrError.IsOK()) {
+                YT_VERIFY(requestIndex < ReplicationRequestCellTags_.size());
+                auto cellTag = ReplicationRequestCellTags_[requestIndex];
+
+                for (auto transactionId : RemoteTransactionIds_) {
+                    if (CellTagFromId(transactionId) != cellTag) {
+                        continue;
+                    }
+
+                    YT_LOG_DEBUG(rspOrError, "Remote transaction replication failed (InitiatorRequest: %v, TransactionId: %v)",
+                        InitiatorRequest_,
+                        transactionId);
+                }
+            }
+        }));
+    }
+
+    YT_LOG_DEBUG("Request is awaiting boomerang mutation to be applied (Request: %v, MutationId: %v)",
+        InitiatorRequest_,
+        Mutation_->GetMutationId());
+
+    // NB: the actual responses are irrelevant, because boomerang arrival
+    // implicitly signifies a sync with corresponding cell. Absence of errors,
+    // on the other hand, is crucial.
+    return AllSucceeded(std::move(asyncResults)).AsVoid()
+        .Apply(BIND([this, this_ = MakeStrong(this), keptResult = std::move(keptResult)] (const TError& error) {
+            if (!error.IsOK()) {
+                YT_LOG_DEBUG(error, "Request is no longer awaiting boomerang mutation to be applied (Request: %v, MutationId: %v)",
+                    InitiatorRequest_,
+                    Mutation_->GetMutationId());
+
+                EndRequestInResponseKeeper(error);
+
+                return MakeFuture<TSharedRefArray>(
+                    error.Wrap("Failed to replicate necessary remote transactions")
+                        << TErrorAttribute("mutation_id", Mutation_->GetMutationId())
+                        << TErrorAttribute("request_id", InitiatorRequest_.RequestId));
+            }
+
+            YT_VERIFY(keptResult);
+            return keptResult;
+        })
+        .AsyncVia(GetCurrentInvoker()))
+        .Apply(BIND([] (const TSharedRefArray& data) {
+            return TMutationResponse{EMutationResponseOrigin::ResponseKeeper, data};
+        }));
 }
 
 TFuture<TSharedRefArray> TTransactionReplicationSessionWithBoomerangs::BeginRequestInResponseKeeper()

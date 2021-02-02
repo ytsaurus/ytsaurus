@@ -1469,9 +1469,7 @@ private:
                     break;
                 }
 
-                if (!ExecuteCurrentSubrequest()) {
-                    break;
-                }
+                ExecuteCurrentSubrequest();
 
                 ++CurrentSubrequestIndex_;
             }
@@ -1481,8 +1479,7 @@ private:
             ReleaseUltimateReplyLock();
         }
     }
-
-    bool ExecuteCurrentSubrequest()
+    void ExecuteCurrentSubrequest()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1494,12 +1491,7 @@ private:
         switch (subrequest.Type) {
             case EExecutionSessionSubrequestType::LocalRead:
             case EExecutionSessionSubrequestType::LocalWrite:
-                AcquireReplyLock();
-                if (!ExecuteLocalSubrequest(&subrequest)) {
-                    // Will be reacquired at a later try.
-                    ReleaseReplyLock();
-                    return false;
-                }
+                ExecuteLocalSubrequest(&subrequest);
                 break;
 
             case EExecutionSessionSubrequestType::Remote:
@@ -1511,21 +1503,22 @@ private:
             default:
                 YT_ABORT();
         }
-
-        return true;
     }
 
     // NB: this method is only used when boomerangs are disabled.
     void ExecuteWriteSubrequest(TSubrequest* subrequest)
     {
         subrequest->MutationResponseFuture = subrequest->Mutation->Commit();
-        subrequest->MutationResponseFuture.Subscribe(
+        subrequest->MutationResponseFuture.AsVoid().Subscribe(
             BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
     }
 
-    void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
+    void OnMutationCommitted(TSubrequest* subrequest, const TError& /*error*/)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        YT_ASSERT(subrequest->MutationResponseFuture.IsSet());
+        const auto& responseOrError = subrequest->MutationResponseFuture.Get();
 
         if (!responseOrError.IsOK()) {
             Reply(responseOrError);
@@ -1561,13 +1554,16 @@ private:
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }
 
-    bool ExecuteLocalSubrequest(TSubrequest* subrequest)
+    void ExecuteLocalSubrequest(TSubrequest* subrequest)
     {
         YT_ASSERT(
             subrequest->Type == EExecutionSessionSubrequestType::LocalRead ||
             subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
 
         YT_VERIFY(!subrequest->RemoteTransactionReplicationFuture || !subrequest->MutationResponseFuture);
+
+        AcquireReplyLock();
+        subrequest->LocallyStarted.store(true);
 
         if (subrequest->RemoteTransactionReplicationSession &&
             !subrequest->MutationResponseFuture)
@@ -1576,54 +1572,55 @@ private:
             YT_VERIFY(subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
 
             subrequest->MutationResponseFuture = subrequest->RemoteTransactionReplicationSession->InvokeReplicationRequests();
-            subrequest->LocallyStarted.store(true);
         }
 
-        auto doExecuteSubrequest = [&] () {
-            subrequest->LocallyStarted.store(true);
+        auto doExecuteSubrequest = [=, this_ = MakeStrong(this)] (const TError& error) {
+            if (!error.IsOK()) {
+                subrequest->RpcContext->Reply(error);
+                return;
+            }
 
-            if (subrequest->Type == EExecutionSessionSubrequestType::LocalRead) {
-                ExecuteReadSubrequest(subrequest);
-            } else {
-                ExecuteWriteSubrequest(subrequest);
+            try {
+                if (subrequest->Type == EExecutionSessionSubrequestType::LocalRead) {
+                    ExecuteReadSubrequest(subrequest);
+                } else {
+                    ExecuteWriteSubrequest(subrequest);
+                }
+            } catch (const std::exception& ex) {
+                Reply(ex);
             }
         };
 
         if (!subrequest->RemoteTransactionReplicationFuture && !subrequest->MutationResponseFuture) {
-            doExecuteSubrequest();
-            return true;
-        }
-
-        if (subrequest->RemoteTransactionReplicationFuture &&
-            subrequest->RemoteTransactionReplicationFuture.IsSet())
-        {
-            const auto& error = subrequest->RemoteTransactionReplicationFuture.Get();
-            if (error.IsOK()) {
-                doExecuteSubrequest();
-            } else {
-                subrequest->RpcContext->Reply(error);
-            }
-            return true;
-        }
-
-        if (subrequest->MutationResponseFuture &&
-            subrequest->MutationResponseFuture.IsSet())
-        {
-            const auto& responseOrError = subrequest->MutationResponseFuture.Get();
-            OnMutationCommitted(subrequest, responseOrError);
-            return true;
+            doExecuteSubrequest(TError());
+            return;
         }
 
         auto timeLeft = GetTimeLeft(subrequest);
 
-        auto future = (subrequest->RemoteTransactionReplicationFuture
-            ? subrequest->RemoteTransactionReplicationFuture
-            : subrequest->MutationResponseFuture.AsVoid())
-            .WithTimeout(timeLeft);
-
-        future.Subscribe(
-            BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
-        return false;
+        if (subrequest->RemoteTransactionReplicationFuture) {
+            if (subrequest->RemoteTransactionReplicationFuture.IsSet()) {
+                doExecuteSubrequest(subrequest->RemoteTransactionReplicationFuture.Get());
+            } else {
+                // NB: non-owning capture of this session object. Should be fine,
+                // since reply lock will prevent this session from being destroyed.
+                subrequest->RemoteTransactionReplicationFuture
+                    .WithTimeout(timeLeft)
+                    .Subscribe(BIND(doExecuteSubrequest));
+            }
+        } else {
+            YT_VERIFY(subrequest->MutationResponseFuture);
+            if (subrequest->MutationResponseFuture.IsSet()) {
+                OnMutationCommitted(subrequest, {});
+            } else {
+                // NB: non-owning capture of this session object. Should be fine,
+                // since reply lock will prevent this session from being destroyed.
+                subrequest->MutationResponseFuture
+                    .AsVoid()
+                    .WithTimeout(timeLeft)
+                    .Subscribe(BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
+            }
+        }
     }
 
     TDuration GetTimeLeft(TSubrequest* subrequest)
