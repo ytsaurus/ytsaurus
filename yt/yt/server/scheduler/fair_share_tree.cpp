@@ -1213,9 +1213,6 @@ private:
         context.SchedulingStatistics().ResourceUsage = schedulingContext->ResourceUsage();
         context.SchedulingStatistics().ResourceLimits = schedulingContext->ResourceLimits();
 
-        // NB: it calculates resource usages, must be called before any scheduling and preemptable jobs analyses.
-        context.PrepareForScheduling(rootElementSnapshot->RootElement);
-
         bool needPackingFallback;
         {
             context.StartStage(&NonPreemptiveSchedulingStage_);
@@ -1390,6 +1387,7 @@ private:
             {
                 if (!prescheduleExecuted) {
                     TWallTimer prescheduleTimer;
+                    context->PrepareForScheduling(rootElementSnapshot->RootElement);
                     rootElement->PrescheduleJob(context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
                     context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                     prescheduleExecuted = true;
@@ -1442,6 +1440,11 @@ private:
         auto& rootElement = rootElementSnapshot->RootElement;
         const auto& config = rootElementSnapshot->Config;
         const auto& controllerConfig = rootElementSnapshot->ControllerConfig;
+                    
+        // NB: this method aims 2 goals relevant for scheduling with preemption
+        // 1. Resets 'Active' attribute after scheduling without preemption (that is necessary for PrescheduleJob correctness).
+        // 2. Initialize dynamic attributes and calculate local resource usages if scheduling without preemption was skipped.
+        context->PrepareForScheduling(rootElementSnapshot->RootElement);
 
         // TODO(ignat): move this logic inside TFairShareContext.
         if (!context->GetHasAggressivelyStarvingElements()) {
@@ -1528,8 +1531,6 @@ private:
             {
                 if (!prescheduleExecuted) {
                     TWallTimer prescheduleTimer;
-                    // NB: this method resets Active attribute that is necessary for PrescheduleJob correctness.
-                    context->PrepareForScheduling(rootElementSnapshot->RootElement);
                     rootElement->PrescheduleJob(
                         context,
                         isAggressive
