@@ -346,7 +346,6 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableReplicaId, UpstreamReplicaId);
 
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
-    DEFINE_BYVAL_RO_PROPERTY(int, LookupCacheSize);
 
     DEFINE_BYVAL_RO_PROPERTY(int, OverlappingStoreCount);
     DEFINE_BYVAL_RO_PROPERTY(int, EdenOverlappingStoreCount);
@@ -486,6 +485,9 @@ public:
 
     void FillProfilerTags();
     void UpdateReplicaCounters();
+
+    void ConfigureRowCache();
+    void ResetRowCache();
 
     void ReconfigureThrottlers();
 

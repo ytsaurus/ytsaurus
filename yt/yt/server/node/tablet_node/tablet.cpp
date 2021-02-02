@@ -400,7 +400,6 @@ TTablet::TTablet(
     , CommitOrdering_(commitOrdering)
     , UpstreamReplicaId_(upstreamReplicaId)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
-    , LookupCacheSize_(config->LookupCacheRowsPerTablet)
     , RetainedTimestamp_(retainedTimestamp)
     , Config_(config)
     , ReaderConfig_(readerConfig)
@@ -1304,14 +1303,28 @@ void TTablet::Initialize()
         Id_,
         TableId_,
         TablePath_);
+}
 
-    if (LookupCacheSize_) {
-        RowCache_ = New<TRowCache>(
-            LookupCacheSize_,
-            Context_
-                ->GetMemoryUsageTracker()
-                ->WithCategory(NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
+void TTablet::ConfigureRowCache()
+{
+    if (Config_->LookupCacheRowsPerTablet > 0) {
+        if (!RowCache_) {
+            RowCache_ = New<TRowCache>(
+                Config_->LookupCacheRowsPerTablet,
+                Context_
+                    ->GetMemoryUsageTracker()
+                    ->WithCategory(NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
+        } else {
+            RowCache_->Cache.SetCapacity(Config_->LookupCacheRowsPerTablet);
+        }
+    } else if (RowCache_) {
+        RowCache_.Reset();
     }
+}
+
+void TTablet::ResetRowCache()
+{
+    RowCache_.Reset();
 }
 
 void TTablet::FillProfilerTags()

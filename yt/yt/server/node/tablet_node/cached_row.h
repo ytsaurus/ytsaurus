@@ -11,6 +11,7 @@ namespace NYT::NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCachedRow final
+    : public TRefTracked<TCachedRow>
 {
     ui64 Hash;
 
@@ -25,7 +26,23 @@ struct TCachedRow final
 
     NTableClient::TTimestamp RetainedTimestamp;
 
+    const size_t Space = 0;
     char Data[0];
+
+    explicit TCachedRow(size_t space)
+        : Space(space)
+    {
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TRefCountedTrackerFacade::AllocateSpace(GetRefCountedTypeCookie<TCachedRow>(), Space);
+#endif
+    }
+
+    ~TCachedRow()
+    {
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TRefCountedTrackerFacade::FreeSpace(GetRefCountedTypeCookie<TCachedRow>(), Space);
+#endif
+    }
 
     using TAllocator = TSlabAllocator;
     static constexpr bool EnableHazard = true;
@@ -99,7 +116,8 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
         writeTimestampCount,
         deleteTimestampCount);
 
-    auto cachedRow = NewWithExtraSpace<TCachedRow>(allocator, rowSize + blobDataSize);
+    auto totalSize = rowSize + blobDataSize;
+    auto cachedRow = NewWithExtraSpace<TCachedRow>(allocator, totalSize, totalSize);
     auto versionedRow = cachedRow->GetVersionedRow();
 
     auto header = versionedRow.GetHeader();

@@ -28,6 +28,7 @@ struct TLookupCounters
         : CacheHits(profiler.Counter("/lookup/cache_hits"))
         , CacheOutdated(profiler.Counter("/lookup/cache_outdated"))
         , CacheMisses(profiler.Counter("/lookup/cache_misses"))
+        , CacheInserts(profiler.Counter("/lookup/cache_inserts"))
         , RowCount(profiler.Counter("/lookup/row_count"))
         , DataWeight(profiler.Counter("/lookup/data_weight"))
         , UnmergedRowCount(profiler.Counter("/lookup/unmerged_row_count"))
@@ -40,6 +41,7 @@ struct TLookupCounters
     NProfiling::TCounter CacheHits;
     NProfiling::TCounter CacheOutdated;
     NProfiling::TCounter CacheMisses;
+    NProfiling::TCounter CacheInserts;
     NProfiling::TCounter RowCount;
     NProfiling::TCounter DataWeight;
     NProfiling::TCounter UnmergedRowCount;
