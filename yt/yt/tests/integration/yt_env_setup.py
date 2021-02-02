@@ -40,7 +40,6 @@ from time import sleep, time
 from threading import Thread
 
 SANDBOX_ROOTDIR = None
-SANDBOX_STORAGE_ROOTDIR = None
 
 ##################################################################
 
@@ -50,7 +49,6 @@ def prepare_yatest_environment(need_suid, artifact_components=None):
     artifact_components = artifact_components or {}
 
     global SANDBOX_ROOTDIR
-    global SANDBOX_STORAGE_ROOTDIR
 
     # This env var is used for determining if we are in Devtools' ytexec environment or not.
     ytrecipe = os.environ.get("YT_OUTPUT") is not None
@@ -86,11 +84,6 @@ def prepare_yatest_environment(need_suid, artifact_components=None):
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_path()
     else:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_ram_drive_path()
-
-    if ytrecipe:
-        SANDBOX_STORAGE_ROOTDIR = None
-    else:
-        SANDBOX_STORAGE_ROOTDIR = arcadia_interop.yatest_common.output_path()
 
 
 def _retry_with_gc_collect(func, driver=None):
@@ -383,10 +376,7 @@ class YTEnvSetup(object):
         cls.run_name = os.path.basename(cls.path_to_run)
 
         if os.environ.get("YT_OUTPUT") is None:
-            if SANDBOX_STORAGE_ROOTDIR is not None:
-                disk_path = SANDBOX_STORAGE_ROOTDIR
-            else:
-                disk_path = SANDBOX_ROOTDIR
+            disk_path = SANDBOX_ROOTDIR
         else:
             disk_path = os.environ.get("HDD_PATH")
 
@@ -543,55 +533,6 @@ class YTEnvSetup(object):
 
         yt_commands.terminate_drivers()
         gc.collect()
-
-        if not os.path.exists(cls.path_to_run):
-            return
-
-        if SANDBOX_STORAGE_ROOTDIR is not None:
-            makedirp(SANDBOX_STORAGE_ROOTDIR)
-
-            if cls.cleanup_root_files:
-                # XXX(psushin): unlink all Porto volumes.
-                remove_all_volumes(cls.path_to_run)
-
-                # XXX(asaitgalin): Ensure tests running user has enough permissions to manipulate YT sandbox.
-                chown_command = [
-                    "sudo",
-                    "chown",
-                    "-R",
-                    "{0}:{1}".format(os.getuid(), os.getgid()),
-                    cls.path_to_run,
-                ]
-
-                p = subprocess.Popen(chown_command, stderr=subprocess.PIPE)
-                _, stderr = p.communicate()
-                if p.returncode != 0:
-                    print(stderr, file=sys.stderr)
-                    raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
-
-                # XXX(psushin): Porto volume directories may have weirdest permissions ever.
-                chmod_command = ["chmod", "-R", "+rw", cls.path_to_run]
-
-                p = subprocess.Popen(chmod_command, stderr=subprocess.PIPE)
-                _, stderr = p.communicate()
-                if p.returncode != 0:
-                    print(stderr, file=sys.stderr)
-                    raise subprocess.CalledProcessError(p.returncode, " ".join(chmod_command))
-
-                # XXX(dcherednik): Delete named pipes.
-                # TODO(prime@): remove this garbage
-                subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
-
-            if SANDBOX_ROOTDIR != SANDBOX_STORAGE_ROOTDIR:
-                destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name)
-                if cls.run_id:
-                    destination_path = os.path.join(destination_path, cls.run_id)
-                if os.path.exists(destination_path):
-                    shutil.rmtree(destination_path, ignore_errors=True)
-
-                print("Moving test artifacts from", cls.path_to_run, "to", destination_path, file=sys.stderr)
-                shutil.move(cls.path_to_run, destination_path)
-                print("Move completed", file=sys.stderr)
 
     def setup_method(self, method):
         for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):

@@ -1,4 +1,3 @@
-import yt_env_setup
 from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
 
@@ -43,12 +42,6 @@ class TestDiskUsagePorto(YTEnvSetup):
     def modify_node_config(cls, config):
         os.makedirs(cls.default_disk_path)
         config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
-
-    @classmethod
-    def teardown_class(cls):
-        super(TestDiskUsagePorto, cls).teardown_class()
-        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
     def _init_tables(self):
         tables = ["//tmp/t1", "//tmp/t2", "//tmp/t3"]
@@ -240,12 +233,6 @@ class TestDiskMediumsPorto(YTEnvSetup):
                 "medium_name": "ssd",
             },
         ]
-
-    @classmethod
-    def teardown_class(cls):
-        super(TestDiskMediumsPorto, cls).teardown_class()
-        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
     @classmethod
     def on_masters_started(cls):
@@ -488,12 +475,6 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
         ]
 
     @classmethod
-    def teardown_class(cls):
-        super(TestDiskMediumRenamePorto, cls).teardown_class()
-        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
-
-    @classmethod
     def on_masters_started(cls):
         create_medium("ssd")
 
@@ -607,12 +588,6 @@ class TestDefaultDiskMediumPorto(YTEnvSetup):
             }
         ]
         config["exec_agent"]["slot_manager"]["default_medium_name"] = "hdd"
-
-    @classmethod
-    def teardown_class(cls):
-        super(TestDefaultDiskMediumPorto, cls).teardown_class()
-        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
     @classmethod
     def on_masters_started(cls):
