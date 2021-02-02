@@ -1,4 +1,3 @@
-import yt_env_setup
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
 
@@ -14,7 +13,6 @@ import time
 import datetime
 import os
 import re
-import shutil
 
 ##################################################################
 
@@ -37,12 +35,6 @@ class TestSandboxTmpfs(YTEnvSetup):
         if not os.path.exists(cls.default_disk_path):
             os.makedirs(cls.default_disk_path)
         config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
-
-    @classmethod
-    def teardown_class(cls):
-        super(TestSandboxTmpfs, cls).teardown_class()
-        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
     @authors("ignat")
     def test_simple(self):
