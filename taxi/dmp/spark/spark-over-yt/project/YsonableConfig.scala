@@ -53,7 +53,7 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
                              latest_spark_cluster_version: String,
                              layer_paths: Seq[String] = Seq(
                                "//sys/spark/delta/jdk/layer_with_jdk_lastest.tar.gz",
-                               "//sys/spark/delta/python/layer_with_python37_libs_1.tar.gz",
+                               "//sys/spark/delta/python/layer_with_python37_libs_2.tar.gz",
                                "//sys/spark/delta/python/layer_with_python34.tar.gz",
                                "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"
                              ),
@@ -102,7 +102,7 @@ object SparkLaunchConfig {
             ytserver_proxy_path: Option[String] = None,
             layer_paths: Seq[String] = Seq(
               "//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz",
-              "//sys/spark/delta/python/layer_with_python37_libs_1.tar.gz",
+              "//sys/spark/delta/python/layer_with_python37_libs_2.tar.gz",
               "//sys/spark/delta/python/layer_with_python34.tar.gz",
               "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"
             ),
