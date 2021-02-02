@@ -379,6 +379,9 @@ public:
 
     //! Number of operations to remove in one batch.
     int RemoveBatchSize;
+    
+    //! Number of operations to remove in one subbatch request.
+    int RemoveSubbatchSize;
 
     //! Timeout for removal batch to be collected. If timeout expires then
     //! removal of smaller batch will be performed.

@@ -380,6 +380,8 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
         .Default(TDuration::Seconds(30));
     RegisterParameter("remove_batch_size", RemoveBatchSize)
         .Default(256);
+    RegisterParameter("remove_subbatch_size", RemoveSubbatchSize)
+        .Default(64);
     RegisterParameter("remove_batch_timeout", RemoveBatchTimeout)
         .Default(TDuration::Seconds(5));
     RegisterParameter("archive_batch_size", ArchiveBatchSize)

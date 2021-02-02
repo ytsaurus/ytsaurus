@@ -992,91 +992,108 @@ private:
         ScheduleArchiveOperations();
     }
 
-    void RemoveOperations()
+    void DoRemoveOperations(std::vector<TOperationId> operationIds)
     {
-        VERIFY_INVOKER_AFFINITY(GetInvoker());
+        YT_LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", operationIds.size());
 
-        auto batch = WaitFor(RemoveBatcher_->DequeueBatch())
-            .ValueOrThrow();
+        std::vector<TOperationId> failedOperationIds;
+        std::vector<TOperationId> removedOperationIds;
+        std::vector<TOperationId> operationIdsToRemove;
 
-        if (!batch.empty()) {
-            YT_LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", batch.size());
+        // Fetch lock_count attribute.
+        {
+            auto channel = Client_->GetMasterChannelOrThrow(
+                EMasterChannelKind::Follower,
+                PrimaryMasterCellTag);
 
-            std::vector<TOperationId> failedOperationIds;
-            std::vector<TOperationId> removedOperationIds;
-            std::vector<TOperationId> operationIdsToRemove;
+            TObjectServiceProxy proxy(channel);
+            auto batchReq = proxy.ExecuteBatch();
 
-            {
-                auto channel = Client_->GetMasterChannelOrThrow(
-                    EMasterChannelKind::Follower,
-                    PrimaryMasterCellTag);
-
-                TObjectServiceProxy proxy(channel);
-                auto batchReq = proxy.ExecuteBatch();
-
-                for (auto operationId : batch) {
-                    auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@lock_count");
-                    batchReq->AddRequest(req, "get_lock_count");
-                }
-
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
-
-                if (batchRspOrError.IsOK()) {
-                    const auto& batchRsp = batchRspOrError.Value();
-                    auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count");
-                    YT_VERIFY(rsps.size() == batch.size());
-
-                    for (int index = 0; index < rsps.size(); ++index) {
-                        bool isLocked = false;
-                        const auto rsp = rsps[index];
-                        if (rsp.IsOK()) {
-                            auto lockCountNode = ConvertToNode(TYsonString(rsp.Value()->value()));
-                            if (lockCountNode->AsUint64()->GetValue() > 0) {
-                                isLocked = true;
-                            }
-                        }
-
-                        auto operationId = batch[index];
-                        if (isLocked) {
-                            failedOperationIds.push_back(operationId);
-                        } else {
-                            operationIdsToRemove.push_back(operationId);
-                        }
-                    }
-                } else {
-                    YT_LOG_WARNING(
-                        batchRspOrError,
-                        "Failed to get lock count for operations from Cypress (OperationCount: %v)",
-                        batch.size());
-
-                    failedOperationIds = batch;
-                }
+            for (auto operationId : operationIds) {
+                auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@lock_count");
+                batchReq->AddRequest(req, "get_lock_count");
             }
 
-            if (!operationIdsToRemove.empty()) {
-                auto channel = Client_->GetMasterChannelOrThrow(
-                    EMasterChannelKind::Leader,
-                    PrimaryMasterCellTag);
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
 
-                TObjectServiceProxy proxy(channel);
+            if (batchRspOrError.IsOK()) {
+                const auto& batchRsp = batchRspOrError.Value();
+                auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count");
+                YT_VERIFY(rsps.size() == operationIds.size());
+
+                for (int index = 0; index < rsps.size(); ++index) {
+                    bool isLocked = false;
+                    const auto rsp = rsps[index];
+                    if (rsp.IsOK()) {
+                        auto lockCountNode = ConvertToNode(TYsonString(rsp.Value()->value()));
+                        if (lockCountNode->AsUint64()->GetValue() > 0) {
+                            isLocked = true;
+                        }
+                    }
+
+                    auto operationId = operationIds[index];
+                    if (isLocked) {
+                        failedOperationIds.push_back(operationId);
+                    } else {
+                        operationIdsToRemove.push_back(operationId);
+                    }
+                }
+            } else {
+                YT_LOG_WARNING(
+                    batchRspOrError,
+                    "Failed to get lock count for operations from Cypress (OperationCount: %v)",
+                    operationIds.size());
+
+                failedOperationIds = operationIds;
+            }
+        }
+
+        // Perform actual remove.
+        if (!operationIdsToRemove.empty()) {
+            int subbatchSize = Config_->RemoveSubbatchSize;
+
+            auto channel = Client_->GetMasterChannelOrThrow(
+                EMasterChannelKind::Leader,
+                PrimaryMasterCellTag);
+            TObjectServiceProxy proxy(channel);
+
+            std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> responseFutures;
+
+            int subbatchCount = DivCeil(static_cast<int>(operationIdsToRemove.size()), subbatchSize);
+
+            std::vector<int> subbatchSizes;
+            for (int subbatchIndex = 0; subbatchIndex < subbatchCount; ++subbatchIndex) {
                 auto batchReq = proxy.ExecuteBatch();
 
-                for (auto operationId : operationIdsToRemove) {
-                    auto req = TYPathProxy::Remove(GetOperationPath(operationId));
+                int startIndex = subbatchIndex * subbatchSize;
+                int endIndex = std::min(static_cast<int>(operationIdsToRemove.size()), startIndex + subbatchSize);
+                for (int index = startIndex; index < endIndex; ++index) {
+                    auto req = TYPathProxy::Remove(GetOperationPath(operationIdsToRemove[index]));
                     req->set_recursive(true);
                     batchReq->AddRequest(req, "remove_operation");
                 }
 
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                responseFutures.push_back(batchReq->Invoke());
+            }
+
+            auto responseResultsOrError = WaitFor(AllSet(responseFutures));
+            YT_VERIFY(responseResultsOrError.IsOK());
+            const auto& responseResults = responseResultsOrError.Value();
+
+            for (int subbatchIndex = 0; subbatchIndex < subbatchCount; ++subbatchIndex) {
+                int startIndex = subbatchIndex * subbatchSize;
+                int endIndex = std::min(static_cast<int>(operationIdsToRemove.size()), startIndex + subbatchSize);
+
+                const auto& batchRspOrError = responseResults[subbatchIndex];
                 if (batchRspOrError.IsOK()) {
                     const auto& batchRsp = batchRspOrError.Value();
                     auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation");
-                    YT_VERIFY(rsps.size() == operationIdsToRemove.size());
+                    YT_VERIFY(rsps.size() == endIndex - startIndex);
 
-                    for (int index = 0; index < operationIdsToRemove.size(); ++index) {
+                    for (int index = startIndex; index < endIndex; ++index) {
                         auto operationId = operationIdsToRemove[index];
 
-                        auto rsp = rsps[index];
+                        auto rsp = rsps[index - startIndex];
                         if (rsp.IsOK()) {
                             removedOperationIds.push_back(operationId);
                         } else {
@@ -1092,28 +1109,40 @@ private:
                     YT_LOG_WARNING(
                         batchRspOrError,
                         "Failed to remove finished operations from Cypress (OperationCount: %v)",
-                        operationIdsToRemove.size());
+                        endIndex - startIndex);
 
-                    for (auto operationId : operationIdsToRemove) {
-                        failedOperationIds.push_back(operationId);
+                    for (int index = startIndex; index < endIndex; ++index) {
+                        failedOperationIds.push_back(operationIdsToRemove[index]);
                     }
                 }
             }
+        }
 
-            YT_VERIFY(batch.size() == failedOperationIds.size() + removedOperationIds.size());
-            int removedCount = removedOperationIds.size();
+        YT_VERIFY(operationIds.size() == failedOperationIds.size() + removedOperationIds.size());
+        int removedCount = removedOperationIds.size();
 
-            RemovedCounter_.Increment(removedOperationIds.size());
-            RemoveErrorCounter_.Increment(failedOperationIds.size());
+        RemovedCounter_.Increment(removedOperationIds.size());
+        RemoveErrorCounter_.Increment(failedOperationIds.size());
 
-            ProcessCleanedOperation(removedOperationIds);
+        ProcessCleanedOperation(removedOperationIds);
 
-            for (auto operationId : failedOperationIds) {
-                RemoveBatcher_->Enqueue(operationId);
-            }
+        for (auto operationId : failedOperationIds) {
+            RemoveBatcher_->Enqueue(operationId);
+        }
 
-            RemovePending_ -= removedCount;
-            YT_LOG_DEBUG("Successfully removed operations from Cypress (Count: %v)", removedCount);
+        RemovePending_ -= removedCount;
+        YT_LOG_DEBUG("Successfully removed operations from Cypress (Count: %v)", removedCount);
+    }
+
+    void RemoveOperations()
+    {
+        VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+        auto batch = WaitFor(RemoveBatcher_->DequeueBatch())
+            .ValueOrThrow();
+
+        if (!batch.empty()) {
+            DoRemoveOperations(std::move(batch));
         }
 
         auto callback = BIND(&TImpl::RemoveOperations, MakeStrong(this))
