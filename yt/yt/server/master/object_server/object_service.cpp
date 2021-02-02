@@ -161,8 +161,8 @@ public:
         , StickyUserErrorCache_(Config_->StickyUserErrorExpireTime)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
-            .SetQueueSizeLimit(10000)
-            .SetConcurrencyLimit(10000)
+            .SetQueueSizeLimit(100000)
+            .SetConcurrencyLimit(100000)
             .SetCancelable(true)
             .SetInvoker(GetRpcInvoker())
             // Execute request handler needs request to remain alive after Reply call.
