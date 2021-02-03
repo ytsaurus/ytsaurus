@@ -1041,7 +1041,7 @@ private:
                         .Run()
                     );
                 }
-                YT_LOG_INFO("Attributes batches to parse formed");
+                YT_LOG_INFO("Operation attributes batches for parsing formed");
 
                 Result_.Operations.reserve(OperationIds_.size());
                 auto result = WaitFor(AllSucceeded(futures)).ValueOrThrow();
