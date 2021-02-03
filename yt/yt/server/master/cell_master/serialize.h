@@ -136,6 +136,7 @@ DEFINE_ENUM(EMasterReign,
     ((RowBufferEmptyRowDeserialization)                             (1502))  // max42
     ((RemoveOldCellTracker)                                         (1503))  // gritukan
     ((PerCellPerRoleMasterMemoryLimit)                              (1504))  // aleksandra-zh
+    ((InitializeAccountChunkHostMasterMemory)                       (1505))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

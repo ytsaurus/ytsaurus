@@ -2163,6 +2163,9 @@ private:
     // COMPAT(aleksandra-zh)
     bool MustInitializeMasterMemoryLimits_ = false;
 
+    // COMPAT(aleksandra-zh)
+    bool MustInitializeChunkHostMasterMemoryLimits_ = false;
+
     bool NeedAdjustRootAccountLimits_ = false;
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
@@ -2467,6 +2470,9 @@ private:
         MustInitializeMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountMasterMemoryUsage;
 
         // COMPAT(aleksandra-zh)
+        MustInitializeChunkHostMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountChunkHostMasterMemory;
+
+        // COMPAT(aleksandra-zh)
         NeedAdjustRootAccountLimits_ = context.GetVersion() < EMasterReign::FixRootAccountLimits;
     }
 
@@ -2569,6 +2575,19 @@ private:
 
                 auto resourceLimits = account->ClusterResourceLimits();
                 resourceLimits.MasterMemory = 100_GB;
+
+                TrySetResourceLimits(account, resourceLimits);
+            }
+        }
+
+        if (MustInitializeChunkHostMasterMemoryLimits_) {
+            for (auto [accountId, account] : AccountMap_) {
+                if (!IsObjectAlive(account)) {
+                    continue;
+                }
+
+                auto resourceLimits = account->ClusterResourceLimits();
+                resourceLimits.ChunkHostMasterMemory = 100_GB;
 
                 TrySetResourceLimits(account, resourceLimits);
             }
