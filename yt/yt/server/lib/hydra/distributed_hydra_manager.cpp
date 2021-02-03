@@ -1108,6 +1108,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto epochContext = ControlEpochContext_;
+        if (!epochContext) {
+            THROW_ERROR_EXCEPTION(
+                "Peer is in %Qlv state",
+                GetControlState());
+        }
+
         auto reason = FromProto<TError>(request->reason());
         auto armPriorityBoost = request->arm_priority_boost();
         context->SetRequestInfo("Reason: %v, ArmPriorityBoost: %v",
@@ -1118,7 +1125,7 @@ private:
             SetPriorityBoost(true);
         }
 
-        ScheduleRestart(ControlEpochContext_, reason);
+        ScheduleRestart(epochContext, reason);
 
         if (armPriorityBoost) {
             YT_LOG_DEBUG("Waiting for participation");
@@ -2196,11 +2203,25 @@ private:
             .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(AutomatonEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {
                     YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
-                } else if (!GetReadOnly()) {
-                    ScheduleRestart(
-                        weakEpochContext,
-                        TError("Heartbeat mutation commit failed") << result);
+                    return;
                 }
+
+                if (GetReadOnly()) {
+                    return;
+                }
+
+                auto epochContext = weakEpochContext.Lock();
+                if (!epochContext) {
+                    return;
+                }
+
+                if (epochContext->LeaderSwitchStarted) {
+                    return;
+                }
+
+                ScheduleRestart(
+                    epochContext,
+                    TError("Heartbeat mutation commit failed") << result);
             }));
     }
 
