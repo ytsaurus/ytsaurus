@@ -8,9 +8,17 @@
 
 #include <yt/core/concurrency/config.h>
 
+#include <yt/core/misc/enum.h>
+
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ERequestTracingMode,
+    (Enable)
+    (Disable)
+    (Force)
+);
 
 // Common options shared between all services in one server.
 class TServiceCommonConfig
@@ -18,14 +26,14 @@ class TServiceCommonConfig
 {
 public:
     bool EnablePerUserProfiling;
-    bool ForceTracing;
+    ERequestTracingMode TracingMode;
 
     TServiceCommonConfig()
     {
         RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
             .Default(false);
-        RegisterParameter("force_tracing", ForceTracing)
-            .Default(false);
+        RegisterParameter("tracing_mode", TracingMode)
+            .Default(ERequestTracingMode::Enable);
     }
 };
 
@@ -55,7 +63,7 @@ class TServiceConfig
 {
 public:
     std::optional<bool> EnablePerUserProfiling;
-    std::optional<bool> ForceTracing;
+    std::optional<ERequestTracingMode> TracingMode;
 
     THashMap<TString, TMethodConfigPtr> Methods;
 
@@ -69,7 +77,7 @@ public:
     {
         RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
             .Optional();
-        RegisterParameter("force_tracing", ForceTracing)
+        RegisterParameter("tracing_mode", TracingMode)
             .Optional();
         RegisterParameter("methods", Methods)
             .Optional();
@@ -109,7 +117,7 @@ public:
     static const NConcurrency::TThroughputThrottlerConfigPtr DefaultLoggingSuppressionFailedRequestThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr LoggingSuppressionFailedRequestThrottler;
 
-    std::optional<bool> ForceTracing;
+    std::optional<ERequestTracingMode> TracingMode;
 
     TMethodConfig()
     {
@@ -129,7 +137,7 @@ public:
             .Default(DefaultLoggingSuppressionTimeout);
         RegisterParameter("logging_suppression_failed_request_throttler", LoggingSuppressionFailedRequestThrottler)
             .Default(DefaultLoggingSuppressionFailedRequestThrottler);
-        RegisterParameter("force_tracing", ForceTracing)
+        RegisterParameter("tracing_mode", TracingMode)
             .Optional();
     }
 };

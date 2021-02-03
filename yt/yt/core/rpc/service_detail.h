@@ -605,7 +605,7 @@ protected:
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr LoggingSuppressionFailedRequestThrottler;
 
-        std::atomic<bool> ForceTracing = false;
+        std::atomic<ERequestTracingMode> TracingMode = ERequestTracingMode::Enable;
     };
 
     using TRuntimeMethodInfoPtr = TIntrusivePtr<TRuntimeMethodInfo>;

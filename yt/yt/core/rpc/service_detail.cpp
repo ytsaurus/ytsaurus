@@ -1107,8 +1107,10 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    auto forceTracing = runtimeInfo->ForceTracing.load(std::memory_order_relaxed);
-    auto traceContext = GetOrCreateHandlerTraceContext(*header, forceTracing);
+    auto tracingMode = runtimeInfo->TracingMode.load(std::memory_order_relaxed);
+    auto traceContext = tracingMode == ERequestTracingMode::Disable
+        ? NTracing::TTraceContextPtr()
+        : GetOrCreateHandlerTraceContext(*header, tracingMode == ERequestTracingMode::Force);
     if (traceContext && traceContext->IsSampled()) {
         traceContext->AddTag(EndpointAnnotation, replyBus->GetEndpointDescription());
     }
@@ -1714,10 +1716,10 @@ void TServiceBase::DoConfigure(TServiceCommonConfigPtr configDefaults, TServiceC
             runtimeInfo->LoggingSuppressionFailedRequestThrottler->Reconfigure(
                 methodConfig->LoggingSuppressionFailedRequestThrottler);
 
-            runtimeInfo->ForceTracing.store(
-                methodConfig->ForceTracing.value_or(
-                    config->ForceTracing.value_or(
-                        configDefaults->ForceTracing)));
+            runtimeInfo->TracingMode.store(
+                methodConfig->TracingMode.value_or(
+                    config->TracingMode.value_or(
+                        configDefaults->TracingMode)));
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %v",
