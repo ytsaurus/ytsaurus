@@ -918,11 +918,6 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
     }
 }
 
-std::optional<TMeteringKey> TSchedulerElement::GetMeteringKey() const
-{
-    return std::nullopt;
-}
-
 void TSchedulerElement::BuildResourceMetering(const std::optional<TMeteringKey>& /*key*/, TMeteringMap* /*statistics*/) const
 { }
 
@@ -2200,24 +2195,6 @@ int TCompositeSchedulerElement::GetAvailableRunningOperationCount() const
     return std::max(GetMaxRunningOperationCount() - RunningOperationCount_, 0);
 }
 
-void TCompositeSchedulerElement::BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap *statistics) const
-{
-    auto key = GetMeteringKey();
-    YT_VERIFY(key || parentKey);
-
-    if (key) {
-        YT_VERIFY(statistics->insert({*key, TMeteringStatistics(GetSpecifiedStrongGuaranteeResources(), ResourceUsageAtUpdate())}).second);
-    }
-
-    for (const auto& child : EnabledChildren_) {
-        child->BuildResourceMetering(key ? key : parentKey, statistics);
-    }
-
-    if (key && parentKey) {
-        statistics->at(*parentKey) -= statistics->at(*key);
-    }
-}
-
 TJobResources TCompositeSchedulerElement::GetIntegralPoolCapacity() const
 {
     return TotalResourceLimits_ * Attributes_.ResourceFlowRatio * TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod.SecondsFloat();
@@ -2511,6 +2488,47 @@ THistoricUsageAggregationParameters TPool::GetHistoricUsageAggregationParameters
     return THistoricUsageAggregationParameters(Config_->HistoricUsageConfig);
 }
 
+void TPool::BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const
+{
+    std::optional<TMeteringKey> key;
+    if (Config_->Abc) {
+        key = TMeteringKey{
+            .AbcId  = Config_->Abc->Id,
+            .TreeId = GetTreeId(),
+            .PoolId = GetId(),
+        };
+    }
+
+    YT_VERIFY(key || parentKey);
+        
+    bool isIntegral = Config_->IntegralGuarantees->GuaranteeType != EIntegralGuaranteeType::None;
+    auto meteringStatistics = TMeteringStatistics(
+        GetSpecifiedStrongGuaranteeResources(),
+        isIntegral ? ToJobResources(Config_->IntegralGuarantees->ResourceFlow, {}) : TJobResources(),
+        isIntegral ? ToJobResources(Config_->IntegralGuarantees->BurstGuaranteeResources, {}) : TJobResources(),
+        ResourceUsageAtUpdate());
+
+    if (key) {
+        auto insertResult = meteringMap->insert({*key, meteringStatistics});
+        YT_VERIFY(insertResult.second);
+    } else {
+        meteringMap->at(*parentKey).AccountChild(
+            meteringStatistics,
+            /* isRoot */ parentKey->PoolId == RootPoolName);
+    }
+
+    for (const auto& child : EnabledChildren_) {
+        child->BuildResourceMetering(/* parentKey */ key ? key : parentKey, meteringMap);
+    }
+
+    if (key && parentKey) {
+        meteringMap->at(*parentKey).DiscountChild(
+            meteringStatistics,
+            /* isRoot */ parentKey->PoolId == RootPoolName);
+    }
+}
+
+
 TSchedulerElementPtr TPool::Clone(TCompositeSchedulerElement* clonedParent)
 {
     return New<TPool>(*this, clonedParent);
@@ -2592,19 +2610,6 @@ void TPool::BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TR
 {
     poolMap->emplace(GetId(), this);
     TCompositeSchedulerElement::BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
-}
-
-std::optional<TMeteringKey> TPool::GetMeteringKey() const
-{
-    if (Config_->Abc) {
-        return TMeteringKey{
-            .AbcId  = Config_->Abc->Id,
-            .TreeId = GetTreeId(),
-            .PoolId = GetId(),
-        };
-    }
-
-    return std::nullopt;
 }
 
 double TPool::GetSpecifiedBurstRatio() const
@@ -4321,7 +4326,7 @@ bool TOperationElement::IsOperationRunningInPool() const
 {
     return RunningInThisPoolTree_;
 }
-    
+
 void TOperationElement::UpdateProfilers()
 {
     YT_VERIFY(GetParent());
@@ -4330,7 +4335,7 @@ void TOperationElement::UpdateProfilers()
     auto treeProfiler = TreeHost_->GetProfiler();
 
     BufferedProducer_ = New<TBufferedProducer>();
-    
+
     treeProfiler
         .WithRequiredTag("pool", GetParent()->GetId(), -1)
         .WithRequiredTag("slot_index", ToString(SlotIndex_), -1)
@@ -4734,6 +4739,28 @@ THistoricUsageAggregationParameters TRootElement::GetHistoricUsageAggregationPar
     return THistoricUsageAggregationParameters(EHistoricUsageAggregationMode::None);
 }
 
+void TRootElement::BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const
+{
+    auto key = TMeteringKey{
+        .AbcId = Host_->GetDefaultAbcId(),
+        .TreeId = GetTreeId(),
+        .PoolId = GetId(),
+    };
+
+    auto insertResult = meteringMap->insert({
+        key,
+        TMeteringStatistics(
+            /* strongGuaranteeResources */ {},
+            /* resourceFlow */ {},
+            /* burstGuaranteResources */ {},
+            ResourceUsageAtUpdate())});
+    YT_VERIFY(insertResult.second);
+
+    for (const auto& child : EnabledChildren_) {
+        child->BuildResourceMetering(/* parentKey */ key, meteringMap);
+    }
+}
+
 TSchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedParent*/)
 {
     YT_ABORT();
@@ -4747,15 +4774,6 @@ TRootElementPtr TRootElement::Clone()
 bool TRootElement::IsDefaultConfigured() const
 {
     return false;
-}
-
-std::optional<TMeteringKey> TRootElement::GetMeteringKey() const
-{
-    return TMeteringKey{
-        .AbcId = Host_->GetDefaultAbcId(),
-        .TreeId = GetTreeId(),
-        .PoolId = GetId(),
-    };
 }
 
 void TRootElement::BuildResourceDistributionInfo(TFluentMap fluent) const

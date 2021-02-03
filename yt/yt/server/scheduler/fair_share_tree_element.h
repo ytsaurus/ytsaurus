@@ -511,8 +511,7 @@ public:
 
     TJobResources GetTotalResourceLimits() const;
 
-    virtual std::optional<TMeteringKey> GetMeteringKey() const;
-    virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* statistics) const;
+    virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const;
 
     void Profile(NProfiling::ISensorWriter* writer, bool profilingCompatibilityEnabled) const;
 
@@ -691,8 +690,6 @@ public:
 
     virtual bool IsDefaultConfigured() const = 0;
 
-    virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* statistics) const override;
-
     virtual double GetSpecifiedBurstRatio() const = 0;
     virtual double GetSpecifiedResourceFlowRatio() const = 0;
 
@@ -812,8 +809,9 @@ public:
     virtual bool IsDefaultConfigured() const override;
     virtual bool IsExplicit() const override;
     virtual bool IsAggressiveStarvationEnabled() const override;
-
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
+    
+    virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
 
     virtual TPool* AsPool() override;
 
@@ -857,8 +855,6 @@ public:
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
     virtual void BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap) override;
-
-    virtual std::optional<TMeteringKey> GetMeteringKey() const override;
 
     virtual double GetSpecifiedBurstRatio() const override;
     virtual double GetSpecifiedResourceFlowRatio() const override;
@@ -1332,9 +1328,9 @@ public:
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
     virtual bool IsDefaultConfigured() const override;
 
-    TRootElementPtr Clone();
+    virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
 
-    virtual std::optional<TMeteringKey> GetMeteringKey() const override;
+    TRootElementPtr Clone();
 
     void BuildResourceDistributionInfo(NYTree::TFluentMap fluent) const;
 

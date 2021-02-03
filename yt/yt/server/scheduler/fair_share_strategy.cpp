@@ -1562,7 +1562,11 @@ private:
         for (const auto& [key, value] : newStatistics) {
             auto it = MeteringStatistics_.find(key);
             if (it != MeteringStatistics_.end()) {
-                TMeteringStatistics delta(value.StrongGuaranteeResources(), value.AllocatedResources());
+                TMeteringStatistics delta(
+                    value.StrongGuaranteeResources(),
+                    value.ResourceFlow(),
+                    value.BurstGuaranteeResources(),
+                    value.AllocatedResources());
                 Host->LogResourceMetering(key, delta, LastMeteringStatisticsUpdateTime_, now);
             } else {
                 Host->LogResourceMetering(key, value, LastMeteringStatisticsUpdateTime_, now);

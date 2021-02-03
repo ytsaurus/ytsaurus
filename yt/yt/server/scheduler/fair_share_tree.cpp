@@ -1041,10 +1041,10 @@ private:
             return std::nullopt;
         }
 
-        virtual void BuildResourceMetering(TMeteringMap* statistics) const override
+        virtual void BuildResourceMetering(TMeteringMap* meteringMap) const override
         {
             auto rootElement = RootElementSnapshot_->RootElement;
-            rootElement->BuildResourceMetering(std::nullopt, statistics);
+            rootElement->BuildResourceMetering(/* parentKey */ std::nullopt, meteringMap);
         }
 
         virtual void ProfileFairShare() const override
