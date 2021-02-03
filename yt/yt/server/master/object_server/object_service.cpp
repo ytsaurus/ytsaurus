@@ -1509,16 +1509,15 @@ private:
     void ExecuteWriteSubrequest(TSubrequest* subrequest)
     {
         subrequest->MutationResponseFuture = subrequest->Mutation->Commit();
-        subrequest->MutationResponseFuture.AsVoid().Subscribe(
+        subrequest->MutationResponseFuture.Subscribe(
             BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
     }
 
-    void OnMutationCommitted(TSubrequest* subrequest, const TError& /*error*/)
+    void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         YT_ASSERT(subrequest->MutationResponseFuture.IsSet());
-        const auto& responseOrError = subrequest->MutationResponseFuture.Get();
 
         if (!responseOrError.IsOK()) {
             Reply(responseOrError);
@@ -1565,13 +1564,17 @@ private:
         AcquireReplyLock();
         subrequest->LocallyStarted.store(true);
 
+        auto timeLeft = GetTimeLeft(subrequest);
+
         if (subrequest->RemoteTransactionReplicationSession &&
             !subrequest->MutationResponseFuture)
         {
             YT_VERIFY(EnableMutationBoomerangs_);
             YT_VERIFY(subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
 
-            subrequest->MutationResponseFuture = subrequest->RemoteTransactionReplicationSession->InvokeReplicationRequests();
+            subrequest->MutationResponseFuture =
+                subrequest->RemoteTransactionReplicationSession->InvokeReplicationRequests()
+                .WithTimeout(timeLeft);
         }
 
         auto doExecuteSubrequest = [=, this_ = MakeStrong(this)] (const TError& error) {
@@ -1596,8 +1599,6 @@ private:
             return;
         }
 
-        auto timeLeft = GetTimeLeft(subrequest);
-
         if (subrequest->RemoteTransactionReplicationFuture) {
             if (subrequest->RemoteTransactionReplicationFuture.IsSet()) {
                 doExecuteSubrequest(subrequest->RemoteTransactionReplicationFuture.Get());
@@ -1611,13 +1612,11 @@ private:
         } else {
             YT_VERIFY(subrequest->MutationResponseFuture);
             if (subrequest->MutationResponseFuture.IsSet()) {
-                OnMutationCommitted(subrequest, {});
+                OnMutationCommitted(subrequest, subrequest->MutationResponseFuture.Get());
             } else {
                 // NB: non-owning capture of this session object. Should be fine,
                 // since reply lock will prevent this session from being destroyed.
                 subrequest->MutationResponseFuture
-                    .AsVoid()
-                    .WithTimeout(timeLeft)
                     .Subscribe(BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
             }
         }
