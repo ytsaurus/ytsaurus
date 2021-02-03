@@ -1568,6 +1568,55 @@ echo {v = 2} >&7
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
+    @authors("max42")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_reduce_on_dynamic_table_shorter_key(self, optimize_for):
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "v", "type": "string"},
+        ], optimize_for=optimize_for)
+        create("table", "//tmp/t_out")
+
+        rows = [{"k1": i, "k2": j, "v": str(i) + str(j)} for i in range(3) for j in range(3)]
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        reduce(in_="//tmp/t", out="//tmp/t_out", reduce_by=["k1"], command="cat")
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+
+        reduce(in_="//tmp/t[(0,1):(2,1)]", out="//tmp/t_out", reduce_by=["k1"], command="cat")
+        assert_items_equal(read_table("//tmp/t_out"), rows[1:-2])
+
+    @authors("max42")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_reduce_on_static_table_shorter_key(self, optimize_for):
+        # Similar to previous test, but for static table.
+        # NB: this test never worked before 21.1.
+        if self.Env.get_component_version("ytserver-job-proxy").abi <= (20, 3):
+            pytest.skip("This test does not work until everything is at least 21.1")
+
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                {"name": "k2", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "string"},
+            ],
+            "optimize_for": optimize_for
+        })
+        create("table", "//tmp/t_out")
+
+        rows = [{"k1": i, "k2": j, "v": str(i) + str(j)} for i in range(3) for j in range(3)]
+        write_table("//tmp/t", rows)
+
+        reduce(in_="//tmp/t", out="//tmp/t_out", reduce_by=["k1"], command="cat")
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+
+        reduce(in_="//tmp/t[(0,1):(2,1)]", out="//tmp/t_out", reduce_by=["k1"], command="cat")
+        assert_items_equal(read_table("//tmp/t_out"), rows[1:-2])
+
     @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])

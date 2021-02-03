@@ -496,6 +496,15 @@ protected:
                 yielder.TryYield();
             }
             for (const auto& slice : CollectPrimaryVersionedDataSlices(InputSliceDataWeight_)) {
+                // If we keep chunk slice limits at this point, they will be transformed to legacy
+                // limits back and forth in legacy sorted chunk pool. Right now it breaks them, e.g.
+                // >=[1,1] -> [1,1] -> >[1]. I am not completely sure how to fix that properly, so
+                // I am removing chunk slice limits as a workaround until YT-13880.
+                for (const auto& chunkSlice : slice->ChunkSlices) {
+                    chunkSlice->LowerLimit() = TInputSliceLimit();
+                    chunkSlice->UpperLimit() = TInputSliceLimit();
+                }
+
                 SortedTask_->AddInput(CreateChunkStripe(slice));
 
                 TotalPrimaryInputDataSliceWeight_ += slice->GetDataWeight();
