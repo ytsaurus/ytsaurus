@@ -36,7 +36,7 @@ struct IFairShareTreeSnapshot
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
     virtual TJobResources GetTotalResourceLimits() const = 0;
     virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
-    virtual void BuildResourceMetering(TMeteringMap* statistics) const = 0;
+    virtual void BuildResourceMetering(TMeteringMap* meteringMap) const = 0;
     virtual void ProfileFairShare() const = 0;
     virtual void LogFairShare(NEventLog::TFluentLogEvent fluent) const = 0;
     virtual void EssentialLogFairShare(NEventLog::TFluentLogEvent fluent) const = 0;

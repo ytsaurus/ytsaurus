@@ -245,8 +245,6 @@ TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(IOpe
 
 namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-
 void FromBytes(std::vector<TLegacyOwningKey>* keys, TStringBuf bytes)
 {
     TKeySetReader reader(TSharedRef::FromString(TString(bytes)));
@@ -285,8 +283,16 @@ void Deserialize(std::vector<TLegacyOwningKey>& keys, INodePtr node)
 
 REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TPartitionJobSpecExt, /*wire_partition_keys*/8, std::vector<TLegacyOwningKey>)
 
+} // anonymous namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
+TString GuessGpuType(const TString& treeId)
+{
+    if (treeId.StartsWith("gpu_")) {
+        return TString(TStringBuf(treeId).SubStr(4));
+    }
+    return "unknown";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,12 +18,24 @@ import pytest
 
 import json
 import io
+import os
 import time
 import sys
 import zstd
 
 import __builtin__
 
+
+##################################################################
+
+def get_by_composite_key(item, composite_key, default=None):
+    current_item = item
+    for part in composite_key:
+        if part not in current_item:
+            return default
+        else:
+            current_item = current_item[part]
+    return current_item
 
 ##################################################################
 
@@ -2289,10 +2301,19 @@ class TestResourceMetering(YTEnvSetup):
             set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
 
         create_pool(
+            "abcless",
+            pool_tree="yggdrasil",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 4},
+            },
+            wait_for_orchid=False,
+        )
+
+        create_pool(
             "pixies",
             pool_tree="yggdrasil",
             attributes={
-                "min_share_resources": {"cpu": 3},
+                "strong_guarantee_resources": {"cpu": 3},
                 "abc": {"id": 1, "slug": "pixies", "name": "pixies"},
             },
             wait_for_orchid=False,
@@ -2302,18 +2323,38 @@ class TestResourceMetering(YTEnvSetup):
             "francis",
             pool_tree="yggdrasil",
             attributes={
-                "min_share_resources": {"cpu": 1},
+                "strong_guarantee_resources": {"cpu": 1},
                 "abc": {"id": 2, "slug": "francis", "name": "pixies"},
             },
             parent_name="pixies",
             wait_for_orchid=False,
         )
 
+        create_pool(
+            "integral",
+            pool_tree="yggdrasil",
+            attributes={
+                "integral_guarantees": {
+                    "guarantee_type": "burst",
+                    "resource_flow": {"cpu": 5},
+                    "burst_guarantee_resources": {"cpu": 6},
+                },
+                "abc": {"id": 3, "slug": "francis", "name": "integral"},
+            },
+            wait_for_orchid=False,
+        )
+
         root_key = (42, "yggdrasil", "<Root>")
 
-        desired_cpu_limits = {
-            (1, "yggdrasil", "pixies"): 2,
-            (2, "yggdrasil", "francis"): 1,
+        desired_metering_data = {
+            root_key: {"strong_guarantee_resources/cpu": 4},
+            (1, "yggdrasil", "pixies"): {"strong_guarantee_resources/cpu": 2},
+            (2, "yggdrasil", "francis"): {"strong_guarantee_resources/cpu": 1},
+            (3, "yggdrasil", "integral"): {
+                "strong_guarantee_resources/cpu": 0,
+                "resource_flow/cpu": 5,
+                "burst_guarantee_resources/cpu": 6,
+            },
         }
 
         def check_structured():
@@ -2335,17 +2376,19 @@ class TestResourceMetering(YTEnvSetup):
 
                 key = (
                     entry["abc_id"],
-                    entry["tags"]["pool_tree"],
-                    entry["tags"]["pool"],
+                    entry["labels"]["pool_tree"],
+                    entry["labels"]["pool"],
                 )
-                last_reports[key] = entry["tags"]["min_share_resources"]["cpu"]
+                last_reports[key] = entry["tags"]
 
             if root_key not in last_reports:
                 return False
 
-            for key, value in desired_cpu_limits.items():
-                if key not in last_reports or last_reports[key] != value:
-                    return False
+            for key, desired_data in desired_metering_data.items():
+                for resource_key, desired_value in desired_data.items():
+                    observed_value = get_by_composite_key(last_reports.get(key, {}), resource_key.split("/"), default=0)
+                    if int(observed_value) != desired_value:
+                        return False
 
             return True
 

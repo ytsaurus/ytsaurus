@@ -1686,7 +1686,7 @@ TAbcConfig::TAbcConfig()
 TPoolIntegralGuaranteesConfig::TPoolIntegralGuaranteesConfig()
 {
     RegisterParameter("guarantee_type", GuaranteeType)
-        .Default();
+        .Default(EIntegralGuaranteeType::None);
 
     RegisterParameter("burst_guarantee_resources", BurstGuaranteeResources)
         .DefaultNew();
