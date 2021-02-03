@@ -1,6 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/misc/bit_packed_unsigned_vector.h>
+#include <yt/core/misc/bit_packing.h>
 
 namespace NYT {
 namespace {
@@ -23,8 +24,8 @@ size_t Compress(const std::vector<T> &data, std::vector<ui64> *buffer)
     return BitPackUnsignedVector(MakeRange(data), maxValue, buffer->data());
 }
 
-template <class T>
-void Validate(const std::vector<T>& data, const TBitPackedUnsignedVectorReader<T>& reader)
+template <class T, class TReader>
+void Validate(const std::vector<T>& data, const TReader& reader)
 {
     EXPECT_EQ(data.size(), reader.GetSize());
 
@@ -32,6 +33,31 @@ void Validate(const std::vector<T>& data, const TBitPackedUnsignedVectorReader<T
         EXPECT_EQ(data[i], reader[i]);
     }
 }
+
+template <class T>
+class TNewBitReader
+    : public std::unique_ptr<T[]>
+{
+public:
+    explicit TNewBitReader(TCompressedVectorView view)
+        : std::unique_ptr<T[]>(new T[view.GetSize()])
+        , Size_(view.GetSize())
+    {
+        view.UnpackTo(this->get());
+    }
+
+    explicit TNewBitReader(const ui64* data)
+        : TNewBitReader(TCompressedVectorView(data))
+    { }
+
+    size_t GetSize() const
+    {
+        return Size_;
+    }
+
+private:
+    size_t Size_;
+};
 
 template <class T>
 void DoTest(T value, size_t count)
@@ -43,8 +69,13 @@ void DoTest(T value, size_t count)
     EXPECT_EQ(CompressedUnsignedVectorSizeInWords(value, count), size);
 
     auto reader = TBitPackedUnsignedVectorReader<T>(buffer.data());
-
     Validate(data, reader);
+
+    auto newReader = TNewBitReader<T>(buffer.data());
+    Validate(data, newReader);
+
+    TCompressedVectorView view(buffer.data());
+    Validate(data, view);
 }
 
 template <class T>
