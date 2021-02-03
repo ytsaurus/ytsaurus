@@ -57,7 +57,6 @@ void TServerAddressPool::UnbanAddress(const TString& address)
 
     auto it = ProbationAddresses_.find(address);
     if (it == ProbationAddresses_.end()) {
-        YT_LOG_DEBUG("Cannot unban server: server is not in probation list (Address: %v)", address);
         return;
     }
     YT_LOG_DEBUG("Server unbanned (Address: %v)", address);
