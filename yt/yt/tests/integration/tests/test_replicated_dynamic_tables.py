@@ -1985,6 +1985,22 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
         remove("#" + replica_id, authenticated_user="u")
 
+    @authors("akozhikhov")
+    def test_replica_write_permission_error(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r", replica_id)
+        sync_enable_table_replica(replica_id)
+
+        create_user("u")
+        create_user("u", driver=self.replica_driver)
+        set("//tmp/r/@acl", [make_ace("deny", "u", "write")], driver=self.replica_driver)
+
+        rows = [{"key": 1, "value1": "1"}]
+        with raises_yt_error("replica_cluster"):
+            insert_rows("//tmp/t", rows, authenticated_user="u")
+
     @authors("ifsmirnov")
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_required_columns(self, mode):

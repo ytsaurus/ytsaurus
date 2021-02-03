@@ -519,6 +519,7 @@ public:
         const TTableWriterOptions& options),
         (path, options))
 
+#undef DELEGATE_METHOD
 #undef DELEGATE_TRANSACTIONAL_METHOD
 #undef DELEGATE_TIMESTAMPED_METHOD
 
@@ -610,7 +611,7 @@ private:
                         Modifications_,
                         replicaOptions);
                 } else {
-                    // YT-7551: Local sync replicas must be handled differenly.
+                    // YT-7571: Local sync replicas must be handled differenly.
                     // We cannot add more modifications via ITransactions interface since
                     // the transaction is already committing.
                     YT_LOG_DEBUG("Buffering local sync replication modifications (Count: %v)",
@@ -1616,7 +1617,16 @@ private:
             // NB: The call above could have extended the set of alien transactions.
             // Let's flush these new guys as well.
             for (const auto& [clusterName, transaction] : ClusterNameToSyncReplicaTransaction_) {
-                flushFutures.push_back(transaction->Flush());
+                flushFutures.push_back(
+                    transaction->Flush()
+                    .Apply(
+                        BIND([clusterName = clusterName] (const TErrorOr<TTransactionFlushResult>& resultOrError) {
+                            if (!resultOrError.IsOK()) {
+                                THROW_ERROR_EXCEPTION(resultOrError)
+                                    << TErrorAttribute("replica_cluster", clusterName);
+                            }
+                            return resultOrError.Value();
+                        })));
             }
         }
 
