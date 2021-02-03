@@ -131,7 +131,7 @@ public:
     TClusterDirectorySynchronizerConfig()
     {
         RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Seconds(3));
+            .Default(TDuration::Seconds(60));
 
         RegisterParameter("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime)
             .Alias("success_expiration_time")
