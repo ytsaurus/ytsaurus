@@ -462,18 +462,12 @@ class TestComplexTypes(YTEnvSetup):
         table.check_bad_value(3.14)
         table.check_good_value(None)
 
-        import sys
-        print >>sys.stderr, "DIMAN 1"
         table = SingleColumnTable(
             list_type(decimal_type(3, 2)),
             optimize_for)
-        print >>sys.stderr, "DIMAN 2"
         table.check_good_value([encode_decimal("3.12", 3, 2)])
-        print >>sys.stderr, "DIMAN 3"
         table.check_bad_value([encode_decimal("43.12", 3, 2)])
-        print >>sys.stderr, "DIMAN 4"
         table.check_bad_value([3.12])
-        print >>sys.stderr, "DIMAN 5"
 
 
 @authors("ermolovd")
