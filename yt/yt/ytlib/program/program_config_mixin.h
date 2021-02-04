@@ -11,14 +11,16 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TConfig>
+constexpr char DefaultArgumentName[] = "config";
+
+template <class TConfig, const char* ArgumentName = DefaultArgumentName>
 class TProgramConfigMixin
 {
 protected:
     explicit TProgramConfigMixin(NLastGetopt::TOpts& opts, bool required = true)
     {
         auto opt = opts
-            .AddLongOption("config", "path to configuration file")
+            .AddLongOption(TString(ArgumentName), Format("path to %v file", ArgumentName))
             .StoreMappedResult(&ConfigPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("FILE");
         if (required) {
@@ -27,10 +29,14 @@ protected:
             opt.Optional();
         }
         opts
-            .AddLongOption("config-template", "print config template and exit")
+            .AddLongOption(
+                Format("%v-template", ArgumentName),
+                Format("print %v template and exit", ArgumentName))
             .SetFlag(&ConfigTemplate_);
         opts
-            .AddLongOption("config-actual", "print actual config and exit")
+            .AddLongOption(
+                Format("%v-actual", ArgumentName),
+                Format("print actual %v and exit", ArgumentName))
             .SetFlag(&ConfigActual_);
     }
 
@@ -83,14 +89,15 @@ private:
         using namespace NYTree;
 
         if (!ConfigPath_){
-            THROW_ERROR_EXCEPTION("Missing --config option");
+            THROW_ERROR_EXCEPTION("Missing --%v option", ArgumentName);
         }
 
         try {
             TIFStream stream(ConfigPath_);
             ConfigNode_ = ConvertToNode(&stream);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing configuration file %v",
+            THROW_ERROR_EXCEPTION("Error parsing %v file %v",
+                ArgumentName,
                 ConfigPath_)
                 << ex;
         }
@@ -107,7 +114,8 @@ private:
             Config_->SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
             Config_->Load(ConfigNode_);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error loading configuration file %v",
+            THROW_ERROR_EXCEPTION("Error loading %v file %v",
+                ArgumentName,
                 ConfigPath_)
                 << ex;
         }
