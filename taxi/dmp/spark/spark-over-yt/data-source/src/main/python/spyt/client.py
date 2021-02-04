@@ -300,6 +300,8 @@ def connect(num_executors=5,
 
 def stop(spark, exception=None):
     is_client_mode = spark.conf.get("spark.submit.deployMode") == "client"
+    if exception is not None:
+        logger.error("Shutdown SparkSession after exception: {}".format(exception))
     _try_with_safe_finally(
         lambda: spark.stop(),
         lambda e1: _try_with_safe_finally(
