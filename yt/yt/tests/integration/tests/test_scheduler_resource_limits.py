@@ -243,15 +243,17 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         },
         "resource_limits": {
             "node_dedicated_cpu": 1,
-            "user_jobs": {
-                "type": "dynamic",
-            },
-            "tablet_static": {
-                "type": "static",
-                "value": 10 ** 9,
-            },
-            "tablet_dynamic": {
-                "type": "dynamic",
+            "memory_limits": {
+                "user_jobs": {
+                    "type": "dynamic",
+                },
+                "tablet_static": {
+                    "type": "static",
+                    "value": 10 ** 9,
+                },
+                "tablet_dynamic": {
+                    "type": "dynamic",
+                },
             },
         },
         "exec_agent": {
@@ -321,13 +323,18 @@ class TestUpdateInstanceLimits(YTEnvSetup):
                     "total_cpu": 5,
                     "cpu_per_tablet_slot": 1,
                     "free_memory_watermark": 100000,
-                    "user_jobs": {"type": "static", "value": 12345678},
-                    "tablet_static": {
-                        "type": "static",
-                        "value": 10 ** 9,
-                    },
-                    "tablet_dynamic": {
-                        "type": "dynamic",
+                    "memory_limits": {
+                        "user_jobs": {
+                            "type": "static",
+                            "value": 12345678,
+                        },
+                        "tablet_static": {
+                            "type": "static",
+                            "value": 10 ** 9,
+                        },
+                        "tablet_dynamic": {
+                            "type": "dynamic",
+                        },
                     },
                 }
             }
@@ -343,15 +350,17 @@ class TestUpdateInstanceLimits(YTEnvSetup):
                     "total_cpu": 5,
                     "cpu_per_tablet_slot": 1,
                     "free_memory_watermark": 100000,
-                    "user_jobs": {
-                        "type": "dynamic",
-                    },
-                    "tablet_static": {
-                        "type": "static",
-                        "value": 10 ** 9,
-                    },
-                    "tablet_dynamic": {
-                        "type": "dynamic",
+                    "memory_limits": {
+                        "user_jobs": {
+                            "type": "dynamic",
+                        },
+                        "tablet_static": {
+                            "type": "static",
+                            "value": 10 ** 9,
+                        },
+                        "tablet_dynamic": {
+                            "type": "dynamic",
+                        },
                     },
                 }
             }
