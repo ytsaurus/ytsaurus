@@ -87,9 +87,12 @@ public:
     //! Porto environment.
     i64 TotalMemory;
 
+    // COMPAT(gritukan)
     TMemoryLimitPtr UserJobs;
     TMemoryLimitPtr TabletStatic;
     TMemoryLimitPtr TabletDynamic;
+
+    TEnumIndexedVector<NNodeTrackerClient::EMemoryCategory, TMemoryLimitPtr> MemoryLimits;
 
     // COMPAT(gritukan): Drop optional after configs migration.
     std::optional<i64> FreeMemoryWatermark;
@@ -120,11 +123,14 @@ public:
             .Default(5_GB);
 
         RegisterParameter("user_jobs", UserJobs)
-            .DefaultNew();
+            .Default();
         RegisterParameter("tablet_static", TabletStatic)
-            .DefaultNew();
+            .Default();
         RegisterParameter("tablet_dynamic", TabletDynamic)
-            .DefaultNew();
+            .Default();
+
+        RegisterParameter("memory_limits", MemoryLimits)
+            .Default();
 
         RegisterParameter("free_memory_watermark", FreeMemoryWatermark)
             .Default();
@@ -147,14 +153,22 @@ public:
             .GreaterThan(0)
             .LessThanOrEqual(1_GB)
             .Default(1_MB);
+
+        RegisterPostprocessor([&] {
+            if (UserJobs) {
+                MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs] = UserJobs;
+            }
+            if (TabletStatic) {
+                MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic] = TabletStatic;
+            }
+            if (TabletDynamic) {
+                MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic] = TabletDynamic;
+            }
+        });
     }
 
     void Validate()
     {
-        UserJobs->Validate();
-        TabletStatic->Validate();
-        TabletDynamic->Validate();
-
         if (!FreeMemoryWatermark) {
             THROW_ERROR_EXCEPTION("\'free_memory_watermark\' should be set");
         }
@@ -171,6 +185,64 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResourceLimitsDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    // COMPAT(gritukan)
+    TMemoryLimitPtr UserJobs;
+    TMemoryLimitPtr TabletStatic;
+    TMemoryLimitPtr TabletDynamic;
+
+    TEnumIndexedVector<NNodeTrackerClient::EMemoryCategory, TMemoryLimitPtr> MemoryLimits;
+
+    std::optional<i64> FreeMemoryWatermark;
+
+    std::optional<double> NodeDedicatedCpu;
+
+    std::optional<double> CpuPerTabletSlot;
+
+    double TotalCpu;
+
+    TResourceLimitsDynamicConfig()
+    {
+        RegisterParameter("user_jobs", UserJobs)
+            .Default();
+        RegisterParameter("tablet_static", TabletStatic)
+            .Default();
+        RegisterParameter("tablet_dynamic", TabletDynamic)
+            .Default();
+
+        RegisterParameter("memory_limits", MemoryLimits)
+            .Default();
+        RegisterParameter("free_memory_watermark", FreeMemoryWatermark)
+            .Default();
+        RegisterParameter("node_dedicated_cpu", NodeDedicatedCpu)
+            .Default();
+        RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
+            .Default();
+
+        RegisterParameter("total_cpu", TotalCpu)
+            .Default(0);
+
+        RegisterPostprocessor([&] {
+            if (UserJobs) {
+                MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs] = UserJobs;
+            }
+            if (TabletStatic) {
+                MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic] = TabletStatic;
+            }
+            if (TabletDynamic) {
+                MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic] = TabletDynamic;
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceLimitsDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -362,23 +434,29 @@ public:
             NNodeTrackerClient::ValidateNodeTags(Tags);
 
             // COMPAT(gritukan): Drop this code after configs migration.
-            if (!ResourceLimits->UserJobs->Type) {
-                ResourceLimits->UserJobs->Type = NNodeTrackerClient::EMemoryLimitType::Dynamic;
+            if (!ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs]) {
+                auto& memoryLimit = ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs];
+                memoryLimit = New<TMemoryLimit>();
+                memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::Dynamic;
             }
-            if (!ResourceLimits->TabletStatic->Type) {
+            if (!ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic]) {
+                auto& memoryLimit = ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic];
+                memoryLimit = New<TMemoryLimit>();
                 if (TabletNode->ResourceLimits->TabletStaticMemory == std::numeric_limits<i64>::max()) {
-                    ResourceLimits->TabletStatic->Type = NNodeTrackerClient::EMemoryLimitType::None;
+                    memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::None;
                 } else {
-                    ResourceLimits->TabletStatic->Type = NNodeTrackerClient::EMemoryLimitType::Static;
-                    ResourceLimits->TabletStatic->Value = TabletNode->ResourceLimits->TabletStaticMemory;
+                    memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::Static;
+                    memoryLimit->Value = TabletNode->ResourceLimits->TabletStaticMemory;
                 }
             }
-            if (!ResourceLimits->TabletDynamic->Type) {
+            if (!ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic]) {
+                auto& memoryLimit = ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic];
+                memoryLimit = New<TMemoryLimit>();
                 if (TabletNode->ResourceLimits->TabletDynamicMemory == std::numeric_limits<i64>::max()) {
-                    ResourceLimits->TabletDynamic->Type = NNodeTrackerClient::EMemoryLimitType::None;
+                    memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::None;
                 } else {
-                    ResourceLimits->TabletDynamic->Type = NNodeTrackerClient::EMemoryLimitType::Static;
-                    ResourceLimits->TabletDynamic->Value = TabletNode->ResourceLimits->TabletDynamicMemory;
+                    memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::Static;
+                    memoryLimit->Value = TabletNode->ResourceLimits->TabletDynamicMemory;
                 }
             }
             if (!ResourceLimits->FreeMemoryWatermark) {
@@ -444,7 +522,7 @@ public:
     NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
 
     //! Node resource limits.
-    TResourceLimitsConfigPtr ResourceLimits;
+    TResourceLimitsDynamicConfigPtr ResourceLimits;
 
     //! Data node configuration part.
     NDataNode::TDataNodeDynamicConfigPtr DataNode;
@@ -471,7 +549,7 @@ public:
         RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();
         RegisterParameter("resource_limits", ResourceLimits)
-            .Default();
+            .DefaultNew();
         RegisterParameter("data_node", DataNode)
             .DefaultNew();
         RegisterParameter("tablet_node", TabletNode)
@@ -480,12 +558,6 @@ public:
             .DefaultNew();
         RegisterParameter("caching_object_service", CachingObjectService)
             .DefaultNew();
-
-        RegisterPostprocessor([&] {
-            if (ResourceLimits) {
-                ResourceLimits->Validate();
-            }
-        });
     }
 };
 

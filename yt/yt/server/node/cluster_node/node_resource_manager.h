@@ -29,9 +29,6 @@ public:
     // TODO(gritukan): Drop it in favour of dynamic config.
     void SetResourceLimitsOverride(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimitsOverride);
 
-    // COMPAT(gritukan)
-    TResourceLimitsConfigPtr GetResourceLimitsConfig() const;
-
     void OnInstanceLimitsUpdated(double cpuLimit, i64 memoryLimit);
 
     DEFINE_SIGNAL(void(), JobsCpuLimitUpdated);
