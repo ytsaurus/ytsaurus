@@ -302,6 +302,33 @@ void TSolomonExporter::HandleDebugTags(const IRequestPtr&, const IResponseWriter
         .ThrowOnError();
 }
 
+std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options)
+{
+    auto result = BIND([this, options, this_ = MakeStrong(this)] () -> std::optional<TString> {
+        TStringStream buffer;
+        auto encoder = NMonitoring::BufferedEncoderJson(&buffer);
+
+        if (Window_.empty()) {
+            return {};
+        }
+
+        // Read last value.
+        auto readOptions = options;
+        readOptions.Times.emplace_back(std::vector<int>{Window_.back().first}, Window_.back().second);
+
+        encoder->OnStreamBegin();
+        Registry_->ReadSensors(readOptions, encoder.Get());
+        encoder->OnStreamEnd();
+        encoder->Close();
+
+        return buffer.Str();
+    })
+        .AsyncVia(Invoker_)
+        .Run();
+
+    return WaitFor(result).ValueOrThrow();
+}
+
 void TSolomonExporter::HandleShard(
     const std::optional<TString>& name,
     const IRequestPtr& req,

@@ -17,7 +17,7 @@ class TPerCpuCounter
 public:
     virtual void Increment(i64 delta) override;
     
-    i64 GetValue();
+    virtual i64 GetValue() override;
 
 private:
     struct alignas(CacheLineSize) TShard
@@ -59,7 +59,7 @@ class TPerCpuGauge
 public:
     virtual void Update(double value) override;
 
-    double GetValue();
+    virtual double GetValue() override;
 
 private:
     struct TWrite

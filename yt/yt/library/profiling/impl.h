@@ -81,6 +81,7 @@ struct ICounterImpl
     : public TRefCounted
 {
     virtual void Increment(i64 delta) = 0;
+    virtual i64 GetValue() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICounterImpl)
@@ -103,6 +104,7 @@ struct IGaugeImpl
     : public TRefCounted
 {
     virtual void Update(double value) = 0;
+    virtual double GetValue() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGaugeImpl)

@@ -17,7 +17,7 @@ class TSimpleGauge
 public:
     virtual void Update(double value) override;
 
-    double GetValue();
+    virtual double GetValue() override;
 
 private:
     std::atomic<double> Value_ = 0.0;
@@ -47,7 +47,7 @@ class TSimpleCounter
 public:
     virtual void Increment(i64 delta) override;
     
-    i64 GetValue();
+    virtual i64 GetValue() override;
 
 private:
     std::atomic<i64> Value_ = 0;
