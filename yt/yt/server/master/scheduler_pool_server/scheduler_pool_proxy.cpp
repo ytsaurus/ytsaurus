@@ -123,7 +123,7 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
             auto treeConfig = New<NScheduler::TFairShareStrategyTreeConfig>();
             treeConfig->Load(ConvertToNode(value));
             schedulerPool->ValidateStrongGuaranteesRecursively(treeConfig);
-            schedulerPoolTree->SpecifiedConfig() = value;
+            schedulerPoolTree->UpdateSpecifiedConfig(value);
             return true;
         } else if (IsKnownPoolTreeAttribute(key)) {
             THROW_ERROR_EXCEPTION("All pool tree attributes have been moved into \"config\" attribute");
@@ -145,8 +145,9 @@ bool TSchedulerPoolProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey k
     auto schedulerPool = GetThisImpl();
     if (schedulerPool->IsRoot()) {
         if (key == EInternedAttributeKey::Config) {
-            schedulerPool->ValidateStrongGuaranteesRecursively(New<TFairShareStrategyTreeConfig>());
-            schedulerPool->GetMaybePoolTree()->SpecifiedConfig() = ConvertToYsonString(EmptyAttributes());
+            auto defaultPoolTreeConfig = New<TFairShareStrategyTreeConfig>();
+            schedulerPool->ValidateStrongGuaranteesRecursively(defaultPoolTreeConfig);
+            schedulerPool->GetMaybePoolTree()->UpdateSpecifiedConfig(ConvertToYsonString(EmptyAttributes()));
             return true;
         } else if (IsKnownPoolTreeAttribute(key)) {
             THROW_ERROR_EXCEPTION("All pool tree attributes have been moved into \"config\" attribute");
