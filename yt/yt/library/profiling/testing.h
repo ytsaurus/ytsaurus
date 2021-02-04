@@ -1,0 +1,17 @@
+#pragma once
+
+#include "sensor.h"
+
+namespace NYT::NProfiling {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTesting
+{
+    static double ReadGauge(const TGauge& gauge);
+    static i64 ReadCounter(const TCounter& counter);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NProfiling

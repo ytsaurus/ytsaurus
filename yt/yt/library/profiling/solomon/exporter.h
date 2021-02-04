@@ -130,6 +130,13 @@ public:
 
     void Register(const TString& prefix, const NHttp::IServerPtr& server);
 
+    // ReadJson is compatibility function for bulatman@.
+    //
+    // Returns std::nullopt, if exporter is not ready.
+    //
+    // You should not use this function directly. Use Register() instead.
+    std::optional<TString> ReadJson(const TReadOptions& options = {});
+
     // There must be at most 1 running exporter per registry.
     void Start();
     void Stop();

@@ -24,6 +24,7 @@ public:
 
 private:
     friend class TRegistry;
+    friend struct TTesting;
 
     ICounterImplPtr Counter_;
 };
@@ -50,6 +51,7 @@ public:
 
 private:
     friend class TRegistry;
+    friend struct TTesting;
 
     IGaugeImplPtr Gauge_;
 };
