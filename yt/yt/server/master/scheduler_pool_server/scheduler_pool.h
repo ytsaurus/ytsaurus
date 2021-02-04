@@ -76,10 +76,17 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, TreeName);
     DEFINE_BYVAL_RW_PROPERTY(TSchedulerPool*, RootPool, nullptr);
 
-    DEFINE_BYREF_RW_PROPERTY(NYson::TYsonString, SpecifiedConfig);
+    DEFINE_BYREF_RO_PROPERTY(NYson::TYsonString, SpecifiedConfig);
+
+    void UpdateSpecifiedConfig(NYson::TYsonString newConfig);
+
+    // Throws an error if we fail to deserialize the specified config.
+    NScheduler::TFairShareStrategyTreeConfigPtr GetDeserializedConfigOrThrow() const;
 
 private:
     using TBase = NObjectServer::TNonversionedObjectBase;
+
+    mutable NScheduler::TFairShareStrategyTreeConfigPtr MemoizedDeserializedPoolTreeConfig_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

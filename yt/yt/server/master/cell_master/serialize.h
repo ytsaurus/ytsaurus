@@ -130,6 +130,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkFeatures)                                                (1446))  // gritukan
     ((IncreaseUploadReplicationFactorUponFlush)                     (1447))  // akozhikhov
     ((InternedAttributes)                                           (1448))  // babenko
+    ((VerifySchedulerPoolStrongGuarantees)                          (1449))  // eshcherbin
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42

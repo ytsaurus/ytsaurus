@@ -135,21 +135,14 @@ TFairShareStrategyTreeConfigPtr TSchedulerPool::GetPoolTreeConfig() const
     while (auto* parent = schedulerPool->GetParent()) {
         schedulerPool = parent;
     }
-    YT_VERIFY(schedulerPool->IsRoot());
-    auto* poolTree = schedulerPool->GetMaybePoolTree();
 
-    TFairShareStrategyTreeConfigPtr poolTreeConfig;
-    auto specifiedConfig = poolTree->SpecifiedConfig();
-    try {
-        poolTreeConfig = ConvertTo<TFairShareStrategyTreeConfigPtr>(specifiedConfig);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Invalid pool tree config")
-            << TErrorAttribute("pool_tree", poolTree->GetTreeName())
-            << ex;
+    if (!schedulerPool->IsRoot()) {
+        // NB: Unlikely to happen.
+        THROW_ERROR_EXCEPTION("Failed to get pool tree config because the pool is detached from the hierarchy")
+            << TErrorAttribute("pool_name", GetName());
     }
 
-    YT_VERIFY(poolTreeConfig);
-    return poolTreeConfig;
+    return schedulerPool->GetMaybePoolTree()->GetDeserializedConfigOrThrow();
 }
 
 void TSchedulerPool::Save(NCellMaster::TSaveContext& context) const
@@ -323,6 +316,27 @@ void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
     } else {
         Load(context, SpecifiedConfig_);
     }
+}
+
+void TSchedulerPoolTree::UpdateSpecifiedConfig(TYsonString newConfig)
+{
+    SpecifiedConfig_ = std::move(newConfig);
+    MemoizedDeserializedPoolTreeConfig_.Reset();
+}
+
+TFairShareStrategyTreeConfigPtr TSchedulerPoolTree::GetDeserializedConfigOrThrow() const
+{
+    if (!MemoizedDeserializedPoolTreeConfig_) {
+        try {
+            MemoizedDeserializedPoolTreeConfig_ = ConvertTo<TFairShareStrategyTreeConfigPtr>(SpecifiedConfig_);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Invalid pool tree config")
+                    << TErrorAttribute("pool_tree", GetTreeName())
+                    << ex;
+        }
+    }
+
+    return MemoizedDeserializedPoolTreeConfig_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
