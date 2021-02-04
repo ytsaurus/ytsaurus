@@ -10,7 +10,7 @@ THistogramSnapshot& THistogramSnapshot::operator += (const THistogramSnapshot& o
 {
     if (Values.empty()) {
         Values = other.Values;
-    } else {
+    } else if (!other.Values.empty()) {
         YT_VERIFY(Values.size() == other.Values.size());
         for (size_t i = 0; i < other.Values.size(); ++i) {
             Values[i] += other.Values[i];
