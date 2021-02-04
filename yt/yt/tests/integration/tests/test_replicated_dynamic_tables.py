@@ -2387,6 +2387,28 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "sync")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
+    @authors("akozhikhov")
+    def test_replicated_table_tracker_enabled_attribute(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1")
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2")
+        self._create_replica_table("//tmp/r1", replica_id1)
+        self._create_replica_table("//tmp/r2", replica_id2)
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        replica_infos = get("//tmp/t/@replicas")
+        assert replica_infos[replica_id1]["replicated_table_tracker_enabled"]
+        assert replica_infos[replica_id2]["replicated_table_tracker_enabled"]
+
+        set("#{}/@enable_replicated_table_tracker".format(replica_id1), True)
+        set("#{}/@enable_replicated_table_tracker".format(replica_id2), False)
+
+        replica_infos = get("//tmp/t/@replicas")
+        assert replica_infos[replica_id1]["replicated_table_tracker_enabled"]
+        assert not replica_infos[replica_id2]["replicated_table_tracker_enabled"]
+
 
 ##################################################################
 
@@ -2465,7 +2487,7 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
 
         wait(lambda: get("//tmp/t/@replicas/{}/error_count".format(replica_id)) == 0)
 
-    @authors("lexolordan")
+    @authors("akozhikhov")
     def test_replicated_tracker_in_safe_mode(self):
         self._create_cells()
         self._create_replicated_table(
@@ -2495,28 +2517,6 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
 
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
-
-    @authors("akozhikhov")
-    def test_replicated_table_tracker_enabled_attribute(self):
-        self._create_cells()
-        self._create_replicated_table("//tmp/t")
-        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1")
-        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2")
-        self._create_replica_table("//tmp/r1", replica_id1)
-        self._create_replica_table("//tmp/r2", replica_id2)
-        sync_enable_table_replica(replica_id1)
-        sync_enable_table_replica(replica_id2)
-
-        replica_infos = get("//tmp/t/@replicas")
-        assert replica_infos[replica_id1]["replicated_table_tracker_enabled"]
-        assert replica_infos[replica_id2]["replicated_table_tracker_enabled"]
-
-        set("#{}/@enable_replicated_table_tracker".format(replica_id1), True)
-        set("#{}/@enable_replicated_table_tracker".format(replica_id2), False)
-
-        replica_infos = get("//tmp/t/@replicas")
-        assert replica_infos[replica_id1]["replicated_table_tracker_enabled"]
-        assert not replica_infos[replica_id2]["replicated_table_tracker_enabled"]
 
 
 ##################################################################
