@@ -1263,12 +1263,16 @@ private:
             auto attributeKeys = Spec_->AttributeKeys.value_or(userAttributeKeys);
 
             auto batchReq = proxy.ExecuteBatch();
+            auto req = TYPathProxy::Multiset(path + "/@");
+            SetTransactionId(req, OutputCompletionTransaction->GetId());
+
             for (const auto& key : attributeKeys) {
-                auto req = TYPathProxy::Set(path + "/@" + key);
-                req->set_value(InputTableAttributes_->GetYson(key).ToString());
-                SetTransactionId(req, OutputCompletionTransaction->GetId());
-                batchReq->AddRequest(req);
+                auto* subrequest = req->add_subrequests();
+                subrequest->set_key(key);
+                subrequest->set_value(InputTableAttributes_->GetYson(key).ToString());
             }
+
+            batchReq->AddRequest(req);
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error setting attributes for output table %v",
