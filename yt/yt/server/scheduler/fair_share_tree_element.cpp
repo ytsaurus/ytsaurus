@@ -443,7 +443,11 @@ bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributes
 
 TJobResources TSchedulerElement::GetCurrentResourceUsage(const TDynamicAttributesList& dynamicAttributesList) const
 {
-    return dynamicAttributesList[GetTreeIndex()].ResourceUsage;
+    if (IsSchedulable()) {
+        return dynamicAttributesList[GetTreeIndex()].ResourceUsage;
+    } else {
+        return Attributes_.UnschedulableOperationsResourceUsage;
+    }
 }
 
 double TSchedulerElement::GetWeight() const
@@ -1187,6 +1191,7 @@ void TCompositeSchedulerElement::UpdateCumulativeAttributes(TUpdateFairShareCont
     Attributes_.TotalBurstRatio = Attributes_.BurstRatio;
     Attributes_.ResourceFlowRatio = GetSpecifiedResourceFlowRatio();
     Attributes_.TotalResourceFlowRatio = Attributes_.ResourceFlowRatio;
+    Attributes_.UnschedulableOperationsResourceUsage = TJobResources();
 
     SchedulableChildren_.clear();
     for (const auto& child : EnabledChildren_) {
@@ -1205,12 +1210,12 @@ void TCompositeSchedulerElement::UpdateCumulativeAttributes(TUpdateFairShareCont
 
         Attributes_.TotalResourceFlowRatio += child->Attributes().TotalResourceFlowRatio;
         Attributes_.TotalBurstRatio += child->Attributes().TotalBurstRatio;
+        Attributes_.UnschedulableOperationsResourceUsage += child->Attributes().UnschedulableOperationsResourceUsage;
+        PendingJobCount_ += child->GetPendingJobCount();
 
         if (child->IsSchedulable()) {
             SchedulableChildren_.push_back(child);
         }
-
-        PendingJobCount_ += child->GetPendingJobCount();
     }
 
     TSchedulerElement::UpdateCumulativeAttributes(context);
@@ -1347,8 +1352,8 @@ void TCompositeSchedulerElement::CalculateCurrentResourceUsage(TFairShareContext
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
-    attributes.ResourceUsage = TJobResources();
-    for (const auto& child : EnabledChildren_) {
+    attributes.ResourceUsage = Attributes_.UnschedulableOperationsResourceUsage;
+    for (const auto& child : SchedulableChildren_) {
         child->CalculateCurrentResourceUsage(context);
         attributes.ResourceUsage += child->GetCurrentResourceUsage(context->DynamicAttributesList());
     }
@@ -3331,6 +3336,7 @@ void TOperationElement::UpdateCumulativeAttributes(TUpdateFairShareContext* cont
 
     if (!IsSchedulable()) {
         ++context->UnschedulableReasons[*UnschedulableReason_];
+        Attributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
     }
 }
 
@@ -3930,8 +3936,7 @@ bool TOperationElement::IsPreemptionAllowed(
         if (TreeConfig_->UseRecentResourceUsageForLocalSatisfaction) {
             localSatisfactionRatio = element->ComputeLocalSatisfactionRatio(element->GetInstantResourceUsage());
         } else {
-            const auto& elementAttributes = dynamicAttributesList[element->GetTreeIndex()];
-            localSatisfactionRatio = element->ComputeLocalSatisfactionRatio(elementAttributes.ResourceUsage);
+            localSatisfactionRatio = element->ComputeLocalSatisfactionRatio(element->GetCurrentResourceUsage(dynamicAttributesList));
         }
         if (config->PreemptionCheckSatisfaction && localSatisfactionRatio < threshold + RatioComparisonPrecision) {
             OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfiedParentOrSelf);
