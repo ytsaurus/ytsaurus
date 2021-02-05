@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"a.yandex-team.ru/yt/go/yson"
 	"golang.org/x/xerrors"
 )
 
@@ -162,8 +163,13 @@ func (yt *Error) FormatError(p xerrors.Printer) (next error) {
 		}
 		sort.Strings(names)
 
+		formatAttr := func(v interface{}) string {
+			b, _ := yson.MarshalFormat(v, yson.FormatText)
+			return string(b)
+		}
+
 		for _, name := range names {
-			p.Printf("  %s: %s%v\n", name, padding(name), e.Attributes[name])
+			p.Printf("  %s: %s%s\n", name, padding(name), formatAttr(e.Attributes[name]))
 		}
 	}
 

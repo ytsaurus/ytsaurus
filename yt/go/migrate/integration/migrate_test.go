@@ -17,18 +17,26 @@ type testRow struct {
 	B int
 }
 
+type orderedRow struct {
+	A string
+	B int
+}
+
 var (
 	testSchema    = schema.MustInfer(&testRow{})
 	updatedSchema = testSchema.Append(schema.Column{
 		Name: "C",
 		Type: schema.TypeInt64,
 	})
+	orderedSchema = schema.MustInfer(&orderedRow{})
 )
 
 func init() {
 	strict := true
+
 	testSchema.Strict = &strict
 	updatedSchema.Strict = &strict
+	orderedSchema.Strict = &strict
 }
 
 func TestTableMount(t *testing.T) {
@@ -97,6 +105,21 @@ func TestCreateTables(t *testing.T) {
 	secondIDA, secondIDB = getIDs()
 	require.Equal(t, firstIDA, secondIDA)
 	require.NotEqual(t, firstIDB, secondIDB)
+}
+
+func TestOrderedTables(t *testing.T) {
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	root := env.TmpPath()
+	tablePath := root.Child("table")
+
+	schemas := map[ypath.Path]migrate.Table{
+		tablePath: {Schema: orderedSchema},
+	}
+
+	require.NoError(t, migrate.EnsureTables(env.Ctx, env.YT, schemas, migrate.OnConflictFail))
+	require.NoError(t, migrate.EnsureTables(env.Ctx, env.YT, schemas, migrate.OnConflictFail))
 }
 
 func TestMigrateDoNotTouch(t *testing.T) {

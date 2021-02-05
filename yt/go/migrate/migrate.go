@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"golang.org/x/xerrors"
+	"a.yandex-team.ru/library/go/core/xerrors"
 
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -105,11 +105,13 @@ func OnConflictDrop(ctx context.Context, yc yt.Client) ConflictFn {
 	}
 }
 
-var ErrConflict = xerrors.New("detected schema conflict during migration")
+var ErrConflict = xerrors.NewSentinel("detected schema conflict during migration")
 
 // OnConflictFail is ConflictFn that will just return ErrConflict.
 func OnConflictFail(path ypath.Path, actual, expected schema.Schema) (err error) {
-	return ErrConflict
+	return ErrConflict.Wrap(yterrors.Err("schema differs",
+		yterrors.Attr("actual_schema", actual),
+		yterrors.Attr("expected_schema", expected)))
 }
 
 // OnConflictTryAlter returns ConflictFn that will try to alter previous version of the table.
@@ -177,7 +179,15 @@ func EnsureTables(
 				return err
 			}
 		} else {
-			if !attrs.Schema.Equal(table.Schema.WithUniqueKeys()) {
+			fixUniqueKeys := func(s schema.Schema) schema.Schema {
+				if len(s.Columns) > 0 && s.Columns[0].SortOrder != schema.SortNode {
+					s.UniqueKeys = true
+				}
+
+				return s
+			}
+
+			if !attrs.Schema.Equal(fixUniqueKeys(table.Schema)) {
 				err = onConflict(path, attrs.Schema, table.Schema)
 				if err == RetryConflict {
 					goto retry
