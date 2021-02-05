@@ -241,10 +241,40 @@ var (
 	_ json.Unmarshaler = (*Error)(nil)
 )
 
+// UnmarshalJSON copies json deserialization logic from C++ code.
 func (yt *Error) UnmarshalJSON(b []byte) error {
 	d := json.NewDecoder(bytes.NewBuffer(b))
 	d.UseNumber()
 
+	var any interface{}
+	if err := d.Decode(&any); err != nil {
+		return err
+	}
+	any = fixStrings(any, decodeNonASCII)
+	js, _ := json.Marshal(any)
+
+	d = json.NewDecoder(bytes.NewBuffer(js))
+	d.UseNumber()
+
 	type ytError Error
 	return d.Decode((*ytError)(yt))
+}
+
+// MarshalJSON copies json serialization logic from C++ code.
+func (yt *Error) MarshalJSON() ([]byte, error) {
+	type ytError Error
+
+	b, err := json.Marshal((*ytError)(yt))
+	if err != nil {
+		return nil, err
+	}
+
+	d := json.NewDecoder(bytes.NewBuffer(b))
+	d.UseNumber()
+
+	var any interface{}
+	_ = d.Decode(&any)
+
+	any = fixStrings(any, encodeNonASCII)
+	return json.Marshal(any)
 }
