@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class SparkDefaultArguments(object):
     SPARK_WORKER_TMPFS_LIMIT = "150G"
-    SPARK_MASTER_MEMORY_LIMIT = "2G"
+    SPARK_MASTER_MEMORY_LIMIT = "4G"
     SPARK_HISTORY_SERVER_MEMORY_LIMIT = "8G"
     DYNAMIC_CONFIG_PATH = "//sys/spark/bin/releases/spark-launch-conf"
     SPARK_WORKER_TIMEOUT = "5m"
