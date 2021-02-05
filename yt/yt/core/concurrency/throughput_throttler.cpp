@@ -179,7 +179,12 @@ public:
 
         // Fast lane (only).
         TryUpdateAvailable();
-        return Available_ < 0;
+
+        if (Limit_.load() < 0) {
+            return false;
+        }
+
+        return Available_ <= 0;
     }
 
     virtual void Reconfigure(TThroughputThrottlerConfigPtr config) override
@@ -233,7 +238,7 @@ private:
         Limit_ = limit.value_or(-1);
         TDelayedExecutor::CancelAndClear(UpdateCookie_);
         auto now = NProfiling::GetInstant();
-        if (limit) {
+        if (limit && *limit > 0) {
             Period_ = period;
             auto lastUpdated = LastUpdated_.load();
             auto millisecondsPassed = (now - lastUpdated).MilliSeconds();
@@ -245,6 +250,8 @@ private:
                 newAvailable = maxAvailable;
             } else {
                 LastUpdated_ = lastUpdated + TDuration::MilliSeconds(deltaAvailable * 1000 / *limit);
+                // Just in case.
+                LastUpdated_ = std::min(LastUpdated_.load(), now);
             }
             Available_ = newAvailable;
         } else {
