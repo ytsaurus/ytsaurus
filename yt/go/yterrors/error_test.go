@@ -121,5 +121,6 @@ func TestJSONInt64Attr(t *testing.T) {
 	var out Error
 	require.NoError(t, json.Unmarshal(js, &out))
 
-	require.Equal(t, fmt.Sprintf("%+v", ytErr), fmt.Sprintf("%+v", &out))
+	// Information is lost after JSON conversion.
+	require.NotEqual(t, fmt.Sprintf("%+v", ytErr), fmt.Sprintf("%+v", &out))
 }
