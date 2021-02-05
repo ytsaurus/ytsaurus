@@ -211,6 +211,27 @@ TEST(TReconfigurableThroughputThrottlerTest, TestFractionalLimit)
     EXPECT_LE(duration, 4000);
 }
 
+TEST(TReconfigurableThroughputThrottlerTest, TestZeroLimit)
+{
+    auto throttler = CreateReconfigurableThroughputThrottler(
+        New<TThroughputThrottlerConfig>(0));
+
+    throttler->SetLimit(100);
+
+    NProfiling::TWallTimer timer;
+
+    std::vector<TFuture<void>> scheduled;
+    for (int i = 0; i < 4; ++i) {
+        scheduled.push_back(throttler->Throttle(10));
+    }
+
+    for (const auto& future : scheduled) {
+        future.Get().ThrowOnError();
+    }
+
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 1000);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
