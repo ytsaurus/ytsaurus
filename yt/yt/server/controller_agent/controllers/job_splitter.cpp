@@ -211,15 +211,17 @@ public:
             .Item("build_time").Value(GetInstant())
             .Item("running_job_count").Value(RunningJobs_.size())
             .Item("max_running_job_count").Value(MaxRunningJobCount_)
-            .Item("running_jobs").DoMapFor(RunningJobs_,
-                [&] (TFluentMap fluent, const std::pair<TJobId, TRunningJob>& pair) {
-                    const auto& job = pair.second;
-                    fluent
-                        .Item(ToString(pair.first)).BeginMap()
-                            .Do(BIND(&TRunningJob::BuildRunningJobInfo, &job))
-                            .Item("candidate").Value(JobTimeTracker_.IsLongJob(pair.first))
-                        .EndMap();
-                })
+            .DoIf(Config_->ShowRunningJobsInProgress, [&] (TFluentMap fluent) {
+                fluent.Item("running_jobs").DoMapFor(RunningJobs_,
+                    [&] (TFluentMap fluent, const std::pair<TJobId, TRunningJob>& pair) {
+                        const auto& job = pair.second;
+                        fluent
+                            .Item(ToString(pair.first)).BeginMap()
+                                .Do(BIND(&TRunningJob::BuildRunningJobInfo, &job))
+                                .Item("candidate").Value(JobTimeTracker_.IsLongJob(pair.first))
+                            .EndMap();
+                    });
+            })
             .Item("statistics").BeginMap()
                 .Do(BIND(&TJobTimeTracker::BuildStatistics, &JobTimeTracker_))
             .EndMap()

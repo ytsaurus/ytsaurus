@@ -169,6 +169,8 @@ public:
 
     bool EnableJobSpeculation;
 
+    bool ShowRunningJobsInProgress;
+
     TJobSplitterConfig();
 };
 
