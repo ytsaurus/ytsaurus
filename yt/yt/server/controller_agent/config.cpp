@@ -181,6 +181,9 @@ TJobSplitterConfig::TJobSplitterConfig()
 
     RegisterParameter("enable_job_speculation", EnableJobSpeculation)
         .Default(true);
+
+    RegisterParameter("show_running_jobs_in_progress", ShowRunningJobsInProgress)
+        .Default(false);
 }
 
 TSuspiciousJobsOptions::TSuspiciousJobsOptions()
