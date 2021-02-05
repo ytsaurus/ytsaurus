@@ -209,5 +209,15 @@ func TestCypress(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, ok)
 		})
+
+		t.Run("BinaryPath", func(t *testing.T) {
+			t.Parallel()
+
+			var value interface{}
+			err := env.YT.GetNode(ctx, ypath.Path("/привет"), &value, nil)
+			require.Error(t, err)
+
+			require.Contains(t, err.Error(), "привет")
+		})
 	})
 }

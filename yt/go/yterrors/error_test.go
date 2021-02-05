@@ -124,3 +124,19 @@ func TestJSONInt64Attr(t *testing.T) {
 	// Information is lost after JSON conversion.
 	require.NotEqual(t, fmt.Sprintf("%+v", ytErr), fmt.Sprintf("%+v", &out))
 }
+
+func TestJSON(t *testing.T) {
+	ytErr := Err("Привет", Attr("s", "Мир"))
+
+	js, err := json.Marshal(ytErr)
+	require.NoError(t, err)
+
+	require.NotContains(t, string(js), "Привет")
+	require.NotContains(t, string(js), "Мир")
+
+	var out Error
+	require.NoError(t, json.Unmarshal(js, &out))
+
+	require.Equal(t, ytErr.(*Error).Message, out.Message)
+	require.Equal(t, ytErr.(*Error).Attributes, out.Attributes)
+}
