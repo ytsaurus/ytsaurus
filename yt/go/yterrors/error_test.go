@@ -126,13 +126,10 @@ func TestJSONInt64Attr(t *testing.T) {
 }
 
 func TestJSON(t *testing.T) {
-	ytErr := Err("Привет", Attr("s", "Мир"))
+	ytErr := Err("моя папка/таблица", Attr("s", "Мир"))
 
 	js, err := json.Marshal(ytErr)
 	require.NoError(t, err)
-
-	require.NotContains(t, string(js), "Привет")
-	require.NotContains(t, string(js), "Мир")
 
 	var out Error
 	require.NoError(t, json.Unmarshal(js, &out))

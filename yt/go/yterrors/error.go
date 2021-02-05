@@ -246,35 +246,40 @@ func (yt *Error) UnmarshalJSON(b []byte) error {
 	d := json.NewDecoder(bytes.NewBuffer(b))
 	d.UseNumber()
 
-	var any interface{}
-	if err := d.Decode(&any); err != nil {
+	type ytError Error
+	if err := d.Decode((*ytError)(yt)); err != nil {
 		return err
 	}
-	any = fixStrings(any, decodeNonASCII)
-	js, _ := json.Marshal(any)
 
-	d = json.NewDecoder(bytes.NewBuffer(js))
-	d.UseNumber()
-
-	type ytError Error
-	return d.Decode((*ytError)(yt))
+	yt.Message = decodeNonASCII(yt.Message)
+	if yt.Attributes != nil {
+		yt.Attributes = fixStrings(yt.Attributes, decodeNonASCII).(map[string]interface{})
+	}
+	return nil
 }
 
 // MarshalJSON copies json serialization logic from C++ code.
+//
+// All non-ascii bytes inside strings are interpreted as runes and encoded
+// using utf8 encoding (even if they already form a valid utf-8 sequence of bytes).
 func (yt *Error) MarshalJSON() ([]byte, error) {
 	type ytError Error
 
-	b, err := json.Marshal((*ytError)(yt))
-	if err != nil {
-		return nil, err
+	fixed := ytError(*yt)
+	fixed.Message = encodeNonASCII(fixed.Message)
+
+	if fixed.Attributes != nil {
+		attrsJS, err := json.Marshal(yt.Attributes)
+		if err != nil {
+			return nil, err
+		}
+		var attrs interface{}
+		if err := json.Unmarshal(attrsJS, &attrs); err != nil {
+			return nil, err
+		}
+
+		fixed.Attributes = fixStrings(attrs, encodeNonASCII).(map[string]interface{})
 	}
 
-	d := json.NewDecoder(bytes.NewBuffer(b))
-	d.UseNumber()
-
-	var any interface{}
-	_ = d.Decode(&any)
-
-	any = fixStrings(any, encodeNonASCII)
-	return json.Marshal(any)
+	return json.Marshal(fixed)
 }
