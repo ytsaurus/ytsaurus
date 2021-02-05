@@ -29,16 +29,25 @@ object CommonPlugin extends AutoPlugin {
         val oldStrategy = (assemblyMergeStrategy in assembly).value
         oldStrategy(x)
     },
-    assemblyShadeRules in assembly := Seq(
-      ShadeRule.rename("javax.annotation.**" -> "shaded_spyt.javax.annotation.@1")
-        .inLibrary("com.google.code.findbugs" % "annotations" % "2.0.3"),
-      ShadeRule.zap("META-INF.org.apache.logging.log4j.core.config.plugins.Log4j2Plugins.dat")
-        .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0"),
-      ShadeRule.rename("com.google.common.**" -> "shaded_spyt.com.google.common.@1")
-        .inAll,
-      ShadeRule.rename("io.netty.**" -> "shaded_spyt.io.netty.@1")
-        .inAll
-    ),
+    assemblyShadeRules in assembly := {
+      // TODO get names from arrow dependency
+      // Preserve arrow classes from shading
+      val arrowBuffers = Seq("ArrowBuf", "ExpandableByteBuf", "LargeBuffer", "MutableWrappedByteBuf",
+      "NettyArrowBuf", "PooledByteBufAllocatorL", "UnsafeDirectLittleEndian")
+      val arrowRules = arrowBuffers.map(s"io.netty.buffer." + _).map(n => ShadeRule.rename(n -> n).inAll)
+      arrowRules ++ Seq(
+        ShadeRule.rename("javax.annotation.**" -> "shaded_spyt.javax.annotation.@1")
+          .inLibrary("com.google.code.findbugs" % "annotations" % "2.0.3"),
+        ShadeRule.zap("META-INF.org.apache.logging.log4j.core.config.plugins.Log4j2Plugins.dat")
+          .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0"),
+        ShadeRule.rename("com.google.common.**" -> "shaded_spyt.com.google.common.@1")
+          .inAll,
+        ShadeRule.rename("com.google.common.**" -> "shaded_spyt.com.google.common.@1")
+          .inAll,
+        ShadeRule.rename("io.netty.**" -> "shaded_spyt.io.netty.@1")
+          .inAll
+      )
+    },
     assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
     publishTo := {
       val nexus = "http://artifactory.yandex.net/artifactory/"
