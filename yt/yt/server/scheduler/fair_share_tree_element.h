@@ -104,6 +104,8 @@ struct TSchedulableAttributes
     TResourceVector ProposedIntegralShare;
     TResourceVector PromisedFairShare;
 
+    TJobResources UnschedulableOperationsResourceUsage;
+
     double BurstRatio = 0.0;
     double TotalBurstRatio = 0.0;
     double ResourceFlowRatio = 0.0;
