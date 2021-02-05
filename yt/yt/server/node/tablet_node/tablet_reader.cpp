@@ -280,7 +280,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     return CreateSchemafulConcatenatingReader(readers);
 }
 
-ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
+ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
@@ -376,7 +376,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
 
 } // namespace
 
-ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
+ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
