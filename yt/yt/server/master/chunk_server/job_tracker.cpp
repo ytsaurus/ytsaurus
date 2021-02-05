@@ -486,6 +486,57 @@ void TJobTracker::OverrideResourceLimits(TNodeResources* resourceLimits, const T
     #undef XX
 }
 
+void TJobTracker::OnProfiling(TSensorBuffer* buffer) const
+{
+    for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+        if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {
+            buffer->PushTag({"job_type", FormatEnum(jobType)});
+
+            buffer->AddGauge("/running_job_count", RunningJobs_[jobType]);
+            buffer->AddCounter("/jobs_started", JobsStarted_[jobType]);
+            buffer->AddCounter("/jobs_completed", JobsCompleted_[jobType]);
+            buffer->AddCounter("/jobs_failed", JobsFailed_[jobType]);
+            buffer->AddCounter("/jobs_aborted", JobsAborted_[jobType]);
+
+            buffer->PopTag();
+        }
+    }
+
+    for (const auto& srcPair : InterDCEdgeConsumption_) {
+        const auto* src = srcPair.first;
+        buffer->PushTag({"source_data_center", src ? src->GetName() : "null"});
+
+        for (const auto& dstPair : srcPair.second) {
+            const auto* dst = dstPair.first;
+            buffer->PushTag({"destination_data_center", dst ? dst->GetName() : "null"});
+
+            const auto consumption = dstPair.second;
+            buffer->AddGauge("/inter_dc_edge_consumption", consumption);
+
+            buffer->PopTag();
+        }
+
+        buffer->PopTag();
+    }
+
+    for (const auto& srcPair : InterDCEdgeCapacities_) {
+        const auto* src = srcPair.first;
+        buffer->PushTag({"source_data_center", src ? src->GetName() : "null"});
+
+        for (const auto& dstPair : srcPair.second) {
+            const auto* dst = dstPair.first;
+            buffer->PushTag({"destination_data_center", dst ? dst->GetName() : "null"});
+
+            const auto capacity = dstPair.second;
+            buffer->AddGauge("/inter_dc_edge_capacity", capacity);
+
+            buffer->PopTag();
+        }
+
+        buffer->PopTag();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

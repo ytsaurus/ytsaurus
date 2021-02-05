@@ -4,6 +4,8 @@
 
 #include <yt/server/master/cell_master/public.h>
 
+#include <yt/library/profiling/producer.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,7 +29,7 @@ public:
 
     void OnChunkDestroyed(NChunkServer::TChunk* chunk);
 
-    int GetQueueSize() const;
+    void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
 
     void ScheduleJobs(
         TNode* node,

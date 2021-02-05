@@ -17,6 +17,8 @@
 
 #include <yt/library/erasure/impl/codec.h>
 
+#include <yt/library/profiling/producer.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
@@ -113,10 +115,7 @@ public:
 
     bool IsEnabled();
 
-    int GetBlobRefreshQueueSize() const;
-    int GetJournalRefreshQueueSize() const;
-    int GetBlobRequisitionUpdateQueueSize() const;
-    int GetJournalRequisitionUpdateQueueSize() const;
+    void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
 
 private:
     struct TPerMediumChunkStatistics
