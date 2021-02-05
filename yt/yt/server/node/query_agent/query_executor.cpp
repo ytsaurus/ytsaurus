@@ -1008,7 +1008,7 @@ private:
         auto tableProfiler = tabletSnapshot->TableProfiler;
         auto userTag = GetProfilingUser(Identity_);
 
-        auto reader = CreateSchemafulTabletReader(
+        auto reader = CreateSchemafulLookupTabletReader(
             std::move(tabletSnapshot),
             columnFilter,
             keys,

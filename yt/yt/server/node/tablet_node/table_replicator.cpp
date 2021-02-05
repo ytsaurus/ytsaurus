@@ -393,7 +393,7 @@ private:
         const TClientBlockReadOptions& blockReadOptions,
         i64 rowIndex)
     {
-        auto reader = CreateSchemafulTabletReader(
+        auto reader = CreateSchemafulRangeTabletReader(
             tabletSnapshot,
             TColumnFilter(),
             MakeRowBound(rowIndex),
@@ -512,7 +512,7 @@ private:
             startRowIndex,
             sessionId);
 
-        auto reader = CreateSchemafulTabletReader(
+        auto reader = CreateSchemafulRangeTabletReader(
             tabletSnapshot,
             TColumnFilter(),
             MakeRowBound(startRowIndex),

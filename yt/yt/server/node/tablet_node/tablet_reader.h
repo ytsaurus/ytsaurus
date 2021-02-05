@@ -38,7 +38,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
 /*!
  *  Can handle both sorted and ordered tables.
  */
-NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
+NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
@@ -52,7 +52,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
 /*!
  *  Can only handle sorted tables.
  */
-NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
+NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
