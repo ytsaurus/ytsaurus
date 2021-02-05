@@ -3284,7 +3284,6 @@ private:
         }
     }
 
-
     void OnProfiling()
     {
         if (!IsLeader()) {
@@ -3296,11 +3295,9 @@ private:
 
         TSensorBuffer buffer;
 
-        buffer.AddGauge("/blob_refresh_queue_size", ChunkReplicator_->GetBlobRefreshQueueSize());
-        buffer.AddGauge("/blob_requisition_update_queue_size", ChunkReplicator_->GetBlobRequisitionUpdateQueueSize());
-        buffer.AddGauge("/journal_refresh_queue_size", ChunkReplicator_->GetJournalRefreshQueueSize());
-        buffer.AddGauge("/journal_requisition_update_queue_size", ChunkReplicator_->GetJournalRequisitionUpdateQueueSize());
-        buffer.AddGauge("/seal_queue_size", ChunkSealer_->GetQueueSize());
+        ChunkReplicator_->OnProfiling(&buffer);
+        ChunkSealer_->OnProfiling(&buffer);
+        JobTracker_->OnProfiling(&buffer);
 
         buffer.AddGauge("/chunk_count", ChunkMap_.GetSize());
         buffer.AddCounter("/chunks_created", ChunksCreated_);
@@ -3328,59 +3325,6 @@ private:
         buffer.AddGauge("/precarious_vital_chunk_count", PrecariousVitalChunks().size());
         buffer.AddGauge("/quorum_missing_chunk_count", QuorumMissingChunks().size());
         buffer.AddGauge("/unsafely_placed_chunk_count", UnsafelyPlacedChunks().size());
-
-        const auto& runningJobs = JobTracker_->RunningJobs();
-        const auto& jobsStarted = JobTracker_->JobsStarted();
-        const auto& jobsCompleted = JobTracker_->JobsCompleted();
-        const auto& jobsFailed = JobTracker_->JobsFailed();
-        const auto& jobsAborted = JobTracker_->JobsAborted();
-        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-            if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {
-                buffer.PushTag({"job_type", FormatEnum(jobType)});
-
-                buffer.AddGauge("/running_job_count", runningJobs[jobType]);
-                buffer.AddCounter("/jobs_started", jobsStarted[jobType]);
-                buffer.AddCounter("/jobs_completed", jobsCompleted[jobType]);
-                buffer.AddCounter("/jobs_failed", jobsFailed[jobType]);
-                buffer.AddCounter("/jobs_aborted", jobsAborted[jobType]);
-
-                buffer.PopTag();
-            }
-        }
-
-        for (const auto& srcPair : JobTracker_->InterDCEdgeConsumption()) {
-            const auto* src = srcPair.first;
-            buffer.PushTag({"source_data_center", src ? src->GetName() : "null"});
-
-            for (const auto& dstPair : srcPair.second) {
-                const auto* dst = dstPair.first;
-                buffer.PushTag({"destination_data_center", dst ? dst->GetName() : "null"});
-
-                const auto consumption = dstPair.second;
-                buffer.AddGauge("/inter_dc_edge_consumption", consumption);
-
-                buffer.PopTag();
-            }
-
-            buffer.PopTag();
-        }
-
-        for (const auto& srcPair : JobTracker_->InterDCEdgeCapacities()) {
-            const auto* src = srcPair.first;
-            buffer.PushTag({"source_data_center", src ? src->GetName() : "null"});
-
-            for (const auto& dstPair : srcPair.second) {
-                const auto* dst = dstPair.first;
-                buffer.PushTag({"destination_data_center", dst ? dst->GetName() : "null"});
-
-                const auto capacity = dstPair.second;
-                buffer.AddGauge("/inter_dc_edge_capacity", capacity);
-
-                buffer.PopTag();
-            }
-
-            buffer.PopTag();
-        }
 
         BufferedProducer_->Update(std::move(buffer));
     }

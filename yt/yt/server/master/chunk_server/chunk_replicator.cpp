@@ -1936,24 +1936,12 @@ void TChunkReplicator::OnCheckEnabledSecondary()
     }
 }
 
-int TChunkReplicator::GetBlobRefreshQueueSize() const
+void TChunkReplicator::OnProfiling(TSensorBuffer* buffer) const
 {
-    return BlobRefreshScanner_->GetQueueSize();
-}
-
-int TChunkReplicator::GetJournalRefreshQueueSize() const
-{
-    return JournalRefreshScanner_->GetQueueSize();
-}
-
-int TChunkReplicator::GetBlobRequisitionUpdateQueueSize() const
-{
-    return BlobRequisitionUpdateScanner_->GetQueueSize();
-}
-
-int TChunkReplicator::GetJournalRequisitionUpdateQueueSize() const
-{
-    return JournalRequisitionUpdateScanner_->GetQueueSize();
+    buffer->AddGauge("/blob_refresh_queue_size", BlobRefreshScanner_->GetQueueSize());
+    buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
+    buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
+    buffer->AddGauge("/journal_requisition_update_queue_size", JournalRequisitionUpdateScanner_->GetQueueSize());
 }
 
 void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)

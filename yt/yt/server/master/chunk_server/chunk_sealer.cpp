@@ -49,6 +49,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectClient;
 using namespace NCellMaster;
+using namespace NProfiling;
 
 using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
 
@@ -120,9 +121,9 @@ public:
         SealScanner_->OnChunkDestroyed(chunk);
     }
 
-    int GetQueueSize() const
+    void OnProfiling(TSensorBuffer* buffer) const
     {
-        return SealScanner_->GetQueueSize();
+        buffer->AddGauge("/seal_queue_size", SealScanner_->GetQueueSize());
     }
 
     void ScheduleJobs(
@@ -490,11 +491,10 @@ void TChunkSealer::OnChunkDestroyed(TChunk* chunk)
     Impl_->OnChunkDestroyed(chunk);
 }
 
-int TChunkSealer::GetQueueSize() const
+void TChunkSealer::OnProfiling(TSensorBuffer* buffer) const
 {
-    return Impl_->GetQueueSize();
+    Impl_->OnProfiling(buffer);
 }
-
 
 void TChunkSealer::ScheduleJobs(
     TNode* node,

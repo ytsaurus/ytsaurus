@@ -13,6 +13,8 @@
 
 #include <yt/library/erasure/public.h>
 
+#include <yt/library/profiling/producer.h>
+
 #include <yt/core/concurrency/public.h>
 
 #include <yt/core/misc/error.h>
@@ -39,15 +41,6 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
     ~TJobTracker();
-
-    using TJobCounters = TEnumIndexedVector<EJobType, i64, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType>;
-    // Number of jobs running - per job type. For profiling.
-    DEFINE_BYREF_RO_PROPERTY(TJobCounters, RunningJobs);
-
-    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsStarted);
-    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsCompleted);
-    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsFailed);
-    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsAborted);
 
     using TDataCenterSet = SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>;
     bool HasUnsaturatedInterDCEdgeStartingFrom(const NNodeTrackerServer::TDataCenter* srcDataCenter) const;
@@ -77,14 +70,25 @@ public:
 
     void OverrideResourceLimits(NNodeTrackerClient::NProto::TNodeResources* resourceLimits, const TNode& node);
 
+    void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
+
 private:
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
 
+    using TJobCounters = TEnumIndexedVector<EJobType, i64, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType>;
+    // Number of jobs running - per job type. For profiling.
+    TJobCounters RunningJobs_;
+
+    TJobCounters JobsStarted_;
+    TJobCounters JobsCompleted_;
+    TJobCounters JobsFailed_;
+    TJobCounters JobsAborted_;
+
     // src DC -> dst DC -> data size
     using TInterDCEdgeDataSize = THashMap<const NNodeTrackerServer::TDataCenter*, THashMap<const NNodeTrackerServer::TDataCenter*, i64>>;
-    DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeConsumption);
-    DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeCapacities);
+    TInterDCEdgeDataSize InterDCEdgeConsumption_;
+    TInterDCEdgeDataSize InterDCEdgeCapacities_;
 
     NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime_ = {};
     // Cached from InterDCEdgeConsumption and InterDCEdgeCapacities.
