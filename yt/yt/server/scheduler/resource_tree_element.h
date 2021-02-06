@@ -28,8 +28,6 @@ public:
 
     TJobResources GetResourceUsageWithPrecommit();
 
-    inline TJobMetrics GetJobMetrics();
-
     bool CheckDemand(
         const TJobResources& delta,
         const TJobResources& resourceDemand,
@@ -65,9 +63,6 @@ private:
     std::atomic<bool> MaintainInstantResourceUsage_ = false;
     std::atomic<bool> ResourceLimitsSpecified_ = false;
 
-    NConcurrency::TPaddedReaderWriterSpinLock JobMetricsLock_;
-    TJobMetrics JobMetrics_;
-
     // NB: all usages of this field must be in TResourceTree.
     TResourceTreeElementPtr Parent_;
 
@@ -91,8 +86,6 @@ private:
     bool IncreaseLocalResourceUsage(const TJobResources& delta);
 
     void ReleaseResources(TJobResources* usagePrecommit, TJobResources* usage);
-
-    inline void ApplyLocalJobMetricsDelta(const TJobMetrics& delta);
 
     TJobResources GetResourceUsagePrecommit();
 

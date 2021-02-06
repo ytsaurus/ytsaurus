@@ -1272,24 +1272,25 @@ private:
         request->set_agent_id(Bootstrap_->GetAgentId());
         ToProto(request->mutable_incarnation_id(), IncarnationId_);
 
-        THashSet<TOperationId> finishedOperationIds;
+        THashSet<TOperationId> flushJobMetricsOperationIds;
 
         OperationEventsOutbox_->BuildOutcoming(
             request->mutable_agent_to_scheduler_operation_events(),
-            [&finishedOperationIds] (auto* protoEvent, const auto& event) {
+            [&flushJobMetricsOperationIds] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                 switch (event.EventType) {
                     case EAgentToSchedulerOperationEventType::Completed:
-                        finishedOperationIds.insert(event.OperationId);
+                        flushJobMetricsOperationIds.insert(event.OperationId);
                         break;
                     case EAgentToSchedulerOperationEventType::Aborted:
                     case EAgentToSchedulerOperationEventType::Failed:
                     case EAgentToSchedulerOperationEventType::Suspended:
-                        finishedOperationIds.insert(event.OperationId);
+                        flushJobMetricsOperationIds.insert(event.OperationId);
                         ToProto(protoEvent->mutable_error(), event.Error);
                         break;
                     case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
+                        flushJobMetricsOperationIds.insert(event.OperationId);
                         ToProto(protoEvent->mutable_tentative_tree_id(), event.TentativeTreeId);
                         ToProto(protoEvent->mutable_tentative_tree_job_ids(), event.TentativeTreeJobIds);
                         break;
@@ -1379,7 +1380,8 @@ private:
         preparedRequest.SuspiciousJobsSent = LastSuspiciousJobsSendTime_ + Config_->SuspiciousJobsPushPeriod < now;
 
         for (const auto& [operationId, operation] : GetOperations()) {
-            if (!preparedRequest.OperationsSent && !finishedOperationIds.contains(operationId)) {
+            bool flushJobMetrics = flushJobMetricsOperationIds.contains(operationId);
+            if (!preparedRequest.OperationsSent && !flushJobMetrics) {
                 continue;
             }
             auto controller = operation->GetController();
@@ -1388,8 +1390,8 @@ private:
             ToProto(protoOperation->mutable_operation_id(), operationId);
 
             // We must to sent job metrics for finished operations.
-            if (preparedRequest.OperationJobMetricsSent || finishedOperationIds.contains(operationId)) {
-                auto jobMetricsDelta = controller->PullJobMetricsDelta();
+            if (preparedRequest.OperationJobMetricsSent || flushJobMetrics) {
+                auto jobMetricsDelta = controller->PullJobMetricsDelta(/* force */ flushJobMetrics);
                 ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
             }
 

@@ -32,7 +32,7 @@ struct IFairShareTreeSnapshot
     virtual bool HasOperation(TOperationId operationId) const = 0;
     virtual bool IsOperationRunningInTree(TOperationId operationId) const = 0;
     virtual bool IsOperationDisabled(TOperationId operationId) const = 0;
-    virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) = 0;
+    virtual void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
     virtual TJobResources GetTotalResourceLimits() const = 0;
     virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
@@ -51,8 +51,6 @@ struct IFairShareTreeHost
     : public virtual TRefCounted
 {
     virtual TResourceTree* GetResourceTree() = 0;
-
-    virtual NProfiling::TRegistry GetProfiler() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFairShareTreeHost)

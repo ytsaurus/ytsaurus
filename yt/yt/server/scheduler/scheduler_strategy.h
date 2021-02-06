@@ -205,7 +205,7 @@ struct ISchedulerStrategy
         std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
         std::vector<TJobId>* jobsToAbort) = 0;
 
-    virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
+    virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 
     virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode, const TPersistentStrategyStatePtr& persistentStrategyState) = 0;
 

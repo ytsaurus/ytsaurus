@@ -617,7 +617,7 @@ public:
             });
     }
 
-    virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) override
+    virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -625,16 +625,32 @@ public:
 
         auto snapshots = TreeIdToSnapshot_.Load();
 
-        for (const auto& [operationId, metricsPerTree] : operationIdToOperationJobMetrics) {
-            for (const auto& metrics : metricsPerTree) {
+        THashMap<TString, THashMap<TOperationId, TJobMetrics>> treeIdToJobMetricDeltas;
+
+        for (auto& [operationId, metricsPerTree] : operationIdToOperationJobMetrics) {
+            for (auto& metrics : metricsPerTree) {
                 auto snapshotIt = snapshots.find(metrics.TreeId);
                 if (snapshotIt == snapshots.end()) {
                     continue;
                 }
-
                 const auto& snapshot = snapshotIt->second;
-                snapshot->ApplyJobMetricsDelta(operationId, metrics.Metrics);
+
+                const auto& state = GetOperationState(operationId);
+                if (state->GetHost()->IsTreeErased(metrics.TreeId)) {
+                    continue;
+                }
+
+                YT_VERIFY(snapshot->HasOperation(operationId) || snapshot->IsOperationDisabled(operationId));
+
+                treeIdToJobMetricDeltas[metrics.TreeId].emplace(operationId, std::move(metrics.Metrics));
             }
+        }
+
+        for (auto& [treeId, jobMetricsPerOperation] : treeIdToJobMetricDeltas) {
+            Host->GetFairShareProfilingInvoker()->Invoke(BIND(
+                &IFairShareTreeSnapshot::ApplyJobMetricsDelta,
+                GetOrCrash(snapshots, treeId),
+                Passed(std::move(jobMetricsPerOperation))));
         }
     }
 
@@ -1071,6 +1087,8 @@ public:
 private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     const std::vector<IInvokerPtr> FeasibleInvokers;
 

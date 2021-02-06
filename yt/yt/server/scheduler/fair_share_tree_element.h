@@ -11,6 +11,7 @@
 #include "scheduling_segment_manager.h"
 #include "fair_share_strategy_operation_controller.h"
 #include "fair_share_tree_snapshot.h"
+#include "fair_share_tree_snapshot_impl.h"
 #include "packing.h"
 
 #include <yt/server/lib/scheduler/config.h>
@@ -37,14 +38,6 @@ static constexpr int EmptySchedulingTagFilterIndex = -1;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr double InfiniteSatisfactionRatio = 1e+9;
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TRawOperationElementMap = THashMap<TOperationId, TOperationElement*>;
-using TOperationElementMap = THashMap<TOperationId, TOperationElementPtr>;
-
-using TRawPoolMap = THashMap<TString, TPool*>;
-using TPoolMap = THashMap<TString, TPoolPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -194,7 +187,6 @@ using TDynamicAttributesList = std::vector<TDynamicAttributes>;
 struct TUpdateFairShareContext
 {
     std::vector<TError> Errors;
-    THashMap<TString, int> ElementIndexes;
     TInstant Now;
 
     NProfiling::TCpuDuration PrepareFairShareByFitFactorTotalTime = {};
@@ -466,7 +458,6 @@ public:
     // Returns resource usage observed in current heartbeat.
     TJobResources GetCurrentResourceUsage(const TDynamicAttributesList& dynamicAttributesList) const;
 
-    TJobMetrics GetJobMetrics() const;
     TResourceVector GetResourceUsageShare() const;
 
     // Used for diagnostics.
@@ -477,9 +468,9 @@ public:
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
 
     virtual void BuildElementMapping(
-        TRawOperationElementMap* enabledOperationMap,
-        TRawOperationElementMap* disabledOperationMap,
-        TRawPoolMap* poolMap) = 0;
+        TNonOwningOperationElementMap* enabledOperationMap,
+        TNonOwningOperationElementMap* disabledOperationMap,
+        TNonOwningPoolMap* poolMap) = 0;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
 
@@ -647,8 +638,6 @@ public:
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
-    NProfiling::TRegistry GetProfiler() const;
-
     void AddChild(TSchedulerElement* child, bool enabled = true);
     void EnableChild(const TSchedulerElementPtr& child);
     void DisableChild(const TSchedulerElementPtr& child);
@@ -657,13 +646,12 @@ public:
 
     // For testing only.
     std::vector<TSchedulerElementPtr> GetEnabledChildren();
+    std::vector<TSchedulerElementPtr> GetDisabledChildren();
 
     bool IsEmpty() const;
 
     ESchedulingMode GetMode() const;
     void SetMode(ESchedulingMode);
-
-    void ProfileFull(bool profilingCompatibilityEnabled);
 
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
@@ -672,7 +660,10 @@ public:
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const = 0;
     virtual bool AreImmediateOperationsForbidden() const = 0;
 
-    virtual void BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap) override;
+    virtual void BuildElementMapping(
+        TNonOwningOperationElementMap* enabledOperationMap,
+        TNonOwningOperationElementMap* disabledOperationMap,
+        TNonOwningPoolMap* poolMap) override;
 
     void IncreaseOperationCount(int delta);
     void IncreaseRunningOperationCount(int delta);
@@ -856,7 +847,10 @@ public:
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
-    virtual void BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap) override;
+    virtual void BuildElementMapping(
+        TNonOwningOperationElementMap* enabledOperationMap,
+        TNonOwningOperationElementMap* disabledOperationMap,
+        TNonOwningPoolMap* poolMap) override;
 
     virtual double GetSpecifiedBurstRatio() const override;
     virtual double GetSpecifiedResourceFlowRatio() const override;
@@ -1113,14 +1107,10 @@ public:
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
 
-    NProfiling::TRegistry GetProfiler() const;
-
     bool IsPreemptionAllowed(
         bool isAggressivePreemption,
         const TDynamicAttributesList& dynamicAttributesList,
         const TFairShareStrategyTreeConfigPtr& config) const;
-
-    void ApplyJobMetricsDelta(const TJobMetrics& delta);
 
     void SetJobResourceUsage(TJobId jobId, const TJobResources& resources);
 
@@ -1139,8 +1129,6 @@ public:
 
     std::optional<int> GetMaybeSlotIndex() const;
 
-    void ProfileFull(bool profilingCompatibilityEnabled);
-
     TString GetUserName() const;
 
     virtual TResourceVector ComputeLimitsShare() const override;
@@ -1152,7 +1140,10 @@ public:
         bool force = false);
     void OnJobFinished(TJobId jobId);
 
-    virtual void BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap) override;
+    virtual void BuildElementMapping(
+        TNonOwningOperationElementMap* enabledOperationMap,
+        TNonOwningOperationElementMap* disabledOperationMap,
+        TNonOwningPoolMap* poolMap) override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
@@ -1184,8 +1175,6 @@ public:
 
     void MarkOperationRunningInPool();
     bool IsOperationRunningInPool() const;
-
-    void UpdateProfilers();
 
     void UpdateAncestorsDynamicAttributes(
         TFairShareContext* context,

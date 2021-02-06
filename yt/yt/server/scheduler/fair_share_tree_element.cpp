@@ -281,7 +281,6 @@ int TSchedulerElement::EnumerateElements(int startIndex, TUpdateFairShareContext
     YT_VERIFY(Mutable_);
 
     TreeIndex_ = startIndex++;
-    context->ElementIndexes[GetId()] = TreeIndex_;
     return startIndex;
 }
 
@@ -556,11 +555,6 @@ void TSchedulerElement::SetStarving(bool starving)
     YT_VERIFY(Mutable_);
 
     PersistentAttributes_.Starving = starving;
-}
-
-TJobMetrics TSchedulerElement::GetJobMetrics() const
-{
-    return ResourceTreeElement_->GetJobMetrics();
 }
 
 bool TSchedulerElement::AreResourceLimitsViolated() const
@@ -946,123 +940,6 @@ double TSchedulerElement::GetIntegralShareRatioByVolume() const
     return GetAccumulatedResourceRatioVolume() / TreeConfig_->IntegralGuarantees->SmoothPeriod.SecondsFloat();
 }
 
-void TSchedulerElement::Profile(ISensorWriter* writer, bool profilingCompatibilityEnabled) const
-{
-    const auto& detailedFairShare = Attributes().FairShare;
-
-    if (profilingCompatibilityEnabled) {
-        writer->AddGauge("/fair_share_ratio_x100000", static_cast<i64>(MaxComponent(Attributes().FairShare.Total) * 1e5));
-        writer->AddGauge("/usage_ratio_x100000", static_cast<i64>(GetResourceDominantUsageShareAtUpdate() * 1e5));
-        writer->AddGauge("/demand_ratio_x100000", static_cast<i64>(MaxComponent(Attributes().DemandShare) * 1e5));
-        writer->AddGauge("/unlimited_demand_fair_share_ratio_x100000", static_cast<i64>(MaxComponent(Attributes().PromisedFairShare) * 1e5));
-        writer->AddGauge("/accumulated_resource_ratio_volume_x100000", static_cast<i64>(GetAccumulatedResourceRatioVolume() * 1e5));
-        writer->AddGauge("/min_share_guarantee_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.StrongGuarantee) * 1e5));
-        writer->AddGauge("/integral_guarantee_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.IntegralGuarantee) * 1e5));
-        writer->AddGauge("/weight_proportional_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.WeightProportional) * 1e5));
-    } else {
-        writer->AddGauge("/dominant_fair_share", MaxComponent(Attributes().FairShare.Total));
-        writer->AddGauge("/dominant_usage_share", GetResourceDominantUsageShareAtUpdate());
-        writer->AddGauge("/dominant_demand_share", MaxComponent(Attributes().DemandShare));
-        writer->AddGauge("/promised_dominant_fair_share", MaxComponent(Attributes().PromisedFairShare));
-        writer->AddGauge("/accumulated_volume_dominant_share", GetAccumulatedResourceRatioVolume());
-        writer->AddGauge("/dominant_fair_share/strong_guarantee", MaxComponent(detailedFairShare.StrongGuarantee));
-        writer->AddGauge("/dominant_fair_share/integral_guarantee", MaxComponent(detailedFairShare.IntegralGuarantee));
-        writer->AddGauge("/dominant_fair_share/weight_proportional", MaxComponent(detailedFairShare.WeightProportional));
-        writer->AddGauge("/dominant_fair_share/total", MaxComponent(detailedFairShare.Total));
-    }
-
-    ProfileResources(writer, ResourceUsageAtUpdate(), "/resource_usage");
-    ProfileResources(writer, ResourceLimits(), "/resource_limits");
-    ProfileResources(writer, ResourceDemand(), "/resource_demand");
-
-    GetJobMetrics().Profile(writer);
-
-    bool enableVectorProfiling;
-    if (IsOperation()) {
-        enableVectorProfiling = TreeConfig_->EnableOperationsVectorProfiling;
-    } else {
-        enableVectorProfiling = TreeConfig_->EnablePoolsVectorProfiling;
-    }
-
-    if (enableVectorProfiling) {
-        const auto& profiledResources = IsOperation()
-            ? TreeConfig_->ProfiledOperationResources
-            : TreeConfig_->ProfiledPoolResources;
-
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            detailedFairShare.StrongGuarantee,
-            "/fair_share/strong_guarantee");
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            detailedFairShare.IntegralGuarantee,
-            "/fair_share/integral_guarantee");
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            detailedFairShare.WeightProportional,
-            "/fair_share/weight_proportional");
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            detailedFairShare.Total,
-            "/fair_share/total");
-
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            Attributes_.UsageShare,
-            "/usage_share");
-
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            Attributes_.DemandShare,
-            "/demand_share");
-
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            Attributes_.LimitsShare,
-            "/limits_share");
-
-        if (profilingCompatibilityEnabled) {
-            ProfileResourceVector(
-                writer,
-                profiledResources,
-                Attributes_.StrongGuaranteeShare,
-                "/min_share");
-        } else {
-            ProfileResourceVector(
-                writer,
-                profiledResources,
-                Attributes_.StrongGuaranteeShare,
-                "/strong_guarantee_share");
-        }
-
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            Attributes_.ProposedIntegralShare,
-            "/proposed_integral_share");
-
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            Attributes_.PromisedFairShare,
-            "/promised_fair_share");
-
-        if (!IsOperation()) {
-            ProfileResources(
-                writer,
-                GetAccumulatedResourceVolume(),
-                "/accumulated_resource_volume");
-        }
-    }
-}
-
 bool TSchedulerElement::AreDetailedLogsEnabled() const
 {
     return false;
@@ -1080,20 +957,13 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
     : TSchedulerElement(host, treeHost, std::move(treeConfig), treeId, id, elementKind, logger)
-    , Profiler_(TreeHost_->GetProfiler()
-        .WithRequiredTag("pool", id, -1))
-    , BufferedProducer_(New<TBufferedProducer>())
-{
-    Profiler_.AddProducer("/pools", BufferedProducer_);
-}
+{ }
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
     const TCompositeSchedulerElement& other,
     TCompositeSchedulerElement* clonedParent)
     : TSchedulerElement(other, clonedParent)
     , TCompositeSchedulerElementFixedState(other)
-    , Profiler_(other.Profiler_)
-    , BufferedProducer_(other.BufferedProducer_)
 {
     auto cloneChildren = [&] (
         const std::vector<TSchedulerElementPtr>& list,
@@ -1314,7 +1184,10 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList*
     }
 }
 
-void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap)
+void TCompositeSchedulerElement::BuildElementMapping(
+    TNonOwningOperationElementMap* enabledOperationMap,
+    TNonOwningOperationElementMap* disabledOperationMap,
+    TNonOwningPoolMap* poolMap)
 {
     for (const auto& child : EnabledChildren_) {
         child->BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
@@ -1436,11 +1309,6 @@ bool TCompositeSchedulerElement::HasAggressivelyStarvingElements(TFairShareConte
     return false;
 }
 
-NProfiling::TRegistry TCompositeSchedulerElement::GetProfiler() const
-{
-    return Profiler_;
-}
-
 TFairShareScheduleJobResult TCompositeSchedulerElement::ScheduleJob(TFairShareContext* context, bool ignorePacking)
 {
     auto& attributes = context->DynamicAttributesFor(this);
@@ -1539,24 +1407,6 @@ ESchedulingMode TCompositeSchedulerElement::GetMode() const
 void TCompositeSchedulerElement::SetMode(ESchedulingMode mode)
 {
     Mode_ = mode;
-}
-
-void TCompositeSchedulerElement::ProfileFull(bool profilingCompatibilityEnabled)
-{
-    TSensorBuffer buffer;
-    Profile(&buffer, profilingCompatibilityEnabled);
-    buffer.AddGauge("/max_operation_count", GetMaxOperationCount());
-    buffer.AddGauge("/max_running_operation_count", GetMaxRunningOperationCount());
-    buffer.AddGauge("/running_operation_count", RunningOperationCount());
-    buffer.AddGauge("/total_operation_count", OperationCount());
-    if (profilingCompatibilityEnabled) {
-        ProfileResources(&buffer, GetSpecifiedStrongGuaranteeResources(), "/min_share_resources");
-        ProfileResources(&buffer, EffectiveStrongGuaranteeResources(), "/effective_min_share_resources");
-    } else {
-        ProfileResources(&buffer, GetSpecifiedStrongGuaranteeResources(), "/strong_guarantee_resources");
-        ProfileResources(&buffer, EffectiveStrongGuaranteeResources(), "/effective_strong_guarantee_resources");
-    }
-    BufferedProducer_->Update(std::move(buffer));
 }
 
 template <class TValue, class TGetter, class TSetter>
@@ -1755,6 +1605,11 @@ void TCompositeSchedulerElement::PrepareFairShareFunctions(TUpdateFairShareConte
 std::vector<TSchedulerElementPtr> TCompositeSchedulerElement::GetEnabledChildren()
 {
     return EnabledChildren_;
+}
+
+std::vector<TSchedulerElementPtr> TCompositeSchedulerElement::GetDisabledChildren()
+{
+    return DisabledChildren_;
 }
 
 void TCompositeSchedulerElement::PrepareFairShareByFitFactor(TUpdateFairShareContext* context)
@@ -2611,7 +2466,10 @@ TJobResources TPool::GetSpecifiedResourceLimits() const
     return ToJobResources(Config_->ResourceLimits, TJobResources::Infinite());
 }
 
-void TPool::BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap)
+void TPool::BuildElementMapping(
+    TNonOwningOperationElementMap* enabledOperationMap,
+    TNonOwningOperationElementMap* disabledOperationMap,
+    TNonOwningPoolMap* poolMap)
 {
     poolMap->emplace(GetId(), this);
     TCompositeSchedulerElement::BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
@@ -3268,7 +3126,6 @@ TOperationElement::TOperationElement(
     , OperationElementSharedState_(New<TOperationElementSharedState>(Spec_->UpdatePreemptableJobsListLoggingPeriod, Logger))
     , Controller_(std::move(controller))
     , SchedulingTagFilter_(Spec_->SchedulingTagFilter)
-    , BufferedProducer_(New<TBufferedProducer>())
 { }
 
 TOperationElement::TOperationElement(
@@ -3284,7 +3141,6 @@ TOperationElement::TOperationElement(
     , Controller_(other.Controller_)
     , RunningInThisPoolTree_(other.RunningInThisPoolTree_)
     , SchedulingTagFilter_(other.SchedulingTagFilter_)
-    , BufferedProducer_(other.BufferedProducer_)
 { }
 
 double TOperationElement::GetFairShareStarvationTolerance() const
@@ -3950,11 +3806,6 @@ bool TOperationElement::IsPreemptionAllowed(
     return true;
 }
 
-void TOperationElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
-{
-    TreeHost_->GetResourceTree()->ApplyHierarchicalJobMetricsDelta(ResourceTreeElement_, delta);
-}
-
 void TOperationElement::SetJobResourceUsage(TJobId jobId, const TJobResources& resources)
 {
     auto delta = OperationElementSharedState_->SetJobResourceUsage(jobId, resources);
@@ -4008,13 +3859,6 @@ std::optional<int> TOperationElement::GetMaybeSlotIndex() const
     return SlotIndex_;
 }
 
-void TOperationElement::ProfileFull(bool profilingCompatibilityEnabled)
-{
-    TSensorBuffer buffer;
-    Profile(&buffer, profilingCompatibilityEnabled);
-    BufferedProducer_->Update(std::move(buffer));
-}
-
 TString TOperationElement::GetUserName() const
 {
     return UserName_;
@@ -4053,7 +3897,10 @@ void TOperationElement::OnJobFinished(TJobId jobId)
     }
 }
 
-void TOperationElement::BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap)
+void TOperationElement::BuildElementMapping(
+    TNonOwningOperationElementMap* enabledOperationMap,
+    TNonOwningOperationElementMap* disabledOperationMap,
+    TNonOwningPoolMap* poolMap)
 {
     if (OperationElementSharedState_->Enabled()) {
         enabledOperationMap->emplace(OperationId_, this);
@@ -4266,8 +4113,6 @@ void TOperationElement::AttachParent(TCompositeSchedulerElement* newParent, int 
     newParent->IncreaseOperationCount(1);
     newParent->AddChild(this, /* enabled */ false);
 
-    UpdateProfilers();
-
     YT_LOG_DEBUG("Operation attached to pool (Pool: %v)", newParent->GetId());
 }
 
@@ -4292,8 +4137,6 @@ void TOperationElement::ChangeParent(TCompositeSchedulerElement* parent, int slo
     RunningInThisPoolTree_ = false;  // for consistency
     Parent_->IncreaseOperationCount(1);
     Parent_->AddChild(this, enabled);
-
-    UpdateProfilers();
 
     YT_LOG_DEBUG("Operation changed pool (OldPool: %v, NewPool: %v)",
         oldParentId,
@@ -4330,46 +4173,6 @@ void TOperationElement::MarkOperationRunningInPool()
 bool TOperationElement::IsOperationRunningInPool() const
 {
     return RunningInThisPoolTree_;
-}
-
-void TOperationElement::UpdateProfilers()
-{
-    YT_VERIFY(GetParent());
-    YT_VERIFY(SlotIndex_ != UndefinedSlotIndex);
-
-    auto treeProfiler = TreeHost_->GetProfiler();
-
-    BufferedProducer_ = New<TBufferedProducer>();
-
-    treeProfiler
-        .WithRequiredTag("pool", GetParent()->GetId(), -1)
-        .WithRequiredTag("slot_index", ToString(SlotIndex_), -1)
-        .AddProducer("/operations_by_slot", BufferedProducer_);
-
-    auto parent = GetParent();
-    while (parent != nullptr) {
-        bool enableProfiling = false;
-        if (!parent->IsRoot()) {
-            const auto* pool = static_cast<const TPool*>(parent);
-            enableProfiling = pool->GetConfig()->EnableByUserProfiling.value_or(TreeConfig_->EnableByUserProfiling);
-        } else {
-            enableProfiling = TreeConfig_->EnableByUserProfiling;
-        }
-
-        if (enableProfiling) {
-            auto userProfiler = treeProfiler
-                .WithTag("pool", parent->GetId(), -1)
-                .WithRequiredTag("user_name", GetUserName(), -1);
-
-            if (auto customTag = GetCustomProfilingTag()) {
-                userProfiler = userProfiler.WithTag("custom", *customTag, -1);
-            }
-
-            userProfiler.AddProducer("/operations_by_user", BufferedProducer_);
-        }
-
-        parent = parent->GetParent();
-    }
 }
 
 TFairShareStrategyPackingConfigPtr TOperationElement::GetPackingConfig() const

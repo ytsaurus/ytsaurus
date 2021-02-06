@@ -296,24 +296,6 @@ void TResourceTree::CommitHierarchicalResourceUsage(
     }
 }
 
-// TODO(ignat): extract this logic to separate class.
-void TResourceTree::ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementPtr& element, const TJobMetrics& delta)
-{
-    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
-    auto guard = ReaderGuard(StructureLock_);
-
-    IncrementStructureLockReadCount();
-
-    YT_VERIFY(element->Initialized_);
-
-    TResourceTreeElement* current = element.Get();
-    while (current != nullptr) {
-        current->ApplyLocalJobMetricsDelta(delta);
-        current = current->Parent_.Get();
-    }
-}
-
 void TResourceTree::PerformPostponedActions()
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);

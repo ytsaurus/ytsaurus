@@ -359,14 +359,14 @@ public:
         YT_ABORT();
     }
 
-    virtual bool IsRunningInStrategy() const override
-    {
-        YT_ABORT();
-    }
-
     TOperationControllerStrategyHostMock& GetOperationControllerStrategyHost()
     {
         return *Controller_.Get();
+    }
+
+    virtual bool IsTreeErased(const TString& treeId) const override
+    {
+        return false;
     }
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) override
@@ -397,11 +397,6 @@ public:
     virtual TResourceTree* GetResourceTree() override
     {
         return ResourceTree_.Get();
-    }
-
-    virtual NProfiling::TRegistry GetProfiler() const override
-    {
-        return NProfiling::TRegistry{};
     }
 
 private:
@@ -1023,7 +1018,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     }
 
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(execNodes.size(), nodeResources));
-    
+
     auto rootElement = CreateTestRootElement(host.Get());
 
     // Create an operation with 2 jobs.
