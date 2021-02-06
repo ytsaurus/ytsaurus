@@ -1364,7 +1364,7 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
     YT_VERIFY(operationIds.size() == rsps.size());
 
     {
-        const auto process_batch = BIND([parseOperationAttributesBatchSize](
+        const auto processBatch = BIND([parseOperationAttributesBatchSize](
             const std::vector<TOperationDataToParse>& operationDataToParseBatch) {
             std::vector<TArchiveOperationRequest> result;
             result.reserve(parseOperationAttributesBatchSize);
@@ -1401,12 +1401,13 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
                 operationDataToParseBatch.push_back({TYsonString(rsps[index].Value()->value()), operationIds[index]});
             }
 
-            futures.push_back(process_batch
+            futures.push_back(processBatch
                 .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
                 .Run(std::move(operationDataToParseBatch))
             );
         }
 
+        YT_LOG_INFO("Operations attributes for cleaner fetched");
         auto operationRequestsArray = WaitFor(AllSucceeded(futures)).ValueOrThrow();
 
         result.reserve(operationCount);
