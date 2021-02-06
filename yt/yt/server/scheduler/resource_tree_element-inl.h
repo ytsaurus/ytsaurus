@@ -9,13 +9,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobMetrics TResourceTreeElement::GetJobMetrics()
-{
-    auto guard = ReaderGuard(JobMetricsLock_);
-
-    return JobMetrics_;
-}
-
 bool TResourceTreeElement::GetAlive() const
 {
     return Alive_.load(std::memory_order_relaxed);
@@ -42,13 +35,6 @@ void TResourceTreeElement::SetFairShare(TResourceVector fairShare)
 const TString& TResourceTreeElement::GetId()
 {
     return Id_;
-}
-
-void TResourceTreeElement::ApplyLocalJobMetricsDelta(const TJobMetrics& delta)
-{
-    auto guard = WriterGuard(JobMetricsLock_);
-
-    JobMetrics_ += delta;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

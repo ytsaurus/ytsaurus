@@ -478,6 +478,12 @@ TControllerAgentPtr TOperation::GetAgentOrThrow()
     return agent;
 }
 
+bool TOperation::IsTreeErased(const TString& treeId) const
+{
+    const auto& erasedTrees = RuntimeParameters_->ErasedTrees;
+    return std::find(erasedTrees.begin(), erasedTrees.end(), treeId) != erasedTrees.end();
+}
+
 void TOperation::EraseTrees(const std::vector<TString>& treeIds)
 {
     if (!treeIds.empty()) {

@@ -1308,7 +1308,7 @@ public:
             operation->GetController()->SetControllerRuntimeData(operationInfo.ControllerRuntimeData);
         }
 
-        scheduler->GetStrategy()->ApplyJobMetricsDelta(operationIdToOperationJobMetrics);
+        scheduler->GetStrategy()->ApplyJobMetricsDelta(std::move(operationIdToOperationJobMetrics));
 
         const auto& nodeShards = scheduler->GetNodeShards();
         int nodeShardCount = static_cast<int>(nodeShards.size());

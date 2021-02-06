@@ -1,5 +1,6 @@
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
+#include "fair_share_tree_snapshot_impl.h"
 #include "persistent_scheduler_state.h"
 #include "public.h"
 #include "pools_config_parser.h"
@@ -9,6 +10,7 @@
 #include "scheduling_context.h"
 #include "scheduling_segment_manager.h"
 #include "fair_share_strategy_operation_controller.h"
+#include "fair_share_tree_profiling.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/job_metrics.h>
@@ -83,7 +85,7 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
 //!     It is built repeatedly from actual tree by taking snapshot and calculating scheduling attributes.
 //!     Clones of this tree are used in heartbeats for scheduling. Also, element attributes from this tree
 //!     are used in orchid, for logging and for profiling.
-//!     This tree represented by #RootElementSnapshot_.
+//!     This tree represented by #TreeSnapshotImpl_.
 //!     NB: elements of this tree may be invalidated by #Alive flag in resource tree. In this case element cannot be safely used
 //!     (corresponding operation or pool can be already deleted from all other scheduler structures).
 //!
@@ -114,35 +116,34 @@ public:
         : Config_(std::move(config))
         , ControllerConfig_(std::move(controllerConfig))
         , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
+        , TreeProfiler_(New<TFairShareTreeProfiler>(
+            treeId,
+            strategyHost->GetFairShareProfilingInvoker()))
         , StrategyHost_(strategyHost)
         , TreeHost_(treeHost)
         , FeasibleInvokers_(feasibleInvokers)
         , TreeId_(std::move(treeId))
-        , TreeProfiler_(SchedulerProfiler
-            .WithGlobal()
-            .WithRequiredTag("tree", TreeId_))
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
         , NonPreemptiveSchedulingStage_(
             /* nameInLogs */ "Non preemptive",
-            TreeProfiler_.WithPrefix("/non_preemptive"))
+            TreeProfiler_->GetRegistry().WithPrefix("/non_preemptive"))
         , AggressivelyPreemptiveSchedulingStage_(
             /* nameInLogs */ "Aggressively preemptive",
-            TreeProfiler_.WithPrefix("/aggressively_preemptive"))
+            TreeProfiler_->GetRegistry().WithPrefix("/aggressively_preemptive"))
         , PreemptiveSchedulingStage_(
             /* nameInLogs */ "Preemptive",
-            TreeProfiler_.WithPrefix("/preemptive"))
+            TreeProfiler_->GetRegistry().WithPrefix("/preemptive"))
         , PackingFallbackSchedulingStage_(
             /* nameInLogs */ "Packing fallback",
-            TreeProfiler_.WithPrefix("/packing_fallback"))
-        , FairSharePreUpdateTimer_(TreeProfiler_.Timer("/fair_share_preupdate_time"))
-        , FairShareUpdateTimer_(TreeProfiler_.Timer("/fair_share_update_time"))
-        , FairShareFluentLogTimer_(TreeProfiler_.Timer("/fair_share_fluent_log_time"))
-        , FairShareTextLogTimer_(TreeProfiler_.Timer("/fair_share_text_log_time"))
-        , PoolCountGauge_(TreeProfiler_.Gauge("/pools/pool_count"))
+            TreeProfiler_->GetRegistry().WithPrefix("/packing_fallback"))
+        , FairSharePreUpdateTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_preupdate_time"))
+        , FairShareUpdateTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_update_time"))
+        , FairShareFluentLogTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_fluent_log_time"))
+        , FairShareTextLogTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_text_log_time"))
     {
         RootElement_ = New<TRootElement>(StrategyHost_, this, Config_, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
 
-        DoRegisterPoolProfilingCounters(RootElement_);
+        TreeProfiler_->RegisterPool(RootElement_);
 
         YT_LOG_INFO("Fair share tree created");
     }
@@ -150,11 +151,6 @@ public:
     virtual TFairShareStrategyTreeConfigPtr GetConfig() const override
     {
         return Config_;
-    }
-
-    virtual NProfiling::TRegistry GetProfiler() const
-    {
-        return TreeProfiler_;
     }
 
     virtual void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) override
@@ -205,9 +201,9 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        YT_VERIFY(RootElementSnapshotPrecommit_);
-        RootElementSnapshot_ = std::move(RootElementSnapshotPrecommit_);
-        RootElementSnapshotPrecommit_.Reset();
+        YT_VERIFY(TreeSnapshotImplPrecommit_);
+        TreeSnapshotImpl_ = std::move(TreeSnapshotImplPrecommit_);
+        TreeSnapshotImplPrecommit_.Reset();
     }
 
     virtual bool HasOperation(TOperationId operationId) const override
@@ -295,7 +291,7 @@ public:
         auto* pool = operationElement->GetMutableParent();
 
         // Profile finished operation.
-        ProfileOperationUnregistration(pool, state->GetHost()->GetState());
+        TreeProfiler_->ProfileOperationUnregistration(pool, state->GetHost()->GetState());
 
         operationElement->Disable(/* markAsNonAlive */ true);
         operationElement->DetachParent();
@@ -431,8 +427,8 @@ public:
             aggregatedMinNeededResources = Min(aggregatedMinNeededResources, jobResources.ToJobResources());
         }
 
-        bool canFitIntoTotalResources = RootElementSnapshot_ &&
-            Dominates(RootElementSnapshot_->RootElement->GetTotalResourceLimits(), aggregatedMinNeededResources);
+        bool canFitIntoTotalResources = TreeSnapshotImpl_ &&
+            Dominates(TreeSnapshotImpl_->RootElement()->GetTotalResourceLimits(), aggregatedMinNeededResources);
         bool shouldCheckLimitingAncestor = hasMinNeededResources &&
             canFitIntoTotalResources &&
             Config_->EnableLimitingAncestorCheck &&
@@ -705,8 +701,8 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        return RootElementSnapshot_
-            ? RootElementSnapshot_->SchedulingSegmentsState
+        return TreeSnapshotImpl_
+            ? TreeSnapshotImpl_->SchedulingSegmentsState()
             : TTreeSchedulingSegmentsState{};
     }
 
@@ -746,7 +742,7 @@ public:
             return;
         }
 
-        DoBuildOperationProgress(element, RootElementSnapshot_, fluent);
+        DoBuildOperationProgress(element, TreeSnapshotImpl_, fluent);
     }
 
     virtual void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) const override
@@ -796,7 +792,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        Y_UNUSED(WaitFor(BIND(&TFairShareTree::DoBuildFairShareInfo, MakeWeak(this), RootElementSnapshot_, fluent)
+        Y_UNUSED(WaitFor(BIND(&TFairShareTree::DoBuildFairShareInfo, MakeWeak(this), TreeSnapshotImpl_, fluent)
             .AsyncVia(StrategyHost_->GetOrchidWorkerInvoker())
             .Run()));
     }
@@ -814,12 +810,18 @@ public:
     {
         return ResourceTree_.Get();
     }
+    
+    TFairShareTreeProfiler* GetProfiler()
+    {
+        return TreeProfiler_.Get();
+    }
 
 private:
     TFairShareStrategyTreeConfigPtr Config_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
 
     TResourceTreePtr ResourceTree_;
+    TFairShareTreeProfilerPtr TreeProfiler_;
 
     ISchedulerStrategyHost* const StrategyHost_;
 
@@ -831,7 +833,6 @@ private:
     TError LastPoolsNodeUpdateError_;
 
     const TString TreeId_;
-    const TRegistry TreeProfiler_;
 
     const NLogging::TLogger Logger;
 
@@ -841,12 +842,6 @@ private:
 
     THashMap<TString, TTagId> PoolIdToProfilingTagId_;
 
-    struct TUnregisterOperationCounters
-    {
-        TEnumIndexedVector<EOperationState, TCounter> FinishedCounters;
-        TCounter BannedCounter;
-    };
-    THashMap<TString, TUnregisterOperationCounters> PoolToUnregisterOperationCounters_;
 
     THashMap<TString, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
 
@@ -875,52 +870,18 @@ private:
 
     TRootElementPtr RootElement_;
 
-    struct TRootElementSnapshot
-        : public TRefCounted
-    {
-        TRootElementPtr RootElement;
-        TRawOperationElementMap OperationIdToElement;
-        TRawOperationElementMap DisabledOperationIdToElement;
-        TRawPoolMap PoolNameToElement;
-        THashMap<TString, int> ElementIndexes;
-        TFairShareStrategyTreeConfigPtr Config;
-        TFairShareStrategyOperationControllerConfigPtr ControllerConfig;
-        bool CoreProfilingCompatibilityEnabled;
-        TTreeSchedulingSegmentsState SchedulingSegmentsState;
-
-        TOperationElement* FindOperationElement(TOperationId operationId) const
-        {
-            auto it = OperationIdToElement.find(operationId);
-            return it != OperationIdToElement.end() ? it->second : nullptr;
-        }
-
-        TOperationElement* FindDisabledOperationElement(TOperationId operationId) const
-        {
-            auto it = DisabledOperationIdToElement.find(operationId);
-            return it != DisabledOperationIdToElement.end() ? it->second : nullptr;
-        }
-
-        TPool* FindPool(const TString& poolName) const
-        {
-            auto it = PoolNameToElement.find(poolName);
-            return it != PoolNameToElement.end() ? it->second : nullptr;
-        }
-    };
-
-    typedef TIntrusivePtr<TRootElementSnapshot> TRootElementSnapshotPtr;
-
     class TFairShareTreeSnapshot
         : public IFairShareTreeSnapshot
     {
     public:
         TFairShareTreeSnapshot(
             TFairShareTreePtr tree,
-            TRootElementSnapshotPtr rootElementSnapshot,
+            TFairShareTreeSnapshotImplPtr treeSnapshotImpl,
             TSchedulingTagFilter nodesFilter,
             const TJobResources& totalResourceLimits,
             const NLogging::TLogger& logger)
             : Tree_(std::move(tree))
-            , RootElementSnapshot_(std::move(rootElementSnapshot))
+            , TreeSnapshotImpl_(std::move(treeSnapshotImpl))
             , NodesFilter_(std::move(nodesFilter))
             , TotalResourceLimits_(totalResourceLimits)
             , Logger(logger)
@@ -931,14 +892,14 @@ private:
             return BIND(&TFairShareTree::DoScheduleJobs,
                 Tree_,
                 schedulingContext,
-                RootElementSnapshot_)
+                TreeSnapshotImpl_)
                 .AsyncVia(GetCurrentInvoker())
                 .Run();
         }
 
         virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override
         {
-            Tree_->DoPreemptJobsGracefully(schedulingContext, RootElementSnapshot_);
+            Tree_->DoPreemptJobsGracefully(schedulingContext, TreeSnapshotImpl_);
         }
 
         virtual void ProcessUpdatedJob(
@@ -953,7 +914,7 @@ private:
 
             *shouldAbortJob = false;
 
-            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
+            auto* operationElement = TreeSnapshotImpl_->FindEnabledOperationElement(operationId);
             if (operationElement) {
                 operationElement->SetJobResourceUsage(jobId, jobResources);
 
@@ -980,7 +941,7 @@ private:
         {
             // NB: Should be filtered out on large clusters.
             YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
-            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
+            auto* operationElement = TreeSnapshotImpl_->FindEnabledOperationElement(operationId);
             if (operationElement) {
                 operationElement->OnJobFinished(jobId);
             }
@@ -988,18 +949,18 @@ private:
 
         virtual bool HasOperation(TOperationId operationId) const override
         {
-            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
+            auto* operationElement = TreeSnapshotImpl_->FindEnabledOperationElement(operationId);
             return operationElement != nullptr;
         }
 
         virtual bool IsOperationRunningInTree(TOperationId operationId) const override
         {
-            if (auto* element = RootElementSnapshot_->FindOperationElement(operationId)) {
+            if (auto* element = TreeSnapshotImpl_->FindEnabledOperationElement(operationId)) {
                 auto res = element->IsOperationRunningInPool();
                 return res;
             }
 
-            if (auto* element = RootElementSnapshot_->FindDisabledOperationElement(operationId)) {
+            if (auto* element = TreeSnapshotImpl_->FindDisabledOperationElement(operationId)) {
                 auto res = element->IsOperationRunningInPool();
                 return res;
             }
@@ -1009,15 +970,12 @@ private:
 
         virtual bool IsOperationDisabled(TOperationId operationId) const override
         {
-            return RootElementSnapshot_->DisabledOperationIdToElement.contains(operationId);
+            return TreeSnapshotImpl_->DisabledOperationMap().contains(operationId);
         }
 
-        virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) override
+        virtual void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) override
         {
-            auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
-            if (operationElement) {
-                operationElement->ApplyJobMetricsDelta(jobMetricsDelta);
-            }
+            Tree_->GetProfiler()->ApplyJobMetricsDelta(TreeSnapshotImpl_, jobMetricsPerOperation);
         }
 
         virtual const TSchedulingTagFilter& GetNodesFilter() const override
@@ -1032,7 +990,7 @@ private:
 
         virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override
         {
-            if (auto* element = RootElementSnapshot_->FindPool(poolId)) {
+            if (auto* element = TreeSnapshotImpl_->FindPool(poolId)) {
                 return TSchedulerElementStateSnapshot{
                     element->Attributes().DemandShare,
                     element->Attributes().PromisedFairShare};
@@ -1043,35 +1001,35 @@ private:
 
         virtual void BuildResourceMetering(TMeteringMap* meteringMap) const override
         {
-            auto rootElement = RootElementSnapshot_->RootElement;
+            auto rootElement = TreeSnapshotImpl_->RootElement();
             rootElement->BuildResourceMetering(/* parentKey */ std::nullopt, meteringMap);
         }
 
         virtual void ProfileFairShare() const override
         {
-            Tree_->DoProfileFairShare(RootElementSnapshot_);
+            Tree_->DoProfileFairShare(TreeSnapshotImpl_);
         }
 
         virtual void LogFairShare(NEventLog::TFluentLogEvent fluent) const override
         {
-            Tree_->DoLogFairShare(RootElementSnapshot_, std::move(fluent));
+            Tree_->DoLogFairShare(TreeSnapshotImpl_, std::move(fluent));
         }
 
         virtual void EssentialLogFairShare(NEventLog::TFluentLogEvent fluent) const override
         {
-            Tree_->DoEssentialLogFairShare(RootElementSnapshot_, std::move(fluent));
+            Tree_->DoEssentialLogFairShare(TreeSnapshotImpl_, std::move(fluent));
         }
 
     private:
         const TIntrusivePtr<TFairShareTree> Tree_;
-        const TRootElementSnapshotPtr RootElementSnapshot_;
+        const TFairShareTreeSnapshotImplPtr TreeSnapshotImpl_;
         const TSchedulingTagFilter NodesFilter_;
         const TJobResources TotalResourceLimits_;
         const NLogging::TLogger Logger;
     };
 
-    TRootElementSnapshotPtr RootElementSnapshot_;
-    TRootElementSnapshotPtr RootElementSnapshotPrecommit_;
+    TFairShareTreeSnapshotImplPtr TreeSnapshotImpl_;
+    TFairShareTreeSnapshotImplPtr TreeSnapshotImplPrecommit_;
 
     TFairShareSchedulingStage NonPreemptiveSchedulingStage_;
     TFairShareSchedulingStage AggressivelyPreemptiveSchedulingStage_;
@@ -1082,7 +1040,6 @@ private:
     TEventTimer FairShareUpdateTimer_;
     TEventTimer FairShareFluentLogTimer_;
     TEventTimer FairShareTextLogTimer_;
-    TGauge PoolCountGauge_;
 
     std::atomic<TCpuInstant> LastSchedulingInformationLoggedTime_ = 0;
 
@@ -1110,7 +1067,10 @@ private:
             rootElement->PreUpdate(&updateContext);
         }
 
-        TRootElementSnapshotPtr rootElementSnapshot;
+        TTreeSchedulingSegmentsState schedulingSegmentsState;
+        TNonOwningOperationElementMap enabledOperationIdToElement;
+        TNonOwningOperationElementMap disabledOperationIdToElement;
+        TNonOwningPoolMap poolNameToElement;
         auto asyncUpdate = BIND([&]
             {
                 {
@@ -1118,20 +1078,16 @@ private:
                     rootElement->Update(&updateContext);
                 }
 
-                rootElementSnapshot = New<TRootElementSnapshot>();
                 rootElement->BuildElementMapping(
-                    &rootElementSnapshot->OperationIdToElement,
-                    &rootElementSnapshot->DisabledOperationIdToElement,
-                    &rootElementSnapshot->PoolNameToElement);
-                std::swap(rootElementSnapshot->ElementIndexes, updateContext.ElementIndexes);
-                std::swap(rootElementSnapshot->SchedulingSegmentsState, updateContext.SchedulingSegmentsState);
+                    &enabledOperationIdToElement,
+                    &disabledOperationIdToElement,
+                    &poolNameToElement);
+                std::swap(schedulingSegmentsState, updateContext.SchedulingSegmentsState);
             })
             .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
             .Run();
         WaitFor(asyncUpdate)
             .ThrowOnError();
-
-        YT_VERIFY(rootElementSnapshot);
 
         YT_LOG_DEBUG("Fair share tree update finished (UnschedulableReasons: %v)",
             updateContext.UnschedulableReasons);
@@ -1144,22 +1100,22 @@ private:
         }
 
         // Update starvation flags for operations and pools.
-        for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {
+        for (const auto& [operationId, element] : enabledOperationIdToElement) {
             element->CheckForStarvation(now);
         }
         if (Config_->EnablePoolStarvation) {
-            for (const auto& [poolName, element] : rootElementSnapshot->PoolNameToElement) {
+            for (const auto& [poolName, element] : poolNameToElement) {
                 element->CheckForStarvation(now);
             }
         }
 
         // Copy persistent attributes back to the original tree.
-        for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {
+        for (const auto& [operationId, element] : enabledOperationIdToElement) {
             if (auto originalElement = FindOperationElement(operationId)) {
                 originalElement->PersistentAttributes() = element->PersistentAttributes();
             }
         }
-        for (const auto& [poolName, element] : rootElementSnapshot->PoolNameToElement) {
+        for (const auto& [poolName, element] : poolNameToElement) {
             if (auto originalElement = FindPool(poolName)) {
                 originalElement->PersistentAttributes() = element->PersistentAttributes();
             }
@@ -1168,17 +1124,22 @@ private:
 
         rootElement->MarkImmutable();
 
-        rootElementSnapshot->RootElement = rootElement;
-        rootElementSnapshot->Config = Config_;
-        rootElementSnapshot->ControllerConfig = ControllerConfig_;
-        rootElementSnapshot->CoreProfilingCompatibilityEnabled = StrategyHost_->IsCoreProfilingCompatibilityEnabled();
+        auto treeSnapshotImpl = New<TFairShareTreeSnapshotImpl>(
+            std::move(rootElement),
+            std::move(enabledOperationIdToElement),
+            std::move(disabledOperationIdToElement),
+            std::move(poolNameToElement),
+            Config_,
+            ControllerConfig_,
+            StrategyHost_->IsCoreProfilingCompatibilityEnabled(),
+            std::move(schedulingSegmentsState));
 
-        RootElementSnapshotPrecommit_ = rootElementSnapshot;
+        TreeSnapshotImplPrecommit_ = treeSnapshotImpl;
         LastFairShareUpdateTime_ = now;
 
         auto treeSnapshot = New<TFairShareTreeSnapshot>(
             this,
-            std::move(rootElementSnapshot),
+            std::move(treeSnapshotImpl),
             GetNodesFilter(),
             StrategyHost_->GetResourceLimits(GetNodesFilter()),
             Logger);
@@ -1187,11 +1148,11 @@ private:
 
     void DoScheduleJobs(
         const ISchedulingContextPtr& schedulingContext,
-        const TRootElementSnapshotPtr& rootElementSnapshot)
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl)
     {
         bool enableSchedulingInfoLogging = false;
         auto now = schedulingContext->GetNow();
-        const auto& config = rootElementSnapshot->Config;
+        const auto& config = treeSnapshotImpl->TreeConfig();
         if (LastSchedulingInformationLoggedTime_ + DurationToCpuDuration(config->HeartbeatTreeSchedulingInfoLogBackoff) < now) {
             enableSchedulingInfoLogging = true;
             LastSchedulingInformationLoggedTime_ = now;
@@ -1205,7 +1166,7 @@ private:
 
         TFairShareContext context(
             schedulingContext,
-            rootElementSnapshot->RootElement->GetTreeSize(),
+            treeSnapshotImpl->RootElement()->GetTreeSize(),
             std::move(registeredSchedulingTagFilters),
             enableSchedulingInfoLogging,
             Logger);
@@ -1216,7 +1177,7 @@ private:
         bool needPackingFallback;
         {
             context.StartStage(&NonPreemptiveSchedulingStage_);
-            DoScheduleJobsWithoutPreemption(rootElementSnapshot, &context, now);
+            DoScheduleJobsWithoutPreemption(treeSnapshotImpl, &context, now);
             context.SchedulingStatistics().NonPreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
             needPackingFallback = schedulingContext->StartedJobs().empty() && !context.BadPackingOperations().empty();
             ReactivateBadPackingOperations(&context);
@@ -1250,7 +1211,7 @@ private:
             // First try to schedule a job with aggressive preemption for aggressively starving operations only.
             {
                 context.StartStage(&AggressivelyPreemptiveSchedulingStage_);
-                DoScheduleJobsWithAggressivePreemption(rootElementSnapshot, &context, now);
+                DoScheduleJobsWithAggressivePreemption(treeSnapshotImpl, &context, now);
                 context.SchedulingStatistics().AggressivelyPreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
                 context.FinishStage();
             }
@@ -1258,7 +1219,7 @@ private:
             // If no jobs were scheduled in the previous stage, try to schedule a job with regular preemption.
             if (context.SchedulingStatistics().ScheduledDuringPreemption == 0) {
                 context.StartStage(&PreemptiveSchedulingStage_);
-                DoScheduleJobsWithPreemption(rootElementSnapshot, &context, now);
+                DoScheduleJobsWithPreemption(treeSnapshotImpl, &context, now);
                 context.SchedulingStatistics().PreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
                 context.FinishStage();
             }
@@ -1268,7 +1229,7 @@ private:
 
         if (needPackingFallback) {
             context.StartStage(&PackingFallbackSchedulingStage_);
-            DoScheduleJobsPackingFallback(rootElementSnapshot, &context, now);
+            DoScheduleJobsPackingFallback(treeSnapshotImpl, &context, now);
             context.SchedulingStatistics().PackingFallbackScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
             context.FinishStage();
         }
@@ -1281,7 +1242,7 @@ private:
 
             std::vector<TJobWithPreemptionInfo> jobInfos;
             for (const auto& job : schedulingContext->RunningJobs()) {
-                auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+                auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
                 if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
                     YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
                         job->GetId(),
@@ -1327,7 +1288,7 @@ private:
                     YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v)",
                         jobInfo.Job->GetId(),
                         jobInfo.OperationElement->GetId());
-                    PreemptJob(jobInfo.Job, jobInfo.OperationElement, rootElementSnapshot, schedulingContext);
+                    PreemptJob(jobInfo.Job, jobInfo.OperationElement, treeSnapshotImpl, schedulingContext);
                 } else {
                     currentResources += jobInfo.Job->ResourceUsage();
                 }
@@ -1338,14 +1299,14 @@ private:
     }
 
     void DoScheduleJobsWithoutPreemption(
-        const TRootElementSnapshotPtr& rootElementSnapshot,
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
         TFairShareContext* context,
         TCpuInstant startTime)
     {
         YT_LOG_TRACE("Scheduling new jobs");
 
         DoScheduleJobsWithoutPreemptionImpl(
-            rootElementSnapshot,
+            treeSnapshotImpl,
             context,
             startTime,
             /* ignorePacking */ false,
@@ -1353,7 +1314,7 @@ private:
     }
 
     void DoScheduleJobsPackingFallback(
-        const TRootElementSnapshotPtr& rootElementSnapshot,
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
         TFairShareContext* context,
         TCpuInstant startTime)
     {
@@ -1361,7 +1322,7 @@ private:
 
         // Schedule at most one job with packing ignored in case all operations have rejected the heartbeat.
         DoScheduleJobsWithoutPreemptionImpl(
-            rootElementSnapshot,
+            treeSnapshotImpl,
             context,
             startTime,
             /* ignorePacking */ true,
@@ -1369,14 +1330,14 @@ private:
     }
 
     void DoScheduleJobsWithoutPreemptionImpl(
-        const TRootElementSnapshotPtr& rootElementSnapshot,
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
         TFairShareContext* context,
         TCpuInstant startTime,
         bool ignorePacking,
         bool oneJobOnly)
     {
-        auto& rootElement = rootElementSnapshot->RootElement;
-        const auto& controllerConfig = rootElementSnapshot->ControllerConfig;
+        auto& rootElement = treeSnapshotImpl->RootElement();
+        const auto& controllerConfig = treeSnapshotImpl->ControllerConfig();
 
         {
             bool prescheduleExecuted = false;
@@ -1387,7 +1348,7 @@ private:
             {
                 if (!prescheduleExecuted) {
                     TWallTimer prescheduleTimer;
-                    context->PrepareForScheduling(rootElementSnapshot->RootElement);
+                    context->PrepareForScheduling(treeSnapshotImpl->RootElement());
                     rootElement->PrescheduleJob(context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
                     context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                     prescheduleExecuted = true;
@@ -1408,43 +1369,43 @@ private:
     }
 
     void DoScheduleJobsWithAggressivePreemption(
-        const TRootElementSnapshotPtr& rootElementSnapshot,
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
         TFairShareContext* context,
         TCpuInstant startTime)
     {
         DoScheduleJobsWithPreemptionImpl(
-            rootElementSnapshot,
+            treeSnapshotImpl,
             context,
             startTime,
             /* isAggressive */ true);
     }
 
     void DoScheduleJobsWithPreemption(
-        const TRootElementSnapshotPtr& rootElementSnapshot,
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
         TFairShareContext* context,
         TCpuInstant startTime)
     {
         DoScheduleJobsWithPreemptionImpl(
-            rootElementSnapshot,
+            treeSnapshotImpl,
             context,
             startTime,
             /* isAggressive */ false);
     }
 
     void DoScheduleJobsWithPreemptionImpl(
-        const TRootElementSnapshotPtr& rootElementSnapshot,
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
         TFairShareContext* context,
         TCpuInstant startTime,
         bool isAggressive)
     {
-        auto& rootElement = rootElementSnapshot->RootElement;
-        const auto& config = rootElementSnapshot->Config;
-        const auto& controllerConfig = rootElementSnapshot->ControllerConfig;
+        auto& rootElement = treeSnapshotImpl->RootElement();
+        const auto& treeConfig = treeSnapshotImpl->TreeConfig();
+        const auto& controllerConfig = treeSnapshotImpl->ControllerConfig();
                     
         // NB: this method aims 2 goals relevant for scheduling with preemption
         // 1. Resets 'Active' attribute after scheduling without preemption (that is necessary for PrescheduleJob correctness).
         // 2. Initialize dynamic attributes and calculate local resource usages if scheduling without preemption was skipped.
-        context->PrepareForScheduling(rootElementSnapshot->RootElement);
+        context->PrepareForScheduling(treeSnapshotImpl->RootElement());
 
         // TODO(ignat): move this logic inside TFairShareContext.
         if (!context->GetHasAggressivelyStarvingElements()) {
@@ -1467,7 +1428,7 @@ private:
             NProfiling::TWallTimer timer;
 
             for (const auto& job : context->SchedulingContext()->RunningJobs()) {
-                auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+                auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
                 if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
                     YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
                         job->GetId(),
@@ -1478,7 +1439,7 @@ private:
                 bool isAggressivePreemptionEnabled = isAggressive &&
                     operationElement->IsAggressiveStarvationPreemptionAllowed();
 
-                bool isJobPreemptable = operationElement->IsPreemptionAllowed(isAggressive, context->DynamicAttributesList(), config) &&
+                bool isJobPreemptable = operationElement->IsPreemptionAllowed(isAggressive, context->DynamicAttributesList(), treeConfig) &&
                     operationElement->IsJobPreemptable(job->GetId(), isAggressivePreemptionEnabled);
 
                 bool forceJobPreemptable = !operationElement->IsSchedulingSegmentCompatibleWithNode(
@@ -1575,7 +1536,7 @@ private:
             });
 
         auto findPoolWithViolatedLimitsForJob = [&] (const TJobPtr& job) -> const TCompositeSchedulerElement* {
-            auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+            auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
             if (!operationElement) {
                 return nullptr;
             }
@@ -1591,7 +1552,7 @@ private:
         };
 
         auto findOperationElementForJob = [&] (const TJobPtr& job) -> TOperationElement* {
-            auto operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+            auto operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
             if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
                 YT_LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
@@ -1627,7 +1588,7 @@ private:
             } else {
                 job->SetPreemptionReason(Format("Node resource limits violated"));
             }
-            PreemptJob(job, operationElement, rootElementSnapshot, context->SchedulingContext());
+            PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext());
         }
 
         for (; currentJobIndex < preemptableJobs.size(); ++currentJobIndex) {
@@ -1641,7 +1602,7 @@ private:
             if (!Dominates(operationElement->ResourceLimits(), operationElement->GetInstantResourceUsage())) {
                 job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
                     operationElement->GetId()));
-                PreemptJob(job, operationElement, rootElementSnapshot, context->SchedulingContext());
+                PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext());
                 continue;
             }
 
@@ -1649,7 +1610,7 @@ private:
             if (violatedPool) {
                 job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
                     violatedPool->GetId()));
-                PreemptJob(job, operationElement, rootElementSnapshot, context->SchedulingContext());
+                PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext());
             }
         }
 
@@ -1664,9 +1625,9 @@ private:
 
     void DoPreemptJobsGracefully(
         const ISchedulingContextPtr& schedulingContext,
-        const TRootElementSnapshotPtr& rootElementSnapshot)
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl)
     {
-        const auto& config = rootElementSnapshot->Config;
+        const auto& treeConfig = treeSnapshotImpl->TreeConfig();
 
         YT_LOG_TRACE("Looking for gracefully preemptable jobs");
         for (const auto& job : schedulingContext->RunningJobs()) {
@@ -1674,7 +1635,7 @@ private:
                 continue;
             }
 
-            auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+            auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
 
             if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
                 YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
@@ -1684,7 +1645,7 @@ private:
             }
 
             if (operationElement->IsJobPreemptable(job->GetId(), /* aggressivePreemptionEnabled */ false)) {
-                schedulingContext->PreemptJob(job, config->JobGracefulInterruptTimeout);
+                schedulingContext->PreemptJob(job, treeConfig->JobGracefulInterruptTimeout);
             }
         }
     }
@@ -1692,16 +1653,16 @@ private:
     void PreemptJob(
         const TJobPtr& job,
         const TOperationElementPtr& operationElement,
-        const TRootElementSnapshotPtr& rootElementSnapshot,
+        const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
         const ISchedulingContextPtr& schedulingContext) const
     {
-        const auto& config = rootElementSnapshot->Config;
+        const auto& treeConfig = treeSnapshotImpl->TreeConfig();
 
         schedulingContext->ResourceUsage() -= job->ResourceUsage();
         operationElement->SetJobResourceUsage(job->GetId(), TJobResources());
         job->ResourceUsage() = {};
 
-        schedulingContext->PreemptJob(job, config->JobInterruptTimeout);
+        schedulingContext->PreemptJob(job, treeConfig->JobInterruptTimeout);
     }
 
     void DoRegisterPool(const TPoolPtr& pool)
@@ -1711,7 +1672,7 @@ private:
         YT_VERIFY(Pools_.emplace(pool->GetId(), pool).second);
         YT_VERIFY(PoolToMinUnusedSlotIndex_.emplace(pool->GetId(), 0).second);
 
-        DoRegisterPoolProfilingCounters(pool);
+        TreeProfiler_->RegisterPool(pool);
     }
 
     void RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
@@ -1752,7 +1713,7 @@ private:
 
         YT_VERIFY(PoolToSpareSlotIndices_.erase(pool->GetId()) <= 1);
 
-        YT_VERIFY(PoolToUnregisterOperationCounters_.erase(pool->GetId()) == 1);
+        TreeProfiler_->UnregisterPool(pool);
 
         // We cannot use pool after erase because Pools may contain last alive reference to it.
         auto extractedPool = std::move(Pools_[pool->GetId()]);
@@ -1807,21 +1768,6 @@ private:
 
         RegisterPool(pool, parent);
         return pool;
-    }
-
-    void DoRegisterPoolProfilingCounters(const TCompositeSchedulerElementPtr& element)
-    {
-        auto elementProfiler = element->GetProfiler();
-
-        TUnregisterOperationCounters counters;
-        counters.BannedCounter = elementProfiler.Counter("/pools/banned_operation_count");
-
-        for (auto state : TEnumTraits<EOperationState>::GetDomainValues()) {
-            counters.FinishedCounters[state] = elementProfiler
-                .WithTag("state", FormatEnum(state), -1)
-                .Counter("/pools/finished_operation_count");
-        }
-        PoolToUnregisterOperationCounters_.emplace(element->GetId(), std::move(counters));
     }
 
     bool TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
@@ -1973,21 +1919,6 @@ private:
             ).first;
         }
         return it->second;
-    }
-
-    void ProfileOperationUnregistration(TCompositeSchedulerElement* pool, EOperationState state)
-    {
-        const TCompositeSchedulerElement* currentPool = pool;
-        while (currentPool) {
-            auto& counters = GetOrCrash(PoolToUnregisterOperationCounters_, currentPool->GetId());
-            if (IsOperationFinished(state)) {
-                counters.FinishedCounters[state].Increment();
-            } else {
-                // Unregistration for running operation is considered as ban.
-                counters.BannedCounter.Increment();
-            }
-            currentPool = currentPool->GetParent();
-        }
     }
 
     void OnOperationRemovedFromPool(
@@ -2279,8 +2210,8 @@ private:
 
     TPool* FindRecentPoolSnapshot(const TString& poolId) const
     {
-        if (RootElementSnapshot_) {
-            if (auto elementFromSnapshot = RootElementSnapshot_->FindPool(poolId)) {
+        if (TreeSnapshotImpl_) {
+            if (auto elementFromSnapshot = TreeSnapshotImpl_->FindPool(poolId)) {
                 return elementFromSnapshot;
             }
         }
@@ -2289,8 +2220,8 @@ private:
 
     TCompositeSchedulerElement* GetRecentRootSnapshot() const
     {
-        if (RootElementSnapshot_) {
-            return RootElementSnapshot_->RootElement.Get();
+        if (TreeSnapshotImpl_) {
+            return TreeSnapshotImpl_->RootElement().Get();
         }
         return RootElement_.Get();
     }
@@ -2310,8 +2241,8 @@ private:
 
     TOperationElement* FindRecentOperationElementSnapshot(TOperationId operationId) const
     {
-        if (RootElementSnapshot_) {
-            if (auto elementFromSnapshot = RootElementSnapshot_->FindOperationElement(operationId)) {
+        if (TreeSnapshotImpl_) {
+            if (auto elementFromSnapshot = TreeSnapshotImpl_->FindEnabledOperationElement(operationId)) {
                 return elementFromSnapshot;
             }
         }
@@ -2327,55 +2258,44 @@ private:
         context->BadPackingOperations().clear();
     }
 
-    void DoProfileFairShare(const TRootElementSnapshotPtr& rootElementSnapshot) const
+    void DoProfileFairShare(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl) const
     {
-        PoolCountGauge_.Update(rootElementSnapshot->PoolNameToElement.size());
-
-        for (const auto& [poolName, pool] : rootElementSnapshot->PoolNameToElement) {
-            pool->ProfileFull(rootElementSnapshot->CoreProfilingCompatibilityEnabled);
-        }
-        rootElementSnapshot->RootElement.Get()->ProfileFull(rootElementSnapshot->CoreProfilingCompatibilityEnabled);
-
-        if (Config_->EnableOperationsProfiling) {
-            for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {
-                element->ProfileFull(rootElementSnapshot->CoreProfilingCompatibilityEnabled);
-            }
-        }
+        TreeProfiler_->ProfileElements(treeSnapshotImpl);
     }
 
-    void DoLogFairShare(const TRootElementSnapshotPtr& rootElementSnapshot, NEventLog::TFluentLogEvent fluent) const
+    void DoLogFairShare(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, NEventLog::TFluentLogEvent fluent) const
     {
         {
             TEventTimer timer(FairShareFluentLogTimer_);
             fluent
                 .Item(EventLogPoolTreeKey).Value(TreeId_)
-                .Do(BIND(&TFairShareTree::DoBuildFairShareInfo, Unretained(this), rootElementSnapshot));
+                .Do(BIND(&TFairShareTree::DoBuildFairShareInfo, Unretained(this), treeSnapshotImpl));
         }
 
         {
             TEventTimer timer(FairShareTextLogTimer_);
-            LogPoolsInfo(rootElementSnapshot);
-            LogOperationsInfo(rootElementSnapshot);
+            LogPoolsInfo(treeSnapshotImpl);
+            LogOperationsInfo(treeSnapshotImpl);
         }
     }
 
-    void DoEssentialLogFairShare(const TRootElementSnapshotPtr& rootElementSnapshot, NEventLog::TFluentLogEvent fluent) const
+    void DoEssentialLogFairShare(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, NEventLog::TFluentLogEvent fluent) const
     {
         {
             TEventTimer timer(FairShareFluentLogTimer_);
             fluent
                 .Item(EventLogPoolTreeKey).Value(TreeId_)
-                .Do(BIND(&TFairShareTree::DoBuildEssentialFairShareInfo, Unretained(this), rootElementSnapshot));
+                .Do(BIND(&TFairShareTree::DoBuildEssentialFairShareInfo, Unretained(this), treeSnapshotImpl));
         }
 
         {
             TEventTimer timer(FairShareTextLogTimer_);
-            LogPoolsInfo(rootElementSnapshot);
-            LogOperationsInfo(rootElementSnapshot);
+            LogPoolsInfo(treeSnapshotImpl);
+            LogOperationsInfo(treeSnapshotImpl);
         }
     }
 
-    void LogOperationsInfo(const TRootElementSnapshotPtr& rootElementSnapshot) const
+    void LogOperationsInfo(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl) const
     {
         auto doLogOperationsInfo = [&] (const auto& operationIdToElement) {
             // Using structured bindings directly in the for-statement causes an ICE in GCC build.
@@ -2386,48 +2306,48 @@ private:
             }
         };
 
-        doLogOperationsInfo(rootElementSnapshot->OperationIdToElement);
-        doLogOperationsInfo(rootElementSnapshot->DisabledOperationIdToElement);
+        doLogOperationsInfo(treeSnapshotImpl->EnabledOperationMap());
+        doLogOperationsInfo(treeSnapshotImpl->DisabledOperationMap());
     }
 
-    void LogPoolsInfo(const TRootElementSnapshotPtr& rootElementSnapshot) const
+    void LogPoolsInfo(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl) const
     {
-        for (const auto& [poolName, element] : rootElementSnapshot->PoolNameToElement) {
+        for (const auto& [poolName, element] : treeSnapshotImpl->PoolMap()) {
             YT_LOG_DEBUG("FairShareInfo: %v (Pool: %v)",
                 element->GetLoggingString(),
                 poolName);
         }
     }
 
-    void DoBuildFairShareInfo(const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
+    void DoBuildFairShareInfo(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
-        if (!rootElementSnapshot) {
+        if (!treeSnapshotImpl) {
             YT_LOG_DEBUG("Skipping construction of fair share info: no root element snapshot");
             return;
         }
 
         YT_LOG_DEBUG("Constructing fair share info for orchid");
 
-        auto buildOperationsInfo = [&] (TFluentMap fluent, const TRawOperationElementMap::value_type& pair) {
+        auto buildOperationsInfo = [&] (TFluentMap fluent, const TNonOwningOperationElementMap::value_type& pair) {
             const auto& [operationId, element] = pair;
             fluent
                 .Item(ToString(operationId)).BeginMap()
-                    .Do(BIND(&TFairShareTree::DoBuildOperationProgress, Unretained(this), Unretained(element), rootElementSnapshot))
+                    .Do(BIND(&TFairShareTree::DoBuildOperationProgress, Unretained(this), Unretained(element), treeSnapshotImpl))
                 .EndMap();
         };
 
         fluent
-            .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), rootElementSnapshot))
+            .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), treeSnapshotImpl))
             .Item("resource_distribution_info").BeginMap()
-                .Do(BIND(&TRootElement::BuildResourceDistributionInfo, rootElementSnapshot->RootElement))
+                .Do(BIND(&TRootElement::BuildResourceDistributionInfo, treeSnapshotImpl->RootElement()))
             .EndMap()
             .Item("operations").BeginMap()
-                .DoFor(rootElementSnapshot->OperationIdToElement, buildOperationsInfo)
-                .DoFor(rootElementSnapshot->DisabledOperationIdToElement, buildOperationsInfo)
+                .DoFor(treeSnapshotImpl->EnabledOperationMap(), buildOperationsInfo)
+                .DoFor(treeSnapshotImpl->DisabledOperationMap(), buildOperationsInfo)
             .EndMap();
     }
 
-    void DoBuildPoolsInformation(const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
+    void DoBuildPoolsInformation(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
         auto buildPoolInfo = [&] (const TCompositeSchedulerElement* pool, TFluentMap fluent) {
             const auto& id = pool->GetId();
@@ -2468,21 +2388,21 @@ private:
                         fluent
                             .Item("parent").Value(pool->GetParent()->GetId());
                     })
-                    .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(pool), rootElementSnapshot))
+                    .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(pool), treeSnapshotImpl))
                 .EndMap();
         };
 
         fluent
             .Item("pool_count").Value(GetPoolCount())
             .Item("pools").BeginMap()
-                .DoFor(rootElementSnapshot->PoolNameToElement, [&] (TFluentMap fluent, const TRawPoolMap::value_type& pair) {
+                .DoFor(treeSnapshotImpl->PoolMap(), [&] (TFluentMap fluent, const TNonOwningPoolMap::value_type& pair) {
                     buildPoolInfo(pair.second, fluent);
                 })
-                .Do(BIND(buildPoolInfo, Unretained(rootElementSnapshot->RootElement.Get())))
+                .Do(BIND(buildPoolInfo, Unretained(treeSnapshotImpl->RootElement().Get())))
             .EndMap();
     }
 
-    void DoBuildOperationProgress(const TOperationElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
+    void DoBuildOperationProgress(const TOperationElement* element, const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
         auto* parent = element->GetParent();
         fluent
@@ -2500,10 +2420,10 @@ private:
             .Item("starving_since").Value(element->GetStarving()
                 ? std::make_optional(element->GetLastNonStarvingTime())
                 : std::nullopt)
-            .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(element), rootElementSnapshot));
+            .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(element), treeSnapshotImpl));
     }
 
-    void DoBuildElementYson(const TSchedulerElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
+    void DoBuildElementYson(const TSchedulerElement* element, const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
         const auto& attributes = element->Attributes();
         const auto& persistentAttributes = element->PersistentAttributes();
@@ -2566,45 +2486,45 @@ private:
             .Item("local_satisfaction_ratio").Value(attributes.LocalSatisfactionRatio);
     }
 
-    void DoBuildEssentialFairShareInfo(const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
+    void DoBuildEssentialFairShareInfo(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
-        auto buildOperationsInfo = [&] (TFluentMap fluent, const TRawOperationElementMap::value_type& pair) {
+        auto buildOperationsInfo = [&] (TFluentMap fluent, const TNonOwningOperationElementMap::value_type& pair) {
             const auto& [operationId, element] = pair;
             fluent
                 .Item(ToString(operationId)).BeginMap()
-                    .Do(BIND(&TFairShareTree::DoBuildEssentialOperationProgress, Unretained(this), Unretained(element), rootElementSnapshot))
+                    .Do(BIND(&TFairShareTree::DoBuildEssentialOperationProgress, Unretained(this), Unretained(element), treeSnapshotImpl))
                 .EndMap();
         };
 
         fluent
-            .Do(BIND(&TFairShareTree::DoBuildEssentialPoolsInformation, Unretained(this), rootElementSnapshot))
+            .Do(BIND(&TFairShareTree::DoBuildEssentialPoolsInformation, Unretained(this), treeSnapshotImpl))
             .Item("operations").BeginMap()
-                .DoFor(rootElementSnapshot->OperationIdToElement, buildOperationsInfo)
-                .DoFor(rootElementSnapshot->DisabledOperationIdToElement, buildOperationsInfo)
+                .DoFor(treeSnapshotImpl->EnabledOperationMap(), buildOperationsInfo)
+                .DoFor(treeSnapshotImpl->DisabledOperationMap(), buildOperationsInfo)
             .EndMap();
     }
 
-    void DoBuildEssentialPoolsInformation(const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
+    void DoBuildEssentialPoolsInformation(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
-        const auto& poolMap = rootElementSnapshot->PoolNameToElement;
+        const auto& poolMap = treeSnapshotImpl->PoolMap();
         fluent
             .Item("pool_count").Value(poolMap.size())
-            .Item("pools").DoMapFor(poolMap, [&] (TFluentMap fluent, const TRawPoolMap::value_type& pair) {
+            .Item("pools").DoMapFor(poolMap, [&] (TFluentMap fluent, const TNonOwningPoolMap::value_type& pair) {
                 const auto& [poolName, pool] = pair;
                 fluent
                     .Item(poolName).BeginMap()
-                        .Do(BIND(&TFairShareTree::DoBuildEssentialElementYson, Unretained(this), Unretained(pool), rootElementSnapshot))
+                        .Do(BIND(&TFairShareTree::DoBuildEssentialElementYson, Unretained(this), Unretained(pool), treeSnapshotImpl))
                     .EndMap();
             });
     }
 
-    void DoBuildEssentialOperationProgress(const TOperationElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
+    void DoBuildEssentialOperationProgress(const TOperationElement* element, const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
         fluent
-            .Do(BIND(&TFairShareTree::DoBuildEssentialElementYson, Unretained(this), Unretained(element), rootElementSnapshot));
+            .Do(BIND(&TFairShareTree::DoBuildEssentialElementYson, Unretained(this), Unretained(element), treeSnapshotImpl));
     }
 
-    void DoBuildEssentialElementYson(const TSchedulerElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
+    void DoBuildEssentialElementYson(const TSchedulerElement* element, const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
         const auto& attributes = element->Attributes();
 

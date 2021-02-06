@@ -30,6 +30,8 @@ DECLARE_REFCOUNTED_STRUCT(IFairShareTreeHost)
 
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationController)
 DECLARE_REFCOUNTED_STRUCT(IFairShareTreeSnapshot)
+DECLARE_REFCOUNTED_CLASS(TFairShareTreeSnapshotImpl);
+DECLARE_REFCOUNTED_CLASS(TFairShareTreeProfiler)
 
 struct ISchedulerTreeHost;
 
@@ -40,6 +42,12 @@ class TJobMetrics;
 using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, std::pair<i64, NProfiling::TGauge>>;
 using TAbortedJobCounter = THashMap<std::tuple<EJobType, EJobState, EAbortReason>, NProfiling::TCounter>;
 using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterruptReason>, NProfiling::TCounter>;
+
+using TNonOwningOperationElementMap = THashMap<TOperationId, TOperationElement*>;
+using TOperationElementMap = THashMap<TOperationId, TOperationElementPtr>;
+
+using TNonOwningPoolMap = THashMap<TString, TPool*>;
+using TPoolMap = THashMap<TString, TPoolPtr>;
 
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)

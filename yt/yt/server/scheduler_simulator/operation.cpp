@@ -113,6 +113,11 @@ void TOperation::SetState(NScheduler::EOperationState state)
 {
     State_ = state;
 }
+    
+bool TOperation::IsTreeErased(const TString& treeId) const
+{
+    YT_UNIMPLEMENTED();
+}
 
 void TOperation::EraseTrees(const std::vector<TString>& treeIds)
 {
@@ -122,12 +127,6 @@ void TOperation::EraseTrees(const std::vector<TString>& treeIds)
 std::optional<NScheduler::TJobResources> TOperation::GetInitialAggregatedMinNeededResources() const
 {
     return std::nullopt;
-}
-
-bool TOperation::IsRunningInStrategy() const
-{
-    // NB(renadeen): return value doesn't matter in simulator.
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

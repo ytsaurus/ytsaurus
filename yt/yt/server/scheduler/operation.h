@@ -140,10 +140,10 @@ struct IOperationStrategyHost
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
 
-    virtual bool IsRunningInStrategy() const = 0;
+    virtual bool IsTreeErased(const TString& treeId) const = 0;
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) = 0;
-
+    
     virtual std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const = 0;
 
 protected:
@@ -195,12 +195,11 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(bool, Suspended);
 
+public:
     // By default, all new operations are not activated.
     // When operation passes admission control and scheduler decides
     // that it's ready to start jobs, it is marked as active.
-public:
-    virtual bool IsRunningInStrategy() const override;
-
+    bool IsRunningInStrategy() const;
     void SetRunningInStrategy();
 
     //! User-supplied transaction where the operation resides.
@@ -349,6 +348,8 @@ public:
     TControllerAgentPtr GetAgentOrCancelFiber();
     TControllerAgentPtr FindAgent();
     TControllerAgentPtr GetAgentOrThrow();
+
+    virtual bool IsTreeErased(const TString& treeId) const override;
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) override;
 
