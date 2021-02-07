@@ -356,8 +356,7 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
         TDuration::MilliSeconds(100));
     keepAliveExecutor->Start();
 
-    auto allStatistics = WaitFor(context->GetClient()->GetColumnarStatistics(Paths, Options))
-        .ValueOrThrow();
+    auto allStatisticsOrError = WaitFor(context->GetClient()->GetColumnarStatistics(Paths, Options));
 
     {
         auto guard = Guard(*writeLock);
@@ -368,6 +367,8 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
         .ThrowOnError();
     WaitFor(keepAliveExecutor->Stop())
         .ThrowOnError();
+
+    auto allStatistics = allStatisticsOrError.ValueOrThrow();
 
     YT_VERIFY(allStatistics.size() == Paths.size());
     for (int index = 0; index < allStatistics.size(); ++index) {

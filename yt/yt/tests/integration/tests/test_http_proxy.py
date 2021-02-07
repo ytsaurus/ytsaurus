@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 
 def try_parse_yt_error(rsp):
     if "X-YT-Error" in rsp.headers:
+        assert "X-YT-Framing" not in rsp.headers
         raise YtResponseError(json.loads(rsp.headers.get("X-YT-Error")))
     rsp.raise_for_status()
 
@@ -310,7 +311,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
             "{}/api/v4/{}".format(self._get_proxy_address(), command_name),
             headers=headers,
         )
-        rsp.raise_for_status()
+        try_parse_yt_error(rsp)
         assert "X-YT-Framing" in rsp.headers
         unframed_content = self._unframe_content(rsp.content)
         keep_alive_frame_count = sum(name == "keep_alive" for name, frame in unframed_content)
@@ -354,6 +355,13 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         response_yson = list(yson.loads(response, yson_type="list_fragment"))
         assert rows_chunk * chunk_count == response_yson
 
+        params = {
+            "path": self.SUSPENDING_TABLE + "-nonexistent",
+            "output_format": "yson",
+        }
+        with pytest.raises(YtResponseError):
+            self._execute_command("GET", "read_table", params, extra_headers=headers)
+
     @authors("levysotsky")
     def test_get_table_columnar_statistics(self):
         create("table", self.SUSPENDING_TABLE)
@@ -365,6 +373,13 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         statistics = yson.loads(response)
         assert len(statistics) == 1
         assert "column_data_weights" in statistics[0]
+
+        params = {
+            # Attention: missing column selector causes error.
+            "paths": [self.SUSPENDING_TABLE],
+        }
+        with pytest.raises(YtResponseError):
+            self._execute_command("GET", "get_table_columnar_statistics", params)
 
 
 class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
