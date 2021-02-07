@@ -56,7 +56,7 @@ TStringBuf TUtf8Transcoder::Decode(TStringBuf str)
             if (!isAscii) {
                 Buffer_.push_back(str[i]);
             }
-        } else if ((str[i] & '\xFC') == '\xC0') {
+        } else if ((str[i] & '\xFC') == '\xC0' && i + 1 < str.size()) {
             if (isAscii) {
                 Buffer_.resize(i);
                 std::copy(str.data(), str.data() + i, Buffer_.data());
