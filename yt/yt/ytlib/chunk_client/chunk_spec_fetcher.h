@@ -51,6 +51,8 @@ public:
     //! Returns fetched chunk specs ordered by table index.
     std::vector<NProto::TChunkSpec> GetChunkSpecsOrderedNaturally() const;
 
+    NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
+
 private:
     NApi::NNative::IClientPtr Client_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;

@@ -523,6 +523,16 @@ int TTableSchema::GetColumnCount() const
     return static_cast<int>(Columns_.size());
 }
 
+std::vector<TString> TTableSchema::GetColumnNames() const
+{
+    std::vector<TString> result;
+    result.reserve(Columns_.size());
+    for (const auto& column : Columns_) {
+        result.push_back(column.Name());
+    }
+    return result;
+}
+
 int TTableSchema::GetKeyColumnCount() const
 {
     return KeyColumnCount_;

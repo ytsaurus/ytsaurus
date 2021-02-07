@@ -126,6 +126,11 @@ void TMasterChunkSpecFetcher::Add(
         state.ReqCount - oldReqCount);
 }
 
+NNodeTrackerClient::TNodeDirectoryPtr TMasterChunkSpecFetcher::GetNodeDirectory() const
+{
+    return NodeDirectory_;
+}
+
 std::vector<NProto::TChunkSpec> TMasterChunkSpecFetcher::GetChunkSpecsOrderedNaturally() const
 {
     std::vector<std::vector<NProto::TChunkSpec>> chunkSpecsPerTable(TableCount_);

@@ -22,6 +22,8 @@
 
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
+#include <yt/ytlib/table_client/table_columnar_statistics_cache.h>
+
 #include <yt/client/table_client/name_table.h>
 
 #include <yt/client/ypath/rich.h>
@@ -45,6 +47,8 @@
 #include <Parsers/queryToString.h>
 #include <Processors/Sources/SourceFromInputStream.h>
 #include <Processors/Sources/RemoteSource.h>
+
+#include <library/cpp/iterator/functools.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -638,6 +642,75 @@ public:
                 QueryContext_->Client(),
                 QueryContext_->Logger);
         }
+    }
+
+    virtual std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const
+    {
+        TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
+
+        for (const auto& table : Tables_) {
+            if (table->Dynamic) {
+                YT_LOG_DEBUG(
+                    "Storage contains dynamic tables, returning empty columnar statistics (Table: %v)",
+                    table->Path);
+                return {};
+            }
+        }
+
+        auto tableColumnarStatisticsCache = QueryContext_->Host->GetTableColumnarStatisticsCache();
+        std::vector<TTableColumnarStatisticsCache::TRequest> requests;
+        for (const auto& table : Tables_) {
+            requests.push_back(TTableColumnarStatisticsCache::TRequest{
+                .ObjectId = table->ObjectId,
+                .ExternalCellTag = table->ExternalCellTag,
+                .ChunkCount = table->ChunkCount,
+                .Schema = table->Schema,
+                .MinRevision = table->Revision,
+            });
+        }
+        auto asyncResult = tableColumnarStatisticsCache->GetFreshStatistics(std::move(requests));
+        auto result = WaitFor(asyncResult);
+
+        if (!result.IsOK()) {
+            YT_LOG_WARNING(result, "Error getting table columnar statistics");
+            return {};
+        }
+
+        for (const auto& [table, statisticsOrError] : Zip(Tables_, result.Value())) {
+            if (!statisticsOrError.IsOK()) {
+                YT_LOG_WARNING(result, "Error getting table columnar statistics for particular table (Table: %v)", table->Path);
+                return {};
+            }
+        }
+
+        std::unordered_map<std::string, DB::ColumnSize> columnSizes;
+        THashMap<std::string, ui64> columnDataWeights;
+        for (const auto& statisticsOrError : result.Value()) {
+            YT_VERIFY(statisticsOrError.IsOK());
+            const auto& statistics = statisticsOrError.Value();
+            for (const auto& [columnName, dataWeight] : statistics.ColumnDataWeights) {
+                // We only set data_compressed as it is used in WHERE to PREWHERE CH optimizer.
+                columnSizes[columnName].data_compressed += dataWeight;
+                columnDataWeights[columnName] += dataWeight;
+            }
+        }
+
+        std::vector<std::pair<std::string, ui64>> columnDataWeightsForLogging(columnDataWeights.begin(), columnDataWeights.end());
+        std::sort(
+            columnDataWeightsForLogging.begin(),
+            columnDataWeightsForLogging.end(),
+            [] (const auto& lhs, const auto& rhs) {
+                return lhs.second > rhs.second;
+            });
+
+        constexpr int DefaultShrunkFormattableViewCount = 10;
+
+        YT_LOG_DEBUG(
+            "Column data weights calculated (Tables: %v, ColumnDataWeights: %v)",
+            MakeShrunkFormattableView(Tables_, TDefaultFormatter(), DefaultShrunkFormattableViewCount),
+            MakeShrunkFormattableView(columnDataWeightsForLogging, TDefaultFormatter(), DefaultShrunkFormattableViewCount));
+
+        return columnSizes;
     }
 
     // IStorageDistributor overrides.

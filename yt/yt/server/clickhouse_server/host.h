@@ -93,6 +93,8 @@ public:
     std::shared_ptr<DB::IDatabase> CreateYtDatabase() const;
     void SetContext(DB::Context* context);
 
+    NTableClient::TTableColumnarStatisticsCachePtr GetTableColumnarStatisticsCache() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

@@ -55,7 +55,8 @@ class TestInputFetching(ClickHouseTestBase):
             with Clique(
                     1,
                     config_patch={
-                        "yt": {"settings": {"enable_computed_column_deduction": enable_computed_column_deduction}}
+                        "yt": {"settings": {"enable_computed_column_deduction": enable_computed_column_deduction}},
+                        "clickhouse": {"settings": {"optimize_move_to_prewhere": 0}},
                     },
             ) as clique:
                 def correct_row_count(row_count):
@@ -221,7 +222,7 @@ class TestInputFetching(ClickHouseTestBase):
         write_table("//tmp/t2", {"a": 18, "c": 2.71})
         write_table("//tmp/t3", {"a": 18, "c": 2.71})
 
-        with Clique(1) as clique:
+        with Clique(1, config_patch={"clickhouse": {"settings": {"optimize_move_to_prewhere": 0}}}) as clique:
             # Column 'a' is sorted.
             clique.make_query_and_validate_row_count(
                 'select * from concatYtTables("//tmp/t1", "//tmp/t2") where a > 18', exact=1

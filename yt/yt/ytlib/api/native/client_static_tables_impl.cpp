@@ -51,14 +51,15 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
 
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto fetcher = New<TColumnarStatisticsFetcher>(
-        options.FetcherConfig,
-        nodeDirectory,
         CreateSerializedInvoker(GetCurrentInvoker()),
-        nullptr /* scraper */,
-        this,
-        options.FetcherMode,
-        true, /* storeChunkStatistics */
-        Logger);
+        this /* client */,
+        TColumnarStatisticsFetcher::TOptions{
+            .Config = options.FetcherConfig,
+            .NodeDirectory = nodeDirectory,
+            .Mode = options.FetcherMode,
+            .StoreChunkStatistics = true,
+            .Logger = Logger,
+        });
 
     for (const auto& path : paths) {
         YT_LOG_INFO("Collecting table input chunks (Path: %v)", path);

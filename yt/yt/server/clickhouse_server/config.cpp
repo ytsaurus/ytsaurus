@@ -253,6 +253,9 @@ TYtConfig::TYtConfig()
     RegisterParameter("table_attribute_cache", TableAttributeCache)
         .DefaultNew();
 
+    RegisterParameter("table_columnar_statistics_cache", TableColumnarStatisticsCache)
+        .DefaultNew();
+
     RegisterPreprocessor([&] {
         TableAttributeCache->ExpireAfterAccessTime = TDuration::Minutes(2);
         TableAttributeCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(20);
@@ -269,6 +272,12 @@ TYtConfig::TYtConfig()
         TableReader->BlockRpcHedgingDelay = TDuration::MilliSeconds(50);
         TableReader->MetaRpcHedgingDelay = TDuration::MilliSeconds(10);
         TableReader->CancelPrimaryBlockRpcRequestOnHedging = true;
+
+        // Disable background updates since we deal with consistency issues by checking cached table revision.
+        TableColumnarStatisticsCache->RefreshTime = std::nullopt;
+        TableColumnarStatisticsCache->ExpireAfterSuccessfulUpdateTime = TDuration::Hours(6);
+        TableColumnarStatisticsCache->ExpireAfterAccessTime = TDuration::Hours(6);
+
     });
 
     RegisterPostprocessor([&] {
