@@ -291,6 +291,7 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
             .DoIf(configNode.operator bool(), [&] (auto fluent) {
                 fluent.Item("applied_config").Value(configNode);
             })
+            .Item("effective_config").Value(Config_)
             .Item("last_config_update_time").Value(lastConfigUpdateTime)
             .Item("last_config_change_time").Value(lastConfigChangeTime)
         .EndMap();
