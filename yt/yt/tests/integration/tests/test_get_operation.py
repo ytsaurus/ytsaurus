@@ -39,6 +39,7 @@ def get_running_job_count(op_id):
 
 
 class TestGetOperation(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

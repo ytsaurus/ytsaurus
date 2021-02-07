@@ -29,6 +29,8 @@ def _set_sys_config(path, value):
 
 
 class TestCypress(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 3
+
     NUM_MASTERS = 3
     NUM_NODES = 0
 

@@ -10,6 +10,7 @@ from time import sleep
 
 
 class TestSchedulerAutoMerge(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 8
     NUM_MASTERS = 1
     NUM_NODES = 4
     NUM_SCHEDULERS = 1

@@ -103,6 +103,8 @@ class TabletActionsBase(DynamicTablesBase):
 
 
 class TestTabletActions(TabletActionsBase):
+    NUM_TEST_PARTITIONS = 3
+
     @authors("savrus")
     def test_create_action_permissions(self):
         create_user("u")

@@ -178,6 +178,8 @@ class DynamicTablesBase(YTEnvSetup):
 
 
 class DynamicTablesSingleCellBase(DynamicTablesBase):
+    NUM_TEST_PARTITIONS = 2
+
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "job_controller": {
@@ -769,6 +771,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
 
 class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
+    NUM_TEST_PARTITIONS = 8
+
     @authors("babenko")
     def test_force_unmount_on_remove(self):
         sync_create_cells(1)

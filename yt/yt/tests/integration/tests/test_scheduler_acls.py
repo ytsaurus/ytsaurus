@@ -22,6 +22,7 @@ def _abort_op(**kwargs):
 
 
 class TestSchedulerAcls(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 3
     USE_DYNAMIC_TABLES = True
 
     NUM_MASTERS = 1

@@ -28,6 +28,7 @@ from datetime import timedelta
 
 
 class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
+    NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1

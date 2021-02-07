@@ -22,6 +22,8 @@ import __builtin__
 
 
 class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 2
+
     NUM_MASTERS = 1
     NUM_NODES = 9
     NUM_SCHEDULERS = 1
