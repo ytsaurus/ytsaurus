@@ -22,6 +22,8 @@ public:
      */
     void Increment(i64 delta = 1) const;
 
+    explicit operator bool() const;
+
 private:
     friend class TRegistry;
     friend struct TTesting;
@@ -36,6 +38,8 @@ class TTimeCounter
 public:
     void Add(TDuration delta) const;
 
+    explicit operator bool() const;
+
 private:
     friend class TRegistry;
 
@@ -48,6 +52,8 @@ class TGauge
 {
 public:
     void Update(double value) const;
+
+    explicit operator bool() const;
 
 private:
     friend class TRegistry;
@@ -63,6 +69,8 @@ class TTimeGauge
 public:
     void Update(TDuration value) const;
 
+    explicit operator bool() const;
+
 private:
     friend class TRegistry;
 
@@ -75,6 +83,8 @@ class TSummary
 {
 public:
     void Record(double value) const;
+
+    explicit operator bool() const;
 
 private:
     friend class TRegistry;
@@ -89,6 +99,8 @@ class TEventTimer
 public:
     void Record(TDuration value) const;
 
+    explicit operator bool() const;
+
 private:
     friend class TRegistry;
 
@@ -100,7 +112,8 @@ private:
 class TEventTimerGuard
 {
 public:
-    TEventTimerGuard(TEventTimer timer);
+    explicit TEventTimerGuard(TEventTimer timer);
+    TEventTimerGuard(TEventTimerGuard&& other) = default;
     ~TEventTimerGuard();
 
 private:
@@ -175,7 +188,7 @@ public:
 
     //! WithSparse sets sparse flags on all sensors created using returned registry.
     /*!
-     *  Sparse sensors with zero value are omitted from profiling results. 
+     *  Sparse sensors with zero value are omitted from profiling results.
      */
     TRegistry WithSparse() const;
 
