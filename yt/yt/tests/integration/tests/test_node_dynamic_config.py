@@ -199,7 +199,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
         set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[2]), ["nodeA", "nodeB"])
 
         wait(lambda: self.get_dynamic_config_annotation(nodes[0]) == "foo")
-        wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "default")
+        wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "")
         wait(lambda: self.get_dynamic_config_annotation(nodes[2]) == "foo")
 
         config = {
