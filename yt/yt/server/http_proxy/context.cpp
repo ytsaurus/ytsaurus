@@ -896,6 +896,7 @@ void TContext::Finalize()
         if (!Error_.IsOK()) {
             Response_->GetHeaders()->Remove("Content-Encoding");
             Response_->GetHeaders()->Remove("Vary");
+            Response_->GetHeaders()->Remove("X-YT-Framing");
 
             FillYTErrorHeaders(Response_, Error_);
             DispatchJson([&] (auto producer) {
