@@ -1164,7 +1164,7 @@ void TNodeShard::ReleaseJob(TJobId jobId, TReleaseJobFlags releaseFlags)
                 execNode->GetDefaultAddress(),
                 releaseFlags);
             auto& recentlyFinishedJobInfo = it->second;
-            recentlyFinishedJobInfo.ReleaseFlags = releaseFlags;
+            recentlyFinishedJobInfo.ReleaseFlags = std::move(releaseFlags);
         }
     } else {
         YT_LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
