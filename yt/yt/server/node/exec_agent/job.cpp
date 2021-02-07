@@ -1252,7 +1252,7 @@ private:
                 Slot_->CleanProcesses();
             } catch (const std::exception& ex) {
                 // Errors during cleanup phase do not affect job outcome.
-                YT_LOG_ERROR(ex, "Failed to clean processed (SlotIndex: %v)", Slot_->GetSlotIndex());
+                YT_LOG_ERROR(ex, "Failed to clean processes (SlotIndex: %v)", Slot_->GetSlotIndex());
             }
         }
 
