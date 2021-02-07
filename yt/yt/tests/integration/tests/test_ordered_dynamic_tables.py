@@ -75,6 +75,8 @@ class TestOrderedDynamicTablesBase(DynamicTablesBase):
 
 
 class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
+    NUM_TEST_PARTITIONS = 2
+
     @authors("babenko")
     def test_mount(self):
         sync_create_cells(1)

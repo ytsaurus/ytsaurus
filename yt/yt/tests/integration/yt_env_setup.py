@@ -343,6 +343,8 @@ class YTEnvSetup(object):
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
+        cls._start_time = time()
+
         need_suid = False
         cls.cleanup_root_files = False
         if cls.USE_PORTO:
@@ -533,6 +535,11 @@ class YTEnvSetup(object):
 
         yt_commands.terminate_drivers()
         gc.collect()
+
+        class_duration = time() - cls._start_time
+        if class_duration > 5 * 60:
+            pytest.fail("Test class execution took more that 5 minutes ({} seconds).\n".format(class_duration) + 
+                "Please split it into smaller chunks, using NUM_TEST_PARTITIONS option.")
 
     def setup_method(self, method):
         for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):

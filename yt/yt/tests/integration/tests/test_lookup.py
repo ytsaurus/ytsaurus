@@ -516,6 +516,8 @@ class TestLookup(TestSortedDynamicTablesBase):
 
 
 class TestDataNodeLookup(TestSortedDynamicTablesBase):
+    NUM_TEST_PARTITIONS = 2
+
     schema = [
         {"name": "key", "type": "int64", "sort_order": "ascending"},
         {"name": "value", "type": "string"},

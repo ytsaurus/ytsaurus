@@ -19,6 +19,7 @@ from copy import deepcopy
 
 @authors("ifsmirnov")
 class TestBulkInsert(DynamicTablesBase):
+    NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1

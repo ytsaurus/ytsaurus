@@ -11,6 +11,7 @@ import random
 
 
 class TestJournals(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 3
     NUM_MASTERS = 1
     NUM_NODES = 5
 

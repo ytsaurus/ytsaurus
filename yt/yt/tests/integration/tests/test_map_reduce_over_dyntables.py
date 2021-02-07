@@ -16,6 +16,8 @@ import base64
 
 
 class TestMapOnDynamicTables(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 3
+
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

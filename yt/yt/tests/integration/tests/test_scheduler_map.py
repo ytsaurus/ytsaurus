@@ -22,6 +22,7 @@ import base64
 
 
 class TestSchedulerMapCommands(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
