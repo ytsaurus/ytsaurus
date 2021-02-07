@@ -365,7 +365,6 @@ message TReqLookupRows
 {
     required string path = 1;
 
-    //optional NYT.NProto.TGuid transaction_id = 5;
     optional uint64 timestamp = 3 [default = 0x3fffffffffffff01];
 
     repeated string columns = 2;
@@ -379,6 +378,8 @@ message TReqLookupRows
     optional EMultiplexingBand multiplexing_band = 8;
 
     required TRowsetDescriptor rowset_descriptor = 200;
+
+    reserved 5;
 }
 
 message TRspLookupRows
@@ -401,7 +402,6 @@ message TReqVersionedLookupRows
 {
     required string path = 1;
 
-    //optional NYT.NProto.TGuid transaction_id = 5;
     optional uint64 timestamp = 3 [default = 0x3fffffffffffff01];
 
     repeated string columns = 2;
@@ -417,6 +417,8 @@ message TReqVersionedLookupRows
     optional EMultiplexingBand multiplexing_band = 8;
 
     required TRowsetDescriptor rowset_descriptor = 200;
+
+    reserved 5;
 }
 
 message TRspVersionedLookupRows

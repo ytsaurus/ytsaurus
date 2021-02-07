@@ -262,7 +262,7 @@ IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
         case EFormatType::Json:
             return CreateAdaptedWriterForJson<IUnversionedRowsetWriter, TSchemafulWriter>(format.Attributes(), std::move(schema), std::move(output));
         case EFormatType::SchemafulDsv:
-            return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), schema, std::move(output));
+            return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), std::move(schema), std::move(output));
         case EFormatType::WebJson: {
             auto webJsonFormatConfig = ConvertTo<TWebJsonFormatConfigPtr>(&format.Attributes());
             webJsonFormatConfig->SkipSystemColumns = false;
