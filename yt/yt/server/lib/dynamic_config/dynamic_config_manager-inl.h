@@ -208,19 +208,20 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
                 matchingConfigFilter = configFilter;
             }
         }
+    } else {
+        matchedConfigNode = configNode;
+    }
 
-        if (!matchedConfigNode) {
-            if (Config_->IgnoreConfigAbsence) {
-                return false;
-            }
-
+    if (!matchedConfigNode) {
+        if (Config_->IgnoreConfigAbsence) {
+            YT_LOG_DEBUG("No suitable dynamic config was found, using empty one");
+            matchedConfigNode = NYTree::GetEphemeralNodeFactory()->CreateMap();
+        } else {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::NoSuitableDynamicConfig,
                 "No suitable dynamic config was found")
                 << TErrorAttribute("dynamic_config_name", Options_.Name);
         }
-    } else {
-        matchedConfigNode = configNode;
     }
 
     if (AreNodesEqual(matchedConfigNode, AppliedConfigNode_)) {
