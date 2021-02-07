@@ -1,19 +1,36 @@
 #include "columnar_statistics.h"
 
+#include <library/cpp/iterator/functools.h>
+
 #include <numeric>
 
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNamedColumnarStatistics& TNamedColumnarStatistics::operator+=(const TNamedColumnarStatistics& other)
+{
+    for (const auto& [columnName, dataWeight] : other.ColumnDataWeights) {
+        ColumnDataWeights[columnName] += dataWeight;
+    }
+    if (other.TimestampTotalWeight) {
+        TimestampTotalWeight = TimestampTotalWeight.value_or(0) + *other.TimestampTotalWeight;
+    }
+    LegacyChunkDataWeight += other.LegacyChunkDataWeight;
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TColumnarStatistics& TColumnarStatistics::operator +=(const TColumnarStatistics& other)
 {
-    if (other.ColumnDataWeights.empty()) {
-        return *this;
-    }
-
-    for (int index = 0; index < ColumnDataWeights.size(); ++index) {
-        ColumnDataWeights[index] += other.ColumnDataWeights[index];
+    if (ColumnDataWeights.empty()) {
+        ColumnDataWeights = other.ColumnDataWeights;
+    } else if (!other.ColumnDataWeights.empty()) {
+        YT_VERIFY(ColumnDataWeights.size() == other.ColumnDataWeights.size());
+        for (int index = 0; index < ColumnDataWeights.size(); ++index) {
+            ColumnDataWeights[index] += other.ColumnDataWeights[index];
+        }
     }
     if (other.TimestampTotalWeight) {
         TimestampTotalWeight = TimestampTotalWeight.value_or(0) + *other.TimestampTotalWeight;
@@ -34,6 +51,19 @@ TLightweightColumnarStatistics TColumnarStatistics::MakeLightweightStatistics() 
         .TimestampTotalWeight = TimestampTotalWeight,
         .LegacyChunkDataWeight = LegacyChunkDataWeight
     };
+}
+
+TNamedColumnarStatistics TColumnarStatistics::MakeNamedStatistics(const std::vector<TString>& names) const
+{
+    TNamedColumnarStatistics result;
+    result.TimestampTotalWeight = TimestampTotalWeight;
+    result.LegacyChunkDataWeight = LegacyChunkDataWeight;
+
+    for (const auto& [name, columnDataWeight] : Zip(names, ColumnDataWeights)) {
+        result.ColumnDataWeights[name] = columnDataWeight;
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

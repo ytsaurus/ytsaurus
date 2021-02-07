@@ -5192,14 +5192,15 @@ void TOperationControllerBase::FetchInputTables()
     queryOptions.RangeExpansionLimit = Config->MaxRangesOnTable;
 
     auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
-        Config->Fetcher,
-        InputNodeDirectory_,
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
-        CreateFetcherChunkScraper(),
         InputClient,
-        EColumnarStatisticsFetcherMode::Fallback,
-        /*storeChunkStatistics=*/false,
-        Logger);
+        TColumnarStatisticsFetcher::TOptions{
+            .Config = Config->Fetcher,
+            .NodeDirectory = InputNodeDirectory_,
+            .ChunkScraper = CreateFetcherChunkScraper(),
+            .Mode = EColumnarStatisticsFetcherMode::Fallback,
+            .Logger = Logger,
+        });
 
     auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
         InputClient,
@@ -6111,14 +6112,15 @@ void TOperationControllerBase::ValidateUserFileSizes()
 {
     YT_LOG_INFO("Validating user file sizes");
     auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
-        Config->Fetcher,
-        InputNodeDirectory_,
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
-        CreateFetcherChunkScraper(),
         InputClient,
-        EColumnarStatisticsFetcherMode::Fallback,
-        /*storeChunkStatistics=*/false,
-        Logger);
+        TColumnarStatisticsFetcher::TOptions{
+            .Config = Config->Fetcher,
+            .NodeDirectory = InputNodeDirectory_,
+            .ChunkScraper = CreateFetcherChunkScraper(),
+            .Mode = EColumnarStatisticsFetcherMode::Fallback,
+            .Logger = Logger,
+        });
 
     // Collect columnar statistics for table files with column selectors.
     for (auto& [_, files] : UserJobFiles_) {

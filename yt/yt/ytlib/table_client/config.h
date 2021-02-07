@@ -7,6 +7,8 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/config.h>
 
+#include <yt/client/chunk_client/config.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,6 +70,35 @@ class TTableReaderOptions
 { };
 
 DEFINE_REFCOUNTED_TYPE(TTableReaderOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableColumnarStatisticsCacheConfig
+    : public TAsyncExpiringCacheConfig
+{
+public:
+    // Two fields below are for the chunk spec fetcher.
+    int MaxChunksPerFetch;
+    int MaxChunksPerLocateRequest;
+
+    NChunkClient::TFetcherConfigPtr Fetcher;
+
+    EColumnarStatisticsFetcherMode ColumnarStatisticsFetcherMode;
+
+    TTableColumnarStatisticsCacheConfig()
+    {
+        RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+            .Default(100'000);
+        RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
+            .Default(10'000);
+        RegisterParameter("fetcher", Fetcher)
+            .DefaultNew();
+        RegisterParameter("columnar_statistics_fetcher_mode", ColumnarStatisticsFetcherMode)
+            .Default(EColumnarStatisticsFetcherMode::Fallback);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableColumnarStatisticsCacheConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

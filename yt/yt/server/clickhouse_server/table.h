@@ -39,6 +39,8 @@ struct TTable
     TTable(NYPath::TRichYPath path, const NYTree::IAttributeDictionaryPtr& attributes);
 };
 
+TString ToString(const TTablePtr& table);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Fetches tables for given paths.

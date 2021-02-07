@@ -21,23 +21,17 @@ using namespace NLogging;
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnarStatisticsFetcher::TColumnarStatisticsFetcher(
-    TFetcherConfigPtr config,
-    TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    IFetcherChunkScraperPtr chunkScraper,
     NNative::IClientPtr client,
-    EColumnarStatisticsFetcherMode mode,
-    bool storeChunkStatistics,
-    const TLogger& logger)
+    TOptions options)
     : TFetcherBase(
-        config,
-        nodeDirectory,
+        options.Config,
+        options.NodeDirectory,
         invoker,
-        chunkScraper,
+        options.ChunkScraper,
         client,
-        logger)
-    , Mode_(mode)
-    , StoreChunkStatistics_(storeChunkStatistics)
+        options.Logger)
+    , Options_(std::move(options))
     , ColumnFilterDictionary_(/*sortColumns=*/false)
 { }
 
@@ -55,7 +49,7 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
-    // Use nametable to replace all column names with their ids across the whole rpc request message.
+    // Use name table to replace all column names with their ids across the whole rpc request message.
     TNameTablePtr nameTable = New<TNameTable>();
 
     auto req = proxy.GetColumnarStatistics();
@@ -114,19 +108,31 @@ void TColumnarStatisticsFetcher::OnResponse(
                 statistics.TimestampTotalWeight = subresponse.timestamp_total_weight();
             }
         }
-        if (StoreChunkStatistics_) {
+        if (Options_.StoreChunkStatistics) {
             ChunkStatistics_[chunkIndex] = statistics;
         } else {
             LightweightChunkStatistics_[chunkIndex] = statistics.MakeLightweightStatistics();
+        }
+        if (Options_.AggregatePerTableStatistics) {
+            auto tableIndex = Chunks_[chunkIndex]->GetTableIndex();
+            YT_VERIFY(tableIndex < TableStatistics_.size());
+            TableStatistics_[tableIndex] += statistics;
         }
     }
 }
 
 const std::vector<TColumnarStatistics>& TColumnarStatisticsFetcher::GetChunkStatistics() const
 {
-    YT_VERIFY(StoreChunkStatistics_);
+    YT_VERIFY(Options_.StoreChunkStatistics);
 
     return ChunkStatistics_;
+}
+
+const std::vector<TColumnarStatistics>& TColumnarStatisticsFetcher::GetTableStatistics() const
+{
+    YT_VERIFY(Options_.AggregatePerTableStatistics);
+
+    return TableStatistics_;
 }
 
 void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
@@ -134,7 +140,7 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
     for (int index = 0; index < Chunks_.size(); ++index) {
         const auto& chunk = Chunks_[index];
         TLightweightColumnarStatistics statistics;
-        if (StoreChunkStatistics_) {
+        if (Options_.StoreChunkStatistics) {
             statistics = ChunkStatistics_[index].MakeLightweightStatistics();
         } else {
             statistics = LightweightChunkStatistics_[index];
@@ -169,10 +175,10 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
 
 TFuture<void> TColumnarStatisticsFetcher::Fetch()
 {
-    if (StoreChunkStatistics_) {
+    if (Options_.StoreChunkStatistics) {
         ChunkStatistics_.resize(Chunks_.size());
         for (int chunkIndex = 0; chunkIndex < Chunks_.size(); ++chunkIndex ) {
-            if (Chunks_[chunkIndex ]->IsDynamicStore()) {
+            if (Chunks_[chunkIndex]->IsDynamicStore()) {
                 ChunkStatistics_[chunkIndex] = TColumnarStatistics::MakeEmpty(GetColumnNames(chunkIndex).size());
             }
         }
@@ -180,7 +186,7 @@ TFuture<void> TColumnarStatisticsFetcher::Fetch()
         LightweightChunkStatistics_.resize(Chunks_.size());
     }
 
-    if (Mode_ == EColumnarStatisticsFetcherMode::FromMaster) {
+    if (Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster) {
         return VoidFuture;
     }
 
@@ -194,30 +200,42 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TStr
         return;
     }
 
+    if (Options_.AggregatePerTableStatistics) {
+        if (chunk->GetTableIndex() >= TableStatistics_.size()) {
+            TableStatistics_.resize(chunk->GetTableIndex() + 1);
+        }
+    }
+
     if (columnNames.empty() || chunk->IsDynamicStore()) {
         // Do not fetch anything. The less rpc requests, the better.
         Chunks_.emplace_back(std::move(chunk));
     } else {
         const NProto::THeavyColumnStatisticsExt* heavyColumnStatistics = nullptr;
-        if (Mode_ == EColumnarStatisticsFetcherMode::FromMaster || Mode_ == EColumnarStatisticsFetcherMode::Fallback) {
+        if (Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster ||
+            Options_.Mode == EColumnarStatisticsFetcherMode::Fallback)
+        {
             heavyColumnStatistics = chunk->HeavyColumnarStatisticsExt().get();
         }
-        if (heavyColumnStatistics || Mode_ == EColumnarStatisticsFetcherMode::FromMaster) {
+        if (heavyColumnStatistics || Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster) {
             TColumnarStatistics columnarStatistics;
             if (heavyColumnStatistics) {
                 columnarStatistics = GetColumnarStatistics(*heavyColumnStatistics, columnNames);
             } else {
-                YT_VERIFY(Mode_ == EColumnarStatisticsFetcherMode::FromMaster);
+                YT_VERIFY(Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster);
                 columnarStatistics = TColumnarStatistics::MakeEmpty(columnNames.size());
                 columnarStatistics.LegacyChunkDataWeight = chunk->GetDataWeight();
             }
-            Chunks_.emplace_back(std::move(chunk));
-            if (StoreChunkStatistics_) {
+            Chunks_.emplace_back(chunk);
+            if (Options_.StoreChunkStatistics) {
                 ChunkStatistics_.resize(Chunks_.size());
                 ChunkStatistics_.back() = columnarStatistics;
             } else {
                 LightweightChunkStatistics_.resize(Chunks_.size());
                 LightweightChunkStatistics_.back() = columnarStatistics.MakeLightweightStatistics();
+            }
+            if (Options_.AggregatePerTableStatistics) {
+                YT_VERIFY(chunk->GetTableIndex() < TableStatistics_.size());
+                TableStatistics_[chunk->GetTableIndex()] += columnarStatistics;
             }
         } else {
             TFetcherBase::AddChunk(std::move(chunk));

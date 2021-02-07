@@ -212,14 +212,13 @@ private:
 
         if (Config_->UseColumnarStatistics) {
             auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
-                Config_->ChunkSliceFetcher,
-                /*nodeDirectory =*/ nullptr,
                 Invoker_,
-                /*chunkScraper =*/ nullptr,
                 Client_,
-                EColumnarStatisticsFetcherMode::FromMaster,
-                /*storeChunkStatistics =*/ false,
-                Logger);
+                TColumnarStatisticsFetcher::TOptions{
+                    .Config = Config_->ChunkSliceFetcher,
+                    .Mode = EColumnarStatisticsFetcherMode::FromMaster,
+                    .Logger = Logger,
+                });
 
             for (auto& resultStripe : ResultStripes_) {
                 for (auto& inputDataSlice : resultStripe->DataSlices) {

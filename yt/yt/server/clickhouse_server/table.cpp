@@ -43,6 +43,11 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
     Comparator = Schema->ToComparator();
 }
 
+TString ToString(const TTablePtr& table)
+{
+    return ToString(table->Path);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TTablePtr> FetchTables(

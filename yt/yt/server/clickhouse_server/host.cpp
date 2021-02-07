@@ -23,6 +23,8 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
+#include <yt/ytlib/table_client/table_columnar_statistics_cache.h>
+
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
@@ -419,6 +421,11 @@ public:
         return NYT::NClickHouseServer::CreateYtDatabase();
     }
 
+    NTableClient::TTableColumnarStatisticsCachePtr GetTableColumnarStatisticsCache() const
+    {
+        return TableColumnarStatisticsCache_;
+    }
+
 private:
     THost* Owner_;
     DB::Context* Context_ = nullptr;
@@ -444,6 +451,7 @@ private:
 
     TPermissionCachePtr PermissionCache_;
     TObjectAttributeCachePtr TableAttributeCache_;
+    NTableClient::TTableColumnarStatisticsCachePtr TableColumnarStatisticsCache_;
 
     TDiscoveryPtr Discovery_;
 
@@ -495,6 +503,13 @@ private:
             ControlInvoker_,
             Logger,
             ClickHouseYtProfiler.WithPrefix("/object_attribute_cache"));
+
+        TableColumnarStatisticsCache_ = New<NTableClient::TTableColumnarStatisticsCache>(
+            Config_->TableColumnarStatisticsCache,
+            CacheClient_,
+            FetcherInvoker_,
+            Logger,
+            ClickHouseYtProfiler.WithPrefix("/table_columnar_statistics_cache"));
     }
 
     void InitializeReaderMemoryManager()
@@ -801,6 +816,11 @@ std::shared_ptr<DB::IDatabase> THost::CreateYtDatabase() const
 void THost::SetContext(DB::Context* context)
 {
     Impl_->SetContext(context);
+}
+
+NTableClient::TTableColumnarStatisticsCachePtr THost::GetTableColumnarStatisticsCache() const
+{
+    return Impl_->GetTableColumnarStatisticsCache();
 }
 
 THost::~THost() = default;

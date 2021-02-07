@@ -105,6 +105,10 @@ DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
 
+DECLARE_REFCOUNTED_CLASS(TTableColumnarStatisticsCacheConfig)
+
+DECLARE_REFCOUNTED_CLASS(TTableColumnarStatisticsCache)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

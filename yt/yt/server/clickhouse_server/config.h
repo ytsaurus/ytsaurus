@@ -242,6 +242,9 @@ public:
     //! Config for cache which is used for getting table's attributes, like id, schema, external_cell_tag, etc.
     NObjectClient::TObjectAttributeCacheConfigPtr TableAttributeCache;
 
+    //! Config for cache which is used for WHERE to PREWHERE optimizator.
+    NTableClient::TTableColumnarStatisticsCacheConfigPtr TableColumnarStatisticsCache;
+
     TDuration ProcessListSnapshotUpdatePeriod;
 
     int WorkerThreadCount;

@@ -13,24 +13,36 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TColumnarStatisticsFetcherOptions
+{
+    NChunkClient::TFetcherConfigPtr Config;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+    NChunkClient::IFetcherChunkScraperPtr ChunkScraper;
+    EColumnarStatisticsFetcherMode Mode = EColumnarStatisticsFetcherMode::Fallback;
+    bool StoreChunkStatistics = false;
+    bool AggregatePerTableStatistics = false;
+    NLogging::TLogger Logger = TableClientLogger;
+};
+
 //! Fetches columnary statistics for a bunch of table chunks by requesting
 //! them directly from data nodes.
 class TColumnarStatisticsFetcher
     : public NChunkClient::TFetcherBase
 {
 public:
+    using TOptions = TColumnarStatisticsFetcherOptions;
+
     TColumnarStatisticsFetcher(
-        NChunkClient::TFetcherConfigPtr config,
-        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        NChunkClient::IFetcherChunkScraperPtr chunkScraper,
         NApi::NNative::IClientPtr client,
-        EColumnarStatisticsFetcherMode mode,
-        bool storeChunkStatistics,
-        const NLogging::TLogger& logger);
+        TOptions options = TOptions());
 
     //! Return per-chunk columnar statistics.
     const std::vector<TColumnarStatistics>& GetChunkStatistics() const;
+
+    //! Return per-table columnar statistics.
+    const std::vector<TColumnarStatistics>& GetTableStatistics() const;
+
     //! Set column selectivity factor for all processed chunks according to the fetched columnar statistics.
     void ApplyColumnSelectivityFactors() const;
 
@@ -39,8 +51,7 @@ public:
     void AddChunk(NChunkClient::TInputChunkPtr chunk, std::vector<TString> columnNames);
 
 private:
-    const EColumnarStatisticsFetcherMode Mode_;
-    const bool StoreChunkStatistics_;
+    TOptions Options_;
 
     //! We do not want to apply selectivity factor twice for the same chunk object as well as fetching
     //! same statistics multiple times.
@@ -48,6 +59,8 @@ private:
 
     std::vector<TColumnarStatistics> ChunkStatistics_;
     std::vector<TLightweightColumnarStatistics> LightweightChunkStatistics_;
+
+    std::vector<TColumnarStatistics> TableStatistics_;
 
     std::vector<int> ChunkColumnFilterIds_;
 

@@ -172,6 +172,7 @@ public:
     int GetColumnCount() const;
     int GetKeyColumnCount() const;
     int GetValueColumnCount() const;
+    std::vector<TString> GetColumnNames() const;
 
     TSortColumns GetSortColumns() const;
 
