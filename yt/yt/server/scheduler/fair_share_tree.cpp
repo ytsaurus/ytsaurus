@@ -2407,7 +2407,7 @@ private:
         auto* parent = element->GetParent();
         fluent
             .Item("pool").Value(parent->GetId())
-            .Item("slot_index").Value(element->GetMaybeSlotIndex())
+            .Item("slot_index").Value(element->GetSlotIndex())
             .Item("scheduling_segment").Value(element->SchedulingSegment())
             .Item("scheduling_segment_data_center").Value(element->PersistentAttributes().SchedulingSegmentDataCenter)
             .Item("start_time").Value(element->GetStartTime())
