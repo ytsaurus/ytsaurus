@@ -62,6 +62,8 @@ TFileWriter::TFileWriter(
     data = data.Slice(AlignUp(data.Begin(), Alignment), data.End());
     data = data.Slice(data.Begin(), data.Begin() + size);
     Buffer_ = data;
+
+    BlocksExt_.set_sync_on_close(SyncOnClose_);
 }
 
 void TFileWriter::TryLockDataFile(TPromise<void> promise)
@@ -177,8 +179,6 @@ bool TFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 {
     YT_VERIFY(Open_);
     YT_VERIFY(!Closed_);
-
-    BlocksExt_.set_sync_on_close(SyncOnClose_);
 
     for (const auto& block : blocks) {
         if (!WriteBlock(block)) {
