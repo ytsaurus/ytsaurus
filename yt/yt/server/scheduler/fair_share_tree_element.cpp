@@ -3854,7 +3854,7 @@ TInstant TOperationElement::GetLastScheduleJobSuccessTime() const
     return OperationElementSharedState_->GetLastScheduleJobSuccessTime();
 }
 
-std::optional<int> TOperationElement::GetMaybeSlotIndex() const
+int TOperationElement::GetSlotIndex() const
 {
     return SlotIndex_;
 }

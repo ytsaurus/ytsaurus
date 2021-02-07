@@ -1127,7 +1127,7 @@ public:
     TInstant GetLastNonStarvingTime() const;
     TInstant GetLastScheduleJobSuccessTime() const;
 
-    std::optional<int> GetMaybeSlotIndex() const;
+    int GetSlotIndex() const;
 
     TString GetUserName() const;
 

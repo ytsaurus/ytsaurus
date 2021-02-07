@@ -92,8 +92,8 @@ void TFairShareTreeProfiler::ProfileElements(const TFairShareTreeSnapshotImplPtr
 void TFairShareTreeProfiler::PrepareOperationProfilingEntries(const TFairShareTreeSnapshotImplPtr& treeSnapshot)
 {
     for (auto [operationId, element] : treeSnapshot->EnabledOperationMap()) {
-        auto maybeSlotIndex = element->GetMaybeSlotIndex();
-        YT_VERIFY(maybeSlotIndex);
+        auto slotIndex = element->GetSlotIndex();
+        YT_VERIFY(slotIndex != UndefinedSlotIndex);
         auto parentPoolId = element->GetParent()->GetId();
 
         std::vector<TOperationUserProfilingTag> userProfilingTags;
@@ -127,7 +127,7 @@ void TFairShareTreeProfiler::PrepareOperationProfilingEntries(const TFairShareTr
             auto insertResult = OperationIdToProfilingEntry_.emplace(
                 operationId,
                 TOperationProfilingEntry{
-                    .SlotIndex = *maybeSlotIndex,
+                    .SlotIndex = slotIndex,
                     .ParentPoolId = parentPoolId,
                     .UserProfilingTags = userProfilingTags,
                     .BufferedProducer = New<NProfiling::TBufferedProducer>()
@@ -137,12 +137,12 @@ void TFairShareTreeProfiler::PrepareOperationProfilingEntries(const TFairShareTr
             createProfilers = true;
         } else {
             auto& profilingEntry = it->second;
-            if (profilingEntry.SlotIndex != *maybeSlotIndex ||
+            if (profilingEntry.SlotIndex != slotIndex ||
                 profilingEntry.ParentPoolId != parentPoolId ||
                 profilingEntry.UserProfilingTags != userProfilingTags)
             {
                 profilingEntry = TOperationProfilingEntry{
-                    .SlotIndex = *maybeSlotIndex,
+                    .SlotIndex = slotIndex,
                     .ParentPoolId = parentPoolId,
                     .UserProfilingTags = userProfilingTags,
                     .BufferedProducer = New<NProfiling::TBufferedProducer>()
