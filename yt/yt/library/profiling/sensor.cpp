@@ -22,6 +22,11 @@ void TCounter::Increment(i64 delta) const
     Counter_->Increment(delta);
 }
 
+TCounter::operator bool() const
+{
+    return Counter_.operator bool();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTimeCounter::Add(TDuration delta) const
@@ -31,6 +36,11 @@ void TTimeCounter::Add(TDuration delta) const
     }
 
     Counter_->Add(delta);
+}
+
+TTimeCounter::operator bool() const
+{
+    return Counter_.operator bool();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +54,11 @@ void TGauge::Update(double value) const
     Gauge_->Update(value);
 }
 
+TGauge::operator bool() const
+{
+    return Gauge_.operator bool();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTimeGauge::Update(TDuration value) const
@@ -53,6 +68,11 @@ void TTimeGauge::Update(TDuration value) const
     }
 
     Gauge_->Update(value);
+}
+
+TTimeGauge::operator bool() const
+{
+    return Gauge_.operator bool();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +86,11 @@ void TSummary::Record(double value) const
     Summary_->Record(value);
 }
 
+TSummary::operator bool() const
+{
+    return Summary_.operator bool();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TEventTimer::Record(TDuration value) const
@@ -77,6 +102,11 @@ void TEventTimer::Record(TDuration value) const
     Timer_->Record(value);
 }
 
+TEventTimer::operator bool() const
+{
+    return Timer_.operator bool();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEventTimerGuard::TEventTimerGuard(TEventTimer timer)
@@ -86,6 +116,10 @@ TEventTimerGuard::TEventTimerGuard(TEventTimer timer)
 
 TEventTimerGuard::~TEventTimerGuard()
 {
+    if (!Timer_) {
+        return;
+    }
+
     auto now = GetCpuInstant();
     Timer_.Record(CpuDurationToDuration(now - StartTime_));
 }
