@@ -388,6 +388,41 @@ TEST(TSolomonRegistry, CustomProjections)
     Collect(impl, 3);
 }
 
+TEST(TSolomonRegistry, DisableProjections)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+    TRegistry r(impl, "/d");
+
+    auto p0 = New<TDebugProducer>();
+    r.WithProjectionsDisabled().AddProducer("/bigb", p0);
+
+    {
+        TWithTagGuard guard(&p0->Buffer, TTag{"mode", "sum"});
+        p0->Buffer.AddGauge("", 10);
+    }
+
+    {
+        TWithTagGuard guard(&p0->Buffer, TTag{"mode", "percentile"});
+        {
+            TWithTagGuard guard(&p0->Buffer, TTag{"p", "50"});
+            p0->Buffer.AddCounter("", 20);
+        }
+        {
+            TWithTagGuard guard(&p0->Buffer, TTag{"p", "99"});
+            p0->Buffer.AddCounter("", 1);
+        }
+    }
+
+    auto result = Collect(impl);
+    ASSERT_EQ(1u, result.Gauges.size());
+    ASSERT_EQ(10.0, result.Gauges["yt.d.bigb{mode=sum}"]);
+
+    ASSERT_EQ(2u, result.Counters.size());
+    ASSERT_EQ(20, result.Counters["yt.d.bigb{mode=percentile;p=50}"]);
+    ASSERT_EQ(1, result.Counters["yt.d.bigb{mode=percentile;p=99}"]);
+}
+
 DECLARE_REFCOUNTED_STRUCT(TBadProducer)
 
 struct TBadProducer

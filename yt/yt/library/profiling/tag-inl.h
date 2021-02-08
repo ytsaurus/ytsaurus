@@ -47,7 +47,11 @@ void TProjectionSet::Range(
     const TTagIdList& tags,
     TFn fn) const
 {
-    RangeSubsets(tags, Parents_, Required_, Excluded_, Alternative_, fn);
+    if (Enabled_) {
+        RangeSubsets(tags, Parents_, Required_, Excluded_, Alternative_, fn);
+    } else {
+        fn(tags);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -263,6 +263,17 @@ TRegistry TRegistry::WithGlobal() const
     return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
+TRegistry TRegistry::WithProjectionsDisabled() const
+{
+    if (!Enabled_) {
+        return {};
+    }
+
+    auto allTags = Tags_;
+    allTags.SetEnabled(false);
+    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
+}
+
 TRegistry TRegistry::WithHot() const
 {
     if (!Enabled_) {

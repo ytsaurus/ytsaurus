@@ -13,6 +13,11 @@ void TProjectionSet::Resize(int size)
     Alternative_.resize(size, NoTagSentinel);
 }
 
+void TProjectionSet::SetEnabled(bool enabled)
+{
+    Enabled_ = enabled;
+}
+
 void TTagSet::Append(const TTagSet& other)
 {
     auto offset = Tags_.size();
