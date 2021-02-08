@@ -60,7 +60,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((OperationCompletedByUserRequest)             (14))
     ((OperationBannedInTentativeTree)              (15))
     ((OwnersInSpecIgnored)                         (16))
-    ((OmittedInaccesibleColumnsInInputTables)      (17))
+    ((OmittedInaccessibleColumnsInInputTables)     (17))
     ((LegacyLivePreviewSuppressed)                 (18))
     ((LowGpuUsage)                                 (19))
     ((HighQueueAverageWaitTime)                    (20))
