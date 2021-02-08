@@ -16,7 +16,7 @@ import yt.json_wrapper as json
 import re
 
 
-FORMAT_CLAUSE_REGEX = re.compile("FORMAT\s+[A-Z_0-9]+")
+FORMAT_CLAUSE_REGEX = re.compile(r"FORMAT\s+[A-Z_0-9]+")
 
 
 def get_heavy_proxy_provider(client):

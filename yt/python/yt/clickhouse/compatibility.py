@@ -11,7 +11,7 @@ MIN_CHYT_VERSION = (0, 0)
 
 
 def extract_version_tuple(version):
-    occurrences = re.findall("[0-9]+\.[0-9]+\.[0-9]+", version)
+    occurrences = re.findall(r"[0-9]+\.[0-9]+\.[0-9]+", version)
     if not occurrences:
         return (0, 0, 0)
     assert len(occurrences) == 1
