@@ -5436,7 +5436,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
     if (!omittedInaccessibleColumnsList.empty()) {
         auto error = TError("Some columns of input tables are inaccessible and were omitted")
             << TErrorAttribute("input_tables", omittedInaccessibleColumnsList);
-        SetOperationAlert(EOperationAlertType::OmittedInaccesibleColumnsInInputTables, error);
+        SetOperationAlert(EOperationAlertType::OmittedInaccessibleColumnsInInputTables, error);
     }
 
     THashMap<TCellTag, std::vector<TInputTablePtr>> externalCellTagToTables;

@@ -1378,7 +1378,7 @@ class TestCypressAcls(CheckPermissionBase):
             alerts = op.get_alerts()
             if expect_alert:
                 assert len(alerts) == 1
-                assert alerts["omitted_inaccesible_columns_in_input_tables"]["attributes"]["input_tables"] == [
+                assert alerts["omitted_inaccessible_columns_in_input_tables"]["attributes"]["input_tables"] == [
                     {"path": "//tmp/t_in", "columns": ["secret"]}
                 ]
             else:
