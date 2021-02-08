@@ -73,7 +73,6 @@ public:
             THROW_ERROR_EXCEPTION("Legacy sorted chunk pool does not support descending sort order");
         }
 
-        ForeignDataSlicesByStreamIndex_.resize(InputStreamDirectory_.GetDescriptorCount());
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         Logger.AddTag("Task: %v", Task_);
@@ -105,13 +104,6 @@ public:
 
         auto cookie = static_cast<int>(Stripes_.size());
         Stripes_.emplace_back(stripe);
-
-        int streamIndex = stripe->GetInputStreamIndex();
-
-        if (InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign() && !HasForeignData_) {
-            YT_LOG_DEBUG("Foreign data is present");
-            HasForeignData_ = true;
-        }
 
         return cookie;
     }
@@ -205,14 +197,12 @@ public:
         Persist(context, SliceForeignChunks_);
         Persist(context, MinTeleportChunkSize_);
         Persist(context, Stripes_);
-        Persist(context, ForeignDataSlicesByStreamIndex_);
         Persist(context, JobSizeConstraints_);
         Persist(context, TeleportChunkSampler_);
         Persist(context, SupportLocality_);
         Persist(context, OperationId_);
         Persist(context, Task_);
         Persist(context, ChunkPoolId_);
-        Persist(context, HasForeignData_);
         Persist(context, TeleportChunks_);
         Persist(context, IsCompleted_);
         Persist(context, ReturnNewDataSlices_);
@@ -305,9 +295,6 @@ private:
     //! All stripes that were added to this pool.
     std::vector<TSuspendableStripe> Stripes_;
 
-    //! Stores all foreign data slices grouped by input stream index.
-    std::vector<std::vector<TLegacyDataSlicePtr>> ForeignDataSlicesByStreamIndex_;
-
     IJobSizeConstraintsPtr JobSizeConstraints_;
     TBernoulliSampler TeleportChunkSampler_;
 
@@ -323,8 +310,6 @@ private:
     TGuid ChunkPoolId_ = TGuid::Create();
 
     TRowBufferPtr RowBuffer_;
-
-    bool HasForeignData_ = false;
 
     std::vector<TInputChunkPtr> TeleportChunks_;
 
@@ -354,14 +339,11 @@ private:
         THashMap<TInputChunkPtr, IChunkPoolInput::TCookie> unversionedInputChunkToInputCookie;
         THashMap<TInputChunkPtr, TLegacyDataSlicePtr> unversionedInputChunkToOwningDataSlice;
 
-        //! Either add data slice to builder or put it into `ForeignDataSlicesByStreamIndex_' depending on whether
-        //! it is primary or foreign.
         auto processDataSlice = [&] (const TLegacyDataSlicePtr& dataSlice, int inputCookie) {
             if (InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary()) {
                 builder->AddPrimaryDataSlice(dataSlice, inputCookie);
             } else {
-                dataSlice->Tag = inputCookie;
-                ForeignDataSlicesByStreamIndex_[dataSlice->InputStreamIndex].emplace_back(dataSlice);
+                builder->AddForeignDataSlice(dataSlice, inputCookie);
             }
         };
 
@@ -602,48 +584,6 @@ private:
             totalTeleportChunkSize);
     }
 
-    void PrepareForeignDataSlices(const ILegacySortedJobBuilderPtr& builder)
-    {
-        auto yielder = CreatePeriodicYielder();
-
-        std::vector<std::pair<TLegacyDataSlicePtr, IChunkPoolInput::TCookie>> foreignDataSlices;
-
-        for (int streamIndex = 0; streamIndex < ForeignDataSlicesByStreamIndex_.size(); ++streamIndex) {
-            if (!InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign()) {
-                continue;
-            }
-
-            yielder.TryYield();
-
-            auto& dataSlices = ForeignDataSlicesByStreamIndex_[streamIndex];
-
-            // In most cases the foreign table stripes follow in sorted order, but still let's ensure that.
-            auto cmpStripesByKey = [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-                const auto& lhsLowerLimit = lhs->LegacyLowerLimit().Key;
-                const auto& lhsUpperLimit = lhs->LegacyUpperLimit().Key;
-                const auto& rhsLowerLimit = rhs->LegacyLowerLimit().Key;
-                const auto& rhsUpperLimit = rhs->LegacyUpperLimit().Key;
-                if (lhsLowerLimit != rhsLowerLimit) {
-                    return lhsLowerLimit < rhsLowerLimit;
-                } else if (lhsUpperLimit != rhsUpperLimit) {
-                    return lhsUpperLimit < rhsUpperLimit;
-                } else {
-                    // If lower limits coincide and upper limits coincide too, these stripes
-                    // must either be the same stripe or they both are maniac stripes with the same key.
-                    // In both cases they may follow in any order.
-                    return false;
-                }
-            };
-            if (!std::is_sorted(dataSlices.begin(), dataSlices.end(), cmpStripesByKey)) {
-                std::stable_sort(dataSlices.begin(), dataSlices.end(), cmpStripesByKey);
-            }
-
-            for (const auto& dataSlice : dataSlices) {
-                builder->AddForeignDataSlice(dataSlice, /* inputCookie */ *dataSlice->Tag);
-            }
-        }
-    }
-
     void SetupSuspendedStripes()
     {
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
@@ -696,9 +636,6 @@ private:
                     Logger);
 
                 FetchNonTeleportDataSlices(builder);
-                if (HasForeignData_) {
-                    PrepareForeignDataSlices(builder);
-                }
                 jobStubs = builder->Build();
                 succeeded = true;
                 break;
