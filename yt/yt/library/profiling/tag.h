@@ -41,8 +41,10 @@ public:
         TFn fn) const;
 
     void Resize(int size);
+    void SetEnabled(bool enabled);
 
 protected:
+    bool Enabled_ = true;
     TTagIndexList Parents_;
     TTagIndexList Required_;
     TTagIndexList Excluded_;

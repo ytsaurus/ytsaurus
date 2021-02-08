@@ -198,6 +198,9 @@ public:
      */
     TRegistry WithGlobal() const;
 
+    //! WithProjectionsDisabled disables local aggregation.
+    TRegistry WithProjectionsDisabled() const;
+
     //! WithHot sets hot flag on all sensors created using returned registry.
     /*!
      *  Hot sensors are implemented using per-cpu sharding, that increases
