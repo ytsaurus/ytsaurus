@@ -45,6 +45,10 @@ class TestGetOperation(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
+    DELTA_DRIVER_CONFIG = {
+        "default_get_operation_timeout": 10 * 1000,
+    }
+
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,
@@ -381,6 +385,9 @@ class TestGetOperation(YTEnvSetup):
 
     @authors("levysotsky")
     def test_archive_failure(self):
+        if self.ENABLE_RPC_PROXY:
+            pytest.skip("This test is independent from rpc proxy.")
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])

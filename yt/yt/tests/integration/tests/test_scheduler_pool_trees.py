@@ -944,6 +944,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
+    NUM_TEST_PARTITIONS = 2
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
