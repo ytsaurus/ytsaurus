@@ -68,7 +68,6 @@ public:
         , Task_(options.Task)
         , RowBuffer_(options.RowBuffer)
     {
-        ForeignDataSlicesByStreamIndex_.resize(InputStreamDirectory_.GetDescriptorCount());
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         Logger.AddTag("Task: %v", Task_);
@@ -127,11 +126,6 @@ public:
 
         auto cookie = static_cast<int>(Stripes_.size());
         Stripes_.emplace_back(stripe);
-
-        if (isForeign && !HasForeignData_) {
-            YT_LOG_DEBUG("Foreign data is present");
-            HasForeignData_ = true;
-        }
 
         return cookie;
     }
@@ -233,14 +227,12 @@ public:
         Persist(context, SliceForeignChunks_);
         Persist(context, MinTeleportChunkSize_);
         Persist(context, Stripes_);
-        Persist(context, ForeignDataSlicesByStreamIndex_);
         Persist(context, JobSizeConstraints_);
         Persist(context, TeleportChunkSampler_);
         Persist(context, SupportLocality_);
         Persist(context, OperationId_);
         Persist(context, Task_);
         Persist(context, ChunkPoolId_);
-        Persist(context, HasForeignData_);
         Persist(context, TeleportChunks_);
         Persist(context, IsCompleted_);
         if (context.IsLoad()) {
@@ -299,9 +291,6 @@ private:
     //! All stripes that were added to this pool.
     std::vector<TSuspendableStripe> Stripes_;
 
-    //! Stores all foreign data slices grouped by input stream index.
-    std::vector<std::vector<TLegacyDataSlicePtr>> ForeignDataSlicesByStreamIndex_;
-
     IJobSizeConstraintsPtr JobSizeConstraints_;
     TBernoulliSampler TeleportChunkSampler_;
 
@@ -315,8 +304,6 @@ private:
     TGuid ChunkPoolId_ = TGuid::Create();
 
     TRowBufferPtr RowBuffer_;
-
-    bool HasForeignData_ = false;
 
     std::vector<TInputChunkPtr> TeleportChunks_;
 
@@ -349,11 +336,7 @@ private:
         auto processDataSlice = [&] (const TLegacyDataSlicePtr& dataSlice, int inputCookie) {
             YT_VERIFY(!dataSlice->IsLegacy);
             dataSlice->Tag = inputCookie;
-            if (InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary()) {
-                builder->AddDataSlice(dataSlice);
-            } else {
-                ForeignDataSlicesByStreamIndex_[dataSlice->InputStreamIndex].emplace_back(dataSlice);
-            }
+            builder->AddDataSlice(dataSlice);
         };
 
         // TODO(max42): logic here is schizophrenic :( introduce IdentityChunkSliceFetcher and
@@ -606,43 +589,6 @@ private:
             totalTeleportChunkSize);
     }
 
-    void PrepareForeignDataSlices(const INewSortedJobBuilderPtr& builder)
-    {
-        auto yielder = CreatePeriodicYielder();
-
-        std::vector<std::pair<TLegacyDataSlicePtr, IChunkPoolInput::TCookie>> foreignDataSlices;
-
-        for (int streamIndex = 0; streamIndex < ForeignDataSlicesByStreamIndex_.size(); ++streamIndex) {
-            if (!InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign()) {
-                continue;
-            }
-
-            yielder.TryYield();
-
-            auto& dataSlices = ForeignDataSlicesByStreamIndex_[streamIndex];
-
-            // In most cases the foreign table stripes follow in sorted order, but still let's ensure that.
-            auto cmpStripesByKey = [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-                auto lowerComparisonResult = ForeignComparator_.CompareKeyBounds(
-                    lhs->LowerLimit().KeyBound,
-                    rhs->LowerLimit().KeyBound);
-                auto upperComparisonResult = ForeignComparator_.CompareKeyBounds(
-                    lhs->UpperLimit().KeyBound,
-                    rhs->UpperLimit().KeyBound);
-                // NB: ranges do not overlap because each stream is sorted.
-                auto comparisonResult = lowerComparisonResult + upperComparisonResult;
-                return comparisonResult < 0;
-            };
-            if (!std::is_sorted(dataSlices.begin(), dataSlices.end(), cmpStripesByKey)) {
-                std::stable_sort(dataSlices.begin(), dataSlices.end(), cmpStripesByKey);
-            }
-
-            for (const auto& dataSlice : dataSlices) {
-                builder->AddDataSlice(dataSlice);
-            }
-        }
-    }
-
     void SetupSuspendedStripes()
     {
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
@@ -696,9 +642,6 @@ private:
                     Logger);
 
                 FetchNonTeleportDataSlices(builder);
-                if (HasForeignData_) {
-                    PrepareForeignDataSlices(builder);
-                }
                 jobStubs = builder->Build();
                 succeeded = true;
                 break;
