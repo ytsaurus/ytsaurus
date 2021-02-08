@@ -47,7 +47,7 @@ TTcpBusConfig::TTcpBusConfig()
     RegisterParameter("enable_quick_ack", EnableQuickAck)
         .Default(true);
     RegisterParameter("bind_retry_count", BindRetryCount)
-        .Default(1);
+        .Default(5);
     RegisterParameter("bind_retry_backoff", BindRetryBackoff)
         .Default(TDuration::Seconds(3));
     RegisterParameter("read_stall_timeout", ReadStallTimeout)
