@@ -939,6 +939,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
 
 
 class TestSchedulerScheduleInSingleTree(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 2
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
