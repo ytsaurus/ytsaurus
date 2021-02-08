@@ -838,7 +838,7 @@ class YtClient(ClientState):
         return client_api.write_table(table, input_stream, client=self, format=format, table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, is_stream_compressed=is_stream_compressed, force_create=force_create, raw=raw)
 
     def explain_query(self, query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None, max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None, execution_pool=None):
-        """
+        r"""
         Explains a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
@@ -1264,7 +1264,7 @@ class YtClient(ClientState):
         return client_api.freeze_table(path, client=self, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, sync=sync)
 
     def select_rows(self, query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None, fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None, execution_pool=None, response_parameters=None):
-        """
+        r"""
         Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_

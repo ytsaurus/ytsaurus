@@ -624,7 +624,7 @@ class TestOperationAliases(YTEnvSetup):
         op.complete()
 
         # Operation should still be exposed via Orchid, and get_operation will extract information from there.
-        assert get("//sys/scheduler/orchid/scheduler/operations/\*my_op") == {"operation_id": op.id}
+        assert get(r"//sys/scheduler/orchid/scheduler/operations/\*my_op") == {"operation_id": op.id}
         info = get_operation("*my_op", include_runtime=True)
         assert info["id"] == op.id
         assert info["type"] == "vanilla"
