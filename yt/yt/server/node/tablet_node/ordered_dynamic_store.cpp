@@ -432,7 +432,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
     const NChunkClient::TClientBlockReadOptions& /*blockReadOptions*/,
-    IThroughputThrottlerPtr /*throttler*/)
+    IThroughputThrottlerPtr /*bandwidthThrottler*/)
 {
     return DoCreateReader(
         tabletIndex,

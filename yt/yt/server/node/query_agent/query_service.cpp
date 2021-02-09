@@ -566,8 +566,7 @@ private:
                 timestamp,
                 /*produceAllVersions*/ false,
                 columnFilter,
-                TClientBlockReadOptions(),
-                GetUnlimitedThrottler());
+                TClientBlockReadOptions());
             WaitFor(reader->Open())
                 .ThrowOnError();
 
@@ -633,14 +632,14 @@ private:
                 ? request->end_row_index()
                 : std::numeric_limits<i64>::max();
 
+            // NB: Options and throttler are not used by the reader.
             auto reader = dynamicStore->AsOrdered()->CreateReader(
                 tabletSnapshot,
                 -1, // tabletIndex, fake
                 startRowIndex,
                 endRowIndex,
                 columnFilter,
-                TClientBlockReadOptions(),
-                GetUnlimitedThrottler());
+                TClientBlockReadOptions());
 
             std::vector<TUnversionedRow> rows;
             rows.reserve(MaxRowsPerRemoteDynamicStoreRead);

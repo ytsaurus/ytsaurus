@@ -19,7 +19,8 @@ struct IDistributedThrottlerManager
         const NConcurrency::TThroughputThrottlerConfigPtr& config,
         const TString& throttlerId,
         NDistributedThrottler::EDistributedThrottlerMode mode,
-        TDuration rpcTimeout) = 0;
+        TDuration rpcTimeout,
+        bool admitUnlimitedThrottler) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerManager)

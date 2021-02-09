@@ -143,7 +143,7 @@ public:
             NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             Config_->WorkloadDescriptor.GetPriority()))
         , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
-        , Throttler_(Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletPreload))
+        , BandwidthThrottler_(Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletPreload))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
@@ -216,7 +216,7 @@ private:
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, InterceptedDataSpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
-    IThroughputThrottlerPtr Throttler_;
+    IThroughputThrottlerPtr BandwidthThrottler_;
 
     void ScanSlot(const TTabletSlotPtr& slot)
     {
@@ -322,7 +322,7 @@ private:
                 readSessionId,
                 Bootstrap_->GetMemoryUsageTracker(),
                 CompressionInvoker_,
-                Throttler_,
+                BandwidthThrottler_,
                 readerProfiler);
 
             VERIFY_INVOKERS_AFFINITY(std::vector{
@@ -515,7 +515,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     TReadSessionId readSessionId,
     const NClusterNode::TNodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
-    const NConcurrency::IThroughputThrottlerPtr& throttler,
+    const NConcurrency::IThroughputThrottlerPtr& bandwidthThrottler,
     const TReaderProfilerPtr& readerProfiler)
 {
     auto mode = tabletSnapshot->Config->InMemoryMode;
@@ -535,7 +535,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     blockReadOptions.ReadSessionId = readSessionId;
     readerProfiler->SetChunkReaderStatistics(blockReadOptions.ChunkReaderStatistics);
 
-    auto reader = store->GetReaders(throttler).ChunkReader;
+    auto reader = store->GetReaders(
+        bandwidthThrottler,
+        /* rpsThrottler */ GetUnlimitedThrottler()).ChunkReader;
     auto meta = WaitFor(reader->GetMeta(blockReadOptions))
         .ValueOrThrow();
 

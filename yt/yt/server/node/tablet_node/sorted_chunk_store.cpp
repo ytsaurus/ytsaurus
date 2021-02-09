@@ -250,7 +250,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TClientBlockReadOptions& blockReadOptions,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -286,7 +286,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             blockReadOptions);
     }
 
-    auto chunkReader = GetReaders(throttler).ChunkReader;
+    auto chunkReader = GetReaders(
+        bandwidthThrottler,
+        /* rpsThrottler */ GetUnlimitedThrottler()).ChunkReader;
     auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
 
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
@@ -340,7 +342,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TClientBlockReadOptions& blockReadOptions,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -383,7 +385,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             blockReadOptions);
     }
 
-    auto readers = GetReaders(throttler);
+    auto readers = GetReaders(
+        bandwidthThrottler,
+        /* rpsThrottler */ GetUnlimitedThrottler());
     if (tabletSnapshot->Config->EnableDataNodeLookup && readers.LookupReader) {
         return createFilteringReader(CreateRowLookupReader(
             std::move(readers.LookupReader),

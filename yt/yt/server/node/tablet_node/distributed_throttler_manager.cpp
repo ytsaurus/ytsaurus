@@ -40,10 +40,13 @@ public:
         const TThroughputThrottlerConfigPtr& config,
         const TString& throttlerId,
         EDistributedThrottlerMode mode,
-        TDuration rpcTimeout) override
+        TDuration rpcTimeout,
+        bool admitUnlimitedThrottler) override
     {
         if (!config->Limit) {
-            return GetUnlimitedThrottler();
+            return admitUnlimitedThrottler
+                ? GetUnlimitedThrottler()
+                : nullptr;
         }
 
         TKey key(tablePath, mode);
@@ -69,7 +72,9 @@ public:
                     mode,
                     rpcTimeout);
                 Factories_.erase(it);
-                return GetUnlimitedThrottler();
+                return admitUnlimitedThrottler
+                    ? GetUnlimitedThrottler()
+                    : nullptr;
             }
         }
 

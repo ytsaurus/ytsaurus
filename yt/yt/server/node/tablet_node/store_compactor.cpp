@@ -1231,7 +1231,7 @@ private:
                 .Item("store_ids").Value(task->StoreIds)
                 .Item("current_timestamp").Value(currentTimestamp);
 
-            auto throttler = Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletPartitioning);
+            auto bandwidthThrottler = Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletPartitioning);
 
             YT_LOG_INFO("Eden partitioning started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "PartitionCount: %v, CompressedDataSize: %v, "
@@ -1254,7 +1254,8 @@ private:
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
                 blockReadOptions,
                 stores.size(),
-                throttler);
+                ETabletDistributedThrottlerKind::CompactionRead,
+                std::move(bandwidthThrottler));
 
             auto transaction = StartPartitioningTransaction(tabletSnapshot, Logger);
             Logger.AddTag("TransactionId: %v", transaction->GetId());
@@ -1787,7 +1788,7 @@ private:
                 .Item("major_timestamp").Value(majorTimestamp)
                 .Item("retained_timestamp").Value(retainedTimestamp);
 
-            auto throttler = Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletCompaction);
+            auto bandwidthThrottler = Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletCompaction);
 
             YT_LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "RowCount: %v, CompressedDataSize: %v, ChunkCount: %v, "
@@ -1812,7 +1813,8 @@ private:
                 majorTimestamp,
                 blockReadOptions,
                 stores.size(),
-                throttler);
+                ETabletDistributedThrottlerKind::CompactionRead,
+                std::move(bandwidthThrottler));
 
             auto transaction = StartCompactionTransaction(tabletSnapshot, Logger);
             Logger.AddTag("TransactionId: %v", transaction->GetId());

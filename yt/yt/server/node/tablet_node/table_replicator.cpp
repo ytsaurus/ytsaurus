@@ -400,6 +400,7 @@ private:
             MakeRowBound(rowIndex + 1),
             NullTimestamp,
             blockReadOptions,
+            /* tabletThrottlerKind */ std::nullopt,
             NodeInThrottler_);
 
         TRowBatchReadOptions readOptions{
@@ -519,6 +520,7 @@ private:
             MakeRowBound(std::numeric_limits<i64>::max()),
             NullTimestamp,
             blockReadOptions,
+            /* tabletThrottlerKind */ std::nullopt,
             NodeInThrottler_);
 
         int timestampCount = 0;
