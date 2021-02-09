@@ -122,6 +122,9 @@ TFuture<TYsonString> TAsyncYsonWriter::Finish(IInvokerPtr invoker)
         return TYsonString(result, type);
     });
 
+    // TODO(shakurov): deal with this.
+    invoker = nullptr;
+
     if (invoker) {
         return AllSucceeded(AsyncSegments_).ApplyUnique(std::move(callback)
             .AsyncVia(std::move(invoker)));
