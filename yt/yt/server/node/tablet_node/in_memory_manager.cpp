@@ -8,6 +8,7 @@
 #include "tablet_manager.h"
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
+#include "structured_logger.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 
@@ -290,6 +291,7 @@ private:
             YT_LOG_INFO("In-memory mode has been changed");
 
             store->SetPreloadState(EStorePreloadState::None);
+            tablet->GetStructuredLogger()->OnStorePreloadStateChanged(store);
             store->SetPreloadFuture(TFuture<void>());
             return;
         }

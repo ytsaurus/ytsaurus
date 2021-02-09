@@ -13,6 +13,7 @@
 #include "slot_manager.h"
 #include "sorted_store_manager.h"
 #include "ordered_store_manager.h"
+#include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "transaction.h"
@@ -457,6 +458,7 @@ public:
         if (store->HasBackingStore()) {
             store->SetBackingStore(nullptr);
             YT_LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
+            store->GetTablet()->GetStructuredLogger()->OnBackingStoreReleased(store);
         }
     }
 
@@ -750,10 +752,15 @@ private:
         }
 
         for (auto [tabletId, tablet] : TabletMap_) {
+            tablet->SetStructuredLogger(
+                Bootstrap_->GetTabletNodeStructuredLogger()->CreateLogger(tablet));
             auto storeManager = CreateStoreManager(tablet);
             tablet->SetStoreManager(storeManager);
             tablet->FillProfilerTags();
             tablet->UpdateReplicaCounters();
+            Bootstrap_->GetTabletNodeStructuredLogger()->OnHeartbeatRequest(
+                Slot_->GetTabletManager(),
+                true /*initial*/);
         }
 
         const auto& transactionManager = Slot_->GetTransactionManager();
@@ -939,6 +946,8 @@ private:
             retainedTimestamp);
 
         tabletHolder->FillProfilerTags();
+        tabletHolder->SetStructuredLogger(
+            Bootstrap_->GetTabletNodeStructuredLogger()->CreateLogger(tabletHolder.get()));
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         UpdateTabletDistributedThrottlers(tablet);
@@ -998,6 +1007,8 @@ private:
             response.set_frozen(freeze);
             PostMasterMutation(tabletId, response);
         }
+
+        tablet->GetStructuredLogger()->OnFullHeartbeat();
 
         if (!IsRecovery()) {
             StartTabletEpoch(tablet);
@@ -1077,6 +1088,7 @@ private:
         tablet->ReconfigureThrottlers();
         tablet->FillProfilerTags();
         tablet->UpdateReplicaCounters();
+        tablet->GetStructuredLogger()->SetEnabled(mountConfig->EnableStructuredLogger);
         UpdateTabletDistributedThrottlers(tablet);
         UpdateTabletSnapshot(tablet);
 
@@ -1658,12 +1670,13 @@ private:
         UpdateTabletSnapshot(tablet);
     }
 
-    void HydraPrepareUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request, bool persistent)
+    void HydraPrepareUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request, bool persistent)
     {
         YT_VERIFY(persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = GetTabletOrThrow(tabletId);
+        const auto& structuredLogger = tablet->GetStructuredLogger();
 
         auto mountRevision = request->mount_revision();
         tablet->ValidateMountRevision(mountRevision);
@@ -1686,9 +1699,17 @@ private:
                     state);
             }
             store->SetStoreState(EStoreState::RemovePrepared);
+            structuredLogger->OnStoreStateChanged(store);
         }
 
         auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
+
+        // TODO: log preparation errors as well.
+        structuredLogger->OnTabletStoresUpdatePrepared(
+            storeIdsToAdd,
+            storeIdsToRemove,
+            updateReason,
+            transaction->GetId());
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores update prepared "
             "(%v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, UpdateReason: %v)",
@@ -1819,12 +1840,14 @@ private:
         }
 
         std::vector<TStoreId> addedStoreIds;
+        std::vector<IStorePtr> addedStores;
         for (const auto& descriptor : request->stores_to_add()) {
             auto storeType = EStoreType(descriptor.store_type());
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
             addedStoreIds.push_back(storeId);
 
             auto store = CreateStore(tablet, storeType, storeId, &descriptor)->AsChunk();
+            addedStores.push_back(store);
             storeManager->AddStore(store, false);
 
             TStoreId backingStoreId;
@@ -1844,6 +1867,7 @@ private:
             tablet->GetRetainedTimestamp(),
             static_cast<TTimestamp>(request->retained_timestamp()));
         tablet->SetRetainedTimestamp(retainedTimestamp);
+        TDynamicStoreId allocatedDynamicStoreId;
 
         if (updateReason == ETabletStoresUpdateReason::Flush && request->request_dynamic_store_id()) {
             auto storeId = ReplaceTypeInId(
@@ -1855,6 +1879,8 @@ private:
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store id added to the pool (%v, StoreId: %v)",
                 tablet->GetLoggingTag(),
                 storeId);
+
+            allocatedDynamicStoreId = storeId;
         }
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores update committed "
@@ -1864,6 +1890,13 @@ private:
             removedStoreIds,
             retainedTimestamp,
             updateReason);
+
+        tablet->GetStructuredLogger()->OnTabletStoresUpdateCommitted(
+            addedStores,
+            removedStoreIds,
+            updateReason,
+            allocatedDynamicStoreId,
+            transaction->GetId());
 
         UpdateTabletSnapshot(tablet);
 
@@ -3121,6 +3154,7 @@ private:
             store->GetId(),
             backingStore->GetId(),
             backingStore->GetDynamicMemoryUsage());
+        tablet->GetStructuredLogger()->OnBackingStoreSet(store, backingStore);
 
         TDelayedExecutor::Submit(
             // NB: Submit the callback via the regular automaton invoker, not the epoch one since

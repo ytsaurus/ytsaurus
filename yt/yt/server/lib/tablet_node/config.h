@@ -80,7 +80,6 @@ public:
     i64 MaxPartitioningDataSize;
     int MaxPartitioningStoreCount;
 
-
     int MinCompactionStoreCount;
     int MaxCompactionStoreCount;
     i64 CompactionDataSizeBase;
@@ -130,6 +129,8 @@ public:
     bool EnableProfiling;
     EDynamicTableProfilingMode ProfilingMode;
     TString ProfilingTag;
+
+    bool EnableStructuredLogger;
 
     bool EnableCompactionAndPartitioning;
     bool EnableStoreRotation;
@@ -307,6 +308,9 @@ public:
             .Default(EDynamicTableProfilingMode::Path);
         RegisterParameter("profiling_tag", ProfilingTag)
             .Optional();
+
+        RegisterParameter("enable_structured_logger", EnableStructuredLogger)
+            .Default(true);
 
         RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
             .Default(true);
@@ -827,6 +831,10 @@ public:
 
     NQueryClient::TColumnEvaluatorCacheDynamicConfigPtr ColumnEvaluatorCache;
 
+    bool EnableStructuredLogger;
+    TDuration FullStructuredTabletHeartbeatPeriod;
+    TDuration IncrementalStructuredTabletHeartbeatPeriod;
+
     TTabletNodeDynamicConfig()
     {
         RegisterParameter("slots", Slots)
@@ -849,6 +857,13 @@ public:
 
         RegisterParameter("column_evaluator_cache", ColumnEvaluatorCache)
             .DefaultNew();
+
+        RegisterParameter("enable_structured_logger", EnableStructuredLogger)
+            .Default(true);
+        RegisterParameter("full_structured_tablet_heartbeat_period", FullStructuredTabletHeartbeatPeriod)
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("incremental_structured_tablet_heartbeat_period", IncrementalStructuredTabletHeartbeatPeriod)
+            .Default(TDuration::Seconds(5));
     }
 };
 
@@ -909,7 +924,6 @@ public:
     TInMemoryManagerConfigPtr InMemoryManager;
     TPartitionBalancerConfigPtr PartitionBalancer;
     TSecurityManagerConfigPtr SecurityManager;
-
     THintManagerConfigPtr HintManager;
 
     //! Cache for versioned chunk metas.

@@ -16,6 +16,14 @@ TOneShotFluentLogEvent LogStructuredEventFluently(const TLogger& logger, ELogLev
         level);
 }
 
+TOneShotFluentLogEvent LogStructuredEventFluentlyToNowhere()
+{
+    return TOneShotFluentLogEvent(
+        New<TFluentYsonWriterState>(EYsonFormat::Binary, EYsonType::MapFragment),
+        NullLogger,
+        ELogLevel{});
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLogging

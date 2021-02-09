@@ -8,6 +8,7 @@
 #include "tablet_slot.h"
 #include "tablet_profiling.h"
 #include "transaction_manager.h"
+#include "structured_logger.h"
 
 #include <yt/server/lib/misc/profiling_helpers.h>
 
@@ -484,6 +485,16 @@ void TTablet::SetStoreManager(IStoreManagerPtr storeManager)
     StoreManager_ = std::move(storeManager);
 }
 
+const IPerTabletStructuredLoggerPtr& TTablet::GetStructuredLogger() const
+{
+    return StructuredLogger_;
+}
+
+void TTablet::SetStructuredLogger(IPerTabletStructuredLoggerPtr storeManager)
+{
+    StructuredLogger_ = std::move(storeManager);
+}
+
 const TLockManagerPtr& TTablet::GetLockManager() const
 {
     return LockManager_;
@@ -793,8 +804,11 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
     }
     immediateSplitKeys.reserve(immediateSplitKeyCount);
 
+    std::vector<TPartitionId> existingPartitionIds;
+
     for (int index = firstIndex; index <= lastIndex; ++index) {
         const auto& existingPartition = PartitionList_[index];
+        existingPartitionIds.push_back(existingPartition->GetId());
         const auto& existingSampleKeys = existingPartition->GetSampleKeys()->Keys;
         if (index > firstIndex) {
             mergedSampleKeys.push_back(rowBuffer->Capture(existingPartition->GetPivotKey()));
@@ -829,6 +843,10 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
     YT_VERIFY(PartitionMap_.emplace(mergedPartition->GetId(), mergedPartition.get()).second);
     PartitionList_.erase(firstPartitionIt, lastPartitionIt + 1);
     PartitionList_.insert(firstPartitionIt, std::move(mergedPartition));
+
+    StructuredLogger_->OnPartitionsMerged(
+        existingPartitionIds,
+        PartitionList_[firstIndex].get());
 
     UpdateOverlappingStoreCount();
 }
@@ -927,6 +945,11 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
         store->SetPartition(newPartition);
         YT_VERIFY(newPartition->Stores().insert(store).second);
     }
+
+    StructuredLogger_->OnPartitionSplit(
+        existingPartition.get(),
+        index,
+        pivotKeys.size());
 
     UpdateOverlappingStoreCount();
 }

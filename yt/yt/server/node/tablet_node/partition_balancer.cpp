@@ -7,6 +7,7 @@
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
+#include "structured_logger.h"
 #include "yt/library/profiling/sensor.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
@@ -203,7 +204,7 @@ private:
 
         if (partition->GetState() != EPartitionState::Normal) {
             YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
-                "Aborting partition split due to improper partition state (PartitionState: %v)",
+                "Will not split partition due to improper partition state (PartitionState: %v)",
                 partition->GetState());
             return;
         }
@@ -241,6 +242,11 @@ private:
                 partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
                 ScheduledSplitsCounter_.Increment();
                 YT_LOG_DEBUG("Partition is scheduled for split");
+                tablet->GetStructuredLogger()->LogEvent("schedule_partition_split")
+                    .Item("partition_id").Value(partition->GetId())
+                    // NB: deducible.
+                    .Item("split_factor").Value(splitFactor)
+                    .Item("data_size").Value(actualDataSize);
                 tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
                     &TPartitionBalancer::DoRunSplit,
                     MakeStrong(this),
@@ -327,7 +333,7 @@ private:
         if (!tablet->GetConfig()->EnablePartitionSplitWhileEdenPartitioning &&
             tablet->GetEden()->GetState() == EPartitionState::Partitioning)
         {
-            YT_LOG_DEBUG("Eden is partitioning, aborting partition split (EdenPartitionId: %v)",
+            YT_LOG_DEBUG("Eden is partitioning, will not split partition (EdenPartitionId: %v)",
                 tablet->GetEden()->GetId());
             return false;
         }
@@ -335,7 +341,7 @@ private:
         for (const auto& store : partition->Stores()) {
             if (store->GetStoreState() != EStoreState::Persistent) {
                 YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
-                    "Aborting partition split due to improper store state "
+                    "Will not split partition due to improper store state "
                     "(StoreId: %v, StoreState: %v)",
                     store->GetId(),
                     store->GetStoreState());
@@ -348,7 +354,7 @@ private:
             YT_VERIFY(!pivotKeys.empty());
             if (pivotKeys[0] != partition->GetPivotKey()) {
                 YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
-                    "Aborting immediate partition split: first proposed pivot key "
+                    "Will not perform immediate partition split: first proposed pivot key "
                     "does not match partition pivot key (PartitionPivotKey: %v, ProposedPivotKey: %v)",
                     partition->GetPivotKey(),
                     pivotKeys[0]);
@@ -360,7 +366,7 @@ private:
             for (int index = 1; index < pivotKeys.size(); ++index) {
                 if (pivotKeys[index] <= pivotKeys[index - 1]) {
                     YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
-                        "Aborting immediate partition split: proposed pivots are not sorted");
+                        "Will not perform immediate partition split: proposed pivots are not sorted");
 
                     partition->PivotKeysForImmediateSplit().clear();
                     return false;
@@ -369,7 +375,7 @@ private:
 
             if (pivotKeys.back() >= partition->GetNextPivotKey()) {
                 YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
-                    "Aborting immediate partition split: last proposed pivot key "
+                    "Will not perform immediate partition split: last proposed pivot key "
                     "is not less than partition next pivot key (NextPivotKey: %v, ProposedPivotKey: %v)",
                     partition->GetNextPivotKey(),
                     pivotKeys.back());
@@ -380,7 +386,7 @@ private:
 
             if (pivotKeys.size() <= 1) {
                 YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
-                    "Aborting immediate partition split: too few pivot keys");
+                    "Will not perform immediate partition split: too few pivot keys");
 
                 partition->PivotKeysForImmediateSplit().clear();
                 return false;
@@ -403,6 +409,7 @@ private:
 
         YT_VERIFY(tablet == partition->GetTablet());
         const auto& hydraManager = slot->GetHydraManager();
+        const auto& structuredLogger = tablet->GetStructuredLogger();
 
         YT_LOG_INFO("Partition is eligible for split (SplitFactor: %v)",
             splitFactor);
@@ -413,6 +420,11 @@ private:
             int sampleCount = static_cast<int>(samples.size());
             int minSampleCount = std::max(Config_->MinPartitioningSampleCount, splitFactor);
             if (sampleCount < minSampleCount) {
+                structuredLogger->LogEvent("abort_partition_split")
+                    .Item("partition_id").Value(partition->GetId())
+                    .Item("reason").Value("too_few_samples")
+                    .Item("min_sample_count").Value(minSampleCount)
+                    .Item("sample_count").Value(sampleCount);
                 THROW_ERROR_EXCEPTION("Too few samples fetched: need %v, got %v",
                     minSampleCount,
                     sampleCount);
@@ -431,8 +443,16 @@ private:
             }
 
             if (pivotKeys.size() < 2) {
+                structuredLogger->LogEvent("abort_partition_split")
+                    .Item("partition_id").Value(partition->GetId())
+                    .Item("reason").Value("no_valid_pivots");
                 THROW_ERROR_EXCEPTION("No valid pivot keys can be obtained from samples");
             }
+
+            structuredLogger->LogEvent("request_partition_split")
+                .Item("partition_id").Value(partition->GetId())
+                .Item("immediate").Value(false)
+                .Item("pivot_keys").List(pivotKeys);
 
             TReqSplitPartition request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
@@ -444,6 +464,8 @@ private:
                 ->CommitAndLog(Logger);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Partition splitting aborted");
+            structuredLogger->LogEvent("backoff_partition_split")
+                .Item("partition_id").Value(partition->GetId());
             partition->CheckedSetState(EPartitionState::Splitting, EPartitionState::Normal);
             partition->SetAllowedSplitTime(TInstant::Now() + Config_->SplitRetryDelay);
         }
@@ -461,6 +483,11 @@ private:
 
         std::vector<TLegacyOwningKey> pivotKeys;
         pivotKeys.swap(partition->PivotKeysForImmediateSplit());
+
+        tablet->GetStructuredLogger()->LogEvent("request_partition_split")
+            .Item("partition_id").Value(partition->GetId())
+            .Item("immediate").Value(true)
+            .Item("pivot_keys").List(pivotKeys);
 
         const auto& hydraManager = slot->GetHydraManager();
         TReqSplitPartition request;
@@ -484,7 +511,7 @@ private:
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             if (tablet->PartitionList()[index]->GetState() != EPartitionState::Normal) {
                 YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
-                    "Aborting partition split due to improper partition state "
+                    "Will not merge partitions due to improper partition state "
                     "(%v, InitialPartitionId: %v, PartitionId: %v, PartitionIndex: %v, PartitionState: %v)",
                     tablet->GetLoggingTag(),
                     partition->GetId(),
@@ -511,6 +538,11 @@ private:
                 TPartitionIdFormatter()));
 
         YT_LOG_INFO("Partitions are eligible for merge");
+
+        tablet->GetStructuredLogger()->LogEvent("request_partitions_merge")
+            .Item("initial_partition_id").Value(partition->GetId())
+            .Item("first_partition_index").Value(firstPartitionIndex)
+            .Item("last_partition_index").Value(lastPartitionIndex);
 
         const auto& hydraManager = slot->GetHydraManager();
 

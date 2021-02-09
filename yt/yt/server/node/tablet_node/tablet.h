@@ -373,6 +373,9 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::IThroughputThrottlerPtr, TabletStoresUpdateThrottler);
 
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastFullStructuredHeartbeatTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastIncrementalStructuredHeartbeatTime);
+
 public:
     TTablet(
         TTabletId tabletId,
@@ -413,6 +416,9 @@ public:
     void SetStoreManager(IStoreManagerPtr storeManager);
 
     const TLockManagerPtr& GetLockManager() const;
+
+    const IPerTabletStructuredLoggerPtr& GetStructuredLogger() const;
+    void SetStructuredLogger(IPerTabletStructuredLoggerPtr storeManager);
 
     using TPartitionList = std::vector<std::unique_ptr<TPartition>>;
     const TPartitionList& PartitionList() const;
@@ -540,6 +546,8 @@ private:
     i64 TabletLockCount_ = 0;
 
     TLockManagerPtr LockManager_;
+
+    IPerTabletStructuredLoggerPtr StructuredLogger_;
 
     NLogging::TLogger Logger;
 
