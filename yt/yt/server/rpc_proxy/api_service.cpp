@@ -604,7 +604,7 @@ private:
                         context->Reply(TError());
                     } catch (const std::exception& ex) {
                         context->Reply(TError(ex));
-                    }
+                    } catch (const TFiberCanceledException&) { }
                 } else {
                     context->Reply(TError(valueOrError.GetCode(), "Internal RPC call failed")
                         << TError(valueOrError));
