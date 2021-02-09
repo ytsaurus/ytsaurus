@@ -197,9 +197,11 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
     const TClientBlockReadOptions& blockReadOptions,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr bandwidthThrottler)
 {
-    auto chunkReader = GetReaders(throttler).ChunkReader;
+    auto chunkReader = GetReaders(
+        bandwidthThrottler,
+        /* rpsThrottler */ GetUnlimitedThrottler()).ChunkReader;
     auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
         chunkReader,
         *Schema_,

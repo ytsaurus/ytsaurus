@@ -11,6 +11,20 @@ bool IsInFreezeWorkflow(ETabletState state);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETabletDistributedThrottlerKind,
+    // RPS throttlers.
+    (StoresUpdate)
+
+    // Throughput throttlers.
+    (Lookup)
+    (Select)
+    (CompactionRead)
+)
+
+using TTabletDistributedThrottlersVector = TEnumIndexedVector<
+    ETabletDistributedThrottlerKind,
+    NConcurrency::IThroughputThrottlerPtr>;
+
 DEFINE_ENUM(ETabletDynamicMemoryType,
     (Active)
     (Passive)

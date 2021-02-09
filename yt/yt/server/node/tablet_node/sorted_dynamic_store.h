@@ -128,7 +128,7 @@ public:
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler()) override;
+        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
@@ -137,7 +137,7 @@ public:
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler()) override;
+        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) override;
 
     virtual bool CheckRowLocks(
         TUnversionedRow row,

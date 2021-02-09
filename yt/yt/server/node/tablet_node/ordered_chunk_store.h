@@ -39,7 +39,7 @@ public:
         i64 upperRowIndex,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler()) override;
+        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;

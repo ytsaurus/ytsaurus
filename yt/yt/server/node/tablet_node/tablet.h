@@ -187,9 +187,13 @@ struct TTabletSnapshot
     TTabletPerformanceCountersPtr PerformanceCounters;
     TTableProfilerPtr TableProfiler;
 
+    //! Local throttlers.
     NConcurrency::IReconfigurableThroughputThrottlerPtr FlushThrottler;
     NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler;
     NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler;
+
+    //! Distributed throttlers.
+    TTabletDistributedThrottlersVector DistributedThrottlers;
 
     TLockManagerPtr LockManager;
     TLockManagerEpoch LockManagerEpoch;
@@ -371,7 +375,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::deque<TDynamicStoreId>, DynamicStoreIdPool);
     DEFINE_BYVAL_RW_PROPERTY(bool, DynamicStoreIdRequested);
 
-    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::IThroughputThrottlerPtr, TabletStoresUpdateThrottler);
+    DEFINE_BYREF_RW_PROPERTY(TTabletDistributedThrottlersVector, DistributedThrottlers);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastFullStructuredHeartbeatTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastIncrementalStructuredHeartbeatTime);
@@ -496,6 +500,7 @@ public:
     void ResetRowCache();
 
     void ReconfigureThrottlers();
+    void ReconfigureDistributedThrottlers(const IDistributedThrottlerManagerPtr& throttlerManager);
 
     const TString& GetLoggingTag() const;
 

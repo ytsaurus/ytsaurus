@@ -974,16 +974,14 @@ private:
 
                 const auto& range = bounds[index++];
 
-                TLegacyOwningKey lowerBound(range.first);
-                TLegacyOwningKey upperBound(range.second);
-
                 return CreateSchemafulOrderedTabletReader(
                     tabletSnapshot,
                     columnFilter,
-                    lowerBound,
-                    upperBound,
+                    TLegacyOwningKey(range.first),
+                    TLegacyOwningKey(range.second),
                     QueryOptions_.Timestamp,
-                    BlockReadOptions_);
+                    BlockReadOptions_,
+                    ETabletDistributedThrottlerKind::Select);
             };
 
             reader = CreateUnorderedSchemafulReader(std::move(bottomSplitReaderGenerator), 1);
@@ -993,7 +991,8 @@ private:
                 columnFilter,
                 bounds,
                 QueryOptions_.Timestamp,
-                BlockReadOptions_);
+                BlockReadOptions_,
+                ETabletDistributedThrottlerKind::Select);
         }
 
         return New<TProfilingReaderWrapper>(reader, *tableProfiler->GetSelectReadCounters(userTag));
@@ -1013,7 +1012,8 @@ private:
             columnFilter,
             keys,
             QueryOptions_.Timestamp,
-            BlockReadOptions_);
+            BlockReadOptions_,
+            ETabletDistributedThrottlerKind::Select);
 
         return New<TProfilingReaderWrapper>(reader, *tableProfiler->GetSelectReadCounters(userTag));
     }

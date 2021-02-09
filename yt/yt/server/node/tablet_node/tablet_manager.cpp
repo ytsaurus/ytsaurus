@@ -756,6 +756,7 @@ private:
                 Bootstrap_->GetTabletNodeStructuredLogger()->CreateLogger(tablet));
             auto storeManager = CreateStoreManager(tablet);
             tablet->SetStoreManager(storeManager);
+            tablet->ReconfigureDistributedThrottlers(DistributedThrottlerManager_);
             tablet->FillProfilerTags();
             tablet->UpdateReplicaCounters();
             Bootstrap_->GetTabletNodeStructuredLogger()->OnHeartbeatRequest(
@@ -844,7 +845,6 @@ private:
         for (auto [tabletId, tablet] : TabletMap_) {
             CheckIfTabletFullyUnlocked(tablet);
             CheckIfTabletFullyFlushed(tablet);
-            UpdateTabletDistributedThrottlers(tablet);
         }
 
         DecommissionCheckExecutor_->Start();
@@ -945,12 +945,11 @@ private:
             upstreamReplicaId,
             retainedTimestamp);
 
+        tabletHolder->ReconfigureDistributedThrottlers(DistributedThrottlerManager_);
         tabletHolder->FillProfilerTags();
         tabletHolder->SetStructuredLogger(
             Bootstrap_->GetTabletNodeStructuredLogger()->CreateLogger(tabletHolder.get()));
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
-
-        UpdateTabletDistributedThrottlers(tablet);
 
         if (tablet->IsPhysicallyOrdered()) {
             tablet->SetTrimmedRowCount(request->trimmed_row_count());
@@ -1086,10 +1085,10 @@ private:
         storeManager->Remount(mountConfig, readerConfig, writerConfig, writerOptions);
 
         tablet->ReconfigureThrottlers();
+        tablet->ReconfigureDistributedThrottlers(DistributedThrottlerManager_);
         tablet->FillProfilerTags();
         tablet->UpdateReplicaCounters();
         tablet->GetStructuredLogger()->SetEnabled(mountConfig->EnableStructuredLogger);
-        UpdateTabletDistributedThrottlers(tablet);
         UpdateTabletSnapshot(tablet);
 
         if (!IsRecovery()) {
@@ -3845,25 +3844,6 @@ private:
         } catch (const std::exception& ex) {
             promise.Set(TError(ex));
         }
-    }
-
-    void UpdateTabletDistributedThrottlers(TTablet* tablet)
-    {
-        auto getThrottlerConfig = [&] (const TString& key) {
-            auto it = tablet->GetConfig()->Throttlers.find(key);
-            return it != tablet->GetConfig()->Throttlers.end()
-                ? it->second
-                : New<TThroughputThrottlerConfig>();
-        };
-
-        tablet->SetTabletStoresUpdateThrottler(
-            DistributedThrottlerManager_->GetOrCreateThrottler(
-                tablet->GetTablePath(),
-                CellTagFromId(tablet->GetId()),
-                getThrottlerConfig("tablet_stores_update"),
-                "tablet_stores_update",
-                EDistributedThrottlerMode::Precise,
-                TabletStoresUpdateThrottlerRpcTimeout));
     }
 };
 

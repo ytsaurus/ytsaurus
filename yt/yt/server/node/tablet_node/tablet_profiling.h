@@ -1,6 +1,5 @@
 #pragma once
 
-#include "library/cpp/ytalloc/core/misc/enum.h"
 #include "public.h"
 
 #include <yt/server/lib/misc/profiling_helpers.h>
@@ -15,6 +14,8 @@
 #include <yt/core/profiling/public.h>
 
 #include <yt/yt/library/syncmap/map.h>
+
+#include <library/cpp/ytalloc/core/misc/enum.h>
 
 namespace NYT::NTabletNode {
 
@@ -186,6 +187,10 @@ struct TChunkWriteCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TTabletDistributedThrottlerTimersVector = TEnumIndexedVector<
+    ETabletDistributedThrottlerKind,
+    NProfiling::TEventTimer>;
+
 struct TTabletCounters
 {
     TTabletCounters() = default;
@@ -193,14 +198,18 @@ struct TTabletCounters
     explicit TTabletCounters(const NProfiling::TRegistry& profiler)
         : OverlappingStoreCount(profiler.Summary("/tablet/overlapping_store_count"))
         , EdenStoreCount(profiler.Summary("/tablet/eden_store_count"))
-        , StoresUpdateThrottlerWait(profiler.Timer("/tablet/stores_update_throttler_wait_time"))
-    { }
+    {
+        for (auto kind : TEnumTraits<ETabletDistributedThrottlerKind>::GetDomainValues()) {
+            ThrottlerWaitTimers[kind] = profiler.Timer(
+                "/tablet/" + CamelCaseToUnderscoreCase(ToString(kind)) + "_throttler_wait_time");
+        }
+    }
 
     // TODO(prime@): add AggregatedGauge() method to profiling registry.
     NProfiling::TSummary OverlappingStoreCount;
     NProfiling::TSummary EdenStoreCount;
 
-    NProfiling::TEventTimer StoresUpdateThrottlerWait;
+    TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

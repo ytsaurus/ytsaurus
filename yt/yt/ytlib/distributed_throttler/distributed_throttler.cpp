@@ -179,7 +179,7 @@ private:
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, LeaderChannelLock_);
     IChannelPtr LeaderChannel_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, HistoricUsageAggregatorLock_);
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, HistoricUsageAggregatorLock_);
     THistoricUsageAggregator HistoricUsageAggregator_;
 
     IChannelPtr GetLeaderChannel()
@@ -190,7 +190,7 @@ private:
 
     void UpdateHistoricUsage(i64 count)
     {
-        auto guard = WriterGuard(HistoricUsageAggregatorLock_);
+        auto guard = Guard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
     }
 };

@@ -15,6 +15,14 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Throttles with corresponding tablet distributed throttler if it's in overdraft.
+void ThrottleUponOverdraft(
+    ETabletDistributedThrottlerKind tabletThrottlerKind,
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Creates a range reader that merges data from the relevant stores and
 //! returns a single version of each value.
 
@@ -24,7 +32,8 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     const TSharedRange<NTableClient::TRowRange>& bounds,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
 
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
@@ -33,7 +42,8 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     TLegacyOwningKey upperBound,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
 
 /*!
  *  Can handle both sorted and ordered tables.
@@ -45,7 +55,8 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     TLegacyOwningKey upperBound,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
 
 //! Creates a lookup reader that merges data from the relevant stores and
 //! returns a single version of each value.
@@ -58,7 +69,8 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
 
 //! Creates a range reader that merges data from all given #stores and
 //! returns all versions of each value.
@@ -74,7 +86,8 @@ NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     TTimestamp majorTimestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     int minConcurrency,
-    NConcurrency::IThroughputThrottlerPtr throttler);
+    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

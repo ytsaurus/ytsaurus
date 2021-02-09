@@ -2361,6 +2361,49 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError):
             self._create_sorted_table("//tmp/t2", schema=key_schema + value_schema)
 
+    @authors("akozhikhov")
+    def test_tablet_stores_update_throttler(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t")
+        # 1 RPS.
+        set("//tmp/t/@throttlers", {"tablet_stores_update": {"limit": 1}})
+        sync_mount_table("//tmp/t")
+
+        start_time = time.time()
+        for i in range(4):
+            insert_rows("//tmp/t", [{"key": i, "value": str(i)}])
+            sync_flush_table("//tmp/t")
+        delta = time.time() - start_time
+        assert delta > 3
+
+    @authors("akozhikhov")
+    def test_lookup_and_select_throttler(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t")
+        # 5 bytes per second.
+        set("//tmp/t/@throttlers", {"lookup": {"limit": 5}})
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
+        sync_flush_table("//tmp/t")
+
+        start_time = time.time()
+        for i in range(5):
+            assert lookup_rows("//tmp/t", [{"key": i}]) == [{"key": i, "value": str(i)}]
+        delta = time.time() - start_time
+        assert delta > 5
+
+        # 5 bytes per second.
+        set("//tmp/t/@throttlers", {"select": {"limit": 5}})
+        remount_table("//tmp/t")
+        start_time = time.time()
+        for i in range(5):
+            assert select_rows("key, value from [//tmp/t] where key = {}".format(i)) == [{"key": i, "value": str(i)}]
+        delta = time.time() - start_time
+        assert delta > 5
+
 
 ##################################################################
 

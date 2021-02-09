@@ -1,8 +1,10 @@
 #include "tablet.h"
+
 #include "automaton.h"
+#include "distributed_throttler_manager.h"
+#include "partition.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
-#include "partition.h"
 #include "store_manager.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
@@ -44,6 +46,7 @@ namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NDistributedThrottler;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
@@ -1212,6 +1215,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     snapshot->LockManagerEpoch = epoch.value_or(LockManager_->GetEpoch());
     snapshot->RowCache = RowCache_;
     snapshot->StoreFlushIndex = StoreFlushIndex_;
+    snapshot->DistributedThrottlers = DistributedThrottlers_;
 
     auto addStoreStatistics = [&] (const IStorePtr& store) {
         if (store->IsChunk()) {
@@ -1366,6 +1370,59 @@ void TTablet::ReconfigureThrottlers()
     FlushThrottler_->Reconfigure(Config_->FlushThrottler);
     CompactionThrottler_->Reconfigure(Config_->CompactionThrottler);
     PartitioningThrottler_->Reconfigure(Config_->PartitioningThrottler);
+}
+
+void TTablet::ReconfigureDistributedThrottlers(const IDistributedThrottlerManagerPtr& throttlerManager)
+{
+    auto getThrottlerConfig = [&] (const TString& key) {
+        auto it = Config_->Throttlers.find(key);
+        return it != Config_->Throttlers.end()
+            ? it->second
+            : New<TThroughputThrottlerConfig>();
+    };
+
+    DistributedThrottlers_[ETabletDistributedThrottlerKind::StoresUpdate] =
+        throttlerManager->GetOrCreateThrottler(
+            TablePath_,
+            CellTagFromId(Id_),
+            getThrottlerConfig("tablet_stores_update"),
+            "tablet_stores_update",
+            EDistributedThrottlerMode::Precise,
+            TabletStoresUpdateThrottlerRpcTimeout,
+            /* admitUnlimitedThrottler */ true);
+
+    DistributedThrottlers_[ETabletDistributedThrottlerKind::Lookup] =
+        throttlerManager->GetOrCreateThrottler(
+            TablePath_,
+            CellTagFromId(Id_),
+            getThrottlerConfig("lookup"),
+            "lookup",
+            EDistributedThrottlerMode::Adaptive,
+            LookupThrottlerRpcTimeout,
+            /* admitUnlimitedThrottler */ false);
+    YT_VERIFY(
+        Config_->Throttlers.contains("lookup") ||
+        !DistributedThrottlers_[ETabletDistributedThrottlerKind::Lookup]);
+
+    DistributedThrottlers_[ETabletDistributedThrottlerKind::Select] =
+        throttlerManager->GetOrCreateThrottler(
+            TablePath_,
+            CellTagFromId(Id_),
+            getThrottlerConfig("select"),
+            "select",
+            EDistributedThrottlerMode::Adaptive,
+            SelectThrottlerRpcTimeout,
+            /* admitUnlimitedThrottler */ false);
+
+    DistributedThrottlers_[ETabletDistributedThrottlerKind::CompactionRead] =
+        throttlerManager->GetOrCreateThrottler(
+            TablePath_,
+            CellTagFromId(Id_),
+            getThrottlerConfig("compaction_read"),
+            "compaction_read",
+            EDistributedThrottlerMode::Adaptive,
+            CompactionReadThrottlerRpcTimeout,
+            /* admitUnlimitedThrottler */ false);
 }
 
 const TString& TTablet::GetLoggingTag() const
@@ -1583,7 +1640,7 @@ void TTablet::ThrottleTabletStoresUpdate(
     const TTabletSlotPtr& slot,
     const NLogging::TLogger& Logger) const
 {
-    auto throttler = GetTabletStoresUpdateThrottler();
+    const auto& throttler = DistributedThrottlers()[ETabletDistributedThrottlerKind::StoresUpdate];
     if (!throttler) {
         return;
     }
@@ -1593,16 +1650,18 @@ void TTablet::ThrottleTabletStoresUpdate(
     YT_LOG_DEBUG("Started waiting for tablet stores update throttler (CellId: %v)",
         slot->GetCellId());
 
-    auto result = WaitFor(throttler->Throttle(1));
-    if (!result.IsOK()) {
-        result.ThrowOnError();
-    }
+    auto asyncResult = throttler->Throttle(1);
+    auto result = asyncResult.IsSet()
+        ? asyncResult.Get()
+        : WaitFor(asyncResult);
+    result.ThrowOnError();
 
     auto elapsedTime = timer.GetElapsedTime();
     YT_LOG_DEBUG("Finished waiting for tablet stores update throttler (ElapsedTime: %v, CellId: %v)",
         elapsedTime,
         slot->GetCellId());
-    TableProfiler_->GetTabletCounters()->StoresUpdateThrottlerWait.Record(elapsedTime);
+    TableProfiler_->GetTabletCounters()->ThrottlerWaitTimers[ETabletDistributedThrottlerKind::StoresUpdate]
+        .Record(elapsedTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -589,7 +589,9 @@ IChunkStorePtr TChunkStoreBase::AsChunk()
     return this;
 }
 
-IChunkStore::TReaders TChunkStoreBase::GetReaders(const IThroughputThrottlerPtr& throttler)
+IChunkStore::TReaders TChunkStoreBase::GetReaders(
+    const IThroughputThrottlerPtr& bandwidthThrottler,
+    const IThroughputThrottlerPtr& rpsThrottler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -657,8 +659,8 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(const IThroughputThrottlerPtr&
                 std::nullopt,
                 DoGetBlockCache(),
                 /* trafficMeter */ nullptr,
-                throttler,
-                GetUnlimitedThrottler() /* rpsThrottler */));
+                bandwidthThrottler,
+                rpsThrottler));
         YT_LOG_DEBUG("Remote chunk reader created and cached");
     };
 

@@ -2,6 +2,7 @@
 #include "private.h"
 #include "store.h"
 #include "tablet.h"
+#include "tablet_reader.h"
 #include "tablet_slot.h"
 #include "tablet_profiling.h"
 
@@ -93,6 +94,8 @@ public:
             BlockReadOptions_.ReadSessionId);
 
         TFiberWallTimer timer;
+
+        ThrottleUponOverdraft(ETabletDistributedThrottlerKind::Lookup, TabletSnapshot_, BlockReadOptions_);
 
         std::vector<TUnversionedRow> chunkLookupKeys;
 
@@ -227,6 +230,10 @@ public:
             counters->DecompressionCpuTime.Add(DecompressionCpuTime_);
 
             counters->ChunkReaderStatisticsCounters.Increment(BlockReadOptions_.ChunkReaderStatistics);
+        }
+
+        if (const auto& throttler = TabletSnapshot_->DistributedThrottlers[ETabletDistributedThrottlerKind::Lookup]) {
+            throttler->Acquire(FoundDataWeight_);
         }
 
         YT_LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, CacheHits: %v, CacheOutdated: %v, CacheMisses: %v, "

@@ -33,6 +33,9 @@ static constexpr int InitialOrderedDynamicSegmentIndex = 10;
 static constexpr i64 MemoryUsageGranularity = 16_KB;
 
 static constexpr auto TabletStoresUpdateThrottlerRpcTimeout = TDuration::Minutes(10);
+static constexpr auto LookupThrottlerRpcTimeout = TDuration::Seconds(15);
+static constexpr auto SelectThrottlerRpcTimeout = TDuration::Seconds(15);
+static constexpr auto CompactionReadThrottlerRpcTimeout = TDuration::Minutes(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
