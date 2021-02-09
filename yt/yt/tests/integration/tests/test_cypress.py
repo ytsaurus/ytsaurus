@@ -1272,7 +1272,7 @@ class TestCypress(YTEnvSetup):
             move("//tmp/t2", "//tmp/l")
 
     @authors("babenko")
-    def test_link_as_copy_target_success(self):
+    def test_link_as_move_target_success(self):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
