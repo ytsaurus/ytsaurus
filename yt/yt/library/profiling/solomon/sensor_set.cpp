@@ -146,17 +146,17 @@ int TSensorSet::Collect()
         }
     });
 
-    collect(TimeCounters_, TimeCountersCube_, [] (auto counter) -> std::pair<i64, bool> {
+    collect(TimeCounters_, TimeCountersCube_, [] (auto counter) -> std::pair<TDuration, bool> {
         auto owner = counter->Owner.Lock();
         if (!owner) {
-            return {0, false};
+            return {TDuration::Zero(), false};
         }
 
         auto value = owner->GetValue();
 
         auto delta = value - counter->LastValue;
         counter->LastValue = value;
-        return {delta.MicroSeconds(), true};
+        return {delta, true};
     });
 
     collect(Gauges_, GaugesCube_, [] (auto counter) -> std::pair<double, bool> {

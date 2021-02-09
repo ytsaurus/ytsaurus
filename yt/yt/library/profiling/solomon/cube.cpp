@@ -277,7 +277,7 @@ int TCube<T>::ReadSensors(
                 value += window.Values[index];
             }
 
-            if constexpr (std::is_same_v<T, i64>) {
+            if constexpr (std::is_same_v<T, i64> || std::is_same_v<T, TDuration>) {
                 if (options.ConvertCountersToRateGauge) {
                     consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
                 } else {
@@ -292,9 +292,18 @@ int TCube<T>::ReadSensors(
                         THROW_ERROR_EXCEPTION("Invalid rate denominator");
                     }
 
-                    consumer->OnDouble(time, value / options.RateDenominator);
+                    if constexpr (std::is_same_v<T, i64>) {
+                        consumer->OnDouble(time, value / options.RateDenominator);
+                    } else {
+                        consumer->OnDouble(time, value.SecondsFloat() / options.RateDenominator);
+                    }
                 } else {
-                    consumer->OnInt64(time, Rollup(window, indices.back()));
+                    // TODO(prime@): RATE is incompatible with windowed read. 
+                    if constexpr (std::is_same_v<T, i64>) {
+                        consumer->OnInt64(time, Rollup(window, indices.back()));
+                    } else {
+                        consumer->OnDouble(time, Rollup(window, indices.back()).SecondsFloat());
+                    }
                 }
             } else if constexpr (std::is_same_v<T, double>) {
                 consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
@@ -378,6 +387,7 @@ int TCube<T>::ReadSensors(
 
 template class TCube<double>;
 template class TCube<i64>;
+template class TCube<TDuration>;
 template class TCube<TSummarySnapshot<double>>;
 template class TCube<TSummarySnapshot<TDuration>>;
 template class TCube<THistogramSnapshot>;

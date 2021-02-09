@@ -345,7 +345,7 @@ public:
         auto result = queue->AsyncAppend(records, byteSize);
         queue->Wakeup();
         RecordCounter_.Increment(records.Size());
-        RecordCounter_.Increment(byteSize);
+        ByteCounter_.Increment(byteSize);
         return result;
     }
 
