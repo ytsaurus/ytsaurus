@@ -314,7 +314,7 @@ std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options)
 
         // Read last value.
         auto readOptions = options;
-        readOptions.Times.emplace_back(std::vector<int>{Window_.back().first}, Window_.back().second);
+        readOptions.Times.emplace_back(std::vector<int>{Window_.back().first}, TInstant::Zero());
 
         encoder->OnStreamBegin();
         Registry_->ReadSensors(readOptions, encoder.Get());
