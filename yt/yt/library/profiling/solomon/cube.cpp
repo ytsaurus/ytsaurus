@@ -166,11 +166,23 @@ int TCube<T>::ReadSensors(
     auto writeLabels = [&] (const auto& tagIds, bool rate, bool max, bool allowAggregate) {
         consumer->OnLabelsBegin();
 
-        auto sensorName = name + (rate ? "/rate" : "") + (max ? "/max" : "");
-        for (auto& c : sensorName) {
-            if (c == '/') {
-                c = '.';
+        TString sensorName;
+        sensorName.reserve(name.size() + (rate ? 5 : 0) + (max ? 4 : 0));
+        if (name[0] != '/') {
+            sensorName.push_back(name[0]);
+        }
+        for (size_t i = 1; i < name.size(); ++i) {
+            if (name[i] == '/') {
+                sensorName.push_back('.');
+            } else {
+                sensorName.push_back(name[i]);
             }
+        }
+        if (rate) {
+            sensorName += ".rate";
+        }
+        if (max) {
+            sensorName += ".max";
         }
 
         consumer->OnLabel("sensor", sensorName);
@@ -344,7 +356,7 @@ int TCube<T>::ReadSensors(
                 writeLabels(tagIds, false, false, true);
 
                 auto hist = NMonitoring::TExplicitHistogramSnapshot::New(options.BucketBound.size());
-                for (size_t i = 0; i < value.Values.size(); ++i) {
+                for (size_t i = 0; i < options.BucketBound.size(); ++i) {
                     int bucketValue = i < value.Values.size() ? value.Values[i] : 0;
                     (*hist)[i] = {options.BucketBound[i], bucketValue};
                 }
