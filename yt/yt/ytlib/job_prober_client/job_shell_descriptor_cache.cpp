@@ -93,67 +93,36 @@ private:
         YT_LOG_DEBUG("Requesting job shell descriptor from scheduler (Key: %v)",
             key);
 
-        // COMPAT(gritukan): Request job shell descriptors with null shell names
-        // via `GetJobShellDescriptor' method too when schedulers will be fresh enough.
-
+        auto req = JobProberProxy_.GetJobShellDescriptor();
+        req->SetUser(key.User);
+        ToProto(req->mutable_job_id(), key.JobId);
         if (key.ShellName) {
-            auto req = JobProberProxy_.GetJobShellDescriptor();
-            req->SetUser(key.User);
-            ToProto(req->mutable_job_id(), key.JobId);
             req->set_shell_name(*key.ShellName);
-
-            return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TJobProberServiceProxy::TErrorOrRspGetJobShellDescriptorPtr& rspOrError) {
-                if (!rspOrError.IsOK()) {
-                    YT_LOG_DEBUG(rspOrError, "Failed to get job shell descriptor (Key: %v)",
-                        key);
-                    THROW_ERROR_EXCEPTION("Failed to get job shell descriptor")
-                        << TErrorAttribute("user", key.User)
-                        << TErrorAttribute("job_id", key.JobId)
-                        << TErrorAttribute("shell_name", key.ShellName)
-                        << rspOrError;
-                }
-
-                const auto& rsp = rspOrError.Value();
-
-                TJobShellDescriptor jobShellDescriptor;
-                jobShellDescriptor.NodeDescriptor = FromProto<TNodeDescriptor>(rsp->node_descriptor());
-                jobShellDescriptor.Subcontainer = rsp->subcontainer();
-
-                YT_LOG_DEBUG("Job shell descriptor received (Key: %v, Descriptor: %v)",
-                    key,
-                    jobShellDescriptor);
-
-                return jobShellDescriptor;
-            }));
-        } else {
-            auto req = JobProberProxy_.GetJobNode();
-            req->SetUser(key.User);
-            ToProto(req->mutable_job_id(), key.JobId);
-            auto requiredPermissions = EPermissionSet(EPermission::Manage | EPermission::Read);
-            req->set_required_permissions(static_cast<ui32>(requiredPermissions));
-
-            return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TJobProberServiceProxy::TErrorOrRspGetJobNodePtr& rspOrError) {
-                if (!rspOrError.IsOK()) {
-                    YT_LOG_DEBUG(rspOrError, "Failed to get job node descriptor (Key: %v)",
-                        key);
-                    THROW_ERROR_EXCEPTION("Failed to get job node descriptor")
-                        << TErrorAttribute("user", key.User)
-                        << TErrorAttribute("job_id", key.JobId)
-                        << rspOrError;
-                }
-
-                const auto& rsp = rspOrError.Value();
-
-                TJobShellDescriptor jobShellDescriptor;
-                jobShellDescriptor.NodeDescriptor = FromProto<TNodeDescriptor>(rsp->node_descriptor());
-
-                YT_LOG_DEBUG("Job node descriptor received (Key: %v, Descriptor: %v)",
-                    key,
-                    jobShellDescriptor.NodeDescriptor);
-
-                return jobShellDescriptor;
-            }));
         }
+
+        return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TJobProberServiceProxy::TErrorOrRspGetJobShellDescriptorPtr& rspOrError) {
+            if (!rspOrError.IsOK()) {
+                YT_LOG_DEBUG(rspOrError, "Failed to get job shell descriptor (Key: %v)",
+                    key);
+                THROW_ERROR_EXCEPTION("Failed to get job shell descriptor")
+                    << TErrorAttribute("user", key.User)
+                    << TErrorAttribute("job_id", key.JobId)
+                    << TErrorAttribute("shell_name", key.ShellName)
+                    << rspOrError;
+            }
+
+            const auto& rsp = rspOrError.Value();
+
+            TJobShellDescriptor jobShellDescriptor;
+            jobShellDescriptor.NodeDescriptor = FromProto<TNodeDescriptor>(rsp->node_descriptor());
+            jobShellDescriptor.Subcontainer = rsp->subcontainer();
+
+            YT_LOG_DEBUG("Job shell descriptor received (Key: %v, Descriptor: %v)",
+                key,
+                jobShellDescriptor);
+
+            return jobShellDescriptor;
+        }));
     }
 };
 
