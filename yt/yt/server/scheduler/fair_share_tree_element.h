@@ -52,7 +52,8 @@ DEFINE_ENUM(EPrescheduleJobOperationCriterion,
 struct TScheduleJobsProfilingCounters
 {
     TScheduleJobsProfilingCounters(const NProfiling::TRegistry& profiler);
-
+    
+    NProfiling::TCounter PrescheduleJobCount;
     NProfiling::TEventTimer PrescheduleJobTime;
     NProfiling::TEventTimer TotalControllerScheduleJobTime;
     NProfiling::TEventTimer ExecControllerScheduleJobTime;
@@ -231,6 +232,8 @@ private:
         explicit TStageState(TFairShareSchedulingStage* schedulingStage);
 
         TFairShareSchedulingStage* const SchedulingStage;
+
+        bool PrescheduleExecuted = false;
 
         TDuration TotalDuration;
         TDuration PrescheduleDuration;
@@ -817,7 +820,7 @@ public:
     virtual bool IsExplicit() const override;
     virtual bool IsAggressiveStarvationEnabled() const override;
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
-    
+
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
 
     virtual TPool* AsPool() override;
