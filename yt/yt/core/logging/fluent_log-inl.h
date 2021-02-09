@@ -9,7 +9,7 @@
 
 namespace NYT::NLogging {
 
-/////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TParent>
 TOneShotFluentLogEventImpl<TParent>::TOneShotFluentLogEventImpl(
@@ -32,11 +32,11 @@ NYTree::TFluentYsonBuilder::TAny<TOneShotFluentLogEventImpl<TParent>&&> TOneShot
 template <class TParent>
 TOneShotFluentLogEventImpl<TParent>::~TOneShotFluentLogEventImpl()
 {
-    if (State_) {
+    if (State_ && Logger_ != &NullLogger) {
         LogStructuredEvent(*Logger_, State_->GetValue(), Level_);
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLogging

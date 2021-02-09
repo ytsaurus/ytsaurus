@@ -6,6 +6,7 @@
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
+#include "structured_logger.h"
 #include "automaton.h"
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
@@ -962,6 +963,9 @@ bool TSortedStoreManager::SplitPartition(
     partition->SetAllowedSplitTime(TInstant::Now());
 
     if (Tablet_->PartitionList().size() >= Tablet_->GetConfig()->MaxPartitionCount) {
+        StructuredLogger_->LogEvent("abort_partition_split")
+            .Item("partition_id").Value(partition->GetId())
+            .Item("reason").Value("partition_count_limit_exceeded");
         return false;
     }
 

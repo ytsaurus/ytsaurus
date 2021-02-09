@@ -79,6 +79,7 @@ public:
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::IInMemoryManagerPtr& GetInMemoryManager() const;
     const NTabletNode::TVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
+    const NTabletNode::IStructuredLoggerPtr& GetTabletNodeStructuredLogger() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
     const NJobAgent::TGpuManagerPtr& GetGpuManager() const;
     const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const;
@@ -190,6 +191,7 @@ private:
     NTabletNode::TSecurityManagerPtr SecurityManager_;
     NTabletNode::IInMemoryManagerPtr InMemoryManager_;
     NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
+    NTabletNode::IStructuredLoggerPtr TabletNodeStructuredLogger_;
 
     NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     NQueryAgent::IQuerySubexecutorPtr QueryExecutor_;

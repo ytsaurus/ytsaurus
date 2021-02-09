@@ -2,6 +2,7 @@
 #include "automaton.h"
 #include "store.h"
 #include "tablet.h"
+#include "structured_logger.h"
 
 #include <yt/server/lib/tablet_node/config.h>
 
@@ -54,6 +55,17 @@ TPartition::TPartition(
     , NextPivotKey_(std::move(nextPivotKey))
     , SampleKeys_(New<TSampleKeyList>())
 { }
+
+void TPartition::SetState(EPartitionState state)
+{
+    State_ = state;
+    Tablet_->GetStructuredLogger()->OnPartitionStateChanged(this);
+}
+
+EPartitionState TPartition::GetState() const
+{
+    return State_;
+}
 
 void TPartition::CheckedSetState(EPartitionState oldState, EPartitionState newState)
 {

@@ -11,6 +11,7 @@
 #include <yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/server/node/tablet_node/transaction.h>
 #include <yt/server/node/tablet_node/automaton.h>
+#include <yt/server/node/tablet_node/structured_logger.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -163,6 +164,7 @@ protected:
             GetCommitOrdering(),
             TTableReplicaId(),
             0);
+        Tablet_->SetStructuredLogger(CreateMockPerTabletStructuredLogger(Tablet_.get()));
 
         auto storeManager = CreateStoreManager(Tablet_.get());
         Tablet_->SetStoreManager(storeManager);

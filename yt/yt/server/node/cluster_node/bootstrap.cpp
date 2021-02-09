@@ -57,6 +57,7 @@
 #include <yt/server/node/tablet_node/store_compactor.h>
 #include <yt/server/node/tablet_node/store_flusher.h>
 #include <yt/server/node/tablet_node/store_trimmer.h>
+#include <yt/server/node/tablet_node/structured_logger.h>
 #include <yt/server/node/tablet_node/tablet_cell_service.h>
 #include <yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
@@ -339,6 +340,7 @@ void TBootstrap::DoInitialize()
 
     TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
     TabletSlotManager_ = New<NTabletNode::TSlotManager>(Config_->TabletNode, this);
+    TabletNodeStructuredLogger_ = NTabletNode::CreateStructuredLogger(this);
     MasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::TSlotManager::PopulateAlerts, TabletSlotManager_));
 
     if (Config_->CoreDumper) {
@@ -897,6 +899,11 @@ const IInMemoryManagerPtr& TBootstrap::GetInMemoryManager() const
 const TVersionedChunkMetaManagerPtr& TBootstrap::GetVersionedChunkMetaManager() const
 {
     return VersionedChunkMetaManager_;
+}
+
+const NTabletNode::IStructuredLoggerPtr& TBootstrap::GetTabletNodeStructuredLogger() const
+{
+    return TabletNodeStructuredLogger_;
 }
 
 const NExecAgent::TSlotManagerPtr& TBootstrap::GetExecSlotManager() const

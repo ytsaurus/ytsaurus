@@ -3,6 +3,7 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "store.h"
+#include "structured_logger.h"
 #include "in_memory_manager.h"
 #include "transaction.h"
 
@@ -43,8 +44,11 @@ TStoreManagerBase::TStoreManagerBase(
     , HydraManager_(std::move(hydraManager))
     , InMemoryManager_(std::move(inMemoryManager))
     , Client_(std::move(client))
+    , StructuredLogger_(tablet->GetStructuredLogger())
     , Logger(TabletNodeLogger)
 {
+    YT_VERIFY(StructuredLogger_);
+
     Logger.AddTag("%v, CellId: %v",
         Tablet_->GetLoggingTag(),
         TabletContext_->GetCellId());
@@ -94,10 +98,12 @@ void TStoreManagerBase::StopEpoch()
     for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
         if (store->IsDynamic()) {
             store->AsDynamic()->SetFlushState(EStoreFlushState::None);
+            StructuredLogger_->OnStoreFlushStateChanged(store->AsDynamic());
         }
         if (store->IsChunk()) {
             auto chunkStore = store->AsChunk();
             chunkStore->SetCompactionState(EStoreCompactionState::None);
+            StructuredLogger_->OnStoreCompactionStateChanged(chunkStore);
 
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled ||
                 chunkStore->GetPreloadState() == EStorePreloadState::Running)
@@ -106,6 +112,7 @@ void TStoreManagerBase::StopEpoch()
                 // concurrent preloads when this code is running, because execution is
                 // serialized in one thread.
                 chunkStore->SetPreloadState(EStorePreloadState::None);
+                StructuredLogger_->OnStorePreloadStateChanged(chunkStore);
             }
         }
     }
@@ -194,6 +201,7 @@ void TStoreManagerBase::RemoveStore(IStorePtr store)
     YT_ASSERT(store->GetStoreState() != EStoreState::ActiveDynamic);
 
     store->SetStoreState(EStoreState::Removed);
+    StructuredLogger_->OnStoreStateChanged(store);
     Tablet_->RemoveStore(store);
 }
 
@@ -207,6 +215,7 @@ void TStoreManagerBase::BackoffStoreRemoval(IStorePtr store)
             if (flushState == EStoreFlushState::Complete) {
                 dynamicStore->SetFlushState(EStoreFlushState::None);
                 dynamicStore->UpdateFlushAttemptTimestamp();
+                StructuredLogger_->OnStoreFlushStateChanged(dynamicStore);
             }
             break;
         }
@@ -216,6 +225,7 @@ void TStoreManagerBase::BackoffStoreRemoval(IStorePtr store)
             auto compactionState = chunkStore->GetCompactionState();
             if (compactionState == EStoreCompactionState::Complete) {
                 chunkStore->SetCompactionState(EStoreCompactionState::None);
+                StructuredLogger_->OnStoreCompactionStateChanged(chunkStore);
                 chunkStore->UpdateCompactionAttempt();
             }
             break;
@@ -248,6 +258,7 @@ TStoreFlushCallback TStoreManagerBase::BeginStoreFlush(
 {
     YT_VERIFY(store->GetFlushState() == EStoreFlushState::None);
     store->SetFlushState(EStoreFlushState::Running);
+    StructuredLogger_->OnStoreFlushStateChanged(store);
     return MakeStoreFlushCallback(store, tabletSnapshot, isUnmountWorkflow);
 }
 
@@ -255,12 +266,14 @@ void TStoreManagerBase::EndStoreFlush(IDynamicStorePtr store)
 {
     YT_VERIFY(store->GetFlushState() == EStoreFlushState::Running);
     store->SetFlushState(EStoreFlushState::Complete);
+    StructuredLogger_->OnStoreFlushStateChanged(store);
 }
 
 void TStoreManagerBase::BackoffStoreFlush(IDynamicStorePtr store)
 {
     YT_VERIFY(store->GetFlushState() == EStoreFlushState::Running);
     store->SetFlushState(EStoreFlushState::None);
+    StructuredLogger_->OnStoreFlushStateChanged(store);
     store->UpdateFlushAttemptTimestamp();
 }
 
@@ -268,18 +281,21 @@ void TStoreManagerBase::BeginStoreCompaction(IChunkStorePtr store)
 {
     YT_VERIFY(store->GetCompactionState() == EStoreCompactionState::None);
     store->SetCompactionState(EStoreCompactionState::Running);
+    StructuredLogger_->OnStoreCompactionStateChanged(store);
 }
 
 void TStoreManagerBase::EndStoreCompaction(IChunkStorePtr store)
 {
     YT_VERIFY(store->GetCompactionState() == EStoreCompactionState::Running);
     store->SetCompactionState(EStoreCompactionState::Complete);
+    StructuredLogger_->OnStoreCompactionStateChanged(store);
 }
 
 void TStoreManagerBase::BackoffStoreCompaction(IChunkStorePtr store)
 {
     YT_VERIFY(store->GetCompactionState() == EStoreCompactionState::Running);
     store->SetCompactionState(EStoreCompactionState::None);
+    StructuredLogger_->OnStoreCompactionStateChanged(store);
     store->UpdateCompactionAttempt();
 }
 
@@ -316,6 +332,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
 
     store->Preload(chunkData);
     store->SetPreloadState(EStorePreloadState::Complete);
+    StructuredLogger_->OnStorePreloadStateChanged(store);
 
     YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v)",
         store->GetId(),
@@ -359,6 +376,7 @@ void TStoreManagerBase::BeginStorePreload(IChunkStorePtr store, TCallback<TFutur
 
     YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Scheduled);
     store->SetPreloadState(EStorePreloadState::Running);
+    StructuredLogger_->OnStorePreloadStateChanged(store);
     store->SetPreloadFuture(callbackFuture.Run());
 }
 
@@ -366,6 +384,7 @@ void TStoreManagerBase::EndStorePreload(IChunkStorePtr store)
 {
     YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
     store->SetPreloadState(EStorePreloadState::Complete);
+    StructuredLogger_->OnStorePreloadStateChanged(store);
     store->SetPreloadFuture(TFuture<void>());
 }
 
@@ -380,6 +399,7 @@ void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
 
     store->SetPreloadFuture(TFuture<void>());
     store->SetPreloadState(EStorePreloadState::Scheduled);
+    StructuredLogger_->OnStorePreloadStateChanged(store);
     Tablet_->PreloadStoreIds().push_back(store->GetId());
 }
 
@@ -450,6 +470,7 @@ void TStoreManagerBase::Rotate(bool createNewStore)
 
     if (activeStore) {
         activeStore->SetStoreState(EStoreState::PassiveDynamic);
+        StructuredLogger_->OnStoreStateChanged(activeStore);
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Rotating store (StoreId: %v, DynamicMemoryUsage: %v)",
             activeStore->GetId(),
@@ -475,6 +496,8 @@ void TStoreManagerBase::Rotate(bool createNewStore)
         ResetActiveStore();
         Tablet_->SetActiveStore(nullptr);
     }
+
+    StructuredLogger_->OnStoreRotated(activeStore, Tablet_->GetActiveStore());
 
     YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores rotated");
 }

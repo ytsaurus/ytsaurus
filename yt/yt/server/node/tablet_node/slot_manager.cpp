@@ -5,6 +5,7 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "security_manager.h"
+#include "structured_logger.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
@@ -586,6 +587,8 @@ private:
 
         YT_LOG_DEBUG("Slot scan started");
 
+        Bootstrap_->GetTabletNodeStructuredLogger()->LogEvent("begin_slot_scan");
+
         BeginSlotScan_.Fire();
 
         std::vector<TFuture<void>> asyncResults;
@@ -606,6 +609,8 @@ private:
         YT_VERIFY(result.IsOK());
 
         EndSlotScan_.Fire();
+
+        Bootstrap_->GetTabletNodeStructuredLogger()->LogEvent("end_slot_scan");
 
         YT_LOG_DEBUG("Slot scan completed");
     }

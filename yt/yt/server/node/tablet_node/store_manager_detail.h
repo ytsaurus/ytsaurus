@@ -100,6 +100,8 @@ protected:
 
     THashSet<IStorePtr> LockedStores_;
 
+    IPerTabletStructuredLoggerPtr StructuredLogger_;
+
     NLogging::TLogger Logger;
 
     virtual IDynamicStore* GetActiveStore() const = 0;

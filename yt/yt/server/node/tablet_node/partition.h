@@ -56,7 +56,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<ISortedStorePtr>, Stores);
 
     // NB: Partition state is transient.
-    DEFINE_BYVAL_RW_PROPERTY(EPartitionState, State, EPartitionState::Normal);
+    DECLARE_BYVAL_RW_PROPERTY(EPartitionState, State);
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, SamplingTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, SamplingRequestTime);
@@ -96,6 +96,9 @@ public:
 
     void RequestImmediateSplit(std::vector<TLegacyOwningKey> pivotKeys);
     bool IsImmediateSplitRequested() const;
+
+private:
+    EPartitionState State_ = EPartitionState::Normal;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,7 @@
 #include "sorted_chunk_store.h"
 #include "store_compactor.h"
 #include "store_manager.h"
+#include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_profiling.h"
@@ -242,6 +243,21 @@ private:
             SemaphoreGuard = std::move(semaphoreGuard);
 
             owner->ChangeFutureEffect(TabletId, Effect);
+        }
+
+        void StoreToStructuredLog(TFluentMap fluent)
+        {
+            fluent
+                .Item("partition_id").Value(PartitionId)
+                .Item("store_ids").DoListFor(StoreIds, [&] (TFluentList fluent, TStoreId storeId) {
+                    fluent
+                        .Item().Value(storeId);
+                })
+                .Item("discard_stores").Value(DiscardStores)
+                .Item("slack").Value(Slack)
+                .Item("effect").Value(Effect)
+                .Item("future_effect").Value(FutureEffect)
+                .Item("random").Value(Random);
         }
 
         static inline bool Comparer(
@@ -503,6 +519,9 @@ private:
         candidate->Effect = candidate->StoreIds.size() - 1;
         candidate->FutureEffect = GetFutureEffect(tablet->GetId());
 
+        tablet->GetStructuredLogger()->LogEvent("partitioning_candidate")
+            .Do(BIND(&TTask::StoreToStructuredLog, candidate.get()));
+
         {
             auto guard = Guard(ScanSpinLock_);
             PartitioningCandidates_.push_back(std::move(candidate));
@@ -573,6 +592,9 @@ private:
             majorTimestamp,
             partition->Stores().size());
 
+        tablet->GetStructuredLogger()->LogEvent("discard_stores_candidate")
+            .Do(BIND(&TTask::StoreToStructuredLog, candidate.get()));
+
         {
             auto guard = Guard(ScanSpinLock_);
             CompactionCandidates_.push_back(std::move(candidate));
@@ -629,6 +651,9 @@ private:
             }
         }
         candidate->FutureEffect = GetFutureEffect(tablet->GetId());
+
+        tablet->GetStructuredLogger()->LogEvent("compaction_candidate")
+            .Do(BIND(&TTask::StoreToStructuredLog, candidate.get()));
 
         {
             auto guard = Guard(ScanSpinLock_);
@@ -1110,18 +1135,29 @@ private:
             return;
         }
 
+        const auto& storeManager = tablet->GetStoreManager();
+        const auto& structuredLogger = tablet->GetStructuredLogger();
+
+        auto logFailure = [&] (TStringBuf message) {
+            return structuredLogger->LogEvent("abort_partitioning")
+                .Item("reason").Value(message)
+                .Item("partition_id").Value(task->PartitionId);
+        };
+
+
         auto* eden = tablet->GetEden();
         if (eden->GetId() != task->PartitionId) {
             YT_LOG_DEBUG("Eden is missing, aborting partitioning");
+            logFailure("eden_missing");
             return;
         }
 
         if (eden->GetState() != EPartitionState::Normal) {
             YT_LOG_DEBUG("Eden is in improper state, aborting partitioning (EdenState: %v)", eden->GetState());
+            logFailure("improper_state")
+                .Item("state").Value(eden->GetState());
             return;
         }
-
-        const auto& storeManager = tablet->GetStoreManager();
 
         std::vector<TSortedChunkStorePtr> stores;
         stores.reserve(task->StoreIds.size());
@@ -1129,6 +1165,8 @@ private:
             auto store = tablet->FindStore(storeId);
             if (!store || !eden->Stores().contains(store->AsSorted())) {
                 YT_LOG_DEBUG("Eden store is missing, aborting partitioning (StoreId: %v)", storeId);
+                logFailure("store_missing")
+                    .Item("store_id").Value(storeId);
                 return;
             }
             auto typedStore = store->AsSortedChunk();
@@ -1137,6 +1175,9 @@ private:
                 YT_LOG_DEBUG("Eden store is in improper state, aborting partitioning (StoreId: %v, CompactionState: %v)",
                     storeId,
                     typedStore->GetCompactionState());
+                logFailure("improper_store_state")
+                    .Item("store_id").Value(storeId)
+                    .Item("store_compaction_state").Value(typedStore->GetCompactionState());
                 return;
             }
             stores.push_back(std::move(typedStore));
@@ -1149,6 +1190,8 @@ private:
             {
                 YT_LOG_DEBUG("Other partition is splitting, aborting eden partitioning (PartitionId: %v)",
                      partition->GetId());
+                logFailure("other_partition_splitting")
+                    .Item("other_partition_id").Value(partition->GetId());
                 return;
             }
             pivotKeys.push_back(partition->GetPivotKey());
@@ -1182,6 +1225,11 @@ private:
 
             auto beginInstant = TInstant::Now();
             eden->SetCompactionTime(beginInstant);
+
+            structuredLogger->LogEvent("start_partitioning")
+                .Item("partition_id").Value(eden->GetId())
+                .Item("store_ids").Value(task->StoreIds)
+                .Item("current_timestamp").Value(currentTimestamp);
 
             auto throttler = Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletPartitioning);
 
@@ -1224,9 +1272,9 @@ private:
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
 
-            int rowCount;
-            std::tie(writers, rowCount) = WaitFor(asyncResult)
+            auto partitioningResult = WaitFor(asyncResult)
                 .ValueOrThrow();
+            const auto& partitionWritersWithIndex = partitioningResult.Writers;
 
             auto endInstant = TInstant::Now();
 
@@ -1245,25 +1293,45 @@ private:
                 storeIdsToRemove.push_back(storeId);
             }
 
+            std::vector<std::pair<TChunkId, int>> loggableChunkInfos;
+
             // TODO(sandello): Move specs?
             TStoreIdList storeIdsToAdd;
-            for (const auto& writer : writers) {
+            for (const auto& [writer, partitionIndex] : partitionWritersWithIndex) {
                 for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
                     auto* descriptor = actionRequest.add_stores_to_add();
                     descriptor->set_store_type(static_cast<int>(EStoreType::SortedChunk));
                     descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                     descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
                     storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
+
+                    loggableChunkInfos.emplace_back(
+                        FromProto<TChunkId>(chunkSpec.chunk_id()),
+                        partitionIndex
+                    );
                 }
 
                 tabletSnapshot->PerformanceCounters->PartitioningDataWeightCount += writer->GetDataStatistics().data_weight();
             }
 
             YT_LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
-                rowCount,
+                partitioningResult.RowCount,
                 storeIdsToAdd,
                 storeIdsToRemove,
                 endInstant - beginInstant);
+
+            structuredLogger->LogEvent("end_partitioning")
+                .Item("partition_id").Value(eden->GetId())
+                .Item("stores_to_add").DoListFor(
+                    loggableChunkInfos,
+                    [&] (TFluentList fluent, const auto& chunkInfo) {
+                        fluent
+                            .Item().BeginMap()
+                                .Item("chunk_id").Value(chunkInfo.first)
+                                .Item("partition_index").Value(chunkInfo.second)
+                            .EndMap();
+                    })
+                .Item("output_row_count").Value(partitioningResult.RowCount);
 
             FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction), Logger);
 
@@ -1279,6 +1347,9 @@ private:
 
             tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(error);
             YT_LOG_ERROR(error, "Error partitioning Eden, backing off");
+
+            structuredLogger->LogEvent("backoff_partitioning")
+                .Item("partition_id").Value(eden->GetId());
 
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
@@ -1297,7 +1368,19 @@ private:
         eden->CheckedSetState(EPartitionState::Partitioning, EPartitionState::Normal);
     }
 
-    std::tuple<std::vector<IVersionedMultiChunkWriterPtr>, int> DoPartitionEden(
+    struct TEdenPartitioningResult
+    {
+        struct TPartitionWriter
+        {
+            IVersionedMultiChunkWriterPtr Writer;
+            int PartitionIndex;
+        };
+
+        std::vector<TPartitionWriter> Writers;
+        i64 RowCount;
+    };
+
+    TEdenPartitioningResult DoPartitionEden(
         const IVersionedReaderPtr& reader,
         const TTabletSnapshotPtr& tabletSnapshot,
         const ITransactionPtr& transaction,
@@ -1391,9 +1474,9 @@ private:
         };
 
         std::vector<TFuture<void>> asyncCloseResults;
-        std::vector<IVersionedMultiChunkWriterPtr> releasedWriters;
+        std::vector<TEdenPartitioningResult::TPartitionWriter> releasedWriters;
 
-        auto flushPartition = [&] () {
+        auto flushPartition = [&] (int partitionIndex) {
             flushOutputRows();
 
             if (currentWriter) {
@@ -1402,7 +1485,7 @@ private:
                     currentPartitionRowCount);
 
                 asyncCloseResults.push_back(currentWriter->Close());
-                releasedWriters.push_back(std::move(currentWriter));
+                releasedWriters.push_back({std::move(currentWriter), partitionIndex});
                 currentWriter.Reset();
             }
 
@@ -1465,7 +1548,7 @@ private:
                 writeOutputRow(row);
             }
 
-            flushPartition();
+            flushPartition(it - pivotKeys.begin());
         }
 
         YT_VERIFY(readRowCount == writeRowCount);
@@ -1474,7 +1557,8 @@ private:
             .ThrowOnError();
 
         std::vector<TChunkInfo> chunkInfos;
-        for (const auto& writer : releasedWriters) {
+        for (const auto& partitionWriterInfo : releasedWriters) {
+            const auto& writer = partitionWriterInfo.Writer;
             for (const auto& chunkSpec : writer->GetWrittenChunksFullMeta()) {
                 chunkInfos.emplace_back(
                     FromProto<TChunkId>(chunkSpec.chunk_id()),
@@ -1487,7 +1571,7 @@ private:
         WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();
 
-        return std::make_tuple(releasedWriters, readRowCount);
+        return {releasedWriters, readRowCount};
     }
 
     void DiscardPartitionStores(
@@ -1500,10 +1584,11 @@ private:
         YT_LOG_DEBUG("Discarding expired partition stores (PartitionId: %v)",
             partition->GetId());
 
-        partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
-
         auto* tablet = partition->GetTablet();
         const auto& storeManager = tablet->GetStoreManager();
+        const auto& structuredLogger = tablet->GetStructuredLogger();
+
+        partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
 
         try {
             for (const auto& store : stores) {
@@ -1536,6 +1621,9 @@ private:
                 partition->GetCompressedDataSize(),
                 storeIdsToRemove);
 
+            structuredLogger->LogEvent("discard_stores")
+                .Item("partition_id").Value(partition->GetId());
+
             FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction), Logger);
 
             for (const auto& store : stores) {
@@ -1550,6 +1638,9 @@ private:
 
             tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(error);
             YT_LOG_ERROR(error, "Error discarding expired partition stores, backing off");
+
+            structuredLogger->LogEvent("backoff_discard_stores")
+                .Item("partition_id").Value(partition->GetId());
 
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
@@ -1590,20 +1681,30 @@ private:
             return;
         }
 
+        const auto& storeManager = tablet->GetStoreManager();
+        const auto& structuredLogger = tablet->GetStructuredLogger();
+
+        auto logFailure = [&] (TStringBuf message) {
+            return structuredLogger->LogEvent("abort_compaction")
+                .Item("reason").Value(message)
+                .Item("partition_id").Value(task->PartitionId);
+        };
+
         auto* partition = tablet->GetEden()->GetId() == task->PartitionId
             ? tablet->GetEden()
             : tablet->FindPartition(task->PartitionId);
         if (!partition) {
             YT_LOG_DEBUG("Partition is missing, aborting compaction");
+            logFailure("partition_missing");
             return;
         }
 
         if (partition->GetState() != EPartitionState::Normal) {
             YT_LOG_DEBUG("Partition is in improper state, aborting compaction (PartitionState: %v)", partition->GetState());
+            logFailure("improper_state")
+                .Item("state").Value(partition->GetState());
             return;
         }
-
-        const auto& storeManager = tablet->GetStoreManager();
 
         std::vector<TSortedChunkStorePtr> stores;
         stores.reserve(task->StoreIds.size());
@@ -1611,6 +1712,9 @@ private:
             auto store = tablet->FindStore(storeId);
             if (!store || !partition->Stores().contains(store->AsSorted())) {
                 YT_LOG_DEBUG("Partition store is missing, aborting compaction (StoreId: %v)", storeId);
+                logFailure("store_missing")
+                    .Item("store_id").Value(storeId);
+
                 return;
             }
             auto typedStore = store->AsSortedChunk();
@@ -1619,6 +1723,9 @@ private:
                 YT_LOG_DEBUG("Partition store is in improper state, aborting compaction (StoreId: %v, CompactionState: %v)",
                     storeId,
                     typedStore->GetCompactionState());
+                logFailure("improper_store_state")
+                    .Item("store_id").Value(storeId)
+                    .Item("store_compaction_state").Value(typedStore->GetCompactionState());
                 return;
             }
             stores.push_back(std::move(typedStore));
@@ -1671,6 +1778,14 @@ private:
             );
 
             majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
+
+            structuredLogger->LogEvent("start_compaction")
+                .Item("partition_id").Value(partition->GetId())
+                .Item("store_ids").Value(task->StoreIds)
+                .Item("current_timestamp").Value(currentTimestamp)
+                // NB: deducible.
+                .Item("major_timestamp").Value(majorTimestamp)
+                .Item("retained_timestamp").Value(retainedTimestamp);
 
             auto throttler = Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletCompaction);
 
@@ -1745,7 +1860,6 @@ private:
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
                 storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
-
             }
 
             tabletSnapshot->PerformanceCounters->CompactionDataWeightCount += writer->GetDataStatistics().data_weight();
@@ -1756,6 +1870,12 @@ private:
                 storeIdsToAdd,
                 storeIdsToRemove,
                 endInstant - beginInstant);
+
+            structuredLogger->LogEvent("end_compaction")
+                .Item("partition_id").Value(partition->GetId())
+                .Item("store_ids_to_add").List(storeIdsToAdd)
+                .Item("output_row_count").Value(outputRowCount)
+                .Item("output_data_size").Value(outputDataSize);
 
             FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction), Logger);
 
@@ -1771,6 +1891,9 @@ private:
 
             tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(error);
             YT_LOG_ERROR(error, "Error compacting partition, backing off");
+
+            structuredLogger->LogEvent("backoff_compaction")
+                .Item("partition_id").Value(partition->GetId());
 
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);

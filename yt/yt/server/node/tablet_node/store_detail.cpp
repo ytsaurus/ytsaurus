@@ -304,7 +304,7 @@ void TDynamicStoreBase::BuildOrchidYson(TFluentMap fluent)
     TStoreBase::BuildOrchidYson(fluent);
 
     fluent
-        .Item("flush_state").Value(FlushState_)
+        .Item("flush_state").Value(GetFlushState())
         .Item("row_count").Value(GetRowCount())
         .Item("lock_count").Value(GetLockCount())
         .Item("value_count").Value(GetValueCount())
@@ -508,12 +508,12 @@ void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
 
     auto backingStore = GetBackingStore();
     fluent
-        .Item("preload_state").Value(PreloadState_)
-        .Item("compaction_state").Value(CompactionState_)
-        .Item("compressed_data_size").Value(MiscExt_.compressed_data_size())
-        .Item("uncompressed_data_size").Value(MiscExt_.uncompressed_data_size())
-        .Item("row_count").Value(MiscExt_.row_count())
-        .Item("creation_time").Value(TInstant::MicroSeconds(MiscExt_.creation_time()))
+        .Item("preload_state").Value(GetPreloadState())
+        .Item("compaction_state").Value(GetCompactionState())
+        .Item("compressed_data_size").Value(GetCompressedDataSize())
+        .Item("uncompressed_data_size").Value(GetUncompressedDataSize())
+        .Item("row_count").Value(GetRowCount())
+        .Item("creation_time").Value(GetCreationTime())
         .DoIf(backingStore.operator bool(), [&] (TFluentMap fluent) {
             fluent
                 .Item("backing_store").DoMap([&] (TFluentMap fluent) {
