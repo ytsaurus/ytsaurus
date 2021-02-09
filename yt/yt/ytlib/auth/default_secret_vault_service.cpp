@@ -49,12 +49,10 @@ public:
         TDefaultSecretVaultServiceConfigPtr config,
         ITvmServicePtr tvmService,
         IPollerPtr poller,
-        NProfiling::TRegistry profiler,
-        bool validateResponseEncoding = false)
+        NProfiling::TRegistry profiler)
         : Config_(std::move(config))
         , TvmService_(std::move(tvmService))
         , HttpClient_(CreateHttpClient(std::move(poller)))
-        , ValidateResponseEncoding_(validateResponseEncoding)
         , SubrequestsPerCallGauge_(profiler.Gauge("/subrequests_per_call"))
         , CallCountCounter_(profiler.Counter("/call_count"))
         , SubrequestCountCounter_(profiler.Counter("/subrequest_count"))
@@ -80,8 +78,6 @@ private:
     const ITvmServicePtr TvmService_;
 
     const NHttp::IClientPtr HttpClient_;
-
-    const bool ValidateResponseEncoding_;
 
     NProfiling::TGauge SubrequestsPerCallGauge_;
     NProfiling::TCounter CallCountCounter_;
@@ -161,16 +157,7 @@ private:
         IMapNodePtr rootNode;
         try {
             auto body = rsp->ReadAll();
-            if (ValidateResponseEncoding_) {
-                rootNode = ParseVaultResponse(body, true);
-                auto alternate = ParseVaultResponse(body, false);
-                if (!AreNodesEqual(rootNode, alternate)) {
-                    THROW_ERROR_EXCEPTION(
-                        "YP-2608: broken utf8 decoding of secrets. Remove non-ASCII characters.");
-                }
-            } else {
-                rootNode = ParseVaultResponse(body, Config_->EnableBrokenUtf8DecoderForCompatibility);
-            }
+            rootNode = ParseVaultResponse(body);
         } catch (const std::exception& ex) {
             onError(TError(
                 ESecretVaultErrorCode::MalformedResponse,
@@ -258,12 +245,12 @@ private:
         return subresponses;
     }
 
-    IMapNodePtr ParseVaultResponse(const TSharedRef& body, const bool mangleUtf8)
+    IMapNodePtr ParseVaultResponse(const TSharedRef& body)
     {
         TMemoryInput stream(body.Begin(), body.Size());
         auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
         auto jsonConfig = New<TJsonFormatConfig>();
-        jsonConfig->EncodeUtf8 = mangleUtf8;
+        jsonConfig->EncodeUtf8 = false;
         ParseJson(&stream, builder.get(), jsonConfig);
         return builder->EndTree()->AsMap();
     }
@@ -372,20 +359,6 @@ ISecretVaultServicePtr CreateDefaultSecretVaultService(
         std::move(tvmService),
         std::move(poller),
         std::move(profiler));
-}
-
-ISecretVaultServicePtr CreateValidatingSecretVaultService(
-    TDefaultSecretVaultServiceConfigPtr config,
-    ITvmServicePtr tvmService,
-    IPollerPtr poller,
-    NProfiling::TRegistry profiler)
-{
-    return New<TDefaultSecretVaultService>(
-        std::move(config),
-        std::move(tvmService),
-        std::move(poller),
-        std::move(profiler),
-        true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

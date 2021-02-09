@@ -319,7 +319,6 @@ public:
     TDuration RequestTimeout;
     TString VaultServiceId;
     TString Consumer;
-    bool EnableBrokenUtf8DecoderForCompatibility;
 
     TDefaultSecretVaultServiceConfig()
     {
@@ -337,9 +336,6 @@ public:
             .Default("yav");
         RegisterParameter("consumer", Consumer)
             .Optional();
-        RegisterParameter("enable_broken_utf8_decoder_for_compatibility",
-            EnableBrokenUtf8DecoderForCompatibility)
-            .Default(true);
     }
 };
 
