@@ -22,7 +22,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto FileMode =
+static constexpr auto FileMode =
     CreateAlways |
     WrOnly |
     Seq |
@@ -31,181 +31,150 @@ static const auto FileMode =
     AWUser |
     AWGroup;
 
-static constexpr i64 Alignment = 4096;
-
 static const auto& Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileWriterBufferTag
-{ };
-
 TFileWriter::TFileWriter(
-    const IIOEnginePtr& ioEngine,
+    IIOEnginePtr ioEngine,
     TChunkId chunkId,
-    const TString& fileName,
-    bool syncOnClose,
-    bool enableWriteDirectIO)
-    : IOEngine_(ioEngine)
+    TString fileName,
+    bool syncOnClose)
+    : IOEngine_(std::move(ioEngine))
     , ChunkId_(chunkId)
-    , FileName_(fileName)
+    , FileName_(std::move(fileName))
     , SyncOnClose_(syncOnClose)
-    , EnableWriteDirectIO_(enableWriteDirectIO)
 {
-    size_t size = 1_MB;
-#ifdef _msan_enabled_
-    constexpr bool initializeMemory = true;
-#else
-    constexpr bool initializeMemory = false;
-#endif
-    auto data = TSharedMutableRef::Allocate<TFileWriterBufferTag>(size + Alignment, initializeMemory);
-    data = data.Slice(AlignUp(data.Begin(), Alignment), data.End());
-    data = data.Slice(data.Begin(), data.Begin() + size);
-    Buffer_ = data;
-
     BlocksExt_.set_sync_on_close(SyncOnClose_);
 }
 
 void TFileWriter::TryLockDataFile(TPromise<void> promise)
 {
-    if (DataFile_->Flock(LOCK_EX | LOCK_NB) < 0 && errno == EWOULDBLOCK) {
-        TDelayedExecutor::Submit(
-            BIND(&TFileWriter::TryLockDataFile, MakeStrong(this), promise),
-            TDuration::MilliSeconds(10));
-    } else {
-        Open_ = true;
+    YT_VERIFY(State_.load() == EState::Opening);
+
+    if (DataFile_->Flock(LOCK_EX | LOCK_NB) >= 0) {
         promise.Set();
+        return;
     }
-}
 
-TFuture<void> TFileWriter::LockDataFile(const std::shared_ptr<TFileHandle>& file)
-{
-    DataFile_ = file;
+    if (errno != EWOULDBLOCK) {
+        promise.Set(TError::FromSystem(errno));
+        return;
+    }
 
-    TPromise<void> promise = NewPromise<void>();
-    TryLockDataFile(promise);
-    return promise;
+    YT_LOG_WARNING("Error locking chunk data file, retrying (Path: %v)",
+        FileName_);
+
+    TDelayedExecutor::Submit(
+        BIND(&TFileWriter::TryLockDataFile, MakeStrong(this), promise),
+        TDuration::MilliSeconds(10),
+        IOEngine_->GetWritePoolInvoker());
 }
 
 TFuture<void> TFileWriter::Open()
 {
-    YT_VERIFY(!Open_);
-    YT_VERIFY(!Closed_);
-    YT_VERIFY(!Opening_);
+    YT_VERIFY(State_.exchange(EState::Opening) == EState::Created);
 
-    Opening_ = true;
-
-    auto mode = FileMode;
-    if (EnableWriteDirectIO_) {
-        mode |= DirectAligned;
-    }
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
-    return IOEngine_->Open(FileName_ + NFS::TempFileSuffix, mode)
-        .Apply(BIND(&TFileWriter::LockDataFile, MakeStrong(this)))
-        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
-            Opening_ = false;
+    return IOEngine_->Open(FileName_ + NFS::TempFileSuffix, FileMode)
+        .Apply(BIND([=, this_ = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& file) {
+            YT_VERIFY(State_.load() == EState::Opening);
+
+            DataFile_ = file;
+
+            auto promise = NewPromise<void>();
+            TryLockDataFile(promise);
+            return promise.ToFuture();
+        }).AsyncVia(IOEngine_->GetWritePoolInvoker()))
+        .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            YT_VERIFY(State_.load() == EState::Opening);
+
             if (!error.IsOK()) {
-                THROW_ERROR error;
+                State_.store(EState::Failed);
+                THROW_ERROR_EXCEPTION("Failed to open chunk data file %v",
+                    FileName_)
+                    << error;
             }
+
+            State_.store(EState::Ready);
         }));
 }
 
 bool TFileWriter::WriteBlock(const TBlock& block)
 {
-    YT_VERIFY(Open_);
-    YT_VERIFY(!Closed_);
-
-    {
-        auto error = block.ValidateChecksum();
-        YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Block checksum mismatch during file writing");
-    }
-
-    try {
-        auto* blockInfo = BlocksExt_.add_blocks();
-        blockInfo->set_offset(DataSize_);
-
-        blockInfo->set_size(static_cast<int>(block.Size()));
-
-        blockInfo->set_checksum(block.GetOrComputeChecksum());
-
-        const char* p = block.Data.Begin();
-        const char* pe = p + block.Size();
-
-        auto filePosition = DataSize_;
-        while (p != pe) {
-            auto size = Min<size_t>(pe - p, Buffer_.Size() - BufferPosition_);
-            ::memcpy(Buffer_.Begin() + BufferPosition_, p, size);
-
-            auto offset = ::AlignDown(filePosition, Alignment);
-            auto start = ::AlignDown(Buffer_.Begin() + BufferPosition_, Alignment);
-            auto end = ::AlignUp(Buffer_.Begin() + BufferPosition_ + size, Alignment);
-            auto data = Buffer_.Slice(start, end);
-
-            YT_VERIFY(offset >= 0 && offset <= filePosition);
-            YT_VERIFY(start >= Buffer_.Begin() && end <= Buffer_.End());
-            YT_VERIFY(filePosition - offset == Buffer_.Begin() + BufferPosition_ - start);
-
-            WaitFor(IOEngine_->Pwrite(DataFile_, data, offset))
-                .ThrowOnError();
-
-            filePosition += size;
-
-            BufferPosition_ += size;
-            p += size;
-
-            YT_VERIFY(BufferPosition_ <= Buffer_.Size());
-
-            if (BufferPosition_ == Buffer_.Size()) {
-                BufferPosition_ = 0;
-            }
-        }
-
-        DataSize_ += block.Size();
-
-        YT_VERIFY(filePosition == DataSize_);
-    } catch (const std::exception& ex) {
-        Error_ = TError(
-            "Failed to write chunk data file %v",
-            FileName_)
-            << ex;
-        return false;
-    }
-
-    return true;
+    return WriteBlocks({block});
 }
 
 bool TFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 {
-    YT_VERIFY(Open_);
-    YT_VERIFY(!Closed_);
+    YT_VERIFY(State_.exchange(EState::WritingBlocks) == EState::Ready);
+
+    i64 startOffset = DataSize_;
+    i64 currentOffset = startOffset;
+
+    std::vector<TSharedRef> data;
+    data.reserve(blocks.size());
 
     for (const auto& block : blocks) {
-        if (!WriteBlock(block)) {
-            return false;
-        }
+        auto error = block.ValidateChecksum();
+        YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Block checksum mismatch during file writing");
+
+        auto* blockInfo = BlocksExt_.add_blocks();
+        blockInfo->set_offset(currentOffset);
+        blockInfo->set_size(static_cast<int>(block.Size()));
+        blockInfo->set_checksum(block.GetOrComputeChecksum());
+
+        currentOffset += block.Size();
+        data.push_back(block.Data);
     }
-    return true;
+
+    ReadyEvent_ = IOEngine_->Pwritev(DataFile_, data, startOffset)
+        .Apply(BIND([=, this_ = MakeStrong(this), newDataSize = currentOffset] (const TError& error) {
+            YT_VERIFY(State_.load() == EState::WritingBlocks);
+
+            if (!error.IsOK()) {
+                State_.store(EState::Failed);
+                THROW_ERROR_EXCEPTION("Failed to write chunk data file %v",
+                    FileName_)
+                    << error;
+            }
+
+            DataSize_ = newDataSize;
+            State_.store(EState::Ready);
+        }));
+
+    return false;
 }
 
 TFuture<void> TFileWriter::GetReadyEvent()
 {
-    YT_VERIFY(Open_);
-    YT_VERIFY(!Closed_);
+    auto state = State_.load();
+    YT_VERIFY(state == EState::WritingBlocks || state == EState::Ready);
 
-    return MakeFuture(Error_);
+    return ReadyEvent_;
 }
 
-TFuture<void> TFileWriter::WriteMeta(const TRefCountedChunkMetaPtr& chunkMeta)
+TFuture<void> TFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 {
-    // Write meta.
-    ChunkMeta_->CopyFrom(*chunkMeta);
-    SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
+    YT_VERIFY(State_.exchange(EState::Closing) == EState::Ready);
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
+    return IOEngine_->Close(DataFile_, DataSize_, SyncOnClose_)
+        .Apply(BIND([=, _this = MakeStrong(this)] {
+            YT_VERIFY(State_.load() == EState::Closing);
 
-    return IOEngine_->Open(metaFileName + NFS::TempFileSuffix, FileMode)
-        .Apply(BIND([this, _this = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& chunkMetaFile) {
+            if (!chunkMeta->IsFinalized()) {
+                chunkMeta->Finalize();
+            }
+            ChunkMeta_->CopyFrom(*chunkMeta);
+            SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
+
+            return IOEngine_->Open(metaFileName + NFS::TempFileSuffix, FileMode);
+        }))
+        .Apply(BIND([=, _this = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& chunkMetaFile) {
+            YT_VERIFY(State_.load() == EState::Closing);
+
             auto metaData = SerializeProtoToRefWithEnvelope(*ChunkMeta_);
 
             TChunkMetaHeader_2 header;
@@ -215,82 +184,98 @@ TFuture<void> TFileWriter::WriteMeta(const TRefCountedChunkMetaPtr& chunkMeta)
 
             MetaDataSize_ = metaData.Size() + sizeof(header);
 
-            TSharedMutableRef buffer = Buffer_;
-            if (buffer.Size() < MetaDataSize_) {
-                auto data = TSharedMutableRef::Allocate<TFileWriterBufferTag>(MetaDataSize_ + Alignment, true);
-                data = data.Slice(AlignUp(data.Begin(), Alignment), data.End());
-                data = data.Slice(data.Begin(), data.Begin() + MetaDataSize_);
-                buffer = data;
-            }
+            struct TMetaBufferTag
+            { };
 
+            auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(MetaDataSize_, false);
             ::memcpy(buffer.Begin(), &header, sizeof(header));
             ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
 
             return IOEngine_->Pwrite(chunkMetaFile, buffer, 0)
                 .Apply(BIND(&IIOEngine::Close, IOEngine_, chunkMetaFile, MetaDataSize_, SyncOnClose_));
         }))
-        .Apply(BIND([metaFileName, this, _this = MakeStrong(this)] () {
+        .Apply(BIND([=, _this = MakeStrong(this)] () {
+            YT_VERIFY(State_.load() == EState::Closing);
+
             NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
             NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
 
-            if (SyncOnClose_) {
-                return IOEngine_->FlushDirectory(NFS::GetDirectoryName(FileName_));
-            } else {
+            if (!SyncOnClose_) {
                 return VoidFuture;
             }
-        }))
-        .Apply(BIND([this, _this = MakeStrong(this)] () {
+
+            return IOEngine_->FlushDirectory(NFS::GetDirectoryName(FileName_));
+        }).AsyncVia(IOEngine_->GetWritePoolInvoker()))
+        .Apply(BIND([this, _this = MakeStrong(this)] (const TError& error) {
+            YT_VERIFY(State_.load() == EState::Closing);
+
+            if (!error.IsOK()) {
+                State_.store(EState::Failed);
+                THROW_ERROR_EXCEPTION("Failed to close chunk data file %v",
+                    FileName_)
+                    << error;
+            }
+
             ChunkInfo_.set_disk_space(DataSize_ + MetaDataSize_);
+            State_.store(EState::Closed);
         }));
 }
 
-TFuture<void> TFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
+i64 TFileWriter::GetDataSize() const
 {
-    if (!Open_ || !Error_.IsOK()) {
-        return MakeFuture(Error_);
-    }
-
-    Open_ = false;
-    Closed_ = true;
-
-    if (!chunkMeta->IsFinalized()) {
-        chunkMeta->Finalize();
-    }
-
-    return IOEngine_->Close(DataFile_, DataSize_, SyncOnClose_)
-        .Apply(BIND(&TFileWriter::WriteMeta, MakeStrong(this), chunkMeta));
+    return DataSize_;
 }
 
-void TFileWriter::Abort()
+const TString& TFileWriter::GetFileName() const
 {
-    if (!Open_)
-        return;
+    return FileName_;
+}
 
-    Closed_ = true;
-    Open_ = false;
+TFuture<void> TFileWriter::Abort()
+{
+    auto state = State_.exchange(EState::Aborting);
+    YT_VERIFY(
+        state != EState::Opening &&
+        state != EState::WritingBlocks &&
+        state != EState::Closing);
 
-    DataFile_.reset();
+    return
+        BIND([=, _this = MakeStrong(this)] {
+            YT_VERIFY(State_.load() == EState::Aborting);
 
-    NFS::Remove(FileName_ + NFS::TempFileSuffix);
+            DataFile_.reset();
+
+            auto removeIfExists = [] (const TString& path) {
+                if (NFS::Exists(path)) {
+                    NFS::Remove(path);
+                }
+            };
+            removeIfExists(FileName_ + NFS::TempFileSuffix);
+            removeIfExists(FileName_ + ChunkMetaSuffix + NFS::TempFileSuffix);
+
+            State_.store(EState::Aborted);
+        })
+        .AsyncVia(IOEngine_->GetWritePoolInvoker())
+        .Run();
 }
 
 const TChunkInfo& TFileWriter::GetChunkInfo() const
 {
-    YT_VERIFY(Closed_);
+    YT_VERIFY(State_.load() == EState::Closed);
 
     return ChunkInfo_;
 }
 
 const TDataStatistics& TFileWriter::GetDataStatistics() const
 {
-    YT_VERIFY(Closed_);
+    YT_VERIFY(State_.load() == EState::Closed);
 
     YT_ABORT();
 }
 
 const TRefCountedChunkMetaPtr& TFileWriter::GetChunkMeta() const
 {
-    YT_VERIFY(Closed_);
+    YT_VERIFY(State_.load() == EState::Closed);
 
     return ChunkMeta_;
 }
@@ -308,11 +293,6 @@ TChunkId TFileWriter::GetChunkId() const
 NErasure::ECodec TFileWriter::GetErasureCodecId() const
 {
     return NErasure::ECodec::None;
-}
-
-i64 TFileWriter::GetDataSize() const
-{
-    return DataSize_;
 }
 
 bool TFileWriter::IsCloseDemanded() const

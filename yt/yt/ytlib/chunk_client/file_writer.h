@@ -14,17 +14,28 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EFileWriterState,
+    (Created)
+    (Opening)
+    (Ready)
+    (WritingBlocks)
+    (Closing)
+    (Closed)
+    (Aborting)
+    (Aborted)
+    (Failed)
+);
+
 //! Provides a local and synchronous implementation of #IAsyncWriter.
 class TFileWriter
     : public IChunkWriter
 {
 public:
     TFileWriter(
-        const IIOEnginePtr& ioEngine,
+        IIOEnginePtr ioEngine,
         TChunkId chunkId,
-        const TString& fileName,
-        bool syncOnClose = true,
-        bool enableWriteDirectIO = false);
+        TString fileName,
+        bool syncOnClose = true);
 
     // IChunkWriter implementation.
     virtual TFuture<void> Open() override;
@@ -52,8 +63,8 @@ public:
      */
     const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const;
 
-    //! Aborts the writer, removing the temporary files.
-    void Abort();
+    //! Returns the name of the file passed to the writer upon construction.
+    const TString& GetFileName() const;
 
     //! Returns the total data size accumulated so far.
     /*!
@@ -61,21 +72,22 @@ public:
      */
     i64 GetDataSize() const;
 
+    //! Aborts the writer and removes temporary files.
+    TFuture<void> Abort();
+
 private:
     const IIOEnginePtr IOEngine_;
     const TChunkId ChunkId_;
     const TString FileName_;
     const bool SyncOnClose_;
-    const bool EnableWriteDirectIO_;
 
-    bool Open_ = false;
-    bool Opening_ = false;
-    bool Closed_ = false;
+    using EState = EFileWriterState;
+    std::atomic<EState> State_ = EFileWriterState::Created;
+
+    TFuture<void> ReadyEvent_ = VoidFuture;
+
     i64 DataSize_ = 0;
     i64 MetaDataSize_ = 0;
-
-    TSharedMutableRef Buffer_;
-    i64 BufferPosition_ = 0;
 
     std::shared_ptr<TFileHandle> DataFile_;
 
@@ -83,11 +95,7 @@ private:
     NChunkClient::NProto::TChunkInfo ChunkInfo_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
 
-    TError Error_;
-
-    TFuture<void> LockDataFile(const std::shared_ptr<TFileHandle>& file);
     void TryLockDataFile(TPromise<void> promise);
-    TFuture<void> WriteMeta(const TRefCountedChunkMetaPtr& chunkMeta);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileWriter)

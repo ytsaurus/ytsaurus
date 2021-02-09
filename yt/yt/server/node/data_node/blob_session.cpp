@@ -22,6 +22,7 @@
 
 #include <yt/core/misc/checksum.h>
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/ring_queue.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -52,14 +53,294 @@ bool IsOutOfDiskSpaceError(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBlobWritePipeline
+    : public TRefCounted
+{
+public:
+    TBlobWritePipeline(
+        TLocationPtr location,
+        IInvokerPtr sessionInvoker,
+        NChunkClient::TChunkId chunkId,
+        TSessionOptions options,
+        NLogging::TLogger logger)
+        : Location_(std::move(location))
+        , SessionInvoker_(std::move(sessionInvoker))
+        , Options_(options)
+        , Logger(std::move(logger))
+        , Writer_(New<TFileWriter>(
+            Location_->GetIOEngine(),
+            chunkId,
+            Location_->GetChunkPath(chunkId),
+            Options_.SyncOnClose))
+    { }
+
+
+    TFuture<void> Open()
+    {
+        return EnqueueCommand(
+            BIND(&TBlobWritePipeline::DoOpen, MakeStrong(this)));
+    }
+
+    TFuture<void> WriteBlocks(int firstBlockIndex, std::vector<TBlock> blocks)
+    {
+        return EnqueueCommand(
+            BIND(&TBlobWritePipeline::DoWriteBlocks, MakeStrong(this), firstBlockIndex, std::move(blocks)));
+    }
+
+    TFuture<void> Close(TRefCountedChunkMetaPtr chunkMeta)
+    {
+        return EnqueueCommand(
+            BIND(&TBlobWritePipeline::DoClose, MakeStrong(this), std::move(chunkMeta)));
+    }
+
+    TFuture<void> Abort()
+    {
+        return EnqueueCommand(
+            BIND(&TBlobWritePipeline::DoAbort, MakeStrong(this)));
+    }
+
+
+    const TChunkInfo& GetChunkInfo() const
+    {
+        return Writer_->GetChunkInfo();
+    }
+
+    const TRefCountedChunkMetaPtr& GetChunkMeta() const
+    {
+        return Writer_->GetChunkMeta();
+    }
+
+private:
+    const TLocationPtr Location_;
+    const IInvokerPtr SessionInvoker_;
+    const TSessionOptions Options_;
+    const NLogging::TLogger Logger;
+
+    const TFileWriterPtr Writer_;
+
+    using TCommand = TCallback<TFuture<void>()>;
+
+    struct TCommandEntry
+    {
+        TCommand Command;
+        TPromise<void> Promise;
+    };
+
+    TRingQueue<TCommandEntry> CommandQueue_;
+
+    bool CommandRunning_ = false;
+
+    TFuture<void> EnqueueCommand(TCommand command)
+    {
+        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+        auto promise = NewPromise<void>();
+        CommandQueue_.push(TCommandEntry{
+            .Command = std::move(command),
+            .Promise = promise
+        });
+        RunCommands();
+        return promise.ToFuture();
+    }
+
+    void RunCommands()
+    {
+        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+        if (CommandRunning_) {
+            return;
+        }
+
+        while (!CommandQueue_.empty()) {
+            auto entry = std::move(CommandQueue_.front());
+            CommandQueue_.pop();
+
+            if (entry.Promise.IsCanceled()) {
+                entry.Promise.Set(TError(NYT::EErrorCode::Canceled, "Pipeline command canceled"));
+            } else {
+                YT_VERIFY(!CommandRunning_);
+                CommandRunning_ = true;
+                entry.Command().Subscribe(
+                    BIND(&TBlobWritePipeline::OnCommandFinished, MakeStrong(this), entry.Promise)
+                        .Via(SessionInvoker_));
+                break;
+            }
+        }
+    }
+
+    void OnCommandFinished(const TPromise<void>& promise, const TError& error)
+    {
+        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+        YT_VERIFY(CommandRunning_);
+        CommandRunning_ = false;
+        promise.Set(error);
+
+        RunCommands();
+    }
+
+
+    TFuture<void> DoOpen()
+    {
+        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+        YT_LOG_DEBUG("Started opening blob chunk writer");
+
+        TWallTimer timer;
+
+        return Writer_->Open().Apply(
+            BIND([=, this_ = MakeStrong(this)] {
+                auto time = timer.GetElapsedTime();
+
+                YT_LOG_DEBUG("Finished opening blob chunk writer (Time: %v)",
+                    time);
+
+                auto& performanceCounters = Location_->GetPerformanceCounters();
+                performanceCounters.BlobChunkWriterOpenTime.Record(time);
+            }));
+    }
+
+    TFuture<void> DoWriteBlocks(int firstBlockIndex, const std::vector<TBlock>& blocks)
+    {
+        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+        auto blockCount = static_cast<int>(blocks.size());
+        auto totalSize = GetByteSize(blocks);
+
+        YT_LOG_DEBUG("Started writing blocks (BlockIndexes: %v-%v, TotalSize: %v)",
+            firstBlockIndex,
+            firstBlockIndex + blockCount - 1,
+            totalSize);
+
+        TWallTimer timer;
+
+        // This is how TFileWriter works.
+        YT_VERIFY(!Writer_->WriteBlocks(blocks));
+
+        return Writer_->GetReadyEvent().Apply(
+            BIND([=, this_ = MakeStrong(this)] {
+                auto time = timer.GetElapsedTime();
+
+                YT_LOG_DEBUG("Finished writing blocks (BlockIndexes: %v-%v, Time: %v)",
+                    firstBlockIndex,
+                    firstBlockIndex + blockCount - 1,
+                    time);
+
+                auto& performanceCounters = Location_->GetPerformanceCounters();
+                performanceCounters.BlobBlockWriteSize.Record(totalSize);
+                performanceCounters.BlobBlockWriteTime.Record(time);
+                performanceCounters.BlobBlockWriteBytes.Increment(totalSize);
+
+                Location_->IncreaseCompletedIOSize(EIODirection::Write, Options_.WorkloadDescriptor, totalSize);
+            }));
+    }
+
+    TFuture<void> DoClose(const TRefCountedChunkMetaPtr& chunkMeta)
+    {
+        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+        YT_LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
+            Writer_->GetDataSize());
+
+        auto deferredChunkMeta = New<TDeferredChunkMeta>();
+        deferredChunkMeta->MergeFrom(*chunkMeta);
+
+        TWallTimer timer;
+
+        return Writer_->Close(deferredChunkMeta).Apply(
+            BIND([=, this_ = MakeStrong(this)] {
+                auto time = timer.GetElapsedTime();
+
+                YT_LOG_DEBUG("Finished closing chunk writer (Time: %v)",
+                    time);
+
+                auto& performanceCounters = Location_->GetPerformanceCounters();
+                performanceCounters.BlobChunkWriterOpenTime.Record(time);
+            }));
+    }
+
+    TFuture<void> DoAbort()
+    {
+        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+        YT_LOG_DEBUG("Started aborting chunk writer");
+
+        TWallTimer timer;
+
+        return Writer_->Abort().Apply(
+            BIND([=, this_ = MakeStrong(this)] {
+                auto time = timer.GetElapsedTime();
+
+                YT_LOG_DEBUG("Finished aborting chunk writer (Time: %v)",
+                    time);
+
+                auto& performanceCounters = Location_->GetPerformanceCounters();
+                performanceCounters.BlobChunkWriterAbortTime.Record(time);
+            }));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBlobWritePipeline)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBlobSession::TBlobSession(
+    TDataNodeConfigPtr config,
+    NClusterNode::TBootstrap* bootstrap,
+    TSessionId sessionId,
+    const TSessionOptions& options,
+    TStoreLocationPtr location,
+    NConcurrency::TLease lease)
+    : TSessionBase(
+        std::move(config),
+        bootstrap,
+        sessionId,
+        options,
+        std::move(location),
+        std::move(lease))
+    , Pipeline_(New<TBlobWritePipeline>(
+        Location_,
+        SessionInvoker_,
+        SessionId_.ChunkId,
+        Options_,
+        Logger))
+{ }
+
 TFuture<void> TBlobSession::DoStart()
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    DoOpenWriter();
+    Pipeline_->Open()
+        .Subscribe(BIND(&TBlobSession::OnStarted, MakeStrong(this))
+            .Via(SessionInvoker_));
 
     // No need to wait for the writer to get opened.
     return VoidFuture;
+}
+
+void TBlobSession::OnStarted(const TError& error)
+{
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+    if (!error.IsOK()) {
+        if (IsOutOfDiskSpaceError(error)) {
+            SetFailed(
+                TError(
+                    NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
+                    "Not enough space to start blob session for chunk %v",
+                    GetChunkId())
+                << error,
+                /* fatal */ false);
+        } else {
+            SetFailed(
+                TError(
+                    NChunkClient::EErrorCode::IOError,
+                    "Error starting blob session for chunk %v",
+                    GetChunkId())
+                << error,
+                /* fatal */ true);
+        }
+    }
 }
 
 TFuture<TChunkInfo> TBlobSession::DoFinish(
@@ -91,11 +372,61 @@ TFuture<TChunkInfo> TBlobSession::DoFinish(
         }
     }
 
-    try {
-        return MakeFuture(CloseWriter(chunkMeta));
-    } catch (const std::exception& ex) {
-        return MakeFuture<TChunkInfo>(ex);
+    if (!Error_.IsOK()) {
+        return MakeFuture<TChunkInfo>(Error_);
     }
+
+    return Pipeline_->Close(chunkMeta)
+        .Apply(BIND(&TBlobSession::OnFinished, MakeStrong(this))
+            .AsyncVia(SessionInvoker_));
+}
+
+TChunkInfo TBlobSession::OnFinished(const TError& error)
+{
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+    if (!error.IsOK()) {
+        if (IsOutOfDiskSpaceError(error)) {
+            SetFailed(
+                TError(
+                    NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
+                    "Not enough space to write blocks of chunk %v",
+                    GetChunkId())
+                << error,
+                /* fatal */ false);
+        } else {
+            SetFailed(
+                TError(
+                    NChunkClient::EErrorCode::IOError,
+                    "Error writing blocks of chunk %v",
+                    SessionId_)
+                << error,
+                /* fatal */ true);
+        }
+    }
+
+    ReleaseSpace();
+
+    if (Error_.IsOK()) {
+        auto descriptor = TChunkDescriptor(
+            GetChunkId(),
+            Pipeline_->GetChunkInfo().disk_space());
+
+        auto chunk = New<TStoredBlobChunk>(
+            Bootstrap_,
+            Location_,
+            descriptor,
+            Pipeline_->GetChunkMeta());
+
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+        chunkStore->RegisterNewChunk(chunk);
+    }
+
+    Finished_.Fire(Error_);
+
+    Error_.ThrowOnError();
+
+    return Pipeline_->GetChunkInfo();
 }
 
 TFuture<void> TBlobSession::DoPutBlocks(
@@ -174,44 +505,37 @@ TFuture<void> TBlobSession::DoPutBlocks(
         receivedBlockIndexes,
         totalSize);
 
-    // Organize blocks in packs of BytesPerWrite size and pass them to the WriterThread.
-    int beginBlockIndex = WindowIndex_;
-    i64 totalBlocksSize = 0;
+    // Organize blocks in packs of BytesPerWrite size and pass them to the pipeline.
+    int firstBlockIndex = WindowIndex_;
     std::vector<TBlock> blocksToWrite;
+    i64 blocksToWriteSize = 0;
 
-    auto enqueueBlocks = [&] {
-        YT_VERIFY(blocksToWrite.size() == WindowIndex_ - beginBlockIndex);
-        if (beginBlockIndex == WindowIndex_) {
+    auto flushBlocksToPipeline = [&] {
+        YT_VERIFY(blocksToWrite.size() == WindowIndex_ - firstBlockIndex);
+        if (firstBlockIndex == WindowIndex_) {
             return;
         }
 
-        BIND(
-            &TBlobSession::DoWriteBlocks,
-            MakeStrong(this),
-            std::move(blocksToWrite),
-            beginBlockIndex,
-            WindowIndex_)
-        .AsyncVia(SessionInvoker_)
-        .Run()
-        .Subscribe(
-            BIND(&TBlobSession::OnBlocksWritten, MakeStrong(this), beginBlockIndex, WindowIndex_)
-                .Via(SessionInvoker_));
+        Pipeline_->WriteBlocks(firstBlockIndex, blocksToWrite)
+            .Subscribe(
+                BIND(&TBlobSession::OnBlocksWritten, MakeStrong(this), firstBlockIndex, WindowIndex_)
+                    .Via(SessionInvoker_));
 
-        beginBlockIndex = WindowIndex_;
-        totalBlocksSize = 0;
+        firstBlockIndex = WindowIndex_;
+        blocksToWriteSize = 0;
         blocksToWrite.clear();
     };
 
     while (true) {
         if (WindowIndex_ >= Window_.size()) {
-            enqueueBlocks();
+            flushBlocksToPipeline();
             break;
         }
 
         auto& slot = GetSlot(WindowIndex_);
         YT_VERIFY(slot.State == ESlotState::Received || slot.State == ESlotState::Empty);
         if (slot.State == ESlotState::Empty) {
-            enqueueBlocks();
+            flushBlocksToPipeline();
             break;
         }
 
@@ -220,13 +544,18 @@ TFuture<void> TBlobSession::DoPutBlocks(
             Options_.WorkloadDescriptor,
             slot.Block.Size());
 
-        blocksToWrite.emplace_back(slot.Block);
-        totalBlocksSize += slot.Block.Size();
+        if (auto error = slot.Block.ValidateChecksum(); !error.IsOK()) {
+            auto blockId = TBlockId(GetChunkId(), WindowIndex_);
+            SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /* fatal */ false);
+            return MakeFuture<void>(Error_);
+        }
 
+        blocksToWrite.push_back(slot.Block);
+        blocksToWriteSize += slot.Block.Size();
         ++WindowIndex_;
 
-        if (totalBlocksSize >= Config_->BytesPerWrite) {
-            enqueueBlocks();
+        if (blocksToWriteSize >= Config_->BytesPerWrite) {
+            flushBlocksToPipeline();
         }
     }
 
@@ -236,6 +565,46 @@ TFuture<void> TBlobSession::DoPutBlocks(
         netThrottler->Throttle(totalSize),
         diskThrottler->Throttle(totalSize)
     });
+}
+
+void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const TError& error)
+{
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+    if (Canceled_.load()) {
+        return;
+    }
+
+    if (!error.IsOK()) {
+        if (IsOutOfDiskSpaceError(error)) {
+            SetFailed(
+                TError(
+                    NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
+                    "Not enough space to finish blob session for chunk %v",
+                    GetChunkId())
+                << error,
+                /* fatal */ false);
+        } else {
+            SetFailed(
+                TError(
+                    NChunkClient::EErrorCode::IOError,
+                    "Error writing chunk %v",
+                    GetChunkId())
+                << error,
+                /* fatal */ true);
+        }
+        return;
+    }
+
+    for (int blockIndex = beginBlockIndex; blockIndex < endBlockIndex; ++blockIndex) {
+        auto& slot = GetSlot(blockIndex);
+        slot.PendingIOGuard.Release();
+        if (error.IsOK()) {
+            YT_VERIFY(slot.State == ESlotState::Received);
+            slot.State = ESlotState::Written;
+            slot.WrittenPromise.Set(TError());
+        }
+    }
 }
 
 TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
@@ -273,91 +642,6 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     return throttler->Throttle(requestSize).Apply(BIND([=] () {
         return req->Invoke();
     }));
-}
-
-void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlockIndex, int endBlockIndex)
-{
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
-
-    for (int index = 0; index <  endBlockIndex - beginBlockIndex; ++index) {
-        Error_.ThrowOnError();
-        if (Canceled_.load()) {
-            return;
-        }
-
-        const auto& block = blocks[index];
-        int blockIndex = beginBlockIndex + index;
-
-        YT_LOG_DEBUG("Started writing block (BlockIndex: %v, BlockSize: %v)",
-            blockIndex,
-            block.Size());
-
-        TWallTimer timer;
-        TBlockId blockId(GetChunkId(), blockIndex);
-
-        if (auto error = block.ValidateChecksum(); !error.IsOK()) {
-            SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /* fatal */ false);
-        }
-
-        Error_.ThrowOnError();
-
-        if (!Writer_->WriteBlock(block)) {
-            auto error = WaitFor(Writer_->GetReadyEvent());
-            YT_VERIFY(!error.IsOK());
-
-            if (IsOutOfDiskSpaceError(error)) {
-                SetFailed(
-                    TError(
-                        NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
-                        "Not enough space to finish blob session for chunk %v",
-                        GetChunkId())
-                    << error,
-                    /* fatal */ false);
-            } else {
-                SetFailed(
-                    TError(
-                        NChunkClient::EErrorCode::IOError,
-                        "Error writing chunk block %v",
-                        blockId)
-                    << error,
-                    /* fatal */ true);
-            }
-        }
-
-        Error_.ThrowOnError();
-
-        auto writeTime = timer.GetElapsedTime();
-
-        YT_LOG_DEBUG("Finished writing block (BlockIndex: %v, Time: %v)",
-            blockIndex,
-            writeTime);
-
-        auto& performanceCounters = Location_->GetPerformanceCounters();
-        performanceCounters.BlobBlockWriteSize.Record(block.Size());
-        performanceCounters.BlobBlockWriteTime.Record(writeTime);
-        performanceCounters.BlobBlockWriteBytes.Increment(block.Size());
-
-        Location_->IncreaseCompletedIOSize(EIODirection::Write, Options_.WorkloadDescriptor, block.Size());
-    }
-}
-
-void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const TError& error)
-{
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
-
-    if (Canceled_.load()) {
-        return;
-    }
-
-    for (int blockIndex = beginBlockIndex; blockIndex < endBlockIndex; ++blockIndex) {
-        auto& slot = GetSlot(blockIndex);
-        slot.PendingIOGuard.Release();
-        if (error.IsOK()) {
-            YT_VERIFY(slot.State == ESlotState::Received);
-            slot.State = ESlotState::Written;
-            slot.WrittenPromise.Set(TError());
-        }
-    }
 }
 
 TFuture<void> TBlobSession::DoFlushBlocks(int blockIndex)
@@ -399,139 +683,35 @@ void TBlobSession::DoCancel(const TError& error)
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     MarkAllSlotsFailed(error);
-    AbortWriter();
+    Abort();
 }
 
-void TBlobSession::DoOpenWriter()
+void TBlobSession::Abort()
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    TEventTimerGuard timerGuard(Location_->GetPerformanceCounters().BlobChunkWriterOpenTime);
-    try {
-        YT_LOG_DEBUG("Started opening blob chunk writer");
-
-        auto fileName = Location_->GetChunkPath(GetChunkId());
-        Writer_ = New<TFileWriter>(
-            Location_->GetIOEngine(),
-            GetChunkId(),
-            fileName,
-            Options_.SyncOnClose,
-            Options_.EnableWriteDirectIO);
-        WaitFor(Writer_->Open())
-            .ThrowOnError();
-
-        YT_LOG_DEBUG("Finished opening blob chunk writer");
-    } catch (const std::exception& ex) {
-        TError error(ex);
-        if (IsOutOfDiskSpaceError(error)) {
-            SetFailed(
-                TError(
-                    NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
-                    "Not enough space to start blob session for chunk %v",
-                    GetChunkId())
-                << error,
-                /* fatal */ false);
-        } else {
-            SetFailed(
-                TError(
-                    NChunkClient::EErrorCode::IOError,
-                    "Error starting blob session for chunk %v",
-                    GetChunkId())
-                << error,
-                /* fatal */ true);
-        }
-    }
-}
-
-void TBlobSession::AbortWriter()
-{
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
-
-    if (Error_.IsOK()) {
-        TEventTimerGuard timerGuard(Location_->GetPerformanceCounters().BlobChunkWriterAbortTime);
-        try {
-            YT_LOG_DEBUG("Started aborting chunk writer");
-
-            Writer_->Abort();
-
-            YT_LOG_DEBUG("Finished aborting chunk writer");
-        } catch (const std::exception& ex) {
-            SetFailed(
-                TError(
-                    NChunkClient::EErrorCode::IOError,
-                    "Error aborting chunk %v",
-                    SessionId_)
-                << ex,
-                /* fatal */ true);
-        }
-        Writer_.Reset();
-    }
+    Pipeline_->Abort()
+        .Subscribe(BIND(&TBlobSession::OnAborted, MakeStrong(this))
+            .Via(SessionInvoker_));
 
     ReleaseSpace();
 
     Finished_.Fire(Error_);
 }
 
-TChunkInfo TBlobSession::CloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
+void TBlobSession::OnAborted(const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    if (Error_.IsOK()) {
-        TEventTimerGuard timerGuard(Location_->GetPerformanceCounters().BlobChunkWriterCloseTime);
-        try {
-            YT_LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
-                Writer_->GetDataSize());
-
-            auto deferredChunkMeta = New<TDeferredChunkMeta>();
-            deferredChunkMeta->MergeFrom(*chunkMeta);
-            WaitFor(Writer_->Close(deferredChunkMeta))
-                .ThrowOnError();
-
-            YT_LOG_DEBUG("Finished closing chunk writer");
-        } catch (const std::exception& ex) {
-            TError error(ex);
-            if (IsOutOfDiskSpaceError(error)) {
-                SetFailed(
-                    TError(
-                        NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
-                        "Not enough space to finish blob session for chunk %v",
-                        GetChunkId())
-                    << error,
-                    /* fatal */ false);
-            } else {
-                SetFailed(
-                    TError(
-                        NChunkClient::EErrorCode::IOError,
-                        "Error finishing blob session for chunk %v",
-                        SessionId_)
-                    << error,
-                    /* fatal */ true);
-            }
-        }
+    if (!error.IsOK()) {
+        SetFailed(
+            TError(
+                NChunkClient::EErrorCode::IOError,
+                "Error aborting chunk %v",
+                SessionId_)
+            << error,
+            /* fatal */ true);
     }
-
-    ReleaseSpace();
-
-    if (Error_.IsOK()) {
-        auto descriptor = TChunkDescriptor(
-            GetChunkId(),
-            Writer_->GetChunkInfo().disk_space());
-
-        auto chunk = New<TStoredBlobChunk>(
-            Bootstrap_,
-            Location_,
-            descriptor,
-            Writer_->GetChunkMeta());
-
-        const auto& chunkStore = Bootstrap_->GetChunkStore();
-        chunkStore->RegisterNewChunk(chunk);
-    }
-
-    Finished_.Fire(Error_);
-
-    Error_.ThrowOnError();
-
-    return Writer_->GetChunkInfo();
 }
 
 void TBlobSession::ReleaseBlocks(int flushedBlockIndex)

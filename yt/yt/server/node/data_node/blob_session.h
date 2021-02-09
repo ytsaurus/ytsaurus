@@ -31,9 +31,17 @@ class TBlobSession
     : public TSessionBase
 {
 public:
-    using TSessionBase::TSessionBase;
+    TBlobSession(
+        TDataNodeConfigPtr config,
+        NClusterNode::TBootstrap* bootstrap,
+        TSessionId sessionId,
+        const TSessionOptions& options,
+        TStoreLocationPtr location,
+        NConcurrency::TLease lease);
 
 private:
+    const TBlobWritePipelinePtr Pipeline_;
+
     using ESlotState = EBlobSessionSlotState;
 
     struct TSlot
@@ -46,7 +54,6 @@ private:
     };
 
     TError Error_;
-    NChunkClient::TFileWriterPtr Writer_;
 
     std::vector<TSlot> Window_;
     int WindowStartBlockIndex_ = 0;
@@ -55,12 +62,16 @@ private:
     int BlockCount_ = 0;
 
     virtual TFuture<void> DoStart() override;
-    void DoOpenWriter();
+    void OnStarted(const TError& error);
 
     virtual TFuture<void> DoPutBlocks(
         int startBlockIndex,
         const std::vector<NChunkClient::TBlock>& blocks,
         bool enableCaching) override;
+    void OnBlocksWritten(
+        int beginBlockIndex,
+        int endBlockIndex,
+        const TError& error);
 
     virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
         int startBlockIndex,
@@ -68,12 +79,17 @@ private:
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
     virtual TFuture<void> DoFlushBlocks(int blockIndex) override;
+    void OnBlockFlushed(int blockIndex);
 
     virtual void DoCancel(const TError& error) override;
 
     virtual TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
+    NChunkClient::NProto::TChunkInfo OnFinished(const TError& error);
+
+    void Abort();
+    void OnAborted(const TError& error);
 
     bool IsInWindow(int blockIndex);
     void ValidateBlockIsInWindow(int blockIndex);
@@ -81,25 +97,8 @@ private:
     void ReleaseBlocks(int flushedBlockIndex);
     NChunkClient::TBlock GetBlock(int blockIndex);
     void MarkAllSlotsFailed(const TError& error);
-
-    void AbortWriter();
-    NChunkClient::NProto::TChunkInfo CloseWriter(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
-
-    void DoWriteBlocks(
-        const std::vector<NChunkClient::TBlock>& blocks,
-        int beginBlockIndex,
-        int endBlockIndex);
-    void OnBlocksWritten(
-        int beginBlockIndex,
-        int endBlockIndex,
-        const TError& error);
-
-    void OnBlockFlushed(int blockIndex);
-
     void ReleaseSpace();
-
     void SetFailed(const TError& error, bool fatal);
-
     void OnSlotCanceled(int blockIndex, const TError& error);
 };
 

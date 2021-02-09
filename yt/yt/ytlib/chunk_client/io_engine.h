@@ -20,13 +20,18 @@ struct IIOEngine
 {
     virtual TFuture<TSharedMutableRef> Pread(
         const std::shared_ptr<TFileHandle>& handle,
-        size_t len,
+        i64 size,
         i64 offset,
         i64 priority = std::numeric_limits<i64>::max()) = 0;
 
     virtual TFuture<void> Pwrite(
         const std::shared_ptr<TFileHandle>& handle,
         const TSharedRef& data,
+        i64 offset,
+        i64 priority = std::numeric_limits<i64>::max()) = 0;
+    virtual TFuture<void> Pwritev(
+        const std::shared_ptr<TFileHandle>& handle,
+        const std::vector<TSharedRef>& data,
         i64 offset,
         i64 priority = std::numeric_limits<i64>::max()) = 0;
 
@@ -59,16 +64,18 @@ struct IIOEngine
     virtual TFuture<void> Fallocate(
         const std::shared_ptr<TFileHandle>& handle,
         i64 newSize) = 0;
+
+    virtual const IInvokerPtr& GetWritePoolInvoker() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)
 
 IIOEnginePtr CreateIOEngine(
     EIOEngineType engineType,
-    const NYTree::INodePtr& ioConfig,
-    const TString& locationId = "default",
-    const NProfiling::TRegistry& profiler = {},
-    const NLogging::TLogger& logger = NLogging::TLogger());
+    NYTree::INodePtr ioConfig,
+    TString locationId = "default",
+    NProfiling::TRegistry profiler = {},
+    NLogging::TLogger logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

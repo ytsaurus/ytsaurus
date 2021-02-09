@@ -8,6 +8,8 @@
 
 namespace NYT::NHydra {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = HydraLogger;
@@ -175,7 +177,8 @@ void TAsyncFileChangelogIndex::Create()
 
     NFS::Replace(tempFileName, IndexFileName_);
 
-    IndexFile_ = IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec).Get().ValueOrThrow();
+    IndexFile_ = WaitFor(IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec))
+        .ValueOrThrow();
 }
 
 void TAsyncFileChangelogIndex::Read(std::optional<int> truncatedRecordCount)
@@ -268,7 +271,8 @@ void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 validPrefixSize)
 
     {
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
-        IndexFile_ = IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec).Get().ValueOrThrow();
+        IndexFile_ = WaitFor(IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec))
+            .ValueOrThrow();
         IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
     }
 }
@@ -289,7 +293,7 @@ void TAsyncFileChangelogIndex::Search(
     TChangelogIndexRecord lastRecordPivot;
     lastRecordPivot.RecordId = lastRecordId;
     auto it = FirstGreater(Index_, lastRecordPivot, CompareRecordIds);
-    
+
     if (maxBytes != -1) {
         TChangelogIndexRecord maxPositionPivot;
         maxPositionPivot.FilePosition = lowerBound->FilePosition + maxBytes;

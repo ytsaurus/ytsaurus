@@ -145,7 +145,7 @@ public:
     //! in order to join them together during read coalescing.
     i64 GetCoalescedReadMaxGapSize() const;
 
-    //! Returns an invoker for writing chunks.
+    //! Returns an invoker for various write IO activities.
     const IInvokerPtr& GetWritePoolInvoker();
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
@@ -270,12 +270,6 @@ private:
     std::atomic<i64> UsedSpace_ = 0;
     TEnumIndexedVector<ESessionType, std::atomic<int>> PerTypeSessionCount_;
     std::atomic<int> ChunkCount_ = 0;
-
-    const NConcurrency::TActionQueuePtr MetaReadQueue_;
-    const IPrioritizedInvokerPtr MetaReadInvoker_;
-
-    const NConcurrency::TThreadPoolPtr WriteThreadPool_;
-    const IInvokerPtr WritePoolInvoker_;
 
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler_;
     NConcurrency::IThroughputThrottlerPtr TabletCompactionAndPartitioningOutThrottler_;
