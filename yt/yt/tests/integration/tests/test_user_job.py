@@ -1803,7 +1803,7 @@ class TestUserJobMonitoring(YTEnvSetup):
 
         ops = [run_op(2) for _ in range(3)]
 
-        @wait_assert
+        @wait_assert  # noqa: F811
         def no_alerts():
             for op in ops:
                 # Expect no alerts here as limit per agent is 7.
@@ -1827,7 +1827,7 @@ class TestUserJobMonitoring(YTEnvSetup):
             abort_job(job["id"])
         wait_breakpoint(breakpoint_name=next_op.breakpoint_name, job_count=2)
 
-        @wait_assert
+        @wait_assert  # noqa: F811
         def no_alerts():
             assert len(ls(op.get_path() + "/@alerts")) == 0
             assert len(get_agent_alerts()) == 0

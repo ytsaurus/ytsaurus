@@ -5,8 +5,6 @@ import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import parts_to_uuid
 
-import pytest
-
 import __builtin__
 
 import datetime
