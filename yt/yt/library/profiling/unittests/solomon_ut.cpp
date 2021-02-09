@@ -423,6 +423,40 @@ TEST(TSolomonRegistry, DisableProjections)
     ASSERT_EQ(1, result.Counters["yt.d.bigb{mode=percentile;p=99}"]);
 }
 
+DECLARE_REFCOUNTED_STRUCT(TCounterProducer)
+
+struct TCounterProducer
+    : public ISensorProducer
+{
+    int i = 0;
+
+    virtual void Collect(ISensorWriter* writer)
+    {
+        writer->AddCounter("/counter", ++i);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCounterProducer)
+
+TEST(TSolomonRegistry, CounterProducer)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+    TRegistry r(impl, "/d");
+
+    auto p0 = New<TCounterProducer>();
+    r.WithProjectionsDisabled().AddProducer("", p0);
+
+    auto result = Collect(impl).Counters;
+    ASSERT_EQ(1, result["yt.d.counter{}"]);
+
+    result = Collect(impl).Counters;
+    ASSERT_EQ(2, result["yt.d.counter{}"]);
+
+    result = Collect(impl).Counters;
+    ASSERT_EQ(3, result["yt.d.counter{}"]);
+}
+
 DECLARE_REFCOUNTED_STRUCT(TBadProducer)
 
 struct TBadProducer

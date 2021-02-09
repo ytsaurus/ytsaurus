@@ -130,6 +130,7 @@ int TProducerSet::Collect()
             }
 
             auto delta = value - it->second;
+            it->second = value;
             projections.Range(commonTags, [&] (auto tags) {
                 buffer.CountersCube.Update(tags, delta);
             });

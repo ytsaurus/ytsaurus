@@ -56,7 +56,7 @@ void TUser::Load(NCellMaster::TLoadContext& context)
     ReadTimeCounter_ = profiler.TimeCounter("/user_read_time");
     WriteTimeCounter_ = profiler.TimeCounter("/user_write_time");
     ReadRequestCounter_ = profiler.Counter("/user_read_request_count");
-    WriteRequestCounter_ = profiler.Counter("/write_read_request_count");
+    WriteRequestCounter_ = profiler.Counter("/user_write_request_count");
     RequestCounter_ = profiler.Counter("/user_request_count");
     RequestQueueSizeSummary_ = profiler.Summary("/user_request_queue_size");
 }

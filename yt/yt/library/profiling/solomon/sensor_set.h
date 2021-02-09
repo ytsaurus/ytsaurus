@@ -202,7 +202,7 @@ private:
     TCube<i64> CountersCube_;
 
     THashSet<TTimeCounterStatePtr> TimeCounters_;
-    TCube<i64> TimeCountersCube_;
+    TCube<TDuration> TimeCountersCube_;
 
     THashSet<TGaugeStatePtr> Gauges_;
     TCube<double> GaugesCube_;
