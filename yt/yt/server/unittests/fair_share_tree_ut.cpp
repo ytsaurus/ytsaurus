@@ -2293,11 +2293,14 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         for (auto operationElement : operationElements) {
             auto scheduleJobResult = operationElement->ScheduleJob(&context, /* ignorePacking */ true);
             ASSERT_TRUE(scheduleJobResult.Scheduled);
-            const auto& dynamicAttributes = context.DynamicAttributesFor(rootElement.Get());
-            ASSERT_TRUE(dynamicAttributes.ChildHeap);
+
+            const auto& childHeapMap = context.ChildHeapMap();
+            YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
+
+            const auto& childHeap = GetOrCrash(context.ChildHeapMap(), rootElement->GetTreeIndex());
 
             int heapIndex = 0;
-            for (auto* element : dynamicAttributes.ChildHeap->GetHeap()) {
+            for (auto* element : childHeap.GetHeap()) {
                 ASSERT_TRUE(context.DynamicAttributesFor(element).HeapIndex == heapIndex);
                 ++heapIndex;
             }

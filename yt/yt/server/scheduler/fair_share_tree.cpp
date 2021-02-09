@@ -1422,7 +1422,6 @@ private:
         // Compute discount to node usage.
         YT_LOG_TRACE("Looking for %v jobs",
             isAggressive ? "aggressively preemptable" : "preemptable");
-        THashSet<const TCompositeSchedulerElement *> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         {
             NProfiling::TWallTimer timer;
@@ -1458,8 +1457,7 @@ private:
                 if (isJobPreemptable || forceJobPreemptable) {
                     const auto* parent = operationElement->GetParent();
                     while (parent) {
-                        discountedPools.insert(parent);
-                        context->DynamicAttributesFor(parent).ResourceUsageDiscount += job->ResourceUsage();
+                        context->UsageDiscountMap()[parent->GetTreeIndex()] += job->ResourceUsage();
                         parent = parent->GetParent();
                     }
                     context->SchedulingContext()->ResourceUsageDiscount() += job->ResourceUsage();
@@ -1523,9 +1521,7 @@ private:
 
         // Reset discounts.
         context->SchedulingContext()->ResourceUsageDiscount() = {};
-        for (const auto& pool : discountedPools) {
-            context->DynamicAttributesFor(pool).ResourceUsageDiscount = {};
-        }
+        context->UsageDiscountMap().clear();
 
         // Preempt jobs if needed.
         std::sort(

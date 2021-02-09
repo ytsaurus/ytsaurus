@@ -174,13 +174,14 @@ struct TDynamicAttributes
     bool Active = false;
     TSchedulerElement* BestLeafDescendant = nullptr;
     TJobResources ResourceUsage;
-    TJobResources ResourceUsageDiscount;
 
-    std::unique_ptr<TChildHeap> ChildHeap;
     int HeapIndex = InvalidHeapIndex;
 };
 
 using TDynamicAttributesList = std::vector<TDynamicAttributes>;
+
+using TChildHeapMap = THashMap<int, TChildHeap>;
+using TJobResourcesMap = THashMap<int, TJobResources>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,6 +252,9 @@ private:
 
     DEFINE_BYREF_RW_PROPERTY(TDynamicAttributesList, DynamicAttributesList);
 
+    DEFINE_BYREF_RW_PROPERTY(TChildHeapMap, ChildHeapMap);
+    DEFINE_BYREF_RW_PROPERTY(TJobResourcesMap, UsageDiscountMap);
+
     DEFINE_BYREF_RO_PROPERTY(ISchedulingContextPtr, SchedulingContext);
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<bool>, HasAggressivelyStarvingElements);
@@ -273,6 +277,8 @@ public:
 
     TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
+
+    TJobResources GetUsageDiscountFor(const TSchedulerElement* element) const;
 
     void StartStage(TFairShareSchedulingStage* schedulingStage);
 
@@ -388,9 +394,13 @@ public:
     virtual void PublishFairShareAndUpdatePreemption() = 0;
 
     virtual void UpdatePreemptionAttributes();
-    virtual void UpdateSchedulableAttributesFromDynamicAttributes(TDynamicAttributesList* dynamicAttributesList);
+    virtual void UpdateSchedulableAttributesFromDynamicAttributes(
+        TDynamicAttributesList* dynamicAttributesList,
+        const TChildHeapMap& childHeapMap);
 
-    virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) = 0;
+    virtual void UpdateDynamicAttributes(
+        TDynamicAttributesList* dynamicAttributesList,
+        const TChildHeapMap& childHeapMap) = 0;
 
     virtual void CalculateCurrentResourceUsage(TFairShareContext* context) = 0;
 
@@ -617,12 +627,16 @@ public:
     virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context) override;
     virtual void PublishFairShareAndUpdatePreemption() override;
     virtual void UpdatePreemptionAttributes() override;
-    virtual void UpdateSchedulableAttributesFromDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
+    virtual void UpdateSchedulableAttributesFromDynamicAttributes(
+        TDynamicAttributesList* dynamicAttributesList,
+        const TChildHeapMap& childHeapMap) override;
 
     virtual double GetFairShareStarvationToleranceLimit() const;
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const;
 
-    virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
+    virtual void UpdateDynamicAttributes(
+        TDynamicAttributesList* dynamicAttributesList,
+        const TChildHeapMap& childHeapMap) override;
 
     virtual void CalculateCurrentResourceUsage(TFairShareContext* context) override;
 
@@ -739,7 +753,7 @@ protected:
     TChildSuggestions GetEnabledChildSuggestionsFifo(double fitFactor);
     TChildSuggestions GetEnabledChildSuggestionsNormal(double fitFactor);
 
-    TSchedulerElement* GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const;
+    TSchedulerElement* GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList, const TChildHeapMap& childHeapMap) const;
     TSchedulerElement* GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const;
     TSchedulerElement* GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const;
 
@@ -1077,7 +1091,9 @@ public:
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 
-    virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
+    virtual void UpdateDynamicAttributes(
+        TDynamicAttributesList* dynamicAttributesList,
+        const TChildHeapMap& childHeapMap) override;
 
     virtual void CalculateCurrentResourceUsage(TFairShareContext* context) override;
 
@@ -1351,7 +1367,7 @@ public:
         const std::vector<TSchedulerElementPtr>& children,
         TDynamicAttributesList* dynamicAttributesList,
         TComparator comparator);
-    TSchedulerElement* GetTop();
+    TSchedulerElement* GetTop() const;
     void Update(TSchedulerElement* child);
 
     // For testing purposes.

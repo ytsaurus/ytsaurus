@@ -178,6 +178,19 @@ const TDynamicAttributes& TFairShareContext::DynamicAttributesFor(const TSchedul
     YT_VERIFY(index != UnassignedTreeIndex && index < DynamicAttributesList_.size());
     return DynamicAttributesList_[index];
 }
+    
+TJobResources TFairShareContext::GetUsageDiscountFor(const TSchedulerElement* element) const
+{
+    int index = element->GetTreeIndex();
+    YT_VERIFY(index != UnassignedTreeIndex);
+    
+    auto usageDiscountIt = UsageDiscountMap_.find(index);
+    if (usageDiscountIt == UsageDiscountMap_.end()) {
+        return TJobResources();
+    } else {
+        return usageDiscountIt->second;
+    }
+}
 
 TFairShareContext::TStageState::TStageState(TFairShareSchedulingStage* schedulingStage)
     : SchedulingStage(schedulingStage)
@@ -334,13 +347,15 @@ void TSchedulerElement::UpdatePreemptionAttributes()
     }
 }
 
-void TSchedulerElement::UpdateSchedulableAttributesFromDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
+void TSchedulerElement::UpdateSchedulableAttributesFromDynamicAttributes(
+    TDynamicAttributesList* dynamicAttributesList,
+    const TChildHeapMap& childHeapMap)
 {
     YT_VERIFY(Mutable_);
 
     auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
 
-    UpdateDynamicAttributes(dynamicAttributesList);
+    UpdateDynamicAttributes(dynamicAttributesList, childHeapMap);
 
     Attributes_.SatisfactionRatio = attributes.SatisfactionRatio;
     Attributes_.LocalSatisfactionRatio = ComputeLocalSatisfactionRatio(ResourceUsageAtUpdate_);
@@ -594,7 +609,7 @@ TString TSchedulerElement::GetTreeId() const
 
 bool TSchedulerElement::CheckDemand(const TJobResources& delta, const TFairShareContext& context)
 {
-    return ResourceTreeElement_->CheckDemand(delta, ResourceDemand(), context.DynamicAttributesFor(this).ResourceUsageDiscount);
+    return ResourceTreeElement_->CheckDemand(delta, ResourceDemand(), context.GetUsageDiscountFor(this));
 }
 
 TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShareContext& context) const
@@ -603,7 +618,7 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShar
         return ComputeAvailableResources(
             ResourceLimits_,
             ResourceTreeElement_->GetResourceUsageWithPrecommit(),
-            context.DynamicAttributesFor(this).ResourceUsageDiscount);
+            context.GetUsageDiscountFor(this));
     }
     return TJobResources::Infinite();
 }
@@ -1123,13 +1138,15 @@ void TCompositeSchedulerElement::UpdatePreemptionAttributes()
     }
 }
 
-void TCompositeSchedulerElement::UpdateSchedulableAttributesFromDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
+void TCompositeSchedulerElement::UpdateSchedulableAttributesFromDynamicAttributes(
+    TDynamicAttributesList* dynamicAttributesList,
+    const TChildHeapMap& childHeapMap)
 {
     for (const auto& child : EnabledChildren_) {
-        child->UpdateSchedulableAttributesFromDynamicAttributes(dynamicAttributesList);
+        child->UpdateSchedulableAttributesFromDynamicAttributes(dynamicAttributesList, childHeapMap);
     }
 
-    TSchedulerElement::UpdateSchedulableAttributesFromDynamicAttributes(dynamicAttributesList);
+    TSchedulerElement::UpdateSchedulableAttributesFromDynamicAttributes(dynamicAttributesList, childHeapMap);
 }
 
 double TCompositeSchedulerElement::GetFairShareStarvationToleranceLimit() const
@@ -1142,7 +1159,9 @@ TDuration TCompositeSchedulerElement::GetFairSharePreemptionTimeoutLimit() const
     return TDuration::Zero();
 }
 
-void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
+void TCompositeSchedulerElement::UpdateDynamicAttributes(
+    TDynamicAttributesList* dynamicAttributesList,
+    const TChildHeapMap& childHeapMap)
 {
     auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
 
@@ -1166,11 +1185,11 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList*
     attributes.Active = false;
     attributes.BestLeafDescendant = nullptr;
 
-    while (auto bestChild = GetBestActiveChild(*dynamicAttributesList)) {
+    while (auto bestChild = GetBestActiveChild(*dynamicAttributesList, childHeapMap)) {
         const auto& bestChildAttributes = (*dynamicAttributesList)[bestChild->GetTreeIndex()];
         auto childBestLeafDescendant = bestChildAttributes.BestLeafDescendant;
         if (!childBestLeafDescendant->IsAlive()) {
-            bestChild->UpdateDynamicAttributes(dynamicAttributesList);
+            bestChild->UpdateDynamicAttributes(dynamicAttributesList, childHeapMap);
             if (!bestChildAttributes.Active) {
                 continue;
             }
@@ -1278,7 +1297,7 @@ void TCompositeSchedulerElement::PrescheduleJob(
         child->PrescheduleJob(context, operationCriterionForChildren, aggressiveStarvationEnabled);
     }
 
-    UpdateDynamicAttributes(&context->DynamicAttributesList());
+    UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
 
     InitializeChildHeap(context);
 
@@ -1318,7 +1337,7 @@ TFairShareScheduleJobResult TCompositeSchedulerElement::ScheduleJob(TFairShareCo
 
     auto bestLeafDescendant = attributes.BestLeafDescendant;
     if (!bestLeafDescendant->IsAlive()) {
-        UpdateDynamicAttributes(&context->DynamicAttributesList());
+        UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
         if (!attributes.Active) {
             return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
         }
@@ -1933,11 +1952,15 @@ void TCompositeSchedulerElement::DetermineEffectiveStrongGuaranteeResources()
     }
 }
 
-TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const
+TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChild(
+    const TDynamicAttributesList& dynamicAttributesList,
+    const TChildHeapMap& childHeapMap) const
 {
-    const auto& childHeap = dynamicAttributesList[GetTreeIndex()].ChildHeap;
-    if (childHeap) {
-        auto* element = childHeap->GetTop();
+
+    const auto& childHeapIt = childHeapMap.find(GetTreeIndex());
+    if (childHeapIt != childHeapMap.end()) {
+        const auto& childHeap = childHeapIt->second;
+        auto* element = childHeap.GetTop();
         return dynamicAttributesList[element->GetTreeIndex()].Active
             ? element
             : nullptr;
@@ -2093,18 +2116,21 @@ void TCompositeSchedulerElement::InitializeChildHeap(TFairShareContext* context)
             YT_ABORT();
     }
 
-    auto& attributes = context->DynamicAttributesFor(this);
-    attributes.ChildHeap = std::make_unique<TChildHeap>(
-        SchedulableChildren_,
-        &context->DynamicAttributesList(),
-        elementComparator);
+    context->ChildHeapMap().emplace(
+        GetTreeIndex(),
+        TChildHeap{
+            SchedulableChildren_,
+            &context->DynamicAttributesList(),
+            elementComparator
+        });
 }
 
 void TCompositeSchedulerElement::UpdateChild(TFairShareContext* context, TSchedulerElement* child)
 {
-    auto& attributes = context->DynamicAttributesFor(this);
-    if (attributes.ChildHeap) {
-        attributes.ChildHeap->Update(child);
+    auto it = context->ChildHeapMap().find(GetTreeIndex());
+    if (it != context->ChildHeapMap().end()) {
+        auto& childHeap = it->second;
+        childHeap.Update(child);
     }
 }
 
@@ -3302,7 +3328,9 @@ bool TOperationElement::HasJobsSatisfyingResourceLimits(const TFairShareContext&
     return false;
 }
 
-void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
+void TOperationElement::UpdateDynamicAttributes(
+    TDynamicAttributesList* dynamicAttributesList,
+    const TChildHeapMap& /* childHeapMap */)
 {
     auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
     attributes.BestLeafDescendant = this;
@@ -3412,7 +3440,7 @@ void TOperationElement::PrescheduleJob(
         return;
     }
 
-    UpdateDynamicAttributes(&context->DynamicAttributesList());
+    UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
 
     if (attributes.Active) {
         ++context->StageState()->ActiveTreeSize;
@@ -3460,7 +3488,7 @@ void TOperationElement::UpdateAncestorsDynamicAttributes(
 
         context->DynamicAttributesFor(parent).ResourceUsage += resourceUsageDelta;
 
-        parent->UpdateDynamicAttributes(&context->DynamicAttributesList());
+        parent->UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
 
         bool activeAfter = context->DynamicAttributesFor(parent).Active;
         if (activeBefore && !activeAfter) {
@@ -3653,7 +3681,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
 
     auto resourceUsageBeforeUpdate = GetCurrentResourceUsage(context->DynamicAttributesList());
     CalculateCurrentResourceUsage(context);
-    UpdateDynamicAttributes(&context->DynamicAttributesList());
+    UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
     auto resourceUsageAfterUpdate = GetCurrentResourceUsage(context->DynamicAttributesList());
 
     auto resourceUsageDelta = resourceUsageAfterUpdate - resourceUsageBeforeUpdate;
@@ -3985,7 +4013,7 @@ TJobResources TOperationElement::GetLocalAvailableResourceDemand(const TFairShar
     return ComputeAvailableResources(
         ResourceDemand(),
         ResourceTreeElement_->GetResourceUsageWithPrecommit(),
-        context.DynamicAttributesFor(this).ResourceUsageDiscount);
+        context.GetUsageDiscountFor(this));
 }
 
 
@@ -4389,7 +4417,8 @@ void TRootElement::Update(TUpdateFairShareContext* context)
 
     // We calculate SatisfactionRatio by computing dynamic attributes using the same algorithm as during the scheduling phase.
     TDynamicAttributesList dynamicAttributesList{static_cast<size_t>(TreeSize_)};
-    UpdateSchedulableAttributesFromDynamicAttributes(&dynamicAttributesList);
+    TChildHeapMap emptyChildHeapMap;
+    UpdateSchedulableAttributesFromDynamicAttributes(&dynamicAttributesList, emptyChildHeapMap);
 
     ManageSchedulingSegments(context);
 }
@@ -4814,7 +4843,7 @@ TChildHeap::TChildHeap(
     }
 }
 
-TSchedulerElement* TChildHeap::GetTop()
+TSchedulerElement* TChildHeap::GetTop() const
 {
     YT_VERIFY(!ChildHeap_.empty());
     return ChildHeap_.front();
