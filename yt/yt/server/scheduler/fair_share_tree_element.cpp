@@ -64,13 +64,14 @@ TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResourc
 
 TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
     const NProfiling::TRegistry& profiler)
-    : PrescheduleJobTime(profiler.Timer("/preschedule_job_time"))
+    : PrescheduleJobCount(profiler.Counter("/preschedule_job_count"))
+    , PrescheduleJobTime(profiler.Timer("/preschedule_job_time"))
     , TotalControllerScheduleJobTime(profiler.Timer("/controller_schedule_job_time/total"))
     , ExecControllerScheduleJobTime(profiler.Timer("/controller_schedule_job_time/exec"))
     , StrategyScheduleJobTime(profiler.Timer("/strategy_schedule_job_time"))
     , PackingRecordHeartbeatTime(profiler.Timer("/packing_record_heartbeat_time"))
     , PackingCheckTime(profiler.Timer("/packing_check_time"))
-    , AnalyzeJobsTime(profiler.Timer("/analyze_jobs"))
+    , AnalyzeJobsTime(profiler.Timer("/analyze_jobs_time"))
     , ScheduleJobAttemptCount(profiler.Counter("/schedule_job_attempt_count"))
     , ScheduleJobFailureCount(profiler.Counter("/schedule_job_failure_count"))
 {
@@ -230,6 +231,10 @@ void TFairShareContext::ProfileStageTimings()
     auto* profilingCounters = &StageState_->SchedulingStage->ProfilingCounters;
 
     profilingCounters->PrescheduleJobTime.Record(StageState_->PrescheduleDuration);
+
+    if (StageState_->PrescheduleExecuted) {
+        profilingCounters->PrescheduleJobCount.Increment();
+    }
 
     auto strategyScheduleJobDuration = StageState_->TotalDuration
         - StageState_->PrescheduleDuration

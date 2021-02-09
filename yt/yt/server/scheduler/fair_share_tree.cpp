@@ -1340,18 +1340,17 @@ private:
         const auto& controllerConfig = treeSnapshotImpl->ControllerConfig();
 
         {
-            bool prescheduleExecuted = false;
             TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(controllerConfig->ScheduleJobsTimeout);
 
             TWallTimer scheduleTimer;
             while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
             {
-                if (!prescheduleExecuted) {
+                if (!context->StageState()->PrescheduleExecuted) {
                     TWallTimer prescheduleTimer;
                     context->PrepareForScheduling(treeSnapshotImpl->RootElement());
                     rootElement->PrescheduleJob(context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
                     context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
-                    prescheduleExecuted = true;
+                    context->StageState()->PrescheduleExecuted = true;
                 }
                 ++context->StageState()->ScheduleJobAttemptCount;
                 auto scheduleJobResult = rootElement->ScheduleJob(context, ignorePacking);
@@ -1482,13 +1481,12 @@ private:
                 FormatResources(context->SchedulingContext()->ResourceUsageDiscount()),
                 isAggressive);
 
-            bool prescheduleExecuted = false;
             TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(controllerConfig->ScheduleJobsTimeout);
 
             TWallTimer timer;
             while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
             {
-                if (!prescheduleExecuted) {
+                if (!context->StageState()->PrescheduleExecuted) {
                     TWallTimer prescheduleTimer;
                     rootElement->PrescheduleJob(
                         context,
@@ -1496,8 +1494,9 @@ private:
                             ? EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly
                             : EPrescheduleJobOperationCriterion::StarvingOnly,
                         /* aggressiveStarvationEnabled */ false);
+                    
                     context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
-                    prescheduleExecuted = true;
+                    context->StageState()->PrescheduleExecuted = true;
                 }
 
                 ++context->StageState()->ScheduleJobAttemptCount;
