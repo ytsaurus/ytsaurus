@@ -16,12 +16,6 @@ ISecretVaultServicePtr CreateDefaultSecretVaultService(
     NConcurrency::IPollerPtr poller,
     NProfiling::TRegistry profiler = {});
 
-ISecretVaultServicePtr CreateValidatingSecretVaultService(
-    TDefaultSecretVaultServiceConfigPtr config,
-    ITvmServicePtr tvmService,
-    NConcurrency::IPollerPtr poller,
-    NProfiling::TRegistry profiler = {});
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth

@@ -54,15 +54,6 @@ protected:
             CreateThreadPoolPoller(1, "HttpPoller"));
     }
 
-    ISecretVaultServicePtr CreateValidatingSecretVaultService(
-        TDefaultSecretVaultServiceConfigPtr config = {})
-    {
-        return NAuth::CreateValidatingSecretVaultService(
-            config ? config : CreateDefaultSecretVaultServiceConfig(),
-            New<TMockTvmService>(),
-            CreateThreadPoolPoller(1, "HttpPoller"));
-    }
-
     virtual void SetUp() override
     {
         MockHttpServer_.Start();
@@ -206,7 +197,7 @@ TEST_F(TDefaultSecretVaultTest, NoEncoding)
     ASSERT_TRUE(secrets[0].Encoding.empty());
 }
 
-TEST_F(TDefaultSecretVaultTest, Utf8Trouble)
+TEST_F(TDefaultSecretVaultTest, Utf8)
 {
     TStringStream outputStream;
     auto jsonConfig = New<NJson::TJsonFormatConfig>();
@@ -246,16 +237,10 @@ TEST_F(TDefaultSecretVaultTest, Utf8Trouble)
         SecretSignature});
 
     auto subresponses = WaitFor(service->GetSecrets(subrequests));
-    ASSERT_FALSE(subresponses.IsOK());
-
-    auto config = CreateDefaultSecretVaultServiceConfig();
-    config->EnableBrokenUtf8DecoderForCompatibility = false;
-    service = CreateDefaultSecretVaultService(config);
-    subresponses = WaitFor(service->GetSecrets(subrequests));
     ASSERT_TRUE(subresponses.IsOK());
 }
 
-TEST_F(TDefaultSecretVaultTest, Validation)
+TEST_F(TDefaultSecretVaultTest, HighAscii)
 {
     TStringStream outputStream;
     auto jsonConfig = New<NJson::TJsonFormatConfig>();
@@ -296,10 +281,6 @@ TEST_F(TDefaultSecretVaultTest, Validation)
 
     auto subresponses = WaitFor(service->GetSecrets(subrequests));
     ASSERT_TRUE(subresponses.IsOK());
-
-    service = CreateValidatingSecretVaultService();
-    subresponses = WaitFor(service->GetSecrets(subrequests));
-    ASSERT_FALSE(subresponses.IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
