@@ -80,7 +80,8 @@ public:
             std::unique_ptr<TFileWrapper> dataFile;
             NFS::ExpectIOErrors([&] {
                 dataFile.reset(new TFileWrapper(FileName_, RdOnly | Seq | CloseOnExec));
-                DataFile_ = IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec).Get().ValueOrThrow();
+                DataFile_ = WaitFor(IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec))
+                    .ValueOrThrow();
                 LockDataFile();
             });
 
@@ -534,7 +535,8 @@ private:
                 NFS::Replace(tempFileName, FileName_);
             }
 
-            DataFile_ = IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec).Get().ValueOrThrow();
+            DataFile_ = WaitFor(IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec))
+                .ValueOrThrow();
         });
     }
 
@@ -558,14 +560,17 @@ private:
     void DoUpdateLogHeader()
     {
         NFS::ExpectIOErrors([&] {
-            IOEngine_->FlushData(DataFile_).Get().ValueOrThrow();
+            WaitFor(IOEngine_->FlushData(DataFile_))
+                .ThrowOnError();
 
             auto header = MakeChangelogHeader<T>();
             auto data = TAsyncFileChangelogIndex::AllocateAligned(header.FirstRecordOffset, true, Alignment);
             ::memcpy(data.Begin(), &header, sizeof(header));
 
-            IOEngine_->Pwrite(DataFile_, data, 0).Get().ThrowOnError();
-            IOEngine_->FlushData(DataFile_).Get().ValueOrThrow();
+            WaitFor(IOEngine_->Pwrite(DataFile_, data, 0))
+                .ThrowOnError();
+            WaitFor(IOEngine_->FlushData(DataFile_))
+                .ThrowOnError();
         });
     }
 
@@ -604,7 +609,8 @@ private:
         result.UpperBound.FilePosition = CurrentFilePosition_;
         IndexFile_.Search(&result.LowerBound, &result.UpperBound, firstRecordId, lastRecordId, maxBytes);
 
-        result.Blob = IOEngine_->Pread(DataFile_, result.GetLength(), result.GetStartPosition()).Get().Value();
+        result.Blob = WaitFor(IOEngine_->Pread(DataFile_, result.GetLength(), result.GetStartPosition()))
+            .ValueOrThrow();
 
         YT_VERIFY(result.Blob.Size() == result.GetLength());
 
@@ -689,7 +695,8 @@ private:
             return;
         }
 
-        IndexFile_.FlushData().Get().ThrowOnError();
+        WaitFor(IndexFile_.FlushData())
+            .ThrowOnError();
 
         auto validSize = ::AlignUp<i64>(CurrentFilePosition_.load(), Alignment);
         // Rewrite the last 4K-block in case of incorrect size?

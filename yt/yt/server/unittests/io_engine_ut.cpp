@@ -113,9 +113,7 @@ INSTANTIATE_TEST_SUITE_P(
     TReadWriteTest,
     TReadWriteTest,
     ::testing::Values(
-        std::make_tuple(EIOEngineType::ThreadPool, "{ }"),
-        std::make_tuple(EIOEngineType::ThreadPool, "{ use_direct_io = true; }"),
-        std::make_tuple(EIOEngineType::Aio, "{ }")
+        std::make_tuple(EIOEngineType::ThreadPool, "{ }")
     )
 );
 

@@ -133,10 +133,6 @@ TLocation::TLocation(
     , Bootstrap_(bootstrap)
     , Type_(type)
     , Config_(config)
-    , MetaReadQueue_(New<TActionQueue>(Format("MetaRead:%v", Id_)))
-    , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
-    , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
-    , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
 {
     Profiler_ = LocationProfiler
         .WithTag("location_type", ToString(Type_))
@@ -261,7 +257,7 @@ const IInvokerPtr& TLocation::GetWritePoolInvoker()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return WritePoolInvoker_;
+    return IOEngine_->GetWritePoolInvoker();
 }
 
 std::vector<TChunkDescriptor> TLocation::Scan()

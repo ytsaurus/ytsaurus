@@ -33,7 +33,7 @@ TSessionBase::TSessionBase(
     , Options_(options)
     , Location_(location)
     , Lease_(std::move(lease))
-    , SessionInvoker_(CreateBoundedConcurrencyInvoker(Location_->GetWritePoolInvoker(), 1))
+    , SessionInvoker_(CreateSerializedInvoker(Location_->GetWritePoolInvoker()))
     , Logger(DataNodeLogger.WithTag("LocationId: %v, ChunkId: %v",
         Location_->GetId(),
         SessionId_))

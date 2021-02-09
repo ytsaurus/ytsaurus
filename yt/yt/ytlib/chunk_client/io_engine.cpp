@@ -1,40 +1,23 @@
 #include "io_engine.h"
 
-#include <util/system/platform.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/thread_pool.h>
+
+#include <yt/core/ytree/yson_serializable.h>
+
+#include <yt/core/misc/fs.h>
+
+#include <util/generic/size_literals.h>
+
+#include <array>
 
 #ifdef _linux_
-    #include <linux/aio_abi.h>
-
-    #include <sys/syscall.h>
-
-    #include <unistd.h>
+    #include <sys/uio.h>
 
     #ifndef FALLOC_FL_CONVERT_UNWRITTEN
         #define FALLOC_FL_CONVERT_UNWRITTEN 0x4
     #endif
 #endif
-
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/async_semaphore.h>
-#include <yt/core/concurrency/thread_pool.h>
-
-#include <yt/core/ytree/yson_serializable.h>
-
-#include <yt/core/logging/log.h>
-
-#include <yt/core/misc/fs.h>
-
-#include <yt/core/ytalloc/memory_zone.h>
-
-#include <yt/core/profiling/profiler.h>
-
-#include <yt/core/tracing/trace_context.h>
-
-#include <util/system/thread.h>
-#include <util/system/mutex.h>
-#include <util/system/condvar.h>
-#include <util/system/align.h>
-#include <util/system/sanitizers.h>
 
 namespace NYT::NChunkClient {
 
@@ -44,53 +27,18 @@ using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAioEngineDataBufferTag {};
-struct TDefaultEngineDataBufferTag {};
-
-#ifdef _linux_
-
-int io_setup(unsigned nr, aio_context_t* ctxp)
-{
-    return syscall(__NR_io_setup, nr, ctxp);
-}
-
-int io_destroy(aio_context_t ctx)
-{
-    return syscall(__NR_io_destroy, ctx);
-}
-
-int io_submit(aio_context_t ctx, long nr,  struct iocb** iocbpp)
-{
-    return syscall(__NR_io_submit, ctx, nr, iocbpp);
-}
-
-int io_getevents(
-    aio_context_t ctx,
-    long min_nr,
-    long max_nr,
-    struct io_event* events,
-    struct timespec* timeout)
-{
-    return syscall(__NR_io_getevents, ctx, min_nr, max_nr, events, timeout);
-}
-
-#endif
-
-template <typename T>
-bool IsAligned(T value, i64 alignment)
-{
-    return ::AlignDown<T>(value, alignment) == value;
-}
-
 class TThreadedIOEngineConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    std::optional<int> ThreadCount; // COMPAT(aozeritsky)
     int ReadThreadCount;
     int WriteThreadCount;
-    bool UseDirectIO;
+
+    i64 MaxBytesPerRead;
+    i64 MaxBytesPerWrite;
+
     bool EnableSync;
+    bool EnablePwritev;
 
     std::optional<TDuration> SickReadTimeThreshold;
     std::optional<TDuration> SickReadTimeWindow;
@@ -100,54 +48,40 @@ public:
 
     TThreadedIOEngineConfig()
     {
-        RegisterParameter("thread_count", ThreadCount)
-            .Default()
-            .GreaterThanOrEqual(1);
         RegisterParameter("read_thread_count", ReadThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
         RegisterParameter("write_thread_count", WriteThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
-        RegisterParameter("use_direct_io", UseDirectIO)
-            .Default(false);
+
+        RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
+            .GreaterThanOrEqual(1)
+            .Default(256_MB);
+        RegisterParameter("max_bytes_per_write", MaxBytesPerWrite)
+            .GreaterThanOrEqual(1)
+            .Default(256_MB);
+
         RegisterParameter("enable_sync", EnableSync)
+            .Default(true);
+        RegisterParameter("enable_pwritev", EnablePwritev)
             .Default(true);
 
         RegisterParameter("sick_read_time_threshold", SickReadTimeThreshold)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
-
         RegisterParameter("sick_read_time_window", SickReadTimeWindow)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
-
         RegisterParameter("sick_write_time_threshold", SickWriteTimeThreshold)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
-
         RegisterParameter("sick_write_time_window", SickWriteTimeWindow)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
-
         RegisterParameter("sickness_expiration_timeout", SicknessExpirationTimeout)
             .GreaterThanOrEqual(TDuration::Zero())
             .Default();
-
-        RegisterPostprocessor([&] () {
-            if (ThreadCount && ReadThreadCount == 1 && WriteThreadCount == 1) {
-                if (*ThreadCount == 1) {
-                    ThreadCount = 2;
-                }
-
-                ReadThreadCount = (*ThreadCount + 1) / 2;
-                WriteThreadCount = *ThreadCount - ReadThreadCount;
-
-                YT_VERIFY(ReadThreadCount > 0);
-                YT_VERIFY(WriteThreadCount > 0);
-                YT_VERIFY(ReadThreadCount + WriteThreadCount == *ThreadCount);
-            }
-        });
     }
 };
 
@@ -155,13 +89,13 @@ class TIOEngineBase
     : public IIOEngine
 {
 protected:
-    explicit TIOEngineBase(const NLogging::TLogger& logger)
-        : Logger(logger)
-    { }
-
     const NLogging::TLogger Logger;
 
-    std::shared_ptr<TFileHandle> DoOpen(const TString& fileName, EOpenMode mode, bool useDirectIO, i64 preallocateSize)
+    explicit TIOEngineBase(NLogging::TLogger logger)
+        : Logger(std::move(logger))
+    { }
+
+    std::shared_ptr<TFileHandle> DoOpen(const TString& fileName, EOpenMode mode, i64 preallocateSize)
     {
         std::shared_ptr<TFileHandle> handle;
         {
@@ -174,9 +108,6 @@ protected:
                 fileName,
                 mode)
                 << TError::FromSystem();
-        }
-        if (useDirectIO) {
-            handle->SetDirect();
         }
         if (preallocateSize > 0) {
             YT_VERIFY(mode & WrOnly);
@@ -229,17 +160,15 @@ public:
 
     TThreadedIOEngine(
         TConfigPtr config,
-        const TString& locationId,
-        const TRegistry& profiler,
-        const NLogging::TLogger& logger)
-        : TIOEngineBase(logger)
+        TString locationId,
+        TRegistry profiler,
+        NLogging::TLogger logger)
+        : TIOEngineBase(std::move(logger))
         , Config_(std::move(config))
         , ReadThreadPool_(New<TThreadPool>(Config_->ReadThreadCount, Format("IOR:%v", locationId)))
         , WriteThreadPool_(New<TThreadPool>(Config_->WriteThreadCount, Format("IOW:%v", locationId)))
         , ReadInvoker_(CreatePrioritizedInvoker(ReadThreadPool_->GetInvoker()))
         , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
-        , Logger(logger)
-        , UseDirectIO_(Config_->UseDirectIO)
         , PreadTimer_(profiler.Timer("/pread_time"))
         , PwriteTimer_(profiler.Timer("/pwrite_time"))
         , FdatasyncTimer_(profiler.Timer("/fdatasync_time"))
@@ -264,7 +193,7 @@ public:
             ? ReadInvoker_
             : WriteInvoker_;
 
-        return BIND(&TThreadedIOEngine::DoOpen, MakeStrong(this), fileName, mode, UseDirectIO_ || (mode & DirectAligned), preallocateSize)
+        return BIND(&TThreadedIOEngine::DoOpen, MakeStrong(this), fileName, mode, preallocateSize)
             .AsyncVia(CreateFixedPriorityInvoker(invoker, priority))
             .Run();
     }
@@ -288,13 +217,13 @@ public:
 
     virtual TFuture<TSharedMutableRef> Pread(
         const std::shared_ptr<TFileHandle>& handle,
-        size_t len,
+        i64 size,
         i64 offset,
         i64 priority) override
     {
         TWallTimer timer;
         auto memoryZone = GetCurrentMemoryZone();
-        return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), handle, len, offset, timer, memoryZone)
+        return BIND(&TThreadedIOEngine::DoPread, MakeStrong(this), handle, size, offset, timer, memoryZone)
             .AsyncVia(CreateFixedPriorityInvoker(ReadInvoker_, priority))
             .Run();
     }
@@ -318,11 +247,20 @@ public:
     {
         TWallTimer timer;
 
-        auto useDirectIO = UseDirectIO_ || IsDirectAligned(handle);
-        YT_VERIFY(!useDirectIO || IsAligned(reinterpret_cast<ui64>(data.Begin()), Alignment_));
-        YT_VERIFY(!useDirectIO || IsAligned(data.Size(), Alignment_));
-        YT_VERIFY(!useDirectIO || IsAligned(offset, Alignment_));
         return BIND(&TThreadedIOEngine::DoPwrite, MakeStrong(this), handle, data, offset, timer)
+            .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
+            .Run();
+    }
+
+    virtual TFuture<void> Pwritev(
+        const std::shared_ptr<TFileHandle>& handle,
+        const std::vector<TSharedRef>& data,
+        i64 offset,
+        i64 priority) override
+    {
+        TWallTimer timer;
+
+        return BIND(&TThreadedIOEngine::DoPwritev, MakeStrong(this), handle, data, offset, timer)
             .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
             .Run();
     }
@@ -331,26 +269,18 @@ public:
         const std::shared_ptr<TFileHandle>& handle,
         i64 priority) override
     {
-        if (UseDirectIO_) {
-            return TrueFuture;
-        } else {
-            return BIND(&TThreadedIOEngine::DoFlushData, MakeStrong(this), handle)
-                .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
-                .Run();
-        }
+        return BIND(&TThreadedIOEngine::DoFlushData, MakeStrong(this), handle)
+            .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
+            .Run();
     }
 
     virtual TFuture<bool> Flush(
         const std::shared_ptr<TFileHandle>& handle,
         i64 priority) override
     {
-        if (UseDirectIO_) {
-            return TrueFuture;
-        } else {
-            return BIND(&TThreadedIOEngine::DoFlush, MakeStrong(this), handle)
-                .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
-                .Run();
-        }
+        return BIND(&TThreadedIOEngine::DoFlush, MakeStrong(this), handle)
+            .AsyncVia(CreateFixedPriorityInvoker(WriteInvoker_, priority))
+            .Run();
     }
 
     virtual bool IsSick() const override
@@ -367,22 +297,22 @@ public:
             .Run(newSize);
     }
 
+    virtual const IInvokerPtr& GetWritePoolInvoker() override
+    {
+        return WriteThreadPool_->GetInvoker();
+    }
+
 private:
     const TConfigPtr Config_;
-    const size_t MaxBytesPerRead = 1_GB;
     const TThreadPoolPtr ReadThreadPool_;
     const TThreadPoolPtr WriteThreadPool_;
     const IPrioritizedInvokerPtr ReadInvoker_;
     const IPrioritizedInvokerPtr WriteInvoker_;
-    const NLogging::TLogger Logger;
 
-    const bool UseDirectIO_;
-    const i64 Alignment_ = 4_KB;
-
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, ReadWaiTAdaptiveLock_);
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ReadWaitLock_);
     std::optional<TInstant> SickReadWaitStart_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, WriteWaiTAdaptiveLock_);
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, WriteWaitLock_);
     std::optional<TInstant> SickWriteWaitStart_;
 
     std::atomic<bool> Sick_ = false;
@@ -410,7 +340,7 @@ private:
         TEventTimer timer(FdatasyncTimer_);
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         if (!Config_->EnableSync) {
-            return true;            
+            return true;
         }
         return handle->FlushData();
     }
@@ -420,53 +350,38 @@ private:
         TEventTimer timer(FsyncTimer_);
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         if (!Config_->EnableSync) {
-            return true;            
+            return true;
         }
         return handle->Flush();
     }
 
     TSharedMutableRef DoPread(
         const std::shared_ptr<TFileHandle>& handle,
-        size_t numBytes,
-        i64 offset,
+        i64 size,
+        i64 fileOffset,
         TWallTimer timer,
         EMemoryZone memoryZone)
     {
         AddReadWaitTimeSample(timer.GetElapsedTime());
 
         TMemoryZoneGuard guard(memoryZone);
-        auto data = TSharedMutableRef::Allocate<TDefaultEngineDataBufferTag>(
-            numBytes + UseDirectIO_ * 3 * Alignment_,
-            false);
 
-        i64 from = offset;
-        i64 to = offset + numBytes;
+        struct TThreadedIOEngineReadBufferTag
+        { };
+        auto data = TSharedMutableRef::Allocate<TThreadedIOEngineReadBufferTag>(size, false);
 
-        bool useDirectIO = UseDirectIO_ || IsDirectAligned(handle);
-
-        if (useDirectIO) {
-            data = data.Slice(AlignUp(data.Begin(), Alignment_), data.End());
-            from = ::AlignDown(offset, Alignment_);
-            to = ::AlignUp(to, Alignment_);
-        }
-
-        size_t readPortion = to - from;
-        auto delta = offset - from;
-
-        size_t result;
-        ui8* buf = reinterpret_cast<ui8*>(data.Begin());
-
-        YT_VERIFY(readPortion <= data.Size());
+        auto toReadRemaining = size;
+        i64 dataOffset = 0;
 
         NFS::ExpectIOErrors([&] {
-            while (readPortion > 0) {
-                i32 toRead = static_cast<i32>(Min(MaxBytesPerRead, readPortion));
+            while (toReadRemaining > 0) {
+                auto toRead = static_cast<ui32>(Min(toReadRemaining, Config_->MaxBytesPerRead));
 
                 i32 reallyRead;
                 {
                     TEventTimer timer(PreadTimer_);
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
-                    reallyRead = handle->Pread(buf, toRead, from);
+                    reallyRead = handle->Pread(data.Begin() + dataOffset, toRead, fileOffset);
                 }
 
                 if (reallyRead < 0) {
@@ -477,31 +392,17 @@ private:
                     ythrow TFileError();
                 }
 
-                if (reallyRead == 0) { // file exausted
+                if (reallyRead == 0) {
                     break;
                 }
 
-                buf += reallyRead;
-                from += reallyRead;
-                readPortion -= reallyRead;
-
-                if (useDirectIO && reallyRead < toRead) {
-                    if (reallyRead != ::AlignUp<i32>(reallyRead, Alignment_)) {
-                        if (from == handle->GetLength()) {
-                            break;
-                        } else {
-                            THROW_ERROR_EXCEPTION("Unaligned pread")
-                                << TErrorAttribute("requested_bytes", toRead)
-                                << TErrorAttribute("read_bytes", reallyRead);
-                        }
-                    }
-                }
+                fileOffset += reallyRead;
+                dataOffset += reallyRead;
+                toReadRemaining -= reallyRead;
             }
-
-            result = buf - reinterpret_cast<ui8*>(data.Begin()) - delta;
         });
 
-        return data.Slice(delta, delta + Min(result, numBytes));
+        return data.Slice(0, size - toReadRemaining);
     }
 
     TSharedMutableRef DoReadAll(const TString& fileName, TWallTimer timer, EMemoryZone memoryZone)
@@ -509,38 +410,154 @@ private:
         AddReadWaitTimeSample(timer.GetElapsedTime());
 
         auto mode = OpenExisting | RdOnly | Seq | CloseOnExec;
-        auto file = DoOpen(fileName, mode, UseDirectIO_, -1);
+        auto file = DoOpen(fileName, mode, -1);
         auto data = DoPread(file, file->GetLength(), 0, timer, memoryZone);
         DoClose(file, -1, false);
         return data;
     }
 
-    void DoPwrite(const std::shared_ptr<TFileHandle>& handle, const TSharedRef& data, i64 offset, TWallTimer timer)
+    void DoPwrite(
+        const std::shared_ptr<TFileHandle>& handle,
+        const TSharedRef& data,
+        i64 fileOffset,
+        TWallTimer timer)
     {
         AddWriteWaitTimeSample(timer.GetElapsedTime());
 
-        const ui8* buf = reinterpret_cast<const ui8*>(data.Begin());
-        size_t numBytes = data.Size();
-
         NFS::ExpectIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
-            while (numBytes) {
-                i32 toWrite = static_cast<i32>(Min(MaxBytesPerRead, numBytes));
+
+            auto toWriteRemaining = static_cast<i64>(data.Size());
+            i64 dataOffset = 0;
+
+            while (toWriteRemaining > 0) {
+                auto toWrite = static_cast<ui32>(Min(toWriteRemaining, Config_->MaxBytesPerWrite));
 
                 i32 reallyWritten;
                 {
                     TEventTimer timer(PwriteTimer_);
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
-                    reallyWritten = handle->Pwrite(buf, toWrite, offset);
+                    reallyWritten = handle->Pwrite(const_cast<char*>(data.Begin()) + dataOffset, toWrite, fileOffset);
                 }
 
                 if (reallyWritten < 0) {
                     ythrow TFileError();
                 }
 
-                buf += reallyWritten;
-                offset += reallyWritten;
-                numBytes -= reallyWritten;
+                fileOffset += reallyWritten;
+                dataOffset += reallyWritten;
+                toWriteRemaining -= reallyWritten;
+            }
+        });
+    }
+
+    void DoPwritev(
+        const std::shared_ptr<TFileHandle>& handle,
+        const std::vector<TSharedRef>& data,
+        i64 fileOffset,
+        TWallTimer timer)
+    {
+        AddWriteWaitTimeSample(timer.GetElapsedTime());
+
+        NFS::ExpectIOErrors([&] {
+            NTracing::TNullTraceContextGuard nullTraceContextGuard;
+
+            auto toWriteRemaining = static_cast<i64>(GetByteSize(data));
+
+            int dataIndex = 0;
+            i64 dataOffset = 0; // within data[dataIndex]
+
+            while (toWriteRemaining > 0) {
+                auto isPwritevSupported = [&] {
+#ifdef _linux_
+                    return true;
+#else
+                    return false;
+#endif
+                };
+
+                auto pwritev = [&] {
+#ifdef _linux_
+                    std::array<struct iovec, 128> iov;
+                    int iovCnt = 0;
+                    i64 toWrite = 0;
+                    while (dataIndex + iovCnt < static_cast<int>(data.size()) &&
+                            iovCnt < iov.size() &&
+                            toWrite < Config_->MaxBytesPerWrite)
+                    {
+                        const auto& dataPart = data[dataIndex + iovCnt];
+                        auto& iovPart = iov[iovCnt];
+                        iovPart.iov_base = const_cast<char*>(dataPart.Begin());
+                        iovPart.iov_len = dataPart.Size();
+                        if (iovCnt == 0) {
+                            iovPart.iov_base = static_cast<char*>(iovPart.iov_base) + dataOffset;
+                            iovPart.iov_len -= dataOffset;
+                        }
+                        if (toWrite + iovPart.iov_len > Config_->MaxBytesPerWrite) {
+                            iovPart.iov_len = Config_->MaxBytesPerWrite - toWrite;
+                        }
+                        ++iovCnt;
+                        toWrite += iovPart.iov_len;
+                    }
+
+                    ssize_t reallyWritten;
+                    {
+                        TEventTimer timer(PwriteTimer_);
+                        NTracing::TNullTraceContextGuard nullTraceContextGuard;
+                        // TODO(babenko): consider adding Pwritev to TFileHandle
+                        reallyWritten = ::pwritev(*handle, iov.data(), iovCnt, fileOffset);
+                    }
+
+                    if (reallyWritten < 0) {
+                        ythrow TFileError();
+                    }
+
+                    while (reallyWritten > 0) {
+                        const auto& dataPart = data[dataIndex];
+                        i64 toAdvance = std::min(static_cast<i64>(dataPart.Size()) - dataOffset, reallyWritten);
+                        fileOffset += toAdvance;
+                        dataOffset += toAdvance;
+                        reallyWritten -= toAdvance;
+                        toWriteRemaining -= toAdvance;
+                        if (dataOffset == dataPart.Size()) {
+                            ++dataIndex;
+                            dataOffset = 0;
+                        }
+                    }
+#else
+                    YT_ABORT();
+#endif
+                };
+
+                auto pwrite = [&] {
+                    const auto& dataPart = data[dataIndex];
+                    auto toWrite = static_cast<ui32>(Min(toWriteRemaining, Config_->MaxBytesPerWrite, static_cast<i64>(dataPart.Size()) - dataOffset));
+
+                    i32 reallyWritten;
+                    {
+                        TEventTimer timer(PwriteTimer_);
+                        NTracing::TNullTraceContextGuard nullTraceContextGuard;
+                        reallyWritten = handle->Pwrite(const_cast<char*>(data[dataIndex].Begin()) + dataOffset, toWrite, fileOffset);
+                    }
+
+                    if (reallyWritten < 0) {
+                        ythrow TFileError();
+                    }
+
+                    fileOffset += reallyWritten;
+                    dataOffset += reallyWritten;
+                    toWriteRemaining -= reallyWritten;
+                    if (dataOffset == dataPart.Size()) {
+                        ++dataIndex;
+                        dataOffset = 0;
+                    }
+                };
+
+                if (Config_->EnablePwritev && isPwritevSupported()) {
+                    pwritev();
+                } else {
+                    pwrite();
+                }
             }
         });
     }
@@ -550,7 +567,7 @@ private:
         if (Config_->SickWriteTimeThreshold && Config_->SickWriteTimeWindow && Config_->SicknessExpirationTimeout && !Sick_) {
             if (duration > *Config_->SickWriteTimeThreshold) {
                 auto now = GetInstant();
-                auto guard = Guard(WriteWaiTAdaptiveLock_);
+                auto guard = Guard(WriteWaitLock_);
                 if (!SickWriteWaitStart_) {
                     SickWriteWaitStart_ = now;
                 } else if (now - *SickWriteWaitStart_ > *Config_->SickWriteTimeWindow) {
@@ -560,7 +577,7 @@ private:
                     SetSickFlag(error);
                 }
             } else {
-                auto guard = Guard(WriteWaiTAdaptiveLock_);
+                auto guard = Guard(WriteWaitLock_);
                 SickWriteWaitStart_.reset();
             }
         }
@@ -571,7 +588,7 @@ private:
         if (Config_->SickReadTimeThreshold && Config_->SickReadTimeWindow && Config_->SicknessExpirationTimeout && !Sick_) {
             if (duration > *Config_->SickReadTimeThreshold) {
                 auto now = GetInstant();
-                auto guard = Guard(ReadWaiTAdaptiveLock_);
+                auto guard = Guard(ReadWaitLock_);
                 if (!SickReadWaitStart_) {
                     SickReadWaitStart_ = now;
                 } else if (now - *SickReadWaitStart_ > *Config_->SickReadTimeWindow) {
@@ -581,7 +598,7 @@ private:
                     SetSickFlag(error);
                 }
             } else {
-                auto guard = Guard(ReadWaiTAdaptiveLock_);
+                auto guard = Guard(ReadWaitLock_);
                 SickReadWaitStart_.reset();
             }
         }
@@ -596,420 +613,27 @@ private:
                 BIND(&TThreadedIOEngine::ResetSickFlag, MakeStrong(this)),
                 *Config_->SicknessExpirationTimeout);
 
-            YT_LOG_WARNING(error, "Location is sick");
+            YT_LOG_WARNING(error, "Sick flag set");
         }
     }
 
     void ResetSickFlag()
     {
         {
-            auto guard = Guard(WriteWaiTAdaptiveLock_);
+            auto guard = Guard(WriteWaitLock_);
             SickWriteWaitStart_.reset();
         }
 
         {
-            auto guard = Guard(ReadWaiTAdaptiveLock_);
+            auto guard = Guard(ReadWaitLock_);
             SickReadWaitStart_.reset();
         }
 
         Sick_ = false;
 
-        YT_LOG_WARNING("Reset sick flag");
+        YT_LOG_WARNING("Sick flag reset");
     }
 };
-
-#ifdef _linux_
-
-DECLARE_REFCOUNTED_STRUCT(IAioOperation)
-
-struct IAioOperation
-    : public TRefCounted
-    , public iocb
-{
-    virtual void Start(TAsyncSemaphoreGuard&& guard) = 0;
-    virtual void Complete(const io_event& ev) = 0;
-    virtual void Fail(const std::exception& ex) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IAioOperation)
-
-class TAioOperation
-    : public IAioOperation
-{
-public:
-    virtual void Start(TAsyncSemaphoreGuard&& guard) override
-    {
-        Guard_ = std::move(guard);
-    }
-
-    virtual void Complete(const io_event& ev) override
-    {
-        DoComplete(ev);
-        Guard_.Release();
-    }
-
-    virtual void Fail(const std::exception& ex) override
-    {
-        DoFail(ex);
-        Guard_.Release();
-    }
-
-private:
-    TAsyncSemaphoreGuard Guard_;
-
-    virtual void DoComplete(const io_event& ev) = 0;
-    virtual void DoFail(const std::exception& ex) = 0;
-};
-
-class TAioReadOperation
-    : public TAioOperation
-{
-public:
-    TAioReadOperation(
-        const std::shared_ptr<TFileHandle>& handle,
-        size_t len,
-        i64 offset,
-        i64 alignment)
-        : Data_(TSharedMutableRef::Allocate<TAioEngineDataBufferTag>(len + 3 * alignment, true))
-        , FH_(handle)
-        , Length_(len)
-        , Offset_(offset)
-        , From_(::AlignDown(offset, alignment))
-        , To_(::AlignUp((i64)(offset + len), alignment))
-        , Alignment_(alignment)
-    {
-        Data_ = Data_.Slice(AlignUp(Data_.Begin(), Alignment_), Data_.End());
-
-        memset(static_cast<iocb*>(this), 0, sizeof(iocb));
-
-        aio_fildes = static_cast<FHANDLE>(*handle);
-        aio_lio_opcode = IOCB_CMD_PREAD;
-
-        aio_buf = reinterpret_cast<ui64>(Data_.Begin());
-        aio_offset = From_;
-        aio_nbytes = To_ - From_;
-
-        YT_VERIFY(IsAligned(aio_buf, alignment));
-        YT_VERIFY(IsAligned(aio_nbytes, alignment));
-        YT_VERIFY(IsAligned(aio_offset, alignment));
-    }
-
-    TFuture<TSharedMutableRef> Result()
-    {
-        return Result_;
-    }
-
-private:
-    TSharedMutableRef Data_;
-    std::shared_ptr<TFileHandle> FH_;
-    const size_t Length_;
-    const i64 Offset_;
-
-    const i64 From_;
-    const i64 To_;
-
-    const i64 Alignment_;
-
-    TPromise<TSharedMutableRef> Result_ = NewPromise<TSharedMutableRef>();
-
-    virtual void DoComplete(const io_event& ev) override
-    {
-        auto delta = Offset_ - From_;
-        auto result = ev.res - delta;
-        Data_ = Data_.Slice(delta, delta + Min(static_cast<size_t>(result), Length_));
-        Result_.Set(Data_);
-    }
-
-    virtual void DoFail(const std::exception& ex) override
-    {
-        Result_.Set(TError(ex));
-    }
-};
-
-class TAioWriteOperation
-    : public TAioOperation
-{
-public:
-    TAioWriteOperation(
-        const std::shared_ptr<TFileHandle>& handle,
-        const TSharedRef& data,
-        i64 offset,
-        i64 alignment)
-        : Data_(data)
-        , Fh_(handle)
-    {
-        memset(static_cast<iocb*>(this), 0, sizeof(iocb));
-
-        aio_fildes = static_cast<FHANDLE>(*handle);
-        aio_lio_opcode = IOCB_CMD_PWRITE;
-
-        aio_buf = reinterpret_cast<ui64>(Data_.Begin());
-        aio_offset = offset;
-        aio_nbytes = data.Size();
-
-        YT_VERIFY(IsAligned(aio_buf, alignment));
-        YT_VERIFY(IsAligned(aio_nbytes, alignment));
-        YT_VERIFY(IsAligned(aio_offset, alignment));
-    }
-
-    TFuture<void> Result()
-    {
-        return Result_;
-    }
-
-private:
-    TSharedRef Data_;
-    std::shared_ptr<TFileHandle> Fh_;
-
-    TPromise<void> Result_ = NewPromise<void>();
-
-    virtual void DoComplete(const io_event& ev) override
-    {
-        Result_.Set();
-    }
-
-    virtual void DoFail(const std::exception& ex) override
-    {
-        Result_.Set(TError(ex));
-    }
-};
-
-class TAioEngineConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    int MaxQueueSize;
-
-    TAioEngineConfig()
-    {
-        RegisterParameter("max_queue_size", MaxQueueSize)
-            .GreaterThanOrEqual(1)
-            .Default(128);
-    }
-};
-
-class TAioEngine
-    : public TIOEngineBase
-{
-public:
-    using TConfig = TAioEngineConfig;
-    using TConfigPtr = TIntrusivePtr<TConfig>;
-
-    TAioEngine(
-        const TConfigPtr& config,
-        const TString& locationId,
-        const TRegistry& profiler,
-        const NLogging::TLogger& logger)
-        : TIOEngineBase(logger)
-        , MaxQueueSize_(config->MaxQueueSize)
-        , Semaphore_(New<TProfiledAsyncSemaphore>(MaxQueueSize_, profiler.Gauge("/waiting_ops")))
-        , Thread_(TThread::TParams(StaticLoop, this).SetName(Format("DiskEvents:%v", locationId)))
-        , ThreadPool_(New<TThreadPool>(1, Format("FileOpener:%v", locationId)))
-    {
-        auto ret = io_setup(MaxQueueSize_, &Ctx_);
-        if (ret < 0) {
-            THROW_ERROR_EXCEPTION("Cannot initialize AIO")
-                << TError::FromSystem();
-        }
-
-        Start();
-    }
-
-    ~TAioEngine() override
-    {
-        io_destroy(Ctx_);
-        Stop();
-    }
-
-    virtual TFuture<TSharedMutableRef> Pread(
-        const std::shared_ptr<TFileHandle>& handle,
-        size_t len,
-        i64 offset,
-        i64 priority) override
-    {
-        auto op = New<TAioReadOperation>(handle, len, offset, Alignment_);
-        Submit(op);
-        return op->Result();
-    }
-
-    virtual TFuture<void> Pwrite(
-        const std::shared_ptr<TFileHandle>& handle, const TSharedRef& data, i64 offset, i64 priority) override
-    {
-        auto op = New<TAioWriteOperation>(handle, data, offset, Alignment_);
-        Submit(op);
-        return op->Result();
-    }
-
-    virtual TFuture<bool> FlushData(const std::shared_ptr<TFileHandle>& handle, i64 priority) override
-    {
-        return TrueFuture;
-    }
-
-    virtual TFuture<bool> Flush(const std::shared_ptr<TFileHandle>& handle, i64 priority) override
-    {
-        return TrueFuture;
-    }
-
-    virtual TFuture<std::shared_ptr<TFileHandle>> Open(const TString& fileName, EOpenMode mode, i64 preallocateSize, i64 priority) override
-    {
-        return BIND(&TAioEngine::DoOpen, MakeStrong(this), fileName, mode, true, preallocateSize)
-            .AsyncVia(ThreadPool_->GetInvoker())
-            .Run();
-    }
-
-    virtual bool IsSick() const override
-    {
-        return false;
-    }
-
-    virtual TFuture<void> Close(const std::shared_ptr<TFileHandle>& handle, i64 newSize, bool /*flush*/)
-    {
-        return BIND(&TAioEngine::DoClose, MakeStrong(this), handle, newSize, false)
-            .AsyncVia(ThreadPool_->GetInvoker())
-            .Run();
-    }
-
-    virtual TFuture<void> FlushDirectory(const TString& path)
-    {
-        return BIND(&TAioEngine::DoFlushDirectory, MakeStrong(this), path)
-            .AsyncVia(ThreadPool_->GetInvoker())
-            .Run();
-    }
-
-    virtual TFuture<TSharedMutableRef> ReadAll(const TString& fileName, i64 priority)
-    {
-        auto memoryZone = GetCurrentMemoryZone();
-        return BIND(&TAioEngine::DoReadAll, MakeStrong(this), fileName, priority, memoryZone)
-            .AsyncVia(ThreadPool_->GetInvoker())
-            .Run();
-    }
-
-    virtual TFuture<void> Fallocate(
-        const std::shared_ptr<TFileHandle>& handle,
-        i64 newSize) override
-    {
-        return BIND(&TAioEngine::DoFallocate, MakeStrong(this), handle)
-            .AsyncVia(ThreadPool_->GetInvoker())
-            .Run(newSize);
-    }
-
-private:
-    aio_context_t Ctx_ = 0;
-    const int MaxQueueSize_;
-
-    TAsyncSemaphorePtr Semaphore_;
-    std::atomic<bool> Alive_ = {true};
-
-    const size_t Alignment_ = 4_KB;
-
-    TThread Thread_;
-    const TThreadPoolPtr ThreadPool_;
-
-    TFuture<TSharedMutableRef> DoReadAll(const TString& fileName, i64 priority, EMemoryZone memoryZone)
-    {
-        TMemoryZoneGuard guard(memoryZone);
-        auto file = DoOpen(fileName, OpenExisting | RdOnly | Seq | CloseOnExec, true, -1);
-        return Pread(file, file->GetLength(), 0, priority);
-    }
-
-    void Loop()
-    {
-        io_event events[MaxQueueSize_];
-        while (Alive_.load(std::memory_order_relaxed)) {
-            auto ret = GetEvents(events);
-            if (ret < 0) {
-                break;
-            }
-
-            for (int i = 0; i < ret; ++i) {
-                auto* op = static_cast<IAioOperation*>(reinterpret_cast<iocb*>(events[i].obj));
-                auto& ev = events[i];
-
-                try {
-                    NFS::ExpectIOErrors([&] {
-                        if (ev.res < 0) {
-                            ythrow TSystemError(-ev.res);
-                        }
-
-                        op->Complete(ev);
-                    });
-                } catch (const std::exception& ex) {
-                    op->Fail(ex);
-                }
-
-                op->Unref();
-            }
-        }
-    }
-
-    static void* StaticLoop(void* self)
-    {
-        reinterpret_cast<TAioEngine*>(self)->Loop();
-        return nullptr;
-    }
-
-    int GetEvents(io_event* events)
-    {
-        int ret;
-        while ((ret = io_getevents(Ctx_, 1, MaxQueueSize_, events, nullptr)) < 0 && errno == EINTR)
-        { }
-
-        YT_VERIFY(ret >= 0 || errno == EINVAL);
-        if (ret > 0) {
-            NSan::Unpoison(events, sizeof(*events) * ret);
-        }
-        return ret;
-    }
-
-    void Start()
-    {
-        YT_VERIFY(Alive_.load(std::memory_order_relaxed));
-        Thread_.Start();
-    }
-
-    void Stop()
-    {
-        YT_VERIFY(Alive_.load(std::memory_order_relaxed));
-        Alive_.store(false, std::memory_order_relaxed);
-        Thread_.Join();
-    }
-
-    void DoSubmit(struct iocb* cb)
-    {
-        struct iocb* cbs[1];
-        cbs[0] = cb;
-        auto ret = io_submit(Ctx_, 1, cbs);
-
-        if (ret < 0) {
-            ythrow TSystemError(LastSystemError());
-        } else if (ret != 1) {
-            THROW_ERROR_EXCEPTION("Unexpected return code from io_submit")
-                << TErrorAttribute("code", ret);
-        }
-    }
-
-    void OnSlotsAvailable(const IAioOperationPtr& op, TAsyncSemaphoreGuard&& guard)
-    {
-        op->Ref();
-        op->Start(std::move(guard));
-
-        try {
-            NFS::ExpectIOErrors([&] {
-                DoSubmit(op.Get());
-            });
-        } catch (const std::exception& ex) {
-            op->Fail(ex);
-            op->Unref();
-        }
-    }
-
-    void Submit(const IAioOperationPtr& op)
-    {
-        Semaphore_->AsyncAcquire(BIND(&TAioEngine::OnSlotsAvailable, MakeStrong(this), op), GetSyncInvoker());
-    }
-};
-
-#endif
 
 template <typename T, typename... TParams>
 IIOEnginePtr CreateIOEngine(const NYTree::INodePtr& ioConfig, TParams... params)
@@ -1025,20 +649,21 @@ IIOEnginePtr CreateIOEngine(const NYTree::INodePtr& ioConfig, TParams... params)
 
 IIOEnginePtr CreateIOEngine(
     EIOEngineType engineType,
-    const NYTree::INodePtr& ioConfig,
-    const TString& locationId,
-    const TRegistry& profiler,
-    const NLogging::TLogger& logger)
+    NYTree::INodePtr ioConfig,
+    TString locationId,
+    TRegistry profiler,
+    NLogging::TLogger logger)
 {
     switch (engineType) {
         case EIOEngineType::ThreadPool:
-            return CreateIOEngine<TThreadedIOEngine>(ioConfig, locationId, profiler, logger);
-#ifdef _linux_
-        case EIOEngineType::Aio:
-            return CreateIOEngine<TAioEngine>(ioConfig, locationId, profiler, logger);
-#endif
+            return CreateIOEngine<TThreadedIOEngine>(
+                std::move(ioConfig),
+                std::move(locationId),
+                std::move(profiler),
+                std::move(logger));
         default:
-            THROW_ERROR_EXCEPTION("Unknown IO engine %Qlv", engineType);
+            THROW_ERROR_EXCEPTION("Unknown IO engine %Qlv",
+                engineType);
     }
 }
 

@@ -124,9 +124,7 @@ INSTANTIATE_TEST_SUITE_P(
     TAsyncFileChangelogIndexTest,
     TAsyncFileChangelogIndexTest,
     ::testing::Values(
-        std::make_tuple(NChunkClient::EIOEngineType::ThreadPool, "{ }"),
-        std::make_tuple(NChunkClient::EIOEngineType::ThreadPool, "{ use_direct_io = true; }"),
-        std::make_tuple(NChunkClient::EIOEngineType::Aio, "{ }")
+        std::make_tuple(NChunkClient::EIOEngineType::ThreadPool, "{ }")
     )
 );
 

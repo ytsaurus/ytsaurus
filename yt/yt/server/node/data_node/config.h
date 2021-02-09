@@ -674,12 +674,6 @@ public:
     //! Runs periodic checks against disks.
     TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
-    //! The number of reader threads per location (for blob data only; meta reader always has a separate thread).
-    int ReadThreadCount;
-
-    //! Number of writer threads per location.
-    int WriteThreadCount;
-
     //! Maximum number of concurrent balancing write sessions.
     int MaxWriteSessions;
 
@@ -869,13 +863,6 @@ public:
 
         RegisterParameter("disk_health_checker", DiskHealthChecker)
             .DefaultNew();
-
-        RegisterParameter("read_thread_count", ReadThreadCount)
-            .Default(1)
-            .GreaterThanOrEqual(1);
-        RegisterParameter("write_thread_count", WriteThreadCount)
-            .Default(1)
-            .GreaterThanOrEqual(1);
 
         RegisterParameter("max_write_sessions", MaxWriteSessions)
             .Default(1000)
