@@ -160,6 +160,8 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterParameter("cache_sticky_group_size_override", CacheStickyGroupSizeOverride)
         .Default(1);
+    RegisterParameter("enable_dynamic_cache_sticky_group_size", EnableDynamicCacheStickyGroupSize)
+        .Default(false);
 
     RegisterParameter("max_request_window_size", MaxRequestWindowSize)
         .GreaterThan(0)

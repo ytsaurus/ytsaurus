@@ -104,6 +104,7 @@ public:
         , ChannelFactory_(CreateCachingChannelFactory(
             NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
             Config_->IdleChannelTtl))
+        , StickyGroupSizeCache_(Config_->EnableDynamicCacheStickyGroupSize ? New<TStickyGroupSizeCache>() : nullptr)
         , Profiler_(TRegistry("/connection").WithTag("connection_name", Config_->Name))
     { }
 
@@ -472,8 +473,7 @@ private:
     const NLogging::TLogger Logger;
 
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-
-    const TStickyGroupSizeCachePtr StickyGroupSizeCache_ = New<TStickyGroupSizeCache>();
+    const TStickyGroupSizeCachePtr StickyGroupSizeCache_;
 
     // NB: there're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;
