@@ -92,7 +92,10 @@ TSolomonExporter::TSolomonExporter(
         profiler
             .WithRequiredTag("version", GetVersion())
             .AddFuncGauge("/build/version", MakeStrong(this), [] { return 1.0; });
-        
+    }
+    if (config->ReportRestart) {
+        TRegistry profiler{registry, ""};
+
         profiler.AddFuncGauge(
             "/server/restarted_5min_ago",
             MakeStrong(this),
