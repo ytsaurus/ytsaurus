@@ -640,7 +640,7 @@ public:
                     continue;
                 }
 
-                YT_VERIFY(snapshot->HasOperation(operationId) || snapshot->IsOperationDisabled(operationId));
+                YT_VERIFY(snapshot->HasOperation(operationId));
 
                 treeIdToJobMetricDeltas[metrics.TreeId].emplace(operationId, std::move(metrics.Metrics));
             }
@@ -844,9 +844,9 @@ public:
                         continue;
                     }
                     const auto& snapshot = snapshotIt->second;
-                    if (snapshot->HasOperation(job.OperationId)) {
+                    if (snapshot->HasEnabledOperation(job.OperationId)) {
                         snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
-                    } else if (snapshot->IsOperationDisabled(job.OperationId)) {
+                    } else if (snapshot->HasDisabledOperation(job.OperationId)) {
                         YT_LOG_DEBUG("Postpone job update since operation is disabled (OperationId: %v, JobId: %v)",
                             job.OperationId,
                             job.JobId);

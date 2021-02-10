@@ -946,31 +946,33 @@ private:
                 operationElement->OnJobFinished(jobId);
             }
         }
-
+        
         virtual bool HasOperation(TOperationId operationId) const override
         {
-            auto* operationElement = TreeSnapshotImpl_->FindEnabledOperationElement(operationId);
-            return operationElement != nullptr;
+            return HasEnabledOperation(operationId) || HasDisabledOperation(operationId);
+        }
+
+        virtual bool HasEnabledOperation(TOperationId operationId) const override
+        {
+            return TreeSnapshotImpl_->EnabledOperationMap().contains(operationId);
+        }
+        
+        virtual bool HasDisabledOperation(TOperationId operationId) const override
+        {
+            return TreeSnapshotImpl_->DisabledOperationMap().contains(operationId);
         }
 
         virtual bool IsOperationRunningInTree(TOperationId operationId) const override
         {
             if (auto* element = TreeSnapshotImpl_->FindEnabledOperationElement(operationId)) {
-                auto res = element->IsOperationRunningInPool();
-                return res;
+                return element->IsOperationRunningInPool();
             }
 
             if (auto* element = TreeSnapshotImpl_->FindDisabledOperationElement(operationId)) {
-                auto res = element->IsOperationRunningInPool();
-                return res;
+                return element->IsOperationRunningInPool();
             }
 
             return false;
-        }
-
-        virtual bool IsOperationDisabled(TOperationId operationId) const override
-        {
-            return TreeSnapshotImpl_->DisabledOperationMap().contains(operationId);
         }
 
         virtual void ApplyJobMetricsDelta(const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation) override
