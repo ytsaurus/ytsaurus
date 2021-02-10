@@ -542,6 +542,14 @@ public class ApiServiceClient extends TransactionalClient {
                 response -> null);
     }
 
+    /**
+     * Unmount table.
+     *
+     * This method doesn't wait until tablets become unmounted.
+     *
+     * @see UnmountTable
+     * @see CompoundClient#unmountTableAndWaitTablets(UnmountTable)
+     */
     public CompletableFuture<Void> unmountTable(UnmountTable req) {
         return RpcUtil.apply(
                 sendRequest(req, service.unmountTable()),
