@@ -344,6 +344,8 @@ protected:
     TJobResources AggregatedMinNeededJobResources_;
     TJobResources TotalNeededResources_;
 
+    bool Tentative_ = false;
+
     TInstant StartTime_;
 
     int TreeIndex_ = UnassignedTreeIndex;
