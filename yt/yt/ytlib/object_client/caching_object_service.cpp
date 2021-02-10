@@ -286,6 +286,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
                     cachingHeaderExt->set_success_expiration_time(ToProto<i64>(successExpirationTime - nodeSuccessExpirationTime));
                     cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(failureExpirationTime - nodeFailureExpirationTime));
+                    cachingHeaderExt->set_refresh_revision(refreshRevision);
                 } else {
                     req->Header().ClearExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
                     req->Header().ClearExtension(NRpc::NProto::TBalancingExt::balancing_ext);
