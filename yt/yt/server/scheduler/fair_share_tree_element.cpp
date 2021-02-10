@@ -131,12 +131,12 @@ TFairShareSchedulingStage::TFairShareSchedulingStage(TString loggingName, TSched
 
 TFairShareContext::TFairShareContext(
     ISchedulingContextPtr schedulingContext,
-    int treeSize,
+    int schedulableElementCount,
     std::vector<TSchedulingTagFilter> registeredSchedulingTagFilters,
     bool enableSchedulingInfoLogging,
     const NLogging::TLogger& logger)
     : SchedulingContext_(std::move(schedulingContext))
-    , TreeSize_(treeSize)
+    , SchedulableElementCount_(schedulableElementCount)
     , RegisteredSchedulingTagFilters_(std::move(registeredSchedulingTagFilters))
     , EnableSchedulingInfoLogging_(enableSchedulingInfoLogging)
     , Logger(logger)
@@ -148,7 +148,7 @@ void TFairShareContext::PrepareForScheduling(const TRootElementPtr& rootElement)
     if (!Initialized_) {
         Initialized_ = true;
 
-        DynamicAttributesList_.resize(TreeSize_);
+        DynamicAttributesList_.resize(SchedulableElementCount_);
         CanSchedule_.reserve(RegisteredSchedulingTagFilters_.size());
         for (const auto& filter : RegisteredSchedulingTagFilters_) {
             CanSchedule_.push_back(SchedulingContext_->CanSchedule(filter));
@@ -294,11 +294,17 @@ void TSchedulerElement::MarkImmutable()
     Mutable_ = false;
 }
 
-int TSchedulerElement::EnumerateElements(int startIndex, TUpdateFairShareContext* context)
+int TSchedulerElement::EnumerateElements(
+    int startIndex,
+    TUpdateFairShareContext* context,
+    bool isSchedulableValueFilter)
 {
     YT_VERIFY(Mutable_);
 
-    TreeIndex_ = startIndex++;
+    if (isSchedulableValueFilter == IsSchedulable()) {
+        TreeIndex_ = startIndex++;
+    }
+
     return startIndex;
 }
 
@@ -1011,13 +1017,16 @@ void TCompositeSchedulerElement::MarkImmutable()
     }
 }
 
-int TCompositeSchedulerElement::EnumerateElements(int startIndex, TUpdateFairShareContext* context)
+int TCompositeSchedulerElement::EnumerateElements(
+    int startIndex,
+    TUpdateFairShareContext* context,
+    bool isSchedulableValueFilter)
 {
     YT_VERIFY(Mutable_);
 
-    startIndex = TSchedulerElement::EnumerateElements(startIndex, context);
+    startIndex = TSchedulerElement::EnumerateElements(startIndex, context, isSchedulableValueFilter);
     for (const auto& child : EnabledChildren_) {
-        startIndex = child->EnumerateElements(startIndex, context);
+        startIndex = child->EnumerateElements(startIndex, context, isSchedulableValueFilter);
     }
     return startIndex;
 }
@@ -1313,7 +1322,7 @@ void TCompositeSchedulerElement::PrescheduleJob(
 
 bool TCompositeSchedulerElement::IsSchedulable() const
 {
-    return !SchedulableChildren_.empty();
+    return IsRoot() || !SchedulableChildren_.empty();
 }
 
 bool TCompositeSchedulerElement::HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const
@@ -4359,7 +4368,6 @@ void TRootElement::PreUpdate(TUpdateFairShareContext* context)
     TForbidContextSwitchGuard contextSwitchGuard;
 
     DisableNonAliveElements();
-    TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0, context);
     context->TotalResourceLimits = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
 
     PreUpdateBottomUp(context);
@@ -4419,6 +4427,10 @@ void TRootElement::Update(TUpdateFairShareContext* context)
     UpdateFairShare(context);
 
     PublishFairShareAndUpdatePreemption();
+
+    // Calculate tree sizes.
+    SchedulableElementCount_ = TCompositeSchedulerElement::EnumerateElements(0, context, /* isSchedulableValueFilter*/ true);
+    TreeSize_ = TCompositeSchedulerElement::EnumerateElements(SchedulableElementCount_, context, /* isSchedulableValueFilter*/ false);
 
     // We calculate SatisfactionRatio by computing dynamic attributes using the same algorithm as during the scheduling phase.
     TDynamicAttributesList dynamicAttributesList{static_cast<size_t>(TreeSize_)};

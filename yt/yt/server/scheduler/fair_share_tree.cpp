@@ -1166,7 +1166,7 @@ private:
 
         TFairShareContext context(
             schedulingContext,
-            treeSnapshotImpl->RootElement()->GetTreeSize(),
+            treeSnapshotImpl->RootElement()->GetSchedulableElementCount(),
             std::move(registeredSchedulingTagFilters),
             enableSchedulingInfoLogging,
             Logger);

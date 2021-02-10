@@ -290,7 +290,7 @@ public:
     void FinishStage();
 
 private:
-    const int TreeSize_;
+    const int SchedulableElementCount_;
 
     const std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters_;
 
@@ -376,7 +376,10 @@ class TSchedulerElement
 {
 public:
     //! Enumerates elements of the tree using inorder traversal. Returns first unused index.
-    virtual int EnumerateElements(int startIndex, TUpdateFairShareContext* context);
+    virtual int EnumerateElements(
+        int startIndex,
+        TUpdateFairShareContext* context,
+        bool isSchedulableValueFilter);
 
     int GetTreeIndex() const;
     void SetTreeIndex(int treeIndex);
@@ -618,7 +621,10 @@ public:
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
 
-    virtual int EnumerateElements(int startIndex, TUpdateFairShareContext* context) override;
+    virtual int EnumerateElements(
+        int startIndex,
+        TUpdateFairShareContext* context,
+        bool isSchedulableValueFilter) override;
 
     virtual void DisableNonAliveElements() override;
 
@@ -1277,7 +1283,9 @@ DEFINE_REFCOUNTED_TYPE(TOperationElement)
 class TRootElementFixedState
 {
 public:
+    // TODO(ignat): move it to TFairShareTreeSnapshotImpl.
     DEFINE_BYVAL_RO_PROPERTY(int, TreeSize);
+    DEFINE_BYVAL_RO_PROPERTY(int, SchedulableElementCount);
 };
 
 class TRootElement
