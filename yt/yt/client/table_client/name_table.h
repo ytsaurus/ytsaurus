@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "column_sort_schema.h"
 
 #include <yt/core/misc/optional.h>
 
@@ -17,6 +18,7 @@ class TNameTable
 public:
     static TNameTablePtr FromSchema(const TTableSchema& schema);
     static TNameTablePtr FromKeyColumns(const TKeyColumns& keyColumns);
+    static TNameTablePtr FromSortColumns(const TSortColumns& sortColumns);
 
     int GetSize() const;
     i64 GetByteSize() const;

@@ -1389,6 +1389,40 @@ done
         expected = [{"key": "0"}, {"key": "0"}, {"key": "0", "value": "1"}]
         assert read_table("//tmp/out") == expected
 
+    @authors("gritukan")
+    def test_different_foreign_sort_columns(self):
+        create("table", "//tmp/a", attributes={
+            "schema": [
+                {"name": "Host", "type": "string", "sort_order": "ascending"},
+                {"name": "LastAccess", "type": "string", "sort_order": "ascending"},
+            ]
+        })
+        create("table", "//tmp/b", attributes={
+            "schema": [
+                {"name": "Host", "type": "string", "sort_order": "ascending"},
+                {"name": "Path", "type": "string", "sort_order": "ascending"},
+                {"name": "LastAccess", "type": "string", "sort_order": "ascending"},
+            ]
+        })
+        create("table", "//tmp/c")
+        write_table("//tmp/a", [{"Host": "bar", "LastAccess": "a"}])
+        write_table("//tmp/b", [{"Host": "bar", "Path": "foo", "LastAccess": "a"}])
+
+        reduce(
+            in_=["<foreign=true>//tmp/a", "//tmp/b"],
+            out="//tmp/c",
+            join_by=["Host"],
+            reduce_by=["Host", "Path"],
+            sort_by=["Host", "Path", "LastAccess"],
+            command="cat",
+            spec={"reducer": {"format": "dsv"}}
+        )
+
+        assert read_table("//tmp/c") == [
+            {"Host": "bar", "LastAccess": "a"},
+            {"Host": "bar", "Path": "foo", "LastAccess": "a"},
+        ]
+
 
 class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2

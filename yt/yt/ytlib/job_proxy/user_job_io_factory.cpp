@@ -341,7 +341,7 @@ public:
         }
 
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
-        nameTable = TNameTable::FromKeyColumns(keyColumns);
+        nameTable = TNameTable::FromSortColumns(sortColumns);
         const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
         auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
             schedulerJobSpecExt.table_reader_options()));
@@ -382,7 +382,9 @@ public:
 
         const auto foreignKeyColumnCount = reduceJobSpecExt.join_key_column_count();
         std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
-        keyColumns.resize(foreignKeyColumnCount);
+
+        auto foreignSortColumns = sortColumns;
+        foreignSortColumns.resize(foreignKeyColumnCount);
 
         for (const auto& inputSpec : schedulerJobSpecExt.foreign_input_table_specs()) {
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
@@ -401,7 +403,7 @@ public:
                 nameTable,
                 BlockReadOptions_,
                 columnFilter,
-                sortColumns,
+                foreignSortColumns,
                 /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
