@@ -27,6 +27,11 @@ TNameTablePtr TNameTable::FromKeyColumns(const TKeyColumns& keyColumns)
     return nameTable;
 }
 
+TNameTablePtr TNameTable::FromSortColumns(const TSortColumns& sortColumns)
+{
+    return TNameTable::FromKeyColumns(GetColumnNames(sortColumns));
+}
+
 int TNameTable::GetSize() const
 {
     auto guard = Guard(SpinLock_);
