@@ -3209,6 +3209,7 @@ void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
     ResourceUsageAtUpdate_ = GetInstantResourceUsage();
     // Must be calculated after ResourceUsageAtUpdate_
     ResourceDemand_ = ComputeResourceDemand();
+    Tentative_ = RuntimeParameters_->Tentative;
     StartTime_ = Operation_->GetStartTime();
 
     TSchedulerElement::PreUpdateBottomUp(context);
@@ -3348,7 +3349,12 @@ void TOperationElement::UpdateDynamicAttributes(
 {
     auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
     attributes.BestLeafDescendant = this;
-    attributes.Active = IsAlive();
+
+    // NB: unset Active attribute we treat as unknown here.
+    if (!attributes.Active) {
+        attributes.Active = IsAlive();
+    }
+
     if (Mutable_) {
         attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio(ResourceUsageAtUpdate_);
     } else if (TreeConfig_->UseRecentResourceUsageForLocalSatisfaction) {
@@ -3445,15 +3451,18 @@ void TOperationElement::PrescheduleJob(
         return;
     }
 
-    if (Controller_->IsSaturatedInTentativeTree(
-        context->SchedulingContext()->GetNow(),
-        TreeId_,
-        TreeConfig_->TentativeTreeSaturationDeactivationPeriod))
+    if (Tentative_ && 
+        Controller_->IsSaturatedInTentativeTree(
+            context->SchedulingContext()->GetNow(),
+            TreeId_,
+            TreeConfig_->TentativeTreeSaturationDeactivationPeriod))
     {
         onOperationDeactivated(EDeactivationReason::SaturatedInTentativeTree);
         return;
     }
 
+    // NB: we explicitely set Active flag to avoid another call to IsAlive().
+    attributes.Active = true;
     UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
 
     if (attributes.Active) {
