@@ -1761,7 +1761,6 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-
                 .Item("service").BeginMap()
                     // This information used by scheduler_uptime odin check and we want
                     // to receive all these fields by single request.
@@ -1802,14 +1801,6 @@ private:
                             fluent.Item().Value(ToString(it.first));
                         }
                     })
-                .Do([&] (TFluentMap fluent) {
-                    std::vector<TString> tags;
-                    if (MasterConnector_->TagsLoaded()) {
-                        tags = MasterConnector_->GetTags();
-                    }
-                    fluent
-                        .Item("tags").Value(tags);
-                })
             .EndMap();
 
         YT_LOG_DEBUG("Static orchid built");

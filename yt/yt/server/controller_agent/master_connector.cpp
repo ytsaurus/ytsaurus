@@ -238,13 +238,13 @@ public:
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
 
-        YT_LOG_DEBUG("Fetching \"tags\" attribute");
+        YT_LOG_DEBUG("Fetching \"tags_override\" attribute");
 
-        auto req = TYPathProxy::Get(GetInstancePath() + "/@tags");
+        auto req = TYPathProxy::Get(GetInstancePath() + "/@tags_override");
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             Tags_ = Config_->Tags;
-            YT_LOG_DEBUG("Attribute \"tags\" does not exist; using tags from config (Tags: %v)",
+            YT_LOG_DEBUG("Attribute \"tags_override\" does not exist; using tags from config (Tags: %v)",
                 Tags_);
         } else {
             auto rsp = rspOrError.ValueOrThrow();
@@ -492,6 +492,12 @@ private:
         {
             auto req = TYPathProxy::Set(path + "/@connection_time");
             req->set_value(ConvertToYsonString(TInstant::Now()).ToString());
+            GenerateMutationId(req);
+            batchReq->AddRequest(req);
+        }
+        {
+            auto req = TYPathProxy::Set(path + "/@tags");
+            req->set_value(ConvertToYsonString(GetTags()).ToString());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
