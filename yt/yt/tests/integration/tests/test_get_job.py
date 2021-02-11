@@ -194,6 +194,12 @@ class _TestGetJobCommon(_TestGetJobBase):
         self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=True,
                             pool="my_pool", pool_tree="default")
 
+        job_info = retry(lambda: get_job(op.id, job_id))
+        assert job_info["fail_context_size"] > 0
+        events = job_info["events"]
+        assert len(events) > 0
+        assert all(field in events[0] for field in ["phase", "state", "time"])
+
         _delete_job_from_archive(op.id, job_id)
 
         # Controller agent must be able to respond as it stores

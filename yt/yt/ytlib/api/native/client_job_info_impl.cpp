@@ -82,6 +82,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "has_spec",
     "progress",
     "stderr_size",
+    "fail_context_size",
     "error",
     "brief_statistics",
     "job_competition_id",
@@ -1232,6 +1233,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     auto addressIndex = findColumnIndex("address");
     auto errorIndex = findColumnIndex("error");
     auto statisticsIndex = findColumnIndex("statistics");
+    auto eventsIndex = findColumnIndex("events");
     auto briefStatisticsIndex = findColumnIndex("brief_statistics");
     auto statisticsLz4Index = findColumnIndex("statistics_lz4");
     auto stderrSizeIndex = findColumnIndex("stderr_size");
@@ -1358,6 +1360,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             }
             auto statistics = ConvertToNode(statisticsYson);
             job.BriefStatistics = BuildBriefStatistics(statistics);
+        }
+
+        if (eventsIndex && row[*eventsIndex].Type != EValueType::Null) {
+            job.Events = FromUnversionedValue<TYsonString>(row[*eventsIndex]);
         }
 
         if (execAttributesIndex && row[*execAttributesIndex].Type != EValueType::Null) {
