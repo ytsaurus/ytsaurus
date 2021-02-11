@@ -35,8 +35,12 @@ public:
     TDuration ServerReadTimeout;
     TDuration ClientWriteTimeout;
     TDuration ServerWriteTimeout;
+    i64 MaxRowsPerServerRead;
 
     ssize_t WindowSize;
+
+    // Testing option.
+    double StreamingSubrequestFailureProbability;
 
     TRemoteDynamicStoreReaderConfig()
     {
@@ -48,10 +52,16 @@ public:
             .Default(TDuration::Seconds(20));
         RegisterParameter("server_write_timeout", ServerWriteTimeout)
             .Default(TDuration::Seconds(20));
+        RegisterParameter("max_rows_per_server_read", MaxRowsPerServerRead)
+            .GreaterThan(0)
+            .Default(1024);
 
         RegisterParameter("window_size", WindowSize)
             .Default(16_MB)
             .GreaterThan(0);
+
+        RegisterParameter("streaming_subrequest_failure_probability", StreamingSubrequestFailureProbability)
+            .Default(0);
     }
 };
 

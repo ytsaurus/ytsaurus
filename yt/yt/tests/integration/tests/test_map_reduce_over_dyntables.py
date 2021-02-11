@@ -731,7 +731,11 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
     @authors("ifsmirnov")
     def test_ordered_tablet_index_stress(self):
         sync_create_cells(1)
-        create_dynamic_table("//tmp/t", schema=[{"name": "key", "type": "int64"}], enable_dynamic_store_read=True)
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[{"name": "key", "type": "int64"}],
+            enable_dynamic_store_read=True,
+            dynamic_store_auto_flush_period=YsonEntity())
 
         random.seed(152314)
 
@@ -759,6 +763,14 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
             if wave + 1 < chunk_count_per_tablet:
                 sync_flush_table("//tmp/t")
 
+        table_reader = {
+            "dynamic_store_reader": {
+                "max_rows_per_server_read": 10,
+                "streaming_subrequest_failure_probability": 0.005,
+                "window_size": 1,
+            },
+        }
+
         def _validate(start_tablet_index, start_row_index, end_tablet_index, end_row_index):
             expected = []
             if start_tablet_index == end_tablet_index:
@@ -775,7 +787,10 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
             read_range = {
                 "lower_limit": {"tablet_index": start_tablet_index, "row_index": start_row_index},
                 "upper_limit": {"tablet_index": end_tablet_index, "row_index": end_row_index}}
-            rows = read_table("<ranges=[{}]>//tmp/t".format(yson.dumps(read_range)), verbose=False)
+            rows = read_table(
+                "<ranges=[{}]>//tmp/t".format(yson.dumps(read_range)),
+                verbose=False,
+                table_reader=table_reader)
             actual = [row["key"] for row in rows]
 
             assert expected == actual

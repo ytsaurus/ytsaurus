@@ -76,6 +76,11 @@ message TReqReadDynamicStore
     optional NYT.NTableClient.NProto.TColumnFilter column_filter = 7;
     optional int64 start_row_index = 8;
     optional int64 end_row_index = 9;
+    optional int64 max_rows_per_read = 10;
+
+    // Fail each attachment request with certain probability.
+    // Used for testing only.
+    optional float failure_probability = 11;
 }
 
 message TRspReadDynamicStore

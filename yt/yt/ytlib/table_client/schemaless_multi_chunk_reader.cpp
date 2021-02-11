@@ -151,27 +151,15 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
             case EDataSourceType::UnversionedTable: {
                 const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
 
+                // TODO(ifsmirnov): estimate reader memory for dynamic stores.
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
-                auto createReader = BIND([=] {
+
+                auto createChunkReaderFromSpecAsync = BIND([=] (
+                    const TChunkSpec& chunkSpec,
+                    TChunkReaderMemoryManagerPtr chunkReaderMemoryManager)
+                {
                     IChunkReaderPtr remoteReader;
                     try {
-                        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-                        if (TypeFromId(chunkId) == EObjectType::OrderedDynamicTabletStore) {
-                            return MakeFuture<IReaderBasePtr>(CreateRemoteOrderedDynamicStoreReader(
-                                chunkSpec,
-                                dataSource.Schema(),
-                                config->DynamicStoreReader,
-                                options,
-                                nameTable,
-                                client,
-                                nodeDirectory,
-                                trafficMeter,
-                                bandwidthThrottler,
-                                rpsThrottler,
-                                blockReadOptions,
-                                dataSource.Columns()));
-                        }
-
                         remoteReader = CreateRemoteReader(
                             chunkSpec,
                             config,
@@ -185,12 +173,12 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             bandwidthThrottler,
                             rpsThrottler);
                     } catch (const std::exception& ex) {
-                        return MakeFuture<IReaderBasePtr>(ex);
+                        return MakeFuture<ISchemalessChunkReaderPtr>(ex);
                     }
 
                     auto asyncChunkMeta = DownloadChunkMeta(remoteReader, blockReadOptions, partitionTag);
 
-                    return asyncChunkMeta.Apply(BIND([=] (const TColumnarChunkMetaPtr& chunkMeta) -> IReaderBasePtr {
+                    return asyncChunkMeta.Apply(BIND([=] (const TColumnarChunkMetaPtr& chunkMeta) {
                         TReadRange readRange;
                         // TODO(gritukan): Rethink it after YT-14154.
                         int keyColumnCount = std::max<int>(sortColumns.size(), chunkMeta->GetChunkSchema()->GetKeyColumnCount());
@@ -213,8 +201,6 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             nullptr,
                             dataSource.GetVirtualValueDirectory());
 
-                        auto chunkReaderMemoryManager = multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate);
-
                         return CreateSchemalessRangeChunkReader(
                             std::move(chunkState),
                             std::move(chunkMeta),
@@ -228,10 +214,39 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                             readRange,
                             partitionTag,
-                            chunkReaderMemoryManager,
+                            chunkReaderMemoryManager
+                                ? chunkReaderMemoryManager
+                                : multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate),
                             dataSliceDescriptor.VirtualRowIndex,
                             interruptDescriptorKeyLength);
                     }));
+                });
+
+                auto createReader = BIND([=] {
+                    auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+                    if (TypeFromId(chunkId) == EObjectType::OrderedDynamicTabletStore) {
+                        return MakeFuture<IReaderBasePtr>(CreateRetryingRemoteOrderedDynamicStoreReader(
+                            chunkSpec,
+                            dataSource.Schema(),
+                            config->DynamicStoreReader,
+                            options,
+                            nameTable,
+                            client,
+                            nodeDirectory,
+                            trafficMeter,
+                            bandwidthThrottler,
+                            rpsThrottler,
+                            blockReadOptions,
+                            dataSource.Columns(),
+                            multiReaderMemoryManager->CreateChunkReaderMemoryManager(512_MB),
+                            createChunkReaderFromSpecAsync));
+                    }
+
+                    return createChunkReaderFromSpecAsync(chunkSpec, nullptr).Apply(
+                        BIND([] (const ISchemalessChunkReaderPtr& reader) -> IReaderBasePtr {
+                            return reader;
+                        })
+                    );
                 });
 
                 auto canCreateReader = BIND([=] {

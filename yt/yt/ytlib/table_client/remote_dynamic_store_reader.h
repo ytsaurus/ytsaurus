@@ -65,4 +65,24 @@ ISchemalessChunkReaderPtr CreateRemoteOrderedDynamicStoreReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ISchemalessChunkReaderPtr CreateRetryingRemoteOrderedDynamicStoreReader(
+    NChunkClient::NProto::TChunkSpec chunkSpec,
+    TTableSchemaPtr schema,
+    NTabletClient::TRetryingRemoteDynamicStoreReaderConfigPtr config,
+    NTableClient::TChunkReaderOptionsPtr options,
+    TNameTablePtr nameTable,
+    NApi::NNative::IClientPtr client,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NChunkClient::TTrafficMeterPtr trafficMeter,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const std::optional<std::vector<TString>>& columns,
+    NChunkClient::TChunkReaderMemoryManagerPtr readerMemoryManager,
+    TCallback<TFuture<ISchemalessChunkReaderPtr>(
+        NChunkClient::NProto::TChunkSpec,
+        NChunkClient::TChunkReaderMemoryManagerPtr)> chunkReaderFactory);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT:NTabletClient
