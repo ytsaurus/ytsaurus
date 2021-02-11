@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/api/native/public.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/client/api/client.h>
 
 #include <yt/client/misc/public.h>
@@ -35,7 +37,8 @@ public:
     TFuture<void> Fetch();
 
 private:
-    struct TEntry {
+    struct TEntry
+    {
         NYPath::TYPath DirName;
         TString BaseName;
         bool FetchAsBatch = false;
@@ -47,7 +50,8 @@ private:
 
     std::vector<TEntry> Entries_;
 
-    struct TListEntry {
+    struct TListEntry
+    {
         //! Number of requested entries from this directory.
         int RequestedEntryCount = 0;
         //! Total number of nodes in this directory.
@@ -67,6 +71,7 @@ private:
 
     NLogging::TLogger Logger;
 
+    void SetupBatchRequest(const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& batchReq);
     void SetupYPathRequest(const NYTree::TYPathRequestPtr& req);
 
     void FetchBatchCounts();

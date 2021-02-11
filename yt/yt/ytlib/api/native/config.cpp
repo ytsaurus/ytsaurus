@@ -158,7 +158,8 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
         .Default(TDuration::Seconds(45));
 
-    RegisterParameter("cache_sticky_group_size_override", CacheStickyGroupSizeOverride)
+    RegisterParameter("default_cache_sticky_group_size", DefaultCacheStickyGroupSize)
+        .Alias("cache_sticky_group_size_override")
         .Default(1);
     RegisterParameter("enable_dynamic_cache_sticky_group_size", EnableDynamicCacheStickyGroupSize)
         .Default(false);

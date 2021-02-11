@@ -1,6 +1,8 @@
 #include "batch_attribute_fetcher.h"
 
 #include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -13,6 +15,7 @@
 namespace NYT::NCypressClient {
 
 using namespace NApi;
+using namespace NApi::NNative;
 using namespace NObjectClient;
 using namespace NYPath;
 using namespace NYson;
@@ -20,8 +23,10 @@ using namespace NYTree;
 using namespace NConcurrency;
 using namespace NLogging;
 
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(max42): make configurable.
-constexpr int MaxUnusedNodeCount = 5000;
+static constexpr int MaxUnusedNodeCount = 5000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,17 +106,16 @@ TFuture<void> TBatchAttributeFetcher::Fetch()
         .Run();
 }
 
+void TBatchAttributeFetcher::SetupBatchRequest(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
+{
+    const auto& config = Client_->GetNativeConnection()->GetConfig();
+    SetBalancingHeader(batchReq, config, MasterReadOptions_);
+}
+
 void TBatchAttributeFetcher::SetupYPathRequest(const TYPathRequestPtr& req)
 {
-    if (MasterReadOptions_.ReadFrom == EMasterChannelKind::Cache || MasterReadOptions_.ReadFrom == EMasterChannelKind::MasterCache) {
-        auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-        cachingHeaderExt->set_success_expiration_time(ToProto<i64>(MasterReadOptions_.ExpireAfterSuccessfulUpdateTime));
-        cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(MasterReadOptions_.ExpireAfterFailedUpdateTime));
-
-        auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-        balancingHeaderExt->set_enable_stickiness(true);
-        balancingHeaderExt->set_sticky_group_size(MasterReadOptions_.CacheStickyGroupSize);
-    }
+    const auto& config = Client_->GetNativeConnection()->GetConfig();
+    SetCachingHeader(req, config, MasterReadOptions_);
 }
 
 void TBatchAttributeFetcher::FetchBatchCounts()
@@ -124,6 +128,7 @@ void TBatchAttributeFetcher::FetchBatchCounts()
 
     TObjectServiceProxy proxy(Client_->GetMasterChannelOrThrow(MasterReadOptions_.ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
+    SetupBatchRequest(batchReq);
 
     for (auto& listEntry : ListEntries_) {
         auto req = TYPathProxy::Get(listEntry.DirName + "/@count");
@@ -167,6 +172,7 @@ void TBatchAttributeFetcher::FetchAttributes()
 {
     TObjectServiceProxy proxy(Client_->GetMasterChannelOrThrow(MasterReadOptions_.ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
+    SetupBatchRequest(batchReq);
 
     int listCount = 0;
     int listEntryCount = 0;
@@ -255,6 +261,7 @@ void TBatchAttributeFetcher::FetchSymlinks()
 
     TObjectServiceProxy proxy(Client_->GetMasterChannelOrThrow(MasterReadOptions_.ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
+    SetupBatchRequest(batchReq);
 
     int linkCount = 0;
 

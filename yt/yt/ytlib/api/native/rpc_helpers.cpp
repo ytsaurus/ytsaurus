@@ -43,6 +43,7 @@ void SetCachingHeader(
     if (!IsCachingEnabled(config, options)) {
         return;
     }
+    
     auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
     cachingHeaderExt->set_success_expiration_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
     cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
@@ -60,7 +61,8 @@ void SetBalancingHeader(
         return;
     }
 
-    request->SetDefaultStickyGroupSize(std::max(config->CacheStickyGroupSizeOverride, options.CacheStickyGroupSize));
+    request->SetDefaultStickyGroupSize(options.CacheStickyGroupSize.value_or(
+        config->DefaultCacheStickyGroupSize));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
