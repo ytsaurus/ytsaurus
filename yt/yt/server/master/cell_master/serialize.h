@@ -131,6 +131,7 @@ DEFINE_ENUM(EMasterReign,
     ((IncreaseUploadReplicationFactorUponFlush)                     (1447))  // akozhikhov
     ((InternedAttributes)                                           (1448))  // babenko
     ((VerifySchedulerPoolStrongGuarantees)                          (1449))  // eshcherbin
+    ((BundleQuotas)                                                 (1450))  // ifsmirnov
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42

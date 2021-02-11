@@ -17,6 +17,8 @@ using namespace NSecurityServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 
+using NTabletServer::TTabletResources;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TNullVersionedBuiltinAttribute::Persist(const NCellMaster::TPersistenceContext& context)
@@ -146,6 +148,11 @@ i64 TCypressNode::GetMasterMemoryUsage() const
         result += Attributes_->GetMasterMemoryUsage();
     }
     return result;
+}
+
+TTabletResources TCypressNode::GetTabletResourceUsage() const
+{
+    return {};
 }
 
 NHydra::TRevision TCypressNode::GetRevision() const

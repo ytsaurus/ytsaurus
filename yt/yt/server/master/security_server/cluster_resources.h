@@ -8,6 +8,8 @@
 
 #include <yt/server/master/cypress_server/public.h>
 
+#include <yt/server/master/tablet_server/tablet_resources.h>
+
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/yson_serializable.h>
@@ -93,15 +95,16 @@ private:
 //! This cannot be done directly as serialization requires converting medium
 //! indexes to names, which is impossible without the chunk manager.
 class TSerializableClusterResources
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     // For deserialization.
-    explicit TSerializableClusterResources();
+    explicit TSerializableClusterResources(bool serializeTabletResources = true);
     // For serialization.
     TSerializableClusterResources(
         const NChunkServer::TChunkManagerPtr& chunkManager,
-        const TClusterResources& clusterResources);
+        const TClusterResources& clusterResources,
+        bool serializeTabletResources = true);
 
     TClusterResources ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const;
 
@@ -119,6 +122,44 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializableClusterResources)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Both generic and tablet resources combined into a single class.
+//! Used for serialization purposes and should not be saved to snapshot.
+class TRichClusterResources
+{
+public:
+    TRichClusterResources() = default;
+
+    TRichClusterResources(
+        const TClusterResources& clusterResources,
+        const NTabletServer::TTabletResources& tabletResources);
+
+    // TODO(ifsmirnov): use inheritance instead of composition
+    // when TClusterResources::TabletStaticMemory and ::TabletCount vanish.
+    TClusterResources ClusterResources;
+    NTabletServer::TTabletResources TabletResources;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Helper for serializing rich cluster resources.
+class TSerializableRichClusterResources
+    : public TSerializableClusterResources
+    , public NTabletServer::TSerializableTabletResources
+{
+public:
+    TSerializableRichClusterResources();
+
+    TSerializableRichClusterResources(
+        const NChunkServer::TChunkManagerPtr& chunkManager,
+        const TRichClusterResources& richClusterResources);
+
+    TRichClusterResources ToRichClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSerializableRichClusterResources)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,5 +185,16 @@ TString ToString(const TClusterResources& resources);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSecurityServer
+TRichClusterResources& operator += (TRichClusterResources& lhs, const TRichClusterResources& rhs);
+TRichClusterResources  operator +  (const TRichClusterResources& lhs, const TRichClusterResources& rhs);
 
+////////////////////////////////////////////////////////////////////////////////
+
+NTabletServer::TTabletResources ConvertToTabletResources(
+    const TClusterResources& clusterResources);
+TClusterResources ConvertToClusterResources(
+    const NTabletServer::TTabletResources& tabletResources);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NSecurityServer

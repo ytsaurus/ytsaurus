@@ -448,11 +448,12 @@ void ValidateCompressionCodec(
     }
 }
 
-TClusterResources GetNodeResourceUsage(const TCypressNode* node)
+TRichClusterResources GetNodeResourceUsage(const TCypressNode* node)
 {
     auto resourceUsage = node->GetTotalResourceUsage();
     resourceUsage.MasterMemory = node->GetMasterMemoryUsage();
-    return resourceUsage;
+    auto tabletResourceUsage = node->GetTabletResourceUsage();
+    return {resourceUsage, tabletResourceUsage};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

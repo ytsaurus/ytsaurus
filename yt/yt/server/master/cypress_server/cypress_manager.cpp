@@ -768,8 +768,8 @@ private:
     TTransaction* const RootNodeTransaction_;
 
     const TPromise<TYsonString> Promise_ = NewPromise<TYsonString>();
-    TClusterResources LocalCellResourceUsage_;
-    std::vector<TFuture<TClusterResources>> RemoteCellResourceUsage_;
+    TRichClusterResources LocalCellResourceUsage_;
+    std::vector<TFuture<TRichClusterResources>> RemoteCellResourceUsage_;
 
     virtual void OnNode(TCypressNode* trunkNode, TTransaction* transaction) override
     {
@@ -782,9 +782,9 @@ private:
 
             auto asyncResourceUsage = proxy->GetBuiltinAttributeAsync(EInternedAttributeKey::RecursiveResourceUsage)
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const TYsonString& ysonResourceUsage) {
-                    auto serializableResourceUsage = ConvertTo<TSerializableClusterResourcesPtr>(ysonResourceUsage);
+                    auto serializableResourceUsage = ConvertTo<TSerializableRichClusterResourcesPtr>(ysonResourceUsage);
                     const auto& chunkManager = Bootstrap_->GetChunkManager();
-                    return serializableResourceUsage->ToClusterResources(chunkManager);
+                    return serializableResourceUsage->ToRichClusterResources(chunkManager);
                 }).AsyncVia(GetCurrentInvoker()));
 
             RemoteCellResourceUsage_.push_back(std::move(asyncResourceUsage));
@@ -803,7 +803,7 @@ private:
     virtual void OnCompleted() override
     {
         AllSucceeded(std::move(RemoteCellResourceUsage_))
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TClusterResources>>& resourceUsageOrError) {
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TRichClusterResources>>& resourceUsageOrError) {
                 if (!resourceUsageOrError.IsOK()) {
                     OnError(resourceUsageOrError);
                     return;
@@ -811,7 +811,7 @@ private:
 
                 const auto& resourceUsage = resourceUsageOrError.Value();
                 auto result = std::accumulate(resourceUsage.begin(), resourceUsage.end(), LocalCellResourceUsage_);
-                auto usage = New<TSerializableClusterResources>(Bootstrap_->GetChunkManager(), result);
+                auto usage = New<TSerializableRichClusterResources>(Bootstrap_->GetChunkManager(), result);
                 Promise_.Set(ConvertToYsonString(usage));
             }).AsyncVia(GetCurrentInvoker()));
     }

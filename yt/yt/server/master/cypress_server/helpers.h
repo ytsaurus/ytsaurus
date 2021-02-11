@@ -116,7 +116,7 @@ void ValidateCompressionCodec(
     const std::optional<THashSet<NCompression::ECodec>>& configuredDeprecatedCodecIds,
     const std::optional<THashMap<TString, TString>>& configuredDeprecatedCodecNameToAlias);
 
-NSecurityServer::TClusterResources GetNodeResourceUsage(const TCypressNode* node);
+NSecurityServer::TRichClusterResources GetNodeResourceUsage(const TCypressNode* node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

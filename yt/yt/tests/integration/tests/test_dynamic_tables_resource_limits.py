@@ -5,12 +5,10 @@ from test_dynamic_tables import DynamicTablesBase
 from yt_commands import *
 from yt_helpers import *
 
-# import __builtin__
-
 ##################################################################
 
 
-class TestDynamicTablesResourceLimits(DynamicTablesBase):
+class DynamicTablesResourceLimitsBase(DynamicTablesBase):
     USE_PERMISSION_CACHE = False
 
     DELTA_NODE_CONFIG = {
@@ -23,6 +21,21 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         }
     }
 
+    def _multicell_set(self, path, value):
+        set(path, value)
+        for i in xrange(self.NUM_SECONDARY_MASTER_CELLS):
+            driver = get_driver(i + 1)
+            wait(lambda: exists(path, driver=driver) and get(path, driver=driver) == value)
+
+    def _multicell_wait(self, predicate):
+        for i in xrange(self.NUM_SECONDARY_MASTER_CELLS):
+            driver = get_driver(i + 1)
+            wait(predicate(driver))
+
+##################################################################
+
+
+class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
     def _verify_resource_usage(self, account, resource, expected):
         def resource_usage_matches(driver):
             return lambda: (
@@ -39,17 +52,6 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
             )
 
         self._multicell_wait(resource_usage_matches)
-
-    def _multicell_set(self, path, value):
-        set(path, value)
-        for i in xrange(self.NUM_SECONDARY_MASTER_CELLS):
-            driver = get_driver(i + 1)
-            wait(lambda: exists(path, driver=driver) and get(path, driver=driver) == value)
-
-    def _multicell_wait(self, predicate):
-        for i in xrange(self.NUM_SECONDARY_MASTER_CELLS):
-            driver = get_driver(i + 1)
-            wait(predicate(driver))
 
     @authors("savrus")
     @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
@@ -83,6 +85,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
         sync_unmount_table("//tmp/t")
 
+    # TODO(ifsmirnov): YT-14310
     @authors("savrus")
     def test_tablet_count_limit_create(self):
         create_account("test_account")
@@ -108,6 +111,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._create_sorted_table("//tmp/t2", account="test_account", pivot_keys=[[], [1]])
         self._verify_resource_usage("test_account", "tablet_count", 4)
 
+    # TODO(ifsmirnov): YT-14310
     @authors("lexolordan")
     def test_mount_mounted_table(self):
         create_account("test_account")
@@ -141,8 +145,8 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
 
         remount_table("//tmp/t0")
         sync_unmount_table("//tmp/t0")
-        self._verify_resource_usage("test_account", "tablet_static_memory", 0)
 
+    # TODO(ifsmirnov): YT-14310
     @authors("savrus")
     def test_tablet_count_limit_reshard(self):
         create_account("test_account")
@@ -170,6 +174,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sync_reshard_table("//tmp/t2", 2)
         self._verify_resource_usage("test_account", "tablet_count", 4)
 
+    # TODO(ifsmirnov): YT-14310
     @authors("savrus")
     def test_tablet_count_limit_copy(self):
         create_account("test_account")
@@ -197,6 +202,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         copy("//tmp/t", "//tmp/t_copy", preserve_account=True)
         self._verify_resource_usage("test_account", "tablet_count", 2)
 
+    # TODO(ifsmirnov): YT-14310
     @authors("shakurov")
     def test_tablet_count_copy_across_accounts(self):
         create_account("test_account1")
@@ -223,6 +229,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._verify_resource_usage("test_account1", "tablet_count", 1)
         self._verify_resource_usage("test_account2", "tablet_count", 1)
 
+    # TODO(ifsmirnov): YT-14310
     @authors("savrus")
     def test_tablet_count_remove(self):
         create_account("test_account")
@@ -233,6 +240,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         remove("//tmp/t")
         self._verify_resource_usage("test_account", "tablet_count", 0)
 
+    # TODO(ifsmirnov): YT-14310
     @authors("savrus")
     def test_tablet_count_set_account(self):
         create_account("test_account")
@@ -248,6 +256,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         set("//tmp/t/@account", "test_account")
         self._verify_resource_usage("test_account", "tablet_count", 2)
 
+    # TODO(ifsmirnov): YT-14310
     @authors("savrus")
     def test_tablet_count_alter_table(self):
         create_account("test_account")
@@ -267,6 +276,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         alter_table("//tmp/t", dynamic=True)
         self._verify_resource_usage("test_account", "tablet_count", 1)
 
+    # TODO(ifsmirnov): YT-14310
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
     def test_in_memory_accounting(self, mode):
@@ -316,6 +326,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sync_unmount_table("//tmp/t")
         self._verify_resource_usage("test_account", "tablet_static_memory", 0)
 
+    # TODO(ifsmirnov): YT-14310
     @authors("savrus")
     def test_remount_in_memory_accounting(self):
         create_account("test_account")
@@ -346,6 +357,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         _test("compressed")
         _test("uncompressed")
 
+    # TODO(ifsmirnov): clone to bundle accounting after YT-14311.
     @authors("savrus")
     def test_insert_during_tablet_static_memory_limit_violation(self):
         create_account("test_account")
@@ -367,7 +379,9 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
     @authors("ifsmirnov")
     def test_snapshot_account_resource_limits_violation(self):
         create_account("test_account")
-        create_tablet_cell_bundle("custom", attributes={"options": {"snapshot_account": "test_account"}})
+        create_tablet_cell_bundle("custom", attributes={
+            "options": {"snapshot_account": "test_account"},
+            "resource_limits": {"tablet_count": 100}})
 
         sync_create_cells(1, tablet_cell_bundle="custom")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="custom")
@@ -470,5 +484,321 @@ class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPo
 class TestDynamicTablesResourceLimitsShardedTxNoBoomerangs(TestDynamicTablesResourceLimitsShardedTx):
     def setup_method(self, method):
         super(TestDynamicTablesResourceLimitsShardedTxNoBoomerangs, self).setup_method(method)
+        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
+        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
+
+##################################################################
+
+
+class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
+    def _verify_resource_usage(self, bundle, resource, expected):
+        def resource_usage_matches(driver):
+            return lambda: (
+                get(
+                    "//sys/tablet_cell_bundles/{0}/@resource_usage/{1}".format(bundle, resource),
+                    driver=driver,
+                )
+                == expected
+            )
+
+        self._multicell_wait(resource_usage_matches)
+
+    @authors("ifsmirnov")
+    def test_tablet_count_limit_create(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 0)
+        with raises_yt_error(TabletResourceLimitExceeded):
+            self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        with raises_yt_error(TabletResourceLimitExceeded):
+            self._create_ordered_table("//tmp/t", tablet_cell_bundle="b")
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
+        with raises_yt_error(TabletResourceLimitExceeded):
+            self._create_ordered_table("//tmp/t", tablet_cell_bundle="b", tablet_count=2)
+        with raises_yt_error(TabletResourceLimitExceeded):
+            self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", pivot_keys=[[], [1]])
+
+        assert get("//sys/tablet_cell_bundles/b/@ref_counter") == 2
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 4)
+        self._create_ordered_table("//tmp/t1", tablet_cell_bundle="b", tablet_count=2)
+        self._verify_resource_usage("b", "tablet_count", 2)
+        self._create_sorted_table("//tmp/t2", tablet_cell_bundle="b", pivot_keys=[[], [1]])
+        self._verify_resource_usage("b", "tablet_count", 4)
+
+    @authors("ifsmirnov")
+    def test_mount_mounted_table(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 2)
+
+        def _create_table(table_name):
+            self._create_sorted_table(table_name, tablet_cell_bundle="b", external_cell_tag=1)
+
+            sync_mount_table(table_name)
+            insert_rows(table_name, [{"key": 0, "value": "0"}])
+            sync_unmount_table(table_name)
+
+        _create_table("//tmp/t0")
+        _create_table("//tmp/t1")
+
+        data_size = get("//tmp/t0/@uncompressed_data_size")
+        self._multicell_set(
+            "//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory",
+            data_size,
+        )
+
+        set("//tmp/t0/@in_memory_mode", "uncompressed")
+        sync_mount_table("//tmp/t0")
+
+        self._verify_resource_usage("b", "tablet_static_memory", data_size)
+
+        set("//tmp/t1/@in_memory_mode", "uncompressed")
+        with raises_yt_error(TabletResourceLimitExceeded):
+            sync_mount_table("//tmp/t1")
+
+        remount_table("//tmp/t0")
+        sync_unmount_table("//tmp/t0")
+        self._verify_resource_usage("b", "tablet_static_memory", 0)
+        self._verify_resource_usage("b", "tablet_static_memory", 0)
+
+    @authors("ifsmirnov")
+    def test_tablet_count_limit_reshard(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 2)
+        self._create_sorted_table("//tmp/t1", tablet_cell_bundle="b")
+        self._create_ordered_table("//tmp/t2", tablet_cell_bundle="b")
+
+        # Wait for resource usage since tables can be placed to different cells.
+        self._multicell_wait(
+            lambda driver: lambda: get(
+                "//sys/tablet_cell_bundles/b/@resource_usage/tablet_count",
+                driver=driver,
+            )
+            == 2
+        )
+
+        with raises_yt_error(TabletResourceLimitExceeded):
+            reshard_table("//tmp/t1", [[], [1]])
+        with raises_yt_error(TabletResourceLimitExceeded):
+            reshard_table("//tmp/t2", 2)
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 4)
+        sync_reshard_table("//tmp/t1", [[], [1]])
+        sync_reshard_table("//tmp/t2", 2)
+        self._verify_resource_usage("b", "tablet_count", 4)
+
+    @authors("ifsmirnov")
+    def test_tablet_count_limit_copy(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
+
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        wait(lambda: get("//tmp/t/@resource_usage/tablet_count") == 1)
+
+        # Wait for usage propagation to primary.
+        wait(lambda: get("//sys/tablet_cell_bundles/b/@resource_usage/tablet_count") == 1)
+        # Wait for usage propagation from primary.
+        wait(
+            lambda: get(
+                "//sys/tablet_cell_bundles/b/@resource_usage/tablet_count",
+                driver=get_driver(get("//tmp/t/@native_cell_tag")),
+            )
+            == 1
+        )
+
+        # Currently the table cannot be moved without 2x temporary quota.
+        with raises_yt_error(TabletResourceLimitExceeded):
+            move("//tmp/t", "//tmp/t_other")
+
+        with raises_yt_error(TabletResourceLimitExceeded):
+            copy("//tmp/t", "//tmp/t_copy")
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 2)
+        copy("//tmp/t", "//tmp/t_copy")
+        self._verify_resource_usage("b", "tablet_count", 2)
+
+    @authors("ifsmirnov")
+    def test_tablet_count_remove(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        self._verify_resource_usage("b", "tablet_count", 1)
+        remove("//tmp/t")
+        self._verify_resource_usage("b", "tablet_count", 0)
+
+    @authors("ifsmirnov")
+    def test_tablet_count_set_bundle(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
+        self._create_ordered_table("//tmp/t", tablet_count=2)
+        self._verify_resource_usage("default", "tablet_count", 2)
+
+        multicell_sleep()
+        with raises_yt_error(TabletResourceLimitExceeded):
+            set("//tmp/t/@tablet_cell_bundle", "b")
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 2)
+        set("//tmp/t/@tablet_cell_bundle", "b")
+        self._verify_resource_usage("b", "tablet_count", 2)
+
+    @authors("ifsmirnov")
+    def test_tablet_count_alter_table(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_ordered_table("//tmp/t")
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
+        set("//tmp/t/@tablet_cell_bundle", "b")
+
+        self._verify_resource_usage("b", "tablet_count", 1)
+        alter_table("//tmp/t", dynamic=False)
+        self._verify_resource_usage("b", "tablet_count", 0)
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 0)
+        with raises_yt_error(TabletResourceLimitExceeded):
+            alter_table("//tmp/t", dynamic=True)
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
+        alter_table("//tmp/t", dynamic=True)
+        self._verify_resource_usage("b", "tablet_count", 1)
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
+    def test_in_memory_accounting(self, mode):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@tablet_cell_bundle", "b")
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+        sync_unmount_table("//tmp/t")
+
+        set("//tmp/t/@in_memory_mode", mode)
+        with raises_yt_error(TabletResourceLimitExceeded):
+            mount_table("//tmp/t")
+
+        def _verify():
+            data_size = get("//tmp/t/@{0}_data_size".format(mode))
+            resource_usage = get("//sys/tablet_cell_bundles/b/@resource_usage")
+            return (
+                resource_usage["tablet_static_memory"] == data_size
+                and get("//tmp/t/@resource_usage/tablet_count") == 1
+                and get("//tmp/t/@resource_usage/tablet_static_memory") == data_size
+                and get("//tmp/@recursive_resource_usage/tablet_count") == 1
+                and get("//tmp/@recursive_resource_usage/tablet_static_memory") == data_size
+            )
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 1000)
+        sync_mount_table("//tmp/t")
+        wait(_verify)
+
+        sync_compact_table("//tmp/t")
+        wait(_verify)
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 0)
+        # TODO(ifsmirnov): YT-14311 - consider new tablet resources at node.
+        #  with pytest.raises(YtError):
+        #      insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 1000)
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+
+        sync_compact_table("//tmp/t")
+        wait(_verify)
+
+        sync_unmount_table("//tmp/t")
+        self._verify_resource_usage("b", "tablet_static_memory", 0)
+
+    @authors("ifsmirnov")
+    def test_remount_in_memory_accounting(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 2048)
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@tablet_cell_bundle", "b")
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "A" * 1024}])
+        sync_flush_table("//tmp/t")
+
+        def _test(mode):
+            data_size = get("//tmp/t/@{0}_data_size".format(mode))
+            sync_unmount_table("//tmp/t")
+            set("//tmp/t/@in_memory_mode", mode)
+            sync_mount_table("//tmp/t")
+
+            def _check():
+                resource_usage = get("//sys/tablet_cell_bundles/b/@resource_usage")
+                return resource_usage["tablet_static_memory"] == data_size
+
+            wait(_check)
+
+        _test("compressed")
+        _test("uncompressed")
+
+        with pytest.raises(YtError):
+            set("//tmp/t/@in_memory_mode", "none")
+
+    @authors("ifsmirnov")
+    def test_balancer_cannot_exceed_tablet_count_limit(self):
+        create_tablet_cell_bundle("b")
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
+        sync_create_cells(1, "b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", dynamic=False)
+        for i in range(5):
+            write_table("<append=%true>//tmp/t", [{"key": i}])
+        alter_table("//tmp/t", dynamic=True)
+
+        compressed_data_size = get("//tmp/t/@compressed_data_size") / 5
+        uncompressed_data_size = get("//tmp/t/@uncompressed_data_size") / 5
+
+        # Prepare partitions: balancer will not split tablet with one partition.
+        set("//tmp/t/@min_partition_data_size", compressed_data_size - 1)
+        set("//tmp/t/@desired_partition_data_size", compressed_data_size)
+        set("//tmp/t/@max_partition_data_size", compressed_data_size + 1)
+
+        set("//tmp/t/@tablet_balancer_config", {
+            "enable_auto_reshard": False,
+            "min_tablet_size": uncompressed_data_size - 1,
+            "desired_tablet_size": uncompressed_data_size,
+            "max_tablet_size": uncompressed_data_size + 1})
+
+        sync_mount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@tablets/0/statistics/partition_count") == 5)
+        action_ids = reshard_table_automatic("//tmp/t", keep_actions=True)
+        assert len(action_ids) == 1
+        wait(lambda: get("//sys/tablet_actions/{}/@state".format(action_ids[0])) == "failed")
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
+        self._verify_resource_usage("b", "tablet_count", 1)
+
+
+class TestPerBundleAccountingMulticell(TestPerBundleAccounting):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+
+class TestPerBundleAccountingPortal(TestPerBundleAccountingMulticell):
+    ENABLE_TMP_PORTAL = True
+
+
+class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "3": ["transaction_coordinator"],
+    }
+
+
+class TestPerBundleAccountingShardedTxNoBoomerangs(TestPerBundleAccountingShardedTx):
+    def setup_method(self, method):
+        super(TestPerBundleAccountingShardedTxNoBoomerangs, self).setup_method(method)
         set("//sys/@config/object_service/enable_mutation_boomerangs", False)
         set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)

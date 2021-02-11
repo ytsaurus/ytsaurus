@@ -55,6 +55,51 @@ std::vector<const TTabletCell*> TTabletCellBundle::GetAliveCells() const
     return cells;
 }
 
+void TTabletCellBundle::ValidateResourceUsageIncrease(const TTabletResources& delta) const
+{
+    const auto& usage = ResourceUsage_.Cluster();
+    const auto& limits = ResourceLimits_;
+
+    YT_LOG_DEBUG("QWFP Validate resource usage increase (Usage: %v, Limits: %v, Delta: %v)",
+        usage,
+        limits,
+        delta);
+
+    auto validate = [&] (TStringBuf resourceName, auto TTabletResources::* resource) {
+        if (delta.*resource > 0 &&
+            usage.*resource + delta.*resource > limits.*resource)
+        {
+            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::TabletResourceLimitExceeded,
+                "Tablet cell bundle %Qv is over %v limit",
+                GetName(),
+                resourceName)
+                << TErrorAttribute("increase", delta.*resource)
+                << TErrorAttribute("usage", usage.*resource)
+                << TErrorAttribute("limit", limits.*resource);
+        }
+    };
+
+    validate("tablet count", &TTabletResources::TabletCount);
+    validate("tablet static memory", &TTabletResources::TabletStaticMemory);
+}
+
+void TTabletCellBundle::UpdateResourceUsage(TTabletResources delta)
+{
+    YT_LOG_DEBUG("QWFP Updated resource usage (Delta: %v)", delta);
+    ResourceUsage_.Local() += delta;
+    if (ResourceUsage_.GetLocalPtr() != &ResourceUsage_.Cluster()) {
+        ResourceUsage_.Cluster() += delta;
+    }
+}
+
+void TTabletCellBundle::RecomputeClusterResourceUsage()
+{
+    ResourceUsage_.Cluster() = {};
+    for (const auto& [cellTag, resourceUsage] : ResourceUsage_.Multicell()) {
+        ResourceUsage_.Cluster() += resourceUsage;
+    }
+}
+
 TString TTabletCellBundle::GetLowercaseObjectName() const
 {
     return Format("tablet cell bundle %Qv", GetName());
@@ -71,6 +116,8 @@ void TTabletCellBundle::Save(TSaveContext& context) const
 
     using NYT::Save;
     Save(context, *TabletBalancerConfig_);
+    Save(context, ResourceLimits_);
+    Save(context, ResourceUsage_);
 }
 
 void TTabletCellBundle::Load(TLoadContext& context)
@@ -80,6 +127,12 @@ void TTabletCellBundle::Load(TLoadContext& context)
     using NYT::Load;
 
     Load(context, *TabletBalancerConfig_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::BundleQuotas) {
+        Load(context, ResourceLimits_);
+        Load(context, ResourceUsage_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
