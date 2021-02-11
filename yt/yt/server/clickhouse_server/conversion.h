@@ -4,6 +4,7 @@
 
 #include <yt/client/table_client/public.h>
 
+#include <Storages/MergeTree/KeyCondition.h>
 #include <Core/NamesAndTypes.h>
 #include <Core/Block.h>
 #include <Core/Field.h>
@@ -58,6 +59,25 @@ TSharedRange<NTableClient::TUnversionedRow> ToRowRange(
     const std::vector<DB::DataTypePtr>& dataTypes,
     const std::vector<int>& columnIndexToId,
     const TCompositeSettingsPtr& settings);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TClickHouseKeys
+{
+    // Both are inclusive.
+    std::vector<DB::FieldRef> MinKey;
+    std::vector<DB::FieldRef> MaxKey;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TClickHouseKeys ToClickHouseKeys(
+    const NTableClient::TLegacyKey& ytLowerKey,
+    const NTableClient::TLegacyKey& ytUpperKey,
+    // How many columns are used in key condition.
+    int usedKeyColumnCount,
+    const DB::DataTypes& dataTypes,
+    bool makeUpperBoundInclusive = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

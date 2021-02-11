@@ -33,15 +33,14 @@ void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString use
 
 // CH doesn't have EValueType::Min, so we replace it with the minimum possible value.
 //! Retruns the minimum possible value for given dataType.
-//! If the minimum value is unrepresentable, std::nullopt is returned.
 //! Throws an error if dataType is unexpected for YT-tables.
-std::optional<DB::Field> TryGetMinimumTypeValue(const DB::DataTypePtr& dataType);
+DB::Field TryGetMinimumTypeValue(const DB::DataTypePtr& dataType);
 
 // Same as above, but replaces EValueType::Max.
 //! Retruns the maximum possible value for given dataType.
-//! If the maximum value is unrepresentable, std::nullopt is returned (e.g. for string).
+//! If the maximum value is unrepresentable, returns some big value.
 //! Throws an error if dataType is unexpected for YT-tables.
-std::optional<DB::Field> TryGetMaximumTypeValue(const DB::DataTypePtr& dataType);
+DB::Field TryGetMaximumTypeValue(const DB::DataTypePtr& dataType);
 
 //! It helps to convert an exclusive right bound to inclusive in simple cases (e.g. [x, y) to [x, y - 1]).
 //! It's guaranteed that there are no values greater than returned one and less than provided one.

@@ -75,22 +75,22 @@ public:
 
         StorageContext_ = QueryContext_->GetOrRegisterStorageContext(this, context);
 
-        if (StorageContext_->Settings->ThrowTestingExceptionInSubquery) {
+        if (StorageContext_->Settings->Testing->ThrowExceptionInSubquery) {
             THROW_ERROR_EXCEPTION("Testing exception in subquery")
                 << TErrorAttribute("storage_index", StorageContext_->Index);
         }
 
-        if (StorageContext_->Settings->TestingSubqueryAllocationSize > 0) {
+        if (StorageContext_->Settings->Testing->SubqueryAllocationSize > 0) {
             // Make an intentional memory leak.
-            auto* leakedMemory = new char[StorageContext_->Settings->TestingSubqueryAllocationSize];
-            for (i64 index = 0; index != StorageContext_->Settings->TestingSubqueryAllocationSize; ++index) {
+            auto* leakedMemory = new char[StorageContext_->Settings->Testing->SubqueryAllocationSize];
+            for (i64 index = 0; index != StorageContext_->Settings->Testing->SubqueryAllocationSize; ++index) {
                 leakedMemory[index] = (index < 2) ? 1 : leakedMemory[index - 2] + leakedMemory[index - 1];
             }
             // Prevent optimization.
             YT_LOG_DEBUG(
                 "Testing Fibbonacci number calculated (Index: %v, Value: %v)",
-                StorageContext_->Settings->TestingSubqueryAllocationSize - 1,
-                leakedMemory[StorageContext_->Settings->TestingSubqueryAllocationSize - 1]);
+                StorageContext_->Settings->Testing->SubqueryAllocationSize - 1,
+                leakedMemory[StorageContext_->Settings->Testing->SubqueryAllocationSize - 1]);
         }
 
         if (SubquerySpec_.InitialQueryId != QueryContext_->QueryId) {

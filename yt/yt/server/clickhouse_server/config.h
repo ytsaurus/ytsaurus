@@ -67,6 +67,24 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTableSettings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestingSettings
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableKeyConditionFiltering;
+    bool MakeUpperBoundInclusive;
+
+    bool ThrowExceptionInDistributor;
+    bool ThrowExceptionInSubquery;
+    i64 SubqueryAllocationSize;
+
+    TTestingSettings();
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestingSettings);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class will be accessible either via settings or via default_settings.
 class TQuerySettings
     : public NYTree::TYsonSerializable
@@ -75,11 +93,6 @@ public:
     bool EnableColumnarRead;
 
     bool EnableComputedColumnDeduction;
-
-    // TODO(max42): move to testing options.
-    bool ThrowTestingExceptionInDistributor;
-    bool ThrowTestingExceptionInSubquery;
-    i64 TestingSubqueryAllocationSize;
 
     bool UseBlockSampling;
 
@@ -94,6 +107,8 @@ public:
     TCompositeSettingsPtr Composite;
 
     TDynamicTableSettingsPtr DynamicTable;
+
+    TTestingSettingsPtr Testing;
 
     NTableClient::TTableReaderConfigPtr TableReader;
 

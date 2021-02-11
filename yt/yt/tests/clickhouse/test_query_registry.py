@@ -60,7 +60,7 @@ class TestQueryRegistry(ClickHouseTestBase):
             with pytest.raises(YtError):
                 clique.__enter__()
                 clique.make_query(
-                    "select sleep(3) from `//tmp/t` settings chyt_testing_subquery_allocation_size = {}".format(
+                    "select sleep(3) from `//tmp/t` settings chyt.testing.subquery_allocation_size = {}".format(
                         allocation_size
                     ),
                     verbose=False,
@@ -74,7 +74,7 @@ class TestQueryRegistry(ClickHouseTestBase):
             print_debug("Checking config_patch={} for no error".format(config_patch))
             with Clique(1, config_patch=config_patch) as clique:
                 assert clique.make_query(
-                    "select sleep(3) from `//tmp/t` settings chyt_testing_subquery_allocation_size = {}".format(
+                    "select sleep(3) from `//tmp/t` settings chyt.testing.subquery_allocation_size = {}".format(
                         allocation_size
                     ),
                     verbose=False,

@@ -12,6 +12,8 @@ TCompositeSettings::TCompositeSettings()
         .Default(NYson::EYsonFormat::Binary);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TDynamicTableSettings::TDynamicTableSettings()
 {
     RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
@@ -33,6 +35,25 @@ TDynamicTableSettings::TDynamicTableSettings()
         .Default(false);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TTestingSettings::TTestingSettings()
+{
+    RegisterParameter("enable_key_condition_filtering", EnableKeyConditionFiltering)
+        .Default(true);
+    RegisterParameter("make_upper_bound_inclusive", MakeUpperBoundInclusive)
+        .Default(true);
+
+    RegisterParameter("throw_exception_in_distributor", ThrowExceptionInDistributor)
+        .Default(false);
+    RegisterParameter("throw_exception_in_subquery", ThrowExceptionInSubquery)
+        .Default(false);
+    RegisterParameter("subquery_allocation_size", SubqueryAllocationSize)
+        .Default(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQuerySettings::TQuerySettings()
 {
     RegisterParameter("enable_columnar_read", EnableColumnarRead)
@@ -43,13 +64,6 @@ TQuerySettings::TQuerySettings()
 
     RegisterParameter("deduced_statement_mode", DeducedStatementMode)
         .Default(EDeducedStatementMode::In);
-
-    RegisterParameter("throw_testing_exception_in_distributor", ThrowTestingExceptionInDistributor)
-        .Default(false);
-    RegisterParameter("throw_testing_exception_in_subquery", ThrowTestingExceptionInSubquery)
-        .Default(false);
-    RegisterParameter("testing_subquery_allocation_size", TestingSubqueryAllocationSize)
-        .Default(0);
 
     RegisterParameter("use_block_sampling", UseBlockSampling)
         .Default(false);
@@ -67,6 +81,9 @@ TQuerySettings::TQuerySettings()
         .DefaultNew();
 
     RegisterParameter("dynamic_table", DynamicTable)
+        .DefaultNew();
+
+    RegisterParameter("testing", Testing)
         .DefaultNew();
 
     RegisterParameter("table_reader", TableReader)
