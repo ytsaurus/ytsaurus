@@ -12,6 +12,8 @@
 #include <yt/server/master/security_server/acl.h>
 #include <yt/server/master/security_server/cluster_resources.h>
 
+#include <yt/server/master/tablet_server/tablet_resources.h>
+
 #include <yt/server/master/transaction_server/public.h>
 
 #include <yt/ytlib/cypress_client/public.h>
@@ -254,6 +256,9 @@ public:
     //! Returns master memory occupied.
     //! This method is computationally cheap.
     virtual i64 GetMasterMemoryUsage() const;
+
+    //! Returns tablet resources of the node. Makes sense only for trunk nodes.
+    virtual NTabletServer::TTabletResources GetTabletResourceUsage() const;
 
     //! Returns |true| if object is being created.
     bool IsBeingCreated() const;

@@ -166,7 +166,6 @@ public:
     TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly);
     TTabletCellBundle* GetDefaultTabletCellBundle();
     void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
-    void SetTabletCellBundleOptions(TTabletCellBundle* cellBundle, TTabletCellOptionsPtr options);
 
     TTabletCell* GetTabletCellOrThrow(TTabletCellId id);
     void ZombifyTabletCell(TTabletCell* cell);

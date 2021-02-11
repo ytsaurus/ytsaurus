@@ -11,6 +11,7 @@
 
 #include <yt/server/master/tablet_server/public.h>
 #include <yt/server/master/tablet_server/tablet.h>
+#include <yt/server/master/tablet_server/tablet_resources.h>
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
@@ -63,7 +64,7 @@ private:
         std::optional<NHydra::TRevision> ForcedCompactionRevision;
         bool Dynamic = false;
         TString MountPath;
-        NSecurityServer::TClusterResources ExternalTabletResourceUsage;
+        NTabletServer::TTabletResources ExternalTabletResourceUsage;
         NTabletClient::ETabletState ActualTabletState = NTabletClient::ETabletState::Unmounted;
         NTabletClient::ETabletState ExpectedTabletState = NTabletClient::ETabletState::Unmounted;
         NTransactionClient::TTransactionId LastMountTransactionId;
@@ -140,8 +141,8 @@ public:
     virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
 
-    NSecurityServer::TClusterResources GetTabletResourceUsage() const;
     virtual i64 GetMasterMemoryUsage() const override;
+    virtual NTabletServer::TTabletResources GetTabletResourceUsage() const override;
     void RecomputeTabletMasterMemoryUsage();
 
     virtual bool IsSorted() const override;

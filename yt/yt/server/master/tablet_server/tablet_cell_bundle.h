@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "tablet_resources.h"
 
 #include <yt/server/master/object_server/object.h>
 
@@ -31,6 +32,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletAction*>, TabletActions);
     DEFINE_BYVAL_RO_PROPERTY(int, ActiveTabletActionCount);
 
+    DEFINE_BYREF_RW_PROPERTY(TTabletResources, ResourceLimits);
+    DEFINE_BYREF_RW_PROPERTY(TGossipTabletResources, ResourceUsage);
+
 public:
     explicit TTabletCellBundle(TTabletCellBundleId id);
 
@@ -38,6 +42,10 @@ public:
     void DecreaseActiveTabletActionCount();
 
     std::vector<const TTabletCell*> GetAliveCells() const;
+
+    void ValidateResourceUsageIncrease(const TTabletResources& delta) const;
+    void UpdateResourceUsage(TTabletResources delta);
+    void RecomputeClusterResourceUsage();
 
     virtual TString GetLowercaseObjectName() const override;
     virtual TString GetCapitalizedObjectName() const override;

@@ -166,6 +166,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             node->SetSchemaMode(ETableSchemaMode::Strong);
         }
 
+        // NB: Dynamic table should have a bundle during creation for accounting to work properly.
+        tabletManager->SetTabletCellBundle(node, tabletCellBundle);
+
         if (dynamic) {
             if (node->IsNative()) {
                 tabletManager->ValidateMakeTableDynamic(node);
@@ -191,8 +194,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
             node->SetUpstreamReplicaId(upstreamReplicaId);
         }
-
-        tabletManager->SetTabletCellBundle(node, tabletCellBundle);
     } catch (const std::exception&) {
         DoDestroy(node);
         throw;
@@ -261,6 +262,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
 
     TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
+    // NB: Dynamic table should have a bundle during creation for accounting to work properly.
+    auto* trunkSourceNode = sourceNode->GetTrunkNode();
+    tabletManager->SetTabletCellBundle(clonedTrunkNode, trunkSourceNode->GetTabletCellBundle());
+
     if (sourceNode->IsDynamic()) {
         tabletManager->CloneTable(
             sourceNode,
@@ -272,7 +277,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     clonedTrunkNode->SetSchemaMode(sourceNode->GetSchemaMode());
     clonedTrunkNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
-    auto* trunkSourceNode = sourceNode->GetTrunkNode();
     if (trunkSourceNode->HasCustomDynamicTableAttributes()) {
         clonedTrunkNode->SetDynamic(trunkSourceNode->IsDynamic());
         clonedTrunkNode->SetAtomicity(trunkSourceNode->GetAtomicity());
@@ -285,8 +289,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
         clonedTrunkNode->SetProfilingMode(trunkSourceNode->GetProfilingMode());
         clonedTrunkNode->SetProfilingTag(trunkSourceNode->GetProfilingTag());
     }
-
-    tabletManager->SetTabletCellBundle(clonedTrunkNode, trunkSourceNode->GetTabletCellBundle());
 }
 
 template <class TImpl>

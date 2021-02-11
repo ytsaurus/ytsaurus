@@ -4,6 +4,7 @@
 #include "tablet_cell_bundle.h"
 #include "tablet_cell_bundle_proxy.h"
 #include "tablet_manager.h"
+#include "tablet_resources.h"
 
 #include <yt/core/ytree/fluent.h>
 
@@ -77,6 +78,11 @@ private:
             .SetWritePermission(EPermission::Use));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletActions)
             .SetOpaque(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimits)
+            .SetWritable(true)
+            .SetReplicated(true));
+        attributes->push_back(EInternedAttributeKey::ViolatedResourceLimits);
+        attributes->push_back(EInternedAttributeKey::ResourceUsage);
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -113,6 +119,29 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::ResourceLimits:
+                BuildYsonFluently(consumer)
+                    .Value(New<TSerializableTabletResources>(cellBundle->ResourceLimits()));
+                return true;
+
+            case EInternedAttributeKey::ViolatedResourceLimits: {
+                const auto& limits = cellBundle->ResourceLimits();
+                const auto& usage = cellBundle->ResourceUsage().Cluster();
+
+                BuildYsonFluently(consumer)
+                    .BeginMap()
+                        .Item("tablet_count").Value(usage.TabletCount > limits.TabletCount)
+                        .Item("tablet_static_memory").Value(usage.TabletStaticMemory > limits.TabletStaticMemory)
+                    .EndMap();
+
+                return true;
+            }
+
+            case EInternedAttributeKey::ResourceUsage:
+                BuildYsonFluently(consumer)
+                    .Value(New<TSerializableTabletResources>(cellBundle->ResourceUsage().Cluster()));
+                return true;
+
             default:
                 break;
         }
@@ -128,6 +157,12 @@ private:
             case EInternedAttributeKey::TabletBalancerConfig:
                 cellBundle->TabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(value);
                 return true;
+
+            case EInternedAttributeKey::ResourceLimits: {
+                auto serializableResources = ConvertTo<TSerializableTabletResourcesPtr>(value);
+                cellBundle->ResourceLimits() = static_cast<TTabletResources>(*serializableResources);
+                return true;
+            }
 
             default:
                 break;

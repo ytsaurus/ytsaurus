@@ -982,6 +982,11 @@ class YTEnvSetup(object):
                     path="//sys/@config/tablet_manager/enable_bulk_insert",
                     input=self.ENABLE_BULK_INSERT,
                 ),
+                yt_commands.make_batch_request(
+                    "set",
+                    path="//sys/@config/tablet_manager/enable_tablet_resource_validation",
+                    input=True,
+                ),
             ],
             driver=driver,
         ):

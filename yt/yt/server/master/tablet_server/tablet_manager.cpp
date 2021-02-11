@@ -13,6 +13,7 @@
 #include "tablet_cell_decommissioner.h"
 #include "tablet_cell_type_handler.h"
 #include "tablet_manager.h"
+#include "tablet_resources.h"
 #include "tablet_service.h"
 #include "tablet_type_handler.h"
 
@@ -123,7 +124,6 @@ using namespace NTableServer;
 using namespace NTabletClient::NProto;
 using namespace NTabletClient;
 using namespace NTabletNode::NProto;
-using namespace NTabletServer::NProto;
 using namespace NTransactionServer;
 using namespace NTransactionClient;
 using namespace NYPath;
@@ -139,8 +139,13 @@ using NTabletNode::TTableMountConfigPtr;
 using NTabletNode::DynamicStoreIdPoolSize;
 using NTransactionServer::TTransaction;
 
+using NSecurityServer::ConvertToTabletResources;
+using NSecurityServer::ConvertToClusterResources;
+
 using NYT::FromProto;
 using NYT::ToProto;
+
+using TTabletResources = NTabletServer::TTabletResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -224,6 +229,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraUpdateUpstreamTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraAllocateDynamicStore, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetTabletCellBundleResourceUsage, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateTabletCellBundleResourceUsage, Unretained(this)));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
@@ -1162,17 +1169,7 @@ public:
                     tablet->GetId(),
                     cell->GetId());
 
-                if (tablet->GetInMemoryMode() != mountConfig->InMemoryMode) {
-                    auto tabletStatistics = GetTabletStatistics(tablet);
-                    cell->GossipStatistics().Local() -= GetTabletStatistics(tablet);
-                    tablet->GetTable()->DiscountTabletStatistics(tabletStatistics);
-
-                    tablet->SetInMemoryMode(mountConfig->InMemoryMode);
-
-                    tabletStatistics = GetTabletStatistics(tablet);
-                    cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
-                    tablet->GetTable()->AccountTabletStatistics(tabletStatistics);
-                }
+                YT_VERIFY(tablet->GetInMemoryMode() == mountConfig->InMemoryMode);
 
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
 
@@ -1188,7 +1185,7 @@ public:
             }
         }
 
-        CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
+        UpdateResourceUsage(table, table->GetTabletResourceUsage() - resourceUsageBefore);
     }
 
     void PrepareFreezeTable(
@@ -1357,9 +1354,9 @@ public:
 
         if (create) {
             int oldTabletCount = table->IsExternal() ? 0 : 1;
-            securityManager->ValidateResourceUsageIncrease(
-                table->GetAccount(),
-                TClusterResources().SetTabletCount(newTabletCount - oldTabletCount));
+            ValidateResourceUsageIncrease(
+                table,
+                TTabletResources().SetTabletCount(newTabletCount - oldTabletCount));
         }
 
         if (table->IsSorted()) {
@@ -1422,9 +1419,9 @@ public:
                 MaxTabletCount);
         }
 
-        securityManager->ValidateResourceUsageIncrease(
-            table->GetAccount(),
-            TClusterResources().SetTabletCount(newTabletCount - oldTabletCount));
+        ValidateResourceUsageIncrease(
+            table,
+            TTabletResources().SetTabletCount(newTabletCount - oldTabletCount));
 
         if (table->IsSorted()) {
             // NB: We allow reshard without pivot keys.
@@ -1511,6 +1508,10 @@ public:
                 YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
                 objectManager->UnrefObject(tablet);
             }
+
+            YT_VERIFY(!table->IsExternal());
+            auto* bundle = table->GetTabletCellBundle();
+            bundle->UpdateResourceUsage(-table->GetTabletResourceUsage());
 
             table->MutableTablets().clear();
 
@@ -1660,11 +1661,10 @@ public:
         // attached, we have to account them this way.
         branchedNode->SnapshotStatistics() = originatingNode->GetChunkList()->Statistics().ToDataStatistics();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto resourceUsageDelta = TClusterResources()
+        auto resourceUsageDelta = TTabletResources()
             .SetTabletStaticMemory(totalMemorySizeDelta);
-        securityManager->UpdateTabletResourceUsage(originatingNode, resourceUsageDelta);
-        ScheduleTableStatisticsUpdate(originatingNode);
+
+        UpdateResourceUsage(originatingNode, resourceUsageDelta);
 
         originatingNode->RemoveDynamicTableLock(transaction->GetId());
 
@@ -1850,11 +1850,7 @@ public:
             return;
         }
 
-        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
         auto* trunkSourceTable = sourceTable->GetTrunkNode();
-        securityManager->ValidateResourceUsageIncrease(
-            account,
-            TClusterResources().SetTabletCount(trunkSourceTable->GetTabletResourceUsage().TabletCount));
 
         ValidateNodeCloneMode(trunkSourceTable, mode);
 
@@ -1862,6 +1858,12 @@ public:
             const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->ValidateObjectLifeStage(cellBundle);
         }
+
+        ValidateResourceUsageIncrease(
+            trunkSourceTable,
+            TTabletResources().SetTabletCount(
+                trunkSourceTable->GetTabletResourceUsage().TabletCount),
+            account);
     }
 
     void ValidateBeginCopyTable(
@@ -1983,11 +1985,10 @@ public:
             }
         }
 
-        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
-        securityManager->UpdateTabletResourceUsage(
+        UpdateResourceUsage(
             trunkClonedTable,
-            trunkClonedTable->GetTabletResourceUsage());
-        ScheduleTableStatisticsUpdate(trunkClonedTable, false);
+            trunkClonedTable->GetTabletResourceUsage(),
+            /*scheduleTableDataStatisticsUpdate*/ false);
     }
 
 
@@ -2000,8 +2001,7 @@ public:
             return;
         }
 
-        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
-        securityManager->ValidateResourceUsageIncrease(table->GetAccount(), TClusterResources().SetTabletCount(1));
+        ValidateResourceUsageIncrease(table, TTabletResources().SetTabletCount(1));
     }
 
     void MakeTableDynamic(TTableNode* table)
@@ -2018,8 +2018,6 @@ public:
         if (table->IsExternal()) {
             return;
         }
-
-        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
 
         auto* oldRootChunkList = table->GetChunkList();
 
@@ -2068,10 +2066,12 @@ public:
         oldRootChunkList->RemoveOwningNode(table);
         objectManager->UnrefObject(oldRootChunkList);
 
-        auto tabletResourceUsage = table->GetTabletResourceUsage();
-        securityManager->UpdateTabletResourceUsage(table, tabletResourceUsage);
+        const auto& securityManager = this->Bootstrap_->GetSecurityManager();
         securityManager->UpdateMasterMemoryUsage(table);
-        ScheduleTableStatisticsUpdate(table, false);
+        UpdateResourceUsage(
+            table,
+            table->GetTabletResourceUsage(),
+            /*scheduleTableDataStatisticsUpdate*/ false);
 
         table->AccountTabletStatistics(GetTabletStatistics(tablet));
 
@@ -2147,9 +2147,11 @@ public:
         table->SetLastCommitTimestamp(NullTimestamp);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->UpdateTabletResourceUsage(table, -tabletResourceUsage);
         securityManager->UpdateMasterMemoryUsage(table);
-        ScheduleTableStatisticsUpdate(table, false);
+        UpdateResourceUsage(
+            table,
+            -tabletResourceUsage,
+            /*scheduleTableDataStatisticsUpdate*/ false);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table is switched to static mode (TableId: %v)",
             table->GetId());
@@ -2319,9 +2321,23 @@ public:
             return;
         }
 
+        auto resourceUsageDelta = table->GetTabletResourceUsage();
+
         if (table->IsNative()) {
             if (table->IsDynamic()) {
                 table->ValidateAllTabletsUnmounted("Cannot change tablet cell bundle");
+                if (newBundle && GetDynamicConfig()->EnableTabletResourceValidation) {
+                    newBundle->ValidateResourceUsageIncrease(resourceUsageDelta);
+                }
+            }
+        }
+
+        if (!table->IsExternal() && table->IsDynamic()) {
+            if (oldBundle) {
+                oldBundle->UpdateResourceUsage(-resourceUsageDelta);
+            }
+            if (newBundle) {
+                newBundle->UpdateResourceUsage(resourceUsageDelta);
             }
         }
 
@@ -2432,6 +2448,7 @@ private:
 
     TPeriodicExecutorPtr TabletCellStatisticsGossipExecutor_;
     TPeriodicExecutorPtr TableStatisticsGossipExecutor_;
+    TPeriodicExecutorPtr BundleResourceUsageGossipExecutor_;
 
     IReconfigurableThroughputThrottlerPtr TableStatisticsGossipThrottler_;
 
@@ -2477,6 +2494,7 @@ private:
 
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
     bool RecomputeAggregateTabletStatistics_ = false;
+    bool RecomputeBundleResourceUsage_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -3104,7 +3122,7 @@ private:
         }
     }
 
-    void HydraKickOrphanedTabletActions(TReqKickOrphanedTabletActions* request)
+    void HydraKickOrphanedTabletActions(NProto::TReqKickOrphanedTabletActions* request)
     {
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
@@ -3350,7 +3368,7 @@ private:
             }
         }
 
-        CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
+        UpdateResourceUsage(table, table->GetTabletResourceUsage() - resourceUsageBefore);
     }
 
     void DoFreezeTablet(TTablet* tablet)
@@ -3410,7 +3428,7 @@ private:
     }
 
 
-    void HydraOnTabletLocked(TRspLockTablet* response)
+    void HydraOnTabletLocked(NProto::TRspLockTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -3870,13 +3888,12 @@ private:
         // TODO(savrus) Looks like this is unnecessary. Need to check.
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
-        table->RecomputeTabletMasterMemoryUsage();
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto resourceUsageDelta = table->GetTabletResourceUsage() - resourceUsageBefore;
-        securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
+        UpdateResourceUsage(table, resourceUsageDelta);
+
+        table->RecomputeTabletMasterMemoryUsage();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateMasterMemoryUsage(table);
-        ScheduleTableStatisticsUpdate(table);
     }
 
 
@@ -3891,7 +3908,7 @@ private:
     }
 
 
-    const TDynamicTabletManagerConfigPtr& GetDynamicConfig()
+    const TDynamicTabletManagerConfigPtr& GetDynamicConfig() const
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
     }
@@ -3968,6 +3985,9 @@ private:
             if (TableStatisticsGossipExecutor_) {
                 TableStatisticsGossipExecutor_->SetPeriod(gossipConfig->TableStatisticsGossipPeriod);
             }
+            if (BundleResourceUsageGossipExecutor_) {
+                BundleResourceUsageGossipExecutor_->SetPeriod(gossipConfig->BundleResourceUsageGossipPeriod);
+            }
             EnableUpdateStatisticsOnHeartbeat_ = gossipConfig->EnableUpdateStatisticsOnHeartbeat;
         }
 
@@ -4022,8 +4042,37 @@ private:
 
         // COMPAT(ifsmirnov)
         RecomputeAggregateTabletStatistics_ = (context.GetVersion() < EMasterReign::VersionedRemoteCopy);
+
+        // COMPAT(ifsmirnov)
+        RecomputeBundleResourceUsage_ = (context.GetVersion() < EMasterReign::BundleQuotas);
     }
 
+    void RecomputeBundleResourceUsage()
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
+            if (!IsObjectAlive(bundleBase) || bundleBase->GetType() != EObjectType::TabletCellBundle) {
+                continue;
+            }
+
+            auto* bundle = bundleBase->As<TTabletCellBundle>();
+            bundle->ResourceUsage() = {};
+        }
+
+        THashSet<TTableNode*> accountedTables;
+        for (const auto& [id, tablet] : Tablets()) {
+            auto* table = tablet->GetTable();
+            if (!table) {
+                continue;
+            }
+            if (!accountedTables.insert(table).second) {
+                continue;
+            }
+            if (auto* bundle = table->GetTabletCellBundle()) {
+                bundle->UpdateResourceUsage(table->GetTabletResourceUsage());
+            }
+        }
+    }
 
     virtual void OnAfterSnapshotLoaded() override
     {
@@ -4042,6 +4091,10 @@ private:
         }
 
         InitBuiltins();
+
+        if (RecomputeBundleResourceUsage_) {
+            RecomputeBundleResourceUsage();
+        }
     }
 
     void OnAfterCellManagerSnapshotLoaded()
@@ -4057,6 +4110,15 @@ private:
 
             auto* cell = cellBase->As<TTabletCell>();
             cell->GossipStatistics().Initialize(Bootstrap_);
+        }
+
+        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
+            if (bundleBase->GetType() != EObjectType::TabletCellBundle) {
+                continue;
+            }
+
+            auto* bundle = bundleBase->As<TTabletCellBundle>();
+            bundle->ResourceUsage().Initialize(Bootstrap_);
         }
 
         for (auto [actionId, action] : TabletActionMap_) {
@@ -4110,6 +4172,8 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
+            DefaultTabletCellBundle_->ResourceLimits().TabletCount = 100000;
+            DefaultTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
         }
     }
 
@@ -4129,6 +4193,7 @@ private:
         options->SnapshotAccount = DefaultStoreAccountName;
 
         auto holder = std::make_unique<TTabletCellBundle>(id);
+        holder->ResourceUsage().Initialize(Bootstrap_);
         cellBundle = cellManager->CreateCellBundle(name, std::move(holder), std::move(options))
             ->As<TTabletCellBundle>();
         return true;
@@ -4261,7 +4326,8 @@ private:
             auto* table = node->As<TTableNode>();
 
             if (entry.has_tablet_resource_usage()) {
-                table->SetExternalTabletResourceUsage(FromProto<TClusterResources>(entry.tablet_resource_usage()));
+                auto tabletResourceUsage = FromProto<TTabletResources>(entry.tablet_resource_usage());
+                table->SetExternalTabletResourceUsage(tabletResourceUsage);
             }
 
             if (entry.has_data_statistics()) {
@@ -4338,10 +4404,11 @@ private:
         for (const auto& entry : request->entries()) {
             auto cellId = FromProto<TTabletCellId>(entry.tablet_cell_id());
             auto* cell = FindTabletCell(cellId);
-            if (!IsObjectAlive(cell))
+            if (!IsObjectAlive(cell)) {
                 continue;
+            }
 
-            auto newStatistics = FromProto<NTabletServer::TTabletCellStatistics>(entry.statistics());
+            auto newStatistics = FromProto<TTabletCellStatistics>(entry.statistics());
 
             if (multicellManager->IsPrimaryMaster()) {
                 *cell->GossipStatistics().Remote(cellTag) = newStatistics;
@@ -4468,7 +4535,7 @@ private:
         IncrementalHeartbeatCounter_.Add(timer.GetElapsedTime());
     }
 
-    void HydraUpdateUpstreamTabletState(TReqUpdateUpstreamTabletState* request)
+    void HydraUpdateUpstreamTabletState(NProto::TReqUpdateUpstreamTabletState* request)
     {
         auto tableId = FromProto<TTableId>(request->table_id());
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
@@ -4508,7 +4575,7 @@ private:
         }
     }
 
-    void HydraUpdateTabletState(TReqUpdateTabletState* request)
+    void HydraUpdateTabletState(NProto::TReqUpdateTabletState* request)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsSecondaryMaster());
@@ -4546,7 +4613,7 @@ private:
             // Thus, secondary master can commit and send updates when primary master is not ready yet.
             // Here we ask secondary master to resend tablet state.
 
-            TReqUpdateTabletState request;
+            NProto::TReqUpdateTabletState request;
             ToProto(request.mutable_table_id(), table->GetId());
             ToProto(request.mutable_last_mount_transaction_id(), table->GetLastMountTransactionId());
 
@@ -4626,7 +4693,7 @@ private:
             // Statistics should be correct before setting the tablet state.
             SendTableStatisticsUpdates(table);
 
-            TReqUpdateUpstreamTabletState request;
+            NProto::TReqUpdateUpstreamTabletState request;
             ToProto(request.mutable_table_id(), table->GetId());
             request.set_actual_tablet_state(static_cast<i32>(actualState));
             if (clearLastMountTransactionId) {
@@ -4645,7 +4712,7 @@ private:
         }
     }
 
-    void HydraOnTabletMounted(TRspMountTablet* response)
+    void HydraOnTabletMounted(NProto::TRspMountTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -4685,7 +4752,7 @@ private:
         UpdateTabletState(table);
     }
 
-    void HydraOnTabletUnmounted(TRspUnmountTablet* response)
+    void HydraOnTabletUnmounted(NProto::TRspUnmountTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -4708,7 +4775,7 @@ private:
         OnTabletActionStateChanged(tablet->GetAction());
     }
 
-    void HydraOnTabletFrozen(TRspFreezeTablet* response)
+    void HydraOnTabletFrozen(NProto::TRspFreezeTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -4741,7 +4808,7 @@ private:
         UpdateTabletState(table);
     }
 
-    void HydraOnTabletUnfrozen(TRspUnfreezeTablet* response)
+    void HydraOnTabletUnfrozen(NProto::TRspUnfreezeTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -4770,7 +4837,7 @@ private:
         UpdateTabletState(table);
     }
 
-    void HydraUpdateTableReplicaStatistics(TReqUpdateTableReplicaStatistics* request)
+    void HydraUpdateTableReplicaStatistics(NProto::TReqUpdateTableReplicaStatistics* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -4800,7 +4867,7 @@ private:
             replicaInfo->GetCurrentReplicationTimestamp());
     }
 
-    void HydraOnTableReplicaEnabled(TRspEnableTableReplica* response)
+    void HydraOnTableReplicaEnabled(NProto::TRspEnableTableReplica* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -4833,7 +4900,7 @@ private:
         CheckTransitioningReplicaTablets(replica);
     }
 
-    void HydraOnTableReplicaDisabled(TRspDisableTableReplica* response)
+    void HydraOnTableReplicaDisabled(NProto::TRspDisableTableReplica* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -4989,7 +5056,7 @@ private:
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
         tablet->SetMountRevision(NullRevision);
 
-        CommitTabletStaticMemoryUpdate(table, resourceUsageBefore, table->GetTabletResourceUsage());
+        UpdateResourceUsage(table, table->GetTabletResourceUsage() - resourceUsageBefore);
         UpdateTabletState(table);
 
         if (!table->IsPhysicallySorted()) {
@@ -5207,7 +5274,7 @@ private:
         return firstDynamicStoreIndex;
     }
 
-    void HydraPrepareUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request, bool persistent)
+    void HydraPrepareUpdateTabletStores(TTransaction* transaction, NProto::TReqUpdateTabletStores* request, bool persistent)
     {
         YT_VERIFY(persistent);
 
@@ -5377,7 +5444,7 @@ private:
         }
     }
 
-    void HydraCommitUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
+    void HydraCommitUpdateTabletStores(TTransaction* transaction, NProto::TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -5621,12 +5688,9 @@ private:
             tablet->SetStoresUpdatePreparedTransaction(nullptr);
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto resourceUsageDelta = TClusterResources()
-            .SetTabletCount(0)
-            .SetTabletStaticMemory(newMemorySize - oldMemorySize);
-        securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
-        ScheduleTableStatisticsUpdate(table);
+        UpdateResourceUsage(
+            table,
+            TTabletResources().SetTabletStaticMemory(newMemorySize - oldMemorySize));
 
         counters->UpdateTabletStoresStoreCount.Increment(chunksToAttach.size() + chunksToDetach.size());
 
@@ -5644,7 +5708,7 @@ private:
             updateReason);
     }
 
-    void HydraAbortUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
+    void HydraAbortUpdateTabletStores(TTransaction* transaction, NProto::TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -5671,7 +5735,7 @@ private:
             tabletId);
     }
 
-    void HydraUpdateTabletTrimmedRowCount(TReqUpdateTabletTrimmedRowCount* request)
+    void HydraUpdateTabletTrimmedRowCount(NProto::TReqUpdateTabletTrimmedRowCount* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -5697,7 +5761,7 @@ private:
             trimmedRowCount);
     }
 
-    void HydraAllocateDynamicStore(TReqAllocateDynamicStore* request)
+    void HydraAllocateDynamicStore(NProto::TReqAllocateDynamicStore* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -5728,7 +5792,7 @@ private:
         hiveManager->PostMessage(mailbox, rsp);
     }
 
-    void HydraCreateTabletAction(TReqCreateTabletAction* request)
+    void HydraCreateTabletAction(NProto::TReqCreateTabletAction* request)
     {
         auto kind = ETabletActionKind(request->kind());
         auto tabletIds = FromProto<std::vector<TTabletId>>(request->tablet_ids());
@@ -5781,7 +5845,7 @@ private:
         }
     }
 
-    void HydraDestroyTabletActions(TReqDestroyTabletActions* request)
+    void HydraDestroyTabletActions(NProto::TReqDestroyTabletActions* request)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto actionIds = FromProto<std::vector<TTabletActionId>>(request->tablet_action_ids());
@@ -5794,6 +5858,148 @@ private:
         }
     }
 
+    void HydraSetTabletCellBundleResourceUsage(NProto::TReqSetTabletCellBundleResourceUsage* request)
+    {
+        auto cellTag = request->cell_tag();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
+
+        if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Received tablet cell bundle "
+                "resource usage gossip message from unknown cell (CellTag: %v)",
+                cellTag);
+            return;
+        }
+
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received tablet cell bundle "
+            "resource usage gossip message (CellTag: %v)",
+            cellTag);
+
+        for (const auto& entry : request->entries()) {
+            auto bundleId = FromProto<TTabletCellBundleId>(entry.bundle_id());
+            auto* bundle = FindTabletCellBundle(bundleId);
+            if (!IsObjectAlive(bundle)) {
+                continue;
+            }
+
+            auto newResourceUsage = FromProto<TTabletResources>(entry.resource_usage());
+            if (multicellManager->IsPrimaryMaster()) {
+                *bundle->ResourceUsage().Remote(cellTag) = newResourceUsage;
+            } else {
+                bundle->ResourceUsage().Cluster() = newResourceUsage;
+            }
+        }
+    }
+
+    void HydraUpdateTabletCellBundleResourceUsage(NProto::TReqUpdateTabletCellBundleResourceUsage* /*request*/)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+
+        YT_VERIFY(multicellManager->IsPrimaryMaster());
+
+        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
+            if (!IsObjectAlive(bundleBase) || bundleBase->GetType() != EObjectType::TabletCellBundle) {
+                continue;
+            }
+
+            auto* bundle = bundleBase->As<TTabletCellBundle>();
+            bundle->RecomputeClusterResourceUsage();
+        }
+    }
+
+    void OnTabletCellBundleResourceUsageGossip()
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsLocalMasterCellRegistered()) {
+            return;
+        }
+
+        YT_LOG_INFO("Sending tablet cell bundle resource usage gossip");
+
+        NProto::TReqSetTabletCellBundleResourceUsage request;
+        request.set_cell_tag(multicellManager->GetCellTag());
+
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
+            if (!IsObjectAlive(bundleBase) || bundleBase->GetType() != EObjectType::TabletCellBundle) {
+                continue;
+            }
+
+            auto* bundle = bundleBase->As<TTabletCellBundle>();
+            auto* entry = request.add_entries();
+            ToProto(entry->mutable_bundle_id(), bundleId);
+
+            if (multicellManager->IsPrimaryMaster()) {
+                ToProto(entry->mutable_resource_usage(), bundle->ResourceUsage().Cluster());
+            } else {
+                ToProto(entry->mutable_resource_usage(), bundle->ResourceUsage().Local());
+            }
+        }
+
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(request, false);
+        } else {
+            multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
+        }
+
+        if (multicellManager->IsMulticell() && multicellManager->IsPrimaryMaster()) {
+            NProto::TReqUpdateTabletCellBundleResourceUsage request;
+            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            CreateMutation(hydraManager, request)
+                ->CommitAndLog(Logger);
+        }
+    }
+
+    void ValidateResourceUsageIncrease(
+        const TTableNode* table,
+        const TTabletResources& delta,
+        TAccount* account = nullptr) const
+    {
+        // Old-fashioned account validation.
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidateResourceUsageIncrease(
+            account ? account : table->GetAccount(),
+            ConvertToClusterResources(delta));
+
+        // Brand-new bundle validation.
+        if (GetDynamicConfig()->EnableTabletResourceValidation) {
+            auto* bundle = table->GetTabletCellBundle();
+            if (!bundle) {
+                YT_LOG_ALERT("Failed to validate tablet resource usage increase since table lacks tablet cell bundle "
+                    "(TableId: %v, Delta: %v)",
+                    table->GetId(),
+                    delta);
+                return;
+            }
+            bundle->ValidateResourceUsageIncrease(delta);
+        }
+    }
+
+    void UpdateResourceUsage(
+        TTableNode* table,
+        const TTabletResources& delta,
+        bool scheduleTableDataStatisticsUpdate = true)
+    {
+        // Old-fashioned account accounting.
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateTabletResourceUsage(
+            table,
+            ConvertToClusterResources(delta));
+
+        // Brand-new bundle accounting.
+        auto* bundle = table->GetTabletCellBundle();
+        if (!bundle) {
+            YT_LOG_ALERT("Failed to update tablet resource usage since table lacks tablet cell bundle "
+                "(TableId: %v, Delta: %v)",
+                table->GetId(),
+                delta);
+            return;
+        }
+        bundle->UpdateResourceUsage(delta);
+
+        ScheduleTableStatisticsUpdate(table, scheduleTableDataStatisticsUpdate);
+    }
 
     virtual void OnLeaderActive() override
     {
@@ -5823,6 +6029,12 @@ private:
                 dynamicConfig->MulticellGossip->TableStatisticsGossipPeriod);
             TableStatisticsGossipExecutor_->Start();
         }
+
+        BundleResourceUsageGossipExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
+            BIND(&TImpl::OnTabletCellBundleResourceUsageGossip, MakeWeak(this)),
+            dynamicConfig->MulticellGossip->BundleResourceUsageGossipPeriod);
+        BundleResourceUsageGossipExecutor_->Start();
     }
 
     virtual void OnStopLeading() override
@@ -5842,6 +6054,11 @@ private:
 
         if (TableStatisticsGossipExecutor_) {
             TableStatisticsGossipExecutor_->Stop();
+        }
+
+        if (BundleResourceUsageGossipExecutor_) {
+            BundleResourceUsageGossipExecutor_->Stop();
+            BundleResourceUsageGossipExecutor_.Reset();
         }
     }
 
@@ -6092,20 +6309,9 @@ private:
             memorySize += tablet->GetTabletStaticMemorySize(mountConfig->InMemoryMode);
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidateResourceUsageIncrease(
-            table->GetAccount(),
-            TClusterResources().SetTabletStaticMemory(memorySize));
-    }
-
-    void CommitTabletStaticMemoryUpdate(
-        TTableNode* table,
-        const TClusterResources& resourceUsageBefore,
-        const TClusterResources& resourceUsageAfter)
-    {
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->UpdateTabletResourceUsage(table, resourceUsageAfter - resourceUsageBefore);
-        ScheduleTableStatisticsUpdate(table);
+        ValidateResourceUsageIncrease(
+            table,
+            TTabletResources().SetTabletStaticMemory(memorySize));
     }
 
     void ValidateTableMountConfig(

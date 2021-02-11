@@ -81,6 +81,7 @@ b"""
             tablet_cell_statistics_gossip_period = 100;
             tablet_cell_status_full_gossip_period = 100;
             tablet_cell_status_incremental_gossip_period = 100;
+            bundle_resource_usage_gossip_period = 100;
         };
 
         tablet_cell_decommissioner = {

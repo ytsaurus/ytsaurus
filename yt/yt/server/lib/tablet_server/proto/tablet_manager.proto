@@ -10,6 +10,14 @@ import "yt/client/chunk_client/proto/data_statistics.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TTabletResources
+{
+    required int64 tablet_count = 1;
+    required int64 tablet_static_memory = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqAssignPeers
 {
     message TPeerInfo
@@ -222,7 +230,8 @@ message TReqUpdateTableStatistics
     {
         required NYT.NProto.TGuid table_id = 1;
         optional NChunkClient.NProto.TDataStatistics data_statistics = 2;
-        optional NSecurityServer.NProto.TClusterResources tablet_resource_usage = 3;
+        reserved 3; // deprecated
+        optional TTabletResources tablet_resource_usage = 6;
         optional uint64 modification_time = 4;
         optional uint64 access_time = 5;
     }
@@ -261,6 +270,21 @@ message TReqAllocateDynamicStore
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 2;
 }
+
+message TReqSetTabletCellBundleResourceUsage
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid bundle_id = 1;
+        required TTabletResources resource_usage = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
+}
+
+message TReqUpdateTabletCellBundleResourceUsage
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

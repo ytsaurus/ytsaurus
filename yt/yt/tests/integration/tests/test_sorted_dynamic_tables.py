@@ -604,6 +604,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     def test_preload_block_range(self, enable_lookup_hash_table, optimize_for):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 3}})
         sync_create_cells(1, tablet_cell_bundle="b")
+        set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 2**30)
         self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
         set("//tmp/t/@chunk_writer", {"block_size": 1024})
         set("//tmp/t/@in_memory_mode", "uncompressed")

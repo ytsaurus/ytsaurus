@@ -28,11 +28,11 @@ def clear_progress(path):
 
 
 class ListOperationsSetup(YTEnvSetup):
-    _input_path = "//testing/input"
+    _input_path = "//tmp/testing/input"
 
     @staticmethod
     def _create_output_path():
-        path = "//testing/" + make_random_string()
+        path = "//tmp/testing/" + make_random_string()
         create("table", path, recursive=True, ignore_existing=True)
         return path
 
@@ -182,7 +182,7 @@ class ListOperationsSetup(YTEnvSetup):
         add_member("user4", "admins")
         add_member("user6", "group2")
 
-        set("//testing/@acl/end", make_ace("allow", "everyone", ["read", "write"]))
+        set("//tmp/testing/@acl/end", make_ace("allow", "everyone", ["read", "write"]))
 
         def base_operation_acl_has_admins():
             for ace in get("//sys/scheduler/orchid/scheduler/operation_base_acl"):

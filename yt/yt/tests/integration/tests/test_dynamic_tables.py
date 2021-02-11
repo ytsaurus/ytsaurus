@@ -59,14 +59,12 @@ class DynamicTablesBase(YTEnvSetup):
 
     def _create_sorted_table(self, path, **attributes):
         if "schema" not in attributes:
-            attributes.update(
-                {
-                    "schema": [
-                        {"name": "key", "type": "int64", "sort_order": "ascending"},
-                        {"name": "value", "type": "string"},
-                    ]
-                }
-            )
+            schema = yson.YsonList([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ])
+            schema.attributes["unique_keys"] = True
+            attributes.update({"schema": schema})
         create_dynamic_table(path, **attributes)
 
     def _create_ordered_table(self, path, **attributes):

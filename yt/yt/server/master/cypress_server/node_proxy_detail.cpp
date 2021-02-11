@@ -747,7 +747,9 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         case EInternedAttributeKey::ResourceUsage: {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto resourceUsage = GetNodeResourceUsage(node);
-            auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, resourceUsage);
+            auto resourceSerializer = New<TSerializableRichClusterResources>(
+                chunkManager,
+                resourceUsage);
             BuildYsonFluently(consumer)
                 .Value(resourceSerializer);
             return true;

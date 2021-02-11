@@ -97,7 +97,13 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, ForcedCompactionRevision);
     Load(context, Dynamic);
     Load(context, MountPath);
-    Load(context, ExternalTabletResourceUsage);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < EMasterReign::BundleQuotas) {
+        auto resources = Load<NSecurityServer::TClusterResources>(context);
+        ExternalTabletResourceUsage = NSecurityServer::ConvertToTabletResources(resources);
+    } else {
+        Load(context, ExternalTabletResourceUsage);
+    }
     Load(context, ExpectedTabletState);
     Load(context, LastMountTransactionId);
     Load(context, TabletCountByExpectedState);
@@ -172,15 +178,15 @@ void TTableNode::EndUpload(const TEndUploadContext& context)
 
 TClusterResources TTableNode::GetDeltaResourceUsage() const
 {
-    return TChunkOwnerBase::GetDeltaResourceUsage() + GetTabletResourceUsage();
+    return TChunkOwnerBase::GetDeltaResourceUsage();
 }
 
 TClusterResources TTableNode::GetTotalResourceUsage() const
 {
-    return TChunkOwnerBase::GetTotalResourceUsage() + GetTabletResourceUsage();
+    return TChunkOwnerBase::GetTotalResourceUsage();
 }
 
-TClusterResources TTableNode::GetTabletResourceUsage() const
+TTabletResources TTableNode::GetTabletResourceUsage() const
 {
     int tabletCount = 0;
     i64 tabletStaticMemory = 0;
@@ -194,7 +200,7 @@ TClusterResources TTableNode::GetTabletResourceUsage() const
         }
     }
 
-    auto resourceUsage = TClusterResources()
+    auto resourceUsage = TTabletResources()
         .SetTabletCount(tabletCount)
         .SetTabletStaticMemory(tabletStaticMemory);
 

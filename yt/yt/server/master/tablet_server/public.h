@@ -75,6 +75,7 @@ DECLARE_REFCOUNTED_CLASS(TDynamicTabletCellBalancerMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicReplicatedTableTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicTablesMulticellGossipConfig)
+DECLARE_REFCOUNTED_CLASS(TSerializableTabletResources)
 
 class TTableReplica;
 
@@ -100,6 +101,8 @@ constexpr i64 EdenStoreIdsSizeLimit = 100;
 constexpr int MaxOrderedDynamicStoresInChunkList = 12;
 
 constexpr auto DefaultSyncTabletActionKeepalivePeriod = TDuration::Minutes(1);
+
+constexpr int DefaultTabletCountLimit = 1000;
 
 using TTabletCellSet = SmallVector<std::pair<const TTabletCell*, int>, NTabletClient::TypicalTabletSlotCount>;
 

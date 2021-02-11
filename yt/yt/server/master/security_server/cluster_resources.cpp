@@ -14,6 +14,7 @@
 namespace NYT::NSecurityServer {
 
 using namespace NYson;
+using namespace NTabletServer;
 
 using NChunkClient::MaxMediumCount;
 using NChunkServer::DefaultStoreMediumIndex;
@@ -203,7 +204,7 @@ void FromProto(TClusterResources* resources, const NProto::TClusterResources& pr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializableClusterResources::TSerializableClusterResources()
+TSerializableClusterResources::TSerializableClusterResources(bool serializeTabletResources)
 {
     RegisterParameter("node_count", NodeCount_)
         .Default(0)
@@ -211,12 +212,17 @@ TSerializableClusterResources::TSerializableClusterResources()
     RegisterParameter("chunk_count", ChunkCount_)
         .Default(0)
         .GreaterThanOrEqual(0);
-    RegisterParameter("tablet_count", TabletCount_)
-        .Default(0)
-        .GreaterThanOrEqual(0);
-    RegisterParameter("tablet_static_memory", TabletStaticMemory_)
-        .Default(0)
-        .GreaterThanOrEqual(0);
+
+    // COMPAT(ifsmirnov)
+    if (serializeTabletResources) {
+        RegisterParameter("tablet_count", TabletCount_)
+            .Default(0)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("tablet_static_memory", TabletStaticMemory_)
+            .Default(0)
+            .GreaterThanOrEqual(0);
+    }
+
     RegisterParameter("disk_space_per_medium", DiskSpacePerMedium_)
         .Optional();
     RegisterParameter("disk_space", DiskSpace_)
@@ -234,8 +240,9 @@ TSerializableClusterResources::TSerializableClusterResources()
 
 TSerializableClusterResources::TSerializableClusterResources(
     const NChunkServer::TChunkManagerPtr& chunkManager,
-    const TClusterResources& clusterResources)
-    : TSerializableClusterResources()
+    const TClusterResources& clusterResources,
+    bool serializeTabletResources)
+    : TSerializableClusterResources(serializeTabletResources)
 {
     NodeCount_ = clusterResources.NodeCount;
     ChunkCount_ = clusterResources.ChunkCount;
@@ -271,6 +278,43 @@ TClusterResources TSerializableClusterResources::ToClusterResources(const NChunk
 void TSerializableClusterResources::AddToMediumDiskSpace(const TString& mediumName, i64 mediumDiskSpace)
 {
     DiskSpacePerMedium_[mediumName] += mediumDiskSpace;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRichClusterResources::TRichClusterResources(
+    const TClusterResources& clusterResources,
+    const TTabletResources& tabletResources)
+    : ClusterResources(clusterResources)
+    , TabletResources(tabletResources)
+{
+    YT_VERIFY(ClusterResources.TabletCount == 0);
+    YT_VERIFY(ClusterResources.TabletStaticMemory == 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSerializableRichClusterResources::TSerializableRichClusterResources()
+    : TSerializableClusterResources(/*serializeTabletResources*/ false)
+    , TSerializableTabletResources()
+{ }
+
+TSerializableRichClusterResources::TSerializableRichClusterResources(
+    const NChunkServer::TChunkManagerPtr& chunkManager,
+    const TRichClusterResources& richClusterResources)
+    : TSerializableClusterResources(
+        chunkManager,
+        richClusterResources.ClusterResources,
+        /*serializeTabletResources*/ false)
+    , TSerializableTabletResources(richClusterResources.TabletResources)
+{ }
+
+TRichClusterResources TSerializableRichClusterResources::ToRichClusterResources(
+    const NChunkServer::TChunkManagerPtr& chunkManager) const
+{
+    auto clusterResources = ToClusterResources(chunkManager);
+    auto tabletResources = static_cast<TTabletResources>(*this);
+    return {clusterResources, tabletResources};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -416,5 +460,42 @@ TString ToString(const TClusterResources& resources)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSecurityServer
+TRichClusterResources& operator += (TRichClusterResources& lhs, const TRichClusterResources& rhs)
+{
+    lhs.ClusterResources += rhs.ClusterResources;
+    lhs.TabletResources += rhs.TabletResources;
+    return lhs;
+}
 
+TRichClusterResources operator +  (const TRichClusterResources& lhs, const TRichClusterResources& rhs)
+{
+    auto result = lhs;
+    return result += rhs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTabletResources ConvertToTabletResources(const TClusterResources& clusterResources)
+{
+    YT_VERIFY(clusterResources.NodeCount == 0);
+    YT_VERIFY(clusterResources.ChunkCount == 0);
+    for (const auto& [key, value] : clusterResources.DiskSpace()) {
+        YT_VERIFY(value == 0);
+    }
+    YT_VERIFY(clusterResources.MasterMemory == 0);
+
+    return TTabletResources()
+        .SetTabletCount(clusterResources.TabletCount)
+        .SetTabletStaticMemory(clusterResources.TabletStaticMemory);
+}
+
+TClusterResources ConvertToClusterResources(const TTabletResources& tabletResources)
+{
+    return TClusterResources()
+        .SetTabletCount(tabletResources.TabletCount)
+        .SetTabletStaticMemory(tabletResources.TabletStaticMemory);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NSecurityServer

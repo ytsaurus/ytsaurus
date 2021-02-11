@@ -39,6 +39,8 @@ public:
     TDuration MembershipClosureRecomputePeriod;
     bool EnableMasterMemoryUsageValidation;
     bool EnableMasterMemoryUsageAccountOvercommitValidation;
+    // COMPAT(ifsmirnov)
+    bool EnableTabletResourceValidation;
 
     bool EnableDistributedThrottler;
 
@@ -61,6 +63,8 @@ public:
             .Default(false);
         RegisterParameter("enable_master_memory_usage_account_overcommit_validation", EnableMasterMemoryUsageAccountOvercommitValidation)
             .Default(false);
+        RegisterParameter("enable_tablet_resource_validation", EnableTabletResourceValidation)
+            .Default(true);
 
         RegisterParameter("enable_distributed_throttler", EnableDistributedThrottler)
             .Default(false);

@@ -534,6 +534,7 @@ public:
     TViolatedResourceLimits GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& dynamicConfig = GetDynamicConfig();
         const auto& cellTags = multicellManager->GetSecondaryCellTags();
         auto primaryCellTag = multicellManager->GetPrimaryCellTag();
 
@@ -547,11 +548,14 @@ public:
                 if (account->IsChunkCountLimitViolated()) {
                     ++violatedLimits->ChunkCount;
                 }
-                if (account->IsTabletCountLimitViolated()) {
-                    ++violatedLimits->TabletCount;
-                }
-                if (account->IsTabletStaticMemoryLimitViolated()) {
-                    ++violatedLimits->TabletStaticMemory;
+
+                if (dynamicConfig->EnableTabletResourceValidation) {
+                    if (account->IsTabletCountLimitViolated()) {
+                        ++violatedLimits->TabletCount;
+                    }
+                    if (account->IsTabletStaticMemoryLimitViolated()) {
+                        ++violatedLimits->TabletStaticMemory;
+                    }
                 }
                 if (account->IsMasterMemoryLimitViolated()) {
                     ++violatedLimits->MasterMemory;
@@ -976,10 +980,7 @@ public:
             return;
         }
 
-        auto resources = node->GetDeltaResourceUsage()
-            .SetNodeCount(0)
-            .SetChunkCount(0);
-        resources.ClearDiskSpace();
+        auto resources = ConvertToClusterResources(node->GetTabletResourceUsage());
 
         UpdateTabletResourceUsage(node, oldAccount, -resources, oldCommitted);
         UpdateTabletResourceUsage(node, newAccount, resources, newCommitted);
@@ -1001,6 +1002,7 @@ public:
         for (auto [mediumIndex, diskUsage] : resourceUsageDelta.DiskSpace()) {
             YT_ASSERT(diskUsage == 0);
         }
+        YT_ASSERT(resourceUsageDelta.MasterMemory == 0);
 
         ChargeAccountAncestry(
             account,
@@ -1883,15 +1885,18 @@ public:
             if (delta.ChunkCount > 0 && usage.ChunkCount + delta.ChunkCount > limits.ChunkCount) {
                 throwOverdraftError("chunk count", account, usage.ChunkCount, delta.ChunkCount, limits.ChunkCount);
             }
-            if (delta.TabletCount > 0 && usage.TabletCount + delta.TabletCount > limits.TabletCount) {
-                throwOverdraftError("tablet count", account, usage.TabletCount, delta.TabletCount, limits.TabletCount);
+
+            if (dynamicConfig->EnableTabletResourceValidation) {
+                if (delta.TabletCount > 0 && usage.TabletCount + delta.TabletCount > limits.TabletCount) {
+                    throwOverdraftError("tablet count", account, usage.TabletCount, delta.TabletCount, limits.TabletCount);
+                }
+                if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
+                    throwOverdraftError("tablet static memory", account, usage.TabletStaticMemory, delta.TabletStaticMemory, limits.TabletStaticMemory);
+                }
             }
-            if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
-                throwOverdraftError("tablet static memory", account, usage.TabletStaticMemory, delta.TabletStaticMemory, limits.TabletStaticMemory);
-            }
+
             validateMasterMemoryIncrease(account);
         }
-
     }
 
     void ValidateAttachChildAccount(TAccount* parentAccount, TAccount* childAccount)
@@ -3740,7 +3745,7 @@ private:
     }
 
 
-    const TDynamicSecurityManagerConfigPtr& GetDynamicConfig()
+    const TDynamicSecurityManagerConfigPtr& GetDynamicConfig() const
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager;
     }

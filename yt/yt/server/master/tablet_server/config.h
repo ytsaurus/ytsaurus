@@ -221,6 +221,9 @@ public:
     //! Throttler for table statistics gossip.
     NConcurrency::TThroughputThrottlerConfigPtr TableStatisticsGossipThrottler;
 
+    //! Bundle resource usage gossip period.
+    TDuration BundleResourceUsageGossipPeriod;
+
     bool EnableUpdateStatisticsOnHeartbeat;
 
     TDynamicTablesMulticellGossipConfig()
@@ -235,6 +238,8 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("table_statistics_gossip_throttler", TableStatisticsGossipThrottler)
             .DefaultNew();
+        RegisterParameter("bundle_resource_usage_gossip_period", BundleResourceUsageGossipPeriod)
+            .Default(TDuration::Seconds(5));
         RegisterParameter("enable_update_statistics_on_heartbeat", EnableUpdateStatisticsOnHeartbeat)
             .Default(true);
     }
@@ -483,6 +488,10 @@ public:
     // COMPAT(akozhikhov): YT-14187
     bool IncreaseUploadReplicationFactor;
 
+    //! If set, tablet resource limit violation will be validated per-bundle.
+    // TODO(ifsmirnov): remove and set default to true.
+    bool EnableTabletResourceValidation;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -547,6 +556,8 @@ public:
             .Default(false)
             .DontSerializeDefault();
         RegisterParameter("increase_upload_replication_factor", IncreaseUploadReplicationFactor)
+            .Default(false);
+        RegisterParameter("enable_tablet_resource_validation", EnableTabletResourceValidation)
             .Default(false);
 
         // COMPAT(savrus) Special parameter to apply old file configs on fly.
