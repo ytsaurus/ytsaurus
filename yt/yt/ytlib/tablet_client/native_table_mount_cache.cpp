@@ -151,10 +151,10 @@ private:
         TMasterReadOptions GetMasterReadOptions()
         {
             return {
-                EMasterChannelKind::Cache,
-                Owner_->Config_->ExpireAfterSuccessfulUpdateTime,
-                Owner_->Config_->ExpireAfterFailedUpdateTime,
-                1
+                .ReadFrom = EMasterChannelKind::Cache,
+                .ExpireAfterSuccessfulUpdateTime = Owner_->Config_->ExpireAfterSuccessfulUpdateTime,
+                .ExpireAfterFailedUpdateTime = Owner_->Config_->ExpireAfterFailedUpdateTime,
+                .EnableClientCacheStickiness = true
             };
         }
 

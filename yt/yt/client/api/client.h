@@ -117,6 +117,7 @@ struct TMasterReadOptions
     TDuration ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(15);
     TDuration ExpireAfterFailedUpdateTime = TDuration::Seconds(15);
     std::optional<int> CacheStickyGroupSize;
+    bool EnableClientCacheStickiness = false;
 };
 
 struct TPrerequisiteRevisionConfig

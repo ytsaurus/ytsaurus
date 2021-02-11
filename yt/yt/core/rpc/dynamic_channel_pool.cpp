@@ -155,6 +155,7 @@ private:
 
     const NLogging::TLogger Logger;
 
+    const size_t ClientStickinessRandomNumber_ = RandomNumber<size_t>();
     const TPromise<void> PeersSetPromise_ = NewPromise<void>();
 
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
@@ -433,19 +434,18 @@ private:
 
     IChannelPtr PickViableChannel(const IClientRequestPtr& request)
     {
-        if (!IsRequestSticky(request)) {
-            return PickRandomViableChannel(request);
-        }
-
-        const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
-        return PickStickyViableChannel(request, balancingExt.sticky_group_size());
+        return IsRequestSticky(request)
+            ? PickStickyViableChannel(request)
+            : PickRandomViableChannel(request);
     }
 
-    IChannelPtr PickStickyViableChannel(const IClientRequestPtr& request, int stickyGroupSize)
+    IChannelPtr PickStickyViableChannel(const IClientRequestPtr& request)
     {
-        YT_VERIFY(request);
+        const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
         auto hash = request->GetHash();
-        auto randomIndex = RandomNumber<size_t>(stickyGroupSize);
+        auto randomNumber = balancingExt.enable_client_stickiness() ? ClientStickinessRandomNumber_ : RandomNumber<size_t>();
+        int stickyGroupSize = balancingExt.sticky_group_size();
+        auto randomIndex = randomNumber % stickyGroupSize;
 
         auto guard = ReaderGuard(SpinLock_);
 

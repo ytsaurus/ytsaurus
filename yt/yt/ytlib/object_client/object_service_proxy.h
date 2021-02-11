@@ -176,7 +176,9 @@ public:
     public:
         //! Starts the asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
-        void SetDefaultStickyGroupSize(int defaultStickyGroupSize);
+
+        void SetStickyGroupSize(int value);
+        void SetEnableClientStickiness(bool value);
 
     protected:
         TReqExecuteBatch(
@@ -191,7 +193,8 @@ public:
         TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> CurrentReqFuture_;
         bool IsFirstBatch_ = true;
 
-        std::optional<int> DefaultStickyGroupSize_;
+        std::optional<int> StickyGroupSize_;
+        bool EnableClientStickiness_ = false;
 
         DECLARE_NEW_FRIEND();
 

@@ -61,8 +61,9 @@ void SetBalancingHeader(
         return;
     }
 
-    request->SetDefaultStickyGroupSize(options.CacheStickyGroupSize.value_or(
+    request->SetStickyGroupSize(options.CacheStickyGroupSize.value_or(
         config->DefaultCacheStickyGroupSize));
+    request->SetEnableClientStickiness(options.EnableClientCacheStickiness);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
