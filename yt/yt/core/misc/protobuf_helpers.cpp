@@ -47,14 +47,13 @@ void SerializeProtoToRefImpl(
     YT_VERIFY(message.SerializeWithCachedSizesToArray(begin) == end);
 }
 
-ui32 CheckedCastToUI32(ui64 length)
+i32 CheckedCastToI32(ui64 length)
 {
-    if (length >= std::numeric_limits<ui32>::max()) {
-        THROW_ERROR_EXCEPTION("Protobuf message is too long")
-            << TErrorAttribute("length", length)
-            << TErrorAttribute("limit", std::numeric_limits<ui32>::max());
+    if (length >= std::numeric_limits<i32>::max()) {
+        THROW_ERROR_EXCEPTION("Protobuf message size exceeds 2GB")
+            << TErrorAttribute("length", length);
     }
-    return static_cast<ui32>(length);
+    return static_cast<i32>(length);
 }
 
 } // namespace
@@ -63,7 +62,7 @@ TSharedRef SerializeProtoToRef(
     const google::protobuf::MessageLite& message,
     bool partial)
 {
-    auto size = CheckedCastToUI32(message.ByteSizeLong());
+    auto size = CheckedCastToI32(message.ByteSizeLong());
     auto data = TSharedMutableRef::Allocate<TSerializedMessageTag>(size, false);
     SerializeProtoToRefImpl(message, partial, data);
     return data;
@@ -73,7 +72,7 @@ TString SerializeProtoToString(
     const google::protobuf::MessageLite& message,
     bool partial)
 {
-    auto size = CheckedCastToUI32(message.ByteSizeLong());
+    auto size = CheckedCastToI32(message.ByteSizeLong());
     auto data = TString::Uninitialized(size);
     SerializeProtoToRefImpl(message, partial, TMutableRef(data.begin(), size));
     return data;
@@ -119,7 +118,7 @@ TSharedRef SerializeProtoToRefWithEnvelope(
     auto compressedMessage = codec->Compress(serializedMessage);
 
     TEnvelopeFixedHeader fixedHeader;
-    fixedHeader.EnvelopeSize = CheckedCastToUI32(envelope.ByteSizeLong());
+    fixedHeader.EnvelopeSize = CheckedCastToI32(envelope.ByteSizeLong());
     fixedHeader.MessageSize = static_cast<ui32>(compressedMessage.Size());
 
     size_t totalSize =
@@ -153,8 +152,8 @@ TString SerializeProtoToStringWithEnvelope(
     NYT::NProto::TSerializedMessageEnvelope envelope;
 
     TEnvelopeFixedHeader fixedHeader;
-    fixedHeader.EnvelopeSize = CheckedCastToUI32(envelope.ByteSizeLong());
-    fixedHeader.MessageSize = static_cast<ui32>(message.ByteSize());
+    fixedHeader.EnvelopeSize = CheckedCastToI32(envelope.ByteSizeLong());
+    fixedHeader.MessageSize = CheckedCastToI32(message.ByteSizeLong());
 
     auto totalSize =
         sizeof (fixedHeader) +
