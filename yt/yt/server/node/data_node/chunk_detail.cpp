@@ -100,14 +100,14 @@ void TChunkBase::ReleaseReadLock()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    bool removing = false;
+    bool removeNow = false;
     int lockCount;
     {
         auto guard = Guard(SpinLock_);
         lockCount = --ReadLockCounter_;
         YT_VERIFY(lockCount >= 0);
         if (ReadLockCounter_ == 0 && UpdateLockCounter_ == 0 && !Removing_ && RemovedFuture_) {
-            removing = Removing_ = true;
+            removeNow = Removing_ = true;
         }
     }
 
@@ -115,7 +115,7 @@ void TChunkBase::ReleaseReadLock()
         Id_,
         lockCount);
 
-    if (removing) {
+    if (removeNow) {
         StartAsyncRemove();
     }
 }
@@ -149,19 +149,19 @@ void TChunkBase::ReleaseUpdateLock()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    bool removing = false;
+    bool removeNow = false;
     {
         auto guard = Guard(SpinLock_);
         YT_VERIFY(--UpdateLockCounter_ == 0);
         if (ReadLockCounter_ == 0 && !Removing_ && RemovedFuture_) {
-            removing = Removing_ = true;
+            removeNow = Removing_ = true;
         }
     }
 
     YT_LOG_DEBUG("Chunk update lock released (ChunkId: %v)",
         Id_);
 
-    if (removing) {
+    if (removeNow) {
         StartAsyncRemove();
     }
 }
@@ -173,7 +173,7 @@ TFuture<void> TChunkBase::ScheduleRemove()
     YT_LOG_DEBUG("Chunk remove scheduled (ChunkId: %v)",
         Id_);
 
-    bool removing = false;
+    bool removeNow = false;
     {
         auto guard = Guard(SpinLock_);
         if (RemovedFuture_) {
@@ -184,12 +184,12 @@ TFuture<void> TChunkBase::ScheduleRemove()
         // NB: Ignore client attempts to cancel the removal process.
         RemovedFuture_ = RemovedPromise_.ToFuture().ToUncancelable();
 
-        if (ReadLockCounter_ == 0 && !Removing_) {
-            removing = Removing_ = true;
+        if (ReadLockCounter_ == 0 && UpdateLockCounter_ == 0 && !Removing_) {
+            removeNow = Removing_ = true;
         }
     }
 
-    if (removing) {
+    if (removeNow) {
         StartAsyncRemove();
     }
 
