@@ -115,6 +115,7 @@ struct ITimeGaugeImpl
     : public TRefCounted
 {
     virtual void Update(TDuration value) = 0;
+    virtual TDuration GetValue() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITimeGaugeImpl)

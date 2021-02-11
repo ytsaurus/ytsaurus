@@ -42,6 +42,7 @@ public:
 
 private:
     friend class TRegistry;
+    friend struct TTesting;
 
     ITimeCounterImplPtr Counter_;
 };
@@ -73,6 +74,7 @@ public:
 
 private:
     friend class TRegistry;
+    friend struct TTesting;
 
     ITimeGaugeImplPtr Gauge_;
 };
