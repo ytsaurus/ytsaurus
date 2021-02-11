@@ -254,7 +254,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             auto nodeSuccessExpirationTime = successExpirationTime * cacheTtlRatio;
             auto nodeFailureExpirationTime = failureExpirationTime * cacheTtlRatio;
 
-            bool cachingEnabled = CachingEnabled_.load(std::memory_order_relaxed);
+            bool cachingEnabled = CachingEnabled_.load(std::memory_order_relaxed) && !cachingRequestHeaderExt.disable_second_level_cache();
             auto cookie = Cache_->BeginLookup(
                 requestId,
                 key,
@@ -263,8 +263,12 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                 refreshRevision);
 
             asyncMasterResponseMessages.push_back(
-                cookie.GetValue().Apply(BIND([] (const TObjectServiceCacheEntryPtr& entry) -> TSubrequestResponse {
-                    return {entry->GetResponseMessage(), entry->GetRevision(), entry->GetByteRate()};
+                cookie.GetValue().Apply(BIND([] (const TObjectServiceCacheEntryPtr& entry) {
+                    return TSubrequestResponse{
+                        entry->GetResponseMessage(),
+                        entry->GetRevision(),
+                        entry->GetByteRate()
+                    };
                 })));
 
             if (cookie.IsActive()) {
