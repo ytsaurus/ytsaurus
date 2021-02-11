@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 from .conftest import authors
+from .helpers import set_config_option
 
 from yt.common import update
 from yt.wrapper.driver import make_request, get_api_version
@@ -146,3 +147,7 @@ class TestParseYpath(object):
         path = YPath(to_yson_type("//my/path", attributes={"my_attr": 10}))
         assert path.attributes["my_attr"] == 10
         assert str(path) == "//my/path"
+
+        with set_config_option("prefix", YPath("//home/levysotsky/")):
+            path = YPath("me")
+            assert str(path) == "//home/levysotsky/me"
