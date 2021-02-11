@@ -712,106 +712,33 @@ private:
 
     BoolMask GetRangeMask(EKeyConditionScale scale, TLegacyKey lowerKey, TLegacyKey upperKey, int operandIndex)
     {
+        const auto& keyCondition = KeyConditions_[operandIndex];
+        const auto& keyColumnDataTypes = KeyColumnDataTypes_[operandIndex];
+
         YT_LOG_TRACE(
             "Checking range mask (Scale: %v, LowerKey: %v, UpperKey: %v, OperandIndex: %v, KeyCondition: %v)",
             scale,
             lowerKey,
             upperKey,
             operandIndex,
-            KeyConditions_[operandIndex] ? KeyConditions_[operandIndex]->toString() : "(n/a)");
+            keyCondition ? keyCondition->toString() : "(n/a)");
 
-        if (!KeyConditions_[operandIndex]) {
+        if (!keyCondition ||
+            !StorageContext_->Settings->Testing->EnableKeyConditionFiltering ||
+            keyCondition->alwaysUnknownOrTrue())
+        {
             return BoolMask(true, true);
         }
 
-        const auto& keyColumnDataTypes = KeyColumnDataTypes_[operandIndex];
+        int usedKeyColumnCount = keyCondition->getMaxKeyColumn() + 1;
+        YT_VERIFY(usedKeyColumnCount <= OperandSchemas_[operandIndex]->GetKeyColumnCount());
 
-        auto keyColumnCount = OperandSchemas_[operandIndex]->GetKeyColumnCount();
-        DB::FieldRef minKey[keyColumnCount];
-        DB::FieldRef maxKey[keyColumnCount];
-
-        // Tries to convert TLegacyKey to ClickHouse FieldRef[].
-        // Returns how many columns were succeffully converted and can be used in checkInRange.
-        auto convertToClickHouseKey = [&] (DB::FieldRef* chKey, const TLegacyKey& ytKey, bool isUpperKey) {
-            bool sentinelFound = false;
-            bool firstSentinelIsMax = false;
-            int lastNonSentinelIndex = -1;
-
-            for (int index = 0; index < keyColumnCount; ++index) {
-                bool inferFailed = false;
-                auto tryInferKeyColumnValue = [&] (auto inferFunc) {
-                    // XXX(dakovalkov): ClickHouse does not support nullable columns as key columns yet,
-                    // so remove nullable for now.
-                    if (auto value = inferFunc(DB::removeNullable(keyColumnDataTypes[index]))) {
-                        chKey[index] = *value;
-                    } else {
-                        inferFailed = true;
-                    }
-                };
-
-                if (sentinelFound ||
-                    index >= ytKey.GetCount() ||
-                    ytKey[index].Type == EValueType::Min ||
-                    ytKey[index].Type == EValueType::Null)
-                {
-                    tryInferKeyColumnValue(TryGetMinimumTypeValue);
-                    sentinelFound = true;
-                } else if (ytKey[index].Type == EValueType::Max) {
-                    tryInferKeyColumnValue(TryGetMaximumTypeValue);
-                    sentinelFound = true;
-                    firstSentinelIsMax = true;
-                } else {
-                    chKey[index] = ToField(ytKey[index]);
-                    lastNonSentinelIndex = index;
-                }
-
-                if (inferFailed) {
-                    return index;
-                }
-            }
-
-            // Trying to convert the exclusive upper bound to inclusive.
-            if (isUpperKey) {
-                bool isExclusive = !firstSentinelIsMax &&
-                    (sentinelFound || ytKey.GetCount() == keyColumnCount) &&
-                    lastNonSentinelIndex >= 0;
-
-                if (isExclusive) {
-                    std::vector<std::optional<DB::Field>> inclusiveSuffix;
-                    inclusiveSuffix.reserve(keyColumnCount);
-
-                    // XXX(dakovalkov): Remove nullable again because CH does not support it.
-                    auto getType = [&] (int index) {
-                        return DB::removeNullable(keyColumnDataTypes[index]);
-                    };
-
-                    // We try to decrement last non-sentinel value and convert all min-values after it to max-values.
-                    // A, B, X, MIN, MIN -> A, B, (X - 1), MAX, MAX
-
-                    bool failed = false;
-                    failed |= !inclusiveSuffix.emplace_back(
-                        TryDecrementFieldValue(
-                            chKey[lastNonSentinelIndex],
-                            getType(lastNonSentinelIndex)));
-
-                    for (int index = lastNonSentinelIndex + 1; !failed && index < keyColumnCount; ++index) {
-                        failed |= !inclusiveSuffix.emplace_back(TryGetMaximumTypeValue(getType(index)));
-                    }
-
-                    if (!failed) {
-                        for (int index = lastNonSentinelIndex; index < keyColumnCount; ++index) {
-                            chKey[index] = *inclusiveSuffix[index - lastNonSentinelIndex];
-                        }
-                    }
-                }
-            }
-            return keyColumnCount;
-        };
-
-        int lowerKeyUsedColumnCount = convertToClickHouseKey(minKey, lowerKey, false);
-        int upperKeyUsedColumnCount = convertToClickHouseKey(maxKey, upperKey, true);
-
-        int usedKeyColumnCount = std::min(lowerKeyUsedColumnCount, upperKeyUsedColumnCount);
+        auto chKeys = ToClickHouseKeys(
+            lowerKey,
+            upperKey,
+            usedKeyColumnCount,
+            keyColumnDataTypes,
+            StorageContext_->Settings->Testing->MakeUpperBoundInclusive);
 
         auto toFormattable = [&] (DB::FieldRef* fields, int keyColumUsed) {
             return MakeFormattableView(
@@ -822,39 +749,21 @@ private:
         YT_LOG_TRACE("Chunk keys were successfully converted to CH keys (LowerKey: %v, UpperKey %v, MinKey: %v, MaxKey: %v)",
             lowerKey,
             upperKey,
-            toFormattable(minKey, lowerKeyUsedColumnCount),
-            toFormattable(maxKey, upperKeyUsedColumnCount));
+            toFormattable(chKeys.MinKey.data(), usedKeyColumnCount),
+            toFormattable(chKeys.MaxKey.data(), usedKeyColumnCount));
 
-        BoolMask result(true, true);
+        YT_LOG_TRACE(
+            "Checking if predicate can be true in range (Scale: %v, KeyColumnCount: %v, MinKey: %v, MaxKey: %v)",
+            scale,
+            usedKeyColumnCount,
+            toFormattable(chKeys.MinKey.data(), usedKeyColumnCount),
+            toFormattable(chKeys.MaxKey.data(), usedKeyColumnCount));
 
-        if (result.can_be_true && usedKeyColumnCount > 0) {
-            YT_LOG_TRACE(
-                "Checking if predicate can be true in range (Scale: %v, KeyColumnCount: %v, MinKey: %v, MaxKey: %v)",
-                scale,
-                usedKeyColumnCount,
-                toFormattable(minKey, lowerKeyUsedColumnCount),
-                toFormattable(maxKey, upperKeyUsedColumnCount));
-            result = BoolMask(KeyConditions_[operandIndex]->mayBeTrueInRange(
-                keyColumnCount,
-                minKey,
-                maxKey,
-                KeyColumnDataTypes_[operandIndex]), false);
-        }
-
-        // If KeyCondition can be true in range [minKey, maxKey], we can try to check it on half-open ray [minKey, +Inf).
-        // It can be better because 'mayBeTrueInRange' requires that minKey and maxKey have the same length,
-        // so we can make the range a little bit wider by cutting some subkeys from minKey on previous check.
-        if (result.can_be_true && lowerKeyUsedColumnCount > upperKeyUsedColumnCount) {
-            YT_LOG_TRACE(
-                "Checking if predicate can be true in half-open ray (Scale: %v, KeyColumnCount: %v, MinKey: %v)",
-                scale,
-                lowerKeyUsedColumnCount,
-                toFormattable(minKey, lowerKeyUsedColumnCount));
-            result = BoolMask(KeyConditions_[operandIndex]->mayBeTrueAfter(
-                keyColumnCount,
-                minKey,
-                KeyColumnDataTypes_[operandIndex]), false);
-        }
+        BoolMask result = BoolMask(keyCondition->mayBeTrueInRange(
+            usedKeyColumnCount,
+            chKeys.MinKey.data(),
+            chKeys.MaxKey.data(),
+            keyColumnDataTypes), false);
 
         YT_LOG_EVENT(Logger,
             StorageContext_->Settings->LogKeyConditionDetails ? ELogLevel::Debug : ELogLevel::Trace,

@@ -3,6 +3,7 @@
 #include "yt_ch_converter.h"
 #include "ch_yt_converter.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/row_buffer.h>
@@ -325,6 +326,134 @@ TSharedRange<TUnversionedRow> ToRowRange(
     // Rows are backed up by row buffer, string data is backed up converters (which
     // hold original columns if necessary).
     return MakeSharedRange(rows, std::move(converters), std::move(rowBuffer));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TClickHouseKeys ToClickHouseKeys(
+    const TLegacyKey& lowerKey,
+    const TLegacyKey& upperKey,
+    // How many columns are used in key condition.
+    int usedKeyColumnCount,
+    const DB::DataTypes& dataTypes,
+    bool makeUpperBoundInclusive)
+{
+    YT_VERIFY(usedKeyColumnCount <= dataTypes.size());
+
+    // XXX(dakovalkov): CH does not support nullable key columns, so we use several dirty tricks to represent them as not nullable.
+    DB::DataTypes notNullableDataTypes(usedKeyColumnCount);
+    for (int index = 0; index < usedKeyColumnCount; ++index) {
+        notNullableDataTypes[index] = DB::removeNullable(dataTypes[index]);
+    }
+
+    int commonPrefixSize = 0;
+    while (commonPrefixSize < lowerKey.GetCount()
+        && commonPrefixSize < upperKey.GetCount()
+        && lowerKey[commonPrefixSize] == upperKey[commonPrefixSize])
+    {
+        ++commonPrefixSize;
+    }
+
+    TClickHouseKeys result;
+    result.MinKey.resize(usedKeyColumnCount);
+    result.MaxKey.resize(usedKeyColumnCount);
+
+    // Convert TLegacyKey to ClickHouse FieldRef[].
+    auto convertToClickHouseKey = [&] (DB::FieldRef* chKey, const TLegacyKey& ytKey, bool isUpperKey) {
+        std::optional<EValueType> sentinel;
+        int lastNonSentinelIndex = -1;
+
+        for (int index = 0; index < usedKeyColumnCount; ++index) {
+            if (!sentinel) {
+                if (index >= ytKey.GetCount() || ytKey[index].Type == EValueType::Min) {
+                    sentinel = EValueType::Min;
+                } else if (ytKey[index].Type == EValueType::Max) {
+                    sentinel = EValueType::Max;
+                } else if (!isUpperKey && index >= commonPrefixSize && ytKey[index].Type == EValueType::Null) {
+                    // XXX(dakovalkov): Dirty trick (1) to remove null.
+                    // For lower key replacing Null with the minimum value can break our boundaries,
+                    // so we need to replace all following values with the minimum as well.
+                    // See 'Dirty trick (4)' for more details.
+                    sentinel = EValueType::Min;
+                }
+            }
+
+            if (sentinel) {
+                // XXX(dakovalkov): Dirty trick (2) to remove sentinels.
+                // CH does not support Min/Max sentinels yet, so replace them with min/max values.
+                // If min/max value is not representable, replace it with some big/small value.
+                // It will work in most cases.
+                if (*sentinel == EValueType::Min) {
+                    chKey[index] = TryGetMinimumTypeValue(notNullableDataTypes[index]);
+                } else {
+                    chKey[index] = TryGetMaximumTypeValue(notNullableDataTypes[index]);
+                }
+            } else {
+                if (ytKey[index].Type == EValueType::Null) {
+                    // XXX(dakovalkov): Dirty trick (3) to remove null.
+                    // Replacing Null in keys with fixed value helps when a meaningful column follows a null column.
+                    // For instance, (lowerKey=[Null, 1], upperKey=[Null, 3]) -> (lowerKey=[0, 1], upperKey=[0, 3]).
+                    // 'where' condition on second column will work fine in this case.
+                    YT_VERIFY(index < commonPrefixSize || isUpperKey);
+                    chKey[index] = TryGetMinimumTypeValue(notNullableDataTypes[index]);
+                } else {
+                    chKey[index] = ToField(ytKey[index]);
+                    lastNonSentinelIndex = index;
+                    // XXX(dakovalkov): Dirty trick (4) to remove null.
+                    // When we replace null with minimum value, we break sort order a litle bit.
+                    // For instance, ([Null, 5], [0, 1]) -> ([0, 5], [0, 1]).
+                    // If upper key of the chunk is [0, 2] and the query is 'where second_column = 5',
+                    // we can wrongly skip this chunk.
+                    // To eliminate this, we need to extend upper key with maximum values.
+                    if (isUpperKey && index >= commonPrefixSize && dataTypes[index]->isNullable()) {
+                        if (chKey[index] == TryGetMinimumTypeValue(notNullableDataTypes[index])) {
+                            sentinel = EValueType::Max;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Trying to convert the exclusive upper bound to inclusive.
+        if (isUpperKey && makeUpperBoundInclusive) {
+            bool isExclusive;
+
+            if (sentinel) {
+                isExclusive = (*sentinel == EValueType::Min);
+            } else {
+                isExclusive = (ytKey.GetCount() == usedKeyColumnCount);
+            }
+
+            if (isExclusive && lastNonSentinelIndex >= 0) {
+                std::vector<std::optional<DB::Field>> inclusiveSuffix;
+                inclusiveSuffix.reserve(usedKeyColumnCount);
+
+                // We try to decrement last non-sentinel value and convert all min-values after it to max-values.
+                // A, B, X, MIN, MIN -> A, B, (X - 1), MAX, MAX
+
+                bool failed = false;
+                failed |= !inclusiveSuffix.emplace_back(
+                    TryDecrementFieldValue(
+                        chKey[lastNonSentinelIndex],
+                        notNullableDataTypes[lastNonSentinelIndex]));
+
+                for (int index = lastNonSentinelIndex + 1; !failed && index < usedKeyColumnCount; ++index) {
+                    failed |= !inclusiveSuffix.emplace_back(TryGetMaximumTypeValue(notNullableDataTypes[index]));
+                }
+
+                if (!failed) {
+                    for (int index = lastNonSentinelIndex; index < usedKeyColumnCount; ++index) {
+                        chKey[index] = *inclusiveSuffix[index - lastNonSentinelIndex];
+                    }
+                }
+            }
+        }
+    };
+
+    convertToClickHouseKey(result.MinKey.data(), lowerKey, false);
+    convertToClickHouseKey(result.MaxKey.data(), upperKey, true);
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

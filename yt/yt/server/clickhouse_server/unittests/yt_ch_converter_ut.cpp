@@ -2,10 +2,11 @@
 
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/clickhouse_server/yt_ch_converter.h>
 #include <yt/server/clickhouse_server/config.h>
-#include <yt/server/clickhouse_server/helpers.h>
+#include <yt/server/clickhouse_server/conversion.h>
 #include <yt/server/clickhouse_server/data_type_boolean.h>
+#include <yt/server/clickhouse_server/helpers.h>
+#include <yt/server/clickhouse_server/yt_ch_converter.h>
 
 #include <yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/ytlib/table_chunk_format/column_writer.h>
@@ -767,6 +768,150 @@ TEST_F(TTestYTCHConversion, TestReadOnlyConversions)
         TComplexTypeFieldDescriptor descriptor(columnSchema);
         EXPECT_THROW(TYTCHConverter(descriptor, Settings_, /* enableReadOnlyConversions */ false), std::exception)
             << Format("Conversion of %v did not throw", *columnSchema.LogicalType());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedOwningRow MakeRow(const TUnversionedValues& values)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (const auto& value : values) {
+        builder.AddValue(value);
+    }
+    return builder.FinishRow();
+}
+
+TEST(TTestKeyConversion, TestBasic)
+{
+    DB::DataTypes dataTypes = {
+        std::make_shared<DB::DataTypeInt64>(),
+        std::make_shared<DB::DataTypeString>(),
+        std::make_shared<DB::DataTypeUInt64>(),
+    };
+    auto lowerKey = MakeRow({
+        MakeUnversionedInt64Value(1),
+        MakeUnversionedStringValue("test"),
+        MakeUnversionedUint64Value(2)});
+    auto upperKey = MakeRow({
+        MakeUnversionedInt64Value(10),
+        MakeUnversionedStringValue("test2"),
+        MakeUnversionedUint64Value(1)});
+
+    auto chKeys = ToClickHouseKeys(lowerKey, upperKey, 3, dataTypes, false);
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({1, "test", 2u}));
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({10, "test2", 1u}));
+
+    // Convert exclusive to inclusive.
+    chKeys = ToClickHouseKeys(lowerKey, upperKey, 3, dataTypes, true);
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({1, "test", 2u}));
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({10, "test2", 0u}));
+
+    // Upper bound is not always exclusive.
+    chKeys = ToClickHouseKeys(lowerKey, upperKey, 2, dataTypes, true);
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({1, "test"}));
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({10, "test2"}));
+
+    chKeys = ToClickHouseKeys(lowerKey, upperKey, 1, dataTypes, true);
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({DB::FieldRef(1)}));
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({DB::FieldRef(10)}));
+}
+
+TEST(TTestKeyConversion, TestSentinels)
+{
+    DB::DataTypes dataTypes = {
+        std::make_shared<DB::DataTypeString>(),
+        std::make_shared<DB::DataTypeInt64>(),
+        std::make_shared<DB::DataTypeUInt64>(),
+    };
+    auto lowerKey = MakeRow({
+        MakeUnversionedSentinelValue(EValueType::Min),
+        MakeUnversionedInt64Value(1),
+        MakeUnversionedUint64Value(2)});
+    auto upperKey = MakeRow({
+        MakeUnversionedStringValue("test"),
+        MakeUnversionedSentinelValue(EValueType::Max)});
+    
+    auto chKeys = ToClickHouseKeys(lowerKey, upperKey, 3, dataTypes, false);
+    EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({
+        "",
+        std::numeric_limits<DB::Int64>::min(),
+        std::numeric_limits<DB::UInt64>::min()}));
+    EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({
+        "test",
+        std::numeric_limits<DB::Int64>::max(),
+        std::numeric_limits<DB::UInt64>::max()}));
+}
+
+TEST(TTestKeyConversion, TestNulls)
+{
+    DB::DataTypes dataTypes = {
+        DB::makeNullable(std::make_shared<DB::DataTypeInt64>()),
+        DB::makeNullable(std::make_shared<DB::DataTypeInt64>()),
+        DB::makeNullable(std::make_shared<DB::DataTypeUInt64>()),
+    };
+    // Diffrent prefix
+    {
+        auto lowerKey = MakeRow({
+            MakeUnversionedInt64Value(1),
+            MakeUnversionedNullValue(),
+            MakeUnversionedUint64Value(10)});
+        auto upperKey = MakeRow({
+            MakeUnversionedInt64Value(10),
+            MakeUnversionedNullValue(),
+            MakeUnversionedUint64Value(22)});
+
+        auto chKeys = ToClickHouseKeys(lowerKey, upperKey, 3, dataTypes, true);
+        EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({
+            1,
+            std::numeric_limits<DB::Int64>::min(),
+            std::numeric_limits<DB::UInt64>::min()}));
+        EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({
+            10,
+            std::numeric_limits<DB::Int64>::min(),
+            21u}));
+    }
+    // Same prefix
+    {
+        auto lowerKey = MakeRow({
+            MakeUnversionedInt64Value(1),
+            MakeUnversionedNullValue(),
+            MakeUnversionedUint64Value(10)});
+        auto upperKey = MakeRow({
+            MakeUnversionedInt64Value(1),
+            MakeUnversionedNullValue(),
+            MakeUnversionedUint64Value(22)});
+
+        auto chKeys = ToClickHouseKeys(lowerKey, upperKey, 3, dataTypes, true);
+        EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({
+            1,
+            std::numeric_limits<DB::Int64>::min(),
+            10u}));
+        EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({
+            1,
+            std::numeric_limits<DB::Int64>::min(),
+            21u}));
+    }
+    // Minimum value
+    {
+        auto lowerKey = MakeRow({
+            MakeUnversionedInt64Value(1),
+            MakeUnversionedInt64Value(std::numeric_limits<DB::Int64>::min()),
+            MakeUnversionedUint64Value(10)});
+        auto upperKey = MakeRow({
+            MakeUnversionedInt64Value(10),
+            MakeUnversionedInt64Value(std::numeric_limits<DB::Int64>::min()),
+            MakeUnversionedUint64Value(22)});
+
+        auto chKeys = ToClickHouseKeys(lowerKey, upperKey, 3, dataTypes, true);
+        EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({
+            1,
+            std::numeric_limits<DB::Int64>::min(),
+            10u}));
+        EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({
+            10,
+            std::numeric_limits<DB::Int64>::min(),
+            std::numeric_limits<DB::UInt64>::max()}));
     }
 }
 

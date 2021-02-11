@@ -229,7 +229,7 @@ public:
 
         NTracing::TChildTraceContextGuard guard("ClickHouseYt.Prepare");
 
-        if (StorageContext_->Settings->ThrowTestingExceptionInDistributor) {
+        if (StorageContext_->Settings->Testing->ThrowExceptionInDistributor) {
             THROW_ERROR_EXCEPTION("Testing exception in distributor")
                 << TErrorAttribute("storage_index", StorageContext_->Index);
         }

@@ -71,7 +71,7 @@ void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString use
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<DB::Field> TryGetMinimumTypeValue(const DB::DataTypePtr& dataType)
+DB::Field TryGetMinimumTypeValue(const DB::DataTypePtr& dataType)
 {
     switch (dataType->getTypeId()) {
         case DB::TypeIndex::Nullable:
@@ -116,7 +116,7 @@ std::optional<DB::Field> TryGetMinimumTypeValue(const DB::DataTypePtr& dataType)
     }
 }
 
-std::optional<DB::Field> TryGetMaximumTypeValue(const DB::DataTypePtr& dataType)
+DB::Field TryGetMaximumTypeValue(const DB::DataTypePtr& dataType)
 {
     switch (dataType->getTypeId()) {
         case DB::TypeIndex::Nullable:
@@ -155,7 +155,9 @@ std::optional<DB::Field> TryGetMaximumTypeValue(const DB::DataTypePtr& dataType)
 
         case DB::TypeIndex::String:
             // The "maximum" string does not exist.
-            return std::nullopt;
+            // TODO(dakovalkov): Key condition does not support max/min sentinels. Set big value instead of it.
+            return DB::Field(std::string(SentinelMaxStringLength, std::numeric_limits<std::string::value_type>::max()));
+            // return std::nullopt;
 
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
@@ -164,7 +166,7 @@ std::optional<DB::Field> TryGetMaximumTypeValue(const DB::DataTypePtr& dataType)
 
 std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB::DataTypePtr& dataType)
 {
-    if (auto minValue = TryGetMinimumTypeValue(dataType); !minValue || *minValue == field) {
+    if (field == TryGetMinimumTypeValue(dataType)) {
         return std::nullopt;
     }
     switch (dataType->getTypeId()) {

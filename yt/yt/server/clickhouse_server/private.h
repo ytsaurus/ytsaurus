@@ -28,6 +28,8 @@ extern const NProfiling::TRegistry ClickHouseNativeProfiler;
 
 constexpr int MemoryLimitExceededExitCode = 42;
 
+constexpr int SentinelMaxStringLength = 50;
+
 extern const TString CacheUserName;
 extern const TString InternalRemoteUserName;
 
@@ -73,6 +75,7 @@ DECLARE_REFCOUNTED_CLASS(TMemoryConfig);
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog);
 DECLARE_REFCOUNTED_CLASS(TCompositeSettings);
 DECLARE_REFCOUNTED_CLASS(TDynamicTableSettings);
+DECLARE_REFCOUNTED_CLASS(TTestingSettings);
 DECLARE_REFCOUNTED_CLASS(TClickHouseIndex);
 
 struct TValue;
