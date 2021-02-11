@@ -1273,24 +1273,22 @@ private:
         ToProto(request->mutable_incarnation_id(), IncarnationId_);
 
         THashSet<TOperationId> flushJobMetricsOperationIds;
+        THashSet<TOperationId> finishedOperationIds;
 
         OperationEventsOutbox_->BuildOutcoming(
             request->mutable_agent_to_scheduler_operation_events(),
-            [&flushJobMetricsOperationIds] (auto* protoEvent, const auto& event) {
+            [&flushJobMetricsOperationIds, &finishedOperationIds] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                 switch (event.EventType) {
                     case EAgentToSchedulerOperationEventType::Completed:
-                        flushJobMetricsOperationIds.insert(event.OperationId);
                         break;
                     case EAgentToSchedulerOperationEventType::Aborted:
                     case EAgentToSchedulerOperationEventType::Failed:
                     case EAgentToSchedulerOperationEventType::Suspended:
-                        flushJobMetricsOperationIds.insert(event.OperationId);
                         ToProto(protoEvent->mutable_error(), event.Error);
                         break;
                     case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
-                        flushJobMetricsOperationIds.insert(event.OperationId);
                         ToProto(protoEvent->mutable_tentative_tree_id(), event.TentativeTreeId);
                         ToProto(protoEvent->mutable_tentative_tree_job_ids(), event.TentativeTreeJobIds);
                         break;
@@ -1326,6 +1324,26 @@ private:
                         break;
                     default:
                         YT_ABORT();
+                }
+                
+                switch (event.EventType) {
+                    case EAgentToSchedulerOperationEventType::Completed:
+                    case EAgentToSchedulerOperationEventType::Aborted:
+                    case EAgentToSchedulerOperationEventType::Failed:
+                    case EAgentToSchedulerOperationEventType::Suspended:
+                    case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
+                        flushJobMetricsOperationIds.insert(event.OperationId);
+                    default:
+                        break;
+                }
+
+                switch (event.EventType) {
+                    case EAgentToSchedulerOperationEventType::Completed:
+                    case EAgentToSchedulerOperationEventType::Aborted:
+                    case EAgentToSchedulerOperationEventType::Failed:
+                        finishedOperationIds.insert(event.OperationId);
+                    default:
+                        break;
                 }
             });
 
@@ -1381,7 +1399,8 @@ private:
 
         for (const auto& [operationId, operation] : GetOperations()) {
             bool flushJobMetrics = flushJobMetricsOperationIds.contains(operationId);
-            if (!preparedRequest.OperationsSent && !flushJobMetrics) {
+            bool sentAlerts = finishedOperationIds.contains(operationId);
+            if (!preparedRequest.OperationsSent && !flushJobMetrics && !sentAlerts) {
                 continue;
             }
             auto controller = operation->GetController();
@@ -1395,7 +1414,7 @@ private:
                 ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
             }
 
-            if (preparedRequest.OperationAlertsSent) {
+            if (preparedRequest.OperationAlertsSent || sentAlerts) {
                 auto* protoAlerts = protoOperation->mutable_alerts();
                 for (const auto& [alertType, alert] : controller->GetAlerts()) {
                     auto* protoAlert = protoAlerts->add_alerts();
