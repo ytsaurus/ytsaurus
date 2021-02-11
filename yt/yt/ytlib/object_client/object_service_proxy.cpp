@@ -248,9 +248,14 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecu
     return FullResponsePromise_;
 }
 
-void TObjectServiceProxy::TReqExecuteBatch::SetDefaultStickyGroupSize(int defaultStickyGroupSize)
+void TObjectServiceProxy::TReqExecuteBatch::SetStickyGroupSize(int value)
 {
-    DefaultStickyGroupSize_ = defaultStickyGroupSize;
+    StickyGroupSize_ = value;
+}
+
+void TObjectServiceProxy::TReqExecuteBatch::SetEnableClientStickiness(bool value)
+{
+    EnableClientStickiness_ = value;
 }
 
 TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
@@ -395,14 +400,15 @@ bool TObjectServiceProxy::TReqExecuteBatch::IsSubresponseReceived(int index) con
 
 void TObjectServiceProxy::TReqExecuteBatch::SetBalancingHeader()
 {
-    if (!DefaultStickyGroupSize_) {
+    if (!StickyGroupSize_) {
         return;
     }
 
     auto* balancingHeaderExt = Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
     balancingHeaderExt->set_enable_stickiness(true);
+    balancingHeaderExt->set_enable_client_stickiness(EnableClientStickiness_);
 
-    auto stickyGroupSize = *DefaultStickyGroupSize_;
+    auto stickyGroupSize = *StickyGroupSize_;
     auto advisedStickyGroupSize = GetAdvisedStickyGroupSize();
     if (advisedStickyGroupSize) {
         stickyGroupSize = std::max(stickyGroupSize, *advisedStickyGroupSize);
