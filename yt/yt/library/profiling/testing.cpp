@@ -10,20 +10,26 @@ namespace NYT::NProfiling {
 
 double TTesting::ReadGauge(const TGauge& gauge)
 {
-    if (gauge.Gauge_) {
-        return gauge.Gauge_->GetValue();
-    }
+    Y_ENSURE(gauge.Gauge_, "Gauge is not registered");
+    return gauge.Gauge_->GetValue();
+}
 
-    ythrow yexception() << "Gauge is not registered";
+TDuration TTesting::ReadTimeGauge(const TTimeGauge& gauge)
+{
+    Y_ENSURE(gauge.Gauge_, "Gauge is not registered");
+    return gauge.Gauge_->GetValue();
 }
 
 i64 TTesting::ReadCounter(const TCounter& counter)
 {
-    if (counter.Counter_) {
-        return counter.Counter_->GetValue();
-    }
+    Y_ENSURE(counter.Counter_, "Counter is not registered");
+    return counter.Counter_->GetValue();
+}
 
-    ythrow yexception() << "Counter is not registered";
+TDuration TTesting::ReadTimeCounter(const TTimeCounter& counter)
+{
+    Y_ENSURE(counter.Counter_, "Counter is not registered");
+    return counter.Counter_->GetValue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -33,7 +33,7 @@ class TSimpleTimeGauge
 public:
     virtual void Update(TDuration value) override;
 
-    TDuration GetValue();
+    virtual TDuration GetValue() override;
 
 private:
     std::atomic<TDuration::TValue> Value_ = 0.0;
