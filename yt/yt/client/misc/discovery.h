@@ -73,6 +73,8 @@ private:
     void DoEnter(TString name, NYTree::IAttributeDictionaryPtr attributes);
     void DoLeave();
 
+    void GuardedUpdateList();
+    // Same as above, but catch and discard all exceptions.
     void DoUpdateList();
 
     void DoCreateNode(int epoch);

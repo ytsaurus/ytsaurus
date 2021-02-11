@@ -63,7 +63,7 @@ TFuture<void> TDiscovery::UpdateList(TDuration ageThreshold)
         return VoidFuture;
     }
     if (!ScheduledForceUpdate_ || ScheduledForceUpdate_.IsSet()) {
-        ScheduledForceUpdate_ = BIND(&TDiscovery::DoUpdateList, MakeStrong(this))
+        ScheduledForceUpdate_ = BIND(&TDiscovery::GuardedUpdateList, MakeStrong(this))
             .AsyncVia(Invoker_)
             .Run();
         YT_LOG_DEBUG("Force update scheduled");
@@ -167,7 +167,7 @@ void TDiscovery::DoLeave()
     Transaction_.Reset();
 }
 
-void TDiscovery::DoUpdateList()
+void TDiscovery::GuardedUpdateList()
 {
     auto list = ConvertToNode(WaitFor(Client_->ListNode(Config_->Directory, ListOptions_))
         .ValueOrThrow());
@@ -205,6 +205,15 @@ void TDiscovery::DoUpdateList()
         LastUpdate_ = TInstant::Now();
     }
     YT_LOG_DEBUG("List of participants updated (Alive: %v, Dead: %v)", aliveCount, deadCount);
+}
+
+void TDiscovery::DoUpdateList()
+{
+    try {
+        GuardedUpdateList();
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to update discovery");
+    }
 }
 
 void TDiscovery::DoCreateNode(int epoch)
