@@ -872,11 +872,7 @@ void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
 
     auto* transaction = GetTransaction();
 
-    // Strip away prerequisite transactions.
-    if (context->RequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
-        auto* prerequisitesExt = context->RequestHeader().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-        prerequisitesExt->Clear();
-    }
+    ClearPrerequisiteTransactions(context);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToSecondaryMasters(
@@ -900,10 +896,22 @@ void TObjectProxyBase::ExternalizeToMaster(IServiceContextPtr context, TCellTag 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, cellTag);
 
+    if (GetDynamicCypressManagerConfig()->ClearPrerequisitesFromExternalizedRequests) {
+        ClearPrerequisiteTransactions(context);
+    }
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(
         TCrossCellMessage(object->GetId(), externalizedTransactionId, std::move(context)),
         cellTag);
+}
+
+void TObjectProxyBase::ClearPrerequisiteTransactions(NRpc::IServiceContextPtr& context)
+{
+    if (context->RequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
+        auto* prerequisitesExt = context->RequestHeader().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        prerequisitesExt->Clear();
+    }
 }
 
 const NCypressServer::TDynamicCypressManagerConfigPtr& TObjectProxyBase::GetDynamicCypressManagerConfig() const

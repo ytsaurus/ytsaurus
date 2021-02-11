@@ -71,6 +71,9 @@ public:
 
     TDuration RecursiveResourceUsageCacheExpirationTimeout;
 
+    // COMPAT(shakurov)
+    bool ClearPrerequisitesFromExternalizedRequests;
+
     TDynamicCypressManagerConfig();
 };
 

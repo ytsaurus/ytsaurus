@@ -196,6 +196,9 @@ protected:
     void ExternalizeToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
 
     const NCypressServer::TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
+
+private:
+    void ClearPrerequisiteTransactions(NRpc::IServiceContextPtr& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
