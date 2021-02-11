@@ -428,6 +428,44 @@ message TRspVersionedLookupRows
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqMultiLookup
+{
+    message TSubrequest
+    {
+        required string path = 1;
+
+        repeated string columns = 2;
+        optional bool keep_missing_rows = 3 [default = true];
+
+        optional bool enable_partial_result = 4 [default = false];
+        optional bool use_lookup_cache = 5 [default = false];
+
+        required TRowsetDescriptor rowset_descriptor = 6;
+
+        required int32 attachment_count = 7;
+    }
+
+    repeated TSubrequest subrequests = 1;
+
+    optional uint64 timestamp = 2 [default = 0x3fffffffffffff01];
+    optional TTabletReadOptions tablet_read_options = 3;
+    optional EMultiplexingBand multiplexing_band = 4;
+}
+
+message TRspMultiLookup
+{
+    message TSubresponse
+    {
+        required TRowsetDescriptor rowset_descriptor = 1;
+
+        required int32 attachment_count = 2;
+    }
+
+    repeated TSubresponse subresponses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TQueryStatistics
 {
     optional int64 rows_read = 1;

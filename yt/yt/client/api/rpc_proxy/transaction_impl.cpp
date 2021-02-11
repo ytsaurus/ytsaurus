@@ -514,6 +514,16 @@ TFuture<IVersionedRowsetPtr> TTransaction::VersionedLookupRows(
         PatchTransactionTimestamp(options));
 }
 
+TFuture<std::vector<IUnversionedRowsetPtr>> TTransaction::MultiLookup(
+    const std::vector<TMultiLookupSubrequest>& subrequests,
+    const TMultiLookupOptions& options)
+{
+    ValidateActive();
+    return Client_->MultiLookup(
+        subrequests,
+        PatchTransactionTimestamp(options));
+}
+
 TFuture<TSelectRowsResult> TTransaction::SelectRows(
     const TString& query,
     const TSelectRowsOptions& options)

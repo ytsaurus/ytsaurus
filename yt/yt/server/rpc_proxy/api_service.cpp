@@ -203,7 +203,7 @@ void FromProto(
 }
 
 void FromProto(
-    TTabletReadOptions* options,
+    TTabletReadOptionsBase* options,
     const NApi::NRpcProxy::NProto::TTabletReadOptions& proto)
 {
     if (proto.has_read_from()) {
@@ -403,6 +403,7 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(MultiLookup));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExplainQuery));
@@ -2449,30 +2450,44 @@ private:
     ////////////////////////////////////////////////////////////////////////////////
 
     template <class TContext, class TRequest, class TOptions>
-    static void LookupRowsPrologue(
+    static void LookupRowsPrelude(
         const TIntrusivePtr<TContext>& context,
-        TRequest* request,
-        const NApi::NRpcProxy::NProto::TRowsetDescriptor& rowsetDescriptor,
-        TNameTablePtr* nameTable,
-        TSharedRange<TUnversionedRow>* keys,
+        const TRequest* request,
         TOptions* options)
     {
-        if (request->Attachments().empty()) {
-            THROW_ERROR_EXCEPTION("Request is missing rowset in attachments");
-        }
-
-        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
-            request->rowset_descriptor(),
-            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
-
-        *nameTable = rowset->GetNameTable();
-        *keys = MakeSharedRange(rowset->GetRows(), rowset);
-
         if (request->has_tablet_read_options()) {
             FromProto(options, request->tablet_read_options());
         }
 
         SetTimeoutOptions(options, context.Get());
+
+        options->Timestamp = request->timestamp();
+
+        if (request->has_multiplexing_band()) {
+            options->MultiplexingBand = CheckedEnumCast<EMultiplexingBand>(request->multiplexing_band());
+        }
+    }
+
+    template <class TContext, class TRequest>
+    static void LookupRowsPrologue(
+        const TIntrusivePtr<TContext>& context,
+        const TRequest* request,
+        TNameTablePtr* nameTable,
+        TSharedRange<TUnversionedRow>* keys,
+        TLookupRequestOptions* options,
+        const std::vector<TSharedRef>& attachments)
+    {
+        if (attachments.empty()) {
+            THROW_ERROR_EXCEPTION("Request is missing rowset in attachments");
+        }
+
+        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
+            request->rowset_descriptor(),
+            MergeRefsToRef<TApiServiceBufferTag>(attachments));
+
+        *nameTable = rowset->GetNameTable();
+        *keys = MakeSharedRange(rowset->GetRows(), rowset);
+
         TColumnFilter::TIndexes columnFilterIndexes;
         for (int i = 0; i < request->columns_size(); ++i) {
             columnFilterIndexes.push_back((*nameTable)->GetIdOrRegisterName(request->columns(i)));
@@ -2480,27 +2495,17 @@ private:
         options->ColumnFilter = request->columns_size() == 0
             ? TColumnFilter()
             : TColumnFilter(std::move(columnFilterIndexes));
-        options->Timestamp = request->timestamp();
         options->KeepMissingRows = request->keep_missing_rows();
         options->EnablePartialResult = request->enable_partial_result();
         options->UseLookupCache = request->use_lookup_cache();
-
-        if (request->has_multiplexing_band()) {
-            options->MultiplexingBand = CheckedEnumCast<EMultiplexingBand>(request->multiplexing_band());
-        }
-
-        context->SetRequestInfo("Path: %v, Rows: %v, Timestamp: %v",
-            request->path(),
-            keys->Size(),
-            options->Timestamp);
     }
 
     template <class TResponse, class TRow>
-    static void AttachRowset(
+    static std::vector<TSharedRef> PrepareRowsetForAttachment(
         TResponse* response,
         const TIntrusivePtr<IRowset<TRow>>& rowset)
     {
-        response->Attachments() = NApi::NRpcProxy::SerializeRowset(
+        return NApi::NRpcProxy::SerializeRowset(
             rowset->GetSchema(),
             rowset->GetRows(),
             response->mutable_rowset_descriptor());
@@ -2515,13 +2520,22 @@ private:
         TNameTablePtr nameTable;
         TSharedRange<TUnversionedRow> keys;
         TLookupRowsOptions options;
+        LookupRowsPrelude(
+            context,
+            request,
+            &options);
         LookupRowsPrologue(
             context,
             request,
-            request->rowset_descriptor(),
             &nameTable,
             &keys,
-            &options);
+            &options,
+            request->Attachments());
+
+        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v",
+            request->path(),
+            keys.Size(),
+            options.Timestamp);
 
         CompleteCallWith(
             client,
@@ -2533,7 +2547,7 @@ private:
                 options),
             [] (const auto& context, const auto& rowset) {
                 auto* response = &context->Response();
-                AttachRowset(response, rowset);
+                response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
                 context->SetResponseInfo("RowCount: %v",
                     rowset->GetRows().Size());
@@ -2549,13 +2563,22 @@ private:
         TNameTablePtr nameTable;
         TSharedRange<TUnversionedRow> keys;
         TVersionedLookupRowsOptions options;
+        LookupRowsPrelude(
+            context,
+            request,
+            &options);
         LookupRowsPrologue(
             context,
             request,
-            request->rowset_descriptor(),
             &nameTable,
             &keys,
-            &options);
+            &options,
+            request->Attachments());
+
+        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v",
+            request->path(),
+            keys.Size(),
+            options.Timestamp);
 
         if (request->has_retention_config()) {
             options.RetentionConfig = New<TRetentionConfig>();
@@ -2572,10 +2595,102 @@ private:
                 options),
             [] (const auto& context, const auto& rowset) {
                 auto* response = &context->Response();
-                AttachRowset(response, rowset);
+                response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
                 context->SetResponseInfo("RowCount: %v",
                     rowset->GetRows().Size());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MultiLookup)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        int subrequestCount = request->subrequests_size();
+
+        TMultiLookupOptions options;
+        LookupRowsPrelude(
+            context,
+            request,
+            &options);
+
+        std::vector<TMultiLookupSubrequest> subrequests;
+        subrequests.reserve(subrequestCount);
+
+        int beginAttachmentIndex = 0;
+        for (int i = 0; i < subrequestCount; ++i) {
+            const auto& protoSubrequest = request->subrequests(i);
+
+            auto& subrequest = subrequests.emplace_back();
+            subrequest.Path = protoSubrequest.path();
+
+            int endAttachmentIndex = beginAttachmentIndex + protoSubrequest.attachment_count();
+            if (endAttachmentIndex > request->Attachments().size()) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Subrequest %v refers to non-existing attachment %v (out of %v)",
+                    i,
+                    endAttachmentIndex,
+                    request->Attachments().size());
+            }
+            std::vector<TSharedRef> attachments{
+                request->Attachments().begin() + beginAttachmentIndex,
+                request->Attachments().begin() + endAttachmentIndex};
+
+            LookupRowsPrologue(
+                context,
+                &protoSubrequest,
+                &subrequest.NameTable,
+                &subrequest.Keys,
+                &subrequest.Options,
+                attachments);
+
+            beginAttachmentIndex = endAttachmentIndex;
+        }
+        if (beginAttachmentIndex != request->Attachments().size()) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::ProtocolError,
+                "Total number of attachments is too large: expected %v, actual %v",
+                beginAttachmentIndex,
+                request->Attachments().size());
+        }
+
+        context->SetRequestInfo("Timestamp: %v, Subrequests: %v",
+            options.Timestamp,
+            MakeFormattableView(
+                subrequests,
+                [&] (auto* builder, const TMultiLookupSubrequest& request) {
+                    builder->AppendFormat("{Path: %v, RowCount: %v}",
+                        request.Path,
+                        request.Keys.Size());
+                }));
+
+        CompleteCallWith(
+            client,
+            context,
+            client->MultiLookup(
+                std::move(subrequests),
+                std::move(options)),
+            [=] (const auto& context, const auto& rowsets) {
+                auto* response = &context->Response();
+
+                YT_VERIFY(subrequestCount == rowsets.size());
+
+                std::vector<int> rowCounts;
+                rowCounts.reserve(subrequestCount);
+                for (const auto& rowset : rowsets) {
+                    auto* subresponse = response->add_subresponses();
+                    auto attachments = PrepareRowsetForAttachment(subresponse, rowset);
+                    subresponse->set_attachment_count(attachments.size());
+                    response->Attachments().insert(
+                        response->Attachments().end(),
+                        attachments.begin(),
+                        attachments.end());
+                    rowCounts.push_back(rowset->GetRows().Size());
+                }
+
+                context->SetResponseInfo("RowCounts: %v",
+                    rowCounts);
             });
     }
 
@@ -2649,7 +2764,7 @@ private:
             client->SelectRows(query, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                AttachRowset(response, result.Rowset);
+                response->Attachments() = PrepareRowsetForAttachment(response, result.Rowset);
                 ToProto(response->mutable_statistics(), result.Statistics);
 
                 context->SetResponseInfo("RowCount: %v",

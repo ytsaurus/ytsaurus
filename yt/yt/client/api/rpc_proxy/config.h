@@ -62,6 +62,9 @@ public:
 
     i64 ModifyRowsBatchCapacity;
 
+    // COMPAT(akozhikhov): drop this later.
+    bool EnableMultiLookup;
+
     TConnectionConfig();
 };
 

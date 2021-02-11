@@ -764,6 +764,91 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     }));
 }
 
+TFuture<std::vector<IUnversionedRowsetPtr>> TClientBase::MultiLookup(
+    const std::vector<TMultiLookupSubrequest>& subrequests,
+    const TMultiLookupOptions& options)
+{
+    // COMPAT(akozhikhov)
+    if (!GetRpcProxyConnection()->GetConfig()->EnableMultiLookup) {
+        TLookupRowsOptions lookupOptions;
+        static_cast<TTimeoutOptions&>(lookupOptions) = options;
+        static_cast<TMultiplexingBandOptions&>(lookupOptions) = options;
+        static_cast<TTabletReadOptionsBase&>(lookupOptions) = options;
+
+        std::vector<TFuture<IUnversionedRowsetPtr>> asyncResults;
+        asyncResults.reserve(subrequests.size());
+        for (const auto& subrequest : subrequests) {
+            static_cast<TLookupRequestOptions&>(lookupOptions) = subrequest.Options;
+            asyncResults.push_back(LookupRows(
+                subrequest.Path,
+                subrequest.NameTable,
+                subrequest.Keys,
+                lookupOptions));
+        }
+
+        return AllSucceeded(std::move(asyncResults));
+    }
+
+    auto proxy = CreateApiServiceProxy();
+    auto req = proxy.MultiLookup();
+
+    req->SetHeavy(true);
+    req->SetTimeout(options.Timeout);
+    req->SetMultiplexingBand(options.MultiplexingBand);
+
+    for (const auto& subrequest : subrequests) {
+        auto* protoSubrequest = req->add_subrequests();
+
+        protoSubrequest->set_path(subrequest.Path);
+
+        const auto& subrequestOptions = subrequest.Options;
+        if (!subrequestOptions.ColumnFilter.IsUniversal()) {
+            for (auto id : subrequestOptions.ColumnFilter.GetIndexes()) {
+                protoSubrequest->add_columns(TString(subrequest.NameTable->GetName(id)));
+            }
+        }
+        protoSubrequest->set_keep_missing_rows(subrequestOptions.KeepMissingRows);
+        protoSubrequest->set_enable_partial_result(subrequestOptions.EnablePartialResult);
+        protoSubrequest->set_use_lookup_cache(subrequestOptions.UseLookupCache);
+
+        auto rowset = SerializeRowset(
+            subrequest.NameTable,
+            subrequest.Keys,
+            protoSubrequest->mutable_rowset_descriptor());
+        protoSubrequest->set_attachment_count(rowset.size());
+        req->Attachments().insert(req->Attachments().end(), rowset.begin(), rowset.end());
+    }
+
+    req->set_timestamp(options.Timestamp);
+    req->set_multiplexing_band(static_cast<NProto::EMultiplexingBand>(options.MultiplexingBand));
+    ToProto(req->mutable_tablet_read_options(), options);
+
+    return req->Invoke().Apply(BIND([subrequestCount = subrequests.size()] (const TApiServiceProxy::TRspMultiLookupPtr& rsp) {
+        YT_VERIFY(subrequestCount == rsp->subresponses_size());
+
+        std::vector<IUnversionedRowsetPtr> result;
+        result.reserve(subrequestCount);
+
+        int beginAttachmentIndex = 0;
+        for (const auto& subresponse : rsp->subresponses()) {
+            int endAttachmentIndex = beginAttachmentIndex + subresponse.attachment_count();
+            YT_VERIFY(endAttachmentIndex <= rsp->Attachments().size());
+
+            std::vector<TSharedRef> subresponseAttachments{
+                rsp->Attachments().begin() + beginAttachmentIndex,
+                rsp->Attachments().begin() + endAttachmentIndex};
+            result.push_back(DeserializeRowset<TUnversionedRow>(
+                subresponse.rowset_descriptor(),
+                MergeRefsToRef<TRpcProxyClientBufferTag>(std::move(subresponseAttachments))));
+
+            beginAttachmentIndex = endAttachmentIndex;
+        }
+        YT_VERIFY(beginAttachmentIndex == rsp->Attachments().size());
+
+        return result;
+    }));
+}
+
 template<class TRequest>
 void FillRequestBySelectRowsOptionsBase(const TSelectRowsOptionsBase& options, TRequest request)
 {

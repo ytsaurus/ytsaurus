@@ -115,6 +115,10 @@ public:
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options),
         (path, std::move(nameTable), std::move(keys), options))
+    IMPLEMENT_METHOD(std::vector<IUnversionedRowsetPtr>, MultiLookup, (
+        const std::vector<TMultiLookupSubrequest>& subrequests,
+        const TMultiLookupOptions& options),
+        (subrequests, options))
     IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
         const TString& query,
         const TSelectRowsOptions& options),
@@ -530,17 +534,6 @@ private:
 
     void ValidateSuperuserPermissions();
 
-    using TEncoderWithMapping = std::function<std::vector<TSharedRef>(
-        const NTableClient::TColumnFilter&,
-        const std::vector<NTableClient::TUnversionedRow>&)>;
-    using TDecoderWithMapping = std::function<NTableClient::TTypeErasedRow(
-        const NTableClient::TSchemaData&,
-        NTableClient::TWireProtocolReader*)>;
-    template <class TResult>
-    using TReplicaFallbackHandler = std::function<TFuture<TResult>(
-        const NApi::IClientPtr&,
-        const NTabletClient::TTableReplicaInfoPtr&)>;
-
     IUnversionedRowsetPtr DoLookupRows(
         const NYPath::TYPath& path,
         const NTableClient::TNameTablePtr& nameTable,
@@ -551,6 +544,35 @@ private:
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options);
+    std::vector<IUnversionedRowsetPtr> DoMultiLookup(
+        const std::vector<TMultiLookupSubrequest>& subrequests,
+        const TMultiLookupOptions& options);
+
+    using TEncoderWithMapping = std::function<std::vector<TSharedRef>(
+        const NTableClient::TColumnFilter&,
+        const std::vector<NTableClient::TUnversionedRow>&)>;
+    TEncoderWithMapping GetLookupRowsEncoder() const;
+
+    using TDecoderWithMapping = std::function<NTableClient::TTypeErasedRow(
+        const NTableClient::TSchemaData&,
+        NTableClient::TWireProtocolReader*)>;
+    TDecoderWithMapping GetLookupRowsDecoder() const;
+
+    template <class TResult>
+    using TReplicaFallbackHandler = std::function<TFuture<TResult>(
+        const NApi::IClientPtr&,
+        const NTabletClient::TTableReplicaInfoPtr&)>;
+
+    template <class TRowset, class TRow>
+    TRowset DoLookupRowsOnce(
+        const NYPath::TYPath& path,
+        const NTableClient::TNameTablePtr& nameTable,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
+        const TLookupRowsOptionsBase& options,
+        const std::optional<TString>& retentionConfig,
+        TEncoderWithMapping encoderWithMapping,
+        TDecoderWithMapping decoderWithMapping,
+        TReplicaFallbackHandler<TRowset> replicaFallbackHandler);
 
     static NTabletClient::TTableReplicaInfoPtr PickRandomReplica(
         const TTableReplicaInfoPtrList& replicas);
@@ -575,17 +597,6 @@ private:
 
     NApi::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);
     NApi::IClientPtr CreateReplicaClient(const TString& clusterName);
-
-    template <class TRowset, class TRow>
-    TRowset DoLookupRowsOnce(
-        const NYPath::TYPath& path,
-        const NTableClient::TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TLegacyKey>& keys,
-        const TLookupRowsOptionsBase& options,
-        const std::optional<TString>& retentionConfig,
-        TEncoderWithMapping encoderWithMapping,
-        TDecoderWithMapping decoderWithMapping,
-        TReplicaFallbackHandler<TRowset> replicaFallbackHandler);
 
     TSelectRowsResult DoSelectRows(
         const TString& queryString,

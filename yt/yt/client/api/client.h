@@ -77,6 +77,11 @@ struct TTimeoutOptions
     std::optional<TDuration> Timeout;
 };
 
+struct TMultiplexingBandOptions
+{
+    NRpc::EMultiplexingBand MultiplexingBand = NRpc::EMultiplexingBand::Default;
+};
+
 struct TTabletRangeOptions
 {
     std::optional<int> FirstTabletIndex;
@@ -435,8 +440,7 @@ struct TTransactionAbortOptions
     bool Force = false;
 };
 
-struct TTabletReadOptions
-    : public TTimeoutOptions
+struct TTabletReadOptionsBase
 {
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
     std::optional<TDuration> RpcHedgingDelay;
@@ -444,15 +448,24 @@ struct TTabletReadOptions
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
 };
 
-struct TLookupRowsOptionsBase
-    : public TTabletReadOptions
+struct TTabletReadOptions
+    : public TTimeoutOptions
+    , public TTabletReadOptionsBase
+{ };
+
+struct TLookupRequestOptions
 {
     NTableClient::TColumnFilter ColumnFilter;
     bool KeepMissingRows = false;
     bool EnablePartialResult = false;
     bool UseLookupCache = false;
-    NRpc::EMultiplexingBand MultiplexingBand = NRpc::EMultiplexingBand::Default;
 };
+
+struct TLookupRowsOptionsBase
+    : public TTabletReadOptions
+    , public TLookupRequestOptions
+    , public TMultiplexingBandOptions
+{ };
 
 struct TLookupRowsOptions
     : public TLookupRowsOptionsBase
@@ -463,6 +476,23 @@ struct TVersionedLookupRowsOptions
 {
     NTableClient::TRetentionConfigPtr RetentionConfig;
 };
+
+struct TMultiLookupSubrequest
+{
+    NYPath::TYPath Path;
+    NTableClient::TNameTablePtr NameTable;
+    TSharedRange<NTableClient::TLegacyKey> Keys;
+
+    // NB: Other options from TLookupRowsOptions that are absent from TLookupRequestOptions are
+    // common and included in TMultiLookupOptions.
+    TLookupRequestOptions Options;
+};
+
+struct TMultiLookupOptions
+    : public TTimeoutOptions
+    , public TTabletReadOptionsBase
+    , public TMultiplexingBandOptions
+{ };
 
 struct TSelectRowsOptionsBase
     : public TTabletReadOptions
@@ -1225,6 +1255,10 @@ struct IClientBase
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options = {}) = 0;
+
+    virtual TFuture<std::vector<IUnversionedRowsetPtr>> MultiLookup(
+        const std::vector<TMultiLookupSubrequest>& subrequests,
+        const TMultiLookupOptions& options = {}) = 0;
 
     virtual TFuture<TSelectRowsResult> SelectRows(
         const TString& query,
