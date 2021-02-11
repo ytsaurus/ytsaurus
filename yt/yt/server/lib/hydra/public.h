@@ -21,8 +21,7 @@ DECLARE_REFCOUNTED_STRUCT(IDistributedHydraManager)
 DECLARE_REFCOUNTED_STRUCT(IChangelog)
 DECLARE_REFCOUNTED_STRUCT(IChangelogStore)
 DECLARE_REFCOUNTED_STRUCT(IChangelogStoreFactory)
-
-DECLARE_REFCOUNTED_CLASS(TFileChangelogDispatcher)
+DECLARE_REFCOUNTED_STRUCT(IFileChangelogDispatcher)
 
 struct TSnapshotParams;
 DECLARE_REFCOUNTED_STRUCT(ISnapshotReader)
@@ -50,7 +49,7 @@ class TSaveContext;
 class TLoadContext;
 
 DECLARE_REFCOUNTED_CLASS(TFileChangelogConfig)
-DECLARE_REFCOUNTED_CLASS(TFileChangelogDispatcherConfig)
+DECLARE_REFCOUNTED_CLASS(IFileChangelogDispatcherConfig)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TLocalSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)

@@ -29,6 +29,17 @@ static const auto& Logger = HydraLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TFileChangelogDispatcher)
+DECLARE_REFCOUNTED_CLASS(TFileChangelogQueue)
+DECLARE_REFCOUNTED_CLASS(TFileChangelog)
+
+IChangelogPtr CreateFileChangelog(
+    TFileChangelogDispatcherPtr dispatcher,
+    TFileChangelogConfigPtr config,
+    TSyncFileChangelogPtr changelog);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFileChangelogQueue
     : public TRefCounted
 {
@@ -42,9 +53,9 @@ public:
         , Invoker_(NConcurrency::CreateBoundedConcurrencyInvoker(invoker, 1))
         , ProcessQueueCallback_(BIND(&TFileChangelogQueue::Process, MakeWeak(this)))
         , FlushedRecordCount_(Changelog_->GetRecordCount())
-        , ChangelogReadIOTimer_(profiler.Timer("/changelog_read_io_time"))
-        , ChangelogReadCopyTimer_(profiler.Timer("/changelog_read_copy_time"))
-        , ChangelogFlushIOTimer_(profiler.Timer("/changelog_flush_io_time"))
+        , ChangelogReadIOTimer_(Profiler.Timer("/changelog_read_io_time"))
+        , ChangelogReadCopyTimer_(Profiler.Timer("/changelog_read_copy_time"))
+        , ChangelogFlushIOTimer_(Profiler.Timer("/changelog_flush_io_time"))
     { }
 
     ~TFileChangelogQueue()
@@ -199,7 +210,10 @@ public:
         }
     }
 
-    void Process() {
+    void Process()
+    {
+        VERIFY_THREAD_AFFINITY(SyncThread);
+
         ProcessQueueCallbackPending_ = false;
 
         if (HasPendingFlushes()) {
@@ -239,6 +253,8 @@ private:
 
     void SyncFlush()
     {
+        VERIFY_THREAD_AFFINITY(SyncThread);
+
         TPromise<void> flushPromise;
         {
             auto guard = Guard(SpinLock_);
@@ -275,72 +291,93 @@ private:
     }
 };
 
-typedef TIntrusivePtr<TFileChangelogQueue> TFileChangelogQueuePtr;
+DEFINE_REFCOUNTED_TYPE(TFileChangelogQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileChangelogDispatcher::TImpl
-    : public TRefCounted
+class TFileChangelogDispatcher
+    : public IFileChangelogDispatcher
 {
 public:
-    TImpl(
-        const NChunkClient::IIOEnginePtr& ioEngine,
-        const TFileChangelogDispatcherConfigPtr config,
-        const TString& threadName,
-        const TRegistry& profiler)
-        : IOEngine_(ioEngine)
-        , Config_(config)
-        , ProcessQueuesCallback_(BIND(&TImpl::ProcessQueues, MakeWeak(this)))
-        , ActionQueue_(New<TActionQueue>(threadName))
+    TFileChangelogDispatcher(
+        NChunkClient::IIOEnginePtr ioEngine,
+        IFileChangelogDispatcherConfigPtr config,
+        TString threadName,
+        TRegistry profiler)
+        : IOEngine_(std::move(ioEngine))
+        , Config_(std::move(config))
+        , ProcessQueuesCallback_(BIND(&TFileChangelogDispatcher::ProcessQueues, MakeWeak(this)))
+        , ActionQueue_(New<TActionQueue>(std::move(threadName)))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),
             ProcessQueuesCallback_,
             Config_->FlushQuantum))
-        , Profiler(profiler)
-        , RecordCounter_(profiler.Counter("/records"))
-        , ByteCounter_(profiler.Counter("/bytes"))
-        , QueueCountGauge_(profiler.Gauge("/queue_count"))
-        , ChangelogTruncateIOTimer_(profiler.Timer("/changelog_truncate_io_time"))
-        , ChangelogCloseIOTimer_(profiler.Timer("/changelog_close_io_time"))
-        , ChangelogPreallocateIOTimer_(profiler.Timer("/changelog_preallocate_io_time"))
-        , ChangelogReadRecordCountGauge_(profiler.Gauge("/changelog_read_record_count"))
-        , ChangelogReadSizeGauge_(profiler.Gauge("/changelog_read_size"))
+        , Profiler(std::move(profiler))
+        , RecordCounter_(Profiler.Counter("/records"))
+        , ByteCounter_(Profiler.Counter("/bytes"))
+        , QueueCountGauge_(Profiler.Gauge("/queue_count"))
+        , ChangelogTruncateIOTimer_(Profiler.Timer("/changelog_truncate_io_time"))
+        , ChangelogCloseIOTimer_(Profiler.Timer("/changelog_close_io_time"))
+        , ChangelogPreallocateIOTimer_(Profiler.Timer("/changelog_preallocate_io_time"))
+        , ChangelogReadRecordCountGauge_(Profiler.Gauge("/changelog_read_record_count"))
+        , ChangelogReadSizeGauge_(Profiler.Gauge("/changelog_read_size"))
     {
         PeriodicExecutor_->Start();
     }
 
-    ~TImpl()
-    {
-        Shutdown();
-    }
-
-    void Shutdown()
+    ~TFileChangelogDispatcher()
     {
         PeriodicExecutor_->Stop();
         ActionQueue_->Shutdown();
     }
 
-    IInvokerPtr GetInvoker()
+    virtual IInvokerPtr GetInvoker() override
     {
         return ActionQueue_->GetInvoker();
     }
 
+    virtual TFuture<IChangelogPtr> CreateChangelog(
+        const TString& path,
+        const TFileChangelogConfigPtr& config) override
+    {
+        return BIND(&TFileChangelogDispatcher::DoCreateChangelog, MakeStrong(this))
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run(path, config);
+    }
+
+    virtual TFuture<IChangelogPtr> OpenChangelog(
+        const TString& path,
+        const TFileChangelogConfigPtr& config) override
+    {
+        return BIND(&TFileChangelogDispatcher::DoOpenChangelog, MakeStrong(this))
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run(path, config);
+    }
+
+    virtual TFuture<void> FlushChangelogs() override
+    {
+        return BIND(&TFileChangelogDispatcher::DoFlushChangelogs, MakeStrong(this))
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run();
+    }
+
+    
     TFileChangelogQueuePtr CreateQueue(TSyncFileChangelogPtr syncChangelog)
     {
-        return New<TFileChangelogQueue>(std::move(syncChangelog), Profiler, GetInvoker());
+        return New<TFileChangelogQueue>(std::move(syncChangelog), Profiler, ActionQueue_->GetInvoker());
     }
 
     void RegisterQueue(const TFileChangelogQueuePtr& queue)
     {
-        queue->GetInvoker()->Invoke(BIND(&TImpl::DoRegisterQueue, MakeStrong(this), queue));
+        queue->GetInvoker()->Invoke(BIND(&TFileChangelogDispatcher::DoRegisterQueue, MakeStrong(this), queue));
     }
 
     void UnregisterQueue(const TFileChangelogQueuePtr& queue)
     {
-        queue->GetInvoker()->Invoke(BIND(&TImpl::DoUnregisterQueue, MakeStrong(this), queue));
+        queue->GetInvoker()->Invoke(BIND(&TFileChangelogDispatcher::DoUnregisterQueue, MakeStrong(this), queue));
     }
 
-    TFuture<void> Append(const TFileChangelogQueuePtr& queue, TRange<TSharedRef> records, i64 byteSize)
+    TFuture<void> AppendToQueue(const TFileChangelogQueuePtr& queue, TRange<TSharedRef> records, i64 byteSize)
     {
         auto result = queue->AsyncAppend(records, byteSize);
         queue->Wakeup();
@@ -349,67 +386,55 @@ public:
         return result;
     }
 
-    TFuture<std::vector<TSharedRef>> Read(
+    TFuture<std::vector<TSharedRef>> ReadFromQueue(
         TFileChangelogQueuePtr queue,
         int firstRecordId,
         int maxRecords,
         i64 maxBytes)
     {
-        return BIND(&TImpl::DoRead, MakeStrong(this))
+        return BIND(&TFileChangelogDispatcher::DoReadFromQueue, MakeStrong(this))
             .AsyncVia(queue->GetInvoker())
             .Run(std::move(queue), firstRecordId, maxRecords, maxBytes);
     }
 
-    TFuture<void> Flush(TFileChangelogQueuePtr queue)
+    TFuture<void> FlushQueue(const TFileChangelogQueuePtr& queue)
     {
         auto result = queue->AsyncFlush();
         queue->Wakeup();
         return result;
     }
 
-    TFuture<void> ForceFlush(TFileChangelogQueuePtr queue)
+    TFuture<void> ForceFlushQueue(const TFileChangelogQueuePtr& queue)
     {
         auto result = queue->AsyncFlush();
         queue->GetInvoker()->Invoke(BIND(&TFileChangelogQueue::Process, queue));
         return result;
     }
 
-    TFuture<void> Truncate(TFileChangelogQueuePtr queue, int recordCount)
+    TFuture<void> TruncateQueue(const TFileChangelogQueuePtr& queue, int recordCount)
     {
-        return BIND(&TImpl::DoTruncate, MakeStrong(this))
+        return BIND(&TFileChangelogDispatcher::DoTruncateQueue, MakeStrong(this))
             .AsyncVia(queue->GetInvoker())
-            .Run(std::move(queue), recordCount);
+            .Run(queue, recordCount);
     }
 
-    TFuture<void> Close(TFileChangelogQueuePtr queue)
+    TFuture<void> CloseQueue(const TFileChangelogQueuePtr& queue)
     {
-        return BIND(&TImpl::DoClose, MakeStrong(this))
+        return BIND(&TFileChangelogDispatcher::DoCloseQueue, MakeStrong(this))
             .AsyncVia(queue->GetInvoker())
-            .Run(std::move(queue));
+            .Run(queue);
     }
 
-    TFuture<void> Preallocate(TFileChangelogQueuePtr queue, size_t size)
+    TFuture<void> PreallocateQueue(const TFileChangelogQueuePtr& queue, size_t size)
     {
-        return BIND(&TImpl::DoPreallocate, MakeStrong(this))
+        return BIND(&TFileChangelogDispatcher::DoPreallocateQueue, MakeStrong(this))
             .AsyncVia(queue->GetInvoker())
-            .Run(std::move(queue), size);
-    }
-
-    TFuture<void> FlushChangelogs()
-    {
-        return BIND(&TImpl::DoFlushChangelogs, MakeStrong(this))
-            .AsyncVia(ActionQueue_->GetInvoker())
-            .Run();
-    }
-
-    const NChunkClient::IIOEnginePtr& GetIOEngine() const
-    {
-        return IOEngine_;
+            .Run(queue, size);
     }
 
 private:
     const NChunkClient::IIOEnginePtr IOEngine_;
-    const TFileChangelogDispatcherConfigPtr Config_;
+    const IFileChangelogDispatcherConfigPtr Config_;
     const TClosure ProcessQueuesCallback_;
 
     const TActionQueuePtr ActionQueue_;
@@ -434,7 +459,6 @@ private:
             queue->Wakeup();
         }
     }
-
 
     void DoRegisterQueue(const TFileChangelogQueuePtr& queue)
     {
@@ -462,7 +486,7 @@ private:
         QueueCountGauge_.Update(Queues_.size());
     }
 
-    std::vector<TSharedRef> DoRead(
+    std::vector<TSharedRef> DoReadFromQueue(
         const TFileChangelogQueuePtr& queue,
         int firstRecordId,
         int maxRecords,
@@ -474,7 +498,7 @@ private:
         return records;
     }
 
-    void DoTruncate(
+    void DoTruncateQueue(
         const TFileChangelogQueuePtr& queue,
         int recordCount)
     {
@@ -485,7 +509,7 @@ private:
         changelog->Truncate(recordCount);
     }
 
-    void DoClose(const TFileChangelogQueuePtr& queue)
+    void DoCloseQueue(const TFileChangelogQueuePtr& queue)
     {
         YT_VERIFY(!queue->HasUnflushedRecords());
 
@@ -494,12 +518,33 @@ private:
         changelog->Close();
     }
 
-    void DoPreallocate(const TFileChangelogQueuePtr& queue, size_t size)
+    void DoPreallocateQueue(
+        const TFileChangelogQueuePtr& queue,
+        size_t size)
     {
         YT_VERIFY(!queue->HasUnflushedRecords());
         TEventTimerGuard guard(ChangelogPreallocateIOTimer_);
         const auto& changelog = queue->GetChangelog();
         changelog->Preallocate(size);
+    }
+
+    
+    IChangelogPtr DoCreateChangelog(
+        const TString& path,
+        const TFileChangelogConfigPtr& config)
+    {
+        auto syncChangelog = New<TSyncFileChangelog>(IOEngine_, path, config);
+        syncChangelog->Create();
+        return CreateFileChangelog(this, config, syncChangelog);
+    }
+
+    IChangelogPtr DoOpenChangelog(
+        const TString& path,
+        const TFileChangelogConfigPtr& config)
+    {
+        auto syncChangelog = New<TSyncFileChangelog>(IOEngine_, path, config);
+        syncChangelog->Open();
+        return CreateFileChangelog(this, config, syncChangelog);
     }
 
     TFuture<void> DoFlushChangelogs()
@@ -512,6 +557,8 @@ private:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcher)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileChangelog
@@ -519,16 +566,16 @@ class TFileChangelog
 {
 public:
     TFileChangelog(
-        TFileChangelogDispatcher::TImplPtr impl,
+        TFileChangelogDispatcherPtr dispatcher,
         TFileChangelogConfigPtr config,
         TSyncFileChangelogPtr changelog)
-        : DispatcherImpl_(std::move(impl))
+        : Dispatcher_(std::move(dispatcher))
         , Config_(std::move(config))
-        , Queue_(DispatcherImpl_->CreateQueue(changelog))
+        , Queue_(Dispatcher_->CreateQueue(changelog))
         , RecordCount_(changelog->GetRecordCount())
         , DataSize_(changelog->GetDataSize())
     {
-        DispatcherImpl_->RegisterQueue(Queue_);
+        Dispatcher_->RegisterQueue(Queue_);
     }
 
     ~TFileChangelog()
@@ -536,7 +583,7 @@ public:
         YT_LOG_DEBUG("Destroying changelog queue (Path: %v)",
             Queue_->GetChangelog()->GetFileName());
         Close();
-        DispatcherImpl_->UnregisterQueue(Queue_);
+        Dispatcher_->UnregisterQueue(Queue_);
     }
 
     virtual int GetRecordCount() const override
@@ -555,12 +602,12 @@ public:
         i64 byteSize = GetByteSize(records);
         RecordCount_ += records.Size();
         DataSize_ += byteSize;
-        return DispatcherImpl_->Append(Queue_, records, byteSize);
+        return Dispatcher_->AppendToQueue(Queue_, records, byteSize);
     }
 
     virtual TFuture<void> Flush() override
     {
-        return DispatcherImpl_->Flush(Queue_);
+        return Dispatcher_->FlushQueue(Queue_);
     }
 
     virtual TFuture<std::vector<TSharedRef>> Read(
@@ -571,7 +618,7 @@ public:
         YT_VERIFY(firstRecordId >= 0);
         YT_VERIFY(maxRecords >= 0);
         YT_VERIFY(maxBytes >= 0);
-        return DispatcherImpl_->Read(
+        return Dispatcher_->ReadFromQueue(
             Queue_,
             firstRecordId,
             maxRecords,
@@ -585,25 +632,25 @@ public:
         Truncated_ = true;
         // NB: Ignoring the result seems fine since TSyncFileChangelog
         // will propagate any possible error as the result of all further calls.
-        DispatcherImpl_->ForceFlush(Queue_);
-        return DispatcherImpl_->Truncate(Queue_, recordCount);
+        Dispatcher_->ForceFlushQueue(Queue_);
+        return Dispatcher_->TruncateQueue(Queue_, recordCount);
     }
 
     virtual TFuture<void> Close() override
     {
         Closed_ = true;
         // NB: See #Truncate above.
-        DispatcherImpl_->ForceFlush(Queue_);
-        return DispatcherImpl_->Close(Queue_);
+        Dispatcher_->ForceFlushQueue(Queue_);
+        return Dispatcher_->CloseQueue(Queue_);
     }
 
     virtual TFuture<void> Preallocate(size_t size) override
     {
-        return DispatcherImpl_->Preallocate(Queue_, size);
+        return Dispatcher_->PreallocateQueue(Queue_, size);
     }
 
 private:
-    const TFileChangelogDispatcher::TImplPtr DispatcherImpl_;
+    const TFileChangelogDispatcherPtr Dispatcher_;
     const TFileChangelogConfigPtr Config_;
 
     const TFileChangelogQueuePtr Queue_;
@@ -613,55 +660,34 @@ private:
 
     std::atomic<int> RecordCount_;
     std::atomic<i64> DataSize_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 
+IChangelogPtr CreateFileChangelog(
+    TFileChangelogDispatcherPtr dispatcher,
+    TFileChangelogConfigPtr config,
+    TSyncFileChangelogPtr changelog)
+{
+    return New<TFileChangelog>(
+        std::move(dispatcher),
+        std::move(config),
+        std::move(changelog));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileChangelogDispatcher::TFileChangelogDispatcher(
-    const NChunkClient::IIOEnginePtr& ioEngine,
-    const TFileChangelogDispatcherConfigPtr& config,
-    const TString& threadName,
-    const TRegistry& profiler)
-    : Impl_(New<TImpl>(
-        ioEngine,
-        config,
-        threadName,
-        profiler))
-{ }
-
-TFileChangelogDispatcher::~TFileChangelogDispatcher() = default;
-
-IInvokerPtr TFileChangelogDispatcher::GetInvoker()
+IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
+    NChunkClient::IIOEnginePtr ioEngine,
+    IFileChangelogDispatcherConfigPtr config,
+    TString threadName,
+    TRegistry profiler)
 {
-    return Impl_->GetInvoker();
-}
-
-IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
-    const TString& path,
-    const TFileChangelogConfigPtr& config)
-{
-    auto syncChangelog = New<TSyncFileChangelog>(Impl_->GetIOEngine(), path, config);
-    syncChangelog->Create();
-
-    return New<TFileChangelog>(Impl_, config, syncChangelog);
-}
-
-IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
-    const TString& path,
-    const TFileChangelogConfigPtr& config)
-{
-    auto syncChangelog = New<TSyncFileChangelog>(Impl_->GetIOEngine(), path, config);
-    syncChangelog->Open();
-
-    return New<TFileChangelog>(Impl_, config, syncChangelog);
-}
-
-TFuture<void> TFileChangelogDispatcher::FlushChangelogs()
-{
-    return Impl_->FlushChangelogs();
+    return New<TFileChangelogDispatcher>(
+        std::move(ioEngine),
+        std::move(config),
+        std::move(threadName),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

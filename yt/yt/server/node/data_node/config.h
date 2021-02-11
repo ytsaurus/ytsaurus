@@ -332,7 +332,7 @@ DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig)
 
 class TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig
-    , public NHydra::TFileChangelogDispatcherConfig
+    , public NHydra::IFileChangelogDispatcherConfig
 {
 public:
     //! Multiplexed changelog record count limit.
