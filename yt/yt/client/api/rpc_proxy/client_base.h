@@ -56,6 +56,10 @@ public:
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const NApi::TVersionedLookupRowsOptions& options) override;
 
+    virtual TFuture<std::vector<IUnversionedRowsetPtr>> MultiLookup(
+        const std::vector<TMultiLookupSubrequest>& subrequests,
+        const TMultiLookupOptions& options = {}) override;
+
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
         const TString& query,
         const NApi::TSelectRowsOptions& options) override;

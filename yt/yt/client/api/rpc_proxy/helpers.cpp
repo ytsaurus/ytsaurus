@@ -101,7 +101,7 @@ void ToProto(
 
 void ToProto(
     NProto::TTabletReadOptions* protoOptions,
-    const NApi::TTabletReadOptions& options)
+    const NApi::TTabletReadOptionsBase& options)
 {
     protoOptions->set_read_from(static_cast<NProto::ETabletReadKind>(options.ReadFrom));
 }

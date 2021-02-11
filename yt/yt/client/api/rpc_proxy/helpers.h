@@ -126,7 +126,7 @@ void FromProto(
 
 void ToProto(
     NProto::TTabletReadOptions* protoOptions,
-    const NApi::TTabletReadOptions& options);
+    const NApi::TTabletReadOptionsBase& options);
 
 void ToProto(
     NProto::TQueryStatistics* protoStatistics,

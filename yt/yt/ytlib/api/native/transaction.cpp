@@ -402,6 +402,10 @@ public:
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options),
         (path, nameTable, keys, options))
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<std::vector<IUnversionedRowsetPtr>>, MultiLookup, (
+        const std::vector<TMultiLookupSubrequest>& subrequests,
+        const TMultiLookupOptions& options),
+        (subrequests, options))
 
     DELEGATE_TIMESTAMPED_METHOD(TFuture<TSelectRowsResult>, SelectRows, (
         const TString& query,

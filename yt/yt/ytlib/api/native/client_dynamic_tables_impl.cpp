@@ -312,13 +312,9 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
     return results;
 }
 
-IUnversionedRowsetPtr TClient::DoLookupRows(
-    const TYPath& path,
-    const TNameTablePtr& nameTable,
-    const TSharedRange<NTableClient::TLegacyKey>& keys,
-    const TLookupRowsOptions& options)
+TClient::TEncoderWithMapping TClient::GetLookupRowsEncoder() const
 {
-    TEncoderWithMapping encoder = [] (
+    return [] (
         const TColumnFilter& remappedColumnFilter,
         const std::vector<TUnversionedRow>& remappedKeys) -> std::vector<TSharedRef>
     {
@@ -334,14 +330,24 @@ IUnversionedRowsetPtr TClient::DoLookupRows(
         writer.WriteSchemafulRowset(remappedKeys);
         return writer.Finish();
     };
+}
 
-    TDecoderWithMapping decoder = [] (
+TClient::TDecoderWithMapping TClient::GetLookupRowsDecoder() const
+{
+    return [] (
         const TSchemaData& schemaData,
         TWireProtocolReader* reader) -> TTypeErasedRow
     {
         return reader->ReadSchemafulRow(schemaData, true).ToTypeErasedRow();
     };
+}
 
+IUnversionedRowsetPtr TClient::DoLookupRows(
+    const TYPath& path,
+    const TNameTablePtr& nameTable,
+    const TSharedRange<NTableClient::TLegacyKey>& keys,
+    const TLookupRowsOptions& options)
+{
     TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
         const NApi::IClientPtr& replicaClient,
         const TTableReplicaInfoPtr& replicaInfo)
@@ -356,8 +362,8 @@ IUnversionedRowsetPtr TClient::DoLookupRows(
             keys,
             options,
             std::nullopt,
-            encoder,
-            decoder,
+            GetLookupRowsEncoder(),
+            GetLookupRowsDecoder(),
             fallbackHandler);
     });
 }
@@ -415,6 +421,55 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
             decoder,
             fallbackHandler);
     });
+}
+
+std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
+    const std::vector<TMultiLookupSubrequest>& subrequests,
+    const TMultiLookupOptions& options)
+{
+    std::vector<TFuture<IUnversionedRowsetPtr>> asyncRowsets;
+    asyncRowsets.reserve(subrequests.size());
+    for (const auto& subrequest : subrequests) {
+        TLookupRowsOptions lookupRowsOptions;
+        static_cast<TTabletReadOptionsBase&>(lookupRowsOptions) = options;
+        static_cast<TMultiplexingBandOptions&>(lookupRowsOptions) = options;
+        static_cast<TLookupRequestOptions&>(lookupRowsOptions) = std::move(subrequest.Options);
+
+        asyncRowsets.push_back(BIND(
+            [
+                =,
+                this_ = MakeStrong(this),
+                lookupRowsOptions = std::move(lookupRowsOptions)
+            ] {
+                TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
+                    const NApi::IClientPtr& replicaClient,
+                    const TTableReplicaInfoPtr& replicaInfo)
+                {
+                    return replicaClient->LookupRows(
+                        replicaInfo->ReplicaPath,
+                        subrequest.NameTable,
+                        subrequest.Keys,
+                        lookupRowsOptions);
+                };
+
+                return CallAndRetryIfMetadataCacheIsInconsistent([&] {
+                    return DoLookupRowsOnce<IUnversionedRowsetPtr, TUnversionedRow>(
+                        subrequest.Path,
+                        subrequest.NameTable,
+                        subrequest.Keys,
+                        lookupRowsOptions,
+                        /* retentionConfig */ std::nullopt,
+                        GetLookupRowsEncoder(),
+                        GetLookupRowsDecoder(),
+                        fallbackHandler);
+                });
+            })
+            .AsyncVia(GetCurrentInvoker())
+            .Run());
+    }
+
+    return WaitFor(AllSucceeded(std::move(asyncRowsets)))
+        .ValueOrThrow();
 }
 
 template <class TRowset, class TRow>
