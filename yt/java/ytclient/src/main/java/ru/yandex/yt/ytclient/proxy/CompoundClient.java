@@ -103,6 +103,16 @@ public abstract class CompoundClient extends ApiServiceClient {
     }
 
     /**
+     * Unmount table and wait until all tablets become unmounted.
+     *
+     * @see UnmountTable
+     * @see ApiServiceClient#unmountTable(UnmountTable)
+     */
+    public CompletableFuture<Void> unmountTableAndWaitTablets(String path) {
+        return unmountTableAndWaitTablets(new UnmountTable(path));
+    }
+
+    /**
      * Unmount table.
      *
      * <b>Dangerous:</b> using force flag is dangerous, check {@link UnmountTable}
@@ -126,11 +136,14 @@ public abstract class CompoundClient extends ApiServiceClient {
     }
 
     /**
-     * Unmount table and wait until all tablets become unmounted.
+     * Unmount table.
+     *
+     * This method doesn't wait until tablets become unmounted.
      *
      * @see ApiServiceClient#unmountTable(UnmountTable)
      * @see UnmountTable
      * @see #unmountTableAndWaitTablets(UnmountTable)
+     * @see #unmountTableAndWaitTablets(String)
      */
     public CompletableFuture<Void> unmountTable(String path) {
         return unmountTable(path, null);
