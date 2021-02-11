@@ -15,6 +15,8 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
+#include <yt/ytlib/tablet_client/helpers.h>
+
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_batch.h>
 #include <yt/client/table_client/row_buffer.h>
@@ -40,11 +42,17 @@ using namespace NQueryClient;
 using namespace NTabletClient;
 using namespace NApi;
 using namespace NObjectClient;
+using namespace NTabletClient;
 
 using NChunkClient::TLegacyReadLimit;
 
 using NYT::FromProto;
 using TIdMapping = SmallVector<int, TypicalColumnCount>;
+
+template <class IReaderPtr>
+using TAsyncChunkReaderFactory = TCallback<TFuture<IReaderPtr>(
+    TChunkSpec,
+    TChunkReaderMemoryManagerPtr)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,7 +141,7 @@ std::tuple<TColumnFilter, TIdMapping> CreateOrderedReadParameters(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename TRow>
+template <class TRow>
 class TRemoteDynamicStoreReaderBase
     : public virtual IReaderBase
 {
@@ -322,6 +330,10 @@ protected:
             }
 
             ToProto(req->mutable_read_session_id(), ReadSessionId_);
+            req->set_max_rows_per_read(Config_->MaxRowsPerServerRead);
+            if (Config_->StreamingSubrequestFailureProbability > 0) {
+                req->set_failure_probability(Config_->StreamingSubrequestFailureProbability);
+            }
 
             FillRequestAndLog(req);
 
@@ -370,6 +382,8 @@ private:
             }));
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteSortedDynamicStoreReader
     : public TRemoteDynamicStoreReaderBase<TVersionedRow>
@@ -493,7 +507,6 @@ public:
             blockReadOptions)
         , Options_(std::move(options))
         , NameTable_(std::move(nameTable))
-        , ColumnPresenseBuffer_(schema->GetColumnCount())
     {
         std::tie(ColumnFilter_, IdMapping_) = CreateOrderedReadParameters(
             schema,
@@ -524,7 +537,6 @@ public:
         return CurrentRowIndex_ == -1 ? 0 : CurrentRowIndex_;
     }
 
-    //! Returns #unreadRows to reader and builds data slice descriptors for read and unread data.
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
         TRange<NTableClient::TUnversionedRow> /*unreadRows*/) const override
     {
@@ -561,8 +573,6 @@ private:
     int TableIndex_ = -1;
     int RangeIndex_ = -1;
     int TabletIndex_ = -1;
-
-    std::vector<bool> ColumnPresenseBuffer_;
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TRemoteDynamicStoreReaderPoolTag());
 
@@ -602,10 +612,12 @@ private:
     virtual TUnversionedRow PostprocessRow(TUnversionedRow row) override
     {
         if (SystemColumnCount_ == 0) {
+            ++CurrentRowIndex_;
             return row;
         }
 
         auto clonedRow = RowBuffer_->AllocateUnversioned(row.GetCount() + SystemColumnCount_);
+        // NB: Shallow copy is done here. Actual values are stored in StoredRowset_.
         ::memcpy(clonedRow.Begin(), row.Begin(), sizeof(TUnversionedValue) * row.GetCount());
 
         auto* end = clonedRow.Begin() + row.GetCount();
@@ -617,11 +629,13 @@ private:
             *end++ = MakeUnversionedInt64Value(RangeIndex_, RangeIndexId_);
         }
         if (Options_->EnableRowIndex) {
-            *end++ = MakeUnversionedInt64Value(CurrentRowIndex_++, RowIndexId_);
+            *end++ = MakeUnversionedInt64Value(CurrentRowIndex_, RowIndexId_);
         }
         if (Options_->EnableTabletIndex) {
             *end++ = MakeUnversionedInt64Value(TabletIndex_, TabletIndexId_);
         }
+
+        ++CurrentRowIndex_;
 
         return clonedRow;
     }
@@ -680,29 +694,32 @@ ISchemalessChunkReaderPtr CreateRemoteOrderedDynamicStoreReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRetryingRemoteDynamicStoreReader
-    : public IVersionedReader
+template <class IReader, class TRow>
+class TRetryingRemoteDynamicStoreReaderBase
+    : public virtual IReaderBase
 {
 public:
-    TRetryingRemoteDynamicStoreReader(
+    using IReaderPtr = TIntrusivePtr<IReader>;
+    using TRows = TSharedRange<TRow>;
+    using IRowBatchPtr = typename TRowBatchTrait<TRow>::IRowBatchPtr;
+
+    TRetryingRemoteDynamicStoreReaderBase(
         TChunkSpec chunkSpec,
         TTableSchemaPtr schema,
         TRetryingRemoteDynamicStoreReaderConfigPtr config,
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
-        const TColumnFilter& columnFilter,
         const TClientBlockReadOptions& blockReadOptions,
-        TTimestamp timestamp,
-        TCallback<IVersionedReaderPtr(NChunkClient::NProto::TChunkSpec)> chunkReaderFactory)
+        TChunkReaderMemoryManagerPtr readerMemoryManager,
+        TAsyncChunkReaderFactory<IReaderPtr> chunkReaderFactory)
         : ChunkSpec_(std::move(chunkSpec))
         , Schema_(std::move(schema))
         , Config_(std::move(config))
         , Client_(std::move(client))
         , NodeDirectory_(std::move(nodeDirectory))
-        , ColumnFilter_(columnFilter)
-        , Timestamp_(timestamp)
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , BlockReadOptions_(blockReadOptions)
+        , ReaderMemoryManager_(std::move(readerMemoryManager))
         , ChunkReaderFactory_(chunkReaderFactory)
         , Logger(TableClientLogger.WithTag("ReaderId: %v", TGuid::Create()))
     {
@@ -716,36 +733,35 @@ public:
         Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
 
         YT_LOG_DEBUG("Retrying remote dynamic store reader created");
-
-        DoCreateRemoteDynamicStoreReader();
     }
 
-    virtual ~TRetryingRemoteDynamicStoreReader() override
+    virtual ~TRetryingRemoteDynamicStoreReaderBase() override
     {
         YT_LOG_DEBUG("Retrying remote dynamic store reader destroyed");
     }
 
-    virtual TFuture<void> Open()
+    TFuture<void> DoOpen()
     {
         ReadyEvent_ = NewPromise<void>();
-        CurrentReader_->Open().Subscribe(
-            BIND(&TRetryingRemoteDynamicStoreReader::OnUnderlyingReaderReadyEvent, MakeStrong(this))
+        OpenCurrentReader().Subscribe(
+            BIND(&TRetryingRemoteDynamicStoreReaderBase::OnUnderlyingReaderReadyEvent, MakeStrong(this))
                 .Via(GetCurrentInvoker()));
         return ReadyEvent_;
     }
 
-    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IRowBatchPtr DoRead(const TRowBatchReadOptions& options)
     {
-        std::vector<TVersionedRow> rows;
-        rows.reserve(options.MaxRowsPerRead);
-
         if (PreviousReader_ != CurrentReader_) {
             PreviousReader_ = CurrentReader_;
         }
 
+        if (FlushedToEmptyChunk_) {
+            return nullptr;
+        }
+
         auto readyEvent = GetReadyEvent();
         if (!readyEvent.IsSet() || !readyEvent.Get().IsOK()) {
-            return CreateEmptyVersionedRowBatch();
+            return CreateEmptyRowBatch<TRow>();
         }
 
         ReadyEvent_ = NewPromise<void>();
@@ -753,15 +769,14 @@ public:
         try {
             auto batch = CurrentReader_->Read(options);
 
+            LastLocateRequestTimestamp_ = {};
+            RetryCount_ = 0;
+
             if (!ChunkReaderFallbackOccured_) {
-                if (batch && !batch->IsEmpty()) {
-                    auto lastKey = batch->MaterializeRows().Back();
-                    YT_VERIFY(lastKey);
-                    LastKey_ = TLegacyOwningKey(lastKey.BeginKeys(), lastKey.EndKeys());
-                }
                 if (batch) {
+                    UpdateContinuationToken(batch);
                     CurrentReader_->GetReadyEvent().Subscribe(
-                        BIND(&TRetryingRemoteDynamicStoreReader::OnUnderlyingReaderReadyEvent, MakeStrong(this))
+                        BIND(&TRetryingRemoteDynamicStoreReaderBase::OnUnderlyingReaderReadyEvent, MakeStrong(this))
                             .Via(GetCurrentInvoker()));
                 }
             }
@@ -769,14 +784,14 @@ public:
             return batch;
         } catch (const std::exception& ex) {
             OnReaderFailed(ex);
-            return CreateEmptyVersionedRowBatch();
+            return CreateEmptyRowBatch<TRow>();
         }
     }
 
     virtual TFuture<void> GetReadyEvent() const
     {
         return ChunkReaderFallbackOccured_
-            ? CurrentReader_->GetReadyEvent()
+            ? (FlushedToEmptyChunk_ ? VoidFuture : CurrentReader_->GetReadyEvent())
             : ReadyEvent_;
     }
 
@@ -805,36 +820,49 @@ public:
         return {};
     }
 
-private:
+protected:
     TChunkSpec ChunkSpec_;
     const TTableSchemaPtr Schema_;
     const TRetryingRemoteDynamicStoreReaderConfigPtr Config_;
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
-    const TColumnFilter ColumnFilter_;
-    const TTimestamp Timestamp_;
     const TNetworkPreferenceList Networks_;
     const TClientBlockReadOptions BlockReadOptions_;
+    const TChunkReaderMemoryManagerPtr ReaderMemoryManager_;
 
-    IVersionedReaderPtr CurrentReader_;
+    IReaderPtr CurrentReader_;
     // NB: It is necessary to store failed reader until Read is called for the
     // new one since it may still own some rows that were read but not yet captured.
-    IVersionedReaderPtr PreviousReader_;
-    TCallback<IVersionedReaderPtr(TChunkSpec)> ChunkReaderFactory_;
+    IReaderPtr PreviousReader_;
+    TAsyncChunkReaderFactory<IReaderPtr> ChunkReaderFactory_;
 
     // Data statistics of all previous dynamic store readers.
     TDataStatistics AccumulatedDataStatistics_;
 
     bool ChunkReaderFallbackOccured_ = false;
+    bool FlushedToEmptyChunk_ = false;
     TPromise<void> ReadyEvent_ = NewPromise<void>();
 
     int RetryCount_ = 0;
     TInstant LastLocateRequestTimestamp_;
 
-    TLegacyOwningKey LastKey_;
-
     TReadSessionId ReadSessionId_;
     NLogging::TLogger Logger;
+
+    virtual void UpdateContinuationToken(const IRowBatchPtr& batch) = 0;
+
+    virtual void PatchChunkSpecWithContinuationToken() = 0;
+
+    virtual void DoCreateRemoteDynamicStoreReader() = 0;
+
+    // Necessary since unversioned readers lack Open() method.
+    virtual TFuture<void> OpenCurrentReader() = 0;
+
+    bool IsDynamicStoreSpec(const TChunkSpec& chunkSpec)
+    {
+        auto storeId = FromProto<TStoreId>(chunkSpec.chunk_id());
+        return IsDynamicTabletStoreType(TypeFromId(storeId));
+    }
 
     void OnReaderFailed(TError error)
     {
@@ -870,7 +898,7 @@ private:
 
         if (LastLocateRequestTimestamp_ + Config_->LocateRequestBackoffTime > TInstant::Now()) {
             TDelayedExecutor::Submit(
-                BIND(&TRetryingRemoteDynamicStoreReader::DoLocateDynamicStore, MakeStrong(this))
+                BIND(&TRetryingRemoteDynamicStoreReaderBase::DoLocateDynamicStore, MakeStrong(this))
                     .Via(GetCurrentInvoker()),
                 LastLocateRequestTimestamp_ + Config_->LocateRequestBackoffTime);
         } else {
@@ -898,10 +926,11 @@ private:
             auto req = proxy.LocateDynamicStores();
             ToProto(req->add_subrequests(), storeId);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+            // Redundant for ordered tables but not too much to move it out of the base class.
             req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
             req->SetHeavy(true);
             req->Invoke().Subscribe(
-                BIND(&TRetryingRemoteDynamicStoreReader::OnLocateResponse, MakeStrong(this))
+                BIND(&TRetryingRemoteDynamicStoreReaderBase::OnLocateResponse, MakeStrong(this))
                     .Via(GetCurrentInvoker()));
         } catch (const std::exception& ex) {
             ReadyEvent_.Set(TError("Error communicating with master") << ex);
@@ -933,10 +962,9 @@ private:
         // Dynamic store was empty and flushed to no chunk.
         if (!subresponse.has_chunk_spec()) {
             YT_LOG_DEBUG("Dynamic store located: store is flushed to no chunk");
-            CurrentReader_ = CreateEmptyVersionedReader();
-            YT_VERIFY(CurrentReader_->Open().IsSet());
-
+            CurrentReader_ = nullptr;
             ChunkReaderFallbackOccured_ = true;
+            FlushedToEmptyChunk_ = true;
             ReadyEvent_.Set();
             return;
         }
@@ -945,21 +973,20 @@ private:
 
         auto& chunkSpec = *subresponse.mutable_chunk_spec();
         // Dynamic store is not flushed.
-        if (TypeFromId(FromProto<TDynamicStoreId>(chunkSpec.chunk_id())) == EObjectType::SortedDynamicTabletStore) {
+        if (IsDynamicStoreSpec(chunkSpec)) {
             if (chunkSpec.replicas_size() == 0) {
                 YT_LOG_DEBUG("Dynamic store located: store has no replicas");
                 LocateDynamicStore();
                 return;
             }
 
-            YT_LOG_DEBUG("Dynamic store located: got new replicas (LastKey: %v)",
-                LastKey_);
+            YT_LOG_DEBUG("Dynamic store located: got new replicas");
             ChunkSpec_.clear_replicas();
             for (auto replica : chunkSpec.replicas()) {
                 ChunkSpec_.add_replicas(replica);
             }
 
-            SetLowerBoundInChunkSpec();
+            PatchChunkSpecWithContinuationToken();
 
             DoCreateRemoteDynamicStoreReader();
 
@@ -969,8 +996,8 @@ private:
             }
             YT_VERIFY(!ReadyEvent_.IsSet());
 
-            CurrentReader_->Open().Subscribe(
-                BIND(&TRetryingRemoteDynamicStoreReader::OnUnderlyingReaderReadyEvent, MakeStrong(this))
+            OpenCurrentReader().Subscribe(
+                BIND(&TRetryingRemoteDynamicStoreReaderBase::OnUnderlyingReaderReadyEvent, MakeStrong(this))
                     .Via(GetCurrentInvoker()));
         } else {
             if (ChunkSpec_.has_lower_limit()) {
@@ -980,22 +1007,26 @@ private:
                 *chunkSpec.mutable_upper_limit() = ChunkSpec_.upper_limit();
             }
             std::swap(ChunkSpec_, chunkSpec);
-            SetLowerBoundInChunkSpec();
+            PatchChunkSpecWithContinuationToken();
 
-            YT_LOG_DEBUG("Dynamic store located: falling back to chunk reader (ChunkId: %v, LastKey: %v)",
-                FromProto<TChunkId>(ChunkSpec_.chunk_id()),
-                LastKey_);
+            YT_LOG_DEBUG("Dynamic store located: falling back to chunk reader (ChunkId: %v)",
+                FromProto<TChunkId>(ChunkSpec_.chunk_id()));
 
-            try {
-                CurrentReader_ = ChunkReaderFactory_(ChunkSpec_);
-            } catch (const std::exception& ex) {
-                ReadyEvent_.Set(TError("Failed to create chunk reader") << ex);
-                return;
-            }
-
-            CurrentReader_->Open().Subscribe(
-                BIND(&TRetryingRemoteDynamicStoreReader::OnChunkReaderOpened, MakeStrong(this))
+            ChunkReaderFactory_(ChunkSpec_, ReaderMemoryManager_).Subscribe(
+                BIND(&TRetryingRemoteDynamicStoreReaderBase::OnChunkReaderCreated, MakeStrong(this))
                     .Via(GetCurrentInvoker()));
+        }
+    }
+
+    void OnChunkReaderCreated(TErrorOr<IReaderPtr> readerOrError)
+    {
+        if (readerOrError.IsOK()) {
+            CurrentReader_ = readerOrError.Value();
+            OpenCurrentReader().Subscribe(
+                BIND(&TRetryingRemoteDynamicStoreReaderBase::OnChunkReaderOpened, MakeStrong(this))
+                    .Via(GetCurrentInvoker()));
+        } else {
+            ReadyEvent_.Set(TError("Failed to create chunk reader") << readerOrError);
         }
     }
 
@@ -1009,30 +1040,92 @@ private:
         }
     }
 
-    void SetLowerBoundInChunkSpec()
-    {
-        if (LastKey_) {
-            TLegacyReadLimit lowerLimit;
-            auto lastKeySuccessor = GetKeySuccessor(LastKey_);
-            if (ChunkSpec_.has_lower_limit()) {
-                FromProto(&lowerLimit, ChunkSpec_.lower_limit());
-                if (lowerLimit.HasLegacyKey()) {
-                    YT_VERIFY(lowerLimit.GetLegacyKey() <= lastKeySuccessor);
-                }
-            }
-            lowerLimit.SetLegacyKey(lastKeySuccessor);
-            ToProto(ChunkSpec_.mutable_lower_limit(), lowerLimit);
-        }
-    }
-
     void CombineDataStatistics(TDataStatistics* statistics, const TDataStatistics& delta) const
     {
         statistics->set_uncompressed_data_size(statistics->uncompressed_data_size() + delta.uncompressed_data_size());
         statistics->set_row_count(statistics->row_count() + delta.row_count());
         statistics->set_data_weight(statistics->data_weight() + delta.data_weight());
     }
+};
 
-    void DoCreateRemoteDynamicStoreReader()
+////////////////////////////////////////////////////////////////////////////////
+
+class TRetryingRemoteSortedDynamicStoreReader
+    : public TRetryingRemoteDynamicStoreReaderBase<IVersionedReader, TVersionedRow>
+    , public IVersionedReader
+{
+public:
+    TRetryingRemoteSortedDynamicStoreReader(
+        TChunkSpec chunkSpec,
+        TTableSchemaPtr schema,
+        TRetryingRemoteDynamicStoreReaderConfigPtr config,
+        NNative::IClientPtr client,
+        TNodeDirectoryPtr nodeDirectory,
+        const TColumnFilter& columnFilter,
+        const TClientBlockReadOptions& blockReadOptions,
+        TTimestamp timestamp,
+        TAsyncChunkReaderFactory<IVersionedReaderPtr> chunkReaderFactory)
+        : TRetryingRemoteDynamicStoreReaderBase(
+            std::move(chunkSpec),
+            std::move(schema),
+            std::move(config),
+            std::move(client),
+            std::move(nodeDirectory),
+            blockReadOptions,
+            nullptr /*readerMemoryManager*/,
+            std::move(chunkReaderFactory))
+        , ColumnFilter_(columnFilter)
+        , Timestamp_(timestamp)
+    {
+        DoCreateRemoteDynamicStoreReader();
+    }
+
+    virtual TFuture<void> Open()
+    {
+        return DoOpen();
+    }
+
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        return DoRead(options);
+    }
+
+private:
+    TColumnFilter ColumnFilter_;
+    TTimestamp Timestamp_;
+
+    TLegacyOwningKey LastKey_;
+
+    virtual void UpdateContinuationToken(const IVersionedRowBatchPtr& batch) override
+    {
+        if (batch->IsEmpty()) {
+            return;
+        }
+
+        auto lastKey = batch->MaterializeRows().Back();
+        YT_VERIFY(lastKey);
+        LastKey_ = TLegacyOwningKey(lastKey.BeginKeys(), lastKey.EndKeys());
+    }
+
+    virtual void PatchChunkSpecWithContinuationToken() override
+    {
+        if (!LastKey_) {
+            return;
+        }
+
+        TLegacyReadLimit lowerLimit;
+        auto lastKeySuccessor = GetKeySuccessor(LastKey_);
+        if (ChunkSpec_.has_lower_limit()) {
+            FromProto(&lowerLimit, ChunkSpec_.lower_limit());
+            if (lowerLimit.HasLegacyKey()) {
+                YT_VERIFY(lowerLimit.GetLegacyKey() <= lastKeySuccessor);
+            }
+        }
+        lowerLimit.SetLegacyKey(lastKeySuccessor);
+        ToProto(ChunkSpec_.mutable_lower_limit(), lowerLimit);
+    }
+
+    virtual void DoCreateRemoteDynamicStoreReader() override
     {
         TClientBlockReadOptions blockReadOptions;
         blockReadOptions.ReadSessionId = ReadSessionId_;
@@ -1048,6 +1141,11 @@ private:
             blockReadOptions,
             ColumnFilter_,
             Timestamp_);
+    }
+
+    virtual TFuture<void> OpenCurrentReader() override
+    {
+        return CurrentReader_->Open();
     }
 };
 
@@ -1067,7 +1165,14 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
     TTimestamp timestamp,
     TCallback<IVersionedReaderPtr(NChunkClient::NProto::TChunkSpec)> chunkReaderFactory)
 {
-    return New<TRetryingRemoteDynamicStoreReader>(
+    auto asyncChunkReaderFactory = BIND([chunkReaderFactory = std::move(chunkReaderFactory)] (
+        TChunkSpec chunkSpec,
+        TChunkReaderMemoryManagerPtr /*readerMemoryManager*/)
+    {
+        return MakeFuture(chunkReaderFactory(std::move(chunkSpec)));
+    });
+
+    return New<TRetryingRemoteSortedDynamicStoreReader>(
         std::move(chunkSpec),
         schema,
         config,
@@ -1076,7 +1181,184 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
         columnFilter,
         blockReadOptions,
         timestamp,
-        chunkReaderFactory);
+        asyncChunkReaderFactory);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRetryingRemoteOrderedDynamicStoreReader
+    : public TRetryingRemoteDynamicStoreReaderBase<ISchemalessChunkReader, TUnversionedRow>
+    , public ISchemalessChunkReader
+{
+public:
+    TRetryingRemoteOrderedDynamicStoreReader(
+        TChunkSpec chunkSpec,
+        TTableSchemaPtr schema,
+        TRetryingRemoteDynamicStoreReaderConfigPtr config,
+        TChunkReaderOptionsPtr chunkReaderOptions,
+        NNative::IClientPtr client,
+        TNodeDirectoryPtr nodeDirectory,
+        const TClientBlockReadOptions& blockReadOptions,
+        TNameTablePtr nameTable,
+        const std::optional<std::vector<TString>>& columns,
+        TChunkReaderMemoryManagerPtr readerMemoryManager,
+        TAsyncChunkReaderFactory<ISchemalessChunkReaderPtr> chunkReaderFactory)
+        : TRetryingRemoteDynamicStoreReaderBase(
+            std::move(chunkSpec),
+            std::move(schema),
+            std::move(config),
+            std::move(client),
+            std::move(nodeDirectory),
+            blockReadOptions,
+            std::move(readerMemoryManager),
+            std::move(chunkReaderFactory))
+        , ChunkReaderOptions_(std::move(chunkReaderOptions))
+        , NameTable_(std::move(nameTable))
+        , Columns_(columns)
+    {
+        if (ChunkSpec_.has_lower_limit()) {
+            const auto& lowerLimit = ChunkSpec_.lower_limit();
+            if (lowerLimit.has_row_index()) {
+                // COMPAT(ifsmirnov)
+                if (ChunkSpec_.has_row_index_is_absolute()) {
+                    YT_VERIFY(ChunkSpec_.row_index_is_absolute());
+                }
+                TabletRowIndex_ = lowerLimit.row_index();
+            }
+        }
+
+        DoCreateRemoteDynamicStoreReader();
+        DoOpen();
+    }
+
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        return DoRead(options);
+    }
+
+    virtual const TNameTablePtr& GetNameTable() const override
+    {
+        return NameTable_;
+    }
+
+    virtual i64 GetTableRowIndex() const override
+    {
+        return CurrentReader_->GetTableRowIndex();
+    }
+
+    virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
+        TRange<NTableClient::TUnversionedRow> /*unreadRows*/) const override
+    {
+        // XXX(ifsmirnov)
+        return {};
+    }
+
+    virtual const NChunkClient::TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    virtual TTimingStatistics GetTimingStatistics() const override
+    {
+        // XXX(ifsmirnov)
+        return {};
+    }
+
+private:
+    TChunkReaderOptionsPtr ChunkReaderOptions_;
+    TNameTablePtr NameTable_;
+    std::optional<std::vector<TString>> Columns_;
+
+    // Used as continuation token.
+    // If null, then limit was not provided in dynamic store spec and dynamic store
+    // reader was not opened, so chunk should be read from the beginning.
+    // If not null, then either of the above happened and lower limit for the
+    // chunk should be patched (converting absolute index to relative).
+    std::optional<i64> TabletRowIndex_;
+
+    virtual void UpdateContinuationToken(const IUnversionedRowBatchPtr& /*batch*/) override
+    {
+        YT_VERIFY(!ChunkReaderFallbackOccured_);
+        TabletRowIndex_ = CurrentReader_->GetTableRowIndex();
+    }
+
+    virtual void PatchChunkSpecWithContinuationToken() override
+    {
+        if (!TabletRowIndex_) {
+            return;
+        }
+
+        auto lowerLimit = ChunkSpec_.has_lower_limit()
+            ? FromProto<TLegacyReadLimit>(ChunkSpec_.lower_limit())
+            : TLegacyReadLimit{};
+
+        if (IsDynamicStoreSpec(ChunkSpec_)) {
+            lowerLimit.SetRowIndex(*TabletRowIndex_);
+            ToProto(ChunkSpec_.mutable_lower_limit(), lowerLimit);
+        } else {
+            int firstChunkRowIndex = ChunkSpec_.table_row_index();
+            if (*TabletRowIndex_ >= firstChunkRowIndex) {
+                lowerLimit.SetRowIndex(*TabletRowIndex_ - firstChunkRowIndex);
+                ToProto(ChunkSpec_.mutable_lower_limit(), lowerLimit);
+            }
+        }
+    }
+
+    virtual void DoCreateRemoteDynamicStoreReader() override
+    {
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.ReadSessionId = ReadSessionId_;
+        CurrentReader_ = CreateRemoteOrderedDynamicStoreReader(
+            ChunkSpec_,
+            Schema_,
+            Config_,
+            ChunkReaderOptions_,
+            NameTable_,
+            Client_,
+            NodeDirectory_,
+            {} /*trafficMeter*/,
+            {} /*bandwidthThrottler*/,
+            {} /*rpsThrottler*/,
+            blockReadOptions,
+            Columns_);
+    }
+
+    virtual TFuture<void> OpenCurrentReader() override
+    {
+        return CurrentReader_->GetReadyEvent();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessChunkReaderPtr CreateRetryingRemoteOrderedDynamicStoreReader(
+    TChunkSpec chunkSpec,
+    TTableSchemaPtr schema,
+    TRetryingRemoteDynamicStoreReaderConfigPtr config,
+    TChunkReaderOptionsPtr options,
+    TNameTablePtr nameTable,
+    NNative::IClientPtr client,
+    TNodeDirectoryPtr nodeDirectory,
+    TTrafficMeterPtr /*trafficMeter*/,
+    IThroughputThrottlerPtr /*bandwidthThrottler*/,
+    IThroughputThrottlerPtr /*rpsThrottler*/,
+    const TClientBlockReadOptions& blockReadOptions,
+    const std::optional<std::vector<TString>>& columns,
+    TChunkReaderMemoryManagerPtr readerMemoryManager,
+    TAsyncChunkReaderFactory<ISchemalessChunkReaderPtr> chunkReaderFactory)
+{
+    return New<TRetryingRemoteOrderedDynamicStoreReader>(
+        std::move(chunkSpec),
+        std::move(schema),
+        std::move(config),
+        std::move(options),
+        std::move(client),
+        std::move(nodeDirectory),
+        blockReadOptions,
+        std::move(nameTable),
+        columns,
+        std::move(readerMemoryManager),
+        std::move(chunkReaderFactory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

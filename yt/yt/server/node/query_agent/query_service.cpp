@@ -84,9 +84,8 @@ static const auto& Logger = QueryAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(ifsmirnov): YT_12491 - move this to reader config and dynamically choose
-// row count based on desired streaming window data size.
-static constexpr size_t MaxRowsPerRemoteDynamicStoreRead = 1024;
+// COMPAT(ifsmirnov)
+static constexpr i64 MaxRowsPerRemoteDynamicStoreRead = 1024;
 
 static const TString DefaultQLExecutionPoolName = "default";
 static const TString DefaultQLExecutionTag = "default";
@@ -571,7 +570,9 @@ private:
                 .ThrowOnError();
 
             TRowBatchReadOptions options{
-                .MaxRowsPerRead = MaxRowsPerRemoteDynamicStoreRead
+                .MaxRowsPerRead = request->has_max_rows_per_read()
+                    ? request->max_rows_per_read()
+                    : MaxRowsPerRemoteDynamicStoreRead
             };
 
             YT_LOG_DEBUG("Started serving remote dynamic store read request "
@@ -607,6 +608,10 @@ private:
                 }
                 rowCount += batch->GetRowCount();
 
+                if (request->has_failure_probability() && RandomNumber<double>() < request->failure_probability()) {
+                    THROW_ERROR_EXCEPTION("Request failed for the sake of testing");
+                }
+
                 TWireProtocolWriter writer;
                 writer.WriteVersionedRowset(batch->MaterializeRows());
                 auto data = writer.Finish();
@@ -641,9 +646,6 @@ private:
                 columnFilter,
                 TClientBlockReadOptions());
 
-            std::vector<TUnversionedRow> rows;
-            rows.reserve(MaxRowsPerRemoteDynamicStoreRead);
-
             YT_LOG_DEBUG("Started serving remote dynamic store read request "
                 "(TabletId: %v, StoreId: %v, ReadSessionId: %v, "
                 "StartRowIndex: %v, EndRowIndex: %v, ColumnFilter: %v, RequestId: %v)",
@@ -658,13 +660,19 @@ private:
             bool sendOffset = true;
 
             TRowBatchReadOptions readOptions{
-                .MaxRowsPerRead = MaxRowsPerRemoteDynamicStoreRead
+                .MaxRowsPerRead = request->has_max_rows_per_read()
+                    ? request->max_rows_per_read()
+                    : MaxRowsPerRemoteDynamicStoreRead
             };
 
             return HandleInputStreamingRequest(context, [&] {
                 auto batch = reader->Read(readOptions);
                 if (!batch) {
                     return TSharedRef{};
+                }
+
+                if (request->has_failure_probability() && RandomNumber<double>() < request->failure_probability()) {
+                    THROW_ERROR_EXCEPTION("Failing request for the sake of testing");
                 }
 
                 TWireProtocolWriter writer;
