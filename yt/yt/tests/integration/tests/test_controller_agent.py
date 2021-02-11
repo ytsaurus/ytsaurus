@@ -518,6 +518,6 @@ class TestOperationControllerLimit(YTEnvSetup):
 
     @authors("gritukan")
     def test_operation_controller_memory_limit_exceeded(self):
-        op = run_test_vanilla("sleep 1000", job_count=1)
+        op = run_test_vanilla("sleep 60", job_count=1)
         with raises_yt_error(ControllerMemoryLimitExceeded):
             op.track()
