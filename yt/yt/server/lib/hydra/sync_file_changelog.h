@@ -18,9 +18,7 @@ DEFINE_ENUM(EFileChangelogFormat,
 
 //! A fully synchronous file-based changelog implementation.
 /*!
- *  The instances are fully thread-safe, at the cost of taking mutex on each invocation.
- *  Thus even trivial getters like #GetRecordCount are pretty expensive.
- *
+ *  The instances are single-threaded unless noted otherwise.
  *  See IChangelog for a similar partly asynchronous interface.
  */
 class TSyncFileChangelog
@@ -36,9 +34,17 @@ public:
     ~TSyncFileChangelog();
 
     //! Returns the configuration passed in ctor.
+    /*
+     *  \note
+     *  Thread affinity: any
+     */
     const TFileChangelogConfigPtr& GetConfig();
 
     //! Returns the data file name of the changelog.
+    /*
+     *  \note
+     *  Thread affinity: any
+     */
     const TString& GetFileName() const;
 
     //! Opens an existing changelog.
@@ -53,12 +59,24 @@ public:
     void Create(EFileChangelogFormat format = EFileChangelogFormat::V5);
 
     //! Returns the number of records in the changelog.
+    /*
+     *  \note
+     *  Thread affinity: any
+     */
     int GetRecordCount() const;
 
     //! Returns an approximate byte size of a changelog.
+    /*
+     *  \note
+     *  Thread affinity: any
+     */
     i64 GetDataSize() const;
 
     //! Returns |true| is the changelog is open.
+    /*
+     *  \note
+     *  Thread affinity: any
+     */
     bool IsOpen() const;
 
     //! Synchronously appends records to the changelog.
@@ -79,6 +97,7 @@ public:
     //! Synchronously seals the changelog truncating it if necessary.
     void Truncate(int recordCount);
 
+    //! Synchronously preallocates the data file to the given #size.
     void Preallocate(size_t size);
 
 private:

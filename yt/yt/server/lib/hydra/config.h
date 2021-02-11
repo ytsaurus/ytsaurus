@@ -57,7 +57,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogConfig)
 
-class TFileChangelogDispatcherConfig
+class IFileChangelogDispatcherConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
@@ -65,7 +65,7 @@ public:
     int IOPriority;
     TDuration FlushQuantum;
 
-    TFileChangelogDispatcherConfig()
+    IFileChangelogDispatcherConfig()
     {
         RegisterParameter("io_class", IOClass)
             .Default(1); // IOPRIO_CLASS_RT
@@ -76,11 +76,11 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcherConfig)
+DEFINE_REFCOUNTED_TYPE(IFileChangelogDispatcherConfig)
 
 class TFileChangelogStoreConfig
     : public TFileChangelogConfig
-    , public TFileChangelogDispatcherConfig
+    , public IFileChangelogDispatcherConfig
 {
 public:
     //! A path where changelogs are stored.

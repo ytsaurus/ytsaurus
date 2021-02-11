@@ -467,7 +467,7 @@ class TMultiplexedWriter
 public:
     TMultiplexedWriter(
         TMultiplexedChangelogConfigPtr config,
-        TFileChangelogDispatcherPtr multiplexedChangelogDispatcher,
+        IFileChangelogDispatcherPtr multiplexedChangelogDispatcher,
         const TString& path,
         const NLogging::TLogger& logger)
         : Config_(config)
@@ -566,7 +566,8 @@ public:
         // NB: May be called multiple times for the same #changelogId.
         MultiplexedChangelogIdToCleanResult_.emplace(changelogId, NewPromise<void>());
         auto path = GetMultiplexedChangelogPath(changelogId);
-        return MultiplexedChangelogDispatcher_->OpenChangelog(path, Config_);
+        return WaitFor(MultiplexedChangelogDispatcher_->OpenChangelog(path, Config_))
+            .ValueOrThrow();
     }
 
     void MarkMultiplexedChangelogClean(int changelogId)
@@ -590,7 +591,7 @@ public:
 
 private:
     const TMultiplexedChangelogConfigPtr Config_;
-    const TFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
+    const IFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
     const TString Path_;
     const NLogging::TLogger Logger;
 
@@ -719,9 +720,10 @@ private:
         YT_LOG_INFO("Started creating new multiplexed changelog (ChangelogId: %v)",
             id);
 
-        auto changelog = MultiplexedChangelogDispatcher_->CreateChangelog(
+        auto changelog = WaitFor(MultiplexedChangelogDispatcher_->CreateChangelog(
             GetMultiplexedChangelogPath(id),
-            Config_);
+            Config_))
+            .ValueOrThrow();
 
         YT_LOG_INFO("Finished creating new multiplexed changelog (ChangelogId: %v)",
             id);
@@ -857,13 +859,13 @@ public:
         , Bootstrap_(bootstrap)
         , Logger(DataNodeLogger.WithTag("LocationId: %v", Location_->GetId()))
     {
-        MultiplexedChangelogDispatcher_ = New<TFileChangelogDispatcher>(
+        MultiplexedChangelogDispatcher_ = CreateFileChangelogDispatcher(
             Location_->GetIOEngine(),
             MultiplexedChangelogConfig_,
             "MFlush:" + Location_->GetId(),
             Location_->GetProfiler().WithPrefix("/multiplexed_changelogs"));
 
-        SplitChangelogDispatcher_ = New<TFileChangelogDispatcher>(
+        SplitChangelogDispatcher_ = CreateFileChangelogDispatcher(
             Location_->GetIOEngine(),
             MultiplexedChangelogConfig_,
             "SFlush:" + Location_->GetId(),
@@ -992,8 +994,8 @@ private:
 
     const NLogging::TLogger Logger;
 
-    TFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
-    TFileChangelogDispatcherPtr SplitChangelogDispatcher_;
+    IFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
+    IFileChangelogDispatcherPtr SplitChangelogDispatcher_;
 
     TIntrusivePtr<TMultiplexedWriter> MultiplexedWriter_;
 
@@ -1018,9 +1020,10 @@ private:
         {
             NProfiling::TEventTimerGuard timingGuard(Location_->GetPerformanceCounters().JournalChunkCreateTime);
             auto fileName = Location_->GetChunkPath(chunkId);
-            changelog = SplitChangelogDispatcher_->CreateChangelog(
+            changelog = WaitFor(SplitChangelogDispatcher_->CreateChangelog(
                 fileName,
-                GetSplitChangelogConfig(enableMultiplexing));
+                GetSplitChangelogConfig(enableMultiplexing)))
+                .ValueOrThrow();
         }
 
         YT_LOG_DEBUG("Finished creating journal chunk (ChunkId: %v)",
@@ -1039,9 +1042,8 @@ private:
         {
             NProfiling::TEventTimerGuard timingGuard(Location_->GetPerformanceCounters().JournalChunkOpenTime);
             auto fileName = Location_->GetChunkPath(chunkId);
-            changelog = SplitChangelogDispatcher_->OpenChangelog(
-                fileName,
-                HighLatencySplitChangelogConfig_);
+            changelog = WaitFor(SplitChangelogDispatcher_->OpenChangelog(fileName, HighLatencySplitChangelogConfig_))
+                .ValueOrThrow();
         }
 
         YT_LOG_DEBUG("Finished opening journal chunk (ChunkId: %v)",

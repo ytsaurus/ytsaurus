@@ -19,7 +19,6 @@
 #include <yt/core/tracing/trace_context.h>
 
 #include <util/system/align.h>
-#include <util/system/mutex.h>
 #include <util/system/flock.h>
 #include <util/system/align.h>
 
@@ -69,10 +68,6 @@ public:
 
     void Open()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = Guard(Mutex_);
-
         Error_.ThrowOnError();
         ValidateNotOpen();
 
@@ -161,10 +156,6 @@ public:
 
     void Close()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = Guard(Mutex_);
-
         Error_.ThrowOnError();
 
         if (!Open_) {
@@ -195,10 +186,6 @@ public:
 
     void Create(EFileChangelogFormat format)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = Guard(Mutex_);
-
         Error_.ThrowOnError();
         ValidateNotOpen();
 
@@ -250,10 +237,6 @@ public:
         int firstRecordId,
         const std::vector<TSharedRef>& records)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = Guard(Mutex_);
-
         Error_.ThrowOnError();
         ValidateOpen();
 
@@ -278,10 +261,6 @@ public:
 
     void Flush()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = Guard(Mutex_);
-
         Error_.ThrowOnError();
         ValidateOpen();
 
@@ -309,10 +288,6 @@ public:
         int maxRecords,
         i64 maxBytes)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = Guard(Mutex_);
-
         Error_.ThrowOnError();
         ValidateOpen();
 
@@ -336,10 +311,6 @@ public:
 
     void Truncate(int recordCount)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = Guard(Mutex_);
-
         Error_.ThrowOnError();
         ValidateOpen();
 
@@ -364,11 +335,9 @@ public:
 
     void Preallocate(size_t size)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = Guard(Mutex_);
-
         YT_VERIFY(CurrentFilePosition_ <= size);
+
+        YT_LOG_DEBUG("Started preallocating changelog");
 
         WaitFor(IOEngine_->Fallocate(DataFile_, size))
             .ThrowOnError();
@@ -382,7 +351,6 @@ private:
     const TFileChangelogConfigPtr Config_;
     const NLogging::TLogger Logger;
 
-    TSysMutex Mutex_;
     TError Error_;
     std::atomic<bool> Open_ = false;
     EFileChangelogFormat Format_ = EFileChangelogFormat::V5;

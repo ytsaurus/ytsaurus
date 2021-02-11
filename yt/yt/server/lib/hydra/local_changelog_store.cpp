@@ -226,7 +226,7 @@ public:
         : TAsyncSlruCacheBase(config->ChangelogReaderCache)
         , IOEngine_(ioEngine)
         , Config_(config)
-        , Dispatcher_(New<TFileChangelogDispatcher>(
+        , Dispatcher_(CreateFileChangelogDispatcher(
             IOEngine_,
             Config_,
             threadName,
@@ -266,7 +266,7 @@ public:
 private:
     const NChunkClient::IIOEnginePtr IOEngine_;
     const TFileChangelogStoreConfigPtr Config_;
-    const TFileChangelogDispatcherPtr Dispatcher_;
+    const IFileChangelogDispatcherPtr Dispatcher_;
 
     const TLocalChangelogStoreLockPtr Lock_ = New<TLocalChangelogStoreLock>();
 
@@ -284,7 +284,8 @@ private:
         auto path = GetChangelogPath(Config_->Path, id);
 
         try {
-            auto underlyingChangelog = Dispatcher_->CreateChangelog(path, Config_);
+            auto underlyingChangelog = WaitFor(Dispatcher_->CreateChangelog(path, Config_))
+                .ValueOrThrow();
             auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
             cookie.EndInsert(cachedChangelog);
         } catch (const std::exception& ex) {
@@ -309,7 +310,8 @@ private:
                     id));
             } else {
                 try {
-                    auto underlyingChangelog = Dispatcher_->OpenChangelog(path, Config_);
+                    auto underlyingChangelog = WaitFor(Dispatcher_->OpenChangelog(path, Config_))
+                        .ValueOrThrow();
                     auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
                     cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {
