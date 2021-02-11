@@ -1682,7 +1682,7 @@ def clickhouse_execute_handler(**kwargs):
     class FakeStream:
         def __init__(self, stream):
             self.stream = stream
-        def read_rows(self):
+        def _read_rows(self):
             return (row + b"\n" for row in self.stream)
 
     settings = kwargs.pop("setting")

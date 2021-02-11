@@ -19,6 +19,9 @@ import pytest
 import os.path
 import copy
 import sys
+import subprocess
+
+import yatest
 
 HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer",
                                               "ytserver-dummy"])
@@ -144,6 +147,40 @@ class TestClickhouseFromHost(ClickhouseTestBase):
     def test_unicode_in_query(self):
         chyt.start_clique(1, alias="*f")
         assert list(chyt.execute(u"select 'юникод' as s", "*f")) == [{"s": u"юникод"}]
+
+    @authors("max42")
+    @pytest.mark.parametrize("bin_args", [("yt/python/yt/clickhouse/bin/py2/chyt", ""),
+                                          ("yt/python/yt/wrapper/bin/yt_make/yt", "clickhouse")])
+    def test_cli(self, bin_args):
+        yt.create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"},
+                                                             {"name": "b", "type": "string"}]})
+        yt.write_table("//tmp/t", [{"a": 1, "b": "foo"},
+                                   {"a": 2, "b": "bar"}])
+
+
+        bin, args = bin_args
+        alias = "*e1" if bin.endswith("chyt") else "*e2"
+
+        cmd = yatest.common.runtime.build_path(bin) + " " + args
+        env = {
+            "CMD": cmd,
+            "YT_PROXY": yt.config.config["proxy"]["url"],
+            "CHYT_ALIAS": alias,
+        }
+
+        chyt.start_clique(1, alias=alias)
+
+        print("Env:", env, file=sys.stderr)
+
+        test_binary = yatest.common.source_path("yt/python/yt/clickhouse/tests/test_cli.sh")
+
+        with open("shell_output", "w") as output:
+            proc = subprocess.Popen(["/bin/bash", test_binary], env=env, stdout=output, stderr=output)
+            proc.communicate()
+
+        sys.stderr.write(open("shell_output").read())
+
+        assert proc.returncode == 0
 
 
 @pytest.mark.usefixtures("yt_env")
