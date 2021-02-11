@@ -117,7 +117,7 @@ public:
 
     TDuration JobProberRpcTimeout;
 
-    int CacheStickyGroupSizeOverride;
+    int DefaultCacheStickyGroupSize;
     bool EnableDynamicCacheStickyGroupSize;
 
     ssize_t MaxRequestWindowSize;

@@ -19,10 +19,10 @@ class TObjectAttributeCacheConfig
 {
 public:
     NApi::EMasterChannelKind ReadFrom;
-    // All following parameters make sense only if ReadFrom is Cache.
+    // All of the following parameters make sense only if ReadFrom is Cache.
     TDuration MasterCacheExpireAfterSuccessfulUpdateTime;
     TDuration MasterCacheExpireAfterFailedUpdateTime;
-    int MasterCacheStickyGroupSize;
+    std::optional<int> MasterCacheStickyGroupSize;
 
     TObjectAttributeCacheConfig()
     {
@@ -33,13 +33,13 @@ public:
         RegisterParameter("master_cache_expire_after_failed_update_time", MasterCacheExpireAfterFailedUpdateTime)
             .Default(TDuration::Seconds(15));
         RegisterParameter("master_cache_cache_sticky_group_size", MasterCacheStickyGroupSize)
-            .Default(1.0);
+            .Default();
     }
 
     // TODO(max42): eliminate this by proper inheritance.
     NApi::TMasterReadOptions GetMasterReadOptions()
     {
-        return NApi::TMasterReadOptions {
+        return NApi::TMasterReadOptions{
             ReadFrom,
             MasterCacheExpireAfterSuccessfulUpdateTime,
             MasterCacheExpireAfterFailedUpdateTime,

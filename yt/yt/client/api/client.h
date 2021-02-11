@@ -111,7 +111,7 @@ struct TMasterReadOptions
     EMasterChannelKind ReadFrom = EMasterChannelKind::Follower;
     TDuration ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(15);
     TDuration ExpireAfterFailedUpdateTime = TDuration::Seconds(15);
-    int CacheStickyGroupSize = 1;
+    std::optional<int> CacheStickyGroupSize;
 };
 
 struct TPrerequisiteRevisionConfig
