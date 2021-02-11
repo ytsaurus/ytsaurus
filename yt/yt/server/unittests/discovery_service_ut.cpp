@@ -735,11 +735,10 @@ TEST_F(TDiscoveryServiceTestSuite, TestGroupRemoval)
         return !SyncYPathExists(ypathService, "/sample_group1");
     });
 
-    {
-        auto result = SyncYPathList(ypathService, "/");
-        std::sort(result.begin(), result.end());
-        ASSERT_EQ((std::vector<TString>{"sample_group2"}), result);
-    }
+    auto checkMembers = [&] () {
+        return SyncYPathList(ypathService, "/") == std::vector<TString>{"sample_group2"};
+    };
+    WaitForPredicate(checkMembers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
