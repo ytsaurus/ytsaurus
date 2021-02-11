@@ -32,6 +32,8 @@ class TokensByPath(object):
 
 def _process_prefix(path, prefix):
     tokens = TokensByPath(path)
+    if prefix is not None:
+        prefix = TokensByPath(prefix).raw_path
     if not PY3 and prefix is not None and isinstance(prefix, text_type):
         try:
             prefix = prefix.encode("ascii")
