@@ -75,6 +75,11 @@ TDynamicCypressManagerConfig::TDynamicCypressManagerConfig()
 
     RegisterParameter("recursive_resource_usage_cache_expiration_timeout", RecursiveResourceUsageCacheExpirationTimeout)
         .Default(TDuration::Seconds(30));
+
+    RegisterParameter("clear_prerequisites_from_externalized_requests", ClearPrerequisitesFromExternalizedRequests)
+        .Default(false)
+        .DontSerializeDefault();
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
