@@ -528,7 +528,7 @@ private:
         auto replicas = FromProto<TChunkReplicaList>(JobSpecExt_.replicas());
         auto replicasExpirationDeadline = FromProto<TInstant>(JobSpecExt_.replicas_expiration_deadline());
 
-        YT_LOG_INFO("Chunk removal job started (ChunkId: %v@v, Replicas: %v, ReplicasExpirationDeadline: %v)",
+        YT_LOG_INFO("Chunk removal job started (ChunkId: %v@%v, Replicas: %v, ReplicasExpirationDeadline: %v)",
             chunkId,
             mediumIndex,
             replicas,
