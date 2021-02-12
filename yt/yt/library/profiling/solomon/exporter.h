@@ -45,7 +45,9 @@ struct TSolomonExporterConfig
 
     bool ConvertCountersToRate;
 
+    bool ExportSummary;
     bool ExportSummaryAsMax;
+    bool ExportSummaryAsAvg;
 
     bool MarkAggregates;
 
@@ -77,8 +79,12 @@ struct TSolomonExporterConfig
         RegisterParameter("convert_counters_to_rate", ConvertCountersToRate)
             .Default(true);
 
+        RegisterParameter("export_summary", ExportSummary)
+            .Default(false);
         RegisterParameter("export_summary_as_max", ExportSummaryAsMax)
             .Default(true);
+        RegisterParameter("export_summary_as_avg", ExportSummaryAsAvg)
+            .Default(false);
 
         RegisterParameter("mark_aggregates", MarkAggregates)
             .Default(true);

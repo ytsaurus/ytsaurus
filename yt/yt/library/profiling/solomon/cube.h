@@ -23,7 +23,10 @@ struct TReadOptions
 
     bool EnableSolomonAggregationWorkaround = false;
 
+    // Direct summary export is not supported by solomon, yet.
+    bool ExportSummary = false;
     bool ExportSummaryAsMax = false;
+    bool ExportSummaryAsAvg = false;
 
     bool MarkAggregates = false;
 
