@@ -545,6 +545,10 @@ TString ToString(TUnversionedRow row);
 TString ToString(TMutableUnversionedRow row);
 TString ToString(const TUnversionedOwningRow& row);
 
+//! Debug printers for Gtest unittests.
+void PrintTo(const TUnversionedOwningRow& key, ::std::ostream* os);
+void PrintTo(const TUnversionedRow& value, ::std::ostream* os);
+
 TLegacyOwningKey RowToKey(
     const NTableClient::TTableSchema& schema,
     TUnversionedRow row);

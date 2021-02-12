@@ -104,6 +104,11 @@ DEFINE_REFCOUNTED_TYPE(TLogicalType)
 
 TString ToString(const TLogicalType& logicalType);
 
+//! Debug printers for Gtest unittests.
+void PrintTo(ELogicalMetatype type, std::ostream* os);
+void PrintTo(const TLogicalType& type, std::ostream* os);
+void PrintTo(const TLogicalTypePtr& type, std::ostream* os);
+
 bool operator == (const TLogicalType& lhs, const TLogicalType& rhs);
 bool operator != (const TLogicalType& lhs, const TLogicalType& rhs);
 bool operator == (const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs) = delete;

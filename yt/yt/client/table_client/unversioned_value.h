@@ -67,4 +67,9 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversion
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Debug printer for Gtest unittests.
+void PrintTo(const TUnversionedValue& value, ::std::ostream* os);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

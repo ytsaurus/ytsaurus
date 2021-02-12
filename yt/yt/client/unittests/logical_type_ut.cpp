@@ -1,4 +1,3 @@
-#include "logical_type_helpers.h"
 #include "logical_type_shortcuts.h"
 
 #include <yt/core/test_framework/framework.h>

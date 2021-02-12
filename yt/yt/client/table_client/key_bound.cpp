@@ -1,5 +1,6 @@
 #include "key_bound.h"
 
+#include "helpers.h"
 #include "row_buffer.h"
 #include "serialize.h"
 
@@ -260,6 +261,11 @@ TString ToString(const TOwningKeyBound& keyBound)
     return ToStringViaBuilder(keyBound);
 }
 
+void PrintTo(const TOwningKeyBound& keyBound, ::std::ostream* os)
+{
+    *os << ToString(keyBound);
+}
+
 void Serialize(const TKeyBound& keyBound, IYsonConsumer* consumer)
 {
     keyBound.Serialize(consumer);
@@ -284,6 +290,11 @@ void FormatValue(TStringBuilderBase* builder, const TKeyBound& keyBound, TString
 TString ToString(const TKeyBound& keyBound)
 {
     return ToStringViaBuilder(keyBound);
+}
+
+void PrintTo(const TKeyBound& keyBound, ::std::ostream* os)
+{
+    *os << ToString(keyBound);
 }
 
 void Serialize(const TOwningKeyBound& keyBound, IYsonConsumer* consumer)

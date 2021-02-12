@@ -1215,33 +1215,6 @@ void ToAny(TRowBuffer* rowBuffer, TUnversionedValue* result, TUnversionedValue* 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintTo(const TLegacyOwningKey& key, ::std::ostream* os)
-{
-    *os << KeyToYson(key);
-}
-
-void PrintTo(const TUnversionedValue& value, ::std::ostream* os)
-{
-    *os << ToString(value);
-}
-
-void PrintTo(const TUnversionedRow& value, ::std::ostream* os)
-{
-    *os << ToString(value);
-}
-
-void PrintTo(const TKeyBound& keyBound, ::std::ostream* os)
-{
-    *os << ToString(keyBound);
-}
-
-void PrintTo(const TOwningKeyBound& keyBound, ::std::ostream* os)
-{
-    *os << ToString(keyBound);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TDefaultUnversionedRowsBuilderTag
 { };
 

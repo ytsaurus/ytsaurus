@@ -1,5 +1,3 @@
-#include "helpers.h"
-
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/clickhouse_server/config.h>

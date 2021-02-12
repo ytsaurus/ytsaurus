@@ -1,8 +1,9 @@
 #include "unversioned_row.h"
 
 #include "composite_compare.h"
-#include "unversioned_value.h"
+#include "helpers.h"
 #include "serialize.h"
+#include "unversioned_value.h"
 #include "validate_logical_type.h"
 
 #include <yt/client/table_client/name_table.h>
@@ -1521,6 +1522,16 @@ TString ToString(TMutableUnversionedRow row)
 TString ToString(const TUnversionedOwningRow& row)
 {
     return ToString(row.Get());
+}
+
+void PrintTo(const TUnversionedOwningRow& key, ::std::ostream* os)
+{
+    *os << KeyToYson(key);
+}
+
+void PrintTo(const TUnversionedRow& value, ::std::ostream* os)
+{
+    *os << ToString(value);
 }
 
 TLegacyOwningKey RowToKey(
