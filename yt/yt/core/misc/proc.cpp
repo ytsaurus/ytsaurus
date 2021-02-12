@@ -991,6 +991,17 @@ std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
             continue;
         }
 
+        // TODO(gritukan): Remove it when smaps tracker will be more stable.
+        auto verify = [&] (bool condition) {
+            if (!condition) {
+                Cerr << "Failed to parse smaps: " << rawSMaps << Endl;
+                Cerr << "Failed line: " << line << Endl;
+                YT_LOG_ERROR("Failed to parse smaps (SMaps: %v)", rawSMaps);
+                YT_LOG_ERROR("Failed line (Line: %v)", line);
+                YT_VERIFY(false);
+            }
+        };
+
         std::vector<TString> words;
         StringSplitter(line).SplitBySet(" \t").SkipEmpty().Collect(&words);
 
@@ -998,72 +1009,72 @@ std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
         // letters and digits. Memory mapping properties descriptions starts with uppercase letter.
         if (std::isupper(line[0])) {
             auto property = words[0];
-            YT_VERIFY(property.back() == ':');
+            verify(property.back() == ':');
             property.pop_back();
 
-            YT_VERIFY(!memoryMappings.empty());
+            verify(!memoryMappings.empty());
             auto& mapping = memoryMappings.back();
             auto& statistics = mapping.Statistics;
 
             if (property == "Size") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.Size = parseMemoryAmount(words[1], words[2]);
             } else if (property == "KernelPageSize") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.KernelPageSize = parseMemoryAmount(words[1], words[2]);
             } else if (property == "MMUPageSize") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.MMUPageSize = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Rss") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.Rss = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Pss") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.Pss = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Shared_Clean") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.SharedClean = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Shared_Dirty") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.SharedDirty = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Private_Clean") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.PrivateClean = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Private_Dirty") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.PrivateDirty = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Referenced") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.Referenced = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Anonymous") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.Anonymous = parseMemoryAmount(words[1], words[2]);
             } else if (property == "LazyFree") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.LazyFree = parseMemoryAmount(words[1], words[2]);
             } else if (property == "AnonHugePages") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.AnonHugePages = parseMemoryAmount(words[1], words[2]);
             } else if (property == "ShmemPmdMapped") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.ShmemPmdMapped = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Shared_Hugetlb") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.SharedHugetlb = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Private_Hugetlb") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.PrivateHugetlb = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Swap") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.Swap = parseMemoryAmount(words[1], words[2]);
             } else if (property == "SwapPss") {
-                YT_VERIFY(words.size() == 3);
+                verify(words.size() == 3);
                 statistics.SwapPss = parseMemoryAmount(words[1], words[2]);
             } else if (property == "Locked") {
-                YT_VERIFY(words.size() == 3);
-                statistics.Locked = parseMemoryAmount(words[1], words[2]);                
+                verify(words.size() == 3);
+                statistics.Locked = parseMemoryAmount(words[1], words[2]);
             } else if (property == "ProtectionKey") {
-                YT_VERIFY(words.size() == 2);
+                verify(words.size() == 2);
                 mapping.ProtectionKey = FromString<ui64>(words[1]);
             } else if (property == "VmFlags") {
                 for (const auto& flag : words) {
@@ -1078,53 +1089,53 @@ std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
                 // Unknown property, do not crash.
             }
         } else {
-            YT_VERIFY(words.size() == 5 || words.size() == 6);
+            verify(words.size() >= 5);
             TMemoryMapping memoryMapping;
             {
                 TStringBuf addressRange = words[0];
                 TStringBuf start;
                 TStringBuf end;
-                YT_VERIFY(addressRange.TrySplit('-', start, end));
-                YT_VERIFY(TryIntFromString<16>(start, memoryMapping.Start));
-                YT_VERIFY(TryIntFromString<16>(end, memoryMapping.End));
+                verify(addressRange.TrySplit('-', start, end));
+                verify(TryIntFromString<16>(start, memoryMapping.Start));
+                verify(TryIntFromString<16>(end, memoryMapping.End));
             }
             {
                 const auto& permissions = words[1];
-                YT_VERIFY(permissions.size() == 4);
+                verify(permissions.size() == 4);
                 if (permissions[0] == 'r') {
                     memoryMapping.Permissions |= EMemoryMappingPermission::Read;
                 } else {
-                    YT_VERIFY(permissions[0] == '-');
+                    verify(permissions[0] == '-');
                 }
                 if (permissions[1] == 'w') {
                     memoryMapping.Permissions |= EMemoryMappingPermission::Write;
                 } else {
-                    YT_VERIFY(permissions[1] == '-');
+                    verify(permissions[1] == '-');
                 }
                 if (permissions[2] == 'x') {
                     memoryMapping.Permissions |= EMemoryMappingPermission::Execute;
                 } else {
-                    YT_VERIFY(permissions[2] == '-');
+                    verify(permissions[2] == '-');
                 }
                 if (permissions[3] == 'p') {
                     memoryMapping.Permissions |= EMemoryMappingPermission::Private;
                 } else {
-                    YT_VERIFY(permissions[3] == 's');
+                    verify(permissions[3] == 's');
                     memoryMapping.Permissions |= EMemoryMappingPermission::Shared;
                 }
             }
 
-            YT_VERIFY(TryIntFromString<16>(words[2], memoryMapping.Offset));
+            verify(TryIntFromString<16>(words[2], memoryMapping.Offset));
 
             {
                 TStringBuf device = words[3];
                 TStringBuf majorStr;
                 TStringBuf minorStr;
-                YT_VERIFY(device.TrySplit(':', majorStr, minorStr));
+                verify(device.TrySplit(':', majorStr, minorStr));
                 ui16 major;
                 ui16 minor;
-                YT_VERIFY(TryIntFromString<16>(majorStr, major));
-                YT_VERIFY(TryIntFromString<16>(minorStr, minor));
+                verify(TryIntFromString<16>(majorStr, major));
+                verify(TryIntFromString<16>(minorStr, minor));
                 if (major != 0 || minor != 0) {
 #ifdef _linux_
                     memoryMapping.DeviceId = makedev(major, minor);
@@ -1137,7 +1148,7 @@ std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
                 memoryMapping.INode = FromString<ui64>(words[4]);
             }
 
-            if (words.size() == 6) {
+            if (words.size() >= 6) {
                 memoryMapping.Path = words[5];
             }
 

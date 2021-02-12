@@ -101,10 +101,6 @@ TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
                     continue;
                 }
 
-                YT_LOG_DEBUG("Smaps read (Pid: %v, SMaps: %v)",
-                    pid,
-                    smaps);
-
                 for (const auto& segment : ParseMemoryMappings(smaps)) {
                     YT_LOG_DEBUG("Memory segment parsed (Pid: %v, DeviceId: %v, "
                         "PrivateClean: %v, PrivateDirty: %v, SharedClean: %v, SharedDirty: %v)",
