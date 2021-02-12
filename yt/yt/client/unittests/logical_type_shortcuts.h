@@ -53,6 +53,11 @@ inline TLogicalTypePtr Yson()
     return SimpleLogicalType(ESimpleLogicalValueType::Any);
 }
 
+inline TLogicalTypePtr Bool()
+{
+    return SimpleLogicalType(ESimpleLogicalValueType::Boolean);
+}
+
 inline TLogicalTypePtr Optional(const TLogicalTypePtr& element)
 {
     return OptionalLogicalType(element);
