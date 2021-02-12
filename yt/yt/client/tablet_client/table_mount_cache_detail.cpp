@@ -122,6 +122,7 @@ TFuture<TTableMountInfoPtr> TTableMountCacheBase::GetTableInfo(const NYPath::TYP
     auto [future, requestInitialized] = TAsyncExpiringCache::GetExtended(path);
 
     if (Config_->RejectIfEntryIsRequestedButNotReady && !requestInitialized && !future.IsSet()) {
+        // COMPAT(babenko): replace with TransientFailure error code.
         THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable,
             "Mount info is unavailable, please try again")
             << TError(NTabletClient::EErrorCode::TableMountInfoNotReady,

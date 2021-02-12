@@ -60,13 +60,21 @@ bool IsRetriableError(const TError& error)
         return true;
     }
     auto code = error.GetCode();
-    return code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
-           code == NYT::EErrorCode::Timeout;
+    return
+        code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
+        code == NRpc::EErrorCode::TransientFailure ||
+        code == NYT::EErrorCode::Timeout;
 }
 
 bool IsChannelFailureError(const TError& error)
 {
     auto code = error.GetCode();
+    // COMPAT(babenko): see YT-13870, 1707 is NTabletClient::EErrorCode::TableMountInfoNotReady
+    if (code == NRpc::EErrorCode::Unavailable &&
+        error.FindMatching(TErrorCode(1707)))
+    {
+        return false;
+    }
     return
         code == NRpc::EErrorCode::TransportError ||
         code == NRpc::EErrorCode::Unavailable ||
