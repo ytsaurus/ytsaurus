@@ -486,7 +486,9 @@ void TSolomonExporter::HandleShard(
 
         options.EnableSolomonAggregationWorkaround = true;
         options.Times = readWindow;
+        options.ExportSummary = Config_->ExportSummary;
         options.ExportSummaryAsMax = Config_->ExportSummaryAsMax;
+        options.ExportSummaryAsAvg = Config_->ExportSummaryAsAvg;
         options.MarkAggregates = Config_->MarkAggregates;
         options.LingerWindowSize = Config_->LingerTimeout / Config_->GridStep;
 

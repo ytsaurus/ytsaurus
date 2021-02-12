@@ -163,11 +163,11 @@ int TCube<T>::ReadSensors(
 {
     int sensorsEmitted = 0;
 
-    auto writeLabels = [&] (const auto& tagIds, bool rate, bool max, bool allowAggregate) {
+    auto writeLabels = [&] (const auto& tagIds, std::optional<TStringBuf> suffix, bool allowAggregate) {
         consumer->OnLabelsBegin();
 
         TString sensorName;
-        sensorName.reserve(name.size() + (rate ? 5 : 0) + (max ? 4 : 0));
+        sensorName.reserve(name.size() + (suffix ? suffix->size() : 0));
         if (name[0] != '/') {
             sensorName.push_back(name[0]);
         }
@@ -178,11 +178,8 @@ int TCube<T>::ReadSensors(
                 sensorName.push_back(name[i]);
             }
         }
-        if (rate) {
-            sensorName += ".rate";
-        }
-        if (max) {
-            sensorName += ".max";
+        if (suffix) {
+            sensorName += *suffix;
         }
 
         consumer->OnLabel("sensor", sensorName);
@@ -261,6 +258,29 @@ int TCube<T>::ReadSensors(
         }
 
         int sensorCount = 0;
+        auto writeSummary = [&, tagIds=tagIds] (auto time, auto snapshot) {
+            if (options.ExportSummary) {
+                consumer->OnMetricBegin(NMonitoring::EMetricType::DSUMMARY);
+                writeLabels(tagIds, {}, true);
+                sensorCount += 5;
+                consumer->OnSummaryDouble(time, snapshot);
+            }
+
+            if (options.ExportSummaryAsMax) {
+                consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
+                writeLabels(tagIds, ".max", false);
+                sensorCount += 1;
+                consumer->OnDouble(time, snapshot->GetMax());
+            }
+
+            if (options.ExportSummaryAsAvg && snapshot->GetCount() > 0) {
+                consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
+                writeLabels(tagIds, ".avg", false);
+                sensorCount += 1;
+                consumer->OnDouble(time, snapshot->GetSum() / snapshot->GetCount());
+            }
+        };
+
         for (const auto& [indices, time] : options.Times) {
             if (!options.EnableSolomonAggregationWorkaround && skipSparse(window, indices)) {
                 continue;
@@ -284,7 +304,7 @@ int TCube<T>::ReadSensors(
                     consumer->OnMetricBegin(NMonitoring::EMetricType::RATE);
                 }
 
-                writeLabels(tagIds, options.ConvertCountersToRateGauge, false, true);
+                writeLabels(tagIds, options.ConvertCountersToRateGauge ? std::optional(".rate") : std::nullopt, true);
 
                 sensorCount = 1;
                 if (options.ConvertCountersToRateGauge) {
@@ -308,19 +328,11 @@ int TCube<T>::ReadSensors(
             } else if constexpr (std::is_same_v<T, double>) {
                 consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
 
-                writeLabels(tagIds, false, false, true);
+                writeLabels(tagIds, {}, true);
 
                 sensorCount = 1;
                 consumer->OnDouble(time, window.Values[indices.back()]);
             } else if constexpr (std::is_same_v<T, TSummarySnapshot<double>>) {
-                if (options.ExportSummaryAsMax) {
-                    consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
-                } else {
-                    consumer->OnMetricBegin(NMonitoring::EMetricType::DSUMMARY);
-                }
-
-                writeLabels(tagIds, false, options.ExportSummaryAsMax, !options.ExportSummaryAsMax);
-
                 auto snapshot = MakeIntrusive<NMonitoring::TSummaryDoubleSnapshot>(
                     value.Sum(),
                     value.Min(),
@@ -328,22 +340,9 @@ int TCube<T>::ReadSensors(
                     value.Last(),
                     static_cast<ui64>(value.Count())
                 );
-                if (options.ExportSummaryAsMax) {
-                    sensorCount = 1;
-                    consumer->OnDouble(time, snapshot->GetMax());
-                } else {
-                    sensorCount = 5;
-                    consumer->OnSummaryDouble(time, snapshot);
-                }
+
+                writeSummary(time, snapshot);
             } else if constexpr (std::is_same_v<T, TSummarySnapshot<TDuration>>) {
-                if (options.ExportSummaryAsMax) {
-                    consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
-                } else {
-                    consumer->OnMetricBegin(NMonitoring::EMetricType::DSUMMARY);
-                }
-
-                writeLabels(tagIds, false, options.ExportSummaryAsMax, !options.ExportSummaryAsMax);
-
                 auto snapshot = MakeIntrusive<NMonitoring::TSummaryDoubleSnapshot>(
                     value.Sum().SecondsFloat(),
                     value.Min().SecondsFloat(),
@@ -352,17 +351,11 @@ int TCube<T>::ReadSensors(
                     static_cast<ui64>(value.Count())
                 );
 
-                if (options.ExportSummaryAsMax) {
-                    sensorCount = 1;
-                    consumer->OnDouble(time, snapshot->GetMax());
-                } else {
-                    sensorCount = 5;
-                    consumer->OnSummaryDouble(time, snapshot);
-                }
+                writeSummary(time, snapshot);
             } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
                 consumer->OnMetricBegin(NMonitoring::EMetricType::HIST);
 
-                writeLabels(tagIds, false, false, true);
+                writeLabels(tagIds, {}, true);
 
                 auto hist = NMonitoring::TExplicitHistogramSnapshot::New(options.BucketBound.size());
                 for (size_t i = 0; i < options.BucketBound.size(); ++i) {
