@@ -1772,13 +1772,12 @@ private:
             auto beginInstant = TInstant::Now();
             partition->SetCompactionTime(beginInstant);
 
-            auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
             auto retainedTimestamp = std::min(
                 InstantToTimestamp(TimestampToInstant(currentTimestamp).second - tablet->GetConfig()->MinDataTtl).second,
                 currentTimestamp
             );
 
-            majorTimestamp = std::min(majorTimestamp, retainedTimestamp);
+            auto majorTimestamp = std::min(ComputeMajorTimestamp(partition, stores), retainedTimestamp);
 
             structuredLogger->LogEvent("start_compaction")
                 .Item("partition_id").Value(partition->GetId())
