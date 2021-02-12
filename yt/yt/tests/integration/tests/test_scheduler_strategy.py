@@ -4848,6 +4848,14 @@ class TestVectorStrongGuarantees(YTEnvSetup):
             create_pool("pubsubpool", parent_name="subpool", attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 5}})
 
     @authors("eshcherbin")
+    def test_children_compatibility_validation_with_zeros(self):
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}})
+        create_pool("subpool", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10}})
+
+        with pytest.raises(YtError):
+            create_pool("pubsubpool", parent_name="subpool", attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 0}})
+
+    @authors("eshcherbin")
     def test_main_resource_validation_on_pool_config_update(self):
         create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}})
         create_pool("subpool1", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 25}})

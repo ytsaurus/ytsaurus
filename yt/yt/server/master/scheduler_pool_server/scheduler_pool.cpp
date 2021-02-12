@@ -68,21 +68,38 @@ void TSchedulerPool::ValidateChildrenCompatibility()
     // TODO(renadeen): move children validation to pool config?
     FullConfig()->StrongGuaranteeResources->ForEachResource([this] (auto TResourceLimitsConfig::* resourceDataMember, EJobResourceType resourceType) {
         using TResource = typename std::remove_reference_t<decltype(std::declval<TResourceLimitsConfig>().*resourceDataMember)>::value_type;
-        auto getResource = [&] (TSchedulerPool* object) -> TResource {
-            return (object->FullConfig()->StrongGuaranteeResources.Get()->*resourceDataMember).value_or(0);
+        auto getResource = [&] (TSchedulerPool* object) -> std::optional<TResource> {
+            return object->FullConfig()->StrongGuaranteeResources.Get()->*resourceDataMember;
         };
 
         auto parentResource = getResource(this);
-        TResource childrenResourceSum = 0;
-        for (const auto& [_, child] : KeyToChild_) {
-            childrenResourceSum += getResource(child);
+        if (!parentResource) {
+            for (const auto& [_, child] : KeyToChild_) {
+                if (auto childResource = getResource(child)) {
+                    THROW_ERROR_EXCEPTION(
+                        "Setting explicit resource guarantee for pool %Qv is forbidden "
+                        "because no explicit guarantee is configured for its parent",
+                        child->GetName())
+                        << TErrorAttribute("pool_name", child->GetName())
+                        << TErrorAttribute("parent_name", GetName())
+                        << TErrorAttribute("resource_type", resourceType)
+                        << TErrorAttribute("resource_guarantee", *childResource);
+                }
+            }
+
+            return;
         }
 
-        if (parentResource < childrenResourceSum) {
-            THROW_ERROR_EXCEPTION("Guarantee of resource for pool %Qv is less than the sum of children guarantees",  GetName())
+        TResource childrenResourceSum = 0;
+        for (const auto& [_, child] : KeyToChild_) {
+            childrenResourceSum += getResource(child).value_or(0);
+        }
+
+        if (*parentResource < childrenResourceSum) {
+            THROW_ERROR_EXCEPTION("Guarantee of resource for pool %Qv is less than the sum of children guarantees", GetName())
                 << TErrorAttribute("resource_type", resourceType)
                 << TErrorAttribute("pool_name", GetName())
-                << TErrorAttribute("parent_resource_value", parentResource)
+                << TErrorAttribute("parent_resource", *parentResource)
                 << TErrorAttribute("children_resource_sum", childrenResourceSum);
         }
     });
