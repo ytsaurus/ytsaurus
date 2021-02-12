@@ -837,6 +837,16 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
 
+    if (jobSummary.InterruptReason != EInterruptReason::None) {
+        jobSummary.SplitJobCount = EstimateSplitJobCount(jobSummary, joblet);
+        YT_LOG_DEBUG("Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, SplitJobCount: %v)",
+            jobSummary.Id,
+            jobSummary.InterruptReason,
+            jobSummary.UnreadInputDataSlices.size(),
+            jobSummary.SplitJobCount);
+    }
+    JobSplitter_->OnJobCompleted(jobSummary);
+
     for (const auto& dataSlice : jobSummary.ReadInputDataSlices) {
         AdjustInputKeyBounds(dataSlice);
     }
@@ -855,16 +865,6 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
             InputDataWeightHistogram_->AddValue(*dataWeight);
         }
     }
-
-    if (jobSummary.InterruptReason != EInterruptReason::None) {
-        jobSummary.SplitJobCount = EstimateSplitJobCount(jobSummary, joblet);
-        YT_LOG_DEBUG("Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, SplitJobCount: %v)",
-            jobSummary.Id,
-            jobSummary.InterruptReason,
-            jobSummary.UnreadInputDataSlices.size(),
-            jobSummary.SplitJobCount);
-    }
-    JobSplitter_->OnJobCompleted(jobSummary);
 
     return result;
 }
@@ -1625,10 +1625,6 @@ double TTask::GetUserJobMemoryReserveFactor() const
 
 int TTask::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet)
 {
-    if (GetPendingJobCount() > 0) {
-        return 1;
-    }
-
     auto inputDataStatistics = GetTotalInputDataStatistics(*jobSummary.Statistics);
 
     // We don't estimate unread row count based on unread slices,
@@ -1643,6 +1639,11 @@ int TTask::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const T
     }
 
     auto splitJobCount = JobSplitter_->EstimateJobCount(jobSummary, unreadRowCount);
+
+    if (GetPendingJobCount() > 0) {
+        splitJobCount = 1;
+    }
+
     if (jobSummary.InterruptReason == EInterruptReason::JobSplit) {
         // If we interrupted job on our own decision, (from JobSplitter), we should at least try to split it into 2 pieces.
         // Otherwise, the whole splitting thing makes to sense.
