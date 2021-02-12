@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "resource_volume.h"
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -14,7 +15,7 @@ class TPersistentPoolState
     : public NYTree::TYsonSerializable  // TODO(renadeen): Try to make it lite.
 {
 public:
-    TJobResources AccumulatedResourceVolume;
+    TResourceVolume AccumulatedResourceVolume;
 
     TPersistentPoolState();
 };

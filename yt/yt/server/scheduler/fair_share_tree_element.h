@@ -147,7 +147,7 @@ struct TPersistentAttributes
     TResourceVector BestAllocationShare = TResourceVector::Ones();
     TInstant LastBestAllocationRatioUpdateTime;
 
-    TJobResources AccumulatedResourceVolume = {};
+    TResourceVolume AccumulatedResourceVolume = {};
     double LastIntegralShareRatio = 0.0;
     TJobResources AppliedResourceLimits = TJobResources::Infinite();
 
@@ -453,8 +453,8 @@ public:
 
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const;
     double GetAccumulatedResourceRatioVolume() const;
-    TJobResources GetAccumulatedResourceVolume() const;
-    void InitAccumulatedResourceVolume(TJobResources resourceVolume);
+    TResourceVolume GetAccumulatedResourceVolume() const;
+    void InitAccumulatedResourceVolume(TResourceVolume resourceVolume);
     double GetIntegralShareRatioByVolume() const;
     void IncreaseHierarchicalIntegralShare(const TResourceVector& delta);
 
@@ -713,7 +713,7 @@ public:
 
     TResourceVector GetHierarchicalAvailableLimitsShare() const;
 
-    TJobResources GetIntegralPoolCapacity() const;
+    TResourceVolume GetIntegralPoolCapacity() const;
 
     void InitializeChildHeap(TFairShareContext* context);
     void UpdateChild(TFairShareContext* context, TSchedulerElement* child);

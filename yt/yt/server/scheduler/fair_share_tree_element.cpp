@@ -947,17 +947,17 @@ void TSchedulerElement::BuildResourceMetering(const std::optional<TMeteringKey>&
 
 double TSchedulerElement::GetAccumulatedResourceRatioVolume() const
 {
-    return GetMinResourceRatio(PersistentAttributes_.AccumulatedResourceVolume, TotalResourceLimits_);
+    return PersistentAttributes_.AccumulatedResourceVolume.GetMinResourceRatio(TotalResourceLimits_);
 }
 
-TJobResources TSchedulerElement::GetAccumulatedResourceVolume() const
+TResourceVolume TSchedulerElement::GetAccumulatedResourceVolume() const
 {
     return PersistentAttributes_.AccumulatedResourceVolume;
 }
 
-void TSchedulerElement::InitAccumulatedResourceVolume(TJobResources resourceVolume)
+void TSchedulerElement::InitAccumulatedResourceVolume(TResourceVolume resourceVolume)
 {
-    YT_VERIFY(PersistentAttributes_.AccumulatedResourceVolume == TJobResources());
+    YT_VERIFY(PersistentAttributes_.AccumulatedResourceVolume == TResourceVolume());
     PersistentAttributes_.AccumulatedResourceVolume = resourceVolume;
 }
 
@@ -2092,9 +2092,9 @@ int TCompositeSchedulerElement::GetAvailableRunningOperationCount() const
     return std::max(GetMaxRunningOperationCount() - RunningOperationCount_, 0);
 }
 
-TJobResources TCompositeSchedulerElement::GetIntegralPoolCapacity() const
+TResourceVolume TCompositeSchedulerElement::GetIntegralPoolCapacity() const
 {
-    return TotalResourceLimits_ * Attributes_.ResourceFlowRatio * TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod.SecondsFloat();
+    return TResourceVolume(TotalResourceLimits_ * Attributes_.ResourceFlowRatio, TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod);
 }
 
 void TCompositeSchedulerElement::InitializeChildHeap(TFairShareContext* context)
@@ -2534,9 +2534,11 @@ void TPool::UpdateAccumulatedResourceVolume(TDuration periodSinceLastUpdate)
     auto oldVolume = PersistentAttributes_.AccumulatedResourceVolume;
     auto upperLimit = Max(oldVolume, GetIntegralPoolCapacity());
 
-    PersistentAttributes_.AccumulatedResourceVolume += TotalResourceLimits_ * Attributes_.ResourceFlowRatio * periodSinceLastUpdate.SecondsFloat();
-    PersistentAttributes_.AccumulatedResourceVolume -= TotalResourceLimits_ * PersistentAttributes_.LastIntegralShareRatio * periodSinceLastUpdate.SecondsFloat();
-    PersistentAttributes_.AccumulatedResourceVolume = Max(PersistentAttributes_.AccumulatedResourceVolume, TJobResources());
+    PersistentAttributes_.AccumulatedResourceVolume +=
+        TResourceVolume(TotalResourceLimits_ * Attributes_.ResourceFlowRatio, periodSinceLastUpdate);
+    PersistentAttributes_.AccumulatedResourceVolume -=
+        TResourceVolume(TotalResourceLimits_ * PersistentAttributes_.LastIntegralShareRatio, periodSinceLastUpdate);
+    PersistentAttributes_.AccumulatedResourceVolume = Max(PersistentAttributes_.AccumulatedResourceVolume, TResourceVolume());
     PersistentAttributes_.AccumulatedResourceVolume = Min(PersistentAttributes_.AccumulatedResourceVolume, upperLimit);
 
     YT_LOG_DEBUG(

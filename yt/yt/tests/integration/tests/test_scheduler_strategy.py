@@ -4268,9 +4268,12 @@ class TestIntegralGuarantees(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
+    FAIR_SHARE_UPDATE_PERIOD = 500
+
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,  # Update pools configuration period
+            "fair_share_update_period": FAIR_SHARE_UPDATE_PERIOD
         }
     }
 
@@ -4292,7 +4295,7 @@ class TestIntegralGuarantees(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestIntegralGuarantees, self).setup_method(method)
-        set("//sys/pool_trees/default/@config/integral_guarantees", {"smooth_period": 500})
+        set("//sys/pool_trees/default/@config/integral_guarantees", {"smooth_period": self.FAIR_SHARE_UPDATE_PERIOD})
 
     def test_simple_burst_integral_guarantee(self):
         create_pool(
@@ -4556,24 +4559,15 @@ class TestIntegralGuarantees(YTEnvSetup):
                 }
             },
         )
-        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"))
+        pool_path = scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"
+        wait(lambda: exists(pool_path))
 
         # No operations -> volume is accumulating
-        wait(
-            lambda: get(
-                scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_ratio_volume"
-            )
-            > 1
-        )
+        wait(lambda: get(pool_path + "/accumulated_resource_ratio_volume") > 1)
         run_sleeping_vanilla(job_count=10, spec={"pool": "test_pool"})
 
         # Minimum volume is 0.25 = 0.5 (period) * 0.5 (flow_ratio)
-        wait(
-            lambda: get(
-                scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_ratio_volume"
-            )
-            < 0.3
-        )
+        wait(lambda: get(pool_path + "/accumulated_resource_ratio_volume") < 0.3)
 
     def test_accumulated_resource_ratio_volume_survives_restart(self):
         create_pool(

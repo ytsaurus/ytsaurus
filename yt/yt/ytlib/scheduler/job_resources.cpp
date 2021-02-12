@@ -196,7 +196,7 @@ TString FormatResourceUsage(
 TString FormatResources(const TJobResources& resources)
 {
     return Format(
-        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %v, Network: %v}",
+        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
         resources.GetGpu(),
@@ -207,7 +207,7 @@ TString FormatResources(const TJobResources& resources)
 void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */)
 {
     builder->AppendFormat(
-        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %v, Network: %v}",
+        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
         resources.GetGpu(),
@@ -227,7 +227,7 @@ TString FormatResources(
     }
 
     return Format(
-        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %v, Network: %v, DiskQuota: %v}",
+        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v, DiskQuota: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
         resources.GetGpu(),
@@ -241,7 +241,7 @@ TString FormatResources(
 TString FormatResources(const TExtendedJobResources& resources)
 {
     return Format(
-        "{UserSlots: %v, Cpu: %v, Gpu: %v, JobProxyMemory: %v, UserJobMemory: %v, FootprintMemory: %v, Network: %v}",
+        "{UserSlots: %v, Cpu: %v, Gpu: %v, JobProxyMemory: %vMB, UserJobMemory: %vMB, FootprintMemory: %vMB, Network: %v}",
         resources.GetUserSlots(),
         resources.GetCpu(),
         resources.GetGpu(),
