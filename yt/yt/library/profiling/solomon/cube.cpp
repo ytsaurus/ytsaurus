@@ -264,6 +264,7 @@ int TCube<T>::ReadSensors(
                 writeLabels(tagIds, {}, true);
                 sensorCount += 5;
                 consumer->OnSummaryDouble(time, snapshot);
+                consumer->OnMetricEnd();
             }
 
             if (options.ExportSummaryAsMax) {
@@ -271,6 +272,7 @@ int TCube<T>::ReadSensors(
                 writeLabels(tagIds, ".max", false);
                 sensorCount += 1;
                 consumer->OnDouble(time, snapshot->GetMax());
+                consumer->OnMetricEnd();
             }
 
             if (options.ExportSummaryAsAvg && snapshot->GetCount() > 0) {
@@ -278,6 +280,7 @@ int TCube<T>::ReadSensors(
                 writeLabels(tagIds, ".avg", false);
                 sensorCount += 1;
                 consumer->OnDouble(time, snapshot->GetSum() / snapshot->GetCount());
+                consumer->OnMetricEnd();
             }
         };
 
@@ -325,6 +328,8 @@ int TCube<T>::ReadSensors(
                         consumer->OnDouble(time, Rollup(window, indices.back()).SecondsFloat());
                     }
                 }
+
+                consumer->OnMetricEnd();
             } else if constexpr (std::is_same_v<T, double>) {
                 consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
 
@@ -332,6 +337,7 @@ int TCube<T>::ReadSensors(
 
                 sensorCount = 1;
                 consumer->OnDouble(time, window.Values[indices.back()]);
+                consumer->OnMetricEnd();
             } else if constexpr (std::is_same_v<T, TSummarySnapshot<double>>) {
                 auto snapshot = MakeIntrusive<NMonitoring::TSummaryDoubleSnapshot>(
                     value.Sum(),
@@ -365,11 +371,10 @@ int TCube<T>::ReadSensors(
 
                 sensorCount = value.Values.size();
                 consumer->OnHistogram(time, hist);
+                consumer->OnMetricEnd();
             } else {
                 THROW_ERROR_EXCEPTION("Unexpected cube type");
             }
-
-            consumer->OnMetricEnd();
         }
 
         sensorsEmitted += sensorCount;

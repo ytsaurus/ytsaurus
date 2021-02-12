@@ -14,19 +14,9 @@ namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSolomonRegistry::TSolomonRegistry(bool selfProfile)
-    : SelfProfiler_(selfProfile ? MakeStrong(this) : Get(), "/solomon_registry")
-    , Producers_(&Tags_, Iteration_)
-{
-    Producers_.Profile(SelfProfiler_);
-
-    SensorCollectDuration_ = SelfProfiler_.Timer("/sensor_collect_duration");
-    ReadDuration_ = SelfProfiler_.Timer("/read_duration");
-    SensorCount_ = SelfProfiler_.Gauge("/sensor_count");
-    ProjectionCount_ = SelfProfiler_.Gauge("/projection_count");
-    TagCount_ = SelfProfiler_.Gauge("/tag_count");
-    RegistrationCount_ = SelfProfiler_.Counter("/registration_count");
-}
+TSolomonRegistry::TSolomonRegistry()
+    : Producers_(&Tags_, Iteration_)
+{ }
 
 template <class TBase, class TSimple, class TPerCpu, class TFn>
 TIntrusivePtr<TBase> selectImpl(bool hot, const TFn& fn)
@@ -192,7 +182,7 @@ TSolomonRegistryPtr TSolomonRegistry::Get()
 {
     struct TPtrLeaker
     {
-        TSolomonRegistryPtr Ptr = New<TSolomonRegistry>(true);
+        TSolomonRegistryPtr Ptr = New<TSolomonRegistry>();
     };
 
     return LeakySingleton<TPtrLeaker>()->Ptr;
@@ -225,6 +215,20 @@ int TSolomonRegistry::GetWindowSize() const
 int TSolomonRegistry::IndexOf(i64 iteration) const
 {
     return iteration % GetWindowSize();
+}
+
+void TSolomonRegistry::Profile(const TRegistry& profiler)
+{
+    SelfProfiler_ = profiler.WithPrefix("/solomon_registry");
+
+    Producers_.Profile(SelfProfiler_);
+
+    SensorCollectDuration_ = SelfProfiler_.Timer("/sensor_collect_duration");
+    ReadDuration_ = SelfProfiler_.Timer("/read_duration");
+    SensorCount_ = SelfProfiler_.Gauge("/sensor_count");
+    ProjectionCount_ = SelfProfiler_.Gauge("/projection_count");
+    TagCount_ = SelfProfiler_.Gauge("/tag_count");
+    RegistrationCount_ = SelfProfiler_.Counter("/registration_count");
 }
 
 const TRegistry& TSolomonRegistry::GetSelfProfiler() const

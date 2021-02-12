@@ -53,6 +53,8 @@ struct TSolomonExporterConfig
 
     bool EnableCoreProfilingCompatibility;
 
+    bool EnableSelfProfiling;
+
     bool ReportBuildInfo;
 
     bool ReportRestart;
@@ -91,6 +93,9 @@ struct TSolomonExporterConfig
 
         RegisterParameter("enable_core_profiling_compatibility", EnableCoreProfilingCompatibility)
             .Default(false);
+
+        RegisterParameter("enable_self_profiling", EnableSelfProfiling)
+            .Default(true);
 
         RegisterParameter("report_build_info", ReportBuildInfo)
             .Default(true);
