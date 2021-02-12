@@ -489,6 +489,23 @@ TEST(TSolomonRegistry, Exceptions)
     impl->Collect();
 }
 
+TEST(TSolomonRegistry, CounterTagsBug)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+    TRegistry r(impl, "/d");
+
+    auto r1 = r.WithTag("client", "1");
+
+    TTagList tags;
+    tags.emplace_back("cluster", "hahn");
+
+    auto c = r1.WithTags(TTagSet{tags}).Counter("/foo");
+    c.Increment();
+
+    impl->ProcessRegistrations();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
