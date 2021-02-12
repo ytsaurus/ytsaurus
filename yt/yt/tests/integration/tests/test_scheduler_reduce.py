@@ -2836,6 +2836,40 @@ for line in sys.stdin:
                 {"a": "2", "b": "3"},
             ]
 
+    @authors("gritukan")
+    def test_reduce_after_alter(self):
+        schema1 = make_schema([
+            {"name": "a", "type": "int64", "sort_order": "ascending"},
+            {"name": "c", "type": "string"},
+        ])
+        schema2 = make_schema([
+            {"name": "a", "type": "int64", "sort_order": "ascending"},
+            {"name": "b", "type": "int64", "sort_order": "ascending"},
+            {"name": "c", "type": "string"},
+        ])
+
+        create("table", "//tmp/in", attributes={
+            "schema": schema1,
+            "chunk_writer": {"block_size": 1024},
+        })
+
+        rows = [{"a": x, "c": "A" * 500} for x in range(100)]
+        write_table("//tmp/in", rows)
+        alter_table("//tmp/in", schema=schema2)
+
+        create("table", "//tmp/out")
+        reduce(
+            in_=["//tmp/in"],
+            out="//tmp/out",
+            command="cat",
+            reduce_by=["a", "b"],
+            spec={"reducer": {"format": "dsv"}, "job_count": 2},
+        )
+
+        expected = [{"a": str(x), "c": "A" * 500} for x in range(100)]
+        assert sorted(read_table("//tmp/out")) == sorted(expected)
+
+
 ##################################################################
 
 

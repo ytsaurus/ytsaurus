@@ -70,12 +70,8 @@ public:
             chunkComparator = TComparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
         }
 
-        if (SliceReq_.key_column_count() > chunkComparator.GetLength()) {
-            THROW_ERROR_EXCEPTION("Slice request has more key columns than chunk")
-                << TErrorAttribute("chunk_key_column_count", chunkComparator.GetLength())
-                << TErrorAttribute("request_key_column_count", SliceReq_.key_column_count());
-        }
-        SliceComparator_ = chunkComparator.Trim(SliceReq_.key_column_count());
+        int keyColumnCount = std::min<int>(chunkComparator.GetLength(), SliceReq_.key_column_count());
+        SliceComparator_ = chunkComparator.Trim(keyColumnCount);
 
         YT_VERIFY(FindBoundaryKeyBounds(Meta_, &ChunkLowerBound_, &ChunkUpperBound_));
         ChunkLowerBound_ = ShortenKeyBound(ChunkLowerBound_, SliceComparator_.GetLength());
@@ -121,8 +117,10 @@ public:
             BlockDescriptors_.push_back(std::move(blockDescriptor));
         }
 
-        TReadLimit sliceLowerLimit(sliceReq.lower_limit(), /* isLower */false, SliceComparator_.GetLength());
-        TReadLimit sliceUpperLimit(sliceReq.upper_limit(), /* isUpper */true, SliceComparator_.GetLength());
+        TReadLimit sliceLowerLimit(SliceReq_.lower_limit(), /* isUpper */false, SliceReq_.key_column_count());
+        TReadLimit sliceUpperLimit(SliceReq_.upper_limit(), /* isUpper */true, SliceReq_.key_column_count());
+        sliceLowerLimit.KeyBound() = ShortenKeyBound(sliceLowerLimit.KeyBound(), keyColumnCount);
+        sliceUpperLimit.KeyBound() = ShortenKeyBound(sliceUpperLimit.KeyBound(), keyColumnCount);
 
         if (sliceLowerLimit.KeyBound()) {
             SliceLowerBound_ = sliceLowerLimit.KeyBound();

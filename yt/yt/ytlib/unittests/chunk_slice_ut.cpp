@@ -68,7 +68,7 @@ TLegacyReadLimit MakeReadLimit(
         readLimit.SetRowIndex(*rowIndex);
     }
 
-    return readLimit;   
+    return readLimit;
 }
 
 void ValidateCovering(const std::vector<TChunkSlice>& slices, bool sliceByRows)
@@ -698,6 +698,43 @@ TEST(TChunkSlicerTest, SliceByKeysTwoBlocks)
     EXPECT_EQ(slices[1].RowCount, 100);
 }
 
+TEST(TChunkSlicerTest, SliceByKeysWiderRequest)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({2}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({2}),
+        MakeRow({3}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    req.set_slice_data_weight(1);
+    req.set_key_column_count(2);
+    req.set_slice_by_keys(true);
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */false);
+    ASSERT_EQ(slices.size(), 2);
+
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
+    EXPECT_EQ(slices[0].DataWeight, 100);
+    EXPECT_EQ(slices[0].RowCount, 100);
+
+    // NB: Second block actually contains key 2, however we don't know about it
+    // since only block last keys are stored in meta.
+    EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({2}));
+    EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
+    EXPECT_EQ(slices[1].DataWeight, 100);
+    EXPECT_EQ(slices[1].RowCount, 100);
+}
+
 TEST(TChunkSlicerTest, SliceByKeysManiac1)
 {
     TChunkBuilder chunkBuilder(1);
@@ -850,12 +887,12 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits1)
         MakeRow({3}),
         MakeRow({4}),
         100,
-        100);  
+        100);
     chunkBuilder.AddBlock(
         MakeRow({5}),
         MakeRow({6}),
         100,
-        100);  
+        100);
 
     auto chunkMeta = chunkBuilder.Finish();
 
@@ -893,12 +930,12 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits2)
         MakeRow({1}),
         MakeRow({1}),
         100,
-        100);  
+        100);
     chunkBuilder.AddBlock(
         MakeRow({1}),
         MakeRow({1}),
         100,
-        100);  
+        100);
 
     auto chunkMeta = chunkBuilder.Finish();
 
@@ -930,7 +967,7 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits1)
         MakeRow({5}),
         MakeRow({7}),
         100,
-        100);  
+        100);
     chunkBuilder.AddBlock(
         MakeRow({9}),
         MakeRow({11}),
@@ -977,7 +1014,7 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits2)
         MakeRow({5}),
         MakeRow({7}),
         100,
-        100);  
+        100);
     chunkBuilder.AddBlock(
         MakeRow({9}),
         MakeRow({11}),
