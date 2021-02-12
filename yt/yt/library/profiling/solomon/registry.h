@@ -22,7 +22,7 @@ class TSolomonRegistry
     : public IRegistryImpl
 {
 public:
-    explicit TSolomonRegistry(bool selfProfile = false);
+    explicit TSolomonRegistry();
 
     virtual ICounterImplPtr RegisterCounter(
         const TString& name,
@@ -102,12 +102,14 @@ public:
     i64 GetNextIteration() const;
     int GetWindowSize() const;
     int IndexOf(i64 iteration) const;
+
+    void Profile(const TRegistry& profiler);
     const TRegistry& GetSelfProfiler() const;
 
 private:
     i64 Iteration_ = 0;
     std::optional<int> WindowSize_;
-    const TRegistry SelfProfiler_;
+    TRegistry SelfProfiler_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, DynamicTagsLock_);
     std::vector<TTag> DynamicTags_;
