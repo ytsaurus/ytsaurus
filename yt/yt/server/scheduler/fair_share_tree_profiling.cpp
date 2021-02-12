@@ -357,7 +357,7 @@ void TFairShareTreeProfiler::ProfileElement(
             "/promised_fair_share");
 
         if (!element->IsOperation()) {
-            ProfileResources(
+            ProfileResourceVolume(
                 writer,
                 element->GetAccumulatedResourceVolume(),
                 "/accumulated_resource_volume");

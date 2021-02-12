@@ -122,10 +122,10 @@ TString FormatResources(const TNodeResources& resources)
 {
     return Format(
         "{"
-        "UserSlots: %v, Cpu: %v, Gpu: %v, UserMemory: %v, SystemMemory: %v, Network: %v, "
-        "ReplicationSlots: %v, ReplicationDataSize: %v, "
+        "UserSlots: %v, Cpu: %v, Gpu: %v, UserMemory: %vMB, SystemMemory: %vMB, Network: %v, "
+        "ReplicationSlots: %v, ReplicationDataSize: %vMB, "
         "RemovalSlots: %v, "
-        "RepairSlots: %v, RepairDataSize: %v, "
+        "RepairSlots: %v, RepairDataSize: %vMB, "
         "SealSlots: %v"
         "}",
         resources.user_slots(),

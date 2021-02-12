@@ -1629,7 +1629,7 @@ TEST_F(TFairShareTreeTest, TestRelaxedPoolWithIncreasedMultiplierLimit)
     auto [operationElement1, operationHost1] = CreateOperationWithJobs(100, host.Get(), defaultRelaxedPool.Get());
     auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, host.Get(), increasedLimitRelaxedPool.Get());
 
-    TJobResources hugeVolume;
+    TResourceVolume hugeVolume;
     hugeVolume.SetCpu(10000000000);
     hugeVolume.SetUserSlots(10000000000);
     hugeVolume.SetMemory(10000000000_MB);
@@ -1704,7 +1704,7 @@ TEST_F(TFairShareTreeTest, TestAccumulatedVolumeProvidesMore)
     }
 
     auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), relaxedPool.Get());
-    auto secondUpdateTime = TInstant::Now() + TDuration::Minutes(1);
+    auto secondUpdateTime = firstUpdateTime + TDuration::Minutes(1);
     {
         TUpdateFairShareContext updateContext;
         updateContext.Now = secondUpdateTime;
@@ -1950,8 +1950,8 @@ TEST_F(TFairShareTreeTest, TestTwoRelaxedPoolsGetShareRatioProportionalToVolume)
     oneTenthOfCluster.SetUserSlots(10);
     oneTenthOfCluster.SetMemory(100_MB);
 
-    auto volume1 = oneTenthOfCluster * TDuration::Minutes(1).SecondsFloat();  // 10% of cluster for 1 minute
-    auto volume2 = oneTenthOfCluster * TDuration::Minutes(1).SecondsFloat() * 3.0;  // 30% of cluster for 1 minute
+    auto volume1 = TResourceVolume(oneTenthOfCluster, TDuration::Minutes(1));  // 10% of cluster for 1 minute
+    auto volume2 = TResourceVolume(oneTenthOfCluster, TDuration::Minutes(1) * 3.0);  // 30% of cluster for 1 minute
     relaxedPool1->InitAccumulatedResourceVolume(volume1);
     relaxedPool2->InitAccumulatedResourceVolume(volume2);
     {
@@ -2329,12 +2329,12 @@ TEST_F(TFairShareTreeTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolu
     relaxedPool->AttachParent(rootElement.Get());
 
 
-    TJobResources aLotOfResources;
-    aLotOfResources.SetCpu(10000000000);
-    aLotOfResources.SetUserSlots(10000000000);
-    aLotOfResources.SetMemory(10000000000_MB);
+    TResourceVolume hugeVolume;
+    hugeVolume.SetCpu(10000000000);
+    hugeVolume.SetUserSlots(10000000000);
+    hugeVolume.SetMemory(10000000000_MB);
 
-    relaxedPool->InitAccumulatedResourceVolume(aLotOfResources);
+    relaxedPool->InitAccumulatedResourceVolume(hugeVolume);
     {
         TUpdateFairShareContext updateContext;
         updateContext.Now = TInstant::Now();
@@ -2343,11 +2343,11 @@ TEST_F(TFairShareTreeTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolu
         rootElement->Update(&updateContext);
 
         auto updatedVolume = relaxedPool->GetAccumulatedResourceVolume();
-        EXPECT_EQ(aLotOfResources.GetCpu(), updatedVolume.GetCpu());
-        EXPECT_EQ(aLotOfResources.GetMemory(), updatedVolume.GetMemory());
-        EXPECT_EQ(aLotOfResources.GetUserSlots(), updatedVolume.GetUserSlots());
-        EXPECT_EQ(aLotOfResources.GetGpu(), updatedVolume.GetGpu());
-        EXPECT_EQ(aLotOfResources.GetNetwork(), updatedVolume.GetNetwork());
+        EXPECT_EQ(hugeVolume.GetCpu(), updatedVolume.GetCpu());
+        EXPECT_EQ(hugeVolume.GetMemory(), updatedVolume.GetMemory());
+        EXPECT_EQ(hugeVolume.GetUserSlots(), updatedVolume.GetUserSlots());
+        EXPECT_EQ(hugeVolume.GetGpu(), updatedVolume.GetGpu());
+        EXPECT_EQ(hugeVolume.GetNetwork(), updatedVolume.GetNetwork());
     }
 }
 
