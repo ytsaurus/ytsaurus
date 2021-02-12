@@ -35,7 +35,9 @@ inline const TTagIndexList& TProjectionSet::Alternative() const
 
 inline TTagSet::TTagSet(const TTagList& tags)
     : Tags_(tags)
-{ }
+{
+    Resize(tags.size());
+}
 
 inline const TTagList& TTagSet::Tags() const
 {
