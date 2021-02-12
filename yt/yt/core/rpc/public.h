@@ -138,8 +138,11 @@ DEFINE_ENUM(EErrorCode,
     ((ProtocolError)                (101))
     ((NoSuchService)                (102))
     ((NoSuchMethod)                 (103))
-    ((Unavailable)                  (105))
-    ((PoisonPill)                   (106))
+    ((Unavailable)                  (105)) // The server is not capable of serving requests and
+                                           // must not receive any more load.
+    ((TransientFailure)             (116)) // Similar to Unavailable but indicates a transient issue,
+                                           // which can be safely retried.
+    ((PoisonPill)                   (106)) // The client must die upon receiving this error.
     ((RequestQueueSizeLimitExceeded)(108))
     ((AuthenticationError)          (109))
     ((InvalidCsrfToken)             (110))
@@ -147,7 +150,7 @@ DEFINE_ENUM(EErrorCode,
     ((StreamingNotSupported)        (112))
     ((UnsupportedClientFeature)     (113))
     ((UnsupportedServerFeature)     (114))
-    ((PeerBanned)                   (115))
+    ((PeerBanned)                   (115)) // The server is explicitly banned and thus must be dropped.
 );
 
 DEFINE_ENUM(EMessageFormat,

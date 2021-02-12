@@ -1316,6 +1316,7 @@ bool IsRetriableError(const TError& error, bool retryProxyBanned)
         error.FindMatching(NRpc::EErrorCode::RequestQueueSizeLimitExceeded) ||
         error.FindMatching(NRpc::EErrorCode::TransportError) ||
         error.FindMatching(NRpc::EErrorCode::Unavailable) ||
+        error.FindMatching(NRpc::EErrorCode::TransientFailure) ||
         error.FindMatching(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded);
 }
 
