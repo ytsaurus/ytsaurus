@@ -99,7 +99,6 @@ public:
     const NDataNode::IJournalDispatcherPtr& GetJournalDispatcher() const;
     const NDataNode::TMasterConnectorPtr& GetMasterConnector() const;
     const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
-    const NQueryAgent::IQuerySubexecutorPtr& GetQueryExecutor() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const;
@@ -194,7 +193,6 @@ private:
     NTabletNode::IStructuredLoggerPtr TabletNodeStructuredLogger_;
 
     NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-    NQueryAgent::IQuerySubexecutorPtr QueryExecutor_;
 
 #ifdef __linux__
     NContainers::TInstanceLimitsTrackerPtr InstanceLimitsTracker_;
