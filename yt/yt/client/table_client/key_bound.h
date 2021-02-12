@@ -170,4 +170,11 @@ TOwningKeyBound ShortenKeyBound(TOwningKeyBound keyBound, int length);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Debug printers for Gtest unittests.
+
+void PrintTo(const TKeyBound& key, ::std::ostream* os);
+void PrintTo(const TOwningKeyBound& key, ::std::ostream* os);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

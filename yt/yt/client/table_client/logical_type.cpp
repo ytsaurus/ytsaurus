@@ -193,7 +193,6 @@ static bool operator == (const TStructField& lhs, const TStructField& rhs)
 
 TString ToString(const TLogicalType& logicalType)
 {
-
     switch (logicalType.GetMetatype()) {
         case ELogicalMetatype::Simple:
             return CamelCaseToUnderscoreCase(ToString(logicalType.AsSimpleTypeRef().GetElement()));
@@ -280,6 +279,21 @@ TString ToString(const TLogicalType& logicalType)
         }
     }
     YT_ABORT();
+}
+
+void PrintTo(ELogicalMetatype metatype, std::ostream* os)
+{
+    *os << ToString(metatype);
+}
+
+void PrintTo(const TLogicalType& type, std::ostream* os)
+{
+    *os << ToString(type);
+}
+
+void PrintTo(const TLogicalTypePtr& type, std::ostream* os)
+{
+    PrintTo(*type, os);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

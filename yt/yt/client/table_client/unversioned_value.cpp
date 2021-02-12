@@ -86,4 +86,11 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversion
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void PrintTo(const TUnversionedValue& value, ::std::ostream* os)
+{
+    *os << ToString(value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
