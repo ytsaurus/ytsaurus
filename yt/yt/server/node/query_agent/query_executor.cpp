@@ -282,7 +282,6 @@ public:
         TQueryAgentConfigPtr config,
         TFunctionImplCachePtr functionImplCache,
         TBootstrap* bootstrap,
-        IColumnEvaluatorCachePtr columnEvaluatorCache,
         IEvaluatorPtr evaluator,
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
@@ -294,7 +293,10 @@ public:
         : Config_(std::move(config))
         , FunctionImplCache_(std::move(functionImplCache))
         , Bootstrap_(bootstrap)
-        , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
+        , ColumnEvaluatorCache_(Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetColumnEvaluatorCache())
         , Evaluator_(std::move(evaluator))
         , Query_(std::move(query))
         , ExternalCGInfo_(std::move(externalCGInfo))
@@ -308,7 +310,7 @@ public:
         , Identity_(NRpc::GetCurrentAuthenticationIdentity())
     { }
 
-    TFuture<TQueryStatistics> Execute(TServiceProfilerGuard& profilerGuard)
+    TQueryStatistics Execute(TServiceProfilerGuard& profilerGuard)
     {
         for (const auto& source : DataSources_) {
             if (TypeFromId(source.Id) == EObjectType::Tablet) {
@@ -326,9 +328,7 @@ public:
         auto counters = TabletSnapshots_.GetTableProfiler()->GetQueryServiceCounters(GetCurrentProfilingUser());
         profilerGuard.SetTimer(counters->ExecuteTime);
 
-        return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
-            .AsyncVia(Invoker_)
-            .Run();
+        return DoExecute();
     }
 
 private:
@@ -1021,72 +1021,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQuerySubexecutor
-    : public IQuerySubexecutor
-{
-public:
-    TQuerySubexecutor(
-        TQueryAgentConfigPtr config,
-        TBootstrap* bootstrap)
-        : Config_(config)
-        , FunctionImplCache_(CreateFunctionImplCache(
-            config->FunctionImplCache,
-            bootstrap->GetMasterClient()))
-        , Bootstrap_(bootstrap)
-        , Evaluator_(CreateEvaluator(
-            Config_,
-            Bootstrap_
-                ->GetMemoryUsageTracker()
-                ->WithCategory(NNodeTrackerClient::EMemoryCategory::Query),
-            QueryAgentProfiler))
-        , ColumnEvaluatorCache_(Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetColumnEvaluatorCache())
-    { }
-
-    // IQuerySubexecutor implementation.
-    virtual TFuture<TQueryStatistics> Execute(
-        TConstQueryPtr query,
-        TConstExternalCGInfoPtr externalCGInfo,
-        std::vector<TDataRanges> dataSources,
-        IUnversionedRowsetWriterPtr writer,
-        IInvokerPtr invoker,
-        const TClientBlockReadOptions& blockReadOptions,
-        const TQueryOptions& queryOptions,
-        TServiceProfilerGuard& profilerGuard) override
-    {
-        ValidateReadTimestamp(queryOptions.Timestamp);
-
-        return New<TQueryExecution>(
-            Config_,
-            FunctionImplCache_,
-            Bootstrap_,
-            ColumnEvaluatorCache_,
-            Evaluator_,
-            std::move(query),
-            std::move(externalCGInfo),
-            std::move(dataSources),
-            std::move(writer),
-            std::move(invoker),
-            blockReadOptions,
-            queryOptions)
-            ->Execute(profilerGuard);
-    }
-
-private:
-    const TQueryAgentConfigPtr Config_;
-    const TFunctionImplCachePtr FunctionImplCache_;
-    TBootstrap* const Bootstrap_;
-    const IEvaluatorPtr Evaluator_;
-    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-};
-
-IQuerySubexecutorPtr CreateQuerySubexecutor(
+TQueryStatistics ExecuteSubquery(
     TQueryAgentConfigPtr config,
-    TBootstrap* bootstrap)
+    TFunctionImplCachePtr functionImplCache,
+    TBootstrap* const bootstrap,
+    IEvaluatorPtr evaluator,
+    TConstQueryPtr query,
+    TConstExternalCGInfoPtr externalCGInfo,
+    std::vector<TDataRanges> dataSources,
+    IUnversionedRowsetWriterPtr writer,
+    IInvokerPtr invoker,
+    const TClientBlockReadOptions& blockReadOptions,
+    const TQueryOptions& queryOptions,
+    TServiceProfilerGuard& profilerGuard)
 {
-    return New<TQuerySubexecutor>(config, bootstrap);
+    ValidateReadTimestamp(queryOptions.Timestamp);
+
+    auto execution = New<TQueryExecution>(
+        config,
+        functionImplCache,
+        bootstrap,
+        evaluator,
+        std::move(query),
+        std::move(externalCGInfo),
+        std::move(dataSources),
+        std::move(writer),
+        invoker,
+        blockReadOptions,
+        queryOptions);
+
+    return execution->Execute(profilerGuard);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

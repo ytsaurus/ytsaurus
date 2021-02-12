@@ -34,6 +34,9 @@
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/functions_cache.h>
+#include <yt/ytlib/query_client/evaluator.h>
+
+#include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/client/query_client/query_statistics.h>
 
@@ -233,6 +236,16 @@ public:
             config->PoolWeightCache,
             Bootstrap_->GetMasterClient(),
             GetDefaultInvoker()))
+
+        , FunctionImplCache_(CreateFunctionImplCache(
+            config->FunctionImplCache,
+            bootstrap->GetMasterClient()))
+        , Evaluator_(CreateEvaluator(
+            Config_,
+            Bootstrap_
+                ->GetMemoryUsageTracker()
+                ->WithCategory(NNodeTrackerClient::EMemoryCategory::Query),
+            QueryAgentProfiler))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true)
@@ -259,7 +272,8 @@ private:
     NClusterNode::TBootstrap* const Bootstrap_;
 
     const TPoolWeightCachePtr PoolWeightCache_;
-
+    const TFunctionImplCachePtr FunctionImplCache_;
+    const IEvaluatorPtr Evaluator_;
 
     static IInvokerPtr GetExecuteInvoker(
         NClusterNode::TBootstrap* bootstrap,
@@ -340,8 +354,11 @@ private:
                     false,
                     Logger);
 
-                const auto& executor = Bootstrap_->GetQueryExecutor();
-                auto asyncResult = executor->Execute(
+                auto statistics = ExecuteSubquery(
+                    Config_,
+                    FunctionImplCache_,
+                    Bootstrap_,
+                    Evaluator_,
                     query,
                     externalCGInfo,
                     dataSources,
@@ -350,11 +367,9 @@ private:
                     blockReadOptions,
                     queryOptions,
                     profilerGuard);
-                auto result = WaitFor(asyncResult)
-                    .ValueOrThrow();
 
                 response->Attachments() = writer->GetCompressedBlocks();
-                ToProto(response->mutable_query_statistics(), result);
+                ToProto(response->mutable_query_statistics(), statistics);
                 context->Reply();
             });
     }
