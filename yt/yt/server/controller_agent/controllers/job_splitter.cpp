@@ -156,6 +156,14 @@ public:
         const TCompletedJobSummary& summary,
         i64 unreadRowCount) const override
     {
+        if (!Config_->EnableJobSplitting) {
+            return 1;
+        }
+
+        if (summary.InterruptReason == EInterruptReason::UserRequest) {
+            return 1;
+        }
+
         double execDuration = summary.ExecDuration.value_or(TDuration()).SecondsFloat();
         YT_VERIFY(summary.Statistics);
         i64 processedRowCount = GetNumericValue(*summary.Statistics, "/data/input/row_count");
