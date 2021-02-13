@@ -185,6 +185,8 @@ def spec_option(description=None, nested_spec_builder=None):
     return spec_method_decorator
 
 class JobIOSpecBuilder(object):
+    """Base builder for job_io section in operation spec.
+    """
     def __init__(self, user_job_spec_builder=None, io_name=None, spec=None):
         self._spec = {}
         if spec:
@@ -230,46 +232,64 @@ class JobIOSpecBuilder(object):
         self._spec_patch = update(spec, self._spec_patch)
 
     def build(self):
+        """Builds final spec."""
         spec = update(self._spec_patch, deepcopy(self._spec))
         self._spec_patch = {}
         return spec
 
 class PartitionJobIOSpecBuilder(JobIOSpecBuilder):
+    """Builder for partition_job_io section in operation spec.
+    """
     def __init__(self, user_job_spec_builder):
         super(PartitionJobIOSpecBuilder, self).__init__(user_job_spec_builder, "partition_job_io")
 
     def end_partition_job_io(self):
+        """Ends partition_job_io section."""
         return self._end_job_io()
 
 class SortJobIOSpecBuilder(JobIOSpecBuilder):
+    """Builder for sort_job_io section in operation spec.
+    """
     def __init__(self, user_job_spec_builder):
         super(SortJobIOSpecBuilder, self).__init__(user_job_spec_builder, "sort_job_io")
 
     def end_sort_job_io(self):
+        """Ends sort_job_io section."""
         return self._end_job_io()
 
 class MergeJobIOSpecBuilder(JobIOSpecBuilder):
+    """Builder for merge_job_io section in operation spec.
+    """
     def __init__(self, user_job_spec_builder):
         super(MergeJobIOSpecBuilder, self).__init__(user_job_spec_builder, "merge_job_io")
 
     def end_merge_job_io(self):
+        """Ends merge_job_io section."""
         return self._end_job_io()
 
 class ReduceJobIOSpecBuilder(JobIOSpecBuilder):
+    """Builder for reduce_job_io section in operation spec.
+    """
     def __init__(self, user_job_spec_builder):
         super(ReduceJobIOSpecBuilder, self).__init__(user_job_spec_builder, "reduce_job_io")
 
     def end_reduce_job_io(self):
+        """Ends reduce_job_io section."""
         return self._end_job_io()
 
 class MapJobIOSpecBuilder(JobIOSpecBuilder):
+    """Builder for map_job_io section in operation spec.
+    """
     def __init__(self, user_job_spec_builder):
         super(MapJobIOSpecBuilder, self).__init__(user_job_spec_builder, "map_job_io")
 
     def end_map_job_io(self):
+        """Ends map_job_io section."""
         return self._end_job_io()
 
 class UserJobSpecBuilder(object):
+    """Base builder for user_job sections in operation spec.
+    """
     def __init__(self, spec_builder=None, job_type=None, spec=None):
         self._spec = {}
         if spec:
@@ -313,6 +333,10 @@ class UserJobSpecBuilder(object):
     @spec_option("The amount of processing cores at a job which will be taken into consideration during its scheduling")
     def cpu_limit(self, limit):
         return _set_spec_value(self, "cpu_limit", limit)
+
+    @spec_option("The amount of gpu units at a job which will be mounted to the job container")
+    def gpu_limit(self, limit):
+        return _set_spec_value(self, "gpu_limit", limit)
 
     @spec_option("The restriction on consumption of memory by job (in bytes)")
     def memory_limit(self, limit):
@@ -374,16 +398,19 @@ class UserJobSpecBuilder(object):
     def set_container_cpu_limit(self, set_container_cpu_limit):
         return _set_spec_value(self, "set_container_cpu_limit", set_container_cpu_limit)
 
+    @spec_option("Adds environment variable")
     def environment_variable(self, key, value):
         self._spec.setdefault("environment", {})
         self._spec["environment"][key] = str(value)
         return self
 
+    @spec_option("Adds file to operation")
     def add_file_path(self, path):
         self._spec.setdefault("file_paths", [])
         self._spec["file_paths"].append(path)
         return self
 
+    @spec_option("Patches spec by given dict")
     def spec(self, spec):
         self._user_spec = deepcopy(spec)
         return self
@@ -575,6 +602,7 @@ class UserJobSpecBuilder(object):
 
     def build(self, input_tables, output_tables, operation_type, requires_command, requires_format, job_io_spec,
               local_files_to_remove=None, uploaded_files=None, group_by=None, client=None):
+        """Builds final spec."""
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
 
         spec = self._spec_patch
@@ -624,14 +652,18 @@ class UserJobSpecBuilder(object):
         return spec
 
 class TaskSpecBuilder(UserJobSpecBuilder):
+    """Builder for task section in vanilla operation spec.
+    """
     def __init__(self, name=None, spec_builder=None):
         super(TaskSpecBuilder, self).__init__(spec_builder, job_type=name)
 
+    @spec_option("The approximate count of jobs")
     def job_count(self, job_count):
         self._spec["job_count"] = job_count
         return self
 
     def end_task(self):
+        """Ends task section."""
         return self._end_script()
 
     def _end_script(self):
@@ -641,27 +673,38 @@ class TaskSpecBuilder(UserJobSpecBuilder):
         return spec_builder
 
 class MapperSpecBuilder(UserJobSpecBuilder):
+    """Builder for mapper section in operation spec.
+    """
     def __init__(self, spec_builder=None):
         super(MapperSpecBuilder, self).__init__(spec_builder, job_type="mapper")
 
     def end_mapper(self):
+        """Ends mapper section."""
         return self._end_script()
 
 class ReducerSpecBuilder(UserJobSpecBuilder):
+    """Builder for reducer section in operation spec.
+    """
     def __init__(self, spec_builder=None):
         super(ReducerSpecBuilder, self).__init__(spec_builder, job_type="reducer")
 
     def end_reducer(self):
+        """Ends reducer section."""
         return self._end_script()
 
 class ReduceCombinerSpecBuilder(UserJobSpecBuilder):
+    """Builder for reducer_combiner section in operation spec.
+    """
     def __init__(self, spec_builder=None):
         super(ReduceCombinerSpecBuilder, self).__init__(spec_builder, job_type="reduce_combiner")
 
     def end_reduce_combiner(self):
+        """Ends reduce_combiner section."""
         return self._end_script()
 
 class SpecBuilder(object):
+    """Base builder for operation spec.
+    """
     def __init__(self, operation_type, user_job_scripts=None, job_io_types=None, spec=None):
         self._spec = {}
         if spec:
@@ -782,13 +825,15 @@ class SpecBuilder(object):
     def description(self, description):
         return _set_spec_value(self, "description", description)
 
-    def spec(self, spec):
-        self._user_spec = deepcopy(spec)
-        return self
-
+    @spec_option("Adds secure value to secure vault")
     def secure_vault_variable(self, key, value):
         self._spec.setdefault("secure_vault", {})
         self._spec["secure_vault"][key] = str(value)
+        return self
+
+    @spec_option("Patches spec by given dict")
+    def spec(self, spec):
+        self._user_spec = deepcopy(spec)
         return self
 
     def _prepare_stderr_table(self, spec, client=None):
@@ -923,12 +968,15 @@ class SpecBuilder(object):
         self._prepared_spec = spec
 
     def get_input_table_paths(self):
+        """Returns list of input paths."""
         return self._input_table_paths
 
     def get_output_table_paths(self):
+        """Returns list of output paths."""
         return self._output_table_paths
 
     def prepare(self, client=None):
+        """Prepare spec to be used in operation."""
         pass
 
     def _do_build(self, client=None):
@@ -939,6 +987,7 @@ class SpecBuilder(object):
         return spec
 
     def build(self, client=None):
+        """Builds final spec."""
         spec = self._do_build(client)
         for user_job_script_path in self._user_job_scripts:
             task_spec = spec
@@ -959,19 +1008,24 @@ class SpecBuilder(object):
         return spec
 
     def supports_user_job_spec(self):
+        """Whether operation has some user job sections."""
         return False
 
     def get_finalizer(self, spec, client=None):
+        """Returns finalizer instance that should be called after finish of operation."""
         if self.supports_user_job_spec():
             return Finalizer(self._local_files_to_remove, self._output_table_paths, spec, client=client)
         return lambda state: None
 
     def get_toucher(self, client=None):
+        """Returns toucher instance that should be periodically called before operation started."""
         if self.supports_user_job_spec():
             return Toucher(self._uploaded_files, client=client)
         return lambda: None
 
 class ReduceSpecBuilder(SpecBuilder):
+    """Builder for spec of reduce operation.
+    """
     def __init__(self, spec=None):
         super(ReduceSpecBuilder, self).__init__(
             operation_type="reduce",
@@ -985,6 +1039,7 @@ class ReduceSpecBuilder(SpecBuilder):
         return self
 
     def begin_reducer(self):
+        """Start building reducer section."""
         return ReducerSpecBuilder(self)
 
     @spec_option("The approximate amount of data at the input of one job")
@@ -1033,9 +1088,11 @@ class ReduceSpecBuilder(SpecBuilder):
         return self
 
     def begin_job_io(self):
+        """Start building job_io section."""
         return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
+        """Prepare spec to be used in operation."""
         spec = deepcopy(self._spec)
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
@@ -1078,9 +1135,12 @@ class ReduceSpecBuilder(SpecBuilder):
         return spec
 
     def supports_user_job_spec(self):
+        """Whether operation has some user job sections."""
         return True
 
 class JoinReduceSpecBuilder(SpecBuilder):
+    """Builder for spec of join_reduce operation.
+    """
     def __init__(self):
         super(JoinReduceSpecBuilder, self).__init__(
             operation_type="join_reduce",
@@ -1093,6 +1153,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
         return self
 
     def begin_reducer(self):
+        """Start building reducer section."""
         return ReducerSpecBuilder(self)
 
     @spec_option("The approximate amount of data at the input of one job")
@@ -1125,9 +1186,11 @@ class JoinReduceSpecBuilder(SpecBuilder):
         return self
 
     def begin_job_io(self):
+        """Start building job_io section."""
         return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
+        """Prepare spec to be used in operation."""
         spec = deepcopy(self._spec)
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
@@ -1153,9 +1216,12 @@ class JoinReduceSpecBuilder(SpecBuilder):
         return spec
 
     def supports_user_job_spec(self):
+        """Whether operation has some user job sections."""
         return True
 
 class MapSpecBuilder(SpecBuilder):
+    """Builder for spec of map operation.
+    """
     def __init__(self):
         super(MapSpecBuilder, self).__init__(
             operation_type="map",
@@ -1168,6 +1234,7 @@ class MapSpecBuilder(SpecBuilder):
         return self
 
     def begin_mapper(self):
+        """Start building mapper section."""
         return MapperSpecBuilder(self)
 
     @spec_option("The approximate amount of data at the input of one job")
@@ -1196,9 +1263,11 @@ class MapSpecBuilder(SpecBuilder):
         return self
 
     def begin_job_io(self):
+        """Start building job_io section."""
         return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
+        """Prepare spec to be used in operation."""
         spec = deepcopy(self._spec)
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
@@ -1222,9 +1291,12 @@ class MapSpecBuilder(SpecBuilder):
         return spec
 
     def supports_user_job_spec(self):
+        """Whether operation has some user job sections."""
         return True
 
 class MapReduceSpecBuilder(SpecBuilder):
+    """Builder for spec of map_reduce operation.
+    """
     def __init__(self):
         super(MapReduceSpecBuilder, self).__init__(
             operation_type="map_reduce",
@@ -1238,6 +1310,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         return self
 
     def begin_mapper(self):
+        """Start building mapper section."""
         return MapperSpecBuilder(self)
 
     @spec_option("The description of reducer script", nested_spec_builder=ReducerSpecBuilder)
@@ -1246,6 +1319,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         return self
 
     def begin_reducer(self):
+        """Start building reducer section."""
         return ReducerSpecBuilder(self)
 
     @spec_option("The set of columns by which input tables must be sorted")
@@ -1322,6 +1396,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         return self
 
     def begin_map_job_io(self):
+        """Start building map_job_io section."""
         return MapJobIOSpecBuilder(self)
 
     @spec_option("I/O settings of sort jobs", nested_spec_builder=SortJobIOSpecBuilder)
@@ -1330,6 +1405,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         return self
 
     def begin_sort_job_io(self):
+        """Start building sort_job_io section."""
         return SortJobIOSpecBuilder(self)
 
     @spec_option("I/O settings of reduce jobs", nested_spec_builder=ReduceJobIOSpecBuilder)
@@ -1338,6 +1414,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         return self
 
     def begin_reduce_job_io(self):
+        """Start building reduce_job_io section."""
         return ReduceJobIOSpecBuilder(self)
 
     @spec_option("The description of reduce_combiner script", nested_spec_builder=ReduceCombinerSpecBuilder)
@@ -1346,9 +1423,11 @@ class MapReduceSpecBuilder(SpecBuilder):
         return self
 
     def begin_reduce_combiner(self):
+        """Start building reduce_combiner section."""
         return ReduceCombinerSpecBuilder(self)
 
     def prepare(self, client=None):
+        """Prepare spec to be used in operation."""
         spec = deepcopy(self._spec)
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
@@ -1401,9 +1480,12 @@ class MapReduceSpecBuilder(SpecBuilder):
         return spec
 
     def supports_user_job_spec(self):
+        """Whether operation has some user job sections."""
         return True
 
 class MergeSpecBuilder(SpecBuilder):
+    """Builder for spec of merge operation.
+    """
     def __init__(self, spec=None):
         super(MergeSpecBuilder, self).__init__(
             operation_type="merge",
@@ -1452,9 +1534,11 @@ class MergeSpecBuilder(SpecBuilder):
         return self
 
     def begin_job_io(self):
+        """Start building job_io section."""
         return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
+        """Prepare spec to be used in operation."""
         spec = deepcopy(self._spec)
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
@@ -1470,6 +1554,8 @@ class MergeSpecBuilder(SpecBuilder):
         self._prepare_spec(spec, client=client)
 
 class SortSpecBuilder(SpecBuilder):
+    """Builder for spec of sort operation.
+    """
     def __init__(self, spec=None):
         super(SortSpecBuilder, self).__init__(
             operation_type="sort",
@@ -1537,6 +1623,7 @@ class SortSpecBuilder(SpecBuilder):
         return _set_spec_value(self, "schema_inference_mode", mode)
 
     def begin_partition_job_io(self):
+        """Start building partition_job_io section."""
         return PartitionJobIOSpecBuilder(self)
 
     @spec_option("I/O settings of partition jobs", nested_spec_builder=PartitionJobIOSpecBuilder)
@@ -1545,6 +1632,7 @@ class SortSpecBuilder(SpecBuilder):
         return self
 
     def begin_sort_job_io(self):
+        """Start building sort_job_io section."""
         return SortJobIOSpecBuilder(self)
 
     @spec_option("I/O settings of sort jobs", nested_spec_builder=SortJobIOSpecBuilder)
@@ -1553,6 +1641,7 @@ class SortSpecBuilder(SpecBuilder):
         return self
 
     def begin_merge_job_io(self):
+        """Start building merge_job_io section."""
         return MergeJobIOSpecBuilder(self)
 
     @spec_option("I/O settings of merge jobs", nested_spec_builder=MergeJobIOSpecBuilder)
@@ -1587,6 +1676,7 @@ class SortSpecBuilder(SpecBuilder):
         return spec
 
     def prepare(self, client=None):
+        """Prepare spec to be used in operation."""
         spec = deepcopy(self._spec)
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
@@ -1598,6 +1688,8 @@ class SortSpecBuilder(SpecBuilder):
         self._prepare_spec(spec, client=client)
 
 class RemoteCopySpecBuilder(SpecBuilder):
+    """Builder for spec of remote_copy operation.
+    """
     def __init__(self):
         super(RemoteCopySpecBuilder, self).__init__(operation_type="remote_copy", job_io_types=["job_io"])
 
@@ -1639,9 +1731,11 @@ class RemoteCopySpecBuilder(SpecBuilder):
         return self
 
     def begin_job_io(self):
+        """Start building job_io section."""
         return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
+        """Prepare spec to be used in operation."""
         spec = deepcopy(self._spec)
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
@@ -1650,6 +1744,8 @@ class RemoteCopySpecBuilder(SpecBuilder):
         self._prepare_spec(spec, client=client)
 
 class EraseSpecBuilder(SpecBuilder):
+    """Builder for spec of erase operation.
+    """
     def __init__(self):
         super(EraseSpecBuilder, self).__init__(operation_type="erase", job_io_types=["job_io"])
 
@@ -1671,9 +1767,11 @@ class EraseSpecBuilder(SpecBuilder):
         return self
 
     def begin_job_io(self):
+        """Start building job_io section."""
         return JobIOSpecBuilder(self, "job_io")
 
     def prepare(self, client=None):
+        """Prepare spec to be used in operation."""
         spec = deepcopy(self._spec)
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
@@ -1686,26 +1784,31 @@ class EraseSpecBuilder(SpecBuilder):
         self._prepare_spec(spec, client=client)
 
 class VanillaSpecBuilder(SpecBuilder):
+    """Builder for spec of vanilla operation.
+    """
     def __init__(self):
         super(VanillaSpecBuilder, self).__init__(operation_type="vanilla")
         self._spec["tasks"] = {}
 
-    @spec_option("The description of task", nested_spec_builder=TaskSpecBuilder)
+    @spec_option("The description of multiple tasks", nested_spec_builder=TaskSpecBuilder)
     def tasks(self, tasks):
         for name, task in iteritems(tasks):
             self.task(name, task)
         return self
 
     def task(self, name, task):
+        """The description of task."""
         self._user_job_scripts.append(("tasks", name))
         self._spec["tasks"][name] = task
         return self
 
     def begin_task(self, name):
+        """Start building task section."""
         self._user_job_scripts.append(("tasks", name))
         return TaskSpecBuilder(name, self)
 
     def prepare(self, client=None):
+        """Prepare spec to be used in operation."""
         spec = deepcopy(self._spec)
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
@@ -1731,4 +1834,5 @@ class VanillaSpecBuilder(SpecBuilder):
         return spec
 
     def supports_user_job_spec(self):
+        """Whether operation has some user job sections."""
         return True
