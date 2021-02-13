@@ -874,11 +874,15 @@ private:
             auto tableIndex = subrequest.table_index();
 
             try {
-                auto tabletSnapshot = subrequest.has_mount_revision()
-                    ? slotManager->FindTabletSnapshot(tabletId, subrequest.mount_revision())
-                    : slotManager->FindLatestTabletSnapshot(tabletId);
-                if (!tabletSnapshot) {
-                    subresponse->set_tablet_missing(true);
+                NTabletNode::TTabletSnapshotPtr tabletSnapshot;
+                try {
+                    tabletSnapshot = subrequest.has_mount_revision()
+                        ? slotManager->GetTabletSnapshotOrThrow(tabletId, subrequest.mount_revision())
+                        : slotManager->GetLatestTabletSnapshotOrThrow(tabletId);
+
+                    slotManager->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
+                } catch (const std::exception& ex) {
+                    ToProto(subresponse->mutable_error(), TError(ex));
                     continue;
                 }
 

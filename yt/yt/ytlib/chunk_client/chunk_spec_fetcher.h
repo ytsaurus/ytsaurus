@@ -146,7 +146,7 @@ private:
         //! This vector stores subrequests for all tablets residing on this node.
         std::vector<TSubrequest> Subrequests;
         //! Tablet infos are stored for possible further invalidation in table mount cache
-        //! (in case when subrequest fails with tablet_missing = true).
+        //! (in case when subrequest fails with NTabletClient::EErrorCode::NoSuchTablet error).
         std::vector<NTabletClient::TTabletInfoPtr> Tablets;
         std::vector<NProto::TChunkSpec> ChunkSpecs;
         std::vector<NTabletClient::TTabletId> MissingTabletIds;
