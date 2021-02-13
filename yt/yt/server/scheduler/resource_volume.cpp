@@ -76,10 +76,19 @@ TResourceVolume& operator -= (TResourceVolume& lhs, const TResourceVolume& rhs)
 
 TResourceVolume& operator *= (TResourceVolume& lhs, double rhs)
 {
-    #define XX(name, Name) lhs.Set##Name(static_cast<decltype(lhs.Get##Name())>(round(lhs.Get##Name() * rhs)));
+    #define XX(name, Name) lhs.Set##Name(lhs.Get##Name() * rhs);
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return lhs;
+}
+
+TResourceVolume operator * (const TResourceVolume& lhs, double rhs)
+{
+    TResourceVolume result;
+    #define XX(name, Name) result.Set##Name(lhs.Get##Name() * rhs);
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+    return result;
 }
 
 void ProfileResourceVolume(
