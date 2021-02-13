@@ -10,8 +10,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
 template <class T>
-TIntrusivePtr<T> MakeStrong(const THazardPtr<T>& ptr)
+TIntrusivePtr<T> MakeStrongFromHazard(const THazardPtr<T>& ptr)
 {
     if (ptr) {
         if (GetRefCounter(ptr.Get())->TryRef()) {
@@ -25,6 +27,8 @@ TIntrusivePtr<T> MakeStrong(const THazardPtr<T>& ptr)
 
     return nullptr;
 }
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,7 +83,7 @@ TIntrusivePtr<T> TAtomicPtr<T>::AcquireWeak() const
     auto hazardPtr = THazardPtr<T>::Acquire([&] {
         return Ptr_.load(std::memory_order_acquire);
     });
-    return MakeStrong(hazardPtr);
+    return NDetail::MakeStrongFromHazard(hazardPtr);
 }
 
 template <class T>
@@ -88,7 +92,7 @@ TIntrusivePtr<T> TAtomicPtr<T>::Acquire() const
     while (auto hazardPtr = THazardPtr<T>::Acquire([&] {
         return Ptr_.load(std::memory_order_acquire);
     })) {
-        if (auto ptr = MakeStrong(hazardPtr)) {
+        if (auto ptr = NDetail::MakeStrongFromHazard(hazardPtr)) {
             return ptr;
         }
     }
@@ -101,6 +105,12 @@ TIntrusivePtr<T> TAtomicPtr<T>::Exchange(TIntrusivePtr<T> other)
 {
     auto oldPtr = Ptr_.exchange(other.Release());
     return TIntrusivePtr<T>(oldPtr, false);
+}
+
+template <class T>
+void TAtomicPtr<T>::Store(TIntrusivePtr<T> other)
+{
+    Exchange(std::move(other));
 }
 
 template <class T>
