@@ -2535,9 +2535,9 @@ void TPool::UpdateAccumulatedResourceVolume(TDuration periodSinceLastUpdate)
     auto upperLimit = Max(oldVolume, GetIntegralPoolCapacity());
 
     PersistentAttributes_.AccumulatedResourceVolume +=
-        TResourceVolume(TotalResourceLimits_ * Attributes_.ResourceFlowRatio, periodSinceLastUpdate);
+        TResourceVolume(TotalResourceLimits_, periodSinceLastUpdate) * Attributes_.ResourceFlowRatio;
     PersistentAttributes_.AccumulatedResourceVolume -=
-        TResourceVolume(TotalResourceLimits_ * PersistentAttributes_.LastIntegralShareRatio, periodSinceLastUpdate);
+        TResourceVolume(TotalResourceLimits_, periodSinceLastUpdate) * PersistentAttributes_.LastIntegralShareRatio;
     PersistentAttributes_.AccumulatedResourceVolume = Max(PersistentAttributes_.AccumulatedResourceVolume, TResourceVolume());
     PersistentAttributes_.AccumulatedResourceVolume = Min(PersistentAttributes_.AccumulatedResourceVolume, upperLimit);
 
