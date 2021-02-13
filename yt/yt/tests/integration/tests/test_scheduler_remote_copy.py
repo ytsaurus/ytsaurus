@@ -1006,6 +1006,35 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyCommandsBase):
         chunk_id = get("//tmp/t2/@chunk_ids/0")
         assert get("#{}/@erasure_codec".format(chunk_id)) == "reed_solomon_6_3"
 
+    @authors("ifsmirnov")
+    def test_multiple_jobs(self):
+        sync_create_cells(1)
+        sync_create_cells(1, driver=self.remote_driver)
+        self._create_sorted_table("//tmp/t2")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+
+        self._create_sorted_table("//tmp/t1", driver=self.remote_driver)
+
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+        insert_rows("//tmp/t1", rows[::2], driver=self.remote_driver)
+        sync_flush_table("//tmp/t1", driver=self.remote_driver)
+        insert_rows("//tmp/t1", rows[1::2], driver=self.remote_driver)
+        sync_unmount_table("//tmp/t1", driver=self.remote_driver)
+
+        op = remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "job_count": 2,
+            }
+        )
+
+        print_debug("job_count: {}".format(op.get_job_count("completed")))
+
+        assert read_table("//tmp/t2") == rows
+
 
 ##################################################################
 
