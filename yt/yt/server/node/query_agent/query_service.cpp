@@ -882,6 +882,7 @@ private:
 
                     slotManager->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
                 } catch (const std::exception& ex) {
+                    subresponse->set_tablet_missing(true);
                     ToProto(subresponse->mutable_error(), TError(ex));
                     continue;
                 }
