@@ -13,6 +13,12 @@ from .idm_client import YtIdmClient
 from .client_api import *
 from .client import YtClient, create_client_with_command_params
 
+from .spec_builders import (
+    JobIOSpecBuilder, PartitionJobIOSpecBuilder, SortJobIOSpecBuilder, MergeJobIOSpecBuilder, ReduceJobIOSpecBuilder,
+    MapJobIOSpecBuilder,
+    UserJobSpecBuilder, TaskSpecBuilder, MapperSpecBuilder, ReducerSpecBuilder, ReduceCombinerSpecBuilder,
+    ReduceSpecBuilder, JoinReduceSpecBuilder, MapSpecBuilder, MapReduceSpecBuilder, MergeSpecBuilder,
+    SortSpecBuilder, RemoteCopySpecBuilder, EraseSpecBuilder, VanillaSpecBuilder)
 from .errors import (YtError, YtOperationFailedError, YtResponseError, YtHttpResponseError,
                      YtProxyUnavailable, YtTokenError, YtTransactionPingError, YtRequestTimedOut)
 from .batch_execution import YtBatchRequestFailedError
