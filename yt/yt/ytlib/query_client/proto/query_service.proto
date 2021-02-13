@@ -9,6 +9,7 @@ import "yt/ytlib/query_client/proto/query.proto";
 import "yt/ytlib/query_client/proto/functions_cache.proto";
 import "yt/core/rpc/proto/rpc.proto";
 import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,7 +150,9 @@ message TRspFetchTabletStores
     message TSubresponse
     {
         repeated NChunkClient.NProto.TChunkSpec stores = 1;
-        required bool tablet_missing = 2 [default = false];
+        optional NYT.NProto.TError error = 3;
+
+        reserved 2;
     }
 
     // |subresponses| contain exactly one subresponse for each subrequest

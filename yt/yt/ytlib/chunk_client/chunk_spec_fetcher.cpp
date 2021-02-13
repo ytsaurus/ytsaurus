@@ -40,6 +40,7 @@ using namespace NConcurrency;
 using namespace NQueryClient;
 using namespace NRpc;
 
+using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -488,14 +489,21 @@ void TTabletChunkSpecFetcher::DoFetchFromNode(const TAddressWithNetwork& address
 
     // TODO(max42): introduce proper retrying policy.
     for (const auto& [index, subresponse] : Enumerate(*rsp->mutable_subresponses())) {
-        if (subresponse.tablet_missing()) {
-            const auto& tablet = state.Tablets[index];
-            tableMountCache->InvalidateTablet(tablet);
-            state.MissingTabletIds.push_back(tablet->TabletId);
+        if (subresponse.has_error()) {
+            auto error = FromProto<TError>(subresponse.error());
+            YT_LOG_TRACE(error, "Received error from tablet");
+            if (error.GetCode() == NTabletClient::EErrorCode::NoSuchTablet) {
+                const auto& tablet = state.Tablets[index];
+                tableMountCache->InvalidateTablet(tablet);
+                state.MissingTabletIds.push_back(tablet->TabletId);
+            } else {
+                THROW_ERROR(error);
+            }
         } else {
             for (auto& chunkSpec : *subresponse.mutable_stores()) {
-                YT_LOG_TRACE("Chunk spec from tablet (ChunkSpec: %v)", chunkSpec.DebugString());
-                state.ChunkSpecs.emplace_back().Swap(&chunkSpec);
+                YT_LOG_TRACE("Received chunk spec from tablet (ChunkSpec: %v)",
+                    chunkSpec.DebugString());
+                state.ChunkSpecs.push_back(std::move(chunkSpec));
             }
         }
     }

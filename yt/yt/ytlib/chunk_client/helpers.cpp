@@ -459,15 +459,9 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
                 subrequests.size(),
                 rsp->subresponses_size());
         }
-        for (int subrequestIndex = 0; subrequestIndex < subrequests.size(); ++subrequestIndex) {
-            const auto& subrequest = subrequests[subrequestIndex];
-            const auto& subresponse = rsp->subresponses(subrequestIndex);
-
-            if (subresponse.tablet_missing()) {
-                THROW_ERROR_EXCEPTION(
-                    NTabletClient::EErrorCode::NoSuchTablet,
-                    "Tablet %v is not known",
-                    FromProto<TTabletId>(subrequest.tablet_id()));
+        for (const auto& subresponse : rsp->subresponses()) {
+            if (subresponse.has_error()) {
+                THROW_ERROR(FromProto<TError>(subresponse.error()));
             }
 
             for (const auto& chunkSpec : subresponse.stores()) {
