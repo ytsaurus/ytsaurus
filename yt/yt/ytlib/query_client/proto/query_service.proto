@@ -150,9 +150,9 @@ message TRspFetchTabletStores
     message TSubresponse
     {
         repeated NChunkClient.NProto.TChunkSpec stores = 1;
+        // COMPAT(babenko): drop this later.
+        optional bool tablet_missing = 2 [default = false];
         optional NYT.NProto.TError error = 3;
-
-        reserved 2;
     }
 
     // |subresponses| contain exactly one subresponse for each subrequest

@@ -489,10 +489,10 @@ void TTabletChunkSpecFetcher::DoFetchFromNode(const TAddressWithNetwork& address
 
     // TODO(max42): introduce proper retrying policy.
     for (const auto& [index, subresponse] : Enumerate(*rsp->mutable_subresponses())) {
-        if (subresponse.has_error()) {
+        if (subresponse.tablet_missing() || subresponse.has_error()) {
             auto error = FromProto<TError>(subresponse.error());
             YT_LOG_TRACE(error, "Received error from tablet");
-            if (error.GetCode() == NTabletClient::EErrorCode::NoSuchTablet) {
+            if (subresponse.tablet_missing() || error.GetCode() == NTabletClient::EErrorCode::NoSuchTablet) {
                 const auto& tablet = state.Tablets[index];
                 tableMountCache->InvalidateTablet(tablet);
                 state.MissingTabletIds.push_back(tablet->TabletId);
