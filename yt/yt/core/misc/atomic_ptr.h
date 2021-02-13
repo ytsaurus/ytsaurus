@@ -20,33 +20,26 @@ class TAtomicPtr
 {
 public:
     TAtomicPtr() = default;
-
     TAtomicPtr(std::nullptr_t);
-
     explicit TAtomicPtr(TIntrusivePtr<T> other);
-
     TAtomicPtr(TAtomicPtr&& other);
 
     ~TAtomicPtr();
 
     TAtomicPtr& operator=(TIntrusivePtr<T> other);
-
     TAtomicPtr& operator=(std::nullptr_t);
 
     TIntrusivePtr<T> Release();
 
     TIntrusivePtr<T> AcquireWeak() const;
-
     TIntrusivePtr<T> Acquire() const;
 
     TIntrusivePtr<T> Exchange(TIntrusivePtr<T> other);
+    void Store(TIntrusivePtr<T> other);
 
     TIntrusivePtr<T> SwapIfCompare(THazardPtr<T>& compare, TIntrusivePtr<T> target);
-
     TIntrusivePtr<T> SwapIfCompare(T* comparePtr, TIntrusivePtr<T> target);
-
     TIntrusivePtr<T> SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T> target);
-
     bool SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T>* target);
 
     explicit operator bool() const;
