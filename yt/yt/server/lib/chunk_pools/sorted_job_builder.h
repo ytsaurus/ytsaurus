@@ -23,6 +23,7 @@ struct TSortedJobOptions
     int ForeignPrefixLength = 0;
     bool EnablePeriodicYielder = true;
     bool ShouldSlicePrimaryTableByKeys = false;
+    bool SortByPosition = true;
 
     std::vector<NTableClient::TLegacyKey> PivotKeys;
 

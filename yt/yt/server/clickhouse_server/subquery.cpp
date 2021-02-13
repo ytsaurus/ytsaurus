@@ -908,6 +908,7 @@ std::vector<TSubquery> BuildSubqueries(
                     .PrimaryComparator = comparator,
                     .PrimaryPrefixLength = *keyColumnCount,
                     .ShouldSlicePrimaryTableByKeys = true,
+                    .SortByPosition = false,
                     .MaxTotalSliceCount = std::numeric_limits<int>::max() / 2,
                 },
                 .MinTeleportChunkSize = std::numeric_limits<i64>::max() / 2,
@@ -917,8 +918,11 @@ std::vector<TSubquery> BuildSubqueries(
             },
             CreateCallbackChunkSliceFetcherFactory(BIND([] { return nullptr; })),
             TInputStreamDirectory({
-                TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */),
-                TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */)
+                // isVersioned is almost a meaningless specification for modern sorted pool.
+                // By forcefully considering both streams to be versioned, we only disable some
+                // sanity checks that are wrong for dynamic tables.
+                TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, true /* isVersioned */),
+                TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, true /* isVersioned */)
             }));
     } else {
         Y_UNREACHABLE();

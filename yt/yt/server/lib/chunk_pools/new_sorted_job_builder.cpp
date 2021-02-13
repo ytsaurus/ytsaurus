@@ -923,7 +923,7 @@ public:
         BuildJobs();
 
         for (auto& job : Jobs_) {
-            job.Finalize(true /* sortByPosition */, PrimaryComparator_);
+            job.Finalize(Options_.SortByPosition, PrimaryComparator_);
             ValidateJob(&job);
         }
 
