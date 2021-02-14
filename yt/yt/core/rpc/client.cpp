@@ -489,13 +489,7 @@ TSharedRefArray TClientResponse::GetResponseMessage() const
 size_t TClientResponse::GetTotalSize() const
 {
     YT_ASSERT(ResponseMessage_);
-    auto result = ResponseMessage_.ByteSize();
-
-    for (const auto& attachment : Attachments_) {
-        result += attachment.Size();
-    }
-
-    return result;
+    return ResponseMessage_.ByteSize();
 }
 
 void TClientResponse::HandleError(const TError& error)
