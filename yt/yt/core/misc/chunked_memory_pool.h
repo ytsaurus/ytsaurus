@@ -108,6 +108,13 @@ public:
 
 private:
     const TRefCountedTypeCookie TagCookie_;
+    // A common usecase is to construct TChunkedMemoryPool with the default
+    // memory chunk provider. The latter is ref-counted and is shared between
+    // a multitude of TChunkedMemoryPool instances. This could potentially
+    // lead to a contention over IMemoryChunkProvider's ref-counter.
+    // To circumvent this, we keep both an owning (#ChunkProviderHolder_) and
+    // a non-owning (#ChunkProvider_) reference to the underlying provider.
+    // In case of the default chunk provider, the owning reference is not used.
     const IMemoryChunkProviderPtr ChunkProviderHolder_;
     IMemoryChunkProvider* const ChunkProvider_;
 
