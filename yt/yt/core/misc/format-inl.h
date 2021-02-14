@@ -17,7 +17,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const char GenericSpecSymbol = 'v';
-static const char Int2Hex[] = "0123456789abcdef";
 
 inline bool IsQuotationSpecSymbol(char symbol)
 {
@@ -86,7 +85,11 @@ inline void FormatValue(TStringBuilderBase* builder, TStringBuf value, TStringBu
     if (singleQuotes || doubleQuotes) {
         for (const char* valueCurrent = value.begin(); valueCurrent < value.end(); ++valueCurrent) {
             char ch = *valueCurrent;
-            if (!std::isprint(ch) && !std::isspace(ch)) {
+            if (ch == '\n') {
+                builder->AppendString("\\n");
+            } else if (ch == '\t') {
+                builder->AppendString("\\t");
+            } else if (ch < PrintableASCIILow || ch > PrintableASCIIHigh) {
                 builder->AppendString("\\x");
                 builder->AppendChar(Int2Hex[static_cast<ui8>(ch) >> 4]);
                 builder->AppendChar(Int2Hex[static_cast<ui8>(ch) & 0xf]);
