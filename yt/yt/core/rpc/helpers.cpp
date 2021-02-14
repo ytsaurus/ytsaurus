@@ -63,6 +63,7 @@ bool IsRetriableError(const TError& error)
     return
         code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
         code == NRpc::EErrorCode::TransientFailure ||
+        code == NRpc::EErrorCode::Unavailable ||
         code == NYT::EErrorCode::Timeout;
 }
 
