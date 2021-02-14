@@ -71,22 +71,27 @@ void FormatMessage(TMessageBuffer* out, TStringBuf message)
 {
     auto current = message.begin();
 
+#ifdef YT_USE_SSE42
+    auto vectorLow = _mm_set1_epi8(PrintableASCIILow);
+    auto vectorHigh = _mm_set1_epi8(PrintableASCIIHigh);
+#endif
+
     auto appendChar = [&] {
         char ch = *current;
         if (ch == '\n') {
             out->AppendString("\\n");
         } else if (ch == '\t') {
             out->AppendString("\\t");
+        } else if (ch < PrintableASCIILow || ch > PrintableASCIIHigh) {
+            unsigned char unsignedCh = ch;
+            out->AppendString("\\x");
+            out->AppendChar(Int2Hex[unsignedCh >> 4]);
+            out->AppendChar(Int2Hex[unsignedCh & 15]);
         } else {
             out->AppendChar(ch);
         }
         ++current;
     };
-
-#ifdef YT_USE_SSE42
-    auto vectorN = _mm_set1_epi8('\n');
-    auto vectorT = _mm_set1_epi8('\t');
-#endif
 
     while (current < message.end()) {
 #ifdef YT_USE_SSE42
@@ -100,8 +105,8 @@ void FormatMessage(TMessageBuffer* out, TStringBuf message)
             const void* inPtr = &(*current);
             void* outPtr = out->GetCursor();
             auto value = _mm_lddqu_si128(static_cast<const __m128i*>(inPtr));
-            if (_mm_movemask_epi8(_mm_cmpeq_epi8(value, vectorN)) ||
-                _mm_movemask_epi8(_mm_cmpeq_epi8(value, vectorT))) {
+            if (_mm_movemask_epi8(_mm_cmplt_epi8(value, vectorLow)) ||
+                _mm_movemask_epi8(_mm_cmpgt_epi8(value, vectorHigh))) {
                 for (int index = 0; index < 16; ++index) {
                     appendChar();
                 }
