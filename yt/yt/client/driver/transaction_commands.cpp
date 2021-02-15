@@ -46,6 +46,12 @@ TStartTransactionCommand::TStartTransactionCommand()
         .Optional();
     RegisterParameter("durability", Options.Durability)
         .Optional();
+    RegisterParameter("suppress_start_timestamp_generation", Options.SuppressStartTimestampGeneration)
+        .Optional();
+    RegisterParameter("coordinator_master_cell_tag", Options.CoordinatorMasterCellTag)
+        .Optional();
+    RegisterParameter("replicate_to_master_cell_tags", Options.ReplicateToMasterCellTags)
+        .Optional();
 }
 
 void TStartTransactionCommand::DoExecute(ICommandContextPtr context)
