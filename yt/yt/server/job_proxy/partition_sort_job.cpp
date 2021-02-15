@@ -72,26 +72,28 @@ public:
         TTableSchemaPtr outputSchema;
         DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
 
-        const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
-        Reader_ = CreatePartitionSortReader(
-            tableReaderConfig,
-            Host_->GetClient(),
-            Host_->GetBlockCache(),
-            Host_->GetInputNodeDirectory(),
-            outputSchema->ToComparator(),
-            nameTable,
-            BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
-            dataSourceDirectory,
-            std::move(dataSliceDescriptors),
-            TotalRowCount_,
-            SchedulerJobSpecExt_.is_approximate(),
-            *partitionTag,
-            BlockReadOptions_,
-            Host_->GetTrafficMeter(),
-            Host_->GetInBandwidthThrottler(),
-            Host_->GetOutRpsThrottler(),
-            MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
+        ReaderFactory_ = [=] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
+            const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 
+            return CreatePartitionSortReader(
+                tableReaderConfig,
+                Host_->GetClient(),
+                Host_->GetBlockCache(),
+                Host_->GetInputNodeDirectory(),
+                outputSchema->ToComparator(),
+                nameTable,
+                BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
+                dataSourceDirectory,
+                std::move(dataSliceDescriptors),
+                TotalRowCount_,
+                SchedulerJobSpecExt_.is_approximate(),
+                *partitionTag,
+                BlockReadOptions_,
+                Host_->GetTrafficMeter(),
+                Host_->GetInBandwidthThrottler(),
+                Host_->GetOutRpsThrottler(),
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
+        };
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
@@ -107,19 +109,21 @@ public:
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
-        Writer_ = CreateSchemalessMultiChunkWriter(
-            writerConfig,
-            options,
-            nameTable,
-            outputSchema,
-            TLegacyOwningKey(),
-            Host_->GetClient(),
-            CellTagFromId(chunkListId),
-            transactionId,
-            chunkListId,
-            TChunkTimestamps{timestamp, timestamp},
-            Host_->GetTrafficMeter(),
-            Host_->GetOutBandwidthThrottler());
+        WriterFactory_ = [=] (TNameTablePtr /*nameTable*/, TTableSchemaPtr /*schema*/) {
+            return CreateSchemalessMultiChunkWriter(
+                writerConfig,
+                options,
+                nameTable,
+                outputSchema,
+                TLegacyOwningKey(),
+                Host_->GetClient(),
+                CellTagFromId(chunkListId),
+                transactionId,
+                chunkListId,
+                TChunkTimestamps{timestamp, timestamp},
+                Host_->GetTrafficMeter(),
+                Host_->GetOutBandwidthThrottler());
+        };
     }
 
     virtual double GetProgress() const override
@@ -141,12 +145,15 @@ public:
 private:
     const TSortJobSpecExt& SortJobSpecExt_;
 
+    virtual void InitializeReader() override
+    {
+        DoInitializeReader(nullptr, TColumnFilter());
+    }
 
-    virtual void CreateReader() override
-    { }
-
-    virtual void CreateWriter() override
-    { }
+    virtual void InitializeWriter() override
+    {
+        DoInitializeWriter(nullptr, nullptr);
+    }
 
     virtual i64 GetTotalReaderMemoryLimit() const
     {

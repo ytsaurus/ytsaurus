@@ -6,6 +6,8 @@
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 
+#include <yt/ytlib/job_proxy/helpers.h>
+
 #include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
@@ -43,7 +45,7 @@ public:
     virtual void Fail() override;
     virtual TCpuStatistics GetCpuStatistics() const override;
     virtual i64 GetStderrSize() const override;
- 
+
 protected:
     IJobHost* Host_;
     const TInstant StartTime_;
@@ -84,16 +86,25 @@ protected:
 
     NTableClient::ISchemalessMultiChunkReaderPtr Reader_;
     NTableClient::ISchemalessMultiChunkWriterPtr Writer_;
-    NTableClient::TSchemalessReaderFactory ReaderFactory_;
-    NTableClient::TSchemalessWriterFactory WriterFactory_;
+
+    TSchemalessMultiChunkReaderFactory ReaderFactory_;
+    TSchemalessMultiChunkWriterFactory WriterFactory_;
 
     i64 TotalRowCount_ = 0;
 
-    std::atomic<bool> Initialized_ = {false};
-    std::atomic<bool> Interrupted_ = {false};
+    std::atomic<bool> Initialized_ = false;
+    std::atomic<bool> Interrupted_ = false;
 
-    virtual void CreateReader() = 0;
-    virtual void CreateWriter() = 0;
+    NTableClient::ISchemalessMultiChunkReaderPtr DoInitializeReader(
+        NTableClient::TNameTablePtr nameTable,
+        const NTableClient::TColumnFilter& columnFilter);
+
+    NTableClient::ISchemalessMultiChunkWriterPtr DoInitializeWriter(
+        NTableClient::TNameTablePtr nameTable,
+        NTableClient::TTableSchemaPtr schema);
+
+    virtual void InitializeReader() = 0;
+    virtual void InitializeWriter() = 0;
 
     virtual i64 GetTotalReaderMemoryLimit() const = 0;
 

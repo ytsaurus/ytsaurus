@@ -46,7 +46,6 @@ public:
         YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
 
-    
         auto keyColumns = FromProto<TKeyColumns>(MergeJobSpecExt_.key_columns());
         auto sortColumns = FromProto<TSortColumns>(MergeJobSpecExt_.sort_columns());
 
@@ -58,7 +57,6 @@ public:
         }
 
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
-        std::vector<ISchemalessMultiChunkReaderPtr> readers;
 
         auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
@@ -66,43 +64,45 @@ public:
 
         YT_VERIFY(!dataSourceDirectory->DataSources().empty());
 
-        for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
-            auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
+        ReaderFactory_ = [=] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
+            std::vector<ISchemalessMultiChunkReaderPtr> readers;
+            for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
+                auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
-            TotalRowCount_ += GetCumulativeRowCount(dataSliceDescriptors);
+                TotalRowCount_ += GetCumulativeRowCount(dataSliceDescriptors);
 
-            const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
-            auto reader = CreateSchemalessSequentialMultiReader(
-                tableReaderConfig,
-                readerOptions,
-                Host_->GetClient(),
-                Host_->LocalDescriptor(),
-                std::nullopt,
-                Host_->GetBlockCache(),
-                Host_->GetInputNodeDirectory(),
-                dataSourceDirectory,
-                std::move(dataSliceDescriptors),
-                nameTable,
-                BlockReadOptions_,
-                /* columnFilter */ {},
-                sortColumns,
-                /* partitionTag */ std::nullopt,
-                Host_->GetTrafficMeter(),
-                Host_->GetInBandwidthThrottler(),
-                Host_->GetOutRpsThrottler(),
-                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
-                sortColumns.size());
+                const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
+                auto reader = CreateSchemalessSequentialMultiReader(
+                    tableReaderConfig,
+                    readerOptions,
+                    Host_->GetClient(),
+                    Host_->LocalDescriptor(),
+                    std::nullopt,
+                    Host_->GetBlockCache(),
+                    Host_->GetInputNodeDirectory(),
+                    dataSourceDirectory,
+                    std::move(dataSliceDescriptors),
+                    nameTable,
+                    BlockReadOptions_,
+                    /* columnFilter */ {},
+                    sortColumns,
+                    /* partitionTag */ std::nullopt,
+                    Host_->GetTrafficMeter(),
+                    Host_->GetInBandwidthThrottler(),
+                    Host_->GetOutRpsThrottler(),
+                    MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
+                    sortColumns.size());
 
-            readers.push_back(reader);
-        }
+                readers.push_back(reader);
+            }
 
-
-        auto sortComparator = GetComparator(sortColumns);
-        Reader_ = CreateSortedMergingReader(
-            readers,
-            sortComparator,
-            sortComparator,
-            /*interruptAtKeyEdge=*/false);
+            auto sortComparator = GetComparator(sortColumns);
+            return CreateSortedMergingReader(
+                readers,
+                sortComparator,
+                sortComparator,
+                /*interruptAtKeyEdge=*/false);
+        };
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
@@ -118,19 +118,21 @@ public:
         TTableSchemaPtr schema;
         DeserializeFromWireProto(&schema, outputSpec.table_schema());
 
-        Writer_ = CreateSchemalessMultiChunkWriter(
-            writerConfig,
-            options,
-            nameTable,
-            schema,
-            TLegacyOwningKey(),
-            Host_->GetClient(),
-            CellTagFromId(chunkListId),
-            transactionId,
-            chunkListId,
-            TChunkTimestamps{timestamp, timestamp},
-            Host_->GetTrafficMeter(),
-            Host_->GetOutBandwidthThrottler());
+        WriterFactory_ = [=] (TNameTablePtr /*nameTable*/, TTableSchemaPtr /*schema*/) {
+            return CreateSchemalessMultiChunkWriter(
+                writerConfig,
+                options,
+                nameTable,
+                schema,
+                TLegacyOwningKey(),
+                Host_->GetClient(),
+                CellTagFromId(chunkListId),
+                transactionId,
+                chunkListId,
+                TChunkTimestamps{timestamp, timestamp},
+                Host_->GetTrafficMeter(),
+                Host_->GetOutBandwidthThrottler());
+        };
     }
 
     virtual NJobTrackerClient::NProto::TJobResult Run() override
@@ -154,12 +156,15 @@ public:
 private:
     const TMergeJobSpecExt& MergeJobSpecExt_;
 
+    virtual void InitializeReader() override
+    {
+        DoInitializeReader(nullptr, TColumnFilter());
+    }
 
-    virtual void CreateReader() override
-    { }
-
-    virtual void CreateWriter() override
-    { }
+    virtual void InitializeWriter() override
+    {
+        DoInitializeWriter(nullptr, nullptr);
+    }
 
     virtual i64 GetTotalReaderMemoryLimit() const
     {

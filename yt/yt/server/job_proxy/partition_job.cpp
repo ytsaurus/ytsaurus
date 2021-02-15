@@ -76,8 +76,6 @@ public:
         }
 
         ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
-            YT_VERIFY(!Reader_);
-
             // COMPAT(gritukan)
             bool deterministic = !PartitionJobSpecExt_.has_deterministic() || PartitionJobSpecExt_.deterministic();
 
@@ -86,7 +84,7 @@ public:
             auto factory = deterministic
                 ? CreateSchemalessSequentialMultiReader
                 : CreateSchemalessParallelMultiReader;
-            Reader_ = factory(
+            return factory(
                 tableReaderConfig,
                 readerOptions,
                 Host_->GetClient(),
@@ -106,7 +104,6 @@ public:
                 Host_->GetOutRpsThrottler(),
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
                 /* interruptDescriptorKeyLength */ 0);
-            return Reader_;
         };
 
         YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
@@ -125,9 +122,8 @@ public:
         options->ValidateSorted = false;
         auto writerConfig = GetWriterConfig(outputSpec);
 
-        WriterFactory_ = [=] (TNameTablePtr nameTable, TTableSchemaPtr /*schema*/) mutable {
-            YT_VERIFY(!Writer_);
-            Writer_ = CreatePartitionMultiChunkWriter(
+        WriterFactory_ = [=] (TNameTablePtr nameTable, TTableSchemaPtr /*schema*/) {
+            return CreatePartitionMultiChunkWriter(
                 writerConfig,
                 options,
                 nameTable,
@@ -139,7 +135,6 @@ public:
                 CreatePartitioner(PartitionJobSpecExt_),
                 Host_->GetTrafficMeter(),
                 Host_->GetOutBandwidthThrottler());
-            return Writer_;
         };
     }
 
@@ -149,14 +144,14 @@ private:
     TNameTablePtr NameTable_;
 
 
-    virtual void CreateReader() override
+    virtual void InitializeReader() override
     {
-        ReaderFactory_(NameTable_, TColumnFilter());
+        DoInitializeReader(NameTable_, TColumnFilter());
     }
 
-    virtual void CreateWriter() override
+    virtual void InitializeWriter() override
     {
-        WriterFactory_(NameTable_, nullptr);
+        DoInitializeWriter(NameTable_, nullptr);
     }
 
     virtual bool ShouldSendBoundaryKeys() const override
