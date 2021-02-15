@@ -46,7 +46,6 @@ using namespace NSecurityClient;
 
 class TFairShareStrategy
     : public ISchedulerStrategy
-    , public ISchedulerTreeHost
 {
 public:
     TFairShareStrategy(
@@ -1300,7 +1299,7 @@ private:
                 });
     }
 
-    virtual void OnOperationRunningInTree(TOperationId operationId, ISchedulerTree* tree) const override
+    void OnOperationRunningInTree(ISchedulerTree* tree, TOperationId operationId) const
     {
         YT_VERIFY(tree->HasRunningOperation(operationId));
 
@@ -1382,7 +1381,12 @@ private:
                 continue;
             }
 
-            auto tree = CreateFairShareTree(treeConfig, Config, Host, this, FeasibleInvokers, treeId);
+            auto tree = CreateFairShareTree(treeConfig, Config, Host, FeasibleInvokers, treeId);
+            tree->SubscribeOperationRunning(BIND(
+                &TFairShareStrategy::OnOperationRunningInTree,
+                Unretained(this),
+                Unretained(tree.Get())));
+
             trees.emplace(treeId, tree);
         }
 

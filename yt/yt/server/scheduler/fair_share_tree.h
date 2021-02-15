@@ -38,7 +38,6 @@ ISchedulerTreePtr CreateFairShareTree(
     TFairShareStrategyTreeConfigPtr config,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* strategyHost,
-    ISchedulerTreeHost* treeHost,
     std::vector<IInvokerPtr> feasibleInvokers,
     TString treeId);
 
