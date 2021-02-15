@@ -24,12 +24,10 @@
 namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NJobTrackerClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NTableClient;
-using namespace NTableClient::NProto;
 using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
@@ -136,7 +134,7 @@ void TSimpleJobBase::Initialize()
         };
         MultiReaderMemoryManager_ = CreateParallelReaderMemoryManager(
             parallelReaderMemoryManagerOptions,
-            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker()); 
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
 }
 
@@ -151,14 +149,12 @@ TJobResult TSimpleJobBase::Run()
         if (jobSpec.has_input_query_spec()) {
             RunQuery(
                 jobSpec.input_query_spec(),
-                ReaderFactory_,
-                WriterFactory_,
+                BIND(&TSimpleJobBase::DoInitializeReader, MakeStrong(this)),
+                BIND(&TSimpleJobBase::DoInitializeWriter, MakeStrong(this)),
                 SandboxDirectoryNames[ESandboxKind::Udf]);
         } else {
-            CreateReader();
-            Initialized_ = true;
-
-            CreateWriter();
+            InitializeReader();
+            InitializeWriter();
 
             YT_LOG_INFO("Reading and writing");
 
@@ -278,6 +274,34 @@ void TSimpleJobBase::Interrupt()
             THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot interrupt reader that didn't start reading");
         }
     }
+}
+
+ISchemalessMultiChunkReaderPtr TSimpleJobBase::DoInitializeReader(
+    TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter)
+{
+    YT_VERIFY(!Reader_);
+    YT_VERIFY(!Initialized_.load());
+
+    Reader_ = ReaderFactory_(nameTable, columnFilter);
+    Initialized_ = true;
+
+    YT_LOG_INFO("Reader initialized");
+
+    return Reader_;
+}
+
+ISchemalessMultiChunkWriterPtr TSimpleJobBase::DoInitializeWriter(
+    TNameTablePtr nameTable,
+    TTableSchemaPtr schema)
+{
+    YT_VERIFY(!Writer_);
+
+    Writer_ = WriterFactory_(nameTable, schema);
+
+    YT_LOG_INFO("Writer initialized");
+
+    return Writer_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,6 +11,16 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TSchemalessMultiChunkReaderFactory = std::function<NTableClient::ISchemalessMultiChunkReaderPtr(
+    NTableClient::TNameTablePtr,
+    const NTableClient::TColumnFilter&)>;
+
+using TSchemalessMultiChunkWriterFactory = std::function<NTableClient::ISchemalessMultiChunkWriterPtr(
+    NTableClient::TNameTablePtr,
+    NTableClient::TTableSchemaPtr)>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 void RunQuery(
     const NScheduler::NProto::TQuerySpec& querySpec,
     const NTableClient::TSchemalessReaderFactory& readerFactory,

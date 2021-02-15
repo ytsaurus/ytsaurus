@@ -62,28 +62,30 @@ public:
 
         TotalRowCount_ = GetCumulativeRowCount(dataSliceDescriptors);
 
-        const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
-        auto reader = CreateSchemalessParallelMultiReader(
-            tableReaderConfig,
-            readerOptions,
-            Host_->GetClient(),
-            Host_->LocalDescriptor(),
-            std::nullopt,
-            Host_->GetBlockCache(),
-            Host_->GetInputNodeDirectory(),
-            dataSourceDirectory,
-            std::move(dataSliceDescriptors),
-            nameTable,
-            BlockReadOptions_,
-            /* columnFilter */ {},
-            /* keyColumns */ {},
-            /* partitionTag */ std::nullopt,
-            Host_->GetTrafficMeter(),
-            Host_->GetInBandwidthThrottler(),
-            Host_->GetOutRpsThrottler(),
-            MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
+        ReaderFactory_ = [=] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
+            const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
+            auto reader = CreateSchemalessParallelMultiReader(
+                tableReaderConfig,
+                readerOptions,
+                Host_->GetClient(),
+                Host_->LocalDescriptor(),
+                std::nullopt,
+                Host_->GetBlockCache(),
+                Host_->GetInputNodeDirectory(),
+                dataSourceDirectory,
+                std::move(dataSliceDescriptors),
+                nameTable,
+                BlockReadOptions_,
+                /* columnFilter */ {},
+                /* keyColumns */ {},
+                /* partitionTag */ std::nullopt,
+                Host_->GetTrafficMeter(),
+                Host_->GetInBandwidthThrottler(),
+                Host_->GetOutRpsThrottler(),
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
-        Reader_ = CreateSortingReader(reader, nameTable, keyColumns, outputSchema->ToComparator());
+            return CreateSortingReader(reader, nameTable, keyColumns, outputSchema->ToComparator());
+        };
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
@@ -94,27 +96,33 @@ public:
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
-        Writer_ = CreateSchemalessMultiChunkWriter(
-            writerConfig,
-            options,
-            nameTable,
-            outputSchema,
-            TLegacyOwningKey(),
-            Host_->GetClient(),
-            CellTagFromId(chunkListId),
-            transactionId,
-            chunkListId,
-            TChunkTimestamps{timestamp, timestamp},
-            Host_->GetTrafficMeter(),
-            Host_->GetOutBandwidthThrottler());
+        WriterFactory_ = [=] (TNameTablePtr /*nameTable*/, TTableSchemaPtr /*schema*/) {
+            return CreateSchemalessMultiChunkWriter(
+                writerConfig,
+                options,
+                nameTable,
+                outputSchema,
+                TLegacyOwningKey(),
+                Host_->GetClient(),
+                CellTagFromId(chunkListId),
+                transactionId,
+                chunkListId,
+                TChunkTimestamps{timestamp, timestamp},
+                Host_->GetTrafficMeter(),
+                Host_->GetOutBandwidthThrottler());
+        };
     }
 
 private:
-    virtual void CreateReader() override
-    { }
+    virtual void InitializeReader() override
+    {
+        DoInitializeReader(nullptr, TColumnFilter());
+    }
 
-    virtual void CreateWriter() override
-    { }
+    virtual void InitializeWriter() override
+    {
+        DoInitializeWriter(nullptr, nullptr);
+    }
 
     virtual i64 GetTotalReaderMemoryLimit() const
     {

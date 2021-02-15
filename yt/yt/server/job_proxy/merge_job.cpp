@@ -82,9 +82,8 @@ public:
             : CreateSchemalessSequentialMultiReader;
 
         ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
-            YT_VERIFY(!Reader_);
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
-            Reader_ = readerFactory(
+            return readerFactory(
                 tableReaderConfig,
                 readerOptions,
                 Host_->GetClient(),
@@ -104,7 +103,6 @@ public:
                 Host_->GetOutRpsThrottler(),
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
                 /* interruptDescriptorKeyLength */ 0);
-            return Reader_;
         };
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
@@ -120,8 +118,7 @@ public:
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
         WriterFactory_ = [=] (TNameTablePtr nameTable, TTableSchemaPtr /*schema*/) {
-            YT_VERIFY(!Writer_);
-            Writer_ = CreateSchemalessMultiChunkWriter(
+            return CreateSchemalessMultiChunkWriter(
                 writerConfig,
                 options,
                 nameTable,
@@ -134,7 +131,6 @@ public:
                 TChunkTimestamps{timestamp, timestamp},
                 Host_->GetTrafficMeter(),
                 Host_->GetOutBandwidthThrottler());
-            return Writer_;
         };
     }
 
@@ -143,15 +139,15 @@ private:
 
     TNameTablePtr NameTable_;
 
-    virtual void CreateReader() override
+    virtual void InitializeReader() override
     {
-        ReaderFactory_(NameTable_, TColumnFilter());
+        DoInitializeReader(NameTable_, TColumnFilter());
     }
 
-    virtual void CreateWriter() override
+    virtual void InitializeWriter() override
     {
         // NB. WriterFactory_ ignores schema argument and uses schema of output table.
-        WriterFactory_(NameTable_, nullptr);
+        DoInitializeWriter(NameTable_, nullptr);
     }
 
     virtual i64 GetTotalReaderMemoryLimit() const
