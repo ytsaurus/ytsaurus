@@ -288,7 +288,8 @@ private:
             TDuration lag,
             TDuration tabletCellBundleNameTtl,
             TDuration retryOnFailureInterval,
-            TDuration syncReplicaLagThreshold)
+            TDuration syncReplicaLagThreshold,
+            bool checkPreloadState)
             : Id_(id)
             , Mode_(mode)
             , ClusterName_(clusterName)
@@ -302,6 +303,7 @@ private:
             , TabletCellBundleNameTtl_(tabletCellBundleNameTtl)
             , RetryOnFailureInterval_(retryOnFailureInterval)
             , SyncReplicaLagThreshold_(syncReplicaLagThreshold)
+            , CheckPreloadState_(checkPreloadState)
         { }
 
         TObjectId GetId()
@@ -403,14 +405,15 @@ private:
         void Merge(const TReplica& other)
         {
             Mode_ = other.Mode_;
-            TabletCellBundleNameTtl_ = other.TabletCellBundleNameTtl_;
-            RetryOnFailureInterval_ = other.RetryOnFailureInterval_;
-            SyncReplicaLagThreshold_ = other.SyncReplicaLagThreshold_;
             ReplicatorHintConfig_ = other.ReplicatorHintConfig_;
             if (Client_ != other.Client_) {
                 Client_ = other.Client_;
             }
             Lag_ = other.Lag_;
+            TabletCellBundleNameTtl_ = other.TabletCellBundleNameTtl_;
+            RetryOnFailureInterval_ = other.RetryOnFailureInterval_;
+            SyncReplicaLagThreshold_ = other.SyncReplicaLagThreshold_;
+            CheckPreloadState_ = other.CheckPreloadState_;
         }
 
     private:
@@ -430,6 +433,7 @@ private:
         TDuration TabletCellBundleNameTtl_;
         TDuration RetryOnFailureInterval_;
         TDuration SyncReplicaLagThreshold_;
+        bool CheckPreloadState_;
 
         TInstant LastUpdateTime_;
 
@@ -477,18 +481,24 @@ private:
 
         TFuture<void> CheckTableAttributes()
         {
+            auto checkPreloadState = CheckPreloadState_;
+
             TGetNodeOptions options;
-            options.Attributes = {"preload_state"};
+            if (checkPreloadState) {
+                options.Attributes = {"preload_state"};
+            }
 
             return Client_->GetNode(Path_, options)
-                .Apply(BIND([] (const TErrorOr<TYsonString>& resultOrError) {
+                .Apply(BIND([checkPreloadState] (const TErrorOr<TYsonString>& resultOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error checking table attributes");
 
-                    auto resultNode = ConvertToNode(resultOrError.Value());
-                    auto preloadState = resultNode->Attributes().Get<NTabletNode::EStorePreloadState>("preload_state");
-                    if (NTabletNode::EStorePreloadState::Complete != preloadState) {
-                        THROW_ERROR_EXCEPTION("Table preload is not completed yet, actual preload state: %v",
-                            preloadState);
+                    if (checkPreloadState) {
+                        auto resultNode = ConvertToNode(resultOrError.Value());
+                        auto preloadState = resultNode->Attributes().Get<NTabletNode::EStorePreloadState>("preload_state");
+                        if (NTabletNode::EStorePreloadState::Complete != preloadState) {
+                            THROW_ERROR_EXCEPTION("Table preload is not completed yet, actual preload state: %v",
+                                preloadState);
+                        }
                     }
                 }));
         }
@@ -1023,7 +1033,8 @@ private:
                 replica->ComputeReplicationLagTime(lastestTimestamp),
                 config->TabletCellBundleNameTtl,
                 config->RetryOnFailureInterval,
-                config->SyncReplicaLagThreshold));
+                config->SyncReplicaLagThreshold,
+                config->EnablePreloadStateCheck));
         }
 
         const auto [maxSyncReplicaCount,  minSyncReplicaCount] = config->GetEffectiveMinMaxReplicaCount(static_cast<int>(replicas.size()));
