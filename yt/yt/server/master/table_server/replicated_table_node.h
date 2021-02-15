@@ -44,7 +44,8 @@ public:
             .Default(TDuration::Seconds(60));
 
         RegisterParameter("enable_preload_state_check", EnablePreloadStateCheck)
-            .Default(false);
+            .Default(false)
+            .DontSerializeDefault();
 
         RegisterPostprocessor([&] {
             if (MaxSyncReplicaCount_ && MinSyncReplicaCount_ && *MinSyncReplicaCount_ > *MaxSyncReplicaCount_) {

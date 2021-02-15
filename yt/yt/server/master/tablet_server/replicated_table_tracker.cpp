@@ -495,8 +495,8 @@ private:
                     if (checkPreloadState) {
                         auto resultNode = ConvertToNode(resultOrError.Value());
                         auto preloadState = resultNode->Attributes().Get<NTabletNode::EStorePreloadState>("preload_state");
-                        if (NTabletNode::EStorePreloadState::Complete != preloadState) {
-                            THROW_ERROR_EXCEPTION("Table preload is not completed yet, actual preload state: %v",
+                        if (preloadState != NTabletNode::EStorePreloadState::Complete) {
+                            THROW_ERROR_EXCEPTION("Table preload is not completed; actual state is %Qlv",
                                 preloadState);
                         }
                     }
