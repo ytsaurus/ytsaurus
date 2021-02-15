@@ -2241,8 +2241,26 @@ private:
         auto newCurrentReplicationRowIndex = request->new_replication_row_index();
         auto newCurrentReplicationTimestamp = request->new_replication_timestamp();
 
-        YT_VERIFY(newCurrentReplicationRowIndex >= prevCurrentReplicationRowIndex);
-        YT_VERIFY(newCurrentReplicationTimestamp >= prevCurrentReplicationTimestamp);
+        if (newCurrentReplicationRowIndex < prevCurrentReplicationRowIndex) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "CurrentReplicationIndex went back (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
+                "CurrentReplicationRowIndex: %v -> %v)",
+                tabletId,
+                replicaId,
+                transaction->GetId(),
+                prevCurrentReplicationRowIndex,
+                newCurrentReplicationRowIndex);
+            newCurrentReplicationRowIndex = prevCurrentReplicationRowIndex;
+        }
+        if (newCurrentReplicationTimestamp < prevCurrentReplicationTimestamp) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "CurrentReplicationTimestamp went back (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
+                "CurrentReplicationTimestamp: %llx -> %llx)",
+                tabletId,
+                replicaId,
+                transaction->GetId(),
+                prevCurrentReplicationTimestamp,
+                newCurrentReplicationTimestamp);
+            newCurrentReplicationTimestamp = prevCurrentReplicationTimestamp;
+        }
 
         replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
         replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
