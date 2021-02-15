@@ -33,8 +33,6 @@ DECLARE_REFCOUNTED_STRUCT(IFairShareTreeSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSnapshotImpl);
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeProfiler)
 
-struct ISchedulerTreeHost;
-
 class TFairShareContext;
 
 class TJobMetrics;

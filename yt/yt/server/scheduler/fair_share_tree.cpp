@@ -110,7 +110,6 @@ public:
         TFairShareStrategyTreeConfigPtr config,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* strategyHost,
-        ISchedulerTreeHost* treeHost,
         const std::vector<IInvokerPtr>& feasibleInvokers,
         TString treeId)
         : Config_(std::move(config))
@@ -120,7 +119,6 @@ public:
             treeId,
             strategyHost->GetFairShareProfilingInvoker()))
         , StrategyHost_(strategyHost)
-        , TreeHost_(treeHost)
         , FeasibleInvokers_(feasibleInvokers)
         , TreeId_(std::move(treeId))
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
@@ -262,7 +260,7 @@ public:
 
         bool isRunningInPool = OnOperationAddedToPool(state, operationElement);
         if (isRunningInPool) {
-            TreeHost_->OnOperationRunningInTree(operationId, this);
+            OperationRunning_.Fire(operationId);
         }
 
         if (auto dataCenter = runtimeParameters->SchedulingSegmentDataCenter) {
@@ -354,7 +352,7 @@ public:
         YT_VERIFY(OnOperationAddedToPool(state, element));
 
         if (!operationWasRunning) {
-            TreeHost_->OnOperationRunningInTree(operationId, this);
+            OperationRunning_.Fire(operationId);
         }
     }
 
@@ -489,7 +487,7 @@ public:
         while (!ActivatableOperationIds_.empty()) {
             auto operationId = ActivatableOperationIds_.back();
             ActivatableOperationIds_.pop_back();
-            TreeHost_->OnOperationRunningInTree(operationId, this);
+            OperationRunning_.Fire(operationId);
         }
     }
 
@@ -517,7 +515,7 @@ public:
         }
 
         for (auto operationId : readyOperationIds) {
-            TreeHost_->OnOperationRunningInTree(operationId, this);
+            OperationRunning_.Fire(operationId);
         }
     }
 
@@ -824,8 +822,6 @@ private:
     TFairShareTreeProfilerPtr TreeProfiler_;
 
     ISchedulerStrategyHost* const StrategyHost_;
-
-    ISchedulerTreeHost* TreeHost_;
 
     std::vector<IInvokerPtr> FeasibleInvokers_;
 
@@ -2542,6 +2538,8 @@ private:
                     .Item("resource_usage").Value(element->ResourceUsageAtUpdate());
             });
     }
+
+    DEFINE_SIGNAL(void(TOperationId), OperationRunning);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2550,7 +2548,6 @@ ISchedulerTreePtr CreateFairShareTree(
     TFairShareStrategyTreeConfigPtr config,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* strategyHost,
-    ISchedulerTreeHost* treeHost,
     std::vector<IInvokerPtr> feasibleInvokers,
     TString treeId)
 {
@@ -2558,7 +2555,6 @@ ISchedulerTreePtr CreateFairShareTree(
         std::move(config),
         std::move(controllerConfig),
         strategyHost,
-        treeHost,
         std::move(feasibleInvokers),
         std::move(treeId));
 }

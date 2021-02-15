@@ -8,15 +8,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISchedulerTreeHost
-    : public virtual TRefCounted
-{
-    // May have context switches.
-    virtual void OnOperationRunningInTree(TOperationId operationId, ISchedulerTree* tree) const = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TPoolsUpdateResult
 {
     TError Error;
@@ -121,6 +112,9 @@ struct ISchedulerTree
 
     virtual void BuildFairShareInfo(NYTree::TFluentMap fluent) const = 0;
     virtual void BuildOrchid(NYTree::TFluentMap fluent) const = 0;
+    
+    //! Raised when operation considered running in tree.
+    DECLARE_INTERFACE_SIGNAL(void(TOperationId), OperationRunning);
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerTree)
