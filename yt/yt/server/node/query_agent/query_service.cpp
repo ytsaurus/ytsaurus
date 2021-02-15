@@ -216,6 +216,151 @@ DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TMemoryProviderMapByTag)
+DECLARE_REFCOUNTED_CLASS(TTrackedMemoryChunkProvider)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTrackedMemoryChunkProvider
+    : public IMemoryChunkProvider
+{
+private:
+    struct THolder
+        : public TAllocationHolder
+    {
+        THolder(
+            TMutableRef ref,
+            TRefCountedTypeCookie cookie)
+            : TAllocationHolder(ref, cookie)
+        { }
+
+        ~THolder()
+        {
+            if (!Owner) {
+                return;
+            }
+
+            Owner->Allocated_ -= GetRef().Size();
+            if (Owner->MemoryTracker_) {
+                Owner->MemoryTracker_->Release(GetRef().Size());
+            }
+        }
+
+        TIntrusivePtr<TTrackedMemoryChunkProvider> Owner;
+    };
+
+public:
+    TTrackedMemoryChunkProvider(
+        TString key,
+        TMemoryProviderMapByTagPtr parent,
+        size_t limit,
+        IMemoryUsageTrackerPtr memoryTracker)
+        : Key_(std::move(key))
+        , Parent_(std::move(parent))
+        , Limit_(limit)
+        , MemoryTracker_(std::move(memoryTracker))
+    { }
+
+    virtual std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) override
+    {
+        size_t allocated = Allocated_.load();
+        do {
+            if (allocated + size > Limit_) {
+                THROW_ERROR_EXCEPTION("Not enough memory to serve allocation",
+                    size,
+                    allocated,
+                    Limit_)
+                    << TErrorAttribute("allocation_size", size)
+                    << TErrorAttribute("allocated", allocated)
+                    << TErrorAttribute("limit", Limit_);
+            }
+        } while (!Allocated_.compare_exchange_weak(allocated, allocated + size));
+
+        std::unique_ptr<THolder> result(TAllocationHolder::Allocate<THolder>(size, cookie));
+        auto allocatedSize = result->GetRef().Size();
+        YT_VERIFY(allocatedSize != 0);
+
+        auto delta = allocatedSize - size;
+        allocated = Allocated_.fetch_add(delta) + delta;
+
+        auto maxAllocated = MaxAllocated_.load();
+        while (maxAllocated < allocated && !MaxAllocated_.compare_exchange_weak(maxAllocated, allocated));
+
+        auto finally = Finally([&] {
+            Allocated_ -= allocatedSize;
+        });
+
+        if (MemoryTracker_) {
+            MemoryTracker_->TryAcquire(allocatedSize)
+                .ThrowOnError();
+        }
+
+        finally.Release();
+        result->Owner = this;
+
+        return result;
+    }
+
+    size_t GetMaxAllocated() const
+    {
+        return MaxAllocated_;
+    }
+
+    ~TTrackedMemoryChunkProvider();
+
+private:
+    const TString Key_;
+    const TMemoryProviderMapByTagPtr Parent_;
+    const size_t Limit_;
+    const IMemoryUsageTrackerPtr MemoryTracker_;
+
+    std::atomic<size_t> Allocated_ = {0};
+    std::atomic<size_t> MaxAllocated_ = {0};
+};
+
+DEFINE_REFCOUNTED_TYPE(TTrackedMemoryChunkProvider)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMemoryProviderMapByTag
+    : public TRefCounted
+{
+public:
+    TTrackedMemoryChunkProviderPtr GetProvider(
+        const TString& tag,
+        size_t limit,
+        IMemoryUsageTrackerPtr memoryTracker)
+    {
+        auto guard = Guard(SpinLock_);
+        auto it = Map_.emplace(tag, nullptr).first;
+
+        auto result = it->second.Lock();
+
+        if (!result) {
+            result = New<TTrackedMemoryChunkProvider>(tag, this, limit, std::move(memoryTracker));
+            it->second = result;
+        }
+
+        return result;
+    }
+
+    friend class TTrackedMemoryChunkProvider;
+
+private:
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    THashMap<TString, TWeakPtr<TTrackedMemoryChunkProvider>> Map_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryProviderMapByTag);
+
+TTrackedMemoryChunkProvider::~TTrackedMemoryChunkProvider()
+{
+    auto guard = Guard(Parent_->SpinLock_);
+    Parent_->Map_.erase(Key_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryService
     : public TServiceBase
 {
@@ -236,16 +381,14 @@ public:
             config->PoolWeightCache,
             Bootstrap_->GetMasterClient(),
             GetDefaultInvoker()))
-
         , FunctionImplCache_(CreateFunctionImplCache(
             config->FunctionImplCache,
             bootstrap->GetMasterClient()))
-        , Evaluator_(CreateEvaluator(
-            Config_,
+        , Evaluator_(CreateEvaluator(Config_, QueryAgentProfiler))
+        , MemoryTracker_(
             Bootstrap_
                 ->GetMemoryUsageTracker()
-                ->WithCategory(NNodeTrackerClient::EMemoryCategory::Query),
-            QueryAgentProfiler))
+                ->WithCategory(NNodeTrackerClient::EMemoryCategory::Query))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true)
@@ -274,6 +417,8 @@ private:
     const TPoolWeightCachePtr PoolWeightCache_;
     const TFunctionImplCachePtr FunctionImplCache_;
     const IEvaluatorPtr Evaluator_;
+    const IMemoryUsageTrackerPtr MemoryTracker_;
+    const TMemoryProviderMapByTagPtr MemoryProvider_ = New<TMemoryProviderMapByTag>();
 
     static IInvokerPtr GetExecuteInvoker(
         NClusterNode::TBootstrap* bootstrap,
@@ -318,9 +463,15 @@ private:
         queryOptions.InputRowLimit = request->query().input_row_limit();
         queryOptions.OutputRowLimit = request->query().output_row_limit();
 
+        auto memoryChunkProvider = MemoryProvider_->GetProvider(
+            ToString(queryOptions.ReadSessionId),
+            queryOptions.MemoryLimitPerNode,
+            MemoryTracker_);
+
+        // TODO(lukyan): Use memoryChunkProvider in FromProto.
         auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
 
-        YT_LOG_DEBUG("Subfragment deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
+        YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
             "ReadSesisonId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v)",
             query->Id,
@@ -347,6 +498,7 @@ private:
             Logger,
             [&] {
                 auto codecId = CheckedEnumCast<ECodec>(request->response_codec());
+                // TODO(lukyan): Use memoryChunkProvider in WireProtocolWriter.
                 auto writer = CreateWireProtocolRowsetWriter(
                     codecId,
                     Config_->DesiredUncompressedResponseBlockSize,
@@ -363,10 +515,16 @@ private:
                     externalCGInfo,
                     dataSources,
                     writer,
+                    memoryChunkProvider,
                     invoker,
                     blockReadOptions,
                     queryOptions,
                     profilerGuard);
+
+                statistics.MemoryUsage = memoryChunkProvider->GetMaxAllocated();
+
+                YT_LOG_DEBUG("Query evaluation finished (TotalMemoryUsage: %v)",
+                    statistics.MemoryUsage);
 
                 response->Attachments() = writer->GetCompressedBlocks();
                 ToProto(response->mutable_query_statistics(), statistics);

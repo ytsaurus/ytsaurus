@@ -1022,6 +1022,7 @@ TQueryStatistics DoExecuteQuery(
         joinProfiler,
         functionProfilers,
         aggregateProfilers,
+        GetDefaultMemoryChunkProvider(),
         options);
 }
 

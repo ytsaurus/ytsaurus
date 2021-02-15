@@ -273,6 +273,7 @@ private:
                     nullptr,
                     functionGenerators,
                     aggregateGenerators,
+                    GetDefaultMemoryChunkProvider(),
                     options);
             });
     }

@@ -19,6 +19,7 @@ struct IEvaluator
         const TJoinSubqueryProfiler& joinProfiler,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
+        const IMemoryChunkProviderPtr& memoryChunkProvider,
         const TQueryBaseOptions& options) = 0;
 };
 
@@ -26,7 +27,6 @@ DEFINE_REFCOUNTED_TYPE(IEvaluator)
 
 IEvaluatorPtr CreateEvaluator(
     TExecutorConfigPtr config,
-    IMemoryUsageTrackerPtr memoryTracker = nullptr,
     const NProfiling::TRegistry& profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,6 +30,7 @@ NQueryClient::TQueryStatistics ExecuteSubquery(
     NQueryClient::TConstExternalCGInfoPtr externalCGInfo,
     std::vector<NQueryClient::TDataRanges> dataSources,
     NQueryClient::IUnversionedRowsetWriterPtr writer,
+    IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const NQueryClient::TQueryOptions& queryOptions,
