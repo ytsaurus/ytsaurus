@@ -1399,6 +1399,8 @@ private:
                         addedNewPeers = true;
                     }
                     if (blockIndex == AllBlocksIndex) {
+                        auto blockIndexes = GetUnfetchedBlockIndexes();
+                        PeerBlocksMap_[*suggestedAddress] = THashSet<int>(blockIndexes.begin(), blockIndexes.end());
                         YT_LOG_DEBUG("Chunk peer descriptor received (SuggestedAddress: %v)",
                             *suggestedAddress);
                     } else {
