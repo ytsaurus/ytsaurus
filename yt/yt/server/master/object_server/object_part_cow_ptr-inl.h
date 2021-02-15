@@ -109,8 +109,8 @@ void TObjectPartCoWPtr<TObjectPart>::Load(NCellMaster::TLoadContext& context)
         SERIALIZATION_DUMP_INDENT(context) {
             Load(context, *ObjectPart_);
         }
-        context.RegisterRawEntity(ObjectPart_);
-        SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
+        auto loadedKey = context.RegisterRawEntity(ObjectPart_);
+        SERIALIZATION_DUMP_WRITE(context, "objref %v", loadedKey.Index);
     } else {
         ObjectPart_ = context.template GetRawEntity<TObjectPart>(key);
         // NB: this only works iff the ref counter is embedded into the object.
