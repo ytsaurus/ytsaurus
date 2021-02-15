@@ -13,7 +13,7 @@ def create(type_, name, client):
     try:
         client.create(type_, attributes={"name": name})
     except yt.YtResponseError as err:
-        if err.contains_code(501):
+        if err.is_already_exists():
             logger.warning("'%s' already exists", name)
         else:
             raise
