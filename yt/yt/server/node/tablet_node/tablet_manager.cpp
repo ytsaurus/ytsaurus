@@ -2624,9 +2624,10 @@ private:
             auto newCurrentReplicationTimestamp = std::max(oldCurrentReplicationTimestamp, commitTimestamp);
             replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                "Sync replicated rows committed (TransactionId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %llx -> %llx, "
+                "Sync replicated rows committed (TransactionId: %v, TabletId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %llx -> %llx, "
                 "TotalRowCount: %v)",
                 transaction->GetId(),
+                tablet->GetId(),
                 replicaInfo->GetId(),
                 oldCurrentReplicationTimestamp,
                 newCurrentReplicationTimestamp,
