@@ -22,6 +22,8 @@ public:
     TDuration TabletCellBundleNameTtl;
     TDuration RetryOnFailureInterval;
 
+    bool EnablePreloadStateCheck;
+
     TReplicatedTableOptions()
     {
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
@@ -40,6 +42,9 @@ public:
             .Default(TDuration::Seconds(300));
         RegisterParameter("tablet_cell_bundle_name_failure_interval", RetryOnFailureInterval)
             .Default(TDuration::Seconds(60));
+
+        RegisterParameter("enable_preload_state_check", EnablePreloadStateCheck)
+            .Default(false);
 
         RegisterPostprocessor([&] {
             if (MaxSyncReplicaCount_ && MinSyncReplicaCount_ && *MinSyncReplicaCount_ > *MaxSyncReplicaCount_) {
