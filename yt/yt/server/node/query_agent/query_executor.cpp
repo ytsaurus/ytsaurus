@@ -287,6 +287,7 @@ public:
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         IUnversionedRowsetWriterPtr writer,
+        IMemoryChunkProviderPtr memoryChunkProvider,
         IInvokerPtr invoker,
         const TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& queryOptions)
@@ -302,6 +303,7 @@ public:
         , ExternalCGInfo_(std::move(externalCGInfo))
         , DataSources_(std::move(dataSources))
         , Writer_(std::move(writer))
+        , MemoryChunkProvider_(std::move(memoryChunkProvider))
         , Invoker_(std::move(invoker))
         , QueryOptions_(std::move(queryOptions))
         , BlockReadOptions_(blockReadOptions)
@@ -343,6 +345,7 @@ private:
     const TConstExternalCGInfoPtr ExternalCGInfo_;
     const std::vector<TDataRanges> DataSources_;
     const IUnversionedRowsetWriterPtr Writer_;
+    const IMemoryChunkProviderPtr MemoryChunkProvider_;
 
     const IInvokerPtr Invoker_;
     const TQueryOptions QueryOptions_;
@@ -424,7 +427,7 @@ private:
                         minKeyWidth);
 
                     if (joinClause->CommonKeyPrefix >= minKeyWidth && minKeyWidth > 0) {
-                        auto rowBuffer = New<TRowBuffer>();
+                        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
 
                         std::vector<TRowRange> prefixRanges;
                         std::vector<TRow> prefixKeys;
@@ -586,6 +589,7 @@ private:
                         foreignProfileCallback,
                         functionGenerators,
                         aggregateGenerators,
+                        MemoryChunkProvider_,
                         QueryOptions_);
 
                 asyncStatistics = asyncStatistics.Apply(BIND([
@@ -625,6 +629,7 @@ private:
                     nullptr,
                     functionGenerators,
                     aggregateGenerators,
+                    MemoryChunkProvider_,
                     QueryOptions_);
                 YT_LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
@@ -654,7 +659,7 @@ private:
 
         std::vector<TDataRanges> rangesByTablet;
 
-        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag());
+        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
 
         auto keySize = Query_->Schema.Original->GetKeyColumnCount();
 
@@ -1030,6 +1035,7 @@ TQueryStatistics ExecuteSubquery(
     TConstExternalCGInfoPtr externalCGInfo,
     std::vector<TDataRanges> dataSources,
     IUnversionedRowsetWriterPtr writer,
+    IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,
     const TClientBlockReadOptions& blockReadOptions,
     const TQueryOptions& queryOptions,
@@ -1046,6 +1052,7 @@ TQueryStatistics ExecuteSubquery(
         std::move(externalCGInfo),
         std::move(dataSources),
         std::move(writer),
+        std::move(memoryChunkProvider),
         invoker,
         blockReadOptions,
         queryOptions);

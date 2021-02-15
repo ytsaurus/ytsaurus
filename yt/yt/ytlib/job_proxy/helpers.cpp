@@ -76,6 +76,7 @@ void RunQuery(
         nullptr,
         functionGenerators,
         aggregateGenerators,
+        GetDefaultMemoryChunkProvider(),
         TQueryBaseOptions());
 }
 
