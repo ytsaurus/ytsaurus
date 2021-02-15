@@ -246,6 +246,23 @@ def check_transactions():
     assert get("#{}/@replicated_to_cell_tags".format(tx2)) == [3]
 
 
+def check_duplicate_attributes():
+    attrs = []
+    for i in xrange(10):
+        attrs.append(str(i) * 2000)
+
+    for i in xrange(10):
+        create("map_node", "//tmp/m{}".format(i))
+        for j in xrange(len(attrs)):
+            set("//tmp/m{}/@a{}".format(i, j), attrs[j])
+
+    yield
+
+    for i in xrange(10):
+        for j in xrange(len(attrs)):
+            assert get("//tmp/m{}/@a{}".format(i, j)) == attrs[j]
+
+
 class TestMasterSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -261,6 +278,7 @@ class TestMasterSnapshots(YTEnvSetup):
             check_security_tags,
             check_master_memory,
             check_hierarchical_accounts,
+            check_duplicate_attributes,
             check_removed_account,  # keep this item last as it's sensitive to timings
         ]
 

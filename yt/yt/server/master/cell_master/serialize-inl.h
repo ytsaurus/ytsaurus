@@ -153,8 +153,8 @@ struct TInternedYsonStringSerializer
                 auto loadedStr = Load<NYson::TYsonString>(context);
                 const auto& ysonInternRegistry = context.GetBootstrap()->GetYsonInternRegistry();
                 str = ysonInternRegistry->Intern(std::move(loadedStr));
-                YT_VERIFY(context.RegisterInternedYsonString(str) == key);
-                SERIALIZATION_DUMP_WRITE(context, "ysonref %v", key.Index);
+                auto loadedKey = context.RegisterInternedYsonString(str);
+                SERIALIZATION_DUMP_WRITE(context, "ysonref %v", loadedKey.Index);
             }
         } else {
             str = context.GetInternedYsonString(key);
