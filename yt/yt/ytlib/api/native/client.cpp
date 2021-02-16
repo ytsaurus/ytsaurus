@@ -478,6 +478,10 @@ TClusterMeta TClient::DoGetClusterMeta(
 void TClient::DoCheckClusterLiveness(
     const TCheckClusterLivenessOptions& options)
 {
+    if (options.IsCheckTrivial()) {
+        THROW_ERROR_EXCEPTION("No liveness check methods specified");
+    }
+
     if (options.CheckCypressRoot) {
         TListNodeOptions listNodeOptions;
         listNodeOptions.Timeout = Connection_->GetConfig()->ClusterLivenessCheckTimeout;

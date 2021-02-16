@@ -1176,6 +1176,8 @@ struct TCheckClusterLivenessOptions
     : public TTimeoutOptions
 {
     bool CheckCypressRoot = false;
+
+    bool IsCheckTrivial() const;
 };
 
 struct TBuildSnapshotOptions

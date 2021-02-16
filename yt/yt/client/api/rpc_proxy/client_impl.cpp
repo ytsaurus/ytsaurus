@@ -1122,9 +1122,16 @@ TFuture<TClusterMeta> TClient::GetClusterMeta(
 }
 
 TFuture<void> TClient::CheckClusterLiveness(
-    const TCheckClusterLivenessOptions& /*options*/)
+    const TCheckClusterLivenessOptions& options)
 {
-    ThrowUnimplemented("CheckClusterLiveness");
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.CheckClusterLiveness();
+    SetTimeoutOptions(*req, options);
+
+    req->set_check_cypress_root(options.CheckCypressRoot);
+
+    return req->Invoke().As<void>();
 }
 
 TFuture<TSkynetSharePartsLocationsPtr> TClient::LocateSkynetShare(

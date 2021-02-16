@@ -139,6 +139,7 @@ public:
 
     // Metadata
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetColumnarStatistics);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CheckClusterLiveness);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

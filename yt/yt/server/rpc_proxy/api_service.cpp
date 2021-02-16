@@ -453,6 +453,8 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
+
         if (!Bootstrap_->GetConfig()->RequireAuthentication) {
             GetOrCreateClient(NSecurityClient::RootUserName);
         }
@@ -3652,6 +3654,10 @@ private:
             });
     }
 
+    ////////////////////////////////////////////////////////////////////////////////
+    // MISC
+    ////////////////////////////////////////////////////////////////////////////////
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
@@ -3691,6 +3697,24 @@ private:
 
                 context->SetResponseInfo("StatisticsCount: %v", result.size());
             });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckClusterLiveness)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TCheckClusterLivenessOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.CheckCypressRoot = request->check_cypress_root();
+
+        context->SetRequestInfo("CheckCypressRoot: %v",
+            options.CheckCypressRoot);
+
+        CompleteCallWith(
+            client,
+            context,
+            client->CheckClusterLiveness(options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
