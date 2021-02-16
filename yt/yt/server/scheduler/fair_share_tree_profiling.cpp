@@ -295,66 +295,77 @@ void TFairShareTreeProfiler::ProfileElement(
             writer,
             profiledResources,
             detailedFairShare.StrongGuarantee,
-            "/fair_share/strong_guarantee");
+            "/fair_share/strong_guarantee",
+            profilingCompatibilityEnabled);
         ProfileResourceVector(
             writer,
             profiledResources,
             detailedFairShare.IntegralGuarantee,
-            "/fair_share/integral_guarantee");
+            "/fair_share/integral_guarantee",
+            profilingCompatibilityEnabled);
         ProfileResourceVector(
             writer,
             profiledResources,
             detailedFairShare.WeightProportional,
-            "/fair_share/weight_proportional");
+            "/fair_share/weight_proportional",
+            profilingCompatibilityEnabled);
         ProfileResourceVector(
             writer,
             profiledResources,
             detailedFairShare.Total,
-            "/fair_share/total");
+            "/fair_share/total",
+            profilingCompatibilityEnabled);
 
         ProfileResourceVector(
             writer,
             profiledResources,
             attributes.UsageShare,
-            "/usage_share");
+            "/usage_share",
+            profilingCompatibilityEnabled);
 
         ProfileResourceVector(
             writer,
             profiledResources,
             attributes.DemandShare,
-            "/demand_share");
+            "/demand_share",
+            profilingCompatibilityEnabled);
 
         ProfileResourceVector(
             writer,
             profiledResources,
             attributes.LimitsShare,
-            "/limits_share");
+            "/limits_share",
+            profilingCompatibilityEnabled);
 
         if (profilingCompatibilityEnabled) {
             ProfileResourceVector(
                 writer,
                 profiledResources,
                 attributes.StrongGuaranteeShare,
-                "/min_share");
+                "/min_share",
+                profilingCompatibilityEnabled);
         } else {
             ProfileResourceVector(
                 writer,
                 profiledResources,
                 attributes.StrongGuaranteeShare,
-                "/strong_guarantee_share");
+                "/strong_guarantee_share",
+                profilingCompatibilityEnabled);
         }
 
         ProfileResourceVector(
             writer,
             profiledResources,
             attributes.ProposedIntegralShare,
-            "/proposed_integral_share");
+            "/proposed_integral_share",
+            profilingCompatibilityEnabled);
 
         ProfileResourceVector(
             writer,
             profiledResources,
             attributes.PromisedFairShare,
-            "/promised_fair_share");
+            "/promised_fair_share",
+            profilingCompatibilityEnabled);
 
         if (!element->IsOperation()) {
             ProfileResourceVolume(
