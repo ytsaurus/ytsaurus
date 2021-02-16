@@ -133,6 +133,7 @@ DEFINE_ENUM(EMasterReign,
     ((VerifySchedulerPoolStrongGuarantees)                          (1449))  // eshcherbin
     ((InternedAttributes)                                           (1450))  // babenko
     ((HierarchicalIntegralLimits)                                   (1451))  // renadeen
+    ((MigrateMinShareResourcesToStrongGuaranteeResources)           (1452))  // renadeen
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42

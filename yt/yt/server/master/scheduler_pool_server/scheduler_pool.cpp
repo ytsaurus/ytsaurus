@@ -8,6 +8,8 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <yt/server/lib/misc/interned_attributes.h>
+
 namespace NYT::NSchedulerPoolServer {
 
 using namespace NCellMaster;
@@ -171,6 +173,26 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, SpecifiedAttributes_);
     Load(context, MaybePoolTree_);
+
+    if (context.GetVersion() < EMasterReign::MigrateMinShareResourcesToStrongGuaranteeResources) {
+        auto minShareIt = SpecifiedAttributes_.find(EInternedAttributeKey::MinShareResources);
+        if (minShareIt != SpecifiedAttributes_.end()) {
+            auto strongGuaranteeIt = SpecifiedAttributes_.find(EInternedAttributeKey::StrongGuaranteeResources);
+            if (strongGuaranteeIt == SpecifiedAttributes_.end()) {
+                SpecifiedAttributes_[EInternedAttributeKey::StrongGuaranteeResources] = std::move(minShareIt->second);
+                YT_LOG_DEBUG("Min share resources transferred to strong guarantees (PoolName: %v)", GetName());
+            } else {
+                YT_LOG_ERROR(
+                    "Pool %Qv has configured both strong guarantee and min share resources. Dropping min share resources. "
+                    "(PoolName: %v, MinShareResources: %v, StrongGuaranteeResources: %v)",
+                    GetName(),
+                    ConvertToYsonString(minShareIt->second, EYsonFormat::Text).AsStringBuf(),
+                    ConvertToYsonString(strongGuaranteeIt->second, EYsonFormat::Text).AsStringBuf());
+            }
+            SpecifiedAttributes_.erase(minShareIt);
+        }
+    }
+
     FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
 
     // COMPAT(mrkastep)
