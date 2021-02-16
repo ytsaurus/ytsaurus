@@ -11,6 +11,12 @@ TOrderedByIdTableDescriptor::TOrderedByIdTableDescriptor()
     , Index(NameTable)
 { }
 
+const TOrderedByIdTableDescriptor& TOrderedByIdTableDescriptor::Get()
+{
+    static const TOrderedByIdTableDescriptor descriptor;
+    return descriptor;
+}
+
 TOrderedByIdTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     : IdHash(nameTable->RegisterName("id_hash"))
     , IdHi(nameTable->RegisterName("id_hi"))
@@ -43,6 +49,12 @@ TOrderedByStartTimeTableDescriptor::TOrderedByStartTimeTableDescriptor()
     , Index(NameTable)
 { }
 
+const TOrderedByStartTimeTableDescriptor& TOrderedByStartTimeTableDescriptor::Get()
+{
+    static const TOrderedByStartTimeTableDescriptor descriptor;
+    return descriptor;
+}
+
 TOrderedByStartTimeTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     : StartTime(nameTable->RegisterName("start_time"))
     , IdHi(nameTable->RegisterName("id_hi"))
@@ -63,6 +75,12 @@ TJobTableDescriptor::TJobTableDescriptor()
     : NameTable(New<TNameTable>())
     , Index(NameTable)
 { }
+
+const TJobTableDescriptor& TJobTableDescriptor::Get()
+{
+    static const TJobTableDescriptor descriptor;
+    return descriptor;
+}
 
 TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
@@ -101,6 +119,12 @@ TOperationIdTableDescriptor::TOperationIdTableDescriptor()
     , Index(NameTable)
 { }
 
+const TOperationIdTableDescriptor& TOperationIdTableDescriptor::Get()
+{
+    static const TOperationIdTableDescriptor descriptor;
+    return descriptor;
+}
+
 TOperationIdTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     : JobIdHi(nameTable->RegisterName("job_id_hi"))
     , JobIdLo(nameTable->RegisterName("job_id_lo"))
@@ -114,6 +138,12 @@ TJobSpecTableDescriptor::TJobSpecTableDescriptor()
     : NameTable(New<TNameTable>())
     , Index(NameTable)
 { }
+
+const TJobSpecTableDescriptor& TJobSpecTableDescriptor::Get()
+{
+    static const TJobSpecTableDescriptor descriptor;
+    return descriptor;
+}
 
 TJobSpecTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     : JobIdHi(nameTable->RegisterName("job_id_hi"))
@@ -130,6 +160,12 @@ TJobStderrTableDescriptor::TJobStderrTableDescriptor()
     , Index(NameTable)
 { }
 
+const TJobStderrTableDescriptor& TJobStderrTableDescriptor::Get()
+{
+    static const TJobStderrTableDescriptor descriptor;
+    return descriptor;
+}
+
 TJobStderrTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
     , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
@@ -144,6 +180,12 @@ TJobProfileTableDescriptor::TJobProfileTableDescriptor()
     : NameTable(New<TNameTable>())
     , Index(NameTable)
 { }
+
+const TJobProfileTableDescriptor& TJobProfileTableDescriptor::Get()
+{
+    static const TJobProfileTableDescriptor descriptor;
+    return descriptor;
+}
 
 TJobProfileTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
@@ -162,6 +204,12 @@ TJobFailContextTableDescriptor::TJobFailContextTableDescriptor()
     , Index(NameTable)
 { }
 
+const TJobFailContextTableDescriptor& TJobFailContextTableDescriptor::Get()
+{
+    static const TJobFailContextTableDescriptor descriptor;
+    return descriptor;
+}
+
 TJobFailContextTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
     , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
@@ -176,6 +224,12 @@ TOperationAliasesTableDescriptor::TOperationAliasesTableDescriptor()
     : NameTable(New<TNameTable>())
     , Index(NameTable)
 { }
+
+const TOperationAliasesTableDescriptor& TOperationAliasesTableDescriptor::Get()
+{
+    static const TOperationAliasesTableDescriptor descriptor;
+    return descriptor;
+}
 
 TOperationAliasesTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     : AliasHash(nameTable->RegisterName("alias_hash"))
