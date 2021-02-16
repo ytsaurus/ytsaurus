@@ -1,16 +1,13 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
@@ -177,11 +174,8 @@ public abstract class CompoundClient extends ApiServiceClient {
     }
 
     private void runTabletsStateChecker(String tablePath, CompletableFuture<Void> futureToComplete, String state) {
-        getNode(tablePath + "/@tablets").thenAccept(tablets -> {
-            List<YTreeNode> tabletPaths = tablets.asList();
-            Stream<Boolean> tabletsMounted = tabletPaths.stream()
-                    .map(node -> node.asMap().getOrThrow("state").stringValue().equals(state));
-            if (tabletsMounted.allMatch(tableState -> tableState)) {
+        getNode(tablePath + "/@tablet_state").thenAccept(tabletState -> {
+            if (tabletState.stringValue().equals(state)) {
                 futureToComplete.complete(null);
             } else {
                 executorService.schedule(() -> runTabletsStateChecker(tablePath, futureToComplete, state), 1, TimeUnit.SECONDS);
