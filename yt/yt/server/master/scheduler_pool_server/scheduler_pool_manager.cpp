@@ -8,6 +8,7 @@
 #include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
@@ -251,6 +252,8 @@ private:
     THashSet<TInternedAttributeKey> KnownPoolAttributes_;
     THashSet<TInternedAttributeKey> KnownPoolTreeAttributes_;
 
+    bool NeedRecomputeIntegralResourcesHierarchically_ = false;
+
     virtual void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
@@ -265,6 +268,45 @@ private:
 
             BuildPoolNameMapRecursively(schedulerPoolTree->GetRootPool(), &it->second);
         }
+
+        // COMPAT(renadeen)
+        if (NeedRecomputeIntegralResourcesHierarchically_) {
+            for (const auto& [_, poolTree] : PoolTrees_) {
+                RecomputePoolIntegralResourcesRecursively(poolTree->GetRootPool());
+            }
+        }
+    }
+
+    void RecomputePoolIntegralResourcesRecursively(TSchedulerPool* schedulerPool)
+    {
+        const auto& integralGuarantees = schedulerPool->FullConfig()->IntegralGuarantees;
+        if (integralGuarantees->GuaranteeType == EIntegralGuaranteeType::None) {
+            for (const auto& [_, child] : schedulerPool->KeyToChild()) {
+                RecomputePoolIntegralResourcesRecursively(child);
+            }
+        } else {
+            RecomputePoolAncestryIntegralResources(schedulerPool, [] (TSchedulerPool* pool) {
+                return pool->FullConfig()->IntegralGuarantees->BurstGuaranteeResources.Get();
+            });
+            RecomputePoolAncestryIntegralResources(schedulerPool, [] (TSchedulerPool* pool) {
+                return pool->FullConfig()->IntegralGuarantees->ResourceFlow.Get();
+            });
+        }
+    }
+
+    void RecomputePoolAncestryIntegralResources(TSchedulerPool* schedulerPool, const std::function<TResourceLimitsConfig*(TSchedulerPool*)>& resourcesGetter) {
+        TResourceLimitsConfigPtr()->ForEachResource(
+            [&] (auto TResourceLimitsConfig::* resourceDataMember, EJobResourceType resourceType) {
+                using TResource = typename std::remove_reference_t<decltype(std::declval<TResourceLimitsConfig>().*resourceDataMember)>::value_type;
+                TResource value = (resourcesGetter(schedulerPool)->*resourceDataMember).value_or(0);
+                if (value > 0) {
+                    auto* current = schedulerPool->GetParent();
+                    while (!current->IsRoot()) {
+                        resourcesGetter(current)->*resourceDataMember = (resourcesGetter(current)->*resourceDataMember).value_or(0) + value;
+                        current = schedulerPool->GetParent();
+                    }
+                }
+            });
     }
 
     void BuildPoolNameMapRecursively(TSchedulerPool* schedulerPool, THashMap<TString, TSchedulerPool*>* map)
@@ -307,6 +349,8 @@ private:
     {
         SchedulerPoolTreeMap_.LoadValues(context);
         SchedulerPoolMap_.LoadValues(context);
+
+        NeedRecomputeIntegralResourcesHierarchically_ = context.GetVersion() < EMasterReign::HierarchicalIntegralLimits;
     }
 };
 

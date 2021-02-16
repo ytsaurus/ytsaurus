@@ -1766,14 +1766,12 @@ void TPoolConfig::Validate()
             << TErrorAttribute("allowed_profiling_tag_count", AllowedProfilingTags.size())
             << TErrorAttribute("max_allowed_profiling_tag_count", MaxAllowedProfilingTagCount);
     }
-    if (IntegralGuarantees->BurstGuaranteeResources->IsNonTrivial() && IntegralGuarantees->GuaranteeType != EIntegralGuaranteeType::Burst) {
-        THROW_ERROR_EXCEPTION("Burst guarantees can be specified only when integral guarantee type is \"burst\"")
+    if (IntegralGuarantees->BurstGuaranteeResources->IsNonTrivial() &&
+        IntegralGuarantees->GuaranteeType == EIntegralGuaranteeType::Relaxed)
+    {
+        THROW_ERROR_EXCEPTION("Burst guarantees cannot be specified for integral guarantee type \"relaxed\"")
             << TErrorAttribute("integral_guarantee_type", IntegralGuarantees->GuaranteeType)
             << TErrorAttribute("burst_guarantee_resources", IntegralGuarantees->BurstGuaranteeResources);
-    }
-    if (IntegralGuarantees->ResourceFlow->IsNonTrivial() && IntegralGuarantees->GuaranteeType == EIntegralGuaranteeType::None) {
-        THROW_ERROR_EXCEPTION("Resource flow can be specified only if integral guarantee type is not \"none\"")
-            << TErrorAttribute("resource_flow", IntegralGuarantees->ResourceFlow);
     }
 }
 

@@ -68,41 +68,33 @@ void TSchedulerPool::ValidateChildrenCompatibility()
     // TODO(renadeen): move children validation to pool config?
     FullConfig()->StrongGuaranteeResources->ForEachResource([this] (auto TResourceLimitsConfig::* resourceDataMember, EJobResourceType resourceType) {
         using TResource = typename std::remove_reference_t<decltype(std::declval<TResourceLimitsConfig>().*resourceDataMember)>::value_type;
-        auto getResource = [&] (TSchedulerPool* object) -> std::optional<TResource> {
-            return object->FullConfig()->StrongGuaranteeResources.Get()->*resourceDataMember;
-        };
 
-        auto parentResource = getResource(this);
-        if (!parentResource) {
-            for (const auto& [_, child] : KeyToChild_) {
-                if (auto childResource = getResource(child)) {
-                    THROW_ERROR_EXCEPTION(
-                        "Setting explicit resource guarantee for pool %Qv is forbidden "
-                        "because no explicit guarantee is configured for its parent",
-                        child->GetName())
-                        << TErrorAttribute("pool_name", child->GetName())
-                        << TErrorAttribute("parent_name", GetName())
-                        << TErrorAttribute("resource_type", resourceType)
-                        << TErrorAttribute("resource_guarantee", *childResource);
-                }
-            }
-
-            return;
-        }
-
-        TResource childrenResourceSum = 0;
-        for (const auto& [_, child] : KeyToChild_) {
-            childrenResourceSum += getResource(child).value_or(0);
-        }
-
-        if (*parentResource < childrenResourceSum) {
-            THROW_ERROR_EXCEPTION("Guarantee of resource for pool %Qv is less than the sum of children guarantees", GetName())
-                << TErrorAttribute("resource_type", resourceType)
-                << TErrorAttribute("pool_name", GetName())
-                << TErrorAttribute("parent_resource", *parentResource)
-                << TErrorAttribute("children_resource_sum", childrenResourceSum);
-        }
+        ValidateChildrenGuaranteeSum<TResource>("Strong guarantee", resourceType, [&] (const TPoolConfigPtr& config) -> std::optional<TResource> {
+            return config->StrongGuaranteeResources.Get()->*resourceDataMember;
+        });
+        ValidateChildrenGuaranteeSum<TResource>("Burst guarantee", resourceType, [&] (const TPoolConfigPtr& config) -> std::optional<TResource> {
+            return config->IntegralGuarantees->BurstGuaranteeResources.Get()->*resourceDataMember;
+        });
+        ValidateChildrenGuaranteeSum<TResource>("Resource flow", resourceType, [&] (const TPoolConfigPtr& config) -> std::optional<TResource> {
+            return config->IntegralGuarantees->ResourceFlow.Get()->*resourceDataMember;
+        });
     });
+
+    if (FullConfig_->IntegralGuarantees->GuaranteeType != NScheduler::EIntegralGuaranteeType::None) {
+        for (const auto& [_, child] : KeyToChild_) {
+            auto childGuarantees = child->FullConfig()->IntegralGuarantees;
+            if (childGuarantees->BurstGuaranteeResources->IsNonTrivial() ||
+                childGuarantees->ResourceFlow->IsNonTrivial())
+            {
+                THROW_ERROR_EXCEPTION("Integral pool %Qv cannot have children with integral resources", GetName())
+                    << TErrorAttribute("pool_name", GetName())
+                    << TErrorAttribute("pool_guarantee_type", FullConfig()->IntegralGuarantees->GuaranteeType)
+                    << TErrorAttribute("child_pool_name", child->GetName())
+                    << TErrorAttribute("child_burst_guarantee_resources", childGuarantees->BurstGuaranteeResources)
+                    << TErrorAttribute("child_resource_flow", childGuarantees->ResourceFlow);
+            }
+        }
+    }
 
     if (!KeyToChild().empty() && FullConfig()->Mode == NScheduler::ESchedulingMode::Fifo) {
         THROW_ERROR_EXCEPTION("Pool %Qv cannot have subpools since it is in FIFO mode")

@@ -463,21 +463,23 @@ protected:
         return relaxedPoolConfig;
     }
 
+    TPoolConfigPtr CreateIntegralPoolConfig(EIntegralGuaranteeType type, double flowCpu, double burstCpu, double strongGuaranteeCpu = 0.0, double weight = 1.0)
+    {
+        auto integralPoolConfig = CreateSimplePoolConfig(strongGuaranteeCpu, weight);
+        integralPoolConfig->IntegralGuarantees->GuaranteeType = type;
+        integralPoolConfig->IntegralGuarantees->ResourceFlow->Cpu = flowCpu;
+        integralPoolConfig->IntegralGuarantees->BurstGuaranteeResources->Cpu = burstCpu;
+        return integralPoolConfig;
+    }
+
     TPoolConfigPtr CreateBurstPoolConfig(double flowCpu, double burstCpu, double strongGuaranteeCpu = 0.0, double weight = 1.0)
     {
-        auto burstPoolConfig = CreateSimplePoolConfig(strongGuaranteeCpu, weight);
-        burstPoolConfig->IntegralGuarantees->GuaranteeType = EIntegralGuaranteeType::Burst;
-        burstPoolConfig->IntegralGuarantees->ResourceFlow->Cpu = flowCpu;
-        burstPoolConfig->IntegralGuarantees->BurstGuaranteeResources->Cpu = burstCpu;
-        return burstPoolConfig;
+        return CreateIntegralPoolConfig(EIntegralGuaranteeType::Burst, flowCpu, burstCpu, strongGuaranteeCpu, weight);
     }
 
     TPoolConfigPtr CreateRelaxedPoolConfig(double flowCpu, double strongGuaranteeCpu = 0.0, double weight = 1.0)
     {
-        auto relaxedPoolConfig = CreateSimplePoolConfig(strongGuaranteeCpu, weight);
-        relaxedPoolConfig->IntegralGuarantees->GuaranteeType = EIntegralGuaranteeType::Relaxed;
-        relaxedPoolConfig->IntegralGuarantees->ResourceFlow->Cpu = flowCpu;
-        return relaxedPoolConfig;
+        return CreateIntegralPoolConfig(EIntegralGuaranteeType::Relaxed, flowCpu, 0.0, strongGuaranteeCpu, weight);
     }
 
     TOperationElementPtr CreateTestOperationElement(
@@ -2348,6 +2350,54 @@ TEST_F(TFairShareTreeTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolu
         EXPECT_EQ(hugeVolume.GetUserSlots(), updatedVolume.GetUserSlots());
         EXPECT_EQ(hugeVolume.GetGpu(), updatedVolume.GetGpu());
         EXPECT_EQ(hugeVolume.GetNetwork(), updatedVolume.GetNetwork());
+    }
+}
+
+TEST_F(TFairShareTreeTest, TestIntegralPoolsWithParent)
+{
+    auto host = CreateHostWith10NodesAnd10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto limitedParent = CreateTestPool(host.Get(), "parent", CreateIntegralPoolConfig(
+        EIntegralGuaranteeType::None,
+        /* flowCpu */ 100,
+        /* burstCpu */ 100));
+    limitedParent->AttachParent(rootElement.Get());
+
+    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+        /* flowCpu */ 50,
+        /* burstCpu */ 100));
+    burstPool->AttachParent(limitedParent.Get());
+
+    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 50));
+    relaxedPool->AttachParent(limitedParent.Get());
+
+    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
+    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
+
+    {
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
+        rootElement->PreUpdate(&updateContext);
+        rootElement->Update(&updateContext);
+
+        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
+        EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(unit * 5, burstPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.WeightProportional);
+
+        EXPECT_EQ(unit * 0, relaxedPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(unit * 5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.WeightProportional);
+
+        EXPECT_EQ(unit * 0, limitedParent->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(unit * 10, limitedParent->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0, limitedParent->Attributes().FairShare.WeightProportional);
+
+        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(unit * 10, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_EQ(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
