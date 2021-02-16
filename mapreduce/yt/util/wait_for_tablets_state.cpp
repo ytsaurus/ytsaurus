@@ -11,18 +11,10 @@ namespace NYT {
 void WaitForTabletsState(const IClientPtr& client, const TYPath& table, ETabletState state, const TWaitForTabletsStateOptions& options)
 {
     const TString stateString = ::ToString(state);
-    TVector<TString> tabletStatePathList;
     const TInstant startTime = TInstant::Now();
     while (TInstant::Now() - startTime < options.Timeout_) {
-        auto tabletList = client->Get(table + "/@tablets");
-        bool good = true;
-        for (const auto& tablet : tabletList.AsList()) {
-            if (tablet["state"].AsString() != stateString) {
-                good = false;
-                break;
-            }
-        }
-        if (good) {
+        auto tabletState = client->Get(table + "/@tablet_state").AsString();
+        if (tabletState == stateString) {
             return;
         }
 
