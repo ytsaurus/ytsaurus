@@ -33,7 +33,6 @@ public:
         const TOperationPtr& operation,
         const TControllerAgentPtr& agent);
 
-    TFuture<void> RegisterOperationAtAgent(const TOperationPtr& operation);
     void UnregisterOperationFromAgent(const TOperationPtr& operation);
 
     void UpdateConfig(TSchedulerConfigPtr config);

@@ -3040,9 +3040,7 @@ private:
         auto agent = operation->GetAgentOrCancelFiber();
         const auto& controller = operation->GetController();
         controller->AssignAgent(agent);
-
-        const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
-        WaitFor(agentTracker->RegisterOperationAtAgent(operation))
+        WaitFor(controller->Register(operation))
             .ThrowOnError();
     }
 
