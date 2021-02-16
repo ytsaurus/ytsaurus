@@ -16,6 +16,7 @@ using NYson::IYsonConsumer;
 using NYTree::INodePtr;
 using NYTree::ENodeType;
 using NPython::GetYsonTypeClass;
+using NPython::FindYsonTypeClass;
 using NPython::EncodeStringObject;
 using NPython::CreateYsonError;
 
@@ -25,7 +26,7 @@ namespace NPython {
 
 Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes)
 {
-    auto result = Py::Callable(GetYsonTypeClass(className)).apply(Py::TupleN(object));
+    auto result = Py::Callable(GetYsonTypeClass(className), /* owned */ true).apply(Py::TupleN(object));
     result.setAttr("attributes", attributes);
     return result;
 }
@@ -40,11 +41,11 @@ namespace NYTree {
 
 static void ValidateKeyType(const Py::Object& key, TContext* context = nullptr)
 {
-    thread_local auto* YsonStringProxyClass = NPython::FindYsonTypeClass("YsonStringProxy");
+    thread_local auto YsonStringProxyClass = PyObjectPtr(FindYsonTypeClass("YsonStringProxy"));
 
     if (!PyBytes_Check(key.ptr()) &&
         !PyUnicode_Check(key.ptr()) &&
-        !(YsonStringProxyClass && PyObject_IsInstance(key.ptr(), YsonStringProxyClass)))
+        !(YsonStringProxyClass && PyObject_IsInstance(key.ptr(), YsonStringProxyClass.get())))
     {
         if (context) {
             throw CreateYsonError(Format("Map key should be string, found %Qv", Py::Repr(key)), context);
@@ -145,9 +146,9 @@ void SerializeMapFragment(
 
 void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TContext* context)
 {
-    thread_local PyObject* YsonBooleanClass = GetYsonTypeClass("YsonBoolean");
-    thread_local PyObject* YsonUint64Class = GetYsonTypeClass("YsonUint64");
-    thread_local PyObject* YsonInt64Class = GetYsonTypeClass("YsonInt64");
+    thread_local auto YsonBooleanClass = PyObjectPtr(GetYsonTypeClass("YsonBoolean"));
+    thread_local auto YsonUint64Class = PyObjectPtr(GetYsonTypeClass("YsonUint64"));
+    thread_local auto YsonInt64Class = PyObjectPtr(GetYsonTypeClass("YsonInt64"));
 
     // TODO(asaitgalin): Make singleton with all global variables and
     // free all objects there before interpreter exit.
@@ -191,17 +192,17 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
 
     if (PyLong_CheckExact(obj.ptr())) {
         consumeAsLong();
-    } else if (PyObject_IsInstance(obj.ptr(), YsonBooleanClass)) {
+    } else if (PyObject_IsInstance(obj.ptr(), YsonBooleanClass.get())) {
         // YsonBoolean inherited from int
         consumer->OnBooleanScalar(Py::Boolean(obj));
-    } else if (PyObject_IsInstance(obj.ptr(), YsonUint64Class)) {
+    } else if (PyObject_IsInstance(obj.ptr(), YsonUint64Class.get())) {
         auto value = static_cast<ui64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
             PyErr_Clear();
             throw CreateYsonError("Can not dump negative integer as YSON uint64", context);
         }
         consumer->OnUint64Scalar(value);
-    } else if (PyObject_IsInstance(obj.ptr(), YsonInt64Class)) {
+    } else if (PyObject_IsInstance(obj.ptr(), YsonInt64Class.get())) {
         auto value = static_cast<i64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
             PyErr_Clear();
@@ -234,8 +235,8 @@ void Serialize(
     int depth,
     TContext* context)
 {
-    thread_local PyObject* YsonEntityClass = GetYsonTypeClass("YsonEntity");
-    thread_local PyObject* YsonStringProxyClass = NPython::FindYsonTypeClass("YsonStringProxy");
+    thread_local auto YsonEntityClass = PyObjectPtr(GetYsonTypeClass("YsonEntity"));
+    thread_local auto YsonStringProxyClass = PyObjectPtr(FindYsonTypeClass("YsonStringProxy"));
 
     std::unique_ptr<TContext> contextHolder;
     if (!context) {
@@ -273,7 +274,7 @@ void Serialize(
         consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (Py::IsInteger(obj)) {
         SerializePythonInteger(obj, consumer, context);
-    } else if (YsonStringProxyClass && Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject *>(YsonStringProxyClass)) {
+    } else if (YsonStringProxyClass && Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject*>(YsonStringProxyClass.get())) {
         consumer->OnStringScalar(ConvertToStringBuf(obj.getAttr("_bytes")));
     } else if (obj.hasAttr("to_yson_type") && obj.getAttr("to_yson_type").isCallable()) {
         auto repr = obj.callMemberFunction("to_yson_type");
@@ -301,7 +302,7 @@ void Serialize(
         consumer->OnEndList();
     } else if (Py::IsFloat(obj)) {
         consumer->OnDoubleScalar(Py::Float(obj));
-    } else if (obj.isNone() || PyObject_IsInstance(obj.ptr(), YsonEntityClass)) {
+    } else if (obj.isNone() || Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject*>(YsonEntityClass.get())) {
         consumer->OnEntity();
     } else {
         throw CreateYsonError(

@@ -55,7 +55,7 @@ void TLazyDictProducer::SetObject()
     auto object = GetPythonObjectBuilder()->ExtractObject();
     if (LazyAttributesDict_->Length() > 0) {
         if (object.isNone()) {
-            object = Py::Callable(GetYsonTypeClass("YsonEntity")).apply(Py::Tuple());
+            object = Py::Callable(GetYsonTypeClass("YsonEntity"), /* owned */ true).apply(Py::Tuple());
         }
         auto attributes = PyObject_GetAttrString(ResultObject_.ptr(), "attributes");
         YT_VERIFY(PyObject_SetAttrString(object.ptr(), "attributes", attributes) == 0);

@@ -1,21 +1,12 @@
 #pragma once
 
+#include "helpers.h"
+
 #include <yt/core/misc/sync_cache.h>
 
 #include <Objects.hxx> // pycxx
 
 namespace NYT::NPython {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// NOTE: We avoid using specific PyCXX objects (e.g. Py::Bytes) to avoid unnecessary checks in hot path.
-
-struct TPyObjectDeleter
-{
-    void operator() (PyObject* object) const;
-};
-
-using PyObjectPtr = std::unique_ptr<PyObject, TPyObjectDeleter>; // decltype(&Py::_XDECREF)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +31,6 @@ private:
     std::optional<TString> Encoding_;
     using TCache = TSimpleLruCache<TStringBuf, TItem>;
     TCache Cache_ = TCache(1_MB);
-    Py::String EncodingObject_;
     Py::Callable YsonUnicode_;
     std::optional<Py::Callable> YsonStringProxy_;
 

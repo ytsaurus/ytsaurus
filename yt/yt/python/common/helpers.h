@@ -47,6 +47,17 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NOTE: We want to avoid using specific PyCXX objects (e.g. Py::Bytes) to avoid unnecessary checks in hot path.
+
+struct TPyObjectDeleter
+{
+    void operator() (PyObject* object) const;
+};
+
+using PyObjectPtr = std::unique_ptr<PyObject, TPyObjectDeleter>; // decltype(&Py::_XDECREF)>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string& name);
 bool HasArgument(const Py::Tuple& args, const Py::Dict& kwargs, const std::string& name);
 void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs);
