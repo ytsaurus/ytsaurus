@@ -416,6 +416,11 @@ protected:
     NApi::NNative::IClientPtr Client;
     NApi::NNative::IClientPtr InputClient;
     NApi::NNative::IClientPtr OutputClient;
+    
+    // These clients are identical to the above, but uses scheduler user.
+    NApi::NNative::IClientPtr SchedulerClient;
+    NApi::NNative::IClientPtr SchedulerInputClient;
+    NApi::NNative::IClientPtr SchedulerOutputClient;
 
     TCancelableContextPtr CancelableContext;
     IDiagnosableInvokerPoolPtr DiagnosableInvokerPool;

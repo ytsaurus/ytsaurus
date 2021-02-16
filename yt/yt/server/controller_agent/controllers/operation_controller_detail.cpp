@@ -342,13 +342,19 @@ void TOperationControllerBase::SleepInInitialize()
 
 void TOperationControllerBase::InitializeClients()
 {
-    auto options = TClientOptions::FromUser(AuthenticatedUser);
     Client = Host
         ->GetClient()
         ->GetNativeConnection()
-        ->CreateNativeClient(options);
+        ->CreateNativeClient(TClientOptions::FromUser(AuthenticatedUser));
     InputClient = Client;
     OutputClient = Client;
+    
+    SchedulerClient = Host
+        ->GetClient()
+        ->GetNativeConnection()
+        ->CreateNativeClient(TClientOptions::FromUser(SchedulerUserName));
+    SchedulerInputClient = Client;
+    SchedulerOutputClient = Client;
 }
 
 TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(const TControllerTransactionIds& transactions)
@@ -3463,14 +3469,14 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
     // NB: We do not abort input transaction synchronously since
     // it can belong to an unavailable remote cluster.
     // Moreover if input transaction abort failed it does not harm anything.
-    abortTransaction(InputTransaction, InputClient, /* sync */ false);
-    abortTransaction(OutputTransaction, OutputClient);
-    abortTransaction(AsyncTransaction, Client, /* sync */ false);
+    abortTransaction(InputTransaction, SchedulerInputClient, /* sync */ false);
+    abortTransaction(OutputTransaction, SchedulerOutputClient);
+    abortTransaction(AsyncTransaction, SchedulerClient, /* sync */ false);
     if (!debugTransactionCommitted) {
-        abortTransaction(DebugTransaction, Client, /* sync */ false);
+        abortTransaction(DebugTransaction, SchedulerClient, /* sync */ false);
     }
     for (const auto& transaction : NestedInputTransactions) {
-        abortTransaction(transaction, InputClient, /* sync */ false);
+        abortTransaction(transaction, SchedulerInputClient, /* sync */ false);
     }
 
     WaitFor(AllSucceeded(abortTransactionFutures))
