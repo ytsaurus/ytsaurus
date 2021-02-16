@@ -607,7 +607,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
                 wait_for_orchid=False,
             )
 
-    def test_cant_give_child_guarantee_without_parent_guarantee(self):
+    def test_cant_give_child_strong_guarantee_without_parent_guarantee(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
@@ -627,6 +627,99 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
         set("//sys/pool_trees/my_tree/nirvana/@min_share_resources/cpu", 100.0)
         set("//sys/pool_trees/my_tree/nirvana/prod/@min_share_resources", {"cpu": 100.0})
+
+    def test_cant_give_child_burst_guarantee_without_parent_guarantee(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False, attributes={
+            "integral_guarantees": {"guarantee_type": "none"}})
+        create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False, attributes={
+            "integral_guarantees": {"guarantee_type": "burst"}})
+
+        def set_burst_guarantee(pool_path, cpu):
+            path = "//sys/pool_trees/my_tree/" + pool_path + "/@integral_guarantees"
+            set(path, {"burst_guarantee_resources": {"cpu": cpu}})
+
+        with pytest.raises(YtError):
+            set_burst_guarantee("nirvana/prod", 100.0)
+
+        set_burst_guarantee("nirvana", 10.0)
+        with pytest.raises(YtError):
+            set_burst_guarantee("nirvana/prod", 100.0)
+
+        set_burst_guarantee("nirvana", 100.0)
+        set_burst_guarantee("nirvana/prod", 100.0)
+
+    def test_cant_give_child_resource_flow_without_parent_flow(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False, attributes={
+            "integral_guarantees": {"guarantee_type": "none"}})
+        create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False, attributes={
+            "integral_guarantees": {"guarantee_type": "relaxed"}})
+
+        def set_resource_flow(pool_path, cpu):
+            path = "//sys/pool_trees/my_tree/" + pool_path + "/@integral_guarantees"
+            set(path, {"resource_flow": {"cpu": cpu}})
+
+        with pytest.raises(YtError):
+            set_resource_flow("nirvana/prod", 100.0)
+
+        set_resource_flow("nirvana", 10.0)
+        with pytest.raises(YtError):
+            set_resource_flow("nirvana/prod", 100.0)
+
+        set_resource_flow("nirvana", 100.0)
+        set_resource_flow("nirvana/prod", 100.0)
+
+    def test_cant_give_resource_flow_to_child_of_integral_pool(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
+        create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
+
+        # burst
+        set("//sys/pool_trees/my_tree/nirvana/@integral_guarantees", {
+            "guarantee_type": "burst",
+            "resource_flow": {"cpu": 50},
+            "burst_guarantee_resources": {"cpu": 100},
+        })
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/my_tree/nirvana/prod/@integral_guarantees", {"resource_flow": {"cpu": 10}})
+
+        # relaxed
+        set("//sys/pool_trees/my_tree/nirvana/@integral_guarantees", {
+            "guarantee_type": "relaxed",
+            "resource_flow": {"cpu": 50},
+        })
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/my_tree/nirvana/prod/@integral_guarantees", {"resource_flow": {"cpu": 10}})
+
+    def test_cant_make_parent_burst_or_relaxed_if_child_has_integral_resources(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False, attributes={
+            "integral_guarantees": {
+                "guarantee_type": "none",
+                "resource_flow": {"cpu": 50},
+                "burst_guarantee_resources": {"cpu": 50},
+            }
+        })
+        create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
+
+        # child has resource flow
+        set("//sys/pool_trees/my_tree/nirvana/prod/@integral_guarantees", {
+            "resource_flow": {"cpu": 50},
+        })
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/my_tree/nirvana/@integral_guarantees", {"guarantee_type": "burst"})
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/my_tree/nirvana/@integral_guarantees", {"guarantee_type": "relaxed"})
+
+        # child has burst guarantee resources
+        set("//sys/pool_trees/my_tree/nirvana/prod/@integral_guarantees", {
+            "burst_guarantee_resources": {"cpu": 50},
+        })
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/my_tree/nirvana/@integral_guarantees", {"guarantee_type": "burst"})
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/my_tree/nirvana/@integral_guarantees", {"guarantee_type": "relaxed"})
 
     @pytest.mark.skipif(True, reason="Not important yet(renadeen)")
     def test_update_nested_double_with_int(self):

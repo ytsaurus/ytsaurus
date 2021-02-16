@@ -1520,6 +1520,8 @@ void TCompositeSchedulerElement::InitIntegralPoolLists(TUpdateFairShareContext* 
                 case EIntegralGuaranteeType::None:
                     childPool->InitIntegralPoolLists(context);
                     break;
+                default:
+                    YT_ABORT();
             }
         }
     }

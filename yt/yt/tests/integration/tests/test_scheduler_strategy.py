@@ -4636,6 +4636,49 @@ class TestIntegralGuarantees(YTEnvSetup):
         assert get(root_pool_path + "/total_resource_flow_ratio") == 0.8
         assert get(root_pool_path + "/total_burst_ratio") == 0.7
 
+    def test_integral_pools_with_parent(self):
+        create_pool(
+            "limited_parent",
+            attributes={
+                "integral_guarantees": {
+                    "guarantee_type": "none",
+                    "resource_flow": {"cpu": 10},
+                    "burst_guarantee_resources": {"cpu": 10},
+                }
+            },
+        )
+
+        create_pool(
+            "burst_pool",
+            parent_name="limited_parent",
+            attributes={
+                "integral_guarantees": {
+                    "guarantee_type": "burst",
+                    "resource_flow": {"cpu": 5},
+                    "burst_guarantee_resources": {"cpu": 10},
+                }
+            },
+        )
+
+        create_pool(
+            "relaxed_pool",
+            parent_name="limited_parent",
+            attributes={
+                "integral_guarantees": {
+                    "guarantee_type": "relaxed",
+                    "resource_flow": {"cpu": 5},
+                }
+            },
+        )
+
+        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
+        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
+
+        self.wait_pool_fair_share("burst_pool", strong=0.0, integral=0.5, weight_proportional=0.0)
+        self.wait_pool_fair_share("relaxed_pool", strong=0.0, integral=0.5, weight_proportional=0.0)
+        self.wait_pool_fair_share("limited_parent", strong=0.0, integral=1.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("<Root>", strong=0.0, integral=1.0, weight_proportional=0.0)
+
 
 ##################################################################
 

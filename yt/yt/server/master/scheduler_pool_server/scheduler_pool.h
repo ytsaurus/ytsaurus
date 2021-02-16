@@ -31,6 +31,12 @@ public:
     void ValidateStrongGuarantees(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig) const;
     void ValidateStrongGuaranteesRecursively(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig) const;
 
+    template<class TResource>
+    void ValidateChildrenGuaranteeSum(
+        const char* guaranteeName,
+        NScheduler::EJobResourceType resourceType,
+        std::function<std::optional<TResource>(const NScheduler::TPoolConfigPtr&)> getResource);
+
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
@@ -92,3 +98,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSchedulerPoolServer
+
+#define SCHEDULER_POOL_INL_H_
+#include "scheduler_pool-inl.h"
+#undef SCHEDULER_POOL_INL_H_
