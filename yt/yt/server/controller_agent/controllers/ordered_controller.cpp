@@ -1130,8 +1130,8 @@ private:
     {
         TOperationControllerBase::InitializeClients();
 
-        auto options = TClientOptions::FromUser(AuthenticatedUser);
-        InputClient = GetRemoteConnection()->CreateNativeClient(options);
+        InputClient = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(AuthenticatedUser));
+        SchedulerInputClient = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
