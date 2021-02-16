@@ -13,8 +13,6 @@ constexpr TStringBuf DefaultStderrWriterName = "Stderr";
 constexpr ELogLevel DefaultStderrMinLevel = ELogLevel::Info;
 constexpr ELogLevel DefaultStderrQuietLevel = ELogLevel::Error;
 
-extern const NProfiling::TRegistry LoggingProfiler;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLogging
