@@ -528,6 +528,31 @@ public:
 
         chunk->Confirm(chunkInfo, chunkMeta);
 
+        std::vector<TChunk*> hunkChunks;
+        if (auto hunkRefsExt = FindProtoExtension<THunkRefsExt>(chunk->ChunkMeta().extensions())) {
+            const auto& dynamicConfig = GetDynamicConfig();
+            if (!dynamicConfig->EnableHunks) {
+                THROW_ERROR_EXCEPTION("Hunks are not enabled");
+            }
+            
+            hunkChunks.reserve(hunkRefsExt->refs_size());
+            for (const auto& protoRef : hunkRefsExt->refs()) {
+                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
+                auto* hunkChunk = FindChunk(hunkChunkId);
+                if (!IsObjectAlive(hunkChunk)) {
+                    THROW_ERROR_EXCEPTION("Store %v references a non-existing hunk chunk %v",
+                        chunk->GetId(),
+                        hunkChunkId);
+                }
+                hunkChunks.push_back(hunkChunk);
+            }
+
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            for (auto* hunkChunk : hunkChunks) {
+                objectManager->RefObject(hunkChunk);
+            }
+        }
+
         CancelChunkExpiration(chunk);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -591,6 +616,11 @@ public:
         }
 
         ScheduleChunkRefresh(chunk);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk confirmed (ChunkId: %v, Replicas: %v, HunkChunkIds: %v)",
+            chunk->GetId(),
+            replicas,
+            MakeFormattableView(hunkChunks, TObjectIdFormatter()));
     }
 
     // Adds #chunk to its staging transaction resource usage.
@@ -740,7 +770,7 @@ public:
         } else if (chunkList->GetKind() == EChunkListKind::SortedDynamicTablet) {
             newChunkList->SetPivotKey(chunkList->GetPivotKey());
             auto children = EnumerateStoresInChunkTree(chunkList);
-            AttachToChunkList(newChunkList, children);
+            AttachToTabletChunkList(newChunkList, children);
         } else {
             YT_ABORT();
         }
@@ -783,6 +813,7 @@ public:
             &child + 1);
     }
 
+    
     void DetachFromChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
@@ -834,6 +865,40 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(child);
         objectManager->UnrefObject(oldChild);
+    }
+
+
+    TChunkList* GetOrCreateHunkChunkList(TChunkList* tabletChunkList)
+    {
+        if (!tabletChunkList->GetHunkRootChild()) {
+            auto* hunkRootChunkList = CreateChunkList(EChunkListKind::HunkRoot);
+            AttachToChunkList(tabletChunkList, hunkRootChunkList);
+        }
+        return tabletChunkList->GetHunkRootChild();
+    }
+
+    void AttachToTabletChunkList(
+        TChunkList* tabletChunkList,
+        const std::vector<TChunkTree*>& children)
+    {
+        std::vector<TChunkTree*> storeChildren;
+        std::vector<TChunkTree*> hunkChildren;
+        storeChildren.reserve(children.size());
+        hunkChildren.reserve(children.size());
+        for (auto* child : children) {
+            if (IsHunkChunk(child)) {
+                hunkChildren.push_back(child);
+            } else {
+                storeChildren.push_back(child);
+            }
+        }
+
+        AttachToChunkList(tabletChunkList, storeChildren);
+
+        if (!hunkChildren.empty()) {
+            auto* hunkChunkList = GetOrCreateHunkChunkList(tabletChunkList);
+            AttachToChunkList(hunkChunkList, hunkChildren);
+        }
     }
 
 
@@ -1620,6 +1685,20 @@ private:
             Bootstrap_->GetObjectManager());
 
         UnregisterChunk(chunk);
+
+        if (auto hunkRefsExt = FindProtoExtension<THunkRefsExt>(chunk->ChunkMeta().extensions())) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            for (const auto& protoRef : hunkRefsExt->refs()) {
+                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
+                auto* hunkChunk = FindChunk(hunkChunkId);
+                if (!IsObjectAlive(hunkChunk)) {
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk references a non-existing hunk chunk (ChunkId: %v, HunkChunkId: %v)",
+                        chunk->GetId(),
+                        hunkChunkId);
+                }
+                objectManager->UnrefObject(hunkChunk);
+            }
+        }
 
         ++ChunksDestroyed_;
     }
@@ -3799,6 +3878,18 @@ void TChunkManager::ReplaceChunkListChild(
     TChunkTree* newChild)
 {
     Impl_->ReplaceChunkListChild(chunkList, childIndex, newChild);
+}
+
+TChunkList* TChunkManager::GetOrCreateHunkChunkList(TChunkList* tabletChunkList)
+{
+    return Impl_->GetOrCreateHunkChunkList(tabletChunkList);
+}
+
+void TChunkManager::AttachToTabletChunkList(
+    TChunkList* tabletChunkList,
+    const std::vector<TChunkTree*>& children)
+{
+    return Impl_->AttachToTabletChunkList(tabletChunkList, children);
 }
 
 TChunkView* TChunkManager::CreateChunkView(

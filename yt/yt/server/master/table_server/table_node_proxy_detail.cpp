@@ -811,14 +811,15 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkList,
-                [] (const TChunk* chunk) { return ETableChunkFormat(chunk->ChunkMeta().version()); });
+                [] (const TChunk* chunk) { return FromProto<ETableChunkFormat>(chunk->ChunkMeta().format()); });
 
         case EInternedAttributeKey::OptimizeForStatistics: {
             if (isExternal) {
                 break;
             }
             auto optimizeForExtractor = [] (const TChunk* chunk) {
-                switch (static_cast<ETableChunkFormat>(chunk->ChunkMeta().version())) {
+                auto format = FromProto<ETableChunkFormat>(chunk->ChunkMeta().format());
+                switch (format) {
                     case ETableChunkFormat::Old:
                     case ETableChunkFormat::VersionedSimple:
                     case ETableChunkFormat::Schemaful:
@@ -828,7 +829,8 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
                     case ETableChunkFormat::UnversionedColumnar:
                         return NTableClient::EOptimizeFor::Scan;
                     default:
-                        YT_ABORT();
+                        THROW_ERROR_EXCEPTION("Unsupported table chunk format %Qlv",
+                            format);
                 }
             };
 

@@ -139,6 +139,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveOldCellTracker)                                         (1503))  // gritukan
     ((PerCellPerRoleMasterMemoryLimit)                              (1504))  // aleksandra-zh
     ((InitializeAccountChunkHostMasterMemory)                       (1505))  // aleksandra-zh
+    ((Hunks)                                                        (1506))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

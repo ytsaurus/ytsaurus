@@ -45,7 +45,7 @@ TChunk::TChunk(TChunkId id)
     , LocalRequisitionIndex_(AggregatedRequisitionIndex_)
 {
     ChunkMeta_.set_type(ToProto<int>(EChunkType::Unknown));
-    ChunkMeta_.set_version(-1);
+    ChunkMeta_.set_format(-1);
     ChunkMeta_.mutable_extensions();
 }
 

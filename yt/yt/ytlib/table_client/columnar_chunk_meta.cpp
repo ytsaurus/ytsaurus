@@ -26,7 +26,7 @@ TTableSchemaPtr GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta
         FromProto(&schema, *tableSchemaExt);
     } else if (keyColumnsExt) {
         // COMPAT(savrus) No table schema is allowed only for old chunks.
-        YT_VERIFY(static_cast<ETableChunkFormat>(chunkMeta.version()) == ETableChunkFormat::SchemalessHorizontal);
+        YT_VERIFY(FromProto<ETableChunkFormat>(chunkMeta.format()) == ETableChunkFormat::SchemalessHorizontal);
         const auto keyColumns = NYT::FromProto<TKeyColumns>(*keyColumnsExt);
         schema = TTableSchema::FromKeyColumns(keyColumns);
     } else {
@@ -47,7 +47,7 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
 void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
 {
     ChunkType_ = CheckedEnumCast<EChunkType>(chunkMeta.type());
-    ChunkFormat_ = CheckedEnumCast<ETableChunkFormat>(chunkMeta.version());
+    ChunkFormat_ = CheckedEnumCast<ETableChunkFormat>(chunkMeta.format());
 
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
     BlockMeta_ = New<TRefCountedBlockMeta>(GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions()));
@@ -149,7 +149,7 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
 {
     return
         BlockLastKeysSize_ +
-        sizeof(TKey) * BlockLastKeys_.Size() + 
+        sizeof(TKey) * BlockLastKeys_.Size() +
         sizeof (Misc_) +
         BlockMeta_->GetSize() +
         (ColumnMeta_ ? ColumnMeta_->GetSize() : 0) +

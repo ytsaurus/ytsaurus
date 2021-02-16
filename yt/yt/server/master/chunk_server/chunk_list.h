@@ -36,24 +36,27 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, TrimmedChildCount);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);
 
-    //! Chunk list kind: static, dynamic table root or tablet.
+    //! Chunk list kind: static, dynamic table root, tablet etc.
     DEFINE_BYVAL_RO_PROPERTY(EChunkListKind, Kind);
 
     using TChildToIndexMap = THashMap<TChunkTree*, int>;
     DEFINE_BYREF_RW_PROPERTY(TChildToIndexMap, ChildToIndex);
 
-    // The i-th value is equal to the sum of statistics for children 0..i
-    // for all i in [0..Children.size() - 1]
+    //! The i-th value is equal to the sum of statistics for children 0..i
+    //! for all i in [0..Children.size() - 1]
     DEFINE_BYREF_RW_PROPERTY(TCumulativeStatistics, CumulativeStatistics);
 
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
 
-    // Min key for sorted dynamic tablet chunk lists.
+    //! Min key for sorted dynamic tablet chunk lists.
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TLegacyOwningKey, PivotKey);
 
-    // Increases each time the list changes.
-    // Enables optimistic locking during chunk tree traversing.
+    //! Increases each time the list changes.
+    //! Enables optimistic locking during chunk tree traversing.
     DEFINE_BYVAL_RO_PROPERTY(int, Version);
+
+    //! The only child of EChunkListKind::HunkRoot kind (if any).
+    DEFINE_BYVAL_RO_PROPERTY(TChunkList*, HunkRootChild);
 
 public:
     explicit TChunkList(TChunkListId id);
@@ -99,6 +102,9 @@ public:
     bool HasChildToIndexMapping() const;
 
     NTableClient::TKeyBound GetPivotKeyBound() const;
+
+    void SetHunkRootChild(TChunkList* child);
+    void ResetHunkRootChild(TChunkList* child);
 
 private:
     TIndexedVector<TChunkList*> Parents_;

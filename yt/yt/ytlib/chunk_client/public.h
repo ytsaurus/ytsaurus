@@ -80,6 +80,7 @@ DEFINE_ENUM(EChunkType,
     ((File)    (1))
     ((Table)   (2))
     ((Journal) (3))
+    ((Hunk)    (4))
 );
 
 DEFINE_ENUM(EIOEngineType,

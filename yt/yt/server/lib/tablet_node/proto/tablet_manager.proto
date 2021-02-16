@@ -10,7 +10,7 @@ import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 
 message TAddStoreDescriptor
 {
-    required int32 store_type = 1;
+    required int32 store_type = 1; // EStoreType
     required NYT.NProto.TGuid store_id = 2;
     required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
     optional NYT.NProto.TGuid backing_store_id = 4;
@@ -38,7 +38,7 @@ message TTableReplicaDescriptor
 message TLockDescriptor
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required int64 timestamp = 2;
+    required uint64 timestamp = 2;
 }
 
 message TMountHint

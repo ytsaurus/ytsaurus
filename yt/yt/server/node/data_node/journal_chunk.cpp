@@ -27,6 +27,7 @@ using namespace NConcurrency;
 using namespace NClusterNode;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NJournalClient;
 using namespace NHydra;
 using namespace NProfiling;
 
@@ -119,7 +120,7 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
 
     auto meta = New<TRefCountedChunkMeta>();
     meta->set_type(ToProto<int>(EChunkType::Journal));
-    meta->set_version(0);
+    meta->set_format(ToProto<int>(EJournalChunkFormat::Default));
     SetProtoExtension(meta->mutable_extensions(), miscExt);
 
     ProfileReadMetaLatency(session);

@@ -24,6 +24,8 @@
 
 #include <yt/ytlib/chunk_client/session_id.h>
 
+#include <yt/ytlib/journal_client/public.h>
+
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -259,7 +261,7 @@ public:
             // This is a journal chunk; let's synthesize some meta.
             ChunkMeta_ = New<TDeferredChunkMeta>();
             ChunkMeta_->set_type(ToProto<int>(EChunkType::Journal));
-            ChunkMeta_->set_version(0);
+            ChunkMeta_->set_format(ToProto<int>(NJournalClient::EJournalChunkFormat::Default));
             ChunkMeta_->mutable_extensions();
         }
 

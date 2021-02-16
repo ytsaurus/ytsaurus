@@ -153,7 +153,6 @@
     XX(ForbidImmediateOperations, forbid_immediate_operations) \
     XX(ForbidImmediateOperationsInRoot, forbid_immediate_operations_in_root) \
     XX(Foreign, foreign) \
-    XX(NativeCellTag, native_cell_tag) \
     XX(FirstOverlayedRowIndex, first_overlayed_row_index) \
     XX(Freeze, freeze) \
     XX(Full, full) \
@@ -161,6 +160,7 @@
     XX(Health, health) \
     XX(HeartbeatTreeSchedulingInfoLogPeriod, heartbeat_tree_scheduling_info_log_period) \
     XX(HistoricUsageConfig, historic_usage_config) \
+    XX(HunkRefs, hunk_refs) \
     XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \
     XX(Implicit, implicit) \
@@ -245,6 +245,7 @@
     XX(MulticellStatistics, multicell_statistics) \
     XX(MulticellStatus, multicell_status) \
     XX(Name, name) \
+    XX(NativeCellTag, native_cell_tag) \
     XX(NestedTransactionIds, nested_transaction_ids) \
     XX(NodeId, node_id) \
     XX(NodeTagFilter, node_tag_filter) \
@@ -431,7 +432,7 @@ namespace NYT {
 ///////////////////////////////////////////////////////////////////////////////
 
 // Don't litter the namespace, yet at the same time make the "enum" items
-// implicitly castable to an integral type to switch() by.
+// implicitly castable to an integral type by switch().
 class EInternedAttributeKey
 {
     enum : size_t
