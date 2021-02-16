@@ -329,7 +329,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
     const auto& objectManager = Bootstrap_->GetObjectManager();
 
     // Invalidate resolve cache.
-    if (lockRequest.Mode != ELockMode::Snapshot) {
+    if (lockRequest.Mode == ELockMode::Exclusive) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& resolveCache = cypressManager->GetResolveCache();
         resolveCache->InvalidateNode(originatingNode);

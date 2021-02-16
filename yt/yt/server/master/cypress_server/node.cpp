@@ -167,9 +167,6 @@ bool TCypressNode::IsBeingCreated() const
 
 bool TCypressNode::CanCacheResolve() const
 {
-    if (!TrunkNode_->LockingState().KeyToSharedLocks.empty()) {
-        return false;
-    }
     if (!TrunkNode_->LockingState().TransactionToExclusiveLocks.empty()) {
         return false;
     }
