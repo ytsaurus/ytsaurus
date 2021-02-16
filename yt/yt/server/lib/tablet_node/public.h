@@ -123,10 +123,11 @@ DEFINE_AMBIGUOUS_ENUM_WITH_UNDERLYING_TYPE(ETabletState, int,
 );
 
 DEFINE_ENUM(EStoreType,
-    (SortedDynamic)
-    (SortedChunk)
-    (OrderedDynamic)
-    (OrderedChunk)
+    ((SortedDynamic)    (0))
+    ((SortedChunk)      (1))
+    ((OrderedDynamic)   (2))
+    ((OrderedChunk)     (3))
+    ((HunkChunk)        (4))
 );
 
 DEFINE_ENUM(EStoreState,

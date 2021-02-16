@@ -189,10 +189,17 @@ inline TNonversionedObjectBase::TNonversionedObjectBase(TObjectId id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline bool TObjectRefComparer::operator()(const TObject* lhs, const TObject* rhs) const
+{
+    return Compare(lhs, rhs);
+}
+
 inline bool TObjectRefComparer::Compare(const TObject* lhs, const TObject* rhs)
 {
     return lhs->GetId() < rhs->GetId();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 inline TObjectId GetObjectId(const TObject* object)
 {

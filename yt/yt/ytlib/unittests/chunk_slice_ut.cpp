@@ -33,6 +33,8 @@ using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnversionedOwningRow MakeRow(const std::vector<int>& values, bool addMax = false)
@@ -92,7 +94,7 @@ class TChunkBuilder
 public:
     TChunkBuilder(int keyColumnCount)
     {
-        ChunkMeta_.set_version(static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
+        ChunkMeta_.set_format(ToProto<int>(ETableChunkFormat::SchemalessHorizontal));
 
         {
             std::vector<TColumnSchema> columns;

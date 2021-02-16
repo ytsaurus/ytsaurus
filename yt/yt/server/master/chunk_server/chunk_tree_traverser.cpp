@@ -180,7 +180,10 @@ protected:
 
             auto* child = chunkList->Children()[entry.ChildIndex];
 
-            YT_LOG_TRACE("Current child (Index: %v, Id: %v, Kind: %v)", entry.ChildIndex, child->GetId(), child->GetType());
+            YT_LOG_TRACE("Current child (Index: %v, Id: %v, Kind: %v)", 
+                entry.ChildIndex,
+                child->GetId(),
+                child->GetType());
 
             // YT-4840: Skip empty children since Get(Min|Max)Key will not work for them.
             if (IsEmpty(child)) {
@@ -191,12 +194,11 @@ protected:
 
             switch (chunkList->GetKind()) {
                 case EChunkListKind::Static:
-                case EChunkListKind::JournalRoot: {
+                case EChunkListKind::JournalRoot:
                     if (auto future = VisitEntryStatic(&entry)) {
                         rescheduleAfterFuture = std::move(future);
                     }
                     break;
-                }
 
                 case EChunkListKind::SortedDynamicRoot:
                 case EChunkListKind::OrderedDynamicRoot:
@@ -206,11 +208,14 @@ protected:
                 case EChunkListKind::SortedDynamicTablet:
                 case EChunkListKind::SortedDynamicSubtablet:
                 case EChunkListKind::OrderedDynamicTablet:
+                case EChunkListKind::HunkRoot:
                     VisitEntryDynamic(&entry);
                     break;
 
                 default:
-                    YT_ABORT();
+                    THROW_ERROR_EXCEPTION("Attempting to traverse chunk list %v of unexpected kind %Qlv",
+                        chunkList->GetId(),
+                        chunkList->GetKind());
             }
         }
 
@@ -481,7 +486,9 @@ protected:
             }
             ++ChunkCount_;
         } else {
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Child %v has unexpected type %Qlv",
+                child->GetId(),
+                childType);
         }
 
         return {};
@@ -834,13 +841,25 @@ protected:
 
             case EObjectType::ChunkList: {
                 auto* childChunkList = child->AsChunkList();
-                YT_VERIFY(childChunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet);
-                PushFirstChild(childChunkList, 0, tabletIndex, subtreeStartLimit, subtreeEndLimit);
+                auto childChunkListKind = childChunkList->GetKind();
+                if (childChunkListKind != EChunkListKind::SortedDynamicSubtablet &&
+                    childChunkListKind != EChunkListKind::HunkRoot)
+                {
+                    THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
+                        childChunkList->GetId(),
+                        childChunkListKind);
+                }
+                // Don't traverse hunks when bounds are enforced.
+                if (childChunkListKind != EChunkListKind::HunkRoot || !EnforceBounds_) {
+                    PushFirstChild(childChunkList, 0, tabletIndex, subtreeStartLimit, subtreeEndLimit);
+                }
                 break;
             }
 
             default:
-                Y_UNREACHABLE();
+                THROW_ERROR_EXCEPTION("Child %v has unexpected type %Qlv",
+                    child->GetId(),
+                    child->GetType());
         }
     }
 
@@ -869,11 +888,14 @@ protected:
             case EChunkListKind::SortedDynamicTablet:
             case EChunkListKind::SortedDynamicSubtablet:
             case EChunkListKind::OrderedDynamicTablet:
+            case EChunkListKind::HunkRoot:
                 PushFirstChildDynamic(chunkList, rowIndex, tabletIndex, lowerLimit, upperLimit);
                 break;
 
             default:
-                YT_ABORT();
+                THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
+                    chunkList->GetId(),
+                    chunkList->GetKind());
         }
     }
 

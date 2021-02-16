@@ -419,8 +419,8 @@ private:
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const
     {
-        meta->set_type(static_cast<int>(EChunkType::Table));
-        meta->set_version(static_cast<int>(GetTableChunkFormat()));
+        meta->set_type(ToProto<int>(EChunkType::Table));
+        meta->set_format(ToProto<int>(GetTableChunkFormat()));
 
         {
             EChunkFeatures chunkFeatures = EChunkFeatures::None;

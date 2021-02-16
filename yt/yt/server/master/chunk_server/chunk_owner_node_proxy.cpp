@@ -192,7 +192,7 @@ void BuildChunkSpec(
     chunkSpec->set_erasure_codec(ToProto<int>(erasureCodecId));
 
     chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
-    chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
+    chunkSpec->mutable_chunk_meta()->set_format(chunk->ChunkMeta().format());
     chunkSpec->mutable_chunk_meta()->set_features(chunk->ChunkMeta().features());
 
     if (fetchAllMetaExtensions) {
@@ -1324,9 +1324,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
             }
 
             for (auto* tabletList : chunkList->Children()) {
-                YT_VERIFY(
-                    tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
-                    tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicTablet);
+                auto chunkListKind = tabletList->AsChunkList()->GetKind();
+                if (chunkListKind != EChunkListKind::SortedDynamicSubtablet &&
+                    chunkListKind != EChunkListKind::SortedDynamicTablet)
+                {
+                    THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
+                        tabletList->GetId(),
+                        chunkListKind);
+                }
                 ToProto(response->add_tablet_chunk_list_ids(), tabletList->GetId());
             }
 
@@ -1334,7 +1339,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
         }
 
         default:
-            THROW_ERROR_EXCEPTION("Unsupported chunk list kind %Qlv",
+            THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
+                chunkList->GetId(),
                 chunkList->GetKind());
     }
 

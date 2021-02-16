@@ -230,6 +230,9 @@ void TStoreManagerBase::BackoffStoreRemoval(IStorePtr store)
             }
             break;
         }
+
+        default:
+            break;
     }
 }
 

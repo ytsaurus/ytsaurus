@@ -60,6 +60,22 @@ static const double ChunkListTombstoneAbsoluteThreshold = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool CanUnambiguouslyDetachChild(TChunkList* rootChunkList, const TChunkTree* child)
+{
+    while (GetParentCount(child) == 1) {
+        auto* parent = GetUniqueParent(child);
+        if (parent == rootChunkList) {
+            return true;
+        }
+        if (parent->GetObjectRefCounter() > 1) {
+            return false;
+        }
+        child = parent;
+    }
+
+    return HasParent(child, rootChunkList);
+}
+
 int GetChildIndex(const TChunkList* chunkList, const TChunkTree* child)
 {
     const auto& children = chunkList->Children();
@@ -382,7 +398,8 @@ void DetachFromChunkList(
         }
 
         case EChunkListKind::SortedDynamicTablet:
-        case EChunkListKind::SortedDynamicSubtablet: {
+        case EChunkListKind::SortedDynamicSubtablet:
+        case EChunkListKind::HunkRoot: {
             // Can handle arbitrary children.
             // Used in sorted tablet compaction.
             YT_VERIFY(chunkList->HasChildToIndexMapping());
@@ -407,6 +424,10 @@ void DetachFromChunkList(
                 chunkList->CumulativeStatistics().PopBack();
                 childToIndex.erase(indexIt);
                 children.pop_back();
+
+                if (IsHunkChunkList(child)) {
+                    chunkList->ResetHunkRootChild(child->AsChunkList());
+                }
             }
             break;
         }
@@ -432,8 +453,16 @@ void DetachFromChunkList(
 void ReplaceChunkListChild(TChunkList* chunkList, int childIndex, TChunkTree* newChild)
 {
     auto& children = chunkList->Children();
+    
     auto* oldChild = children[childIndex];
+    if (IsHunkChunkList(oldChild)) {
+        chunkList->ResetHunkRootChild(oldChild->AsChunkList());
+    }
+
     children[childIndex] = newChild;
+    if (IsHunkChunk(newChild)) {
+        chunkList->SetHunkRootChild(newChild->AsChunkList());
+    }
 
     ResetChunkTreeParent(chunkList, oldChild);
     SetChunkTreeParent(chunkList, newChild);
@@ -536,6 +565,10 @@ void AppendChunkTreeChild(
 
     statistics->Accumulate(GetChunkTreeStatistics(child));
     chunkList->Children().push_back(child);
+
+    if (IsHunkChunkList(child)) {
+        chunkList->SetHunkRootChild(child->AsChunkList());
+    }
 }
 
 void AccumulateUniqueAncestorsStatistics(
@@ -805,6 +838,30 @@ bool IsEmpty(const TChunkTree* chunkTree)
     } else {
         return false;
     }
+}
+
+bool IsHunkChunk(const TChunkTree* chunkTree)
+{
+    if (!chunkTree) {
+        return false;
+    }
+    if (chunkTree->GetType() != EObjectType::Chunk) {
+        return false;
+    }
+    const auto* chunk = chunkTree->AsChunk();
+    return FromProto<EChunkType>(chunk->ChunkMeta().type()) == EChunkType::Hunk;
+}
+
+bool IsHunkChunkList(const TChunkTree* chunkTree)
+{
+    if (!chunkTree) {
+        return false;
+    }
+    if (chunkTree->GetType() != EObjectType::ChunkList) {
+        return false;
+    }
+    const auto* chunkList = chunkTree->AsChunkList();
+    return chunkList->GetKind() == EChunkListKind::HunkRoot;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

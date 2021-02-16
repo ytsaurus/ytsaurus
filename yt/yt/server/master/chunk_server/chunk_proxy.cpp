@@ -118,7 +118,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkType)
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormat)
-            .SetPresent(chunk->IsConfirmed() && EChunkType(chunk->ChunkMeta().type()) == EChunkType::Table));
+            .SetPresent(chunk->IsConfirmed() && FromProto<EChunkType>(chunk->ChunkMeta().type()) == EChunkType::Table));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MetaSize)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_meta_size()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressedDataSize)
@@ -171,6 +171,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Job)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PartLossTime)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkRefs)
             .SetOpaque(true));
     }
 
@@ -497,10 +499,10 @@ private:
             }
 
             case EInternedAttributeKey::TableChunkFormat: {
-                if (!isConfirmed || EChunkType(chunk->ChunkMeta().type()) != EChunkType::Table) {
+                if (!isConfirmed || FromProto<EChunkType>(chunk->ChunkMeta().type()) != EChunkType::Table) {
                     break;
                 }
-                auto format = ETableChunkFormat(chunk->ChunkMeta().version());
+                auto format = FromProto<ETableChunkFormat>(chunk->ChunkMeta().format());
                 BuildYsonFluently(consumer)
                     .Value(format);
                 return true;
@@ -731,6 +733,24 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::HunkRefs: {
+                if (auto optionalHunkRefsExt = FindProtoExtension<NChunkClient::NProto::THunkRefsExt>(chunk->ChunkMeta().extensions())) {
+                    BuildYsonFluently(consumer)
+                        .DoListFor(optionalHunkRefsExt->refs(), [] (auto fluent, const auto& protoRef) {
+                            fluent
+                                .Item().BeginMap()
+                                    .Item("chunk_id").Value(FromProto<TChunkId>(protoRef.chunk_id()))
+                                    .Item("uncompressed_data_size").Value(protoRef.uncompressed_data_size())
+                                .EndMap();
+                        });
+                } else {
+                    BuildYsonFluently(consumer)
+                        .BeginList()
+                        .EndList();
+                }
+                break;
+            }
+
             default:
                 break;
         }
@@ -799,7 +819,7 @@ private:
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
         chunkSpec->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
         chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
-        chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
+        chunkSpec->mutable_chunk_meta()->set_format(chunk->ChunkMeta().format());
         chunkSpec->mutable_chunk_meta()->set_features(chunk->ChunkMeta().features());
         chunkSpec->mutable_chunk_meta()->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
 

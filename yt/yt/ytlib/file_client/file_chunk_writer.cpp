@@ -147,8 +147,8 @@ TFuture<void> TFileChunkWriter::Close()
     }
 
     auto& meta = *EncodingChunkWriter_->Meta();
-    meta.set_type(static_cast<int>(EChunkType::File));
-    meta.set_version(FormatVersion);
+    meta.set_type(ToProto<int>(EChunkType::File));
+    meta.set_format(ToProto<int>(EFileChunkFormat::Default));
 
     SetProtoExtension(meta.mutable_extensions(), BlocksExt_);
 
@@ -180,8 +180,8 @@ bool TFileChunkWriter::IsCloseDemanded() const
 TChunkMeta TFileChunkWriter::GetMasterMeta() const
 {
     TChunkMeta meta;
-    meta.set_type(static_cast<int>(EChunkType::File));
-    meta.set_version(FormatVersion);
+    meta.set_type(ToProto<int>(EChunkType::File));
+    meta.set_format(ToProto<int>(EFileChunkFormat::Default));
     SetProtoExtension(meta.mutable_extensions(), EncodingChunkWriter_->MiscExt());
     return meta;
 }

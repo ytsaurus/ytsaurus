@@ -63,8 +63,8 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         UniqueKeys_ = TypeFromId(ChunkId_) == EObjectType::SortedDynamicTabletStore;
         TabletId_ = FromProto<TTabletId>(chunkSpec.tablet_id());
     } else {
-        YT_VERIFY(EChunkType(chunkMeta.type()) == EChunkType::Table);
-        TableChunkFormat_ = CheckedEnumCast<ETableChunkFormat>(chunkMeta.version());
+        YT_VERIFY(FromProto<EChunkType>(chunkMeta.type()) == EChunkType::Table);
+        TableChunkFormat_ = CheckedEnumCast<ETableChunkFormat>(chunkMeta.format());
     }
 }
 
@@ -309,8 +309,8 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, ED
         ToProto(chunkSpec->mutable_upper_limit(), *inputChunk->UpperLimit_);
     }
 
-    chunkSpec->mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
-    chunkSpec->mutable_chunk_meta()->set_version(static_cast<int>(inputChunk->TableChunkFormat_));
+    chunkSpec->mutable_chunk_meta()->set_type(ToProto<int>(EChunkType::Table));
+    chunkSpec->mutable_chunk_meta()->set_format(ToProto<int>(inputChunk->TableChunkFormat_));
     chunkSpec->mutable_chunk_meta()->mutable_extensions();
 }
 

@@ -191,10 +191,10 @@ private:
                 type);
         }
 
-        if (meta->version() != FormatVersion) {
-            THROW_ERROR_EXCEPTION("Invalid file chunk format version: expected %v, actual %v",
-                FormatVersion,
-                meta->version());
+        auto format = FromProto<EFileChunkFormat>(meta->format());
+        if (format != EFileChunkFormat::Default) {
+            THROW_ERROR_EXCEPTION("Unsupported file chunk format %Qlv",
+                format);
         }
 
         std::vector<TBlockFetcher::TBlockInfo> blockSequence;

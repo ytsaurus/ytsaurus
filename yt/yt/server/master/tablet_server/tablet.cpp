@@ -55,6 +55,8 @@ void TTabletCellStatisticsBase::Persist(const NCellMaster::TPersistenceContext& 
     Persist(context, DynamicMemoryPoolSize);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TUncountableTabletCellStatisticsBase::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -63,11 +65,15 @@ void TUncountableTabletCellStatisticsBase::Persist(const NCellMaster::TPersisten
     Persist(context, Health);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletCellStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     TTabletCellStatisticsBase::Persist(context);
     TUncountableTabletCellStatisticsBase::Persist(context);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TTabletStatisticsBase::Persist(const NCellMaster::TPersistenceContext& context)
 {
@@ -76,11 +82,65 @@ void TTabletStatisticsBase::Persist(const NCellMaster::TPersistenceContext& cont
     Persist(context, OverlappingStoreCount);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     TTabletCellStatisticsBase::Persist(context);
     TTabletStatisticsBase::Persist(context);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTabletStatistics TTabletStatisticsAggregate::Get() const
+{
+    auto statistics = CellStatistics_.Get();
+    statistics.OverlappingStoreCount = OverlappingStoreCount_.Get();
+    return statistics;
+}
+
+void TTabletStatisticsAggregate::Account(const TTabletStatistics& tabletStatistics)
+{
+    CellStatistics_.Account(tabletStatistics);
+    OverlappingStoreCount_.Account(tabletStatistics.OverlappingStoreCount);
+}
+
+void TTabletStatisticsAggregate::Discount(const TTabletStatistics& tabletStatistics)
+{
+    CellStatistics_.Discount(tabletStatistics);
+    OverlappingStoreCount_.Discount(tabletStatistics.OverlappingStoreCount);
+}
+
+void TTabletStatisticsAggregate::AccountDelta(const TTabletStatistics& tabletStatistics)
+{
+    CellStatistics_.AccountDelta(tabletStatistics);
+
+    YT_VERIFY(tabletStatistics.OverlappingStoreCount == 0);
+}
+
+void TTabletStatisticsAggregate::Reset()
+{
+    CellStatistics_.Reset();
+    OverlappingStoreCount_.Reset();
+}
+
+void TTabletStatisticsAggregate::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, CellStatistics_);
+    Save(context, OverlappingStoreCount_);
+}
+
+void TTabletStatisticsAggregate::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, CellStatistics_);
+    Load(context, OverlappingStoreCount_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TTabletCellStatisticsBase& operator += (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
@@ -531,7 +591,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, ReplicationErrorCount_);
     Load(context, ExpectedState_);
     Load(context, UnconfirmedDynamicTableLocks_);
-    // COMPAT(ifsmirnov):
+    // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::MountHint) {
         Load(context, EdenStoreIds_);
     }

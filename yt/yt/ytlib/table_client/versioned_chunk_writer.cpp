@@ -48,6 +48,7 @@ using namespace NApi;
 using namespace NTableClient::NProto;
 
 using NYT::TRange;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -213,8 +214,8 @@ protected:
 
     void FillCommonMeta(TChunkMeta* meta) const
     {
-        meta->set_type(static_cast<int>(EChunkType::Table));
-        meta->set_version(static_cast<int>(GetTableChunkFormat()));
+        meta->set_type(ToProto<int>(EChunkType::Table));
+        meta->set_format(ToProto<int>(GetTableChunkFormat()));
 
         SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
     }

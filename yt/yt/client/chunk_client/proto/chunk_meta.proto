@@ -1,5 +1,6 @@
 package NYT.NChunkClient.NProto;
 
+import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/protobuf_helpers.proto";
 
 option python_package = "yt_proto.yt.client.chunk_client.proto";
@@ -101,18 +102,32 @@ message TErasurePlacementExt
     repeated fixed64 part_checksums = 6;
 }
 
+message THunkRefsExt
+{
+    message THunkRef
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        required int64 uncompressed_data_size = 2;
+    }
+
+    repeated THunkRef refs = 1;
+}
+
 // TChunkMeta is stored in *.meta files on data nodes
 // and passed around (possibly with a different extension subset).
 message TChunkMeta
 {
-    // EChunkType
+    // The type (EChunkType) of data stored in this chunk (e.g. tabular, file blob etc).
     required int32 type = 1;
 
-    // Format version validated by reader.
-    required int32 version = 3;
+    // Format validated by reader.
+    // ETableChunkFormat for tables.
+    // EFileChunkFormat for files.
+    // EJournalChunkFormat for journals.
+    required int32 format = 3;
 
-    // Bitmask of the features that are used in this chunk.
-    // Chunk reader validates that supports all the chunk's features.
+    // EChunkFeatures bitmask of the features that are used in this chunk.
+    // Chunk reader validates that it supports all the chunk's features.
     optional uint64 features = 4;
 
     required NYT.NProto.TExtensionSet extensions = 2;

@@ -230,7 +230,7 @@ public:
 
         auto meta = New<TDeferredChunkMeta>();
         meta->set_type(1);
-        meta->set_version(1);
+        meta->set_format(1);
 
         i64 dataSize = 0;
         auto erasureWriter = CreateErasureWriter(

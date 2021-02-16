@@ -35,6 +35,8 @@ using namespace NYTree;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPartitionChunkReader::TPartitionChunkReader(
@@ -74,7 +76,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         extensionTags))
         .ValueOrThrow();
 
-    YT_VERIFY(ChunkMeta_->version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
+    YT_VERIFY(FromProto<ETableChunkFormat>(ChunkMeta_->format()) == ETableChunkFormat::SchemalessHorizontal);
 
     TNameTablePtr chunkNameTable;
     auto nameTableExt = GetProtoExtension<NProto::TNameTableExt>(ChunkMeta_->extensions());

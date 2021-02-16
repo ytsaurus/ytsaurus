@@ -233,6 +233,7 @@ protected:
 
 struct TObjectRefComparer
 {
+    bool operator()(const TObject* lhs, const TObject* rhs) const;
     static bool Compare(const TObject* lhs, const TObject* rhs);
 };
 

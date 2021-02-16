@@ -31,6 +31,8 @@ void VisitUniqueAncestors(TChunkList* chunkList, F functor, TChunkTree* child = 
 template <class F>
 void VisitAncestors(TChunkList* chunkList, F functor);
 
+bool CanUnambiguouslyDetachChild(TChunkList* rootChunkList, const TChunkTree* child);
+
 int GetChildIndex(const TChunkList* chunkList, const TChunkTree* child);
 
 TChunkTree* FindFirstUnsealedChild(const TChunkList* chunkList);
@@ -81,6 +83,9 @@ TFuture<NYson::TYsonString> GetMulticellOwningNodes(
 
 bool IsEmpty(const TChunkList* chunkList);
 bool IsEmpty(const TChunkTree* chunkTree);
+
+bool IsHunkChunk(const TChunkTree* chunkTree);
+bool IsHunkChunkList(const TChunkTree* chunkTree);
 
 //! Returns the upper boundary key of a chunk. Throws if the chunk contains no
 //! boundary info (i.e. it's not sorted).

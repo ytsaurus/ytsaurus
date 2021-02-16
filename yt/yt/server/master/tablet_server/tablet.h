@@ -83,58 +83,23 @@ class TTabletStatisticsAggregate
     : public TNonCopyable
 {
 public:
-    TTabletStatistics Get() const
-    {
-        auto statistics = CellStatistics_.Get();
-        statistics.OverlappingStoreCount = OverlappingStoreCount_.Get();
-        return statistics;
-    }
+    TTabletStatistics Get() const;
 
-    void Account(const TTabletStatistics& tabletStatistics)
-    {
-        CellStatistics_.Account(tabletStatistics);
-        OverlappingStoreCount_.Account(tabletStatistics.OverlappingStoreCount);
-    }
+    void Account(const TTabletStatistics& tabletStatistics);
+    void Discount(const TTabletStatistics& tabletStatistics);
+    void AccountDelta(const TTabletStatistics& tabletStatistics);
 
-    void Discount(const TTabletStatistics& tabletStatistics)
-    {
-        CellStatistics_.Discount(tabletStatistics);
-        OverlappingStoreCount_.Discount(tabletStatistics.OverlappingStoreCount);
-    }
+    void Reset();
 
-    void AccountDelta(const TTabletStatistics& tabletStatistics)
-    {
-        CellStatistics_.AccountDelta(tabletStatistics);
-
-        YT_VERIFY(tabletStatistics.OverlappingStoreCount == 0);
-    }
-
-    void Reset()
-    {
-        CellStatistics_.Reset();
-        OverlappingStoreCount_.Reset();
-    }
-
-    void Save(NCellMaster::TSaveContext& context) const
-    {
-        using NYT::Save;
-
-        Save(context, CellStatistics_);
-        Save(context, OverlappingStoreCount_);
-    }
-
-    void Load(NCellMaster::TLoadContext& context)
-    {
-        using NYT::Load;
-
-        Load(context, CellStatistics_);
-        Load(context, OverlappingStoreCount_);
-    }
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
 private:
     TSumAggregate<TTabletStatistics> CellStatistics_;
     TMaxAggregate<int> OverlappingStoreCount_{0};
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 TTabletCellStatisticsBase& operator += (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
 TTabletCellStatisticsBase  operator +  (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);

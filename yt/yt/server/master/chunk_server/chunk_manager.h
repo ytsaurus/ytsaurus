@@ -134,6 +134,14 @@ public:
         int childIndex,
         TChunkTree* newChild);
 
+    //! Creates #EChunkListKind::HunkRoot child of #tabletChunkList (if missing).
+    TChunkList* GetOrCreateHunkChunkList(TChunkList* tabletChunkList);
+    //! Similar to #AttachToChunkList but also handles hunk chunks in #children
+    //! by attaching them to a separate hunk root child of #chunkList (creating it on demand).
+    void AttachToTabletChunkList(
+        TChunkList* tabletChunkList,
+        const std::vector<TChunkTree*>& children);
+
     TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TLegacyReadRange readRange);
     TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange);
 

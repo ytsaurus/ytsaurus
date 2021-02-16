@@ -46,7 +46,7 @@ public:
         : SliceReq_(sliceReq)
         , Meta_(meta)
     {
-        auto chunkFormat = ETableChunkFormat(Meta_.version());
+        auto chunkFormat = FromProto<ETableChunkFormat>(Meta_.format());
         switch (chunkFormat) {
             case ETableChunkFormat::SchemalessHorizontal:
             case ETableChunkFormat::UnversionedColumnar:
@@ -56,7 +56,7 @@ public:
             default:
                 auto chunkId = FromProto<TChunkId>(SliceReq_.chunk_id());
                 THROW_ERROR_EXCEPTION("Unsupported format %Qlv for chunk %v",
-                    ETableChunkFormat(Meta_.version()),
+                    chunkFormat,
                     chunkId);
         }
 

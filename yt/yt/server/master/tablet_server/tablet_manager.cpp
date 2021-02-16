@@ -600,10 +600,10 @@ public:
             }
 
             if (mode) {
-                req.set_mode(static_cast<int>(*mode));
+                req.set_mode(ToProto<int>(*mode));
             }
             if (atomicity) {
-                req.set_atomicity(static_cast<int>(*atomicity));
+                req.set_atomicity(ToProto<int>(*atomicity));
             }
             if (preserveTimestamps) {
                 req.set_preserve_timestamps(*preserveTimestamps);
@@ -1637,12 +1637,11 @@ public:
             req.set_update_mode(ToProto<int>(updateMode));
 
             auto stores = EnumerateStoresInChunkTree(appendChunkList);
-            auto storeType = originatingNode->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
+            
             i64 startingRowIndex = 0;
-
             for (const auto* store : stores) {
                 auto* descriptor = req.add_stores_to_add();
-                FillStoreDescriptor(store, storeType, descriptor, &startingRowIndex);
+                FillStoreDescriptor(originatingNode, store, descriptor, &startingRowIndex);
             }
 
             if (updateMode == EUpdateMode::Overwrite &&
@@ -2552,7 +2551,7 @@ private:
         const std::vector<TTablet*>& tablets,
         const std::vector<TTabletCell*>& cells,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
-        const std::optional<int>& tabletCount,
+        std::optional<int> tabletCount,
         bool freeze,
         bool skipFreezing,
         TGuid correlationId,
@@ -2662,14 +2661,12 @@ private:
         i64 totalSize = 0;
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            const auto& tablet = table->Tablets()[index];
+            auto* tablet = table->Tablets()[index];
             THashSet<TStoreId> edenStoreIds(
                 tablet->EdenStoreIds().begin(),
                 tablet->EdenStoreIds().end());
 
-            auto chunksOrViews = EnumerateStoresInChunkTree(
-                table->GetChunkList()->Children()[index]->AsChunkList());
-
+            auto chunksOrViews = EnumerateStoresInChunkTree(tablet->GetChunkList());
             for (const auto* chunkOrView : chunksOrViews) {
                 const auto* chunk = chunkOrView->GetType() == EObjectType::ChunkView
                     ? chunkOrView->AsChunkView()->GetUnderlyingChunk()
@@ -2678,11 +2675,12 @@ private:
                     continue;
                 }
 
-                i64 size = chunk->MiscExt().uncompressed_data_size();
+                auto size = chunk->MiscExt().uncompressed_data_size();
                 entries.push_back({
                     GetMinKeyOrThrow(chunkOrView),
                     GetUpperBoundKeyOrThrow(chunkOrView),
-                    size});
+                    size
+                });
                 totalSize += size;
             }
         }
@@ -3215,11 +3213,11 @@ private:
                     std::vector<TTablet*>{tablet},
                     std::vector<TTabletCell*>{},
                     std::vector<NTableClient::TLegacyOwningKey>{},
-                    std::optional<int>(),
+                    /* tabletCount */ std::nullopt,
                     freeze,
-                    false,
-                    TGuid{},
-                    TInstant::Zero());
+                    /* skipFreezing */ false,
+                    /* correlationId */ {},
+                    /* expirationTime */ TInstant::Zero());
                 continue;
             }
 
@@ -3269,8 +3267,8 @@ private:
                 req.set_reader_config(serializedReaderConfig.ToString());
                 req.set_writer_config(serializedWriterConfig.ToString());
                 req.set_writer_options(serializedWriterOptions.ToString());
-                req.set_atomicity(static_cast<int>(table->GetAtomicity()));
-                req.set_commit_ordering(static_cast<int>(table->GetCommitOrdering()));
+                req.set_atomicity(ToProto<int>(table->GetAtomicity()));
+                req.set_commit_ordering(ToProto<int>(table->GetCommitOrdering()));
                 req.set_freeze(freeze);
                 ToProto(req.mutable_upstream_replica_id(), table->GetUpstreamReplicaId());
                 if (table->IsReplicated()) {
@@ -3281,21 +3279,19 @@ private:
                     }
                 }
 
-                auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
+                auto* chunkList = tablet->GetChunkList();
                 const auto& chunkListStatistics = chunkList->Statistics();
                 auto chunksOrViews = EnumerateStoresInChunkTree(chunkList);
-                auto storeType = table->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
                 i64 startingRowIndex = chunkListStatistics.LogicalRowCount - chunkListStatistics.RowCount;
                 for (const auto* chunkOrView : chunksOrViews) {
                     auto* descriptor = req.add_stores();
-                    FillStoreDescriptor(chunkOrView, storeType, descriptor, &startingRowIndex);
+                    FillStoreDescriptor(table, chunkOrView, descriptor, &startingRowIndex);
                 }
 
                 for (auto [transactionId, lock] : table->DynamicTableLocks()) {
                     auto* protoLock = req.add_locks();
-                    protoLock->mutable_transaction_id();
                     ToProto(protoLock->mutable_transaction_id(), transactionId);
-                    protoLock->set_timestamp(static_cast<i64>(lock.Timestamp));
+                    protoLock->set_timestamp(lock.Timestamp);
                 }
 
                 if (!freeze && IsDynamicStoreReadEnabled(table)) {
@@ -3507,17 +3503,17 @@ private:
                 newTabletCount,
                 pivotKeys);
             return newTabletCount;
+        } else {
+            auto newPivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, newTabletCount);
+            newTabletCount = newPivotKeys.size();
+            ReshardTableImpl(
+                table,
+                firstTabletIndex,
+                lastTabletIndex,
+                newTabletCount,
+                newPivotKeys);
+            return newTabletCount;
         }
-
-        auto newPivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, newTabletCount);
-        newTabletCount = newPivotKeys.size();
-        ReshardTableImpl(
-            table,
-            firstTabletIndex,
-            lastTabletIndex,
-            newTabletCount,
-            newPivotKeys);
-        return newTabletCount;
     }
 
     // If there are several otherwise identical chunk views with adjacent read ranges
@@ -3609,7 +3605,7 @@ private:
         // under a chunk view was in eden in some tablet but not in the adjacent tablet.
         THashSet<TStoreId> oldEdenStoreIds;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            for (const auto& storeId : tablets[index]->EdenStoreIds()) {
+            for (auto storeId : tablets[index]->EdenStoreIds()) {
                 if (auto chunkView = chunkManager->FindChunkView(storeId)) {
                     oldEdenStoreIds.insert(chunkView->GetUnderlyingChunk()->GetId());
                 } else {
@@ -3682,6 +3678,7 @@ private:
 
         // Initialize new tablet chunk lists.
         if (table->IsPhysicallySorted()) {
+            // This excludes hunk chunks.
             std::vector<TChunkTree*> chunksOrViews;
 
             const auto& tabletChunkTrees = table->GetChunkList()->Children();
@@ -3694,6 +3691,10 @@ private:
                 const auto& upperPivot = oldPivotKeys[index - firstTabletIndex + 1];
 
                 for (auto* chunkTree : tabletStores) {
+                    if (IsHunkChunk(chunkTree)) {
+                        continue;
+                    }
+
                     if (chunkTree->GetType() == EObjectType::ChunkView) {
                         auto* chunkView = chunkTree->AsChunkView();
                         auto readRange = chunkView->GetCompleteReadRange();
@@ -3750,7 +3751,7 @@ private:
             std::vector<std::vector<NChunkServer::TChunkView*>> newTabletChildrenToBeMerged(newTablets.size());
             std::vector<std::vector<TStoreId>> newEdenStoreIds(newTablets.size());
 
-            for (TChunkTree* chunkOrView : chunksOrViews) {
+            for (auto* chunkOrView : chunksOrViews) {
                 NChunkClient::TLegacyReadRange readRange;
                 if (chunkOrView->GetType() == EObjectType::ChunkView) {
                     readRange = chunkOrView->AsChunkView()->GetCompleteReadRange();
@@ -3763,7 +3764,6 @@ private:
                 }
 
                 auto tabletsRange = GetIntersectingTablets(newTablets, readRange);
-
                 for (auto it = tabletsRange.first; it != tabletsRange.second; ++it) {
                     auto* tablet = *it;
                     const auto& lowerPivot = tablet->GetPivotKey();
@@ -3816,18 +3816,46 @@ private:
                 const auto& upperPivot = tablet->GetIndex() == tablets.size() - 1
                     ? MaxKey()
                     : tablets[tablet->GetIndex() + 1]->GetPivotKey();
-                std::vector<TChunkTree*> mergedChunkViews;
+                
+                std::vector<TChunkTree*> mergedChunksOrViews;
                 try {
-                    mergedChunkViews = MergeChunkViewRanges(newTabletChildrenToBeMerged[relativeIndex], lowerPivot, upperPivot);
+                    mergedChunksOrViews = MergeChunkViewRanges(newTabletChildrenToBeMerged[relativeIndex], lowerPivot, upperPivot);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ALERT(ex, "Failed to merge chunk view ranges");
-                    mergedChunkViews = {};
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Failed to merge chunk view ranges");
+                    mergedChunksOrViews = {};
                 }
-                chunkManager->AttachToChunkList(newTabletChunkTrees[relativeIndex]->AsChunkList(), mergedChunkViews);
-                for (auto* chunkView : mergedChunkViews) {
-                    if (oldEdenStoreIds.contains(chunkView->AsChunkView()->GetUnderlyingChunk()->GetId())) {
-                        newEdenStoreIds[relativeIndex].push_back(chunkView->GetId());
+                
+                auto* newTabletChunkList = newTabletChunkTrees[relativeIndex]->AsChunkList();
+                chunkManager->AttachToChunkList(newTabletChunkList, mergedChunksOrViews);
+
+                std::vector<TChunkTree*> hunkChunks;
+                for (auto* chunkOrView : mergedChunksOrViews) {
+                    if (oldEdenStoreIds.contains(chunkOrView->AsChunkView()->GetUnderlyingChunk()->GetId())) {
+                        newEdenStoreIds[relativeIndex].push_back(chunkOrView->GetId());
                     }
+                    
+                    if (chunkOrView->GetType() == EObjectType::Chunk) {
+                        const auto* chunk = chunkOrView->AsChunk();
+                        if (auto hunkRefsExt = FindProtoExtension<THunkRefsExt>(chunk->ChunkMeta().extensions())) {
+                            for (const auto& protoRef : hunkRefsExt->refs()) {
+                                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
+                                auto* hunkChunk = chunkManager->FindChunk(hunkChunkId);
+                                if (!IsObjectAlive(hunkChunk)) {
+                                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Store references a non-existing hunk chunk (StoreId: %v, HunkChunkId: %v)",
+                                        chunk->GetId(),
+                                        hunkChunkId);
+                                    continue;
+                                }
+                                hunkChunks.push_back(hunkChunk);
+                            }
+                        }
+                    }
+                }
+
+                if (!hunkChunks.empty()) {
+                    SortUniqueBy(hunkChunks, [] (const auto* chunkTree) { return chunkTree->GetId(); });
+                    auto* hunkChunkList = chunkManager->GetOrCreateHunkChunkList(newTabletChunkList);
+                    chunkManager->AttachToChunkList(hunkChunkList, hunkChunks);
                 }
             }
 
@@ -4540,10 +4568,10 @@ private:
         auto tableId = FromProto<TTableId>(request->table_id());
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
         auto actualState = request->has_actual_tablet_state()
-            ? std::make_optional(static_cast<ETabletState>(request->actual_tablet_state()))
+            ? std::make_optional(FromProto<ETabletState>(request->actual_tablet_state()))
             : std::nullopt;
         auto expectedState = request->has_expected_tablet_state()
-            ? std::make_optional(static_cast<ETabletState>(request->expected_tablet_state()))
+            ? std::make_optional(FromProto<ETabletState>(request->expected_tablet_state()))
             : std::nullopt;
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -4695,12 +4723,12 @@ private:
 
             NProto::TReqUpdateUpstreamTabletState request;
             ToProto(request.mutable_table_id(), table->GetId());
-            request.set_actual_tablet_state(static_cast<i32>(actualState));
+            request.set_actual_tablet_state(ToProto<int>(actualState));
             if (clearLastMountTransactionId) {
                 ToProto(request.mutable_last_mount_transaction_id(), table->GetLastMountTransactionId());
             }
             if (expectedState) {
-                request.set_expected_tablet_state(static_cast<i32>(*expectedState));
+                request.set_expected_tablet_state(ToProto<int>(*expectedState));
             }
 
             multicellManager->PostToMaster(request, table->GetNativeCellTag());
@@ -4993,6 +5021,7 @@ private:
     void DiscardDynamicStores(TTablet* tablet)
     {
         auto stores = EnumerateStoresInChunkTree(tablet->GetChunkList());
+        
         std::vector<TChunkTree*> dynamicStores;
         for (auto* store : stores) {
             if (IsDynamicTabletStoreType(store->GetType())) {
@@ -5008,7 +5037,7 @@ private:
         // NB: Dynamic stores can be detached unambiguously since they are direct children of a tablet.
         CopyChunkListIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex(), /*force*/ false);
 
-        DetachChunksFromTablet(tablet->GetChunkList(), dynamicStores);
+        DetachChunksFromTablet(tablet, dynamicStores);
 
         auto* table = tablet->GetTable();
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
@@ -5289,11 +5318,9 @@ private:
 
         auto validateStoreType = [&] (TObjectId id, TStringBuf action) {
             auto type = TypeFromId(id);
-            if (type != EObjectType::Chunk &&
-                type != EObjectType::ErasureChunk &&
-                type != EObjectType::ChunkView &&
-                type != EObjectType::SortedDynamicTabletStore &&
-                type != EObjectType::OrderedDynamicTabletStore)
+            if (!IsChunkTabletStoreType(type) &&
+                !IsDynamicTabletStoreType(type) &&
+                type != EObjectType::ChunkView)
             {
                 THROW_ERROR_EXCEPTION("Cannot %v store %v of type %Qlv",
                     action,
@@ -5394,36 +5421,29 @@ private:
             tabletId);
     }
 
-    bool CanUnambiguouslyDetachChunk(TChunkList* tabletChunkList, const TChunkTree* child)
+    void AttachChunksToTablet(TTablet* tablet, const std::vector<TChunkTree*>& chunkTrees)
     {
-        while (GetParentCount(child) == 1) {
-            auto* parent = GetUniqueParent(child);
-            if (parent == tabletChunkList) {
-                return true;
-            }
-            if (parent->GetObjectRefCounter() > 1) {
-                return false;
-            }
-            child = parent;
-        }
-
-        return HasParent(child, tabletChunkList);
+        auto* tabletChunkList = tablet->GetChunkList();
+        
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager->AttachToTabletChunkList(tabletChunkList, chunkTrees);
     }
 
-    void DetachChunksFromTablet(TChunkList* tabletChunkList, const std::vector<TChunkTree*>& chunksOrViews)
+    void DetachChunksFromTablet(TTablet* tablet, const std::vector<TChunkTree*>& chunkTrees)
     {
-        THashMap<TChunkListId, std::vector<TChunkTree*>> childrenByParent;
+        auto* tabletChunkList = tablet->GetChunkList();
 
-        for (auto* child : chunksOrViews) {
+        // Ensure deteministic ordering of keys.
+        std::map<TChunkList*, std::vector<TChunkTree*>, TObjectRefComparer> childrenByParent;
+        for (auto* child : chunkTrees) {
             int parentCount = GetParentCount(child);
             if (parentCount == 1) {
                 auto* parent = GetUniqueParent(child);
                 YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
-                childrenByParent[parent->GetId()].push_back(child);
+                childrenByParent[parent].push_back(child);
             } else {
-                auto foundParent = HasParent(child, tabletChunkList);
-                YT_VERIFY(foundParent);
-                childrenByParent[tabletChunkList->GetId()].push_back(child);
+                YT_VERIFY(HasParent(child, tabletChunkList));
+                childrenByParent[tabletChunkList].push_back(child);
             }
         }
 
@@ -5437,8 +5457,7 @@ private:
             }
         };
 
-        for (const auto& [parentId, children] : childrenByParent) {
-            auto* parent = chunkManager->GetChunkList(parentId);
+        for (const auto& [parent, children] : childrenByParent) {
             chunkManager->DetachFromChunkList(parent, children);
             pruneEmptyChunkList(parent);
         }
@@ -5486,12 +5505,13 @@ private:
             return;
         }
 
-
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetModified(table, EModificationType::Content);
 
         // Collect all changes first.
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        // Dynamic stores are also possible.
         std::vector<TChunkTree*> chunksToAttach;
         i64 attachedRowCount = 0;
         auto lastCommitTimestamp = table->GetLastCommitTimestamp();
@@ -5501,11 +5521,14 @@ private:
         for (const auto& descriptor : request->stores_to_add()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             auto type = TypeFromId(storeId);
-            YT_VERIFY(type != EObjectType::ChunkView);
             if (IsChunkTabletStoreType(type)) {
                 auto* chunk = chunkManager->GetChunkOrThrow(storeId);
+                if (!IsObjectAlive(chunk)) {
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempt to add a zombie chunk in UpdateTabletStores (ChunkId: %v)",
+                        chunk->GetId());
+                }
                 if (chunk->HasParents()) {
-                    THROW_ERROR_EXCEPTION("Chunk %v cannot be attached since it already has a parent",
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempt to add chunk in UpdateTabletStores that already has a parent (ChunkId: %v)",
                         chunk->GetId());
                 }
                 const auto& miscExt = chunk->MiscExt();
@@ -5516,7 +5539,7 @@ private:
                 chunksToAttach.push_back(chunk);
             } else if (IsDynamicTabletStoreType(type)) {
                 if (IsDynamicStoreReadEnabled(table)) {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempting to add dynamic store in UpdateTabletStores to a table "
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempt to add dynamic store in UpdateTabletStores to a table "
                         "with readable dynamic stores (TableId: %v, TabletId: %v, StoreId: %v, Reason: %v)",
                         table->GetId(),
                         tablet->GetId(),
@@ -5549,7 +5572,9 @@ private:
             }
         }
 
+        // Chunk views are also possible.
         std::vector<TChunkTree*> chunksToDetach;
+
         i64 detachedRowCount = 0;
         bool flatteningRequired = false;
         for (const auto& descriptor : request->stores_to_remove()) {
@@ -5559,16 +5584,14 @@ private:
                 const auto& miscExt = chunk->MiscExt();
                 detachedRowCount += miscExt.row_count();
                 chunksToDetach.push_back(chunk);
-                flatteningRequired = flatteningRequired ||
-                    !CanUnambiguouslyDetachChunk(tablet->GetChunkList(), chunk);
+                flatteningRequired |= !CanUnambiguouslyDetachChild(tablet->GetChunkList(), chunk);
             } else if (TypeFromId(storeId) == EObjectType::ChunkView) {
                 auto* chunkView = chunkManager->GetChunkViewOrThrow(storeId);
                 auto* chunk = chunkView->GetUnderlyingChunk();
                 const auto& miscExt = chunk->MiscExt();
                 detachedRowCount += miscExt.row_count();
                 chunksToDetach.push_back(chunkView);
-                flatteningRequired = flatteningRequired ||
-                    !CanUnambiguouslyDetachChunk(tablet->GetChunkList(), chunkView);
+                flatteningRequired |= !CanUnambiguouslyDetachChild(tablet->GetChunkList(), chunkView);
             } else if (IsDynamicTabletStoreType(TypeFromId(storeId))) {
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 auto* dynamicStore = chunkManager->FindDynamicStore(storeId);
@@ -5647,8 +5670,8 @@ private:
                 chunkManager->AttachToChunkList(tabletChunkList, dynamicStoreToAdd);
             }
         } else {
-            chunkManager->AttachToChunkList(tabletChunkList, chunksToAttach);
-            DetachChunksFromTablet(tabletChunkList, chunksToDetach);
+            AttachChunksToTablet(tablet, chunksToAttach);
+            DetachChunksFromTablet(tablet, chunksToDetach);
         }
 
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
@@ -6484,18 +6507,31 @@ private:
         return std::make_pair(beginIt, endIt);
     }
 
+    static EStoreType GetStoreType(
+        const TTableNode* table,
+        const TChunkTree* chunkOrView)
+    {
+        if (IsPhysicalChunkType(chunkOrView->GetType())) {
+            const auto* chunk = chunkOrView->AsChunk();
+            if (FromProto<EChunkType>(chunk->ChunkMeta().type()) == EChunkType::Hunk) {
+                return EStoreType::HunkChunk;
+            }
+        }
+        return table->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
+    }
+
     void FillStoreDescriptor(
+        const TTableNode* table,
         const TChunkTree* chunkOrView,
-        EStoreType storeType,
         NTabletNode::NProto::TAddStoreDescriptor* descriptor,
         i64* startingRowIndex)
     {
-        descriptor->set_store_type(static_cast<int>(storeType));
+        descriptor->set_store_type(ToProto<int>(GetStoreType(table, chunkOrView)));
         ToProto(descriptor->mutable_store_id(), chunkOrView->GetId());
 
         const TChunk* chunk;
         if (chunkOrView->GetType() == EObjectType::ChunkView) {
-            auto* chunkView = chunkOrView->AsChunkView();
+            const auto* chunkView = chunkOrView->AsChunkView();
             chunk = chunkView->GetUnderlyingChunk();
             auto* viewDescriptor = descriptor->mutable_chunk_view_descriptor();
             ToProto(viewDescriptor->mutable_chunk_view_id(), chunkView->GetId());
@@ -6561,15 +6597,16 @@ private:
         }
     }
 
+
     static void PopulateTableReplicaDescriptor(TTableReplicaDescriptor* descriptor, const TTableReplica* replica, const TTableReplicaInfo& info)
     {
         ToProto(descriptor->mutable_replica_id(), replica->GetId());
         descriptor->set_cluster_name(replica->GetClusterName());
         descriptor->set_replica_path(replica->GetReplicaPath());
         descriptor->set_start_replication_timestamp(replica->GetStartReplicationTimestamp());
-        descriptor->set_mode(static_cast<int>(replica->GetMode()));
+        descriptor->set_mode(ToProto<int>(replica->GetMode()));
         descriptor->set_preserve_timestamps(replica->GetPreserveTimestamps());
-        descriptor->set_atomicity(static_cast<int>(replica->GetAtomicity()));
+        descriptor->set_atomicity(ToProto<int>(replica->GetAtomicity()));
         PopulateTableReplicaStatisticsFromInfo(descriptor->mutable_statistics(), info);
     }
 

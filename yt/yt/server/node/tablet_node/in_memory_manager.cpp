@@ -543,7 +543,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta->extensions());
     auto blocksExt = GetProtoExtension<TBlocksExt>(meta->extensions());
-    auto format = ETableChunkFormat(meta->version());
+    auto format = FromProto<ETableChunkFormat>(meta->format());
 
     if (format == ETableChunkFormat::SchemalessHorizontal ||
         format == ETableChunkFormat::UnversionedColumnar)

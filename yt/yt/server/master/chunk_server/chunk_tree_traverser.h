@@ -99,6 +99,7 @@ IChunkTraverserContextPtr GetSyncChunkTraverserContext();
 
 //! Traverses the subtree at #root pruning it to |lowerLimit:upperLimit| range.
 //! For unsealed chunks, may consult the context to figure out the quorum information.
+//! This call never visits hunk chunklists.
 void TraverseChunkTree(
     IChunkTraverserContextPtr context,
     IChunkVisitorPtr visitor,
@@ -118,7 +119,7 @@ void TraverseChunkTree(
     NTableClient::TComparator comparator);
 
 //! Traverses the subtree at #root. No bounds are being checked,
-//! #visitor is being notified of each relevant child.
+//! #visitor is notified of each child in the subtree (including hunk chunks, if any).
 void TraverseChunkTree(
     IChunkTraverserContextPtr context,
     IChunkVisitorPtr visitor,
@@ -133,12 +134,14 @@ void EnumerateChunksInChunkTree(
 std::vector<TChunk*> EnumerateChunksInChunkTree(
     TChunkList* root);
 
-//! Appends the chunks, chunk views, and dynamic stores found in subtree at #root to #stores.
+//! Appends the chunks (including hunks), chunk views, and dynamic stores
+//! found in subtree at #root to #stores.
 void EnumerateStoresInChunkTree(
     TChunkList* root,
     std::vector<TChunkTree*>* stores);
 
-//! Returns the list of chunks, chunk views, and dynamic stores found in subtree at #root.
+//! Similar to #EnumerateStoresInChunkTree but returns a new vector
+//! instead of appending to the existing one.
 std::vector<TChunkTree*> EnumerateStoresInChunkTree(TChunkList* root);
 
 ////////////////////////////////////////////////////////////////////////////////

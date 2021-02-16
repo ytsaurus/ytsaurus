@@ -325,6 +325,9 @@ public:
     //! chunk replicas (and suggest these to others) for some time.
     TDuration ChunkRemovalJobReplicasExpirationTime;
 
+    // COMPAT(babenko)
+    bool EnableHunks;
+
     TDynamicChunkManagerConfig()
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
@@ -457,6 +460,9 @@ public:
 
         RegisterParameter("chunk_removal_job_replicas_expiration_time", ChunkRemovalJobReplicasExpirationTime)
             .Default(TDuration::Minutes(15));
+
+        RegisterParameter("enable_hunks", EnableHunks)
+            .Default(false);
 
         RegisterPreprocessor([&] () {
             JobThrottler->Limit = 10000;
