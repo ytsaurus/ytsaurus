@@ -107,4 +107,38 @@ DEFINE_REFCOUNTED_TYPE(TFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TArchiveReporterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enabled;
+    TDuration ReportingPeriod;
+    TDuration MinRepeatDelay;
+    TDuration MaxRepeatDelay;
+    int MaxInProgressDataSize;
+    int MaxItemsInBatch;
+    TString Path;
+
+    TArchiveReporterConfig()
+    {
+        RegisterParameter("enabled", Enabled)
+            .Default(true);
+        RegisterParameter("reporting_period", ReportingPeriod)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("min_repeat_delay", MinRepeatDelay)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("max_repeat_delay", MaxRepeatDelay)
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("max_in_progress_data_size", MaxInProgressDataSize)
+            .Default(250_MB);
+        RegisterParameter("max_items_in_batch", MaxItemsInBatch)
+            .Default(1000);
+        RegisterParameter("path", Path);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TArchiveReporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

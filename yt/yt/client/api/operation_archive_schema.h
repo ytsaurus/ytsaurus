@@ -10,6 +10,8 @@ struct TOrderedByIdTableDescriptor
 {
     TOrderedByIdTableDescriptor();
 
+    static const TOrderedByIdTableDescriptor& Get();
+
     struct TIndex
     {
         explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
@@ -48,6 +50,8 @@ struct TOrderedByStartTimeTableDescriptor
 {
     TOrderedByStartTimeTableDescriptor();
 
+    static const TOrderedByStartTimeTableDescriptor& Get();
+
     struct TIndex
     {
         explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
@@ -74,6 +78,8 @@ struct TOrderedByStartTimeTableDescriptor
 struct TJobTableDescriptor
 {
     TJobTableDescriptor();
+
+    static const TJobTableDescriptor& Get();
 
     struct TIndex
     {
@@ -116,6 +122,8 @@ struct TOperationIdTableDescriptor
 {
     TOperationIdTableDescriptor();
 
+    static const TOperationIdTableDescriptor& Get();
+
     struct TIndex
     {
         explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
@@ -133,6 +141,8 @@ struct TOperationIdTableDescriptor
 struct TJobSpecTableDescriptor
 {
     TJobSpecTableDescriptor();
+
+    static const TJobSpecTableDescriptor& Get();
 
     struct TIndex
     {
@@ -153,6 +163,8 @@ struct TJobStderrTableDescriptor
 {
     TJobStderrTableDescriptor();
 
+    static const TJobStderrTableDescriptor& Get();
+
     struct TIndex
     {
         explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
@@ -171,6 +183,8 @@ struct TJobStderrTableDescriptor
 struct TJobProfileTableDescriptor
 {
     TJobProfileTableDescriptor();
+
+    static const TJobProfileTableDescriptor& Get();
 
     struct TIndex
     {
@@ -193,6 +207,8 @@ struct TJobFailContextTableDescriptor
 {
     TJobFailContextTableDescriptor();
 
+    static const TJobFailContextTableDescriptor& Get();
+
     struct TIndex
     {
         explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
@@ -211,6 +227,8 @@ struct TJobFailContextTableDescriptor
 struct TOperationAliasesTableDescriptor
 {
     TOperationAliasesTableDescriptor();
+
+    static const TOperationAliasesTableDescriptor& Get();
 
     struct TIndex
     {

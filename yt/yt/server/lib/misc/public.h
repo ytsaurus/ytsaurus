@@ -31,4 +31,12 @@ extern const TString ConfigAttributeName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TArchiveReporterConfig)
+DECLARE_REFCOUNTED_CLASS(TArchiveVersionHolder)
+DECLARE_REFCOUNTED_CLASS(TArchiveReporter)
+
+class IArchiveRowlet;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
