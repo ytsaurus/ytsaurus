@@ -1241,6 +1241,7 @@ private:
     using TEventProfilingKey = std::pair<TStringBuf, ELogLevel>;
     THashMap<TEventProfilingKey, TCounter> WrittenEventsCounters_;
 
+    TRegistry LoggingProfiler{"/logging"};
     TGauge MinLogStorageAvailableSpace_ = LoggingProfiler.Gauge("/min_log_storage_available_space");
     TGauge MinLogStorageFreeSpace_ = LoggingProfiler.Gauge("/min_log_storage_free_space");
 
