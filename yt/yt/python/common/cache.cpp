@@ -7,7 +7,9 @@ namespace NYT::NPython {
 
 void TPyObjectDeleter::operator() (PyObject* object) const
 {
-    Py::_XDECREF(object);
+    if (object) {
+        Py::_XDECREF(object);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,13 +27,10 @@ TPythonStringCache::TItem::TItem(const TItem& other)
 TPythonStringCache::TPythonStringCache(bool enableCache, const std::optional<TString>& encoding)
     : CacheEnabled_(enableCache)
     , Encoding_(encoding)
-    , YsonUnicode_(GetYsonTypeClass("YsonUnicode"))
+    , YsonUnicode_(GetYsonTypeClass("YsonUnicode"), /* owned */ true)
 {
-    if (Encoding_) {
-        EncodingObject_ = Py::String(Encoding_->data(), Encoding_->size());
-    }
     if (auto ysonStringProxyClass = FindYsonTypeClass("YsonStringProxy")) {
-        YsonStringProxy_ = Py::Callable(ysonStringProxyClass);
+        YsonStringProxy_ = Py::Callable(ysonStringProxyClass, /* owned */ true);
     }
 }
 

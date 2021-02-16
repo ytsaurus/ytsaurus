@@ -28,9 +28,6 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes, const st
     , Encoding_(encoding)
     , KeyCache_(/* enable */ true, Encoding_)
 {
-    if (Encoding_) {
-        EncodingObject_ = Py::String(Encoding_->data(), Encoding_->size());
-    }
 #if PY_MAJOR_VERSION >= 3
     if (auto ysonStringProxyClass = FindYsonTypeClass("YsonStringProxy")) {
         YsonStringProxy = Py::Callable(ysonStringProxyClass, /* owned */ true);
@@ -56,7 +53,7 @@ void TPythonObjectBuilder::OnStringScalar(TStringBuf value)
         AddObject(std::move(utf8String), YsonString);
 #else
         if (decodedString) {
-            auto obj = AddObject(std::move(decodedString), YsonUnicode);
+            AddObject(std::move(decodedString), YsonUnicode);
         } else {
             // COMPAT(levysotsky)
             if (!YsonStringProxy) {

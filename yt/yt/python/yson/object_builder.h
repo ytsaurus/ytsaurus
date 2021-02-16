@@ -68,7 +68,6 @@ private:
 
     bool AlwaysCreateAttributes_;
     std::optional<TString> Encoding_;
-    Py::String EncodingObject_;
 
     std::queue<Py::Object> Objects_;
 
