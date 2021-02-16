@@ -174,6 +174,10 @@ struct IOperationController
     //! Invokes IOperationControllerSchedulerHost::Complete asynchronously.
     virtual TFuture<void> Complete() = 0;
 
+    //! Invokes IOperationControllerSchedulerHost::Register asynchronously.
+    //! At registration we use a lot of information from #TOperationPtr.
+    virtual TFuture<void> Register(const TOperationPtr& operation) = 0;
+
     //! Invokes IOperationControllerSchedulerHost::Dispose asynchronously.
     virtual TFuture<TOperationControllerUnregisterResult> Unregister() = 0;
 
@@ -223,6 +227,9 @@ struct IOperationController
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status,
         bool shouldLogJob) = 0;
+
+
+    // These methods should be called only by controller agent tracker.
 
     //! Called to notify the controller that the operation initialization has finished.
     virtual void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) = 0;
