@@ -106,6 +106,7 @@ public:
     int MaxEdenStoresPerTablet;
 
     std::optional<NHydra::TRevision> ForcedCompactionRevision;
+    std::optional<NHydra::TRevision> ForcedChunkViewCompactionRevision;
 
     std::optional<TDuration> DynamicStoreAutoFlushPeriod;
     TDuration DynamicStoreFlushPeriodSplay;
@@ -267,6 +268,8 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("forced_compaction_revision", ForcedCompactionRevision)
+            .Default();
+        RegisterParameter("forced_chunk_view_compaction_revision", ForcedCompactionRevision)
             .Default();
 
         RegisterParameter("dynamic_store_auto_flush_period", DynamicStoreAutoFlushPeriod)
