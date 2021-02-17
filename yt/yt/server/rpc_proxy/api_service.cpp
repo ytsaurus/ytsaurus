@@ -455,6 +455,8 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
 
+        DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
+
         if (!Bootstrap_->GetConfig()->RequireAuthentication) {
             GetOrCreateClient(NSecurityClient::RootUserName);
         }
@@ -2810,23 +2812,34 @@ private:
             options.Timestamp = request->timestamp();
         }
 
-        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
-            request->rowset_descriptor(),
-            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+        auto rowset = request->has_rowset_descriptor()
+            ? NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
+                request->rowset_descriptor(),
+                MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()))
+            : nullptr;
+        auto keyCount = rowset
+            ? std::make_optional(rowset->GetRows().Size())
+            : std::nullopt;
 
-        context->SetRequestInfo("Path: %v, Timestamp: %llx, RowCount: %v",
+        context->SetRequestInfo("Path: %v, Timestamp: %llx, KeyCount: %v",
             path,
             options.Timestamp,
-            rowset->GetRows().Size());
+            keyCount);
+            
+        auto future = rowset
+            ? client->GetInSyncReplicas(
+                path,
+                rowset->GetNameTable(),
+                MakeSharedRange(rowset->GetRows(), rowset),
+                options)
+            : client->GetInSyncReplicas(
+                path,
+                options);
 
         CompleteCallWith(
             client,
             context,
-            client->GetInSyncReplicas(
-                path,
-                rowset->GetNameTable(),
-                MakeSharedRange(rowset->GetRows(), rowset),
-                options),
+            std::move(future),
             [] (const auto& context, const std::vector<TTableReplicaId>& replicaIds) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_replica_ids(), replicaIds);

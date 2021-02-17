@@ -41,9 +41,12 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLogging::TLogger WithCommandTag(NLogging::TLogger& logger, ICommandContextPtr context)
+static NLogging::TLogger WithCommandTag(
+    const NLogging::TLogger& logger,
+    const ICommandContextPtr& context)
 {
-    return logger.WithTag("Command: %v", context->Request().CommandName);
+    return logger.WithTag("Command: %v",
+        context->Request().CommandName);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -852,6 +855,8 @@ TGetInSyncReplicasCommand::TGetInSyncReplicasCommand()
 {
     RegisterParameter("path", Path);
     RegisterParameter("timestamp", Options.Timestamp);
+    RegisterParameter("all_keys", AllKeys)
+        .Default(false);
 }
 
 void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
@@ -864,36 +869,41 @@ void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
     tableInfo->ValidateDynamic();
     tableInfo->ValidateReplicated();
 
-    auto config = UpdateYsonSerializable(
-        context->GetConfig()->TableWriter,
-        TableWriter);
+    TFuture<std::vector<NTabletClient::TTableReplicaId>> asyncReplicas;
+    if (AllKeys) {
+        asyncReplicas = context->GetClient()->GetInSyncReplicas(
+            Path.GetPath(),
+            Options);
+    } else {
+        struct TInSyncBufferTag
+        { };
 
-    struct TInSyncBufferTag
-    { };
+        // Parse input data.
+        TBuildingValueConsumer valueConsumer(
+            tableInfo->Schemas[ETableSchemaKind::Lookup],
+            WithCommandTag(Logger, context),
+            ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
+        auto keys = ParseRows(context, &valueConsumer);
+        auto rowBuffer = New<TRowBuffer>(TInSyncBufferTag());
+        auto capturedKeys = rowBuffer->Capture(keys);
+        auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
+        auto keyRange = TSharedRange<TUnversionedRow>(
+            static_cast<const TUnversionedRow*>(mutableKeyRange.Begin()),
+            static_cast<const TUnversionedRow*>(mutableKeyRange.End()),
+            mutableKeyRange.GetHolder());
+        auto nameTable = valueConsumer.GetNameTable();
+        asyncReplicas = context->GetClient()->GetInSyncReplicas(
+            Path.GetPath(),
+            std::move(nameTable),
+            std::move(keyRange),
+            Options);
+    }
 
-    // Parse input data.
-    TBuildingValueConsumer valueConsumer(
-        tableInfo->Schemas[ETableSchemaKind::Lookup],
-        WithCommandTag(Logger, context),
-        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
-    auto keys = ParseRows(context, &valueConsumer);
-    auto rowBuffer = New<TRowBuffer>(TInSyncBufferTag());
-    auto capturedKeys = rowBuffer->Capture(keys);
-    auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
-    auto keyRange = TSharedRange<TUnversionedRow>(
-        static_cast<const TUnversionedRow*>(mutableKeyRange.Begin()),
-        static_cast<const TUnversionedRow*>(mutableKeyRange.End()),
-        mutableKeyRange.GetHolder());
-    auto nameTable = valueConsumer.GetNameTable();
-
-    auto asyncReplicas = context->GetClient()->GetInSyncReplicas(
-        Path.GetPath(),
-        std::move(nameTable),
-        std::move(keyRange),
-        Options);
-    auto replicasResult = WaitFor(asyncReplicas);
-    auto replicas = replicasResult.ValueOrThrow();
-    context->ProduceOutputValue(BuildYsonStringFluently().List(replicas));
+    auto replicas = WaitFor(asyncReplicas)
+        .ValueOrThrow();
+    
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .List(replicas));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

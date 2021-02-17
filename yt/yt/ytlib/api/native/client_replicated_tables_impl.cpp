@@ -47,9 +47,36 @@ bool TClient::IsReplicaInSync(
         IsReplicaInSync(replicaInfo, tabletInfo);
 }
 
+std::vector<TTableReplicaId> TClient::DoGetInSyncReplicasWithKeys(
+    const TYPath& path,
+    const TNameTablePtr& nameTable,
+    const TSharedRange<TLegacyKey>& keys,
+    const TGetInSyncReplicasOptions& options)
+{
+    return DoGetInSyncReplicas(
+        path,
+        false,
+        nameTable,
+        keys,
+        options);
+}
+
+std::vector<TTableReplicaId> TClient::DoGetInSyncReplicasWithoutKeys(
+    const TYPath& path,
+    const TGetInSyncReplicasOptions& options)
+{
+    return DoGetInSyncReplicas(
+        path,
+        true,
+        nullptr,
+        {},
+        options);
+}
+
 std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
     const TYPath& path,
-    TNameTablePtr nameTable,
+    bool allKeys,
+    const TNameTablePtr& nameTable,
     const TSharedRange<TLegacyKey>& keys,
     const TGetInSyncReplicasOptions& options)
 {
@@ -63,36 +90,46 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
     tableInfo->ValidateSorted();
     tableInfo->ValidateReplicated();
 
-    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-    auto idMapping = BuildColumnIdMapping(*schema, nameTable);
-
-    struct TGetInSyncReplicasTag
-    { };
-    auto rowBuffer = New<TRowBuffer>(TGetInSyncReplicasTag());
-
-    auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
-    auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
-
     std::vector<TTableReplicaId> replicaIds;
 
-    if (keys.Empty()) {
+    if (!allKeys && keys.Empty()) {
         for (const auto& replica : tableInfo->Replicas) {
             replicaIds.push_back(replica->ReplicaId);
         }
     } else {
         THashMap<TCellId, std::vector<TTabletId>> cellToTabletIds;
         THashSet<TTabletId> tabletIds;
-        for (auto key : keys) {
-            ValidateClientKey(key, *schema, idMapping, nameTable);
-            auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, *schema, idMapping, nullptr);
-
-            if (evaluator) {
-                evaluator->EvaluateKeys(capturedKey, rowBuffer);
-            }
-            auto tabletInfo = tableInfo->GetTabletForRow(capturedKey);
+        auto registerTablet = [&] (const TTabletInfoPtr& tabletInfo) {
             if (tabletIds.insert(tabletInfo->TabletId).second) {
                 ValidateTabletMountedOrFrozen(tabletInfo);
                 cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+            }
+        };
+        
+        if (allKeys) {
+            for (const auto& tabletInfo : tableInfo->Tablets) {
+                registerTablet(tabletInfo);
+            }
+        } else {
+            const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+            auto idMapping = BuildColumnIdMapping(*schema, nameTable);
+
+            struct TGetInSyncReplicasTag
+            { };
+            auto rowBuffer = New<TRowBuffer>(TGetInSyncReplicasTag());
+
+            auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
+            auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
+            
+            for (auto key : keys) {
+                ValidateClientKey(key, *schema, idMapping, nameTable);
+                auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, *schema, idMapping, nullptr);
+
+                if (evaluator) {
+                    evaluator->EvaluateKeys(capturedKey, rowBuffer);
+                }
+                
+                registerTablet(tableInfo->GetTabletForRow(capturedKey));
             }
         }
 
@@ -107,6 +144,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
             ToProto(req->mutable_tablet_ids(), perCellTabletIds);
             futures.push_back(req->Invoke());
         }
+        
         auto responsesResult = WaitFor(AllSucceeded(futures));
         auto responses = responsesResult.ValueOrThrow();
 

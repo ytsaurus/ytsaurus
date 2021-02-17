@@ -297,8 +297,8 @@ public:
     TGetInSyncReplicasCommand();
 
 private:
-    NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
+    bool AllKeys;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

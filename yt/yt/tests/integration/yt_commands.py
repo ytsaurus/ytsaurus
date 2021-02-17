@@ -810,6 +810,9 @@ def lookup_rows(path, data, **kwargs):
 
 def get_in_sync_replicas(path, data, **kwargs):
     kwargs["path"] = path
+    if data is None:
+        kwargs["all_keys"] = True
+        data = []
     return execute_command(
         "get_in_sync_replicas",
         kwargs,
