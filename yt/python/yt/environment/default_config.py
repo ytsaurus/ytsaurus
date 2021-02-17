@@ -362,6 +362,7 @@ b"""
         };
 
         incremental_heartbeat_period = 200;
+        incremental_heartbeat_period_splay = 100;
         incremental_heartbeat_throttler = {
             limit = 100;
             period = 1000;

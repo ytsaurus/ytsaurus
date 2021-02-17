@@ -105,7 +105,8 @@ NODE_CONFIG_PATCHES = [
                     "capacity": 500 * MB
                 }
             },
-            "incremental_heartbeat_period": 300
+            "incremental_heartbeat_period": 300,
+            "incremental_heartbeat_period_splay": 150
         },
         "exec_agent": {
             "scheduler_connector": None

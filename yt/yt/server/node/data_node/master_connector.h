@@ -156,6 +156,12 @@ private:
     //! Index in MasterCellTags_ indicating the current target for job heartbeat round-robin.
     int JobHeartbeatCellIndex_ = 0;
 
+    //! Period between consequent incremental heartbeats.
+    TDuration IncrementalHeartbeatPeriod_;
+
+    //! Splay for incremental heartbeats.
+    TDuration IncrementalHeartbeatPeriodSplay_;
+
     //! Protects #Alerts.
     YT_DECLARE_SPINLOCK(TAdaptiveLock, AlertsLock_);
     //! A list of statically registered alerts.
@@ -282,6 +288,10 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void UpdateNodeSolomonTag();
+
+    void OnDynamicConfigChanged(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnector)

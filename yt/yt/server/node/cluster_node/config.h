@@ -246,6 +246,26 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMasterConnectorDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<TDuration> IncrementalHeartbeatPeriod;
+    std::optional<TDuration> IncrementalHeartbeatPeriodSplay;
+
+    TMasterConnectorDynamicConfig()
+    {
+        RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
+            .Default();
+        RegisterParameter("incremental_heartbeat_period_splay", IncrementalHeartbeatPeriodSplay)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBatchingChunkServiceConfig
     : public NYTree::TYsonSerializable
 {
@@ -536,6 +556,9 @@ public:
     //! Metadata cache service configuration.
     NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;
 
+    //! Master connector configuration.
+    TMasterConnectorDynamicConfigPtr MasterConnector;
+
     TClusterNodeDynamicConfig()
     {
         RegisterParameter("config_annotation", ConfigAnnotation)
@@ -557,6 +580,8 @@ public:
         RegisterParameter("query_agent", QueryAgent)
             .DefaultNew();
         RegisterParameter("caching_object_service", CachingObjectService)
+            .DefaultNew();
+        RegisterParameter("master_connector", MasterConnector)
             .DefaultNew();
     }
 };
