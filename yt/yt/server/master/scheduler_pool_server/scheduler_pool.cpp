@@ -180,12 +180,12 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
             auto strongGuaranteeIt = SpecifiedAttributes_.find(EInternedAttributeKey::StrongGuaranteeResources);
             if (strongGuaranteeIt == SpecifiedAttributes_.end()) {
                 SpecifiedAttributes_[EInternedAttributeKey::StrongGuaranteeResources] = std::move(minShareIt->second);
-                YT_LOG_DEBUG("Min share resources transferred to strong guarantees (PoolName: %v)", GetName());
+                YT_LOG_DEBUG("Min share resources transferred to strong guarantees (SchedulerPoolObjectId: %v)", NObjectClient::FromObjectId(GetId()));
             } else {
                 YT_LOG_ERROR(
                     "Pool %Qv has configured both strong guarantee and min share resources. Dropping min share resources. "
-                    "(PoolName: %v, MinShareResources: %v, StrongGuaranteeResources: %v)",
-                    GetName(),
+                    "(SchedulerPoolObjectId: %v, MinShareResources: %v, StrongGuaranteeResources: %v)",
+                    NObjectClient::FromObjectId(GetId()),
                     ConvertToYsonString(minShareIt->second, EYsonFormat::Text).AsStringBuf(),
                     ConvertToYsonString(strongGuaranteeIt->second, EYsonFormat::Text).AsStringBuf());
             }
