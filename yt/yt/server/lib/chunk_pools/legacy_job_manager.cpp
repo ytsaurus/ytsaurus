@@ -15,6 +15,11 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Used only for YT_LOG_ALERT.
+static const TLogger Logger("LegacyJobManager");
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TLegacyJobStub::AddDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie, bool isPrimary)
 {
     YT_VERIFY(dataSlice->IsLegacy);
@@ -83,33 +88,57 @@ void TLegacyJobStub::Finalize(bool sortByPosition)
                 return false;
             };
 
-            std::sort(
-                stripe->DataSlices.begin(),
-                stripe->DataSlices.end(),
-                [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-                    // Compare slice with itself.
-                    if (lhs.Get() == rhs.Get()) {
-                        return false;
-                    }
-
-                    if (lhs->Type == EDataSourceType::UnversionedTable) {
-                        auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
-                        auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
-                        if (lhsChunk != rhsChunk) {
-                            return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
-                        }
-                    }
-
-                    if (lessThan(lhs, rhs)) {
-                        return true;
-                    }
-
-                    // Since slices of the single table must be disjoint, if lhs is not less than rhs,
-                    // then rhs must be less then lhs.
-                    YT_VERIFY(lessThan(rhs, lhs));
-
+            auto dataSliceComparator = [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
+                // Compare slice with itself.
+                if (lhs.Get() == rhs.Get()) {
                     return false;
-                });
+                }
+
+                if (lhs->Type == EDataSourceType::UnversionedTable) {
+                    auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
+                    auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
+                    if (lhsChunk != rhsChunk) {
+                        return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
+                    }
+                } else if (lhs->Type == EDataSourceType::VersionedTable) {
+                    // Tags should contain input cookies of data slices. Input cookies correspond to the order
+                    // in which data slices are created in CombineVersionedDataSlices() which is OK for
+                    // checking if one data slice should appear before another.
+                    YT_VERIFY(rhs->Type == EDataSourceType::VersionedTable);
+                    YT_VERIFY(lhs->Tag);
+                    YT_VERIFY(rhs->Tag);
+                    if (*lhs->Tag != *rhs->Tag) {
+                        return *lhs->Tag < *rhs->Tag;
+                    }
+                }
+
+                if (lessThan(lhs, rhs)) {
+                    return true;
+                }
+
+                // Since slices of the single table must be disjoint, if lhs is not less than rhs,
+                // then rhs must be less then lhs.
+                YT_VERIFY(lessThan(rhs, lhs));
+
+                return false;
+            };
+
+            bool sortNeeded = false;
+            for (size_t index = 0; index + 1 < stripe->DataSlices.size(); ++index) {
+                const auto& currentDataSlice = stripe->DataSlices[index];
+                const auto& nextDataSlice = stripe->DataSlices[index + 1];
+                if (!dataSliceComparator(currentDataSlice, nextDataSlice)) {
+                    sortNeeded = true;
+                    break;
+                }
+            }
+
+            if (sortNeeded) {
+                std::sort(
+                    stripe->DataSlices.begin(),
+                    stripe->DataSlices.end(),
+                    dataSliceComparator);
+            }
         }
         StripeList_->Stripes.emplace_back(std::move(stripe));
     }
