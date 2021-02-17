@@ -2008,13 +2008,27 @@ private:
 
     static bool IsCompactionForced(const TSortedChunkStorePtr& store)
     {
+        std::optional<NHydra::TRevision> forcedCompactionRevision;
+
         const auto& config = store->GetTablet()->GetConfig();
-        if (!config->ForcedCompactionRevision) {
+        if (config->ForcedCompactionRevision) {
+            forcedCompactionRevision = config->ForcedCompactionRevision;
+        }
+        if (config->ForcedChunkViewCompactionRevision &&
+            TypeFromId(store->GetId()) == EObjectType::ChunkView)
+        {
+            // NB: std::nullopt is less than any nonempty optional.
+            forcedCompactionRevision = std::max(
+                config->ForcedChunkViewCompactionRevision,
+                forcedCompactionRevision);
+        }
+
+        if (!forcedCompactionRevision) {
             return false;
         }
 
         auto revision = CounterFromId(store->GetId());
-        if (revision > *config->ForcedCompactionRevision) {
+        if (revision > *forcedCompactionRevision) {
             return false;
         }
 

@@ -1437,6 +1437,34 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//sys/tablet_cell_bundles/default/@dynamic_options/max_backing_store_memory_ratio", 0.00000001)
         wait(lambda: not _has_backing_store())
 
+    @authors("ifsmirnov")
+    def test_forced_chunk_view_compaction_revision(self):
+        if self.is_multicell():
+            return
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1}, {"key": 2}])
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [2]])
+        sync_mount_table("//tmp/t")
+
+        def _get_chunk_view_count():
+            chunk_list_id = get("//tmp/t/@chunk_list_id")
+            tree = get("#{}/@tree".format(chunk_list_id))
+            count = 0
+            for tablet in tree:
+                for store in tablet:
+                    if store.attributes.get("type") == "chunk_view":
+                        count += 1
+            return count
+
+        assert _get_chunk_view_count() == 2
+        set("//tmp/t/@dummy", 1)
+        set("//tmp/t/@forced_chunk_view_compaction_revision", get("//tmp/t/@revision"))
+        remount_table("//tmp/t")
+        wait(lambda: _get_chunk_view_count() == 0)
+
 
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
