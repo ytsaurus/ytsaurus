@@ -465,6 +465,7 @@ private:
     {
         TAggregatedStatistics Statistics;
 
+        // TODO(max42): YT-14357.
         //! Priority queue of data slices using upper key bound as priority.
         std::vector<TLegacyDataSlicePtr> DataSlices;
         std::function<bool(const TLegacyDataSlicePtr&, const TLegacyDataSlicePtr&)> DataSliceUpperBoundComparator;

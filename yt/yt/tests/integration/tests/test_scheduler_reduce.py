@@ -1590,6 +1590,27 @@ echo {v = 2} >&7
         reduce(in_="//tmp/t[(0,1):(2,1)]", out="//tmp/t_out", reduce_by=["k1"], command="cat")
         assert_items_equal(read_table("//tmp/t_out"), rows[1:-2])
 
+    @authors("gritukan")
+    def test_reduce_on_dynamic_table_shorter_key_2(self):
+        # YT-14336.
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "v", "type": "string"},
+        ])
+        create("table", "//tmp/t_out")
+
+        rows = [{"k1": 1, "k2": 2, "v": None}, {"k1": 1, "k2": 4, "v": None}]
+        sync_reshard_table("//tmp/t", [[], [1, 3]])
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[]])
+
+        reduce(in_="//tmp/t", out="//tmp/t_out", reduce_by=["k1"], command="cat")
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+
     @authors("max42")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_reduce_on_static_table_shorter_key(self, optimize_for):
@@ -1697,10 +1718,18 @@ echo {v = 2} >&7
     @authors("klyachin")
     @pytest.mark.parametrize("with_foreign", [False, True])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    def test_reduce_interrupt_job(self, with_foreign, sort_order):
+    @pytest.mark.parametrize("table_mode", ["static_single_chunk", "static_multiple_chunks", "dynamic"])
+    def test_reduce_interrupt_job(self, with_foreign, sort_order, table_mode):
+        dynamic = table_mode == "dynamic"
+
+        if dynamic:
+            sync_create_cells(1)
         if sort_order == "descending":
             skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
+
+        if dynamic and sort_order == "descending":
+            pytest.skip("Dynamic tables do not support descending sort order yet")
 
         if with_foreign:
             in_ = (["<foreign=true>//tmp/input2", "//tmp/input1"],)
@@ -1709,35 +1738,51 @@ echo {v = 2} >&7
             in_ = (["//tmp/input1"],)
             kwargs = {}
 
-        create("table", "//tmp/input1")
+        def put_rows(table, rows):
+            if sort_order == "descending":
+                rows = rows[::-1]
+            if dynamic:
+                insert_rows(table, rows)
+                sync_unmount_table(table)
+            else:
+                single = table_mode == "static_single_chunk"
+                batches = [rows] if single else [[row] for row in rows]
+                for batch in batches:
+                    write_table("<append=%true>" + table, batch)
+                if single:
+                    assert get(table + "/@chunk_count") == 1
+                else:
+                    assert get(table + "/@chunk_count") == len(rows)
+
+        def create_table(table, schema):
+            if dynamic:
+                create_dynamic_table(table, schema=schema)
+                sync_mount_table(table)
+            else:
+                create("table", table, attributes={"schema": schema})
+
+        create_table("//tmp/input1", [
+            {"name": "key", "sort_order": sort_order, "type": "string"},
+            {"name": "table", "sort_order": sort_order, "type": "string"},
+            {"name": "data", "type": "string"},
+        ])
         rows = [
             {
                 "key": "(%08d)" % (i * 2 + 1),
-                "value": "(t_1)",
+                "table": "(t_1)",
                 "data": "a" * (2 * 1024 * 1024),
             }
-            for i in range(3)
+            for i in range(5)
         ]
-        if sort_order == "descending":
-            rows = rows[::-1]
-        write_table(
-            "//tmp/input1",
-            rows,
-            sorted_by=[
-                {"name": "key", "sort_order": sort_order},
-                {"name": "value", "sort_order": sort_order},
-            ],
-        )
+        put_rows("//tmp/input1", rows)
 
-        create("table", "//tmp/input2")
-        rows = [{"key": "(%08d)" % (i / 2), "value": "(t_2)"} for i in range(30)]
-        if sort_order == "descending":
-            rows = rows[::-1]
-        write_table(
-            "//tmp/input2",
-            rows,
-            sorted_by=[{"name": "key", "sort_order": sort_order}],
-        )
+        create_table("//tmp/input2", [
+            {"name": "key", "sort_order": sort_order, "type": "string"},
+            {"name": "subkey", "sort_order": sort_order, "type": "int64"},
+            {"name": "table", "type": "string"},
+        ])
+        rows = [{"key": "(%08d)" % (i / 2), "table": "(t_2)", "subkey": i % 2} for i in range(30)]
+        put_rows("//tmp/input2", rows)
 
         create("table", "//tmp/output")
 
@@ -1749,7 +1794,7 @@ echo {v = 2} >&7
             command=with_breakpoint("""read; echo "${REPLY/(???)/(job)}" ; echo "$REPLY" ; BREAKPOINT ; cat"""),
             reduce_by=[
                 {"name": "key", "sort_order": sort_order},
-                {"name": "value", "sort_order": sort_order},
+                {"name": "table", "sort_order": sort_order},
             ],
             spec={
                 "reducer": {
@@ -1771,11 +1816,12 @@ echo {v = 2} >&7
 
         op.track()
 
-        result = read_table("//tmp/output", verbose=False)
+        result = read_table("//tmp/output{key,table}")
+
         if with_foreign:
-            assert len(result) == 11
+            assert len(result) == 17
         else:
-            assert len(result) == 5
+            assert len(result) == 7
         row_index = 0
         job_indexes = []
         row_table_count = {}
@@ -1783,14 +1829,14 @@ echo {v = 2} >&7
         assert get(op.get_path() + "/@progress/jobs/pending") == 0
 
         for row in result:
-            if row["value"] == "(job)":
+            if row["table"] == "(job)":
                 job_indexes.append(row_index)
-            row_table_count[row["value"]] = row_table_count.get(row["value"], 0) + 1
+            row_table_count[row["table"]] = row_table_count.get(row["table"], 0) + 1
             row_index += 1
         assert row_table_count["(job)"] == 2
-        assert row_table_count["(t_1)"] == 3
+        assert row_table_count["(t_1)"] == 5
         if with_foreign:
-            assert row_table_count["(t_2)"] == 6
+            assert row_table_count["(t_2)"] == 10
             assert job_indexes[1] == 4
         else:
             assert job_indexes[1] == 3
