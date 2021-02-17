@@ -14,6 +14,8 @@
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/interface/serialize.h>
 
+#include <mapreduce/yt/interface/logging/log.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
 #include <util/generic/scope.h>
@@ -308,6 +310,15 @@ TOperationAttributes ParseOperationAttributes(const TNode& node)
         result.FinishTime = TInstant::ParseIso8601(finishTimeNode->AsString());
     }
     auto briefProgressNode = mapNode.FindPtr("brief_progress");
+    if (briefProgressNode) {
+        auto buildTimeNode = (*briefProgressNode)["build_time"];
+        if (buildTimeNode.IsUndefined()) {
+            buildTimeNode = "<unknown>";
+        }
+        LOG_DEBUG("Received operation brief progress (OperationId: %s, BuildTime: %s)",
+            GetGuidAsString(result.Id.GetOrElse(TOperationId())).c_str(),
+            buildTimeNode.AsString().c_str());
+    }
     if (briefProgressNode && briefProgressNode->HasKey("jobs")) {
         result.BriefProgress.ConstructInPlace();
         static auto load = [] (const TNode& item) {
@@ -346,6 +357,13 @@ TOperationAttributes ParseOperationAttributes(const TNode& node)
         }
     }
     if (auto progressNode = mapNode.FindPtr("progress")) {
+        auto buildTimeNode = (*progressNode)["build_time"];
+        if (buildTimeNode.IsUndefined()) {
+            buildTimeNode = "<unknown>";
+        }
+        LOG_DEBUG("Received operation progress (OperationId: %s, BuildTime: %s)",
+            GetGuidAsString(result.Id.GetOrElse(TOperationId())).c_str(),
+            buildTimeNode.AsString().c_str());
         result.Progress = TOperationProgress{TJobStatistics((*progressNode)["job_statistics"])};
     }
     if (auto eventsNode = mapNode.FindPtr("events")) {
