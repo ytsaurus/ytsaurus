@@ -12,6 +12,7 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/server/node/data_node/journal_dispatcher.h>
@@ -118,6 +119,8 @@ TMasterConnector::TMasterConnector(
     , NodeTags_(nodeTags)
     , Bootstrap_(bootstrap)
     , ControlInvoker_(bootstrap->GetControlInvoker())
+    , IncrementalHeartbeatPeriod_(Config_->IncrementalHeartbeatPeriod)
+    , IncrementalHeartbeatPeriodSplay_(Config_->IncrementalHeartbeatPeriodSplay)
     , LocalDescriptor_(RpcAddresses_)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
@@ -129,6 +132,9 @@ void TMasterConnector::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(!Started_);
+
+    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+    dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
 
     Started_ = true;
 
@@ -159,7 +165,7 @@ void TMasterConnector::Start()
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this))
             .Via(ControlInvoker_),
-        RandomDuration(Config_->IncrementalHeartbeatPeriod));
+        RandomDuration(IncrementalHeartbeatPeriod_));
 
     Reset();
 }
@@ -256,7 +262,7 @@ void TMasterConnector::DoScheduleNodeHeartbeat(TCellTag cellTag, bool immedately
 
     auto period = immedately
         ? TDuration::Zero()
-        : Config_->IncrementalHeartbeatPeriod;
+        : IncrementalHeartbeatPeriod_ + RandomDuration(IncrementalHeartbeatPeriodSplay_);
     ++HeartbeatsScheduled_[cellTag];
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::ReportNodeHeartbeat, MakeStrong(this), cellTag)
@@ -272,7 +278,7 @@ void TMasterConnector::ScheduleJobHeartbeat(bool immediately)
     // adjust the period accordingly. Also handle #immediately flag.
     auto period = immediately
         ? TDuration::Zero()
-        : Config_->IncrementalHeartbeatPeriod /
+        : (IncrementalHeartbeatPeriod_ + RandomDuration(IncrementalHeartbeatPeriodSplay_)) /
             (1 + Bootstrap_->GetMasterClient()->GetNativeConnection()->GetSecondaryMasterCellTags().size());
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::ReportJobHeartbeat, MakeStrong(this))
@@ -1341,6 +1347,16 @@ TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TObjectId id)
     VERIFY_THREAD_AFFINITY_ANY();
 
     return GetChunksDelta(CellTagFromId(id));
+}
+
+void TMasterConnector::OnDynamicConfigChanged(
+    const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+    const TClusterNodeDynamicConfigPtr& newNodeConfig)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    IncrementalHeartbeatPeriod_ = newNodeConfig->MasterConnector->IncrementalHeartbeatPeriod.value_or(Config_->IncrementalHeartbeatPeriod);
+    IncrementalHeartbeatPeriodSplay_ = newNodeConfig->MasterConnector->IncrementalHeartbeatPeriodSplay.value_or(Config_->IncrementalHeartbeatPeriodSplay);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

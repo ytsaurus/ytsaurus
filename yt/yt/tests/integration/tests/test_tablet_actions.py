@@ -32,7 +32,10 @@ class TabletActionsBase(DynamicTablesBase):
     }
 
     DELTA_NODE_CONFIG = {
-        "data_node": {"incremental_heartbeat_period": 100},
+        "data_node": {
+            "incremental_heartbeat_period": 100,
+            "incremental_heartbeat_period_splay": 50,
+        },
         "tablet_node": {
             "security_manager": {
                 "resource_limits_cache": {

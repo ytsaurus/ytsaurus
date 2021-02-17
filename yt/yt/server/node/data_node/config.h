@@ -552,6 +552,9 @@ public:
     //! Period between consequent incremental heartbeats.
     TDuration IncrementalHeartbeatPeriod;
 
+    //! Splay for incremental heartbeats.
+    TDuration IncrementalHeartbeatPeriodSplay;
+
     //! Controls incremental heartbeats from node to master.
     NConcurrency::TThroughputThrottlerConfigPtr IncrementalHeartbeatThrottler;
 
@@ -730,6 +733,8 @@ public:
         RegisterParameter("lease_transaction_ping_period", LeaseTransactionPingPeriod)
             .Default(TDuration::Seconds(15));
         RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("incremental_heartbeat_period_splay", IncrementalHeartbeatPeriodSplay)
             .Default(TDuration::Seconds(5));
         RegisterParameter("full_heartbeat_period", FullHeartbeatPeriod)
             .Default();
