@@ -84,9 +84,8 @@ DECLARE_REFCOUNTED_STRUCT(IYsonInternRegistry)
 
 static constexpr int MaxAnnotationLength = 1024;
 
-// Changing this value requires promoting master reign.
-// XXX: rename
-static constexpr size_t YsonStringInternLengthThreshold = 1_KB;
+// NB: Changing this value requires promoting master reign.
+static constexpr size_t DefaultYsonStringInternLengthThreshold = 1_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

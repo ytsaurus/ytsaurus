@@ -666,7 +666,7 @@ void TBootstrap::DoInitialize()
     // dependencies in Clear methods.
     ObjectManager_ = New<TObjectManager>(this);
 
-    YsonInternRegistry_ = CreateYsonInternRegistry();
+    YsonInternRegistry_ = CreateYsonInternRegistry(this);
 
     RequestProfilingManager_ = New<TRequestProfilingManager>();
 

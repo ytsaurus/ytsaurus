@@ -68,6 +68,10 @@ public:
     //! and thus should not be set. Maps attribute names to error messages.
     THashMap<EObjectType, THashMap<TString, TString>> ReservedAttributes;
 
+    //! Minimum length of YSON strings that will be interned during mutations.
+    //! Outside mutations DefaultYsonStringInternLengthThreshold is always used.
+    int YsonStringInternLengthThreshold;
+
     TDynamicObjectManagerConfig()
     {
         RegisterParameter("max_weight_per_gc_sweep", MaxWeightPerGCSweep)
@@ -80,6 +84,9 @@ public:
             .DefaultNew();
         RegisterParameter("reserved_attributes", ReservedAttributes)
             .Default();
+        RegisterParameter("yson_string_intern_length_threshold", YsonStringInternLengthThreshold)
+            .Default(DefaultYsonStringInternLengthThreshold)
+            .InRange(DefaultYsonStringInternLengthThreshold, 1_GB);
     }
 };
 
