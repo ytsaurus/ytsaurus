@@ -667,7 +667,6 @@ TSchedulerElement::TSchedulerElement(
     , Logger(other.Logger)
 {
     Parent_ = clonedParent;
-    Cloned_ = true;
 }
 
 ISchedulerStrategyHost* TSchedulerElement::GetHost() const
@@ -675,11 +674,6 @@ ISchedulerStrategyHost* TSchedulerElement::GetHost() const
     YT_VERIFY(Mutable_);
 
     return Host_;
-}
-
-IFairShareTreeHost* TSchedulerElement::GetTreeHost() const
-{
-    return TreeHost_;
 }
 
 double TSchedulerElement::ComputeLocalSatisfactionRatio(const TJobResources& resourceUsage) const
