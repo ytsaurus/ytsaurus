@@ -313,6 +313,10 @@ protected:
 
         virtual bool IsJobInterruptible() const override
         {
+            if (!TTask::IsJobInterruptible()) {
+                return false;
+            }
+
             auto totalJobCount = Controller_->GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
             return
                 !(Controller_->AutoMergeTask_ && CanLoseJobs()) &&

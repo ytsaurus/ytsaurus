@@ -721,6 +721,9 @@ public:
     // TODO(gritukan): Remove it.
     bool EnableJobSplitting;
 
+    //! Enables job interrupts, both for job splitting and preemption.
+    bool EnableJobInterrupts;
+
     double UserJobMemoryDigestPrecision;
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;

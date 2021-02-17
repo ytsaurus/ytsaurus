@@ -633,6 +633,8 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(true);
     RegisterParameter("enable_job_splitting", EnableJobSplitting)
         .Default(true);
+    RegisterParameter("enable_job_interrupts", EnableJobInterrupts)
+        .Default(true);
 
     RegisterParameter("heavy_job_spec_slice_count_threshold", HeavyJobSpecSliceCountThreshold)
         .Default(1000)

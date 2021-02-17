@@ -178,7 +178,9 @@ public:
 
     TSharedRef BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec);
 
-    virtual bool IsJobInterruptible() const = 0;
+    //! Checks if jobs can be interrupted. Subclasses should call the base method
+    //! but may add extra restrictions.
+    virtual bool IsJobInterruptible() const;
 
     void BuildTaskYson(NYTree::TFluentMap fluent) const;
 

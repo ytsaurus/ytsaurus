@@ -382,6 +382,7 @@ public:
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
 
+    virtual bool CanInterruptJobs() const override;
     virtual void InterruptJob(TJobId jobId, EInterruptReason reason) override;
 
     virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) override;

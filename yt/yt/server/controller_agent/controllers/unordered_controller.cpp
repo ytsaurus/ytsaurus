@@ -162,6 +162,10 @@ public:
 
         virtual bool IsJobInterruptible() const override
         {
+            if (!TTask::IsJobInterruptible()) {
+                return false;
+            }
+
             // TODO(gritukan): YT-13646.
             if (Controller_->GetOperationType() == EOperationType::Merge) {
                 return false;
