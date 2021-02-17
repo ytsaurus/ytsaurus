@@ -127,12 +127,16 @@ public:
         const TString& query,
         const TExplainQueryOptions& options),
         (query, options))
-    IMPLEMENT_METHOD(std::vector<NTabletClient::TTableReplicaId>, GetInSyncReplicas, (
+    IMPLEMENT_OVERLOADED_METHOD(std::vector<NTabletClient::TTableReplicaId>, GetInSyncReplicas, DoGetInSyncReplicasWithKeys, (
         const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
+        const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TGetInSyncReplicasOptions& options),
         (path, nameTable, keys, options))
+    IMPLEMENT_OVERLOADED_METHOD(std::vector<NTabletClient::TTableReplicaId>, GetInSyncReplicas, DoGetInSyncReplicasWithoutKeys, (
+        const NYPath::TYPath& path,
+        const TGetInSyncReplicasOptions& options),
+        (path, options))
     IMPLEMENT_METHOD(std::vector<TTabletInfo>, GetTabletInfos, (
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
@@ -616,9 +620,18 @@ private:
         const NQueryClient::NProto::TTabletInfo& tabletInfo,
         NTransactionClient::TTimestamp timestamp);
 
+    std::vector<NTabletClient::TTableReplicaId> DoGetInSyncReplicasWithKeys(
+        const NYPath::TYPath& path,
+        const NTableClient::TNameTablePtr& nameTable,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
+        const TGetInSyncReplicasOptions& options);
+    std::vector<NTabletClient::TTableReplicaId> DoGetInSyncReplicasWithoutKeys(
+        const NYPath::TYPath& path,
+        const TGetInSyncReplicasOptions& options);
     std::vector<NTabletClient::TTableReplicaId> DoGetInSyncReplicas(
         const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
+        bool allKeys,
+        const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TGetInSyncReplicasOptions& options);
 

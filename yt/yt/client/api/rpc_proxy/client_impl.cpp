@@ -456,7 +456,7 @@ TFuture<TYsonString> TClient::GetTablePivotKeys(
 
 TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
     const TYPath& path,
-    TNameTablePtr nameTable,
+    const TNameTablePtr& nameTable,
     const TSharedRange<TLegacyKey>& keys,
     const TGetInSyncReplicasOptions& options)
 {
@@ -471,6 +471,28 @@ TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
 
     req->set_path(path);
     req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
+
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetInSyncReplicasPtr>& rspOrError) {
+        const auto& rsp = rspOrError.ValueOrThrow();
+        return FromProto<std::vector<TTableReplicaId>>(rsp->replica_ids());
+    }));
+}
+
+TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
+    const TYPath& path,
+    const TGetInSyncReplicasOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.GetInSyncReplicas();
+    SetTimeoutOptions(*req, options);
+
+    if (options.Timestamp) {
+        req->set_timestamp(options.Timestamp);
+    }
+
+    req->set_path(path);
+    req->RequireServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetInSyncReplicasPtr>& rspOrError) {
         const auto& rsp = rspOrError.ValueOrThrow();

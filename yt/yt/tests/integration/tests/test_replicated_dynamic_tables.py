@@ -387,25 +387,32 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         rows = [{"key": 0, "value1": "test", "value2": 42}]
         keys = [{"key": 0}]
 
+        timestamp1 = generate_timestamp()
+
+        assert sorted(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp1)) \
+               == sorted([replica_id1, replica_id2])
+        assert get_in_sync_replicas("//tmp/t", None, timestamp=timestamp1) \
+               == []
+
         insert_rows("//tmp/t", rows, require_sync_replica=False)
-        timestamp = generate_timestamp()
 
-        assert_items_equal(
-            get_in_sync_replicas("//tmp/t", [], timestamp=timestamp),
-            [replica_id1, replica_id2],
-        )
+        timestamp2 = generate_timestamp()
 
-        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp) == [replica_id1])
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2) == [replica_id1])
+        assert get_in_sync_replicas("//tmp/t", None, timestamp=timestamp2) == [replica_id1]
+        assert sorted(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp2)) \
+               == sorted([replica_id1, replica_id2])
 
         sync_enable_table_replica(replica_id2)
+
         wait(
-            lambda: sorted(get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp))
+            lambda: sorted(get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2))
             == sorted([replica_id1, replica_id2])
         )
-        wait(
-            lambda: sorted(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp))
-            == sorted([replica_id1, replica_id2])
-        )
+        assert sorted(get_in_sync_replicas("//tmp/t", None, timestamp=timestamp2)) \
+               == sorted([replica_id1, replica_id2])
+        assert sorted(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp2)) \
+               == sorted([replica_id1, replica_id2])
 
     @authors("babenko")
     def test_async_replication_sorted(self):

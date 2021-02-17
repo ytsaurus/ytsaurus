@@ -29,6 +29,10 @@ DEFINE_ENUM(EErrorCode,
     ((ProxyBanned) (2100))
 );
 
+DEFINE_ENUM(ERpcProxyFeature,
+    ((GetInSyncWithoutKeys)(0))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy

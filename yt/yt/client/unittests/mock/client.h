@@ -257,8 +257,12 @@ public:
 
     MOCK_METHOD4(GetInSyncReplicas, TFuture<std::vector<NTabletClient::TTableReplicaId>>(
         const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
+        const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
+        const TGetInSyncReplicasOptions& options));
+
+    MOCK_METHOD2(GetInSyncReplicas, TFuture<std::vector<NTabletClient::TTableReplicaId>>(
+        const NYPath::TYPath& path,
         const TGetInSyncReplicasOptions& options));
 
     MOCK_METHOD3(GetTabletInfos, TFuture<std::vector<TTabletInfo>>(

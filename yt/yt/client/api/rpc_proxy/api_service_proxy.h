@@ -16,6 +16,7 @@ class TApiServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TApiServiceProxy, ApiService,
+        .SetFeaturesType<ERpcProxyFeature>()
         .SetProtocolVersion({
             YTRpcProxyProtocolVersionMajor,
             YTRpcProxyClientProtocolVersionMinor

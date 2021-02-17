@@ -1460,8 +1460,13 @@ struct IClient
 
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
+        const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
+        const TGetInSyncReplicasOptions& options = {}) = 0;
+
+    //! Same as above but returns the list of replicas that are in sync w.r.t. all of the table keys. 
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
         const TGetInSyncReplicasOptions& options = {}) = 0;
 
     virtual TFuture<std::vector<TTabletInfo>> GetTabletInfos(

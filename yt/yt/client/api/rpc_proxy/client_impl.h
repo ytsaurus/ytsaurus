@@ -85,8 +85,12 @@ public:
 
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
+        const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
+        const NApi::TGetInSyncReplicasOptions& options) override;
+
+    virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
+        const NYPath::TYPath& path,
         const NApi::TGetInSyncReplicasOptions& options) override;
 
     virtual TFuture<std::vector<NApi::TTabletInfo>> GetTabletInfos(
