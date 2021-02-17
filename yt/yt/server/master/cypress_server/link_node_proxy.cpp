@@ -124,16 +124,20 @@ private:
 
     TFuture<bool> IsBroken() const
     {
-        const auto* linkNode = GetThisImpl();
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto req = TYPathProxy::Exists(linkNode->ComputeEffectiveTargetPath());
-        auto rsp = ExecuteVerb(objectManager->GetRootService(), req);
-        return rsp.Apply(BIND([] (const TYPathProxy::TErrorOrRspExistsPtr& rspOrError) {
-            if (!rspOrError.IsOK()) {
-                return TrueFuture;
-            }
-            return MakeFuture(!rspOrError.Value()->value());
-        }));
+        try {
+            const auto* linkNode = GetThisImpl();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            auto req = TYPathProxy::Exists(linkNode->ComputeEffectiveTargetPath());
+            auto rsp = ExecuteVerb(objectManager->GetRootService(), req);
+            return rsp.Apply(BIND([] (const TYPathProxy::TErrorOrRspExistsPtr& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    return TrueFuture;
+                }
+                return MakeFuture(!rspOrError.Value()->value());
+            }));
+        } catch (const std::exception& ex) {
+            return MakeFuture<bool>(ex);
+        }
     }
 };
 
