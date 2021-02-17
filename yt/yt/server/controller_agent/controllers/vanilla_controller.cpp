@@ -131,6 +131,10 @@ public:
 
     virtual bool IsJobInterruptible() const override
     {
+        if (!TTask::IsJobInterruptible()) {
+            return false;
+        }
+
         // We do not allow to interrupt job without interruption_signal
         // because there are no more ways to notify vanilla job about it.
         return Spec_->InterruptionSignal.has_value();

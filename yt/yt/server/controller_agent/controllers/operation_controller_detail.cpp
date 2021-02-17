@@ -9083,6 +9083,11 @@ void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason a
         TError("Job is aborted by controller") << TErrorAttribute("abort_reason", abortReason));
 }
 
+bool TOperationControllerBase::CanInterruptJobs() const
+{
+    return Config->EnableJobInterrupts;
+}
+
 void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reason)
 {
     Host->InterruptJob(jobId, reason);

@@ -141,6 +141,7 @@ struct ITaskHost
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) = 0;
 
+    virtual bool CanInterruptJobs() const = 0;
     virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;
 
     virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) = 0;

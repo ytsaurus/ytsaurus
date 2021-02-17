@@ -273,6 +273,10 @@ protected:
 
         virtual bool IsJobInterruptible() const override
         {
+            if (!TTask::IsJobInterruptible()) {
+                return false;
+            }
+
             // Remote copy jobs works with chunks as blobs and therfore are unsplittable.
             if (Controller_->GetOperationType() == EOperationType::RemoteCopy) {
                 return false;

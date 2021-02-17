@@ -1365,6 +1365,11 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 
+bool TTask::IsJobInterruptible() const
+{
+    return TaskHost_->CanInterruptJobs();
+}
+
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
 {
     jobResources.SetFootprintMemory(GetFootprintMemorySize());
