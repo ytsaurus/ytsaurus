@@ -115,13 +115,6 @@ struct TSchedulableAttributes
     double SatisfactionRatio = 0.0;
     double LocalSatisfactionRatio = 0.0;
 
-
-    // TODO(eshcherbin): Rethink whether we want to use |MaxComponent| here or the share of |DominantResource|.
-    TResourceVector GetFairShare() const
-    {
-        return FairShare.Total;
-    }
-
     TResourceVector GetGuaranteeShare() const
     {
         return StrongGuaranteeShare + ProposedIntegralShare;
@@ -352,8 +345,6 @@ protected:
 
     bool AreFairShareFunctionsPrepared_ = false;
 
-    // TODO(ignat): it is not used anymore, consider deleting.
-    bool Cloned_ = false;
     bool Mutable_ = true;
 
     const TString TreeId_;
@@ -553,8 +544,6 @@ protected:
 
     ISchedulerStrategyHost* GetHost() const;
 
-    IFairShareTreeHost* GetTreeHost() const;
-
     ESchedulableStatus GetStatusImpl(double defaultTolerance, bool atUpdate) const;
 
     void CheckForStarvationImpl(TDuration fairSharePreemptionTimeout, TInstant now);
@@ -726,9 +715,6 @@ public:
     virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
 
 protected:
-    NProfiling::TRegistry Profiler_;
-    NProfiling::TBufferedProducerPtr BufferedProducer_;
-
     using TChildMap = THashMap<TSchedulerElementPtr, int>;
     using TChildList = std::vector<TSchedulerElementPtr>;
 
@@ -1240,8 +1226,6 @@ private:
 
     bool RunningInThisPoolTree_ = false;
     TSchedulingTagFilter SchedulingTagFilter_;
-
-    NProfiling::TBufferedProducerPtr BufferedProducer_;
 
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 

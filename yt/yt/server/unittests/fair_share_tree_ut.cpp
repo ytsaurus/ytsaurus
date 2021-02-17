@@ -1509,7 +1509,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareImpreciseComposition)
     rootElement->PreUpdate(&updateContext);
     rootElement->Update(&updateContext);
 
-    EXPECT_FALSE(Dominates(TResourceVector::Ones(), pool->Attributes().GetFairShare()));
+    EXPECT_FALSE(Dominates(TResourceVector::Ones(), pool->GetFairShare()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
