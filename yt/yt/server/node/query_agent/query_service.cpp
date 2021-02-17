@@ -580,7 +580,8 @@ private:
 
             if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId, mountRevision)) {
                 auto counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(GetCurrentProfilingUser());
-                profilerGuard.SetTimer(counters->MultireadTime);
+                counters->MultireadRequestCount.Increment();
+                profilerGuard.SetTimer(counters->MultireadCpuTime, counters->MultireadRequestDuration);
             }
 
             auto callback = BIND([=, identity = NRpc::GetCurrentAuthenticationIdentity()] {

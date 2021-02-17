@@ -34,11 +34,16 @@ public:
 
     TServiceProfilerGuard(const TServiceProfilerGuard& ) = delete;
 
-    void SetTimer(NProfiling::TTimeCounter counter);
+    void SetTimer(
+        NProfiling::TTimeCounter timeCounter,
+        NProfiling::TEventTimer timer);
 
 protected:
     NTracing::TTraceContextPtr TraceContext_;
-    NProfiling::TTimeCounter Counter_;
+    NProfiling::TCpuInstant StartTime_;
+
+    NProfiling::TTimeCounter TimeCounter_;
+    NProfiling::TEventTimer Timer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

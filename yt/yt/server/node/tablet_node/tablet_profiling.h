@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "yt/library/profiling/sensor.h"
 
 #include <yt/server/lib/misc/profiling_helpers.h>
 
@@ -255,12 +256,21 @@ struct TQueryServiceCounters
     TQueryServiceCounters() = default;
 
     explicit TQueryServiceCounters(const NProfiling::TRegistry& profiler)
-        : ExecuteTime(profiler.TimeCounter("/execute/cumulative_cpu_time"))
-        , MultireadTime(profiler.TimeCounter("/multiread/cumulative_cpu_time"))
+        : ExecuteCpuTime(profiler.TimeCounter("/execute/cumulative_cpu_time"))
+        , ExecuteRequestCount(profiler.Counter("/execute/request_count"))
+        , ExecuteRequestDuration(profiler.Timer("/execute/request_duration"))
+        , MultireadCpuTime(profiler.TimeCounter("/multiread/cumulative_cpu_time"))
+        , MultireadRequestCount(profiler.Counter("/multiread/request_count"))
+        , MultireadRequestDuration(profiler.Timer("/multiread/request_duration"))
     { }
 
-    NProfiling::TTimeCounter ExecuteTime;
-    NProfiling::TTimeCounter MultireadTime;
+    NProfiling::TTimeCounter ExecuteCpuTime;
+    NProfiling::TCounter ExecuteRequestCount;
+    NProfiling::TEventTimer ExecuteRequestDuration;
+
+    NProfiling::TTimeCounter MultireadCpuTime;
+    NProfiling::TCounter MultireadRequestCount;
+    NProfiling::TEventTimer MultireadRequestDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

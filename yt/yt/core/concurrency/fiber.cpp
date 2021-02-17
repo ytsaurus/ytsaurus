@@ -129,7 +129,7 @@ class TFiberExecutionStackProfiler
 public:
     TFiberExecutionStackProfiler()
     {
-        ConcurrencyProfiler.AddProducer("/fiber_execution_stack", MakeStrong(this));
+        TRegistry{""}.AddProducer("/fiber_execution_stack", MakeStrong(this));
     }
 
     void StackAllocated(int stackSize)

@@ -163,7 +163,7 @@ private:
             poolHitRatio = 100 - bytesReleased * 100 / bytesFreed;
         }
 
-        writer->AddGauge("/pool_hit_ratio", poolHitRatio);
+        writer->AddGauge("/large_arena/pool_hit_ratio", poolHitRatio);
     }
 
     void PushLargeAllocationStatistics(NProfiling::ISensorWriter* writer)
@@ -184,8 +184,8 @@ private:
             const auto& counters = timingEventCounters[type];
 
             writer->PushTag(std::pair<TString, TString>{"type", ToString(type)});
-            writer->AddGauge("/count", counters.Count);
-            writer->AddGauge("/size", counters.Size);
+            writer->AddGauge("/timing_events/count", counters.Count);
+            writer->AddGauge("/timing_events/size", counters.Size);
             writer->PopTag();
         }
     }

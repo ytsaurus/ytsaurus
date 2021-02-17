@@ -1,4 +1,5 @@
 #include "profiling_helpers.h"
+#include "yt/core/profiling/timing.h"
 #include "yt/core/tracing/trace_context.h"
 
 #include <yt/core/misc/tls_cache.h>
@@ -65,6 +66,7 @@ std::optional<TString> GetProfilingUser(const NRpc::TAuthenticationIdentity& ide
 
 TServiceProfilerGuard::TServiceProfilerGuard()
     : TraceContext_(NTracing::GetCurrentTraceContext())
+    , StartTime_(NProfiling::GetCpuInstant())
 { }
 
 TServiceProfilerGuard::~TServiceProfilerGuard()
@@ -74,12 +76,15 @@ TServiceProfilerGuard::~TServiceProfilerGuard()
     }
 
     NTracing::FlushCurrentTraceContextTime();
-    Counter_.Add(CpuDurationToDuration(TraceContext_->GetElapsedCpuTime()));
+    TimeCounter_.Add(CpuDurationToDuration(TraceContext_->GetElapsedCpuTime()));
 }
 
-void TServiceProfilerGuard::SetTimer(NProfiling::TTimeCounter counter)
+void TServiceProfilerGuard::SetTimer(
+    NProfiling::TTimeCounter timeCounter,
+    NProfiling::TEventTimer timer)
 {
-    Counter_ = counter;
+    TimeCounter_ = timeCounter;
+    Timer_.Record(NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - StartTime_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
