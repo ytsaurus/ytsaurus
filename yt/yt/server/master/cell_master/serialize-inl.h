@@ -127,7 +127,7 @@ struct TInternedYsonStringSerializer
     {
         using NYT::Save;
 
-        if (str.AsStringBuf().length() < NObjectServer::YsonStringInternLengthThreshold) {
+        if (str.AsStringBuf().length() < NObjectServer::DefaultYsonStringInternLengthThreshold) {
             Save(context, UninternedKey);
             Save(context, str);
             return;

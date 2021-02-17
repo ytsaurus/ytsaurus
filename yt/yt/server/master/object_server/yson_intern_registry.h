@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/master/cell_master/public.h>
+
 #include <yt/core/yson/string.h>
 
 #include <yt/core/misc/serialize.h>
@@ -18,7 +20,7 @@ struct IYsonInternRegistry
 
 DEFINE_REFCOUNTED_TYPE(IYsonInternRegistry)
 
-IYsonInternRegistryPtr CreateYsonInternRegistry();
+IYsonInternRegistryPtr CreateYsonInternRegistry(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

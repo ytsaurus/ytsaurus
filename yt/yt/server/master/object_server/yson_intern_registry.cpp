@@ -1,6 +1,12 @@
 #include "yson_intern_registry.h"
 #include "private.h"
 
+#include <yt/server/lib/hydra/mutation_context.h>
+
+#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/server/master/cell_master/config_manager.h>
+#include <yt/server/master/cell_master/config.h>
+
 #include <yt/core/concurrency/spinlock.h>
 
 namespace NYT::NObjectServer {
@@ -15,9 +21,15 @@ class TYsonInternRegistry
     : public IYsonInternRegistry
 {
 public:
+    explicit TYsonInternRegistry(NCellMaster::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    { }
+
     virtual TYsonString Intern(TYsonString value) override;
 
 private:
+    NCellMaster::TBootstrap* const Bootstrap_;
+
     friend class TInternedYsonStringData;
 
     struct THash
@@ -41,6 +53,16 @@ private:
     {
         auto guard = Guard(Lock_);
         InternedValues_.erase(iterator);
+    }
+
+    int GetYsonStringInternLengthThreshold()
+    {
+        if (!NHydra::HasMutationContext()) {
+            return DefaultYsonStringInternLengthThreshold;
+        }
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        return configManager->GetConfig()->ObjectManager->YsonStringInternLengthThreshold;
     }
 };
 
@@ -128,7 +150,13 @@ TYsonString TYsonInternRegistry::Intern(TYsonString value)
     YT_ASSERT(value.GetType() == EYsonType::Node);
 
     auto data = value.AsStringBuf();
-    if (data.length() < YsonStringInternLengthThreshold) {
+
+    // Fast path.
+    if (data.length() < DefaultYsonStringInternLengthThreshold) {
+        return value;
+    }
+
+    if (data.length() < GetYsonStringInternLengthThreshold()) {
         return value;
     }
 
@@ -143,9 +171,9 @@ TYsonString TYsonInternRegistry::Intern(TYsonString value)
     }
 }
 
-IYsonInternRegistryPtr CreateYsonInternRegistry()
+IYsonInternRegistryPtr CreateYsonInternRegistry(NCellMaster::TBootstrap* bootstrap)
 {
-    return New<TYsonInternRegistry>();
+    return New<TYsonInternRegistry>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
