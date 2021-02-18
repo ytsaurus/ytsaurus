@@ -4,7 +4,7 @@ from yt.common import (require, flatten, update, update_inplace, which, YtError,
 import yt.yson as yson
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems, itervalues, PY3, Iterator
+from yt.packages.six import iteritems, itervalues, PY3, Iterator, text_type
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter, zip as izip
 
 try:
@@ -49,6 +49,48 @@ EMPTY_GENERATOR = (i for i in [])
 
 MB = 1024 * 1024
 GB = 1024 * MB
+
+
+def hide_fields(object, fields, prefixes, hidden_value="hidden"):
+    if isinstance(object, dict):
+        for key in fields:
+            if key in object:
+                object[key] = hidden_value
+        for key, value in iteritems(object):
+            if isinstance(value, text_type) and any(value.startswith(prefix) for prefix in prefixes):
+                object[key] = hidden_value
+            else:
+                hide_fields(value, fields, prefixes, hidden_value)
+    elif isinstance(object, list):
+        for index in xrange(len(object)):
+            value = object[index]
+            if isinstance(value, text_type) and any(value.startswith(prefix) for prefix in prefixes):
+                object[index] = hidden_value
+            else:
+                hide_fields(value, fields, prefixes, hidden_value)
+
+def hide_secure_vault(params):
+    params = deepcopy(params)
+    hide_fields(params, fields=("secure_vault",), prefixes=("AQAD-",))
+    return params
+
+def hide_arguments(args):
+    args = deepcopy(args)
+    hide_fields(args, fields=(), prefixes=("AQAD-",))
+    return args
+
+def hide_auth_headers(headers):
+    headers = deepcopy(headers)
+    if "Authorization" in headers:
+        headers["Authorization"] = "x" * 32
+
+    return headers
+
+def hide_auth_headers_in_request_info(request_info):
+    if "headers" in request_info:
+        request_info = deepcopy(request_info)
+        request_info["headers"] = hide_auth_headers(request_info["headers"])
+    return request_info
 
 
 def compose(*args):
@@ -262,7 +304,7 @@ def get_started_by():
     started_by = {
         "hostname": socket.getfqdn(),
         "pid": os.getpid(),
-        "command": sys.argv,
+        "command": hide_arguments(sys.argv),
         "wrapper_version": get_version(),
         "python_version": python_version
     }

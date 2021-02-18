@@ -1,40 +1,14 @@
 """YT usage errors"""
 
+from .common import hide_auth_headers_in_request_info
+
 import yt.common
+
 from yt.common import YtError, PrettyPrintableDict, get_value
 
-from yt.packages.six import iteritems, text_type
+from yt.packages.six import iteritems
 
 from copy import deepcopy
-
-def hide_fields(object, fields, hidden_value="hidden"):
-    if isinstance(object, dict):
-        for key in fields:
-            if key in object:
-                object[key] = hidden_value
-        for key, value in iteritems(object):
-            if isinstance(value, text_type) and value.startswith("AQAD-"):
-                object[key] = hidden_value
-            else:
-                hide_fields(value, fields, hidden_value)
-
-def hide_secure_vault(params):
-    params = deepcopy(params)
-    hide_fields(params, ("secure_vault",))
-    return params
-
-def hide_auth_headers(headers):
-    headers = deepcopy(headers)
-    if "Authorization" in headers:
-        headers["Authorization"] = "x" * 32
-
-    return headers
-
-def hide_auth_headers_in_request_info(request_info):
-    if "headers" in request_info:
-        request_info = deepcopy(request_info)
-        request_info["headers"] = hide_auth_headers(request_info["headers"])
-    return request_info
 
 class YtOperationFailedError(YtError):
     """Operation failed during waiting completion."""
