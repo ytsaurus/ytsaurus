@@ -143,6 +143,7 @@ DEFINE_ENUM(EMasterReign,
     ((PerCellPerRoleMasterMemoryLimit)                              (1504))  // aleksandra-zh
     ((InitializeAccountChunkHostMasterMemory)                       (1505))  // aleksandra-zh
     ((Hunks)                                                        (1506))  // babenko
+    ((EnableMasterCacheDiscoveryByDefault)                          (1507))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
