@@ -1,8 +1,8 @@
 package ru.yandex.yt.ytclient.object;
 
+import java.util.ArrayList;
 import java.util.List;
 
-import ru.yandex.bolts.collection.Cf;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeSerializerForCollections;
 
@@ -14,16 +14,16 @@ public class YTreeCustomListSerializer<T> extends AbstractYTreeSerializerForColl
 
     @Override
     public List<T> getEmptyImmutableCollection() {
-        return Cf.list();
+        return List.of();
     }
 
     @Override
     public List<T> getCollection(int initialCapacity) {
-        return Cf.arrayListWithCapacity(initialCapacity);
+        return new ArrayList<T>(initialCapacity);
     }
 
     @Override
     public List<T> copyCollection(List<T> values) {
-        return Cf.toArrayList(values);
+        return new ArrayList<>(values);
     }
 }

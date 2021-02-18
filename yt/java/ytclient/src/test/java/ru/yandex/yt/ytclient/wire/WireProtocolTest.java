@@ -617,7 +617,7 @@ public class WireProtocolTest {
     }
 
     public static Matcher<byte[]> dataEquals(byte[] canonical) {
-        return new TypeSafeMatcher<byte[]>() {
+        return new TypeSafeMatcher<>() {
             @Override
             protected boolean matchesSafely(byte[] item) {
                 if (item.length != canonical.length) {
