@@ -139,6 +139,7 @@ TCheckPermissionResponse TClient::DoCheckPermission(
 {
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetBalancingHeader(batchReq, options);
 
     auto req = TObjectYPathProxy::CheckPermission(path);

@@ -9,6 +9,7 @@ def transaction_params(transaction, client=None):
     params = {}
     set_param(params, "transaction_id", get_value(transaction, get_command_param("transaction_id", client)))
     set_param(params, "ping_ancestor_transactions", get_command_param("ping_ancestor_transactions", client))
+    set_param(params, "suppress_transaction_coordinator_sync", get_command_param("suppress_transaction_coordinator_sync", client))
     return params
 
 def _make_transactional_request(command_name, params, **kwargs):

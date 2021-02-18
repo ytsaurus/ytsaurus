@@ -41,6 +41,7 @@ void ToProto(
     }
     proto->set_ping(options.Ping);
     proto->set_ping_ancestors(options.PingAncestors);
+    proto->set_suppress_transaction_coordinator_sync(options.SuppressTransactionCoordinatorSync);
 }
 
 void ToProto(

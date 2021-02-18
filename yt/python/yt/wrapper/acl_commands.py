@@ -1,11 +1,12 @@
 """Permissions commands"""
 
 from .common import set_param
-from .driver import make_request, set_read_from_params
+from .driver import make_request, set_master_read_params
 from .transaction_commands import _make_formatted_transactional_request
 
 def check_permission(user, permission, path,
-                     format=None, read_from=None, cache_sticky_group_size=None, columns=None, client=None):
+                     format=None, read_from=None, cache_sticky_group_size=None,
+                     columns=None, client=None):
     """Checks permission for Cypress node.
 
     :param str user: user login.
@@ -19,7 +20,7 @@ def check_permission(user, permission, path,
         "permission": permission,
         "path": path
     }
-    set_read_from_params(params, read_from, cache_sticky_group_size)
+    set_master_read_params(params, read_from, cache_sticky_group_size)
     set_param(params, "columns", columns)
     return _make_formatted_transactional_request(
         "check_permission",

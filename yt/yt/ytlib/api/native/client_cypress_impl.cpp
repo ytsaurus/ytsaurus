@@ -630,6 +630,7 @@ TYsonString TClient::DoGetNode(
 
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetPrerequisites(batchReq, options);
     SetBalancingHeader(batchReq, options);
 
@@ -665,6 +666,7 @@ void TClient::DoSetNode(
 
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetPrerequisites(batchReq, options);
 
     auto req = TYPathProxy::Set(path);
@@ -699,6 +701,7 @@ void TClient::DoMultisetAttributesNode(
 
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetPrerequisites(batchReq, options);
 
     auto req = TYPathProxy::MultisetAttributes(path);
@@ -729,6 +732,7 @@ void TClient::DoRemoveNode(
 
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetPrerequisites(batchReq, options);
 
     auto req = TYPathProxy::Remove(path);
@@ -752,6 +756,7 @@ TYsonString TClient::DoListNode(
 
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetPrerequisites(batchReq, options);
     SetBalancingHeader(batchReq, options);
 
@@ -782,6 +787,7 @@ TNodeId TClient::DoCreateNode(
 {
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetPrerequisites(batchReq, options);
 
     auto req = TCypressYPathProxy::Create(path);
@@ -814,6 +820,7 @@ TLockNodeResult TClient::DoLockNode(
 
     auto batchReqConfig = New<TReqExecuteBatchWithRetriesConfig>();
     auto batchReq = proxy->ExecuteBatchWithRetries(std::move(batchReqConfig));
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
 
     SetPrerequisites(batchReq, options);
 
@@ -851,6 +858,7 @@ void TClient::DoUnlockNode(
 {
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetPrerequisites(batchReq, options);
 
     auto req = TCypressYPathProxy::Unlock(path);
@@ -888,6 +896,7 @@ TNodeId TClient::DoCloneNode(
 {
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetPrerequisites(batchReq, options);
 
     auto req = TCypressYPathProxy::Copy(dstPath);
@@ -935,6 +944,7 @@ TNodeId TClient::DoLinkNode(
 {
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetPrerequisites(batchReq, options);
 
     auto req = TCypressYPathProxy::Create(dstPath);
@@ -1235,6 +1245,7 @@ private:
 
         auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
         auto batchReq = proxy->ExecuteBatch();
+
         for (const auto& srcObject : SrcObjects_) {
             auto req = createGetSchemaRequest(srcObject);
             batchReq->AddRequest(req, "get_src_schema");
@@ -1753,6 +1764,7 @@ bool TClient::DoNodeExists(
 {
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetPrerequisites(batchReq, options);
     SetBalancingHeader(batchReq, options);
 

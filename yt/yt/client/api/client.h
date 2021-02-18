@@ -94,6 +94,9 @@ struct TTransactionalOptions
     NObjectClient::TTransactionId TransactionId;
     bool Ping = false;
     bool PingAncestors = false;
+    //! For internal use only.
+    //! Setting it to |true| may result in loss of consistency.
+    bool SuppressTransactionCoordinatorSync = false;
 };
 
 struct TSuppressableAccessTrackingOptions
