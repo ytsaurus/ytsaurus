@@ -357,6 +357,9 @@ protected:
             SetProtoExtension(meta->mutable_extensions(), reorderedBlockMetaExt);
         });
 
+        if (SamplesExtSize_ == 0 && Sample_) {
+            EmitSample(Sample_);
+        }
         SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
 
         SetProtoExtension(meta.mutable_extensions(), ColumnarStatisticsExt_);
@@ -413,9 +416,12 @@ private:
 
     TRandomGenerator RandomGenerator_;
     const ui64 SamplingThreshold_;
+
+    TUnversionedOwningRow Sample_;
     NProto::TSamplesExt SamplesExt_;
-    mutable NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
     i64 SamplesExtSize_ = 0;
+
+    mutable NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const
     {
@@ -450,8 +456,12 @@ private:
             }
         }
 
-        if (SamplesExtSize_ == 0) {
-            EmitSample(rows.Front());
+        if (SamplesExtSize_ == 0 && !Sample_) {
+            const auto& sample = rows.Front();
+            Sample_ = TUnversionedOwningRow(sample.begin(), sample.end());
+        }
+        if (SamplesExtSize_ > 0 && Sample_) {
+            Sample_ = TUnversionedOwningRow();
         }
     }
 
