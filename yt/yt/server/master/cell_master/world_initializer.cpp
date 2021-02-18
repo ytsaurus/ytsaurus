@@ -376,8 +376,7 @@ private:
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)
-                    .EndMap(),
-                /* force */ true);
+                    .EndMap());
 
             ScheduleCreateNode(
                 "//sys/secondary_masters",
@@ -386,8 +385,7 @@ private:
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)
-                    .EndMap(),
-                /* force */ true);
+                    .EndMap());
 
             ScheduleCreateNode(
                 "//sys/timestamp_providers",
@@ -396,8 +394,7 @@ private:
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)
-                    .EndMap(),
-                /* force */ true);
+                    .EndMap());
 
             ScheduleCreateNode(
                 "//sys/locks",
@@ -667,22 +664,12 @@ private:
             auto orchidAddressToAnnotations = OrchidAddressToAnnotations_.Load();
             for (const auto& orchidAddress : orchidAddresses) {
                 auto annotationsPath = orchidAddress + "/@annotations";
-                std::optional<TYsonString> annotations;
                 if (orchidAddressToAnnotations.contains(orchidAddress)) {
-                    annotations = orchidAddressToAnnotations[orchidAddress];
-                } else {
-                    try {
-                        annotations = GetNode(annotationsPath);
-                    } catch (const std::exception& ex) {
-                        YT_LOG_DEBUG(ex, "Failed to get annotations from Cypress (AnnotationsPath: %v)",
-                            annotationsPath);
-                    }
-                }
-                if (annotations) {
+                    auto annotations = orchidAddressToAnnotations[orchidAddress];
                     ScheduleSetNode(
                         annotationsPath,
                         transactionId,
-                        *annotations);
+                        annotations);
                 }
             }
 
