@@ -16,6 +16,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixForeignSliceDataWeight)            (300502))
     ((MemoryReserveFactorOverride)          (300503))
     ((SimplifyForeignDataProcessing)        (300504))
+    ((AutoMergePendingJobCount)             (300505))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -61,7 +61,7 @@ bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
     }
 }
 
-bool TAutoMergeDirector::CanScheduleMergeJob(int intermediateChunkCount) const
+bool TAutoMergeDirector::ShouldScheduleMergeJob(int intermediateChunkCount) const
 {
     if (intermediateChunkCount >= ChunkCountPerMergeJob_ || ForceScheduleMergeJob_ || TaskCompleted_) {
         YT_LOG_DEBUG("Allowing scheduling of a merge job "

@@ -222,12 +222,24 @@ public:
 
     virtual TExternalCookie Extract(TNodeId nodeId) override
     {
+        int poolIndex = -1;
+        auto cookie = NullCookie;
+
         if (PendingPools_.empty()) {
-            return NullCookie;
+            if (BlockedPools_.empty()) {
+                return NullCookie;
+            } else {
+                poolIndex = *BlockedPools_.begin();
+                auto* pool = Pool(poolIndex);
+                cookie = pool->Extract(nodeId);
+                YT_VERIFY(cookie != NullCookie);
+            }
+        } else {
+            poolIndex = CurrentPoolIndex();
+            cookie = Pool(poolIndex)->Extract(nodeId);
         }
 
-        auto poolIndex = CurrentPoolIndex();
-        auto cookie = Pool(poolIndex)->Extract(nodeId);
+        YT_VERIFY(poolIndex != -1);
         YT_VERIFY(cookie != NullCookie);
 
         TCookieDescriptor cookieDescriptor(poolIndex, cookie);
@@ -242,7 +254,7 @@ public:
         }
     }
 
-    virtual TExternalCookie ExtractFromPool(int underlyingPoolIndexHint, TNodeId nodeId)
+    virtual TExternalCookie ExtractFromPool(int underlyingPoolIndexHint, TNodeId nodeId) override
     {
         // NB(gritukan): SortedMerge task can try to extract cookie from partition
         // that was not registered in its pool yet. Do not crash in this case.
@@ -303,7 +315,7 @@ public:
         auto [poolIndex, cookie] = Cookie(externalCookie);
         Pool(poolIndex)->Aborted(cookie, reason);
     }
-    
+
     virtual void Lost(TExternalCookie externalCookie) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
@@ -342,6 +354,7 @@ public:
 
         SetupCallbacks(poolIndex);
         OnUnderlyingPoolPendingJobCountChanged(poolIndex);
+        OnUnderlyingPoolBlockedJobCountChanged(poolIndex);
     }
 
     virtual void Persist(const TPersistenceContext& context) override
@@ -356,6 +369,7 @@ public:
         Persist(context, DataSliceCounter_);
         Persist<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>(context, Cookies_);
         Persist<TMapSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>, TDefaultSerializer, TUnsortedTag>>(context, CookieDescriptorToExternalCookie_);
+        Persist(context, BlockedPools_);
         Persist(context, Finalized_);
         Persist(context, IsCompleted_);
 
@@ -367,6 +381,7 @@ public:
                 if (Pool(poolIndex)) {
                     SetupCallbacks(poolIndex);
                     OnUnderlyingPoolPendingJobCountChanged(poolIndex);
+                    OnUnderlyingPoolBlockedJobCountChanged(poolIndex);
                 }
             }
         }
@@ -404,6 +419,11 @@ protected:
     //! Mapping pool_index -> iterator in pending_pools for pools with pending jobs.
     std::vector<std::list<int>::iterator> PendingPoolIterators_;
 
+    //! Pools with blocked jobs.
+    // NB: Unlike pending pool set it is not required to be a queue
+    // so we use THashSet for the sake of simplicity.
+    THashSet<int> BlockedPools_;
+
     //! If true, no new underlying pool will be added.
     bool Finalized_ = false;
 
@@ -437,7 +457,7 @@ protected:
     {
         return Pool(CurrentPoolIndex());
     }
-    
+
     TCookieDescriptor Cookie(TExternalCookie externalCookie) const
     {
         return Cookies_[externalCookie];
@@ -474,18 +494,31 @@ protected:
         }));
         pool->GetJobCounter()->SubscribePendingUpdated(
             BIND(&TMultiChunkPoolOutput::OnUnderlyingPoolPendingJobCountChanged, Unretained(this), poolIndex));
+        pool->GetJobCounter()->SubscribeBlockedUpdated(
+            BIND(&TMultiChunkPoolOutput::OnUnderlyingPoolBlockedJobCountChanged, Unretained(this), poolIndex));
     }
 
     void OnUnderlyingPoolPendingJobCountChanged(int poolIndex)
     {
         auto* pool = Pool(poolIndex);
         auto& poolIterator = PendingPoolIterators_[poolIndex];
-        bool hasPendingJobs = (pool->GetJobCounter()->GetPending() > 0);
+        bool hasPendingJobs = pool->GetJobCounter()->GetPending() > 0;
         if (poolIterator == PendingPools_.end() && hasPendingJobs) {
             poolIterator = PendingPools_.insert(PendingPools_.begin(), poolIndex);
         } else if (poolIterator != PendingPools_.end() && !hasPendingJobs) {
             PendingPools_.erase(poolIterator);
             poolIterator = PendingPools_.end();
+        }
+    }
+
+    void OnUnderlyingPoolBlockedJobCountChanged(int poolIndex)
+    {
+        auto* pool = Pool(poolIndex);
+        bool hasBlockedJobs = pool->GetJobCounter()->GetBlocked() > 0;
+        if (hasBlockedJobs) {
+            BlockedPools_.insert(poolIndex);
+        } else {
+            BlockedPools_.erase(poolIndex);
         }
     }
 };

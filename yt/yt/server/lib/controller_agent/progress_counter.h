@@ -17,12 +17,28 @@ DEFINE_ENUM(EProgressCategory,
     ((Pending)            (3))
     ((Suspended)          (4))
     ((Invalidated)        (5))
-    ((Uncategorized)      (6)));
+    ((Uncategorized)      (6))
+    ((Blocked)            (7)));
 
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Represents an abstract numeric progress counter for jobs, chunks, weights etc.
 //! Can be a part of counter hierarchy: change in a counter affects its parents, grandparents and so on.
+//! Counters have the following semantics:
+//! Total corresponds to all the jobs that are still interesting for controller, Total = Running + Completed + Pending + Blocked + Suspended + Uncategorized.
+//! Running correponds to a job that is executing right now.
+//! CompletedTotal corresponds to a job that has successfully finished.
+//! Interrupted corresponds to a job has been interrupted, i.e. forcefully completed before input processing finish.
+//! Interrupted category is contained inside CompletedTotal.
+//! Pending corresponds to a job that can be started right now.
+//! Suspended corresponds to a job that cannot be started because of unavailable input chunks. After chunks become available
+//! job will become pending.
+//! Failed corresponds to jobs that did not complete successfully.
+//! Aborted corresponds to jobs that were aborted by user, scheduler or node.
+//! Lost corresponds to completed jobs whose output was lost and should be recalculated.
+//! Invalidated correponds to completed jobs whose output is not actual anymore.
+//! Blocked corresponds to jobs that are not going to be scheduled in typical case, but can be scheduled under certain circumstances.
+//! For example, small AutoMerge job is blocked until it will become large enough. It will be scheduled if quota is exhausted.
 class TProgressCounter
     : public TRefCounted
 {
@@ -44,16 +60,21 @@ public:
     i64 GetLost() const;
     i64 GetInvalidated() const;
     i64 GetUncategorized() const;
+    i64 GetBlocked() const;
 
     void AddRunning(i64 value);
     void AddCompleted(i64 value, EInterruptReason reason = EInterruptReason::None);
     void AddFailed(i64 value);
     void AddPending(i64 value);
+    void SetPending(i64 value);
     void AddSuspended(i64 value);
+    void SetSuspended(i64 value);
     void AddAborted(i64 value, EAbortReason reason = EAbortReason::Other);
     void AddLost(i64 value);
     void AddInvalidated(i64 value);
     void AddUncategorized(i64 value);
+    void AddBlocked(i64 value);
+    void SetBlocked(i64 value);
 
     // NB: this method does not check that counter hierarchy does not contain loops.
     void AddParent(TProgressCounterPtr parent);
@@ -66,6 +87,9 @@ public:
     //! Raises when pending counter changes.
     DEFINE_SIGNAL(void(), PendingUpdated);
 
+    //! Raises when blocked counter changes.
+    DEFINE_SIGNAL(void(), BlockedUpdated);
+
 private:
     i64 Running_ = 0;
     TEnumIndexedVector<EInterruptReason, i64> Completed_;
@@ -76,6 +100,7 @@ private:
     i64 Lost_ = 0;
     i64 Invalidated_ = 0;
     i64 Uncategorized_ = 0;
+    i64 Blocked_ = 0;
 
     std::vector<TProgressCounterPtr> Parents_;
 

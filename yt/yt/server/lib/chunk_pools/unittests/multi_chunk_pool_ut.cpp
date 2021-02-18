@@ -139,9 +139,9 @@ public:
     void Persist(const TPersistenceContext& /*context*/)
     {
         YT_UNIMPLEMENTED();
-    }  
+    }
 };
- 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMultiChunkPoolTestBase
@@ -340,7 +340,7 @@ protected:
     TMultiChunkPoolOutputTest() = default;
 
     void InitPools(
-        std::vector<int> stripeCounts, 
+        std::vector<int> stripeCounts,
         bool finalize = true,
         std::optional<int> poolsToAdd = std::nullopt)
     {
@@ -589,7 +589,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestFailed)
 
     Pool_->Failed(0);
     Pool_->Failed(1);
-    Pool_->Failed(2);   
+    Pool_->Failed(2);
 }
 
 TEST_F(TMultiChunkPoolOutputTest, TestAborted)
@@ -631,7 +631,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestLost)
 
     Pool_->Lost(0);
     Pool_->Lost(1);
-    Pool_->Lost(2);   
+    Pool_->Lost(2);
 }
 
 TEST_F(TMultiChunkPoolOutputTest, TestCookieMapping)
@@ -701,5 +701,5 @@ TEST_F(TMultiChunkPoolOutputTest, TestAddPoolOutput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace 
+} // namespace
 } // namespace NYT::NChunkPools

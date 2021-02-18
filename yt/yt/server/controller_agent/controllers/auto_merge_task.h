@@ -11,14 +11,14 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAutoMergeChunkPoolAdapter
+class TAutoMergeInputChunkPoolAdapter
     : public TChunkPoolInputAdapterBase
 {
 public:
     //! Used only for persistence.
-    TAutoMergeChunkPoolAdapter() = default;
+    TAutoMergeInputChunkPoolAdapter() = default;
 
-    TAutoMergeChunkPoolAdapter(
+    TAutoMergeInputChunkPoolAdapter(
         NChunkPools::IChunkPoolInputPtr underlyingInput,
         TAutoMergeTask* task);
 
@@ -34,10 +34,41 @@ public:
     void Persist(const TPersistenceContext& context);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter, 0xfb888bac);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeInputChunkPoolAdapter, 0xfb888bac);
 
     TAutoMergeTask* Task_;
     std::vector<int> CookieChunkCount_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAutoMergeOutputChunkPoolAdapter
+    : public TChunkPoolOutputAdapterBase
+{
+public:
+    //! Used only for persistence.
+    TAutoMergeOutputChunkPoolAdapter() = default;
+
+    explicit TAutoMergeOutputChunkPoolAdapter(NChunkPools::IChunkPoolOutputPtr underlyingOutput);
+
+    virtual const TProgressCounterPtr& GetJobCounter() const override;
+
+    virtual TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
+
+    void SetShouldScheduleJob(bool shouldScheduleJob);
+
+    void Persist(const TPersistenceContext& context);
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeOutputChunkPoolAdapter, 0xaf23bcf0);
+
+    bool ShouldScheduleJob_ = false;
+
+    TProgressCounterPtr JobCounter_ = New<TProgressCounter>();
+
+    void SetupCallbacks();
+
+    void UpdatePendingJobCount();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,7 +77,7 @@ class TAutoMergeTask
     : public TTask
 {
 public:
-    friend class TAutoMergeChunkPoolAdapter;
+    friend class TAutoMergeInputChunkPoolAdapter;
 
     //! Used only for persistense.
     TAutoMergeTask() = default;
@@ -69,10 +100,6 @@ public:
     virtual NChunkPools::IChunkPoolOutputPtr GetChunkPoolOutput() const override;
 
     virtual EJobType GetJobType() const override;
-
-    virtual int GetPendingJobCount() const override;
-
-    virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override;
 
     virtual void OnJobStarted(TJobletPtr joblet) override;
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override;
@@ -108,10 +135,9 @@ private:
     //! Input adapter built over multi chunk pool.
     NChunkPools::IChunkPoolInputPtr ChunkPoolInput_;
 
-    int CurrentChunkCount_ = 0;
+    TIntrusivePtr<TAutoMergeOutputChunkPoolAdapter> ChunkPoolOutput_;
 
-    // NB: this field is intentionally transient (otherwise automerge can stuck after loading from snapshot).
-    bool CanScheduleJob_ = true;
+    int CurrentChunkCount_ = 0;
 
     void UpdateSelf();
 
