@@ -1417,6 +1417,10 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
             }
         }
 
+        if (ReduceBy.empty() && SortBy.empty()) {
+            THROW_ERROR_EXCEPTION("At least one of the \"sort_by\" or \"reduce_by\" fields shold be specified");
+        }
+
         if (HasNontrivialMapper()) {
             for (const auto& stream : Mapper->OutputStreams) {
                 if (stream->Schema->GetSortColumns() != SortBy) {
