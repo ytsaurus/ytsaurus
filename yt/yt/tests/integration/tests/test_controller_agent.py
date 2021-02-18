@@ -517,6 +517,7 @@ class TestOperationControllerLimit(YTEnvSetup):
     }
 
     @authors("gritukan")
+    @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_operation_controller_memory_limit_exceeded(self):
         op = run_test_vanilla("sleep 60", job_count=1)
         with raises_yt_error(ControllerMemoryLimitExceeded):
