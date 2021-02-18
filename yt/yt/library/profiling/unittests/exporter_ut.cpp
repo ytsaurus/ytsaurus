@@ -20,6 +20,7 @@ TEST(TSolomonExporter, MemoryLeak)
     auto config = New<TSolomonExporterConfig>();
     config->GridStep = TDuration::Seconds(1);
     config->EnableCoreProfilingCompatibility = true;
+    config->EnableSelfProfiling = false;
 
     auto actionQueue = New<TActionQueue>("Leak");
 
