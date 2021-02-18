@@ -29,7 +29,7 @@ TMasterConnectionConfig::TMasterConnectionConfig()
         .Default(TDuration::Seconds(30));
 
     RegisterParameter("enable_master_cache_discovery", EnableMasterCacheDiscovery)
-        .Default(false);
+        .Default(true);
     RegisterParameter("master_cache_discovery_period", MasterCacheDiscoveryPeriod)
         .Default(TDuration::Minutes(1));
 

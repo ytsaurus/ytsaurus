@@ -132,6 +132,7 @@ def _build_master_configs(yt_config, master_dirs, master_tmpfs_dirs, clock_conne
         ports.append(cell_ports)
 
         connection_config = {
+            "enable_master_cache_discovery": False,
             "addresses": cell_addresses,
             "cell_id": cell_ids[cell_index]
         }
@@ -632,6 +633,8 @@ def _build_cluster_connection_config(yt_config,
 
     if yt_config.enable_master_cache and master_cache_nodes:
         cluster_connection["master_cache"] = {
+            "enable_master_cache_discovery": False,
+            "master_cache_discovery_period": 100,
             "soft_backoff_time": 100,
             "hard_backoff_time": 100,
             "rpc_timeout": 25000,
