@@ -1,9 +1,9 @@
 from .config import get_config, get_option, set_option, get_backend_type
-from .common import require, get_value, total_seconds, generate_uuid, generate_traceparent, forbidden_inside_job
+from .common import require, get_value, total_seconds, generate_uuid, generate_traceparent, forbidden_inside_job, hide_auth_headers
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
-                     YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction, hide_auth_headers)
+                     YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction)
 from .framing import unframed_iter_content
 from .command import parse_commands
 from .format import JsonFormat, YsonFormat

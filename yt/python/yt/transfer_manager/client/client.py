@@ -1,6 +1,8 @@
 from yt.wrapper.common import get_value, require, generate_uuid, bool_to_string
 from yt.wrapper.http_helpers import get_retriable_errors, get_token, configure_ip
 try:
+    from yt.wrapper.common import hide_auth_headers
+except ImportError:
     from yt.wrapper.errors import hide_auth_headers
 except ImportError:
     from yt.wrapper.errors import hide_token as hide_auth_headers

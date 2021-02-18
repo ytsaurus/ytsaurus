@@ -9,7 +9,8 @@ from yt.wrapper.config import get_config, get_option, set_option
 from yt.wrapper.http_helpers import get_token, format_logging_params, raise_for_token
 from yt.wrapper.http_driver import HeavyProxyProvider, HeavyProxyProviderState, TokenAuth
 from yt.wrapper.common import get_version, get_started_by_short, generate_uuid, YtError
-from yt.wrapper.errors import hide_auth_headers, YtHttpResponseError
+from yt.wrapper.errors import YtHttpResponseError
+from yt.wrapper.common import hide_auth_headers
 import yt.packages.requests as requests
 import yt.logger as logger
 import yt.json_wrapper as json
