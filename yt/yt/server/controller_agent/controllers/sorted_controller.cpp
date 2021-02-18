@@ -304,7 +304,7 @@ protected:
         {
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
-            config->EnableJobSplitting =
+            config->EnableJobSplitting &=
                 (IsJobInterruptible() &&
                 Controller_->InputTables_.size() <= Controller_->Options_->JobSplitter->MaxInputTableCount);
 
