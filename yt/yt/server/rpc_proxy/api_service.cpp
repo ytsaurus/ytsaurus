@@ -123,6 +123,9 @@ void FromProto(
     if (proto.has_ping_ancestors()) {
         options->PingAncestors = proto.ping_ancestors();
     }
+    if (proto.has_suppress_transaction_coordinator_sync()) {
+        options->SuppressTransactionCoordinatorSync = proto.suppress_transaction_coordinator_sync();
+    }
 }
 
 void FromProto(

@@ -661,6 +661,7 @@ message TTransactionalOptions
     optional bool ping = 2 [default = false];
     optional bool ping_ancestors = 3 [default = false];
     reserved 4;
+    optional bool suppress_transaction_coordinator_sync = 5;
 }
 
 // 101

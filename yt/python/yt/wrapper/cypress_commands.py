@@ -2,7 +2,7 @@ from . import yson
 from .config import get_config, get_option, get_command_param
 from .common import flatten, get_value, YtError, set_param, deprecated
 from .errors import YtResponseError
-from .driver import set_read_from_params, get_api_version, get_structured_format
+from .driver import set_master_read_params, get_api_version, get_structured_format
 from .transaction_commands import (_make_transactional_request,
                                    _make_formatted_transactional_request)
 from .transaction import Transaction
@@ -40,7 +40,8 @@ class _MapOrderSorted(object):
         return cls.__instance
 MAP_ORDER_SORTED = _MapOrderSorted()
 
-def get(path, max_size=None, attributes=None, format=None, read_from=None, cache_sticky_group_size=None, client=None):
+def get(path, max_size=None, attributes=None, format=None, read_from=None,
+        cache_sticky_group_size=None, client=None):
     """Gets Cypress node content (attribute tree).
 
     :param path: path to tree, it must exist!
@@ -61,7 +62,7 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None, cache
         "path": YPath(path, client=client),
         "max_size": max_size}
     set_param(params, "attributes", attributes)
-    set_read_from_params(params, read_from, cache_sticky_group_size)
+    set_master_read_params(params, read_from, cache_sticky_group_size)
     if get_api_version(client) == "v4":
         set_param(params, "return_only_value", True)
     result = _make_formatted_transactional_request(
@@ -307,7 +308,7 @@ def list(path,
         "path": YPath(path, client=client),
         "max_size": max_size}
     set_param(params, "attributes", attributes)
-    set_read_from_params(params, read_from, cache_sticky_group_size)
+    set_master_read_params(params, read_from, cache_sticky_group_size)
     if get_api_version(client) == "v4":
         set_param(params, "return_only_value", True)
     result = _make_formatted_transactional_request(
@@ -328,7 +329,7 @@ def exists(path, read_from=None, cache_sticky_group_size=None, client=None):
     def _process_result(result):
         return result["value"] if get_api_version(client) == "v4" else result
     params = {"path": YPath(path, client=client)}
-    set_read_from_params(params, read_from, cache_sticky_group_size)
+    set_master_read_params(params, read_from, cache_sticky_group_size)
     result = _make_formatted_transactional_request(
         "exists",
         params,

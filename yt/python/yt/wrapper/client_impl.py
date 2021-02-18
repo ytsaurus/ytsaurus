@@ -260,7 +260,8 @@ class YtClient(ClientState):
     .. seealso:: `list in the docs <https://yt.yandex-team.ru/docs/api/commands.html#list>`_
     
         """
-        return client_api.list(path, client=self, max_size=max_size, format=format, absolute=absolute, attributes=attributes, sort=sort, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size)
+        return client_api.list(path, client=self, max_size=max_size, format=format, absolute=absolute, attributes=attributes, sort=sort, read_from=read_from,
+            cache_sticky_group_size=cache_sticky_group_size)
 
     def get_job_spec(self, job_id, omit_node_directory=None, omit_input_table_specs=None, omit_output_table_specs=None):
         """

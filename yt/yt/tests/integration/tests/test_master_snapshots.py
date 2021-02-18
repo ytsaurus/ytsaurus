@@ -337,3 +337,37 @@ class TestAllMastersSnapshots(YTEnvSetup):
         for s in checker_state_list:
             with pytest.raises(StopIteration):
                 next(s)
+
+
+class TestMastersSnapshotsShardedTx(YTEnvSetup):
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "1": ["transaction_coordinator"],
+        "2": ["chunk_host"],
+    }
+
+    @authors("aleksandra-zh")
+    def test_reads_in_readonly(self):
+        tx = start_transaction(coordinator_master_cell_tag=1)
+        create("map_node", "//tmp/m", tx=tx)
+
+        build_snapshot(cell_id=self.Env.configs["master"][0]["primary_master"]["cell_id"], set_read_only=True)
+        primary = ls("//sys/primary_masters")[0]
+        wait(lambda: get("//sys/primary_masters/{}/orchid/monitoring/hydra/read_only".format(primary)))
+
+        abort_transaction(tx)
+
+        for secondary_master in self.Env.configs["master"][0]["secondary_masters"]:
+            build_snapshot(cell_id=secondary_master["cell_id"], set_read_only=True)
+
+        secondary_masters = get("//sys/secondary_masters", suppress_transaction_coordinator_sync=True)
+        for cell_tag in secondary_masters:
+            address = secondary_masters[cell_tag].keys()[0]
+            wait(lambda: get("//sys/secondary_masters/{}/{}/orchid/monitoring/hydra/read_only".format(cell_tag, address), suppress_transaction_coordinator_sync=True))
+
+        # Must not hang on this.
+        get("//sys/primary_masters/{}/orchid/monitoring/hydra".format(primary), suppress_transaction_coordinator_sync=True)
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass

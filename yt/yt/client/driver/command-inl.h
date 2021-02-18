@@ -46,6 +46,8 @@ TTransactionalCommandBase<
         .Optional();
     this->RegisterParameter("ping_ancestor_transactions", this->Options.PingAncestors)
         .Optional();
+    this->RegisterParameter("suppress_transaction_coordinator_sync", this->Options.SuppressTransactionCoordinatorSync)
+        .Optional();
 }
 
 template <class TOptions>

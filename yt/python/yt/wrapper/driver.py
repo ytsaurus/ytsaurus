@@ -32,7 +32,7 @@ def get_command_list(client=None):
     else:  # backend == "http"
         return list(get_http_api_commands(client))
 
-def set_read_from_params(params, read_from, cache_sticky_group_size):
+def set_master_read_params(params, read_from, cache_sticky_group_size):
     set_param(params, "read_from", read_from)
     set_param(params, "cache_sticky_group_size", cache_sticky_group_size)
 
