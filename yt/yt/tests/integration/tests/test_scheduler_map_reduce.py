@@ -2431,6 +2431,20 @@ done
 
         assert get("//tmp/t_out/@chunk_count") == 0
 
+    @authors("gritukan")
+    def test_empty_sort_by(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        with pytest.raises(YtError):
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                mapper_command="cat",
+                reducer_command="cat")
+
 ##################################################################
 
 
