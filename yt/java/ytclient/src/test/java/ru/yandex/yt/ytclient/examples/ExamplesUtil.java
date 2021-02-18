@@ -8,12 +8,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 
 import io.netty.channel.nio.NioEventLoopGroup;
 
-import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
@@ -142,7 +142,7 @@ public final class ExamplesUtil {
         try (BusConnector connector = createConnector()) {
             client = new YtClient(
                     connector,
-                    Cf.list(new YtCluster("hume")),
+                    List.of(new YtCluster("hume")),
                     "dc",
                     null,
                     getCredentials(),

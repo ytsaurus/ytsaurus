@@ -61,16 +61,16 @@ public class WriteTableExample {
 
         List<UnversionedRow> rows = Cf.arrayList();
 
-        String randomColumnName = "column-" + String.valueOf(random.nextInt(10));
+        String randomColumnName = "column-" + random.nextInt(10);
         TableSchema schema = createSchema(randomColumnName);
 
         for (int i = 0; i < 10; ++i) {
-            String key = "key-" + String.valueOf(currentRowNumber);
-            String value = "value-" + String.valueOf(currentRowNumber);
-            String randomValue = "rnd-" + String.valueOf(currentRowNumber);
+            String key = "key-" + currentRowNumber;
+            String value = "value-" + currentRowNumber;
+            String randomValue = "rnd-" + currentRowNumber;
             Long integer = currentRowNumber;
 
-            List<?> values = Cf.list(key, value, integer, randomValue);
+            List<?> values = List.of(key, value, integer, randomValue);
             List<UnversionedValue> row = new ArrayList<>(values.size());
 
             ApiServiceUtil.convertValueColumns(row, schema, values, true, false);

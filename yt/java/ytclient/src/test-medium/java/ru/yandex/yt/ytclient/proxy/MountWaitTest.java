@@ -1,8 +1,6 @@
-package ru.yandex.yt.ytclient.tables;
+package ru.yandex.yt.ytclient.proxy;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
+import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -10,54 +8,29 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import ru.yandex.bolts.collection.Cf;
-import ru.yandex.bolts.collection.ListF;
-import ru.yandex.bolts.collection.MapF;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.YtCluster;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.rpc.RpcCredentials;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.tables.ColumnValueType;
+import ru.yandex.yt.ytclient.tables.TableSchema;
 
 
-public class MountWaitTest {
+public class MountWaitTest extends YtClientTestBase {
     private YtClient yt;
 
     @Before
-    public void setup() throws IOException {
-
-        BufferedReader br = new BufferedReader(new FileReader("yt_proxy_port.txt"));
-        final int proxyPort = Integer.valueOf(br.readLine());
-
-        final BusConnector connector = new DefaultBusConnector(new NioEventLoopGroup(0));
-
-        final String host = "localhost";
-
-        final String user = "root";
-        final String token = "";
-
-        yt = new YtClient(
-                connector,
-                Cf.list(new YtCluster("local", host, proxyPort)),
-                "local",
-                new RpcCredentials(user, token),
-                new RpcOptions()
-        );
+    public void setup() {
+        var ytFixture = createYtFixture();
+        yt = ytFixture.yt;
     }
 
     @Test
     public void createMountAndWait() {
-
         yt.waitProxies().join();
 
         while (!yt.getNode("//sys/tablet_cell_bundles/default/@health").join().stringValue().equals("good")) {
@@ -75,7 +48,7 @@ public class MountWaitTest {
                 .addValue("value", ColumnValueType.STRING)
                 .build();
 
-        MapF<String, YTreeNode> attributes = Cf.hashMap();
+        var attributes = new HashMap<String, YTreeNode>();
 
         attributes.put("dynamic", new YTreeBuilder().value(true).build());
         attributes.put("schema", schema.toYTree());
@@ -85,7 +58,7 @@ public class MountWaitTest {
         CompletableFuture<Void> mountFuture = yt.mountTable(path, null, false, true);
 
         mountFuture.join();
-        ListF<YTreeNode> tablets = yt.getNode(path + "/@tablets").join().asList();
+        var tablets = yt.getNode(path + "/@tablets").join().asList();
         boolean allTabletsReady = true;
         for (YTreeNode tablet : tablets) {
             if (!tablet.asMap().getOrThrow("state").stringValue().equals("mounted")) {
