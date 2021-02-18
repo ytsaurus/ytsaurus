@@ -104,7 +104,8 @@ struct IChunkPoolOutput
     //! Approximate average stripe list statistics to estimate memory usage.
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
 
-    virtual TCookie Extract(NNodeTrackerClient::TNodeId nodeId = NNodeTrackerClient::InvalidNodeId) = 0;
+    virtual TCookie Extract(
+        NNodeTrackerClient::TNodeId nodeId = NNodeTrackerClient::InvalidNodeId) = 0;
 
     virtual TChunkStripeListPtr GetStripeList(TCookie cookie) = 0;
 
@@ -143,7 +144,9 @@ struct IMultiChunkPoolOutput
     virtual void AddPoolOutput(IChunkPoolOutputPtr pool, int poolIndex) = 0;
 
     //! Extracts cookie from underlying pool `underlyingPoolIndexHint' if possible.
-    virtual TCookie ExtractFromPool(int underlyingPoolIndexHint, NNodeTrackerClient::TNodeId nodeId = NNodeTrackerClient::InvalidNodeId) = 0;
+    virtual TCookie ExtractFromPool(
+        int underlyingPoolIndexHint,
+        NNodeTrackerClient::TNodeId nodeId = NNodeTrackerClient::InvalidNodeId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMultiChunkPoolOutput)

@@ -286,7 +286,7 @@ private:
             return IsCompleted_;
         }
 
-        virtual TCookie Extract(TNodeId /*nodeId*/) override
+        virtual TCookie Extract(TNodeId /* nodeId */) override
         {
             if (JobCounter->GetPending() == 0) {
                 return NullCookie;
@@ -474,7 +474,11 @@ private:
                 EProgressCategory newProgressCategory;
                 switch (State) {
                     case ERunState::Initializing:
-                        newProgressCategory = EProgressCategory::Suspended;
+                        if (SuspendCount == 0) {
+                            newProgressCategory = EProgressCategory::Blocked;
+                        } else {
+                            newProgressCategory = EProgressCategory::Suspended;
+                        }
                         break;
                     case ERunState::Pending: {
                         if (SuspendCount == 0) {

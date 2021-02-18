@@ -8,6 +8,7 @@
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NChunkPools;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +57,98 @@ void TChunkPoolInputAdapterBase::Persist(const TPersistenceContext& context)
 
     Persist(context, UnderlyingInput_);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkPoolOutputAdapterBase::TChunkPoolOutputAdapterBase(IChunkPoolOutputPtr underlyingOutput)
+    : UnderlyingOutput_(std::move(underlyingOutput))
+{ }
+
+const TProgressCounterPtr& TChunkPoolOutputAdapterBase::GetJobCounter() const
+{
+    return UnderlyingOutput_->GetJobCounter();
+}
+
+const TProgressCounterPtr& TChunkPoolOutputAdapterBase::GetDataWeightCounter() const
+{
+    return UnderlyingOutput_->GetDataWeightCounter();
+}
+
+const TProgressCounterPtr& TChunkPoolOutputAdapterBase::GetRowCounter() const
+{
+    return UnderlyingOutput_->GetRowCounter();
+}
+
+const TProgressCounterPtr& TChunkPoolOutputAdapterBase::GetDataSliceCounter() const
+{
+    return UnderlyingOutput_->GetDataSliceCounter();
+}
+
+TOutputOrderPtr TChunkPoolOutputAdapterBase::GetOutputOrder() const
+{
+    return UnderlyingOutput_->GetOutputOrder();
+}
+
+i64 TChunkPoolOutputAdapterBase::GetLocality(TNodeId nodeId) const
+{
+    return UnderlyingOutput_->GetLocality(nodeId);
+}
+
+TChunkStripeStatisticsVector TChunkPoolOutputAdapterBase::GetApproximateStripeStatistics() const
+{
+    return UnderlyingOutput_->GetApproximateStripeStatistics();
+}
+
+IChunkPoolOutput::TCookie TChunkPoolOutputAdapterBase::Extract(TNodeId nodeId)
+{
+    return UnderlyingOutput_->Extract(nodeId);
+}
+
+TChunkStripeListPtr TChunkPoolOutputAdapterBase::GetStripeList(TCookie cookie)
+{
+    return UnderlyingOutput_->GetStripeList(cookie);
+}
+
+bool TChunkPoolOutputAdapterBase::IsCompleted() const
+{
+    return UnderlyingOutput_->IsCompleted();
+}
+
+int TChunkPoolOutputAdapterBase::GetStripeListSliceCount(TCookie cookie) const
+{
+    return UnderlyingOutput_->GetStripeListSliceCount(cookie);
+}
+
+void TChunkPoolOutputAdapterBase::Completed(TCookie cookie, const TCompletedJobSummary& jobSummary)
+{
+    UnderlyingOutput_->Completed(cookie, jobSummary);
+}
+
+void TChunkPoolOutputAdapterBase::Failed(TCookie cookie)
+{
+    UnderlyingOutput_->Failed(cookie);
+}
+
+void TChunkPoolOutputAdapterBase::Aborted(TCookie cookie, EAbortReason reason)
+{
+    UnderlyingOutput_->Aborted(cookie, reason);
+}
+
+void TChunkPoolOutputAdapterBase::Lost(TCookie cookie)
+{
+    UnderlyingOutput_->Lost(cookie);
+}
+
+void TChunkPoolOutputAdapterBase::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, UnderlyingOutput_);
+}
+
+DELEGATE_SIGNAL(TChunkPoolOutputAdapterBase, void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported, *UnderlyingOutput_);
+DELEGATE_SIGNAL(TChunkPoolOutputAdapterBase, void(), Completed, *UnderlyingOutput_);
+DELEGATE_SIGNAL(TChunkPoolOutputAdapterBase, void(), Uncompleted, *UnderlyingOutput_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

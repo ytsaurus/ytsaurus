@@ -18,6 +18,7 @@ i64 TProgressCounter::GetTotal() const
         GetRunning() +
         GetCompletedTotal() +
         GetPending() +
+        GetBlocked() +
         GetSuspended() +
         GetUncategorized();
 }
@@ -98,6 +99,11 @@ i64 TProgressCounter::GetUncategorized() const
     return Uncategorized_;
 }
 
+i64 TProgressCounter::GetBlocked() const
+{
+    return Blocked_;
+}
+
 void TProgressCounter::AddRunning(i64 value)
 {
     Running_ += value;
@@ -131,12 +137,22 @@ void TProgressCounter::AddPending(i64 value)
     PendingUpdated_.Fire();
 }
 
+void TProgressCounter::SetPending(i64 value)
+{
+    AddPending(value - Pending_);
+}
+
 void TProgressCounter::AddSuspended(i64 value)
 {
     Suspended_ += value;
     for (const auto& parent : Parents_) {
         parent->AddSuspended(value);
     }
+}
+
+void TProgressCounter::SetSuspended(i64 value)
+{
+    AddSuspended(value - Suspended_);
 }
 
 void TProgressCounter::AddAborted(i64 value, EAbortReason reason)
@@ -169,6 +185,20 @@ void TProgressCounter::AddUncategorized(i64 value)
     for (const auto& parent : Parents_) {
         parent->AddUncategorized(value);
     }
+}
+
+void TProgressCounter::AddBlocked(i64 value)
+{
+    Blocked_ += value;
+    for (const auto& parent : Parents_) {
+        parent->AddBlocked(value);
+    }
+    BlockedUpdated_.Fire();
+}
+
+void TProgressCounter::SetBlocked(i64 value)
+{
+    AddBlocked(value - Blocked_);
 }
 
 void TProgressCounter::AddParent(TProgressCounterPtr parent)
@@ -204,6 +234,7 @@ void TProgressCounter::Persist(const TPersistenceContext& context)
     Persist(context, Lost_);
     Persist(context, Invalidated_);
     Persist(context, Uncategorized_);
+    Persist(context, Blocked_);
     Persist(context, Parents_);
 }
 
@@ -221,13 +252,15 @@ void TProgressCounter::Propagate(TProgressCounterPtr parent, int multiplier)
     }
     parent->AddLost(Lost_ * multiplier);
     parent->AddInvalidated(Invalidated_ * multiplier);
+    parent->AddUncategorized(Uncategorized_ * multiplier);
+    parent->AddBlocked(Blocked_ * multiplier);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TProgressCounterPtr& counter)
 {
-    return Format("{T: %v, R: %v, C: %v, F: %v, P: %v, S: %v, A: %v, L: %v, I: %v}",
+    return Format("{T: %v, R: %v, C: %v, F: %v, P: %v, S: %v, A: %v, L: %v, I: %v, B: %v}",
         counter->GetTotal(),
         counter->GetRunning(),
         counter->GetCompletedTotal(),
@@ -236,7 +269,8 @@ TString ToString(const TProgressCounterPtr& counter)
         counter->GetSuspended(),
         counter->GetAbortedTotal(),
         counter->GetLost(),
-        counter->GetInvalidated());
+        counter->GetInvalidated(),
+        counter->GetBlocked());
 }
 
 void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
@@ -282,6 +316,7 @@ void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
             .EndMap()
             .Item("lost").Value(counter->GetLost())
             .Item("invalidated").Value(counter->GetInvalidated())
+            .Item("blocked").Value(counter->GetBlocked())
         .EndMap();
 }
 
@@ -298,6 +333,7 @@ void SerializeBriefVersion(const TProgressCounterPtr& counter, IYsonConsumer* co
             .Item("aborted").Value(counter->GetAbortedScheduled())
             .Item("lost").Value(counter->GetLost())
             .Item("invalidated").Value(counter->GetInvalidated())
+            .Item("blocked").Value(counter->GetBlocked())
         .EndMap();
 }
 
@@ -391,6 +427,9 @@ void TProgressCounterGuard::UpdateProgressCounter(i64 multiplier)
             break;
         case EProgressCategory::Invalidated:
             ProgressCounter_->AddInvalidated(value);
+            break;
+        case EProgressCategory::Blocked:
+            ProgressCounter_->AddBlocked(value);
             break;
         default:
             YT_ABORT();

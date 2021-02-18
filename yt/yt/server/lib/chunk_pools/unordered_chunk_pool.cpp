@@ -79,8 +79,8 @@ public:
         JobManager_->DataWeightCounter()->AddParent(DataWeightCounter);
         JobManager_->RowCounter()->AddParent(RowCounter);
 
-        if (Mode_ == EUnorderedChunkPoolMode::Normal) {
-            FreeJobCounter_->AddPending(JobSizeConstraints_->GetJobCount());
+        if (JobSizeConstraints_->IsExplicitJobCount()) {
+            FreeJobCounter_->SetPending(JobSizeConstraints_->GetJobCount());
         }
 
         if (options.JobSizeAdjusterConfig && JobSizeConstraints_->CanAdjustDataWeightPerJob()) {
@@ -236,13 +236,15 @@ public:
     virtual IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
     {
         const auto& jobCounter = GetJobCounter();
-        if (jobCounter->GetPending() == 0) {
+        if (jobCounter->GetPending() + jobCounter->GetBlocked() == 0) {
             return IChunkPoolOutput::NullCookie;
         }
 
         // There are no jobs in job manager, so we materialize a new one.
         const auto& jobManagerJobCounter = JobManager_->JobCounter();
         if (jobManagerJobCounter->GetPending() == 0) {
+            YT_VERIFY(!FreeStripes_.empty());
+
             auto idealDataWeightPerJob = GetIdealDataWeightPerJob();
 
             auto jobStub = std::make_unique<TNewJobStub>();
@@ -271,7 +273,7 @@ public:
             jobStub->Finalize(/* sortByPosition */ false);
             JobManager_->AddJob(std::move(jobStub));
 
-            if (Mode_ == EUnorderedChunkPoolMode::Normal) {
+            if (JobSizeConstraints_->IsExplicitJobCount()) {
                 FreeJobCounter_->AddPending(-1);
                 YT_VERIFY(FreeJobCounter_->GetPending() >= 0);
             }
@@ -615,45 +617,47 @@ private:
 
     void UpdateFreeJobCounter()
     {
-        // At first, reset both pending and suspended free job counters.
-        auto oldFreeJobCount = FreeJobCounter_->GetPending() + FreeJobCounter_->GetSuspended();
-        FreeJobCounter_->AddPending(-FreeJobCounter_->GetPending());
-        FreeJobCounter_->AddSuspended(-FreeJobCounter_->GetSuspended());
+        auto oldFreeJobCount =
+            FreeJobCounter_->GetPending() +
+            FreeJobCounter_->GetBlocked() +
+            FreeJobCounter_->GetSuspended();
 
-        i64 newFreeJobCount = 0;
+        FreeJobCounter_->SetPending(0);
+        FreeJobCounter_->SetBlocked(0);
+        FreeJobCounter_->SetSuspended(0);
+
+        i64 pendingJobCount = 0;
+        i64 blockedJobCount = 0;
+
         i64 dataWeightLeft = FreeDataWeightCounter_->GetTotal();
-        if (Mode_ == EUnorderedChunkPoolMode::AutoMerge) {
-            // If we have pending or suspended stripes there are more jobs, otherwise operation in completed.
-            if (dataWeightLeft > 0) {
-                newFreeJobCount = 1;
-            } else {
-                newFreeJobCount = 0;
-            }
+
+        if (JobSizeConstraints_->IsExplicitJobCount()) {
+            pendingJobCount = oldFreeJobCount;
         } else {
-            if (JobSizeConstraints_->IsExplicitJobCount()) {
-                newFreeJobCount = oldFreeJobCount;
+            i64 dataWeightPerJob = JobSizeAdjuster_
+                ? JobSizeAdjuster_->GetDataWeightPerJob()
+                : JobSizeConstraints_->GetDataWeightPerJob();
+            dataWeightPerJob = std::clamp<i64>(dataWeightPerJob, 1, JobSizeConstraints_->GetMaxDataWeightPerJob());
+            if (Finished) {
+                pendingJobCount = DivCeil<i64>(dataWeightLeft, dataWeightPerJob);
             } else {
-                i64 dataWeightPerJob = JobSizeAdjuster_
-                    ? JobSizeAdjuster_->GetDataWeightPerJob()
-                    : JobSizeConstraints_->GetDataWeightPerJob();
-                dataWeightPerJob = std::min(dataWeightPerJob, JobSizeConstraints_->GetMaxDataWeightPerJob());
-                dataWeightPerJob = std::max<i64>(dataWeightPerJob, 1);
-                newFreeJobCount = DivCeil(dataWeightLeft, dataWeightPerJob);
-            }
-
-            if (newFreeJobCount == 0 && dataWeightLeft > 0) {
-                newFreeJobCount = 1;
-            }
-
-            if (Finished && dataWeightLeft == 0) {
-                newFreeJobCount = 0;
+                pendingJobCount = dataWeightLeft / dataWeightPerJob;
+                if (dataWeightLeft % dataWeightPerJob > 0) {
+                    blockedJobCount = 1;
+                }
             }
         }
 
+        if (Finished && dataWeightLeft == 0) {
+            pendingJobCount = 0;
+            blockedJobCount = 0;
+        }
+
         if (FreeStripes_.empty()) {
-            FreeJobCounter_->AddSuspended(newFreeJobCount);
+            FreeJobCounter_->SetSuspended(pendingJobCount + blockedJobCount);
         } else {
-            FreeJobCounter_->AddPending(newFreeJobCount);
+            FreeJobCounter_->SetPending(pendingJobCount);
+            FreeJobCounter_->SetBlocked(blockedJobCount);
         }
     }
 
@@ -791,7 +795,8 @@ private:
             FreeDataWeightCounter_->GetTotal() == 0 &&
             JobCounter->GetRunning() == 0 &&
             JobCounter->GetSuspended() == 0 &&
-            JobCounter->GetPending() == 0;
+            JobCounter->GetPending() == 0 &&
+            JobCounter->GetBlocked() == 0;
 
         if (!IsCompleted_ && completed) {
             Completed_.Fire();
