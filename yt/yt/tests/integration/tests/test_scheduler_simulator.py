@@ -2,6 +2,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.common import date_string_to_datetime
 import yt.yson as yson
+from yt.environment import arcadia_interop
 
 from copy import deepcopy
 import os

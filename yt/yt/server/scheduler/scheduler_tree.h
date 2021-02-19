@@ -111,7 +111,6 @@ struct ISchedulerTree
     virtual void BuildUserToEphemeralPoolsInDefaultPool(NYTree::TFluentAny fluent) const = 0;
 
     virtual void BuildFairShareInfo(NYTree::TFluentMap fluent) const = 0;
-    virtual void BuildOrchid(NYTree::TFluentMap fluent) const = 0;
     
     //! Raised when operation considered running in tree.
     DECLARE_INTERFACE_SIGNAL(void(TOperationId), OperationRunning);

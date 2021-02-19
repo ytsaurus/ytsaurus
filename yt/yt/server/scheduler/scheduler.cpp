@@ -1131,6 +1131,19 @@ public:
 
         return resourceLimits;
     }
+    
+    virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        TJobResources resourceUsage;
+        for (const auto& nodeShard : NodeShards_) {
+            resourceUsage += nodeShard->GetResourceUsage(filter);
+        }
+
+        return resourceUsage;
+    }
+
 
     virtual void MarkOperationAsRunningInStrategy(TOperationId operationId) override
     {
@@ -3643,18 +3656,6 @@ private:
         for (const auto& filter : toRemove) {
             YT_VERIFY(CachedResourceLimitsByTags_.erase(filter) == 1);
         }
-    }
-
-    TJobResources GetResourceUsage(const TSchedulingTagFilter& filter)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        TJobResources resourceUsage;
-        for (const auto& nodeShard : NodeShards_) {
-            resourceUsage += nodeShard->GetResourceUsage(filter);
-        }
-
-        return resourceUsage;
     }
 
     TYsonString BuildSuspiciousJobsYson()

@@ -9,6 +9,7 @@ from yt_env_setup import (
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
+from yt.environment import arcadia_interop
 
 import binascii
 import itertools

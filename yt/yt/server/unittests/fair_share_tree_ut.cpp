@@ -87,6 +87,11 @@ struct TSchedulerStrategyHostMock
         }
         return totalResources;
     }
+    
+    virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) override
+    {
+        YT_ABORT();
+    }
 
     virtual void Disconnect(const TError& error) override
     {

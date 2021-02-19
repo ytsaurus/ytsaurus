@@ -391,8 +391,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        // TODO(ignat): Could we guarantee that operation must be in tree?
-        auto element = FindRecentOperationElementSnapshot(operationId);
+        auto element = FindOperationElementInSnapshot(operationId);
         if (!element) {
             return TError();
         }
@@ -735,12 +734,18 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto* element = FindRecentOperationElementSnapshot(operationId);
+        TOperationElement* element = nullptr;
+        if (TreeSnapshotImpl_) {
+            if (auto elementFromSnapshot = TreeSnapshotImpl_->FindEnabledOperationElement(operationId)) {
+                element = elementFromSnapshot;
+            }
+        }
+
         if (!element) {
             return;
         }
 
-        DoBuildOperationProgress(element, TreeSnapshotImpl_, fluent);
+        DoBuildOperationProgress(element, fluent);
     }
 
     virtual void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) const override
@@ -793,15 +798,6 @@ public:
         Y_UNUSED(WaitFor(BIND(&TFairShareTree::DoBuildFairShareInfo, MakeWeak(this), TreeSnapshotImpl_, fluent)
             .AsyncVia(StrategyHost_->GetOrchidWorkerInvoker())
             .Run()));
-    }
-
-    virtual void BuildOrchid(TFluentMap fluent) const override
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
-        fluent
-            .Item("resource_usage").Value(GetRecentRootSnapshot()->ResourceUsageAtUpdate())
-            .Item("config").Value(Config_);
     }
 
     virtual TResourceTree* GetResourceTree() override
@@ -2201,24 +2197,6 @@ private:
         return pool;
     }
 
-    TPool* FindRecentPoolSnapshot(const TString& poolId) const
-    {
-        if (TreeSnapshotImpl_) {
-            if (auto elementFromSnapshot = TreeSnapshotImpl_->FindPool(poolId)) {
-                return elementFromSnapshot;
-            }
-        }
-        return FindPool(poolId).Get();
-    }
-
-    TCompositeSchedulerElement* GetRecentRootSnapshot() const
-    {
-        if (TreeSnapshotImpl_) {
-            return TreeSnapshotImpl_->RootElement().Get();
-        }
-        return RootElement_.Get();
-    }
-
     TOperationElementPtr FindOperationElement(TOperationId operationId) const
     {
         auto it = OperationIdToElement_.find(operationId);
@@ -2232,14 +2210,14 @@ private:
         return element;
     }
 
-    TOperationElement* FindRecentOperationElementSnapshot(TOperationId operationId) const
+    TOperationElement* FindOperationElementInSnapshot(TOperationId operationId) const
     {
         if (TreeSnapshotImpl_) {
-            if (auto elementFromSnapshot = TreeSnapshotImpl_->FindEnabledOperationElement(operationId)) {
-                return elementFromSnapshot;
+            if (auto element = TreeSnapshotImpl_->FindEnabledOperationElement(operationId)) {
+                return element;
             }
         }
-        return FindOperationElement(operationId).Get();
+        return nullptr;
     }
 
     void ReactivateBadPackingOperations(TFairShareContext* context)
@@ -2315,7 +2293,7 @@ private:
     void DoBuildFairShareInfo(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
         if (!treeSnapshotImpl) {
-            YT_LOG_DEBUG("Skipping construction of fair share info: no root element snapshot");
+            YT_LOG_DEBUG("Skipping construction of fair share info, since shapshot is not constructed yet");
             return;
         }
 
@@ -2325,7 +2303,7 @@ private:
             const auto& [operationId, element] = pair;
             fluent
                 .Item(ToString(operationId)).BeginMap()
-                    .Do(BIND(&TFairShareTree::DoBuildOperationProgress, Unretained(this), Unretained(element), treeSnapshotImpl))
+                    .Do(BIND(&TFairShareTree::DoBuildOperationProgress, Unretained(this), Unretained(element)))
                 .EndMap();
         };
 
@@ -2381,7 +2359,7 @@ private:
                         fluent
                             .Item("parent").Value(pool->GetParent()->GetId());
                     })
-                    .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(pool), treeSnapshotImpl))
+                    .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(pool)))
                 .EndMap();
         };
 
@@ -2395,7 +2373,7 @@ private:
             .EndMap();
     }
 
-    void DoBuildOperationProgress(const TOperationElement* element, const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
+    void DoBuildOperationProgress(const TOperationElement* element, TFluentMap fluent) const
     {
         auto* parent = element->GetParent();
         fluent
@@ -2413,10 +2391,10 @@ private:
             .Item("starving_since").Value(element->GetStarving()
                 ? std::make_optional(element->GetLastNonStarvingTime())
                 : std::nullopt)
-            .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(element), treeSnapshotImpl));
+            .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(element)));
     }
 
-    void DoBuildElementYson(const TSchedulerElement* element, const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
+    void DoBuildElementYson(const TSchedulerElement* element, TFluentMap fluent) const
     {
         const auto& attributes = element->Attributes();
         const auto& persistentAttributes = element->PersistentAttributes();
