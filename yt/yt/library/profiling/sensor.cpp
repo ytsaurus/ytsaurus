@@ -368,7 +368,7 @@ TEventTimer TRegistry::Histogram(const TString& name, TDuration min, TDuration m
 
 void TRegistry::AddFuncCounter(
     const TString& name,
-    const TIntrusivePtr<TRefCounted>& owner,
+    const TRefCountedPtr& owner,
     std::function<i64()> reader) const
 {
     if (!Impl_) {
@@ -380,7 +380,7 @@ void TRegistry::AddFuncCounter(
 
 void TRegistry::AddFuncGauge(
     const TString& name,
-    const TIntrusivePtr<TRefCounted>& owner,
+    const TRefCountedPtr& owner,
     std::function<double()> reader) const
 {
     if (!Impl_) {

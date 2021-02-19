@@ -28,7 +28,7 @@ struct IPollable
     : public virtual TRefCounted
 {
     //! Cookie is a opaque ref-counted object that could be attached to a pollable by its poller.
-    using TCookiePtr = TIntrusivePtr<TRefCounted>;
+    using TCookiePtr = TRefCountedPtr;
 
     //! Attaches a cookie.
     virtual void SetCookie(TCookiePtr cookie) = 0;

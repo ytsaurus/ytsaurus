@@ -54,14 +54,14 @@ public:
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options,
-        const TIntrusivePtr<TRefCounted>& owner,
+        const TRefCountedPtr& owner,
         std::function<i64()> reader) = 0;
 
     virtual void RegisterFuncGauge(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options,
-        const TIntrusivePtr<TRefCounted>& owner,
+        const TRefCountedPtr& owner,
         std::function<double()> reader) = 0;
 
     virtual void RegisterProducer(

@@ -96,17 +96,17 @@ IConnectionReaderPtr CreateInputConnectionFromFD(
     int fd,
     const TString& pipePath,
     const NConcurrency::IPollerPtr& poller,
-    const TIntrusivePtr<TRefCounted>& pipeHolder);
+    const TRefCountedPtr& pipeHolder);
 
 IConnectionReaderPtr CreateInputConnectionFromPath(
     const TString& pipePath,
     const NConcurrency::IPollerPtr& poller,
-    const TIntrusivePtr<TRefCounted>& pipeHolder);
+    const TRefCountedPtr& pipeHolder);
 
 IConnectionWriterPtr CreateOutputConnectionFromPath(
     const TString& pipePath,
     const NConcurrency::IPollerPtr& poller,
-    const TIntrusivePtr<TRefCounted>& pipeHolder);
+    const TRefCountedPtr& pipeHolder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

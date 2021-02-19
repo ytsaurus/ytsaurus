@@ -855,7 +855,7 @@ public:
         int fd,
         const TString& pipePath,
         const IPollerPtr& poller,
-        TIntrusivePtr<TRefCounted> pipeHolder = nullptr)
+        TRefCountedPtr pipeHolder = nullptr)
         : Impl_(TFDConnectionImpl::Create(fd, pipePath, poller))
         , PipeHolder_(std::move(pipeHolder))
     { }
@@ -970,7 +970,7 @@ public:
 
 private:
     const TFDConnectionImplPtr Impl_;
-    TIntrusivePtr<TRefCounted> PipeHolder_;
+    TRefCountedPtr PipeHolder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1015,7 +1015,7 @@ IConnectionReaderPtr CreateInputConnectionFromFD(
     int fd,
     const TString& pipePath,
     const IPollerPtr& poller,
-    const TIntrusivePtr<TRefCounted>& pipeHolder)
+    const TRefCountedPtr& pipeHolder)
 {
     return New<TFDConnection>(fd, pipePath, poller, pipeHolder);
 }
@@ -1023,7 +1023,7 @@ IConnectionReaderPtr CreateInputConnectionFromFD(
 IConnectionReaderPtr CreateInputConnectionFromPath(
     const TString& pipePath,
     const IPollerPtr& poller,
-    const TIntrusivePtr<TRefCounted>& pipeHolder)
+    const TRefCountedPtr& pipeHolder)
 {
     int flags = O_RDONLY | O_CLOEXEC | O_NONBLOCK;
     int fd = HandleEintr(::open, pipePath.c_str(), flags);
@@ -1039,7 +1039,7 @@ IConnectionReaderPtr CreateInputConnectionFromPath(
 IConnectionWriterPtr CreateOutputConnectionFromPath(
     const TString& pipePath,
     const IPollerPtr& poller,
-    const TIntrusivePtr<TRefCounted>& pipeHolder)
+    const TRefCountedPtr& pipeHolder)
 {
     int flags = O_WRONLY | O_CLOEXEC;
     int fd = HandleEintr(::open, pipePath.c_str(), flags);

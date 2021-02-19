@@ -174,7 +174,7 @@ public:
 private:
     int SerializationKeyIndex_ = 0;
     THashMap<void*, TEntitySerializationKey> RawPtrs_;
-    THashMap<TIntrusivePtr<TRefCounted>, TEntitySerializationKey> RefCountedPtrs_;
+    THashMap<TRefCountedPtr, TEntitySerializationKey> RefCountedPtrs_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
