@@ -12,6 +12,25 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTaskName::TTaskName(TString taskName)
+    : TaskName_(std::move(taskName))
+{ }
+
+TTaskName::TTaskName(const char* taskName)
+    : TaskName_(taskName)
+{ }
+
+TTaskName::TTaskName(ETaskName taskName)
+    : TaskName_(::ToString(taskName))
+{ }
+
+const TString& TTaskName::Get() const
+{
+    return TaskName_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCommandRawJob::TCommandRawJob(TStringBuf command)
     : Command_(command)
 { }

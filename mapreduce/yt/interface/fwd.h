@@ -255,9 +255,6 @@ namespace NYT {
     // job_statistics.h
     ////////////////////////////////////////////////////////////////////////////////
 
-    enum class EJobState : int;
-    enum class EJobType : int;
-
     class TJobStatistics;
 
     template <typename T>
@@ -331,6 +328,9 @@ namespace NYT {
     enum class EFinishedJobState : int;
 
     enum class EJobType : int;
+    enum class EJobState : int;
+    enum class ETaskName : int;
+    class TTaskName;
 
     struct TJobBinaryDefault;
 

@@ -33,23 +33,47 @@ TDuration ConvertJobStatisticsEntry(i64 value)
 
 ////////////////////////////////////////////////////////////////////
 
+static TTaskName JobTypeToTaskName(EJobType jobType)
+{
+    switch (jobType) {
+        case EJobType::PartitionMap:
+            return ETaskName::PartitionMap0;
+        case EJobType::Partition:
+            return ETaskName::Partition0;
+        default:
+            return ::ToString(jobType);
+    }
+}
+
+static TTaskName FixTaskName(TString taskName)
+{
+    if (taskName == "partition") {
+        return ETaskName::Partition0;
+    } else if (taskName == "partition_map") {
+        return ETaskName::PartitionMap0;
+    }
+    return taskName;
+}
+
+////////////////////////////////////////////////////////////////////
+
 class TJobStatistics::TData
     : public TThrRefBase
 {
 public:
-    using TType2Data = THashMap<EJobType, TJobStatistics::TDataEntry>;
-    using TState2Type2Data = THashMap<EJobState, TType2Data>;
-    using TName2State2Type2Data = THashMap<TString, TState2Type2Data>;
+    using TTaskName2Data = THashMap<TString, TJobStatistics::TDataEntry>;
+    using TState2TaskName2Data = THashMap<EJobState, TTaskName2Data>;
+    using TName2State2TaskName2Data = THashMap<TString, TState2TaskName2Data>;
 
 public:
-    TName2State2Type2Data Name2State2Type2Data;
+    TName2State2TaskName2Data Name2State2TaskName2Data;
 
 public:
     TData() = default;
 
     TData(const TNode& statisticsNode)
     {
-        ParseNode(statisticsNode, TString(), &Name2State2Type2Data);
+        ParseNode(statisticsNode, TString(), &Name2State2TaskName2Data);
     }
 
     static void Aggregate(TJobStatistics::TDataEntry* result, const TJobStatistics::TDataEntry& other)
@@ -60,7 +84,7 @@ public:
         result->Count += other.Count;
     }
 
-    static void ParseNode(const TNode& node, TState2Type2Data* output)
+    static void ParseNode(const TNode& node, TState2TaskName2Data* output)
     {
         auto getInt = [] (const TNode& theNode, TStringBuf key) {
             const auto& nodeAsMap = theNode.AsMap();
@@ -75,23 +99,14 @@ public:
             return valueNode.AsInt64();
         };
 
-        for (const auto& item1 : node.AsMap()) {
-            const auto& stateStr = item1.first;
+        for (const auto& [stateStr, taskName2DataNode] : node.AsMap()) {
             EJobState state;
             if (!TryFromString(stateStr, state)) {
                 continue;
             }
-            const auto& type2DataNode = item1.second;
-            for (const auto& item2 : type2DataNode.AsMap()) {
-                const auto& typeStr = item2.first;
-                EJobType type;
-                if (!TryFromString(typeStr, type)) {
-                    continue;
-                }
-                const auto& dataNode = item2.second;
-
-                auto& data = (*output)[state][type];
-
+            for (const auto& [taskName, dataNode] : taskName2DataNode.AsMap()) {
+                auto fixedTaskName = FixTaskName(taskName);
+                auto& data = (*output)[state][fixedTaskName.Get()];
                 data.Max = getInt(dataNode, "max");
                 data.Min = getInt(dataNode, "min");
                 data.Sum = getInt(dataNode, "sum");
@@ -100,13 +115,11 @@ public:
         }
     }
 
-    static void ParseNode(const TNode& node, const TString& curPath, TName2State2Type2Data* output)
+    static void ParseNode(const TNode& node, const TString& curPath, TName2State2TaskName2Data* output)
     {
         Y_VERIFY(node.IsMap());
 
-        for (const auto& child : node.AsMap()) {
-            const auto& key = child.first;
-            const auto& value = child.second;
+        for (const auto& [key, value] : node.AsMap()) {
             if (key == AsStringBuf("$")) {
                 ParseNode(value, &(*output)[curPath]);
             } else {
@@ -132,7 +145,7 @@ public:
 struct TJobStatistics::TFilter
     : public TThrRefBase
 {
-    TVector<EJobType> JobTypeFilter;
+    TVector<TTaskName> TaskNameFilter;
     TVector<EJobState> JobStateFilter = {EJobState::Completed};
 };
 
@@ -153,7 +166,7 @@ TJobStatistics::TJobStatistics(const NYT::TNode& statisticsNode)
 
 TJobStatistics::TJobStatistics(::TIntrusivePtr<TData> data, ::TIntrusivePtr<TFilter> filter)
     : Data_(data)
-    , Filter_(filter)
+    , Filter_(::MakeIntrusive<TFilter>(*filter))
 { }
 
 TJobStatistics::TJobStatistics(const TJobStatistics& jobStatistics) = default;
@@ -164,27 +177,32 @@ TJobStatistics& TJobStatistics::operator=(TJobStatistics&& jobStatistics) = defa
 
 TJobStatistics::~TJobStatistics() = default;
 
-TJobStatistics TJobStatistics::JobType(TVector<EJobType> filter) const
+TJobStatistics TJobStatistics::TaskName(TVector<TTaskName> taskNames) const
 {
-    auto newFilter = ::MakeIntrusive<TFilter>();
-    newFilter->JobTypeFilter = std::move(filter);
-    newFilter->JobStateFilter = Filter_->JobStateFilter;
-
+    auto newFilter = ::MakeIntrusive<TFilter>(*Filter_);
+    newFilter->TaskNameFilter = std::move(taskNames);
     return TJobStatistics(Data_, std::move(newFilter));
 }
 
-TJobStatistics TJobStatistics::JobState(TVector<EJobState> filter) const
+TJobStatistics TJobStatistics::JobState(TVector<EJobState> jobStates) const
 {
-    auto newFilter = ::MakeIntrusive<TFilter>();
-    newFilter->JobTypeFilter = Filter_->JobTypeFilter;
-    newFilter->JobStateFilter = std::move(filter);
-
+    auto newFilter = ::MakeIntrusive<TFilter>(*Filter_);
+    newFilter->JobStateFilter = std::move(jobStates);
     return TJobStatistics(Data_, std::move(newFilter));
+}
+
+TJobStatistics TJobStatistics::JobType(TVector<EJobType> jobTypes) const
+{
+    TVector<TTaskName> taskNames;
+    for (auto jobType : jobTypes) {
+        taskNames.push_back(JobTypeToTaskName(jobType));
+    }
+    return TaskName(std::move(taskNames));
 }
 
 bool TJobStatistics::HasStatistics(TStringBuf name) const
 {
-    return Data_->Name2State2Type2Data.contains(name);
+    return Data_->Name2State2TaskName2Data.contains(name);
 }
 
 TJobStatisticsEntry<i64> TJobStatistics::GetStatistics(TStringBuf name) const
@@ -195,8 +213,8 @@ TJobStatisticsEntry<i64> TJobStatistics::GetStatistics(TStringBuf name) const
 TVector<TString> TJobStatistics::GetStatisticsNames() const
 {
     TVector<TString> result;
-    result.reserve(Data_->Name2State2Type2Data.size());
-    for (const auto& entry : Data_->Name2State2Type2Data) {
+    result.reserve(Data_->Name2State2TaskName2Data.size());
+    for (const auto& entry : Data_->Name2State2TaskName2Data) {
         result.push_back(entry.first);
     }
     return result;
@@ -215,7 +233,7 @@ TJobStatisticsEntry<i64> TJobStatistics::GetCustomStatistics(TStringBuf name) co
 TVector<TString> TJobStatistics::GetCustomStatisticsNames() const
 {
     TVector<TString> result;
-    for (const auto& entry : Data_->Name2State2Type2Data) {
+    for (const auto& entry : Data_->Name2State2TaskName2Data) {
         if (entry.first.StartsWith(CustomStatisticsNamePrefix_)) {
             result.push_back(entry.first.substr(CustomStatisticsNamePrefix_.size()));
         }
@@ -225,9 +243,11 @@ TVector<TString> TJobStatistics::GetCustomStatisticsNames() const
 
 TMaybe<TJobStatistics::TDataEntry> TJobStatistics::GetStatisticsImpl(TStringBuf name) const
 {
-    auto name2State2Type2DataIt = Data_->Name2State2Type2Data.find(name);
-    Y_ENSURE(name2State2Type2DataIt != Data_->Name2State2Type2Data.end(), "Statistics '" << name << "' are missing");
-    const auto& state2Type2Data = name2State2Type2DataIt->second;
+    auto name2State2TaskName2DataIt = Data_->Name2State2TaskName2Data.find(name);
+    Y_ENSURE(
+        name2State2TaskName2DataIt != Data_->Name2State2TaskName2Data.end(),
+        "Statistics '" << name << "' are missing");
+    const auto& state2TaskName2Data = name2State2TaskName2DataIt->second;
 
     TMaybe<TDataEntry> result;
     auto aggregate = [&] (const TDataEntry& data) {
@@ -238,16 +258,15 @@ TMaybe<TJobStatistics::TDataEntry> TJobStatistics::GetStatisticsImpl(TStringBuf 
         }
     };
 
-    auto aggregateType2Data = [&] (const TData::TType2Data& type2Data) {
-        if (Filter_->JobTypeFilter.empty()) {
-            for (const auto& item : type2Data) {
-                const auto& data = item.second;
+    auto aggregateTaskName2Data = [&] (const TData::TTaskName2Data& taskName2Data) {
+        if (Filter_->TaskNameFilter.empty()) {
+            for (const auto& [taskName, data] : taskName2Data) {
                 aggregate(data);
             }
         } else {
-            for (const auto& type : Filter_->JobTypeFilter) {
-                auto it = type2Data.find(type);
-                if (it == type2Data.end()) {
+            for (const auto& taskName : Filter_->TaskNameFilter) {
+                auto it = taskName2Data.find(taskName.Get());
+                if (it == taskName2Data.end()) {
                     continue;
                 }
                 const auto& data = it->second;
@@ -257,18 +276,17 @@ TMaybe<TJobStatistics::TDataEntry> TJobStatistics::GetStatisticsImpl(TStringBuf 
     };
 
     if (Filter_->JobStateFilter.empty()) {
-        for (const auto& item: state2Type2Data) {
-            const auto& type2Data = item.second;
-            aggregateType2Data(type2Data);
+        for (const auto& [state, taskName2Data] : state2TaskName2Data) {
+            aggregateTaskName2Data(taskName2Data);
         }
     } else {
         for (auto state : Filter_->JobStateFilter) {
-            auto it = state2Type2Data.find(state);
-            if (it == state2Type2Data.end()) {
+            auto it = state2TaskName2Data.find(state);
+            if (it == state2TaskName2Data.end()) {
                 continue;
             }
-            const auto& type2Data = it->second;
-            aggregateType2Data(type2Data);
+            const auto& taskName2Data = it->second;
+            aggregateTaskName2Data(taskName2Data);
         }
     }
 

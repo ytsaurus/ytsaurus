@@ -139,4 +139,119 @@ Y_UNIT_TEST_SUITE(JobStatistics)
         UNIT_ASSERT_VALUES_EQUAL(stat.GetCustomStatistics("some/path").Max(), -1);
         UNIT_ASSERT_VALUES_EQUAL(stat.GetCustomStatistics("another/path").Avg(), 1001);
     }
+
+    Y_UNIT_TEST(TaskNames)
+    {
+        const TString input = R"""(
+            {
+               "data" = {
+                  "output" = {
+                      "0" = {
+                          "uncompressed_data_size" = {
+                              "$" = {
+                                  "completed" = {
+                                      "partition_map" = {
+                                          "max" = 130;
+                                          "count" = 1;
+                                          "min" = 130;
+                                          "sum" = 130;
+                                      };
+                                      "partition(0)" = {
+                                          "max" = 42;
+                                          "count" = 1;
+                                          "min" = 42;
+                                          "sum" = 42;
+                                      };
+                                  };
+                                  "aborted" = {
+                                      "simple_sort" = {
+                                          "max" = 24;
+                                          "count" = 1;
+                                          "min" = 24;
+                                          "sum" = 24;
+                                      };
+                                  };
+                              };
+                          };
+                      };
+                  };
+              };
+            })""";
+
+        TJobStatistics stat(NodeFromYsonString(input));
+
+        UNIT_ASSERT(stat.HasStatistics("data/output/0/uncompressed_data_size"));
+        UNIT_ASSERT(!stat.HasStatistics("nonexistent-statistics"));
+        UNIT_ASSERT_EXCEPTION_CONTAINS(stat.GetStatistics("BLAH-BLAH"), yexception, "Statistics");
+
+        UNIT_ASSERT_VALUES_EQUAL(stat.GetStatisticsNames(), TVector<TString>{"data/output/0/uncompressed_data_size"});
+
+        UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Max(), 130);
+        UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Count(), 2);
+        UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Min(), 42);
+        UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Sum(), 172);
+        UNIT_ASSERT_VALUES_EQUAL(stat.GetStatistics("data/output/0/uncompressed_data_size").Avg(), 172 / 2);
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            stat
+                .JobState({EJobState::Aborted})
+                .GetStatistics("data/output/0/uncompressed_data_size")
+                .Sum(),
+            24);
+        UNIT_ASSERT_VALUES_EQUAL(
+            stat
+                .JobType({EJobType::Partition})
+                .JobState({EJobState::Aborted})
+                .GetStatistics("data/output/0/uncompressed_data_size")
+                .Sum(),
+            TMaybe<i64>());
+        UNIT_ASSERT_VALUES_EQUAL(
+            stat
+                .TaskName({"partition(0)"})
+                .GetStatistics("data/output/0/uncompressed_data_size")
+                .Sum(),
+            42);
+        UNIT_ASSERT_VALUES_EQUAL(
+            stat
+                .TaskName({"partition"})
+                .GetStatistics("data/output/0/uncompressed_data_size")
+                .Sum(),
+            TMaybe<i64>());
+        UNIT_ASSERT_VALUES_EQUAL(
+            stat
+                .TaskName({"partition_map(0)"})
+                .GetStatistics("data/output/0/uncompressed_data_size")
+                .Sum(),
+            130);
+        UNIT_ASSERT_VALUES_EQUAL(
+            stat
+                .JobType({EJobType::Partition})
+                .GetStatistics("data/output/0/uncompressed_data_size")
+                .Sum(),
+            42);
+        UNIT_ASSERT_VALUES_EQUAL(
+            stat
+                .JobType({EJobType::PartitionMap})
+                .GetStatistics("data/output/0/uncompressed_data_size")
+                .Sum(),
+            130);
+        UNIT_ASSERT_VALUES_EQUAL(
+            stat
+                .TaskName({ETaskName::Partition0})
+                .GetStatistics("data/output/0/uncompressed_data_size")
+                .Sum(),
+            42);
+        UNIT_ASSERT_VALUES_EQUAL(
+            stat
+                .TaskName({ETaskName::Partition1})
+                .GetStatistics("data/output/0/uncompressed_data_size")
+                .Sum(),
+            TMaybe<i64>());
+        UNIT_ASSERT_VALUES_EQUAL(
+            stat
+                .TaskName({ETaskName::PartitionMap0})
+                .GetStatistics("data/output/0/uncompressed_data_size")
+                .Sum(),
+            130);
+    }
 }

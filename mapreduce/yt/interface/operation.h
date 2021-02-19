@@ -1581,6 +1581,42 @@ enum class EJobType : int
     ReplicatorLast    /* "replicator_last" */,
 };
 
+/// @brief Well-known task names.
+enum class ETaskName : int
+{
+    Map               /* "map" */,
+    PartitionMap0     /* "partition_map(0)" */,
+    SortedMerge       /* "sorted_merge" */,
+    OrderedMerge      /* "ordered_merge" */,
+    UnorderedMerge    /* "unordered_merge" */,
+    Partition0        /* "partition(0)" */,
+    Partition1        /* "partition(1)" */,
+    Partition2        /* "partition(2)" */,
+    SimpleSort        /* "simple_sort" */,
+    FinalSort         /* "final_sort" */,
+    SortedReduce      /* "sorted_reduce" */,
+    PartitionReduce   /* "partition_reduce" */,
+    ReduceCombiner    /* "reduce_combiner" */,
+    RemoteCopy        /* "remote_copy" */,
+    IntermediateSort  /* "intermediate_sort" */,
+    OrderedMap        /* "ordered_map" */,
+    JoinReduce        /* "join_reduce" */,
+};
+
+class TTaskName
+{
+public:
+    // Constructors are implicit by design.
+    TTaskName(TString taskName);
+    TTaskName(const char* taskName);
+    TTaskName(ETaskName taskName);
+
+    const TString& Get() const;
+
+private:
+    TString TaskName_;
+};
+
 enum class EJobState : int
 {
     None       /* "none" */,
