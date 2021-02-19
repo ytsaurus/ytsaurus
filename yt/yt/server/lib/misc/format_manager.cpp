@@ -100,7 +100,7 @@ void TFormatManager::ValidateAndPatchOperationSpec(
     }
 }
 
-void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, const TString& origin) const
+void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, TString origin) const
 {
     EFormatType formatType;
     try {
@@ -125,9 +125,9 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, cons
     if (AuthenticatedUser_ != NSecurityClient::RootUserName && !formatConfig->Enable) {
         TString errorMessage;
         if (userOverride) {
-            errorMessage = Format("Format %Qv is disabled for user %v", formatType, AuthenticatedUser_);
+            errorMessage = Format("Format %Qlv is disabled for user %Qv", formatType, AuthenticatedUser_);
         } else {
-            errorMessage = Format("Format %Qv is disabled", formatType);
+            errorMessage = Format("Format %Qlv is disabled", formatType);
         }
         THROW_ERROR_EXCEPTION(NApi::EErrorCode::FormatDisabled, errorMessage)
             << TErrorAttribute("origin", origin);
@@ -147,7 +147,7 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, cons
     }
 }
 
-TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, const TString& origin) const
+TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, TString origin) const
 {
     ValidateAndPatchFormatNode(formatNode, origin);
     try {
