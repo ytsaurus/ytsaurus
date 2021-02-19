@@ -64,6 +64,11 @@ private:
         const std::vector<TPermissionKey>& keys,
         bool isPeriodicUpdate) noexcept override;
 
+    //! This method allows overloading logic of which errors should be cached during background entry update.
+    //! By default all errors are cached, but when background update is performed using cache user,
+    //! you may want to discard unrelated errors (like request queue size exceeded) from being cached.
+    virtual bool CanCacheError(const TError& error) noexcept override;
+
     NApi::TMasterReadOptions GetMasterReadOptions();
 
     //! Make proper request for given key: `TReqCheckPermission` for keys with `Object` set,

@@ -64,6 +64,8 @@ protected:
     //! Called under read or write lock.
     virtual void OnHit(const TKey& key) noexcept;
 
+    virtual bool CanCacheError(const TError& error) noexcept;
+
 private:
     const NLogging::TLogger Logger_;
 
