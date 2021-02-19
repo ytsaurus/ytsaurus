@@ -172,7 +172,7 @@ public class FailoverRpcExecutor {
             requestsError++;
             lastRequestError = error;
             if (!result.isDone()) {
-                boolean isRetriable = failoverPolicy.onError(request, error);
+                boolean isRetriable = failoverPolicy.onError(error);
                 if (!isRetriable) {
                     result.completeExceptionally(error);
                 } else if (!stopped && requestsSent < attemptCount) {
