@@ -122,7 +122,7 @@ private:
     // TODO(ifsmirnov): MPSC queue collector thread that handles reordering and throttling.
     std::atomic<i64> SequenceNumber_{0};
 
-    std::atomic_bool Enabled_;
+    std::atomic_bool Enabled_{true};
 
     TTabletNodeDynamicConfigPtr Config_;
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
