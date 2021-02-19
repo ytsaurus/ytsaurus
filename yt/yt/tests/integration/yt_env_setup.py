@@ -537,9 +537,12 @@ class YTEnvSetup(object):
         gc.collect()
 
         class_duration = time() - cls._start_time
-        if class_duration > 5 * 60:
-            pytest.fail("Test class execution took more that 5 minutes ({} seconds).\n".format(class_duration) + 
-                "Please split it into smaller chunks, using NUM_TEST_PARTITIONS option.")
+        class_limit = (10 * 60) if is_asan_build() else (5 * 60)
+
+        if class_duration > class_limit:
+            pytest.fail("Test class execution took more that {} seconds ({} seconds).\n".format(class_limit, class_duration) + 
+                "Check test stdout for detailed duration report.\n" +
+                "You can split class into smaller chunks, using NUM_TEST_PARTITIONS option.")
 
     def setup_method(self, method):
         for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
