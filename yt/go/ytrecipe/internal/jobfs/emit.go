@@ -41,7 +41,16 @@ func emitDir(l log.Structured, w mapreduce.Writer, dir string) error {
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if errors.Is(err, os.ErrPermission) {
-			l.Warn("file walk failed", log.Error(err))
+			l.Warn("file walk failed",
+				log.String("path", path),
+				log.Error(err))
+			return nil
+		}
+
+		if os.IsNotExist(err) {
+			l.Warn("file walk failed",
+				log.String("path", path),
+				log.Error(err))
 			return nil
 		}
 
@@ -56,13 +65,22 @@ func emitDir(l log.Structured, w mapreduce.Writer, dir string) error {
 		if info.IsDir() {
 			return w.Write(FileRow{FilePath: path, IsDir: true})
 		} else if info.Mode().IsRegular() {
-			return emitFile(l, w, path)
+			err := emitFile(l, w, path)
+			if os.IsNotExist(err) {
+				l.Warn("file vanished during dir walk",
+					log.String("path", path),
+					log.Error(err))
+
+				return nil
+			}
+			return err
 		}
 
 		return nil
 	})
 
 	if os.IsNotExist(err) {
+		l.Warn("file walk failed", log.String("dir", dir), log.Error(err))
 		return nil
 	}
 
