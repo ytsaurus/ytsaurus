@@ -31,7 +31,6 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     private final TRequestHeader.Builder header;
     private final RequestType body;
     private final List<byte[]> attachments = new ArrayList<>();
-    private boolean requestAck = true;
     private final RpcOptions options;
 
     RequestBuilderBase(TRequestHeader.Builder header, RequestType body, RpcOptions options) {
@@ -39,7 +38,6 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
         this.body = body;
         this.options = options;
         setTimeout(options.getGlobalTimeout());
-        setRequestAck(options.getDefaultRequestAck());
     }
 
     @Override
@@ -65,16 +63,6 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     @Override
     public List<byte[]> serialize() {
         return RpcUtil.createRequestMessage(header.build(), body.build(), attachments);
-    }
-
-    @Override
-    public boolean requestAck() {
-        return requestAck;
-    }
-
-    @Override
-    public void setRequestAck(boolean requestAck) {
-        this.requestAck = requestAck;
     }
 
     @Override
