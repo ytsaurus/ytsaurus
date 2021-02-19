@@ -42,7 +42,7 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("timestamp_provider_batch_period", TimestampProviderBatchPeriod)
         .Default(TDuration::MilliSeconds(10));
     RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
-        .Default(TDuration::Seconds(15));
+        .Default(TDuration::Seconds(30));
     RegisterParameter("default_select_rows_timeout", DefaultSelectRowsTimeout)
         .Default(TDuration::Seconds(30));
     RegisterParameter("default_total_streaming_timeout", DefaultTotalStreamingTimeout)
