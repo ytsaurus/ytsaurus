@@ -4,6 +4,6 @@
     cypress_root="//home/yt-integration-tests";
     run_as_root=%true;
     enable_network=%false;
-    blob_ttl=1209600000000000;
-    output_ttl=1209600000000000;
+    blob_ttl=604800000000000;
+    output_ttl=604800000000000;
 }
