@@ -797,6 +797,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
     NApi::TCreateNodeOptions options;
     options.Attributes = std::move(attributes);
+    options.Recursive = true;
     auto id = WaitFor(client->CreateNode(path.GetPath(), NObjectClient::EObjectType::Table, options))
         .ValueOrThrow();
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
