@@ -33,11 +33,6 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
     List<byte[]> attachments();
 
     /**
-     * Если requestAck == true, то клиент будет ждать подтверждения о доставке от сервера
-     */
-    void setRequestAck(boolean requestAck);
-
-    /**
      * Имя пользователя
      */
     default String getUser() {

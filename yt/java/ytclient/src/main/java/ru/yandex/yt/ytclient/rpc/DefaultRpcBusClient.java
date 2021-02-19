@@ -353,7 +353,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 session.register(this);
 
                 BusDeliveryTracking level =
-                        request.requestAck() ? BusDeliveryTracking.FULL : BusDeliveryTracking.SENT;
+                        options.getDefaultRequestAck() ? BusDeliveryTracking.FULL : BusDeliveryTracking.SENT;
 
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {
                     Duration elapsed = Duration.between(started, Instant.now());
@@ -379,7 +379,7 @@ public class DefaultRpcBusClient implements RpcClient {
                     }
 
                     if (acknowledgementTimeout != null
-                            && request.requestAck()
+                            && options.getDefaultRequestAck()
                             && state.step < RequestState.ACKED.step)
                     {
                         ackTimeoutFuture = session.eventLoop().schedule(

@@ -23,11 +23,6 @@ public interface RpcClientRequest {
     List<byte[]> serialize();
 
     /**
-     * Возвращает true, если от запроса требуется подтверждение о доставке
-     */
-    boolean requestAck();
-
-    /**
      * Возвращает id запроса
      */
     default GUID getRequestId() {
