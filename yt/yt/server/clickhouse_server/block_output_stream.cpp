@@ -69,7 +69,7 @@ protected:
     TNameTablePtr NameTable_;
     TLogger Logger;
 
-    using THolderPtr = TIntrusivePtr<TRefCounted>;
+    using THolderPtr = TRefCountedPtr;
     // Holder contains smart pointers to data referred by rows. Rows can be accessed safely as long as holder is alive.
     virtual void DoWriteRows(TSharedRange<TUnversionedRow> rows) = 0;
 

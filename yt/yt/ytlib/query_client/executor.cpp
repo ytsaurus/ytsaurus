@@ -67,7 +67,7 @@ using NHiveClient::TCellDescriptor;
 ////////////////////////////////////////////////////////////////////////////////
 
 using TShardIt = const TTabletInfoPtr*;
-using THolder = TIntrusivePtr<TRefCounted>;
+using THolder = TRefCountedPtr;
 
 template <>
 TRow GetPivotKey(const TTabletInfoPtr& shard)

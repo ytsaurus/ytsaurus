@@ -255,12 +255,12 @@ public:
 
     void AddFuncCounter(
         const TString& name,
-        const TIntrusivePtr<TRefCounted>& owner,
+        const TRefCountedPtr& owner,
         std::function<i64()> reader) const;
 
     void AddFuncGauge(
         const TString& name,
-        const TIntrusivePtr<TRefCounted>& owner,
+        const TRefCountedPtr& owner,
         std::function<double()> reader) const;
 
     void AddProducer(

@@ -145,7 +145,7 @@ void TSolomonRegistry::RegisterFuncCounter(
     const TString& name,
     const TTagSet& tags,
     TSensorOptions options,
-    const TIntrusivePtr<TRefCounted>& owner,
+    const TRefCountedPtr& owner,
     std::function<i64()> reader)
 {
     DoRegister([this, name, tags, options, owner, reader] () {
@@ -158,7 +158,7 @@ void TSolomonRegistry::RegisterFuncGauge(
     const TString& name,
     const TTagSet& tags,
     TSensorOptions options,
-    const TIntrusivePtr<TRefCounted>& owner,
+    const TRefCountedPtr& owner,
     std::function<double()> reader)
 {
     DoRegister([this, name, tags, options, owner, reader] () {
@@ -348,7 +348,7 @@ void TSolomonRegistry::LegacyReadSensors()
 {
     for (auto [name, set] : Sensors_) {
         set.LegacyReadSensors(name, &Tags_);
-    }    
+    }
 
     Producers_.LegacyReadSensors();
 }

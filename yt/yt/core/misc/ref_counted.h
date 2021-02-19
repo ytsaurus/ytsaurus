@@ -129,6 +129,8 @@ struct TRefCounted
 template <class T>
 class TIntrusivePtr;
 
+using TRefCountedPtr = TIntrusivePtr<TRefCounted>;
+
 // A bunch of helpful macros that enable working with intrusive pointers to incomplete types.
 /*
  *  Typically when you have a forward-declared type |T| and an instance

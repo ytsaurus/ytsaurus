@@ -274,7 +274,7 @@ TMutableRef TSharedRefArrayBuilder::AllocateAndAdd(size_t size)
     YT_ASSERT(CurrentAllocationPtr_ + size <= Impl_->GetBeginAllocationPtr() + AllocationCapacity_);
     TMutableRef ref(CurrentAllocationPtr_, size);
     CurrentAllocationPtr_ += size;
-    TIntrusivePtr<TRefCounted> holder(Impl_.Get(), false);
+    TRefCountedPtr holder(Impl_.Get(), false);
     TSharedRef sharedRef(ref, std::move(holder));
     Add(std::move(sharedRef));
     return ref;
