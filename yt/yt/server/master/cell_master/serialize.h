@@ -136,6 +136,7 @@ DEFINE_ENUM(EMasterReign,
     ((MigrateMinShareResourcesToStrongGuaranteeResources)           (1452))  // renadeen
     ((ForcedChunkViewCompactionRevision)                            (1453))  // ifsmirnov
     ((InternedAttributes)                                           (1454))  // babenko
+    ((HierarchicalIntegralLimitsFix)                                (1455))  // renadeen
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42

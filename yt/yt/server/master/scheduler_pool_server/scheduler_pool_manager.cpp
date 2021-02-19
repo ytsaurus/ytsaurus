@@ -294,8 +294,9 @@ private:
         }
     }
 
-    void RecomputePoolAncestryIntegralResources(TSchedulerPool* schedulerPool, const std::function<TResourceLimitsConfig*(TSchedulerPool*)>& resourcesGetter) {
-        TResourceLimitsConfigPtr()->ForEachResource(
+    void RecomputePoolAncestryIntegralResources(TSchedulerPool* schedulerPool, const std::function<TResourceLimitsConfig*(TSchedulerPool*)>& resourcesGetter)
+    {
+        New<TResourceLimitsConfig>()->ForEachResource(
             [&] (auto TResourceLimitsConfig::* resourceDataMember, EJobResourceType resourceType) {
                 using TResource = typename std::remove_reference_t<decltype(std::declval<TResourceLimitsConfig>().*resourceDataMember)>::value_type;
                 TResource value = (resourcesGetter(schedulerPool)->*resourceDataMember).value_or(0);
@@ -303,7 +304,8 @@ private:
                     auto* current = schedulerPool->GetParent();
                     while (!current->IsRoot()) {
                         resourcesGetter(current)->*resourceDataMember = (resourcesGetter(current)->*resourceDataMember).value_or(0) + value;
-                        current = schedulerPool->GetParent();
+                        current->SpecifiedAttributes()[EInternedAttributeKey::IntegralGuarantees] = ConvertToYsonString(current->FullConfig()->IntegralGuarantees);
+                        current = current->GetParent();
                     }
                 }
             });
@@ -350,7 +352,7 @@ private:
         SchedulerPoolTreeMap_.LoadValues(context);
         SchedulerPoolMap_.LoadValues(context);
 
-        NeedRecomputeIntegralResourcesHierarchically_ = context.GetVersion() < EMasterReign::HierarchicalIntegralLimits;
+        NeedRecomputeIntegralResourcesHierarchically_ = context.GetVersion() < EMasterReign::HierarchicalIntegralLimitsFix;
     }
 };
 
