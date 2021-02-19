@@ -37,8 +37,11 @@ TNodeId TResolveCacheNode::GetId() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResolveCache::TResolveCache(TNodeId rootNodeId)
+TResolveCache::TResolveCache(
+    TNodeId rootNodeId,
+    bool primaryMaster)
     : RootNodeId_(rootNodeId)
+    , PrimaryMaster_(primaryMaster)
 { }
 
 // Cf. TPathResolver::Resolve.
@@ -53,17 +56,20 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
     // Nullptr indicates that one must resolve the root.
     TResolveCacheNodePtr currentNode;
 
-    auto resolveRoot = [&] () -> TResolveCacheNodePtr {
+    auto resolveRoot = [&] {
         tokenizer.Advance();
-        tokenizer.Skip(NYPath::ETokenType::Ampersand);
+        bool ampersandSkipped = tokenizer.Skip(NYPath::ETokenType::Ampersand);
 
         switch (tokenizer.GetType()) {
             case ETokenType::EndOfStream:
-                return nullptr;
+                if (ampersandSkipped) {
+                    THROW_ERROR_EXCEPTION("YPath cannot end with ampersand");
+                }
+                return std::make_tuple(TNodeId(), false);
 
             case ETokenType::Slash:
                 tokenizer.Advance();
-                return FindNode(RootNodeId_);
+                return std::make_tuple(RootNodeId_, ampersandSkipped);
 
             case ETokenType::Literal: {
                 auto token = tokenizer.GetToken();
@@ -81,7 +87,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
                 }
                 tokenizer.Advance();
 
-                return FindNode(objectId);
+                return std::make_tuple(objectId, ampersandSkipped);
             }
 
             default:
@@ -94,7 +100,17 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
         ValidateYPathResolutionDepth(path, resolveDepth);
 
         if (!currentNode) {
-            currentNode = resolveRoot();
+            auto [rootId, ampersandSkipped] = resolveRoot();
+            if (!rootId) {
+                return std::nullopt;
+            }
+            if (!ampersandSkipped && PrimaryMaster_ && CellTagFromId(rootId) != CellTagFromId(RootNodeId_)) {
+                return TResolveResult{
+                    rootId,
+                    TYPath(tokenizer.GetInput())
+                };
+            }
+            currentNode = FindNode(rootId);
             if (!currentNode) {
                 return std::nullopt;
             }

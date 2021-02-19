@@ -58,11 +58,13 @@ class TResolveCache
     :  public TRefCounted
 {
 public:
-    explicit TResolveCache(TNodeId rootNodeId);
+    TResolveCache(
+        TNodeId rootNodeId,
+        bool primaryMaster);
 
     struct TResolveResult
     {
-        TNodeId PortalExitId;
+        TNodeId RemoteNodeId;
         NYPath::TYPath UnresolvedPathSuffix;
     };
     std::optional<TResolveResult> TryResolve(const NYPath::TYPath& path);
@@ -80,6 +82,7 @@ public:
 
 private:
     const TNodeId RootNodeId_;
+    const bool PrimaryMaster_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, IdToNodeLock_);
     THashMap<TNodeId, TResolveCacheNodePtr> IdToNode_;

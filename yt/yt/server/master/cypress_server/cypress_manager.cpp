@@ -836,9 +836,10 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
-        RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetMulticellManager()->GetCellTag());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, multicellManager->GetCellTag());
         RootShardId_ = MakeCypressShardId(RootNodeId_);
-        ResolveCache_ = New<TResolveCache>(RootNodeId_);
+        ResolveCache_ = New<TResolveCache>(RootNodeId_, multicellManager->IsPrimaryMaster());
 
         RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TInt64NodeTypeHandler>(Bootstrap_));
