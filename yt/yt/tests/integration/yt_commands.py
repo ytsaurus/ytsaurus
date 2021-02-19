@@ -1,10 +1,9 @@
 from __future__ import print_function
 
 from yt.environment.yt_env import set_environment_driver_logging_config
-from yt.environment import arcadia_interop
 
 import yt.yson as yson
-from yt_driver_bindings import Driver, Request, reopen_logs
+from yt_driver_bindings import Driver, Request, reopen_logs  # noqa
 from yt.common import (
     YtError,
     YtResponseError,
@@ -254,6 +253,32 @@ def change(dict, old, new):
 def flat(dict, key):
     if key in dict:
         dict[key] = flatten(dict[key])
+
+def get_at(obj, path, default):
+    parts = path.lstrip("/").split("/")
+    for part in parts[:-1]:
+        if isinstance(obj, dict):
+            obj = obj.get(part, {})
+        elif isinstance(obj, list):
+            if int(part) < len(obj):
+                obj = obj[int(part)]
+            else:
+                obj = {}
+        else:
+            raise RuntimeError("Failed to get at path (obj: {}, path: {})".format(obj, path))
+
+    last_part = parts[-1]
+    if isinstance(obj, dict):
+        obj = obj.get(last_part, default)
+    elif isinstance(obj, list):
+        if int(part) < len(obj):
+            obj = obj[int(part)]
+        else:
+            obj = default
+    else:
+        raise RuntimeError("Failed to get at path (obj: {}, path: {})".format(obj, path))
+
+    return obj
 
 
 def prepare_path(path):
@@ -1169,6 +1194,13 @@ class Operation(object):
     def get_runtime_state(self, **kwargs):
         return get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(self.id), **kwargs)
 
+    def get_runtime_progress(self, path=None, default=None):
+        progress = get("//sys/scheduler/orchid/scheduler/operations/{}/progress".format(self.id))
+        if path is None:
+            return progress
+        else:
+            return get_at(progress, path, default)
+
     def get_state(self, **kwargs):
         try:
             return get(self.get_path() + "/@state", verbose_error=False, **kwargs)
@@ -1516,7 +1548,7 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
     if "resource_limits" in kwargs["attributes"]:
         resource_limits = kwargs["attributes"]["resource_limits"]
         if isinstance(resource_limits, dict) and "master_memory" in resource_limits:
-            set_master_memory = resource_limits["master_memory"].get("total", 0) == 0                
+            set_master_memory = resource_limits["master_memory"].get("total", 0) == 0
 
     driver = kwargs.get("driver")
 

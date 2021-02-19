@@ -41,6 +41,7 @@ public:
     virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) override;
 
     virtual NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) override;
+    virtual NScheduler::TJobResources GetResourceUsage(const NScheduler::TSchedulingTagFilter& filter) override;
 
     virtual void Disconnect(const TError& error) override;
     virtual TInstant GetConnectionTime() const override;

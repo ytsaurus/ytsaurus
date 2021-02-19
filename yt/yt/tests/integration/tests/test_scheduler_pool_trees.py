@@ -877,11 +877,7 @@ class TestTentativePoolTrees(YTEnvSetup):
             track=False,
         )
 
-        op_pool_trees_path = (
-            "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/".format(op.id)
-        )
-        wait(lambda: exists(op_pool_trees_path + "other"))
-        assert get(op_pool_trees_path + "other/tentative")
+        wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/other/tentative"))
 
 
 class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):

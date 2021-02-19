@@ -84,6 +84,11 @@ TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilt
     return result;
 }
 
+TJobResources TSchedulerStrategyHost::GetResourceUsage(const TSchedulingTagFilter& filter)
+{
+    YT_VERIFY(false);
+}
+
 void TSchedulerStrategyHost::Disconnect(const TError& error)
 {
     YT_VERIFY(false);

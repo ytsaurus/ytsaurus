@@ -611,7 +611,7 @@ public:
                 const auto& treeNodeDescriptor = GetOrCrash(descriptorsPerPoolTree, treeId);
                 fluent
                     .Item(treeId).BeginMap()
-                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, tree, treeNodeDescriptor))
+                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, MakeStrong(this), tree, treeNodeDescriptor))
                     .EndMap();
             });
     }
@@ -1292,9 +1292,11 @@ private:
             .Item("scheduling_info_per_pool_tree")
                 .DoMapFor(pools, [&] (TFluentMap fluent, const std::pair<TString, TPoolName>& value) {
                     const auto& treeId = value.first;
+                    auto tree = GetTree(treeId);
+
                     fluent
                         .Item(treeId).BeginMap()
-                            .Do(BIND(method, GetTree(treeId), operationId))
+                            .Do(BIND(method, tree, operationId))
                         .EndMap();
                 });
     }
@@ -1544,7 +1546,7 @@ private:
         Host->UpdateNodesOnChangedTrees(treeIdToFilter);
     }
 
-    static void BuildTreeOrchid(
+    void BuildTreeOrchid(
         const ISchedulerTreePtr& tree,
         const std::vector<TExecNodeDescriptor>& descriptors,
         TFluentMap fluent)
@@ -1556,8 +1558,9 @@ private:
 
         fluent
             .Item("user_to_ephemeral_pools").Do(BIND(&ISchedulerTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
-            .Do(BIND(&ISchedulerTree::BuildOrchid, tree))
+            .Item("config").Value(tree->GetConfig())
             .Item("resource_limits").Value(resourceLimits)
+            .Item("resource_usage").Value(Host->GetResourceUsage(tree->GetNodesFilter()))
             .Item("node_count").Value(descriptors.size())
             .Item("node_addresses").BeginList()
                 .DoFor(descriptors, [&] (TFluentList fluent, const auto& descriptor) {

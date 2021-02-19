@@ -10,8 +10,6 @@ from yt_env_setup import (
 from yt_commands import *
 from yt_helpers import get_current_time, parse_yt_time
 
-from yt.yson import YsonEntity
-
 import pytest
 from flaky import flaky
 
@@ -1290,12 +1288,9 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", [{"x": "y"}])
 
-        def get_slot_index(op_id):
-            path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/slot_index".format(
-                op_id
-            )
-            wait(lambda: exists(path) and get(path) != YsonEntity())
-            return get(path)
+        def get_slot_index(op):
+            wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/slot_index") is not None)
+            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/slot_index")
 
         for i in xrange(3):
             self._create_table("//tmp/t_out_" + str(i))
@@ -1314,9 +1309,9 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
             track=False,
         )
 
-        assert get_slot_index(op1.id) == 0
-        assert get_slot_index(op2.id) == 1
-        assert get_slot_index(op3.id) == 2
+        assert get_slot_index(op1) == 0
+        assert get_slot_index(op2) == 1
+        assert get_slot_index(op3) == 2
 
         op2.track()  # this makes slot index 1 available again since operation is completed
 
@@ -1325,8 +1320,8 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
 
         time.sleep(2.0)
 
-        assert get_slot_index(op1.id) == 0
-        assert get_slot_index(op3.id) == 2
+        assert get_slot_index(op1) == 0
+        assert get_slot_index(op3) == 2
 
         op2 = map(
             command="sleep 1000; cat",
@@ -1335,7 +1330,7 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
             track=False,
         )
 
-        assert get_slot_index(op2.id) == 1
+        assert get_slot_index(op2) == 1
 
 
 ##################################################################

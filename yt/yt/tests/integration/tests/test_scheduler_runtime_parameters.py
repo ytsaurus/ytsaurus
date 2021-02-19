@@ -48,12 +48,7 @@ class TestRuntimeParameters(YTEnvSetup):
         )
         wait(lambda: op.get_state() == "running", iter=10)
 
-        progress_path = (
-            "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default".format(
-                op.id
-            )
-        )
-        assert get(progress_path + "/weight") == 5.0
+        assert op.get_runtime_progress("scheduling_info_per_pool_tree/default/weight", 0.0) == 5.0
 
         annotations_path = op.get_path() + "/@runtime_parameters/annotations"
         assert get(annotations_path) == {"foo": "abc"}
@@ -73,9 +68,9 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: are_almost_equal(get(default_tree_parameters_path + "/weight"), 3.0))
         wait(lambda: get(default_tree_parameters_path + "/resource_limits/user_slots") == 0)
 
-        wait(lambda: are_almost_equal(get(progress_path + "/weight"), 3.0))
+        wait(lambda: are_almost_equal(op.get_runtime_progress("scheduling_info_per_pool_tree/default/weight", 0.0), 3.0))
         # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
-        wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
+        wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/resource_limits/user_slots", 0) == 0, iter=5)
         wait(lambda: get(annotations_path) == {"foo": "bar"})
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
@@ -83,9 +78,9 @@ class TestRuntimeParameters(YTEnvSetup):
 
         op.ensure_running()
 
-        wait(lambda: are_almost_equal(get(progress_path + "/weight"), 3.0))
+        wait(lambda: are_almost_equal(op.get_runtime_progress("scheduling_info_per_pool_tree/default/weight", 0.0), 3.0))
         # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
-        wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
+        wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/resource_limits/user_slots", None) == 0, iter=5)
         wait(lambda: get(annotations_path) == {"foo": "bar"})
 
     @authors("renadeen")
@@ -99,10 +94,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
         update_op_parameters(op.id, parameters={"pool": "changed_pool"})
 
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(
-            op.id
-        )
-        wait(lambda: get(path) == "changed_pool")
+        wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/pool") == "changed_pool")
 
     @authors("renadeen", "ignat")
     def test_running_operation_counts_on_change_pool(self):
@@ -144,12 +136,7 @@ class TestRuntimeParameters(YTEnvSetup):
             parameters={"scheduling_options_per_pool_tree": {"custom": {"pool": "custom_pool2"}}},
         )
 
-        path = (
-            "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/custom/pool".format(
-                op.id
-            )
-        )
-        wait(lambda: get(path) == "custom_pool2")
+        wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/custom/pool") == "custom_pool2")
 
     @authors("renadeen")
     def test_operation_count_validation_on_change_pool(self):
@@ -162,10 +149,7 @@ class TestRuntimeParameters(YTEnvSetup):
         with pytest.raises(YtError):
             update_op_parameters(op.id, parameters={"pool": "full_pool"})
 
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(
-            op.id
-        )
-        assert get(path) == "initial_pool"
+        assert op.get_runtime_progress("scheduling_info_per_pool_tree/default/pool") == "initial_pool"
 
     @authors("renadeen")
     def test_change_pool_during_prepare_phase_bug(self):
@@ -257,10 +241,7 @@ class TestRuntimeParameters(YTEnvSetup):
         parameters = {"scheduling_options_per_pool_tree": {chosen_tree: {"pool": "pool2"}}}
         update_op_parameters(op.id, parameters=parameters)
 
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(
-            op.id
-        )
-        wait(lambda: get(path) == "pool2")
+        wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/pool") == "pool2")
 
     @authors("eshcherbin")
     def test_forbidden_during_materialization(self):
@@ -331,10 +312,7 @@ class TestRuntimeParameters(YTEnvSetup):
         parameters = {"scheduling_options_per_pool_tree": {"default": {"pool": "other_pool"}}}
         update_op_parameters(op.id, parameters=parameters)
 
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(
-            op.id
-        )
-        wait(lambda: get(path) == "other_pool")
+        wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/pool") == "other_pool")
 
     @authors("eshcherbin")
     def test_initial_resource_limits_per_tree(self):

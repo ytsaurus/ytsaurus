@@ -13,6 +13,7 @@ from yt_helpers import get_current_time, parse_yt_time, Metric
 from yt.yson import YsonEntity
 import yt.common
 import yt.environment.init_operation_archive as init_operation_archive
+from yt.environment import arcadia_interop
 
 from distutils.spawn import find_executable
 
@@ -394,14 +395,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         time.sleep(1.0)
         for index, op in enumerate(ops):
-            assert (
-                get(
-                    "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/fifo_index".format(
-                        op.id
-                    )
-                )
-                == 2 - index
-            )
+            assert op.get_runtime_progress("scheduling_info_per_pool_tree/default/fifo_index") == 2 - index
 
         for op in ops:
             op.track()
@@ -904,14 +898,10 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         )
         wait(lambda: op2.get_state() == "running")
 
-        get_slot_index = lambda op_id: get(
-            "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/slot_index".format(
-                op_id
-            )
-        )
+        get_slot_index = lambda op: op.get_runtime_progress("scheduling_info_per_pool_tree/default/slot_index", -1)
 
-        wait(lambda: get_slot_index(op1.id) == 0)
-        wait(lambda: get_slot_index(op2.id) == 1)
+        wait(lambda: get_slot_index(op1) == 0)
+        wait(lambda: get_slot_index(op2) == 1)
 
         range_ = (49999, 50000, 50001)
 
