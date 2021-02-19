@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/misc/property.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,6 +15,11 @@ constexpr int AllCrashSignals = -1;
 //! Singleton class which provides convenient interface for signal handler registration.
 class TSignalRegistry
 {
+public:
+    //! Flag enabling mechanism which protects multiple crash signal handlers from simultaneous
+    //! execution.
+    DEFINE_BYVAL_RW_PROPERTY(bool, EnableCrashSignalProtection, true);
+
 public:
     static TSignalRegistry* Get();
 
