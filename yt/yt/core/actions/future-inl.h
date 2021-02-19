@@ -507,7 +507,7 @@ protected:
 
     TFutureState(bool wellKnown, int promiseRefCount, int futureRefCount, int cancelableRefCount, TErrorOr<T>&& value)
         : TFutureState<void>(wellKnown, promiseRefCount, futureRefCount, cancelableRefCount, TError(static_cast<const TError&>(value)))
-        , Result_(value)
+        , Result_(std::move(value))
     { }
 
     TFutureState(bool wellKnown, int promiseRefCount, int futureRefCount, int cancelableRefCount, T&& value)
