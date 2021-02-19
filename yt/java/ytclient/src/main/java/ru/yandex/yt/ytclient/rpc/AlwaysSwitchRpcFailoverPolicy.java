@@ -5,7 +5,7 @@ package ru.yandex.yt.ytclient.rpc;
  */
 public class AlwaysSwitchRpcFailoverPolicy implements RpcFailoverPolicy {
     @Override
-    public boolean onError(RpcClientRequest request, Throwable error) {
+    public boolean onError(Throwable error) {
         return true;
     }
 

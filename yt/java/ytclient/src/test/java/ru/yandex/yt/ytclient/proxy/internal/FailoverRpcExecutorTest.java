@@ -301,7 +301,7 @@ public class FailoverRpcExecutorTest {
 
     private static class TestFailoverPolicy implements RpcFailoverPolicy {
         @Override
-        public boolean onError(RpcClientRequest request, Throwable error) {
+        public boolean onError(Throwable error) {
             return error.getMessage().contains("retriable");
         }
 
