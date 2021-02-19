@@ -114,7 +114,7 @@ public:
 
 public:
     TAsyncSemaphoreGuard();
-    TAsyncSemaphoreGuard(TAsyncSemaphoreGuard&& other);
+    TAsyncSemaphoreGuard(TAsyncSemaphoreGuard&& other) noexcept;
     ~TAsyncSemaphoreGuard();
 
     TAsyncSemaphoreGuard& operator=(TAsyncSemaphoreGuard&& other);

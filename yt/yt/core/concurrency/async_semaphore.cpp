@@ -199,7 +199,7 @@ void TProfiledAsyncSemaphore::Profile()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncSemaphoreGuard::TAsyncSemaphoreGuard(TAsyncSemaphoreGuard&& other)
+TAsyncSemaphoreGuard::TAsyncSemaphoreGuard(TAsyncSemaphoreGuard&& other) noexcept
 {
     MoveFrom(std::move(other));
 }
