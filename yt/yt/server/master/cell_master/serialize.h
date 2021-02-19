@@ -131,10 +131,11 @@ DEFINE_ENUM(EMasterReign,
     ((IncreaseUploadReplicationFactorUponFlush)                     (1447))  // akozhikhov
     ((BundleQuotas)                                                 (1448))  // ifsmirnov
     ((VerifySchedulerPoolStrongGuarantees)                          (1449))  // eshcherbin
-    ((InternedAttributes)                                           (1450))  // babenko
+    ((DoNotUseThisReignItConfictsWithReservedAttributes)            (1450))  // babenko
     ((HierarchicalIntegralLimits)                                   (1451))  // renadeen
     ((MigrateMinShareResourcesToStrongGuaranteeResources)           (1452))  // renadeen
     ((ForcedChunkViewCompactionRevision)                            (1453))  // ifsmirnov
+    ((InternedAttributes)                                           (1454))  // babenko
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42
