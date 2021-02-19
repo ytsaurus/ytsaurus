@@ -12,8 +12,6 @@
 #include <Access/AccessControlManager.h>
 #include <Access/User.h>
 
-#include <Poco/Net/HTTPServerRequest.h>
-#include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/URI.h>
 
 #include <common/getFQDNOrHostName.h>
@@ -28,7 +26,7 @@ using namespace NLogging;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMovedPermanentlyRequestHandler
-    : public Poco::Net::HTTPRequestHandler
+    : public DB::HTTPRequestHandler
 {
 public:
     TMovedPermanentlyRequestHandler(DB::IServer& server)
@@ -36,13 +34,13 @@ public:
     { }
 
     void handleRequest(
-        Poco::Net::HTTPServerRequest & /* request */,
-        Poco::Net::HTTPServerResponse & response) override
+        DB::HTTPServerRequest & /* request */,
+        DB::HTTPServerResponse & response) override
     {
         try {
             response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
-            response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_MOVED_PERMANENTLY);
-            response.send() << "Instance moved or is moving from this address.\n";
+            response.setStatusAndReason(DB::HTTPResponse::HTTP_MOVED_PERMANENTLY);
+            (*response.send()) << "Instance moved or is moving from this address.\n";
         } catch (...) {
             DB::tryLogCurrentException("MovedPermanentlyHandler");
         }
@@ -56,7 +54,7 @@ class THttpHandler
     : public DB::DynamicQueryHandler
 {
 public:
-    THttpHandler(THost* host, DB::IServer& server, const Poco::Net::HTTPServerRequest& request)
+    THttpHandler(THost* host, DB::IServer& server, const DB::HTTPServerRequest& request)
         : DB::DynamicQueryHandler(server, "handler")
         , Host_(host)
         , Server_(server)
@@ -78,7 +76,7 @@ public:
         }
     }
 
-    virtual void customizeContext(Poco::Net::HTTPServerRequest & /* request */, DB::Context& context) override
+    virtual void customizeContext(DB::HTTPServerRequest & /* request */, DB::Context& context) override
     {
         YT_VERIFY(TraceContext_);
 
@@ -87,14 +85,14 @@ public:
         SetupHostContext(Host_, context, QueryId_, TraceContext_, DataLensRequestId_);
     }
 
-    virtual void handleRequest(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response) override
+    virtual void handleRequest(DB::HTTPServerRequest& request, DB::HTTPServerResponse& response) override
     {
         response.set("X-Yt-Trace-Id", ToString(TraceContext_->GetTraceId()));
 
         auto userName = request.get("X-ClickHouse-User", "");
         if (userName.empty()) {
-            response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_UNAUTHORIZED);
-            response.send() << "User name should be specified via X-ClickHouse-User header" << std::endl;
+            response.setStatusAndReason(DB::HTTPResponse::HTTP_UNAUTHORIZED);
+            (*response.send()) << "User name should be specified via X-ClickHouse-User header" << std::endl;
             return;
         }
 
@@ -119,7 +117,7 @@ private:
     //! if X-Yt-Sampled = true.
     TTraceContextPtr SetupTraceContext(
         const TLogger& logger,
-        const Poco::Net::HTTPServerRequest& request)
+        const DB::HTTPServerRequest& request)
     {
         const auto& Logger = logger;
 
@@ -172,7 +170,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class THttpHandlerFactory
-    : public Poco::Net::HTTPRequestHandlerFactory
+    : public DB::HTTPRequestHandlerFactory
 {
 public:
     THttpHandlerFactory(THost* host, DB::IServer& server)
@@ -180,7 +178,7 @@ public:
         , Server_(server)
     { }
 
-    Poco::Net::HTTPRequestHandler* createRequestHandler(const Poco::Net::HTTPServerRequest& request) override
+    std::unique_ptr<DB::HTTPRequestHandler> createRequestHandler(const DB::HTTPServerRequest& request) override
     {
         Poco::URI uri(request.getURI());
 
@@ -192,11 +190,11 @@ public:
             (request.has("User-Agent") ? request.get("User-Agent") : "none"));
 
         // Light health-checking requests.
-        if (request.getMethod() == Poco::Net::HTTPServerRequest::HTTP_HEAD ||
-            request.getMethod() == Poco::Net::HTTPServerRequest::HTTP_GET)
+        if (request.getMethod() == DB::HTTPServerRequest::HTTP_HEAD ||
+            request.getMethod() == DB::HTTPServerRequest::HTTP_GET)
         {
             if (uri == "/" || uri == "/ping") {
-                return new DB::StaticRequestHandler(Server_, "Ok.\n");
+                return std::make_unique<DB::StaticRequestHandler>(Server_, "Ok.\n");
             }
         }
 
@@ -204,20 +202,20 @@ public:
         if (Host_->GetInstanceState() == EInstanceState::Stopped ||
             (cliqueId != request.end() && TString(cliqueId->second) != ToString(Host_->GetConfig()->CliqueId)))
         {
-            return new TMovedPermanentlyRequestHandler(Server_);
+            return std::make_unique<TMovedPermanentlyRequestHandler>(Server_);
         }
 
-        if (request.getMethod() == Poco::Net::HTTPServerRequest::HTTP_GET ||
-            request.getMethod() == Poco::Net::HTTPServerRequest::HTTP_POST)
+        if (request.getMethod() == DB::HTTPServerRequest::HTTP_GET ||
+            request.getMethod() == DB::HTTPServerRequest::HTTP_POST)
         {
             if ((uri.getPath() == "/") ||
                 (uri.getPath() == "/query")) {
-                auto* handler = new THttpHandler(Host_, Server_, request);
+                auto handler = std::make_unique<THttpHandler>(Host_, Server_, request);
                 return handler;
             }
         }
 
-        return new DB::NotFoundHandler();
+        return std::make_unique<DB::NotFoundHandler>();
     }
 
 private:
@@ -227,9 +225,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::HTTPRequestHandlerFactory::Ptr CreateHttpHandlerFactory(THost* host, DB::IServer& server)
+DB::HTTPRequestHandlerFactoryPtr CreateHttpHandlerFactory(THost* host, DB::IServer& server)
 {
-    return new THttpHandlerFactory(host, server);
+    return std::make_shared<THttpHandlerFactory>(host, server);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

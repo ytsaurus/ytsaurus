@@ -19,6 +19,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
+#include <Server/HTTP/HTTPServer.h>
 #include <Server/IServer.h>
 
 #include <Access/AccessControlManager.h>
@@ -40,7 +41,6 @@
 #include <Storages/System/attachSystemTables.h>
 
 #include <Poco/DirectoryIterator.h>
-#include <Poco/Net/HTTPServer.h>
 #include <Poco/Net/TCPServer.h>
 #include <Poco/ThreadPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
@@ -101,7 +101,7 @@ public:
         Cancelled_ = true;
 
         for (auto& server : Servers_) {
-            if (auto httpPtr = dynamic_cast<Poco::Net::HTTPServer*>(server.get())) {
+            if (auto httpPtr = dynamic_cast<DB::HTTPServer*>(server.get())) {
                 // Special method of HTTP Server, will break all active connections.
                 httpPtr->stopAll(true);
             } else {
@@ -336,7 +336,8 @@ private:
             httpParams->setTimeout(settings.receive_timeout);
             httpParams->setKeepAliveTimeout(keepAliveTimeout);
 
-            Servers_.emplace_back(std::make_unique<Poco::Net::HTTPServer>(
+            Servers_.emplace_back(std::make_unique<DB::HTTPServer>(
+                context(),
                 CreateHttpHandlerFactory(Host_, *this),
                 *ServerPool_,
                 socket,

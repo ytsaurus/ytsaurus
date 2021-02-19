@@ -2,15 +2,14 @@
 
 #include "private.h"
 
+#include <Server/HTTP/HTTPRequestHandlerFactory.h>
 #include <Server/IServer.h>
-
-#include <Poco/Net/HTTPRequestHandlerFactory.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::HTTPRequestHandlerFactory::Ptr CreateHttpHandlerFactory(THost* host, DB::IServer& server);
+DB::HTTPRequestHandlerFactoryPtr CreateHttpHandlerFactory(THost* host, DB::IServer& server);
 
 ////////////////////////////////////////////////////////////////////////////////
 
