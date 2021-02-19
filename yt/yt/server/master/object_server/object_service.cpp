@@ -902,7 +902,7 @@ private:
 
         subrequest->TargetPathRewrite = MakeYPathRewrite(
             subrequest->YPathExt->target_path(),
-            targetResolveResult->PortalExitId,
+            targetResolveResult->RemoteNodeId,
             targetResolveResult->UnresolvedPathSuffix);
 
         subrequest->AdditionalPathRewrites.emplace();
@@ -914,14 +914,14 @@ private:
                 return;
             }
 
-            if (CellTagFromId(additionalResolveResult->PortalExitId) != CellTagFromId(targetResolveResult->PortalExitId)) {
+            if (CellTagFromId(additionalResolveResult->RemoteNodeId) != CellTagFromId(targetResolveResult->RemoteNodeId)) {
                 MarkSubrequestLocal(subrequest);
                 return;
             }
 
             subrequest->AdditionalPathRewrites->push_back(MakeYPathRewrite(
                 additionalPath,
-                additionalResolveResult->PortalExitId,
+                additionalResolveResult->RemoteNodeId,
                 additionalResolveResult->UnresolvedPathSuffix));
         }
 
@@ -934,18 +934,18 @@ private:
                 return;
             }
 
-            if (CellTagFromId(prerequisiteResolveResult->PortalExitId) != CellTagFromId(targetResolveResult->PortalExitId)) {
+            if (CellTagFromId(prerequisiteResolveResult->RemoteNodeId) != CellTagFromId(targetResolveResult->RemoteNodeId)) {
                 MarkSubrequestLocal(subrequest);
                 return;
             }
 
             subrequest->PrerequisiteRevisionPathRewrites->push_back(MakeYPathRewrite(
                 prerequisitePath,
-                prerequisiteResolveResult->PortalExitId,
+                prerequisiteResolveResult->RemoteNodeId,
                 prerequisiteResolveResult->UnresolvedPathSuffix));
         }
 
-        MarkSubrequestRemoteCrossCell(subrequest, CellTagFromId(targetResolveResult->PortalExitId));
+        MarkSubrequestRemoteCrossCell(subrequest, CellTagFromId(targetResolveResult->RemoteNodeId));
     }
 
     void DecideSubrequestTypes()

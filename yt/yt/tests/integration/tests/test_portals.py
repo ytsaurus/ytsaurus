@@ -1241,6 +1241,16 @@ class TestPortals(YTEnvSetup):
         total_usage = get("//tmp/d/@recursive_resource_usage")
         assert cluster_resources_equal(total_usage, expected_usage)
 
+    @authors("babenko")
+    def test_id_path_resolve(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("map_node", "//tmp/p/a")
+        create("map_node", "//tmp/p/b")
+        create("document", "//tmp/p/b/x", attributes={"value": {"hello": "worldx"}})
+        create("document", "//tmp/p/b/y", attributes={"value": {"hello": "worldy"}})
+        id = get("//tmp/p/b/@id")
+        assert get("#{}/x".format(id)) == {"hello": "worldx"}
+
 
 ##################################################################
 
