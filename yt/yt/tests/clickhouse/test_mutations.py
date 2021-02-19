@@ -348,6 +348,18 @@ class TestMutations(ClickHouseTestBase):
             # assert get("//tmp/s2/@compression_codec") == "snappy"
 
     @authors("dakovalkov")
+    def test_create_table_with_intermediate_nodes(self):
+        with Clique(1, config_patch={"yt": {"create_table_default_attributes": {"foo": 42}}}) as clique:
+            clique.make_query(
+                'create table "//tmp/n1/n2/n3/n4/t"(test Int64) engine YtTable()'
+            )
+            assert normalize_schema(get("//tmp/n1/n2/n3/n4/t/@schema")) == make_schema(
+                [{"name": "test", "type": "int64", "required": True}],
+                strict=True,
+                unique_keys=False,
+            )
+
+    @authors("dakovalkov")
     def test_create_table_clear_cache(self):
         patch = get_object_attribute_cache_config(15000, 15000, 500)
         with Clique(1, config_patch=patch) as clique:
