@@ -41,6 +41,7 @@ TStaticClickHouseConfig::TStaticClickHouseConfig()
         OperationCache->ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
 
         PermissionCache->RefreshUser = ClickHouseUserName;
+        PermissionCache->AlwaysUseRefreshUser = false;
         PermissionCache->RefreshTime = TDuration::Minutes(1);
         PermissionCache->ExpireAfterFailedUpdateTime = TDuration::Minutes(2);
         PermissionCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(2);
