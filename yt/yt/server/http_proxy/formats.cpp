@@ -92,7 +92,7 @@ TFormat InferFormat(
         dataType == EDataType::Null ||
         dataType == EDataType::Binary))
     {
-        auto origin = Format("default format for %Qv and %Qv output data type", EDataType::Null, EDataType::Binary);
+        auto origin = Format("default format for %Qlv and %Qlv output data type", EDataType::Null, EDataType::Binary);
         return formatManager.ConvertToFormat(ConvertToNode(EFormatType::Yson), origin);
     }
 
@@ -105,19 +105,19 @@ TFormat InferFormat(
                 ytHeaderName)
                 << ex;
         }
-        return formatManager.ConvertToFormat(formatNode, Format("format from %v header", ytHeaderName));
+        return formatManager.ConvertToFormat(formatNode, Format("format from %Qv header", ytHeaderName));
     }
     INodePtr formatNode;
     if (mimeHeader) {
         auto contentType = StripString(*mimeHeader);
         formatNode = MimeTypeToFormatNode(contentType);
         if (formatNode) {
-            return formatManager.ConvertToFormat(formatNode, Format("format inferred from %v header", mimeHeaderName));
+            return formatManager.ConvertToFormat(formatNode, Format("format inferred from %Qv header", mimeHeaderName));
         }
     }
     formatNode = GetDefaultFormatNodeForDataType(dataType);
     auto direction = isOutput ? "output" : "input";
-    return formatManager.ConvertToFormat(formatNode, Format("%v format inferred from data type %Qv", direction, dataType));
+    return formatManager.ConvertToFormat(formatNode, Format("%v format inferred from data type %Qlv", direction, dataType));
 }
 
 TFormat InferHeaderFormat(const TFormatManager& formatManager, const TString* ytHeader)
