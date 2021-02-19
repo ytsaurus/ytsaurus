@@ -107,11 +107,6 @@ void DumpTimeInfo()
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
-// This variable is used for protecting CrashSignalHandler() from
-// dumping stuff while another thread is doing it. Our policy is to let
-// the first thread dump stuff and let other threads wait.
-std::atomic<pthread_t*> CrashingThreadId;
-
 NConcurrency::TFls<std::vector<TString>> CodicilsStack;
 
 //! Dump codicils.
@@ -450,37 +445,6 @@ void CrashTimeoutHandler(int signal)
 void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 {
     // All code here _MUST_ be async signal safe unless specified otherwise.
-
-    // We assume pthread_self() is async signal safe, though it's not
-    // officially guaranteed.
-    auto currentThreadId = pthread_self();
-    // NOTE: We could simply use pthread_t rather than pthread_t* for this,
-    // if pthread_self() is guaranteed to return non-zero value for thread
-    // ids, but there is no such guarantee. We need to distinguish if the
-    // old value (value returned from __sync_val_compare_and_swap) is
-    // different from the original value (in this case NULL).
-    pthread_t* expectedCrashingThreadId = nullptr;
-    if (!CrashingThreadId.compare_exchange_strong(expectedCrashingThreadId, &currentThreadId)) {
-        // We've already entered the signal handler. What should we do?
-        if (pthread_equal(currentThreadId, *expectedCrashingThreadId)) {
-            // It looks the current thread is reentering the signal handler.
-            // Something must be going wrong (maybe we are reentering by another
-            // type of signal?). Simply return from here and hope that the default signal handler
-            // (which is going to be executed after us by TSignalRegistry) will succeed in killing us.
-            // Otherwise, we will probably end up  running out of stack entering
-            // CrashSignalHandler over and over again. Not a bad thing, after all.
-            return;
-        } else {
-            // Another thread is dumping stuff. Let's wait until that thread
-            // finishes the job and kills the process.
-            while (true) {
-                sleep(1);
-            }
-        }
-    }
-
-    // This is the first time we enter the signal handler. We are going to
-    // do some interesting stuff from here.
 
     TRawFormatter<1024> formatter;
 

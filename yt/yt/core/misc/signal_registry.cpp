@@ -12,6 +12,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<int> CrashSignals = {SIGSEGV, SIGILL, SIGFPE, SIGABRT, SIGBUS};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// This variable is used for protecting signal handlers for crash signals from
+// dumping stuff while another thread is already doing that. Our policy is to let
+// the first thread dump stuff and make other threads wait.
+std::atomic<pthread_t*> CrashingThreadId;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSignalRegistry* TSignalRegistry::Get()
 {
     return Singleton<TSignalRegistry>();
@@ -78,6 +89,44 @@ void TSignalRegistry::PushDefaultSignalHandler(int signal)
 void TSignalRegistry::Handle(int signal, siginfo_t* siginfo, void* ucontext)
 {
     auto* self = Get();
+
+    if (self->EnableCrashSignalProtection_ &&
+        std::find(CrashSignals.begin(), CrashSignals.end(), signal) != CrashSignals.end()) {
+        // For crash signals we try pretty hard to prevent simultaneous execution of
+        // several crash handlers.
+
+        // We assume pthread_self() is async signal safe, though it's not
+        // officially guaranteed.
+        auto currentThreadId = pthread_self();
+        // NOTE: We could simply use pthread_t rather than pthread_t* for this,
+        // if pthread_self() is guaranteed to return non-zero value for thread
+        // ids, but there is no such guarantee. We need to distinguish if the
+        // old value (value returned from __sync_val_compare_and_swap) is
+        // different from the original value (in this case NULL).
+        pthread_t* expectedCrashingThreadId = nullptr;
+        if (!CrashingThreadId.compare_exchange_strong(expectedCrashingThreadId, &currentThreadId)) {
+            // We've already entered the signal handler. What should we do?
+            if (pthread_equal(currentThreadId, *expectedCrashingThreadId)) {
+                // It looks the current thread is reentering the signal handler.
+                // Something must be going wrong (maybe we are reentering by another
+                // type of signal?). Simply return from here and hope that the default signal handler
+                // (which is going to be executed after us by TSignalRegistry) will succeed in killing us.
+                // Otherwise, we will probably end up  running out of stack entering
+                // CrashSignalHandler over and over again. Not a bad thing, after all.
+                return;
+            } else {
+                // Another thread is dumping stuff. Let's wait until that thread
+                // finishes the job and kills the process.
+                while (true) {
+                    sleep(1);
+                }
+            }
+        }
+
+        // This is the first time we enter the signal handler.
+        // Let the rest of the handlers do their interesting stuff.
+    }
+
     for (const auto& callback : self->Signals_[signal].Callbacks) {
         callback(signal, siginfo, ucontext);
     }
