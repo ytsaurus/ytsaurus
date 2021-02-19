@@ -9,7 +9,7 @@ namespace NYT {
 //! A simple and high-performant drop-in replacement for |std::queue|.
 /*!
  *  Things to keep in mind:
- *  - Capacity is doubled each time it is exhausted and is never shrinked back.
+ *  - Capacity is doubled each time it is exhausted and is never shrunk back.
  *  - Iteration is supported but iterator movements involve calling |move_forward| and |move_backward|.
  *  - |T| must be nothrow move constructable.
  */
