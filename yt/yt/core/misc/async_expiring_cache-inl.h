@@ -366,16 +366,31 @@ void TAsyncExpiringCache<TKey, TValue>::SetResult(
     }
 
     auto now = NProfiling::GetCpuInstant();
-    auto expirationTime = valueOrError.IsOK() ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
-    entry->UpdateDeadline = now + NProfiling::DurationToCpuDuration(expirationTime);
-    if (entry->Promise.IsSet()) {
-        entry->Promise = MakePromise(valueOrError);
-        entry->Future = entry->Promise.ToFuture();
-    } else {
-        entry->Promise.Set(valueOrError);
+    bool canCacheEntry = valueOrError.IsOK() || CanCacheError(valueOrError);
+
+    auto expirationTime = TDuration::Zero();
+    if (canCacheEntry) {
+        if (valueOrError.IsOK()) {
+            expirationTime = Config_->ExpireAfterSuccessfulUpdateTime;
+        } else {
+            expirationTime = Config_->ExpireAfterFailedUpdateTime;
+        }
     }
 
-    if (now > entry->AccessDeadline || expirationTime == TDuration::Zero()) {
+    bool entryUpdated = false;
+
+    if (canCacheEntry || !entry->Promise.IsSet()) {
+        entry->UpdateDeadline = now + NProfiling::DurationToCpuDuration(expirationTime);
+        if (entry->Promise.IsSet()) {
+            entry->Promise = MakePromise(valueOrError);
+            entry->Future = entry->Promise.ToFuture();
+        } else {
+            entry->Promise.Set(valueOrError);
+        }
+        entryUpdated = true;
+    }
+
+    if (entry->IsExpired(now) || (entryUpdated && expirationTime == TDuration::Zero())) {
         Map_.erase(it);
         OnRemoved(key);
         SizeCounter_.Update(Map_.size());
@@ -484,6 +499,12 @@ void TAsyncExpiringCache<TKey, TValue>::OnRemoved(const TKey& /*key*/) noexcept
 template <class TKey, class TValue>
 void TAsyncExpiringCache<TKey, TValue>::OnHit(const TKey& /*key*/) noexcept
 { }
+
+template <class TKey, class TValue>
+bool TAsyncExpiringCache<TKey, TValue>::CanCacheError(const TError& error) noexcept
+{
+    return true;
+}
 
 template <class TKey, class TValue>
 void TAsyncExpiringCache<TKey, TValue>::UpdateAll()

@@ -147,6 +147,11 @@ TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
         }));
 }
 
+bool TPermissionCache::CanCacheError(const TError& error) noexcept
+{
+    return error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError).has_value();
+}
+
 NApi::TMasterReadOptions TPermissionCache::GetMasterReadOptions()
 {
     return NApi::TMasterReadOptions{
