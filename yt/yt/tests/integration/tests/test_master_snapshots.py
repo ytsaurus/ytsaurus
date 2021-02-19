@@ -353,8 +353,8 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
         create("map_node", "//tmp/m", tx=tx)
 
         build_snapshot(cell_id=self.Env.configs["master"][0]["primary_master"]["cell_id"], set_read_only=True)
-        primary = ls("//sys/primary_masters")[0]
-        wait(lambda: get("//sys/primary_masters/{}/orchid/monitoring/hydra/read_only".format(primary)))
+        primary = ls("//sys/primary_masters", suppress_transaction_coordinator_sync=True)[0]
+        wait(lambda: get("//sys/primary_masters/{}/orchid/monitoring/hydra/read_only".format(primary), suppress_transaction_coordinator_sync=True))
 
         abort_transaction(tx)
 
