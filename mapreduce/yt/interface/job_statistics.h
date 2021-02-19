@@ -50,16 +50,25 @@ public:
     ~TJobStatistics();
 
     //
-    // Filter statistics by job type.
-    // By default filter includes all job types.
-    // Specify empty `filter' to include all job types.
-    TJobStatistics JobType(TVector<EJobType> filter) const;
+    // Filter statistics by task name.
+    // By default filter includes all tasks.
+    // Specify empty `filter' to include all tasks.
+    TJobStatistics TaskName(TVector<TTaskName> taskNames) const;
 
     //
     // Filter statistics by job state.
     // By default filter includes only (successfuly) completed jobs.
     // Specify empty `filter' to include all job states.
     TJobStatistics JobState(TVector<EJobState> filter) const;
+
+    //
+    // DEPRECATED, USE TaskName INSTEAD!
+    // SEE https://yt.yandex-team.ru/docs/description/mr/jobs#obshaya-shema
+    //
+    // Filter statistics by job type.
+    // By default filter includes all job types.
+    // Specify empty `filter' to include all job types.
+    TJobStatistics JobType(TVector<EJobType> filter) const;
 
     //
     // Check that given statistics exist.
