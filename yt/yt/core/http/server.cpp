@@ -231,6 +231,14 @@ private:
     void HandleConnection(const IConnectionPtr& connection, TGuid connectionId)
     {
         try {
+            connection->SubscribePeerDisconnect(BIND([config=Config_, canceler=GetCurrentFiberCanceler(), connectionId=connectionId] {
+                YT_LOG_DEBUG("Client closed TCP socket (ConnectionId: %v)", connectionId);
+
+                if (config->CancelFiberOnConnectionClose) {
+                    canceler(TError("Client closed TCP socket; HTTP connection closed"));
+                }
+            }));
+
             DoHandleConnection(connection, connectionId);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unhandled exception (ConnectionId: %v)");

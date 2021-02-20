@@ -15,10 +15,11 @@ DEFINE_BIT_ENUM(EPollControl,
     ((Write)        (0x2))      // Pending write (OnEvent, Arm)
     ((Retry)        (0x8))      // Retry requested (OnEvent)
     ((EdgeTriggered)(0x10))     // TODO(khlebnikov) make it default (Arm)
-    ((Offline)      (0x20))     // Cannot handle events  (for external use)
-    ((Terminate)    (0x40))     // Termination requested (for external use)
-    ((Running)      (0x80))     // Operation in progress (for external use)
-    ((Shutdown)    (0x100))     // Shutdown in progress  (for external use)
+    ((ReadHup)      (0x20))
+    ((Offline)      (0x40))     // Cannot handle events  (for external use)
+    ((Terminate)    (0x80))     // Termination requested (for external use)
+    ((Running)      (0x100))     // Operation in progress (for external use)
+    ((Shutdown)     (0x200))     // Shutdown in progress  (for external use)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

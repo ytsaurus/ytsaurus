@@ -28,6 +28,7 @@
 #include <yt/core/crypto/tls.h>
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/finally.h>
 #include <yt/core/https/config.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -250,6 +251,9 @@ struct TFakeConnection
     { }
 
     virtual void SetWriteDeadline(std::optional<TInstant> /*deadline*/) override
+    { }
+
+    virtual void SubscribePeerDisconnect(TCallback<void()> cb) override
     { }
 };
 
@@ -537,6 +541,7 @@ class THttpServerTest
 {
 protected:
     IPollerPtr Poller;
+    TServerConfigPtr ServerConfig;
     IServerPtr Server;
     IClientPtr Client;
 
@@ -556,9 +561,9 @@ private:
     {
         Poller = CreateThreadPoolPoller(4, "HttpTest");
         if (!GetParam()) {
-            auto serverConfig = New<NHttp::TServerConfig>();
-            SetupServer(serverConfig);
-            Server = NHttp::CreateServer(serverConfig, Poller);
+            ServerConfig = New<NHttp::TServerConfig>();
+            SetupServer(ServerConfig);
+            Server = NHttp::CreateServer(ServerConfig, Poller);
 
             auto clientConfig = New<NHttp::TClientConfig>();
             SetupClient(clientConfig);
@@ -571,6 +576,7 @@ private:
             serverConfig->Credentials->CertChain = New<TPemBlobConfig>();
             serverConfig->Credentials->CertChain->Value = TestCertificate;
             SetupServer(serverConfig);
+            ServerConfig = serverConfig;
             Server = NHttps::CreateServer(serverConfig, Poller);
 
             auto clientConfig = New<NHttps::TClientConfig>();
@@ -922,6 +928,60 @@ TEST_P(THttpServerTest, ResponseStreaming)
 
     Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
+}
+
+const auto& Logger = HttpLogger;
+
+class TCancelingHandler
+    : public IHttpHandler
+{
+public:
+    TPromise<void> Canceled = NewPromise<void>();
+
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    {
+        auto finally = Finally([this] {
+            YT_LOG_DEBUG("Running finally block");
+            Canceled.Set();
+        });
+
+        auto p = NewPromise<void>();
+        p.OnCanceled(BIND([p] (const TError& error) {
+            YT_LOG_INFO(error, "Promise is canceled");
+            p.Set(error);
+        }));
+
+        YT_LOG_DEBUG("Blocking on promise");
+        WaitFor(p.ToFuture())
+            .ThrowOnError();
+    }
+};
+
+TEST_P(THttpServerTest, RequestCancel)
+{
+    if (GetParam()) {
+        return;
+    }
+
+    auto handler = New<TCancelingHandler>();
+
+    ServerConfig->CancelFiberOnConnectionClose = true;
+    Server->AddHandler("/cancel", handler);
+    Server->Start();
+
+    auto dialer = CreateDialer(New<TDialerConfig>(), Poller, HttpLogger);
+    auto connection = WaitFor(dialer->Dial(TNetworkAddress::CreateIPv6Loopback(TestPort)))
+        .ValueOrThrow();
+    WaitFor(connection->Write(TSharedRef::FromString("POST /cancel HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n")))
+        .ThrowOnError();
+
+    Sleep(TDuration::Seconds(1));
+    YT_LOG_DEBUG("Closing client connection");
+    WaitFor(connection->CloseWrite())
+        .ThrowOnError();
+
+    WaitFor(handler->Canceled.ToFuture())
+        .ThrowOnError();
 }
 
 class TValidateErrorHandler

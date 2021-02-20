@@ -46,6 +46,8 @@ public:
 
     bool EnableKeepAlive;
 
+    bool CancelFiberOnConnectionClose;
+
     //! This field is not accessable from config.
     bool IsHttps = false;
 

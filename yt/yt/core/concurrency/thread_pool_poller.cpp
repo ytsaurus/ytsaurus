@@ -54,6 +54,9 @@ EContPoll ToImplControl(EPollControl control)
     if (Any(control & EPollControl::Write)) {
         implControl |= CONT_POLL_WRITE;
     }
+    if (Any(control & EPollControl::ReadHup)) {
+        implControl |= CONT_POLL_RDHUP;
+    }
     return EContPoll(implControl);
 }
 
@@ -65,6 +68,9 @@ EPollControl FromImplControl(int implControl)
     }
     if (implControl & CONT_POLL_WRITE) {
         control |= EPollControl::Write;
+    }
+    if (implControl & CONT_POLL_RDHUP) {
+        control |= EPollControl::ReadHup;
     }
     return control;
 }
