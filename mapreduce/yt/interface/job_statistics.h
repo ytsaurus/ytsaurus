@@ -1,5 +1,11 @@
 #pragma once
 
+///
+/// @file mapreduce/yt/interface/job_statistics.h
+///
+/// Header containing classes and utility functions to work with
+/// [job statistics](https://docs.yandex-team.ru/yt/problems/jobstatistics).
+
 #include "fwd.h"
 
 #include <library/cpp/yson/node/node.h>
@@ -12,33 +18,28 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////
 
-class TNode;
-
-template <typename T>
-class TJobStatisticsEntry;
-
-////////////////////////////////////////////////////////////////////
-
-//
-// Function converts i64 representation of statistics to other type.
-// Library defines this template for types TDuration and i64.
-// Users may define it for their types.
-//
-// Check TJobStatistics::GetStatisticsAs method.
+///
+/// @brief Convert i64 representation of statistics to other type.
+///
+/// Library defines this template for types TDuration and i64.
+/// Users may define it for their types.
+///
+/// @see @ref NYT::TJobStatistics::GetStatisticsAs method.
 template <typename T>
 T ConvertJobStatisticsEntry(i64 value);
 
 ////////////////////////////////////////////////////////////////////
 
+/// Class representing a collection of job statistics.
 class TJobStatistics
 {
 public:
-    //
-    // Construct empty statistics.
+    ///
+    /// Construct empty statistics.
     TJobStatistics();
 
-    //
-    // Construct statistcs from statistics node.
+    ///
+    /// Construct statistcs from statistics node.
     TJobStatistics(const NYT::TNode& statistics);
 
     TJobStatistics(const TJobStatistics& jobStatistics);
@@ -49,69 +50,87 @@ public:
 
     ~TJobStatistics();
 
-    //
-    // Filter statistics by task name.
-    // By default filter includes all tasks.
-    // Specify empty `filter' to include all tasks.
+    ///
+    /// @brief Filter statistics by task name.
+    ///
+    /// @param taskNames What task names to include (empty means all).
     TJobStatistics TaskName(TVector<TTaskName> taskNames) const;
 
-    //
-    // Filter statistics by job state.
-    // By default filter includes only (successfuly) completed jobs.
-    // Specify empty `filter' to include all job states.
+    ///
+    /// @brief Filter statistics by job state.
+    ///
+    /// @param filter What job states to include (empty means all).
+    ///
+    /// @note Default statistics include only (successfuly) completed jobs.
     TJobStatistics JobState(TVector<EJobState> filter) const;
 
-    //
-    // DEPRECATED, USE TaskName INSTEAD!
-    // SEE https://yt.yandex-team.ru/docs/description/mr/jobs#obshaya-shema
-    //
-    // Filter statistics by job type.
-    // By default filter includes all job types.
-    // Specify empty `filter' to include all job types.
+    ///
+    /// @brief Filter statistics by job type.
+    ///
+    /// @param filter What job types to include (empty means all).
+    ///
+    /// @deprecated Use @ref TJobStatistics::TaskName instead.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/jobs#obshaya-shema
     TJobStatistics JobType(TVector<EJobType> filter) const;
 
-    //
-    // Check that given statistics exist.
-    //
-    // Slash separated statistics name should be used e.g. "time/total" (like it appears in web interface).
+    ///
+    /// @brief Check that given statistics exist.
+    ///
+    /// @param name Slash separated statistics name, e.g. "time/total" (like it appears in web interface).
     bool HasStatistics(TStringBuf name) const;
 
-    //
-    // Get statistics by name.
-    //
-    // Slash separated statistics name should be used e.g. "time/total" (like it appears in web interface).
-    //
-    // If statistics is missing an exception is thrown. If because of filters
-    // no fields remain the returned value is empty (all fields are Nothing).
-    //
-    // In order to use GetStatisticsAs method, ConvertJobStatisticsEntry function must be defined.
-    // (Library defines it for i64 and TDuration, user may define it for other types).
-    //
-    // NOTE: We don't use TMaybe<TJobStatisticsEntry> here instead TJobStatisticsEntry return TMaybe<i64>,
-    // so user easier use GetOrElse:
-    //     jobStatistics.GetStatistics("some/statistics/name").Max().GetOrElse(0);
+    ///
+    /// @brief Get statistics by name.
+    ///
+    /// @param name Slash separated statistics name, e.g. "time/total" (like it appears in web interface).
+    ///
+    /// @note If statistics is missing an exception is thrown. If because of filters
+    /// no fields remain the returned value is empty (all fields are `Nothing`).
+    ///
+    /// @note We don't use `TMaybe<TJobStatisticsEntry>` here;
+    /// instead, @ref NYT::TJobStatisticsEntry methods return `TMaybe<i64>`,
+    /// so user easier use `.GetOrElse`:
+    /// ```
+    ///     jobStatistics.GetStatistics("some/statistics/name").Max().GetOrElse(0);
+    /// ```
     TJobStatisticsEntry<i64> GetStatistics(TStringBuf name) const;
 
+    ///
+    /// @brief Get statistics by name.
+    ///
+    /// @param name Slash separated statistics name, e.g. "time/total" (like it appears in web interface).
+    ///
+    /// @note In order to use `GetStatisticsAs` method, @ref NYT::ConvertJobStatisticsEntry function must be defined
+    /// (the library defines it for `i64` and `TDuration`, user may define it for other types).
     template <typename T>
     TJobStatisticsEntry<T> GetStatisticsAs(TStringBuf name) const;
 
-    //
-    // Get (slash separated) names of statistics.
+    ///
+    /// Get (slash separated) names of statistics.
     TVector<TString> GetStatisticsNames() const;
 
-    //
-    // Check if given custom statistics exists.
+    ///
+    /// @brief Check if given custom statistics exists.
+    ///
+    /// @param name Slash separated custom statistics name.
     bool HasCustomStatistics(TStringBuf name) const;
 
-    //
-    // Get custom statistics (those the user can write in operation with WriteCustomStatistics).
+    ///
+    /// @brief Get custom statistics (those the user can write in job with @ref NYT:WriteCustomStatistics).
+    ///
+    /// @param name Slash separated custom statistics name.
     TJobStatisticsEntry<i64> GetCustomStatistics(TStringBuf name) const;
 
+    ///
+    /// @brief Get custom statistics (those the user can write in job with @ref NYT:WriteCustomStatistics).
+    ///
+    /// @param name Slash separated custom statistics name.
     template <typename T>
     TJobStatisticsEntry<T> GetCustomStatisticsAs(TStringBuf name) const;
 
-    //
-    // Get names of all custom statistics.
+    ///
+    /// Get names of all custom statistics.
     TVector<TString> GetCustomStatisticsNames() const;
 
 private:
@@ -143,6 +162,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+/// Class representing single statistic.
 template <typename T>
 class TJobStatisticsEntry
 {
@@ -151,6 +171,7 @@ public:
         : Data_(std::move(data))
     { }
 
+    /// Sum of the statistic over all jobs.
     TMaybe<T> Sum() const
     {
         if (Data_) {
@@ -159,8 +180,9 @@ public:
         return Nothing();
     }
 
-    //
-    // NOTE: Only jobs that emitted statistics are taken into account.
+    /// @brief Average of the statistic over all jobs.
+    ///
+    /// @note Only jobs that emitted statistics are taken into account.
     TMaybe<T> Avg() const
     {
         if (Data_ && Data_->Count) {
@@ -169,6 +191,7 @@ public:
         return Nothing();
     }
 
+    /// @brief Number of jobs that emitted this statistic.
     TMaybe<T> Count() const
     {
         if (Data_) {
@@ -177,6 +200,7 @@ public:
         return Nothing();
     }
 
+    /// @brief Maximum value of the statistic over all jobs.
     TMaybe<T> Max() const
     {
         if (Data_) {
@@ -185,6 +209,7 @@ public:
         return Nothing();
     }
 
+    /// @brief Minimum value of the statistic over all jobs.
     TMaybe<T> Min() const
     {
         if (Data_) {
@@ -216,17 +241,22 @@ TJobStatisticsEntry<T> TJobStatistics::GetCustomStatisticsAs(TStringBuf name) co
 
 ////////////////////////////////////////////////////////////////////
 
-//
-// Write custom statistics (see https://yt.yandex-team.ru/docs/description/mr/jobs#user_stats)
-// by given slash-separated path (its length must not exceed 512 bytes).
-// The function must be called in job.
-// Total number of statistics (with different paths) must not exceed 128.
+///
+/// @brief Write [custom statistics](https://yt.yandex-team.ru/docs/description/mr/jobs#user_stats).
+///
+/// @param path Slash-separated path (length must not exceed 512 bytes).
+/// @param value Value of the statistic.
+///
+/// @note The function must be called in job.
+/// Total number of statistics (with different paths) must not exceed 128.
 void WriteCustomStatistics(TStringBuf path, i64 value);
 
-//
-// Write several custom statistics at once.
-// The argument must be a map with leaves of type i64.
-// Equivalent to calling WriteCustomStatistics(path, value) for every path in the given map.
+///
+/// @brief Write several [custom statistics](https://yt.yandex-team.ru/docs/description/mr/jobs#user_stats) at once.
+///
+/// @param statistics A tree of map nodes with leaves of type `i64`.
+///
+/// @note The call is equivalent to calling @ref NYT::WriteCustomStatistics(TStringBuf, i64) for every path in the given map.
 void WriteCustomStatistics(const TNode& statistics);
 
 ////////////////////////////////////////////////////////////////////
