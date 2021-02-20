@@ -446,12 +446,25 @@ private:
 
         if (dynamicStore->IsFlushed()) {
             if (auto* chunk = dynamicStore->GetFlushedChunk()) {
+                auto relativeLowerLimit = lowerLimit;
+                auto relativeUpperLimit = upperLimit;
+                i64 tabletRowIndex = dynamicStore->GetTableRowIndex();
+                if (relativeLowerLimit.GetRowIndex()) {
+                    relativeLowerLimit.SetRowIndex(std::max<i64>(
+                        *relativeLowerLimit.GetRowIndex() - tabletRowIndex,
+                        0));
+                }
+                if (relativeUpperLimit.GetRowIndex()) {
+                    relativeUpperLimit.SetRowIndex(std::max<i64>(
+                        *relativeUpperLimit.GetRowIndex() - tabletRowIndex,
+                        0));
+                }
                 return OnChunk(
                     chunk,
                     dynamicStore->GetTableRowIndex(),
                     tabletIndex,
-                    lowerLimit,
-                    upperLimit,
+                    relativeLowerLimit,
+                    relativeUpperLimit,
                     /*timestampTransactionId*/ {});
             }
         } else {

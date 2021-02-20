@@ -1148,6 +1148,8 @@ private:
 
     bool IsLegacyLivePreviewSuppressed = false;
 
+    bool InputHasOrderedDynamicStores_ = false;
+
     //! Error that lead to operation failure.
     TError Error_;
 

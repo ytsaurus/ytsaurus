@@ -6,9 +6,10 @@ from test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 
 from yt_env_setup import wait, Restarter, NODES_SERVICE
 from yt_commands import *
-from yt.yson import YsonEntity
+from yt.yson import YsonEntity, to_yson_type
 
 from time import sleep
+from copy import deepcopy
 
 from yt.environment.helpers import assert_items_equal
 
@@ -31,6 +32,21 @@ def _validate_tablet_statistics(table):
     assert check_statistics(tablet_statistics)
 
     wait(lambda: check_statistics(get("#{0}/@total_statistics".format(cell_id))))
+
+
+def _make_path_with_range(path, lower_limit, upper_limit):
+    range = {}
+    if lower_limit:
+        range["lower_limit"] = {
+            "tablet_index": lower_limit[0],
+            "row_index": lower_limit[1]
+        }
+    if upper_limit:
+        range["upper_limit"] = {
+            "tablet_index": upper_limit[0],
+            "row_index": upper_limit[1]
+        }
+    return to_yson_type(path, attributes={"ranges": [range]})
 
 ##################################################################
 
@@ -324,48 +340,6 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         if disturbance_type != "force_unmount":
             assert_items_equal(read_table("//tmp/out"), rows)
 
-    @pytest.mark.parametrize("disturbance_type", ["cell_move", "unmount"])
-    def test_locate_preserves_limits(self, disturbance_type):
-        cell_id = sync_create_cells(1)[0]
-        node = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
-        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(node), True)
-        node_id = self._get_node_env_id(node)
-
-        self._create_simple_table("//tmp/t", attributes={"dynamic_store_auto_flush_period": YsonEntity()})
-        sync_mount_table("//tmp/t")
-
-        rows = [{"key": i} for i in range(50000)]
-        insert_rows("//tmp/t", rows)
-
-        create("table", "//tmp/out")
-        op = map(
-            in_="//tmp/t[50:49950]",
-            out="//tmp/out",
-            spec={
-                "job_io": {"table_reader": {"dynamic_store_reader": {"window_size": 1}}},
-                "mapper": {"format": "json"},
-                "max_failed_job_count": 1,
-            },
-            command="sleep 10; cat",
-            ordered=True,
-            track=False,
-        )
-
-        wait(lambda: op.get_state() in ("running", "completed"))
-        sleep(1)
-
-        if disturbance_type == "unmount":
-            sync_unmount_table("//tmp/t")
-
-        with Restarter(self.Env, NODES_SERVICE, indexes=[node_id]):
-            op.track()
-
-        # Stupid testing libs require quadratic time to compare lists
-        # of unhashable items.
-        actual = [row["key"] for row in read_table("//tmp/out", verbose=False)]
-        expected = range(50, 49950)
-        assert actual == expected
-
     def test_read_nothing_from_located_chunk(self):
         cell_id = sync_create_cells(1)[0]
         node = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
@@ -445,6 +419,34 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_flush_table(path)
         insert_rows(path, self.simple_rows[5:])
 
+    # Verify read-table, {ordered,unordered}{merge,map}, sort, map-reduce.
+    def _verify_all_operations(self, input_path, expected_output):
+        assert read_table(input_path) == expected_output
+
+        create("table", "//tmp/verify", force=True)
+        merge(in_=input_path, out="//tmp/verify", mode="ordered")
+        assert read_table("//tmp/verify") == expected_output
+
+        create("table", "//tmp/verify", force=True)
+        merge(in_=input_path, out="//tmp/verify", mode="unordered")
+        assert_items_equal(read_table("//tmp/verify"), expected_output)
+
+        create("table", "//tmp/verify", force=True)
+        map(in_=input_path, out="//tmp/verify", command="cat", ordered=True)
+        assert read_table("//tmp/verify") == expected_output
+
+        create("table", "//tmp/verify", force=True)
+        map(in_=input_path, out="//tmp/verify", command="cat", ordered=False)
+        assert_items_equal(read_table("//tmp/verify"), expected_output)
+
+        create("table", "//tmp/verify", force=True)
+        sort(in_=input_path, out="//tmp/verify", sort_by=["a", "b"])
+        assert_items_equal(read_table("//tmp/verify"), expected_output)
+
+        create("table", "//tmp/verify", force=True)
+        map_reduce(in_=input_path, out="//tmp/verify", sort_by=["a"], reducer_command="cat")
+        assert_items_equal(read_table("//tmp/verify"), expected_output)
+
     def test_basic_read(self):
         sync_create_cells(1)
         self._prepare_simple_table("//tmp/t")
@@ -454,16 +456,73 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
         tx = start_transaction(timeout=60000)
         lock("//tmp/t", mode="snapshot", tx=tx)
 
+        self._verify_all_operations("//tmp/t", self.simple_rows)
+
         sync_freeze_table("//tmp/t")
-        assert read_table("//tmp/t") == self.simple_rows
         assert read_table("//tmp/t", tx=tx) == self.simple_rows
 
+    def test_multiple_tablets_multiple_stores(self):
+        sync_create_cells(1)
+        tablet_count = 5
+        batches_per_tablet = 4
+        rows_per_batch = 5
+        rows_per_tablet = rows_per_batch * batches_per_tablet
+        self._create_simple_table(
+            "//tmp/t",
+            replication_factor=10,
+            chunk_writer={"upload_replication_factor": 10},
+            tablet_count=tablet_count,
+            max_dynamic_store_row_count=rows_per_batch,
+            dynamic_store_auto_flush_period=YsonEntity())
+        sync_mount_table("//tmp/t")
+
+        row_count = tablet_count * batches_per_tablet * rows_per_batch
+        rows = [{"a": i, "b": 1.0 * i, "c": str(i)} for i in range(row_count)]
+        offset = 0
+        for tablet_index in range(tablet_count):
+            for batch_index in range(batches_per_tablet):
+                batch = deepcopy(rows[offset:offset + rows_per_batch])
+                offset += rows_per_batch
+                for row in batch:
+                    row["$tablet_index"] = tablet_index
+                for retry in range(10):
+                    try:
+                        insert_rows("//tmp/t", batch)
+                        break
+                    except YtError:
+                        sleep(0.5)
+                else:
+                    assert False, "Failed to insert rows"
+
+        get("//tmp/t/@chunk_count")
+        get("//tmp/t/@chunk_ids")
+        self._verify_all_operations("//tmp/t", rows)
+        path_with_range = _make_path_with_range("//tmp/t", (1, 6), (3, 11))
+        expected = rows[rows_per_tablet + 6:rows_per_tablet * 3 + 11]
+        self._verify_all_operations(path_with_range, expected)
+
+        tx = start_transaction(timeout=60000)
+        lock("//tmp/t", mode="snapshot", tx=tx)
+
+        set("//tmp/t/@chunk_writer", {"upload_replication_factor": 1})
+        remount_table("//tmp/t")
+        sync_flush_table("//tmp/t")
+        assert read_table(path_with_range, tx=tx) == expected
 
 ##################################################################
 
 
 @authors("ifsmirnov")
 class TestReadGenericDynamicTables(DynamicTablesBase):
+    NUM_SCHEDULERS = 1
+    ENABLE_BULK_INSERT = True
+
+    def _get_node_env_id(self, node):
+        for i in range(self.NUM_NODES):
+            if self.Env.get_node_address(i) == node:
+                return i
+        assert False
+
     @pytest.mark.parametrize("sorted", [True, False])
     def test_dynamic_store_id_pool(self, sorted):
         sync_create_cells(1)
@@ -548,3 +607,86 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
         assert read_table("//tmp/t", tx=tx) == rows
 
         _validate_tablet_statistics("//tmp/t")
+
+    @pytest.mark.parametrize("sorted", [True, False])
+    @pytest.mark.parametrize("disturbance_type", ["cell_move", "unmount"])
+    def test_locate_preserves_limits(self, disturbance_type, sorted):
+        cell_id = sync_create_cells(1)[0]
+        node = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
+        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(node), True)
+        node_id = self._get_node_env_id(node)
+
+        if sorted:
+            self._create_sorted_table("//tmp/t")
+        else:
+            self._create_ordered_table("//tmp/t")
+        set("//tmp/t/@dynamic_store_auto_flush_period", YsonEntity())
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i} for i in range(50000)]
+        insert_rows("//tmp/t", rows)
+
+        if sorted:
+            input_path = "//tmp/t[50:49950]"
+        else:
+            input_path = _make_path_with_range("//tmp/t", (0, 50), (0, 49950))
+
+        create("table", "//tmp/out")
+        op = map(
+            in_=input_path,
+            out="//tmp/out",
+            spec={
+                "job_io": {"table_reader": {"dynamic_store_reader": {"window_size": 1}}},
+                "mapper": {"format": "json"},
+                "max_failed_job_count": 1,
+            },
+            command="sleep 10; cat",
+            ordered=True,
+            track=False,
+        )
+
+        wait(lambda: op.get_state() in ("running", "completed"))
+        sleep(1)
+
+        if disturbance_type == "unmount":
+            sync_unmount_table("//tmp/t")
+
+        with Restarter(self.Env, NODES_SERVICE, indexes=[node_id]):
+            op.track()
+
+        # Stupid testing libs require quadratic time to compare lists
+        # of unhashable items.
+        actual = [row["key"] for row in read_table("//tmp/out", verbose=False)]
+        expected = range(50, 49950)
+        assert actual == expected
+
+    @pytest.mark.parametrize("sorted", [True, False])
+    def test_locate_flushed_to_no_chunk(self, sorted):
+        sync_create_cells(1)[0]
+        if sorted:
+            self._create_sorted_table("//tmp/t")
+        else:
+            self._create_ordered_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        # One dynamic store will be flushed to a real chunk, another to no chunk.
+        rows = [{"key": 1, "value": "a"}]
+        insert_rows("//tmp/t", rows)
+
+        create("table", "//tmp/out")
+        op = map(
+            in_="//tmp/t",
+            out="//tmp/out",
+            command="cat",
+            spec={
+                "testing": {"delay_inside_materialize": 10000},
+                "job_count": 2,
+            },
+            track=False,
+        )
+        wait(lambda: op.get_state() == "materializing")
+
+        sync_unmount_table("//tmp/t")
+
+        op.track()
+        assert_items_equal(read_table("//tmp/out"), rows)

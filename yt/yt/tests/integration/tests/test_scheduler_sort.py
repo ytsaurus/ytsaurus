@@ -1317,6 +1317,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
     def test_sort_on_dynamic_table(self, sort_order, optimize_for):
+        # TODO(ifsmirnov): drop when 20.3 artifacts are updated to the version
+        # with ordered dynamic store reader.
+        if sort_order is None and self.Env.get_component_version("ytserver-master").abi <= (20, 3):
+            return
+
         schema = [
             {"name": "key1", "type": "int64", "sort_order": sort_order},
             {"name": "key2", "type": "int64", "sort_order": sort_order},

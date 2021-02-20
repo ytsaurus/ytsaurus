@@ -355,7 +355,7 @@ TInputChunkSlice::TInputChunkSlice(
 TInputChunkSlice::TInputChunkSlice(
     const TInputChunkSlice& chunkSlice,
     i64 lowerRowIndex,
-    i64 upperRowIndex,
+    std::optional<i64> upperRowIndex,
     i64 dataWeight)
     : InputChunk_(chunkSlice.GetInputChunk())
     , LegacyLowerLimit_(chunkSlice.LegacyLowerLimit())
@@ -371,14 +371,17 @@ TInputChunkSlice::TInputChunkSlice(
         LowerLimit_.RowIndex = lowerRowIndex;
         UpperLimit_.RowIndex = upperRowIndex;
     }
-    OverrideSize(upperRowIndex - lowerRowIndex, dataWeight);
+
+    if (upperRowIndex) {
+        OverrideSize(*upperRowIndex - lowerRowIndex, dataWeight);
+    }
 }
 
 TInputChunkSlice::TInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     int partIndex,
     i64 lowerRowIndex,
-    i64 upperRowIndex,
+    std::optional<i64> upperRowIndex,
     i64 dataWeight)
     : InputChunk_(inputChunk)
     , PartIndex_(partIndex)
@@ -391,9 +394,13 @@ TInputChunkSlice::TInputChunkSlice(
     if (inputChunk->UpperLimit()) {
         LegacyUpperLimit_ = TLegacyInputSliceLimit(*inputChunk->UpperLimit());
     }
-    LegacyUpperLimit_.MergeUpperRowIndex(upperRowIndex);
+    if (upperRowIndex) {
+        LegacyUpperLimit_.MergeUpperRowIndex(*upperRowIndex);
+    }
 
-    OverrideSize(*LegacyUpperLimit_.RowIndex - *LegacyLowerLimit_.RowIndex, std::max<i64>(1, dataWeight * inputChunk->GetColumnSelectivityFactor()));
+    if (LegacyUpperLimit_.RowIndex) {
+        OverrideSize(*LegacyUpperLimit_.RowIndex - *LegacyLowerLimit_.RowIndex, std::max<i64>(1, dataWeight * inputChunk->GetColumnSelectivityFactor()));
+    }
 }
 
 TInputChunkSlice::TInputChunkSlice(
@@ -480,6 +487,13 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
 {
     YT_VERIFY(sliceDataWeight > 0);
     YT_VERIFY(sliceRowCount > 0);
+    YT_VERIFY(!InputChunk_->IsSortedDynamicStore());
+
+    if (InputChunk_->IsOrderedDynamicStore() && !UpperLimit_.RowIndex) {
+        YT_VERIFY(!LegacyLowerLimit_.Key);
+        YT_VERIFY(!LegacyUpperLimit_.Key);
+        return {New<TInputChunkSlice>(*this)};
+    }
 
     i64 lowerRowIndex;
     i64 upperRowIndex;
@@ -533,6 +547,9 @@ std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr> TInputChunkSlice::SplitByRow
         lowerRowIndex = LowerLimit_.RowIndex.value_or(0);
         upperRowIndex = UpperLimit_.RowIndex.value_or(InputChunk_->GetRowCount());
     }
+
+    YT_VERIFY(!InputChunk_->IsSortedDynamicStore());
+    YT_VERIFY(!InputChunk_->IsOrderedDynamicStore() || UpperLimit_.RowIndex);
 
     i64 rowCount = upperRowIndex - lowerRowIndex;
 

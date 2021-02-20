@@ -137,14 +137,14 @@ public:
     TInputChunkSlice(
         const TInputChunkSlice& inputSlice,
         i64 lowerRowIndex,
-        i64 upperRowIndex,
+        std::optional<i64> upperRowIndex,
         i64 dataSize);
 
     TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
         int partIndex,
         i64 lowerRowIndex,
-        i64 upperRowIndex,
+        std::optional<i64> upperRowIndex,
         i64 dataSize);
 
     TInputChunkSlice(

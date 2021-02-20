@@ -2444,16 +2444,7 @@ def create_dynamic_table(path, schema=None, **attributes):
     if "dynamic" not in attributes:
         attributes.update({"dynamic": True})
 
-    assert schema is not None and len(schema) > 0
-
-    if schema[0].get("sort_order") is None:
-        kind = "ordered"
-    else:
-        kind = "sorted"
-
-    # COMPAT(max42, ifsmirnov): remove kind validation when 20.3 is no more or when
-    # ordered DSR is cherry-picked into 20.3.
-    if "enable_dynamic_store_read" not in attributes and kind == "sorted":
+    if "enable_dynamic_store_read" not in attributes:
         attributes.update({"enable_dynamic_store_read": True})
 
     attributes.update({"schema": schema})
