@@ -26,6 +26,7 @@ import javax.annotation.Nonnull;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
+import com.google.protobuf.Parser;
 import io.netty.buffer.ByteBuf;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
@@ -99,15 +100,13 @@ public class RpcUtil {
 
     public static <T> T parseMessageBodyWithCompression(
             byte[] data,
-            RpcMessageParser<T> parser,
+            Parser<T> parser,
             Compression compression)
     {
         try {
-            CodedInputStream input;
             Codec codec = Codec.codecFor(compression);
             byte[] decompressed = codec.decompress(data);
-            input = CodedInputStream.newInstance(decompressed, 0, decompressed.length);
-            return parser.parse(input);
+            return parser.parseFrom(decompressed);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -115,7 +114,7 @@ public class RpcUtil {
 
     public static <T> T parseMessageBodyWithEnvelope(
             byte[] data,
-            RpcMessageParser<T> parser)
+            Parser<T> parser)
     {
         if (data == null || data.length < 8) {
             throw new IllegalStateException("Missing fixed envelope header");
@@ -133,8 +132,7 @@ public class RpcUtil {
                 throw new IllegalStateException(
                         "Compression codecs are not supported: message body has codec=" + header.getCodec());
             }
-            input = CodedInputStream.newInstance(data, 8 + headerSize, bodySize);
-            return parser.parse(input);
+            return parser.parseFrom(data, 8 + headerSize, bodySize);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

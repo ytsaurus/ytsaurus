@@ -9,12 +9,11 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.function.Supplier;
 
-import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.MessageLite;
+import com.google.protobuf.Parser;
 
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
-import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.annotations.RpcMethod;
 
 /**
@@ -28,7 +27,7 @@ public class RpcServiceMethodDescriptor {
     private final Class<?> requestBodyType;
     private final Supplier<?> requestBodyCreator;
     private final Class<?> responseBodyType;
-    private final RpcMessageParser<?> responseBodyParser;
+    private final Parser<?> responseBodyParser;
 
     public RpcServiceMethodDescriptor(Method method) {
         this.method = method;
@@ -42,7 +41,7 @@ public class RpcServiceMethodDescriptor {
         } else {
             String name = method.getName();
             if (!Character.isTitleCase(name.charAt(0))) {
-                name = String.valueOf(Character.toTitleCase(name.charAt(0))) + name.substring(1, name.length());
+                name = Character.toTitleCase(name.charAt(0)) + name.substring(1);
             }
             this.methodName = name;
         }
@@ -93,7 +92,7 @@ public class RpcServiceMethodDescriptor {
         return responseBodyType;
     }
 
-    public RpcMessageParser<?> getResponseBodyParser() {
+    public Parser<?> getResponseBodyParser() {
         return responseBodyParser;
     }
 
@@ -131,19 +130,14 @@ public class RpcServiceMethodDescriptor {
     }
 
     @SuppressWarnings("unchecked")
-    public static <T> RpcMessageParser<T> makeMessageParser(Class<T> messageClass) {
+    public static <T> Parser<T> makeMessageParser(Class<T> messageClass) {
+        MethodHandle handle;
         try {
-            MethodType methodType = MethodType.methodType(messageClass, CodedInputStream.class);
-            MethodHandle handle = LOOKUP.findStatic(messageClass, "parseFrom", methodType);
-            return (RpcMessageParser<T>) LambdaMetafactory.metafactory(
-                    LOOKUP,
-                    "parse",
-                    MethodType.methodType(RpcMessageParser.class),
-                    MethodType.methodType(Object.class, CodedInputStream.class),
-                    handle,
-                    methodType).getTarget().invokeExact();
+            MethodType methodType = MethodType.methodType(Parser.class);
+            handle = LOOKUP.findStatic(messageClass, "parser", methodType);
+            return (Parser<T>)handle.invoke();
         } catch (Throwable e) {
-            throw new IllegalArgumentException("Cannot build lambda for the parseFrom() method in " + messageClass, e);
+            throw new IllegalArgumentException("Cannot find parser in " + messageClass, e);
         }
     }
 }

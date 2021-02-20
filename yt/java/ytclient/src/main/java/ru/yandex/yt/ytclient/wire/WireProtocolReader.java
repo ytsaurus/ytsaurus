@@ -1,15 +1,11 @@
 package ru.yandex.yt.ytclient.wire;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.BufferUnderflowException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
-
-import com.google.protobuf.CodedInputStream;
 
 import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 import ru.yandex.yt.ytclient.object.WireRowsetDeserializer;
@@ -18,7 +14,6 @@ import ru.yandex.yt.ytclient.object.WireSchemafulRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.WireValueDeserializer;
 import ru.yandex.yt.ytclient.object.WireVersionedRowDeserializer;
 import ru.yandex.yt.ytclient.object.WireVersionedRowsetDeserializer;
-import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -278,28 +273,6 @@ public class WireProtocolReader {
         }
         alignAfterReading(byteCount);
         return result;
-    }
-
-    public <T> T readMessage(RpcMessageParser<T> parser) {
-        int size = (int) readLong();
-        try {
-            if (size == 0) {
-                // Пустое сообщение, вызываем декодер на пустом буфере
-                return parser.parse(CodedInputStream.newInstance(EMPTY_BUFFER));
-            }
-            int available = ensureReadable();
-            if (available >= size) {
-                // Декодируем сообщение из буфера одним куском
-                T result = parser.parse(CodedInputStream.newInstance(current, offset, size));
-                offset += size;
-                alignAfterReading(size);
-                return result;
-            }
-            // Собираем данные в массив байт и декодируем из него
-            return parser.parse(CodedInputStream.newInstance(readBytes(size)));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     public <T> T readSchemafulRow(WireSchemafulRowDeserializer<T> deserializer) {
