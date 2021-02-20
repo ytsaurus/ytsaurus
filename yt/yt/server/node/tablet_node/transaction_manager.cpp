@@ -687,6 +687,8 @@ private:
 
         SerializingTransactionHeaps_.clear();
         for (auto [transactionId, transaction] : PersistentTransactionMap_) {
+            YT_VERIFY(transaction->GetState() == transaction->GetPersistentState());
+            YT_VERIFY(transaction->GetState() != ETransactionState::Aborted);
             if (transaction->GetState() == ETransactionState::Committed && transaction->IsSerializationNeeded()) {
                 SerializingTransactionHeaps_[transaction->GetCellTag()].push_back(transaction);
             }

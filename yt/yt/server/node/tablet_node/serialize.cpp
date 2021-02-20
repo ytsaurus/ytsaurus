@@ -27,6 +27,12 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 {
     YT_VERIFY(reign <= GetCurrentReign());
 
+    if (reign == ETabletReign::RowBufferEmptyRowDeserialization &&
+        GetCurrentReign() == ETabletReign::YT_14346_ReplicationBarrier)
+    {
+        return EFinalRecoveryAction::None;
+    }
+
     if (reign < GetCurrentReign()) {
         return EFinalRecoveryAction::BuildSnapshotAndRestart;
     }

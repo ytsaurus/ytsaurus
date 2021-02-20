@@ -934,7 +934,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             attributes={"mode": "async", "preserve_timestamps": "false"},
         )
         self._create_replica_table("//tmp/r1", replica_id1)
-        # self._create_replica_table("//tmp/r2", replica_id2)
         self._create_replica_table("//tmp/r2")
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
