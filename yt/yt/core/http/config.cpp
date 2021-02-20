@@ -45,6 +45,9 @@ TServerConfig::TServerConfig()
 
     RegisterParameter("enable_keep_alive", EnableKeepAlive)
         .Default(true);
+    
+    RegisterParameter("cancel_fiber_on_connection_close", CancelFiberOnConnectionClose)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

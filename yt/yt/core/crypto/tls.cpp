@@ -278,6 +278,11 @@ public:
             .Run();
     }
 
+    virtual void SubscribePeerDisconnect(TCallback<void ()> cb) override
+    {
+        return Underlying_->SubscribePeerDisconnect(std::move(cb));
+    }
+
 private:
     const TSslContextImplPtr Ctx_;
     const IInvokerPtr Invoker_;

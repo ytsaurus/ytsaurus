@@ -367,6 +367,18 @@ public:
     {
         DoIO(&WriteDirection_, Any(control & EPollControl::Write));
         DoIO(&ReadDirection_, Any(control & EPollControl::Read));
+
+        if (Any(control & EPollControl::ReadHup)) {
+            std::vector<TCallback<void()>> callbacks;
+            {
+                auto guard = Guard(Lock_);
+                PeerDisconnected_ = true;
+                callbacks = std::move(OnPeerDisconnected_);
+            }
+            for (const auto& cb : callbacks) {
+                cb();
+            }
+        }
     }
 
     virtual void OnShutdown() override
@@ -576,6 +588,19 @@ public:
         }
     }
 
+    void SubscribePeerDisconnect(TCallback<void()> cb)
+    {
+        {
+            auto guard = Guard(Lock_);
+            if (!PeerDisconnected_) {
+                OnPeerDisconnected_.push_back(std::move(cb));
+                return;
+            }
+        }
+
+        cb();
+    }
+
 private:
     const TString Name_;
     const TString LoggingTag_;
@@ -691,6 +716,9 @@ private:
     TError Error_;
     const TPromise<void> ShutdownPromise_ = NewPromise<void>();
 
+    bool PeerDisconnected_ = false;
+    std::vector<TCallback<void()>> OnPeerDisconnected_;
+
     TClosure AbortFromReadTimeout_;
     TClosure AbortFromWriteTimeout_;
 
@@ -703,7 +731,7 @@ private:
         AbortFromWriteTimeout_ = BIND(&TFDConnectionImpl::AbortFromWriteTimeout, MakeWeak(this));
 
         Poller_->Register(this);
-        Poller_->Arm(FD_, this, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered);
+        Poller_->Arm(FD_, this, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered | EPollControl::ReadHup);
     }
 
     void StartIO(TIODirection* direction, std::unique_ptr<IIOOperation> operation)
@@ -966,6 +994,11 @@ public:
     virtual bool SetKeepAlive() override
     {
         return Impl_->SetKeepAlive();
+    }
+
+    virtual void SubscribePeerDisconnect(TCallback<void()> cb)
+    {
+        return Impl_->SubscribePeerDisconnect(std::move(cb));
     }
 
 private:
