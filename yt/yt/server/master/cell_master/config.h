@@ -136,33 +136,69 @@ class TDynamicMulticellManagerConfig
 {
 public:
     TDuration CellStatisticsGossipPeriod;
+
+    struct TMasterCellDescriptor
+        : public NYTree::TYsonSerializable
+    {
+        TMasterCellDescriptor()
+        {
+            RegisterParameter("name", Name)
+                .Optional();
+            RegisterParameter("roles", Roles)
+                .Optional();
+        }
+
+        std::optional<TString> Name;
+        std::optional<EMasterCellRoles> Roles;
+    };
+    using TMasterCellDescriptorPtr = TIntrusivePtr<TMasterCellDescriptor>;
+
+    THashMap<NObjectServer::TCellTag, TMasterCellDescriptorPtr> CellDescriptors;
+
+    // COMPAT(aleksandra-zh)
     THashMap<NObjectServer::TCellTag, EMasterCellRoles> CellRoles;
-    THashMap<NObjectServer::TCellTag, TString> CellNames;
 
     TDynamicMulticellManagerConfig()
     {
         RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
             .Default(TDuration::Seconds(1));
+
         RegisterParameter("cell_roles", CellRoles)
             .Default();
-        RegisterParameter("cell_names", CellNames)
+
+        RegisterParameter("cell_descriptors", CellDescriptors)
             .Default();
 
         RegisterPostprocessor([&] () {
             for (const auto& [cellTag, cellRoles] : CellRoles) {
-                if (None(cellRoles)) {
-                    THROW_ERROR_EXCEPTION("Cell %v has no roles",
-                        cellTag);
+                auto [it, inserted] = CellDescriptors.emplace(cellTag, New<TMasterCellDescriptor>());
+                auto& roles = it->second->Roles;
+                if (!roles) {
+                    roles = cellRoles;
+                } else {
+                    roles = *roles | cellRoles;
                 }
             }
 
             THashMap<TString, NObjectServer::TCellTag> nameToCellTag;
-            for (const auto& [cellTag, cellName] : CellNames) {
+            for (auto& [cellTag, descriptor] : CellDescriptors) {
+                if (descriptor->Roles && None(*descriptor->Roles)) {
+                    THROW_ERROR_EXCEPTION("Cell %v has no roles",
+                        cellTag);
+                }
+
+                if (!descriptor->Name) {
+                    continue;
+                }
+
+                const auto& cellName = *descriptor->Name;
+
                 NObjectClient::TCellTag cellTagCellName;
                 if (TryFromString(cellName, cellTagCellName)) {
                     THROW_ERROR_EXCEPTION("Invalid cell name %Qv",
                         cellName);
                 }
+
                 auto [it, inserted] = nameToCellTag.emplace(cellName, cellTag);
                 if (!inserted) {
                     THROW_ERROR_EXCEPTION("Duplicate cell name %Qv for cell tags %v and %v",
