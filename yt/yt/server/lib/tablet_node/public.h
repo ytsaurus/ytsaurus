@@ -213,10 +213,17 @@ constexpr i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 25;
 
 constexpr int DefaultMaxOverlappingStoreCount = 30;
 
-// Changing this constant requires promoting master reign.
+//! Number of potential dynamic stores per tablet (that is, created stores and
+//! preallocated ids). This number of stores is initialy sent by the master
+//! during mount, then store flusher tries to maintain it further.
+//!
+//! NB: Changing this constant requires promoting master reign.
 constexpr int DynamicStoreIdPoolSize = 2;
 
-// Limit on `MaxParallelPartitionLookups` parameter.
+//! Limit on the number of dynamic stores per tablet.
+constexpr int DynamicStoreCountLimit = 10;
+
+//! Limit on `MaxParallelPartitionLookups` parameter.
 constexpr int MaxParallelPartitionLookupsLimit = 5;
 
 DEFINE_ENUM(ETabletNodeThrottlerKind,

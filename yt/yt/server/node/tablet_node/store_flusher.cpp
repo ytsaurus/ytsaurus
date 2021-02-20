@@ -301,11 +301,26 @@ private:
 
     void ScanTablet(const TTabletSlotPtr& slot, TTablet* tablet)
     {
+        ScanTabletForRotation(slot, tablet);
+        ScanTabletForFlush(slot, tablet);
+        ScanTabletForMemoryUsage(slot, tablet);
+    }
+
+    void ScanTabletForRotation(const TTabletSlotPtr& slot, TTablet* tablet)
+    {
         const auto& tabletManager = slot->GetTabletManager();
         const auto& storeManager = tablet->GetStoreManager();
         const auto& bundleName = slot->GetTabletCellBundleName();
 
-        tablet->UpdateUnflushedTimestamp();
+        if (tablet->ComputeDynamicStoreCount() >= DynamicStoreCountLimit) {
+            auto error = TError("Dynamic store count limit is exceeded")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Rotation)
+                << TErrorAttribute("limit", DynamicStoreCountLimit);
+            YT_LOG_DEBUG(error);
+            tablet->RuntimeData()->Errors[ETabletBackgroundActivity::Rotation].Store(error);
+            return;
+        }
 
         if (storeManager->IsOverflowRotationNeeded()) {
             YT_LOG_DEBUG("Scheduling store rotation due to overflow (%v)",
@@ -319,27 +334,59 @@ private:
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
+        if (storeManager->IsForcedRotationPossible()) {
+            const auto& store = tablet->GetActiveStore();
+            if (!storeManager->IsRotationScheduled() &&
+                store->GetCompressedDataSize() >= MinForcedFlushDataSize_.load())
+            {
+                auto guard = Guard(SpinLock_);
+                TabletCellBundleData_[bundleName].ForcedRotationCandidates.push_back({
+                    store->GetDynamicMemoryUsage(),
+                    tablet->GetId(),
+                    tablet->GetMountRevision(),
+                    tablet->GetLoggingTag(),
+                    slot
+                });
+            }
+        }
+    }
+
+    void ScanTabletForFlush(const TTabletSlotPtr& slot, TTablet* tablet)
+    {
+        tablet->UpdateUnflushedTimestamp();
+
         for (const auto& [storeId, store] : tablet->StoreIdMap()) {
-            ScanStore(slot, tablet, store);
+            ScanStoreForFlush(slot, tablet, store);
+        }
+    }
+
+    void ScanTabletForMemoryUsage(const TTabletSlotPtr& slot, TTablet* tablet)
+    {
+        const auto& bundleName = slot->GetTabletCellBundleName();
+
+        tablet->UpdateUnflushedTimestamp();
+
+        for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+            auto memoryUsage = store->GetDynamicMemoryUsage();
             switch (store->GetStoreState()) {
                 case EStoreState::PassiveDynamic: {
                     auto guard = Guard(SpinLock_);
-                    PassiveMemoryUsage_ += store->GetDynamicMemoryUsage();
-                    TabletCellBundleData_[bundleName].PassiveMemoryUsage += store->GetDynamicMemoryUsage();
+                    PassiveMemoryUsage_ += memoryUsage;
+                    TabletCellBundleData_[bundleName].PassiveMemoryUsage += memoryUsage;
                     break;
                 }
 
                 case EStoreState::ActiveDynamic: {
                     auto guard = Guard(SpinLock_);
-                    ActiveMemoryUsage_ += store->GetDynamicMemoryUsage();
+                    ActiveMemoryUsage_ += memoryUsage;
                     break;
                 }
 
                 case EStoreState::Persistent: {
                     if (auto backingStore = store->AsChunk()->GetBackingStore()) {
                         auto guard = Guard(SpinLock_);
-                        BackingMemoryUsage_ += backingStore->GetDynamicMemoryUsage();
-                        TabletCellBundleData_[bundleName].BackingMemoryUsage += backingStore->GetDynamicMemoryUsage();
+                        BackingMemoryUsage_ += memoryUsage;
+                        TabletCellBundleData_[bundleName].BackingMemoryUsage += memoryUsage;
                     }
                     break;
                 }
@@ -349,28 +396,9 @@ private:
             }
         }
 
-        {
-            auto guard = Guard(SpinLock_);
-            if (storeManager->IsForcedRotationPossible()) {
-                const auto& store = tablet->GetActiveStore();
-                i64 memoryUsage = store->GetDynamicMemoryUsage();
-                if (storeManager->IsRotationScheduled()) {
-                    PassiveMemoryUsage_ += memoryUsage;
-                    TabletCellBundleData_[bundleName].PassiveMemoryUsage += memoryUsage;
-                } else if (store->GetCompressedDataSize() >= MinForcedFlushDataSize_.load()) {
-                    TabletCellBundleData_[bundleName].ForcedRotationCandidates.push_back({
-                        memoryUsage,
-                        tablet->GetId(),
-                        tablet->GetMountRevision(),
-                        tablet->GetLoggingTag(),
-                        slot
-                    });
-                }
-            }
-        }
     }
 
-    void ScanStore(const TTabletSlotPtr& slot, TTablet* tablet, const IStorePtr& store)
+    void ScanStoreForFlush(const TTabletSlotPtr& slot, TTablet* tablet, const IStorePtr& store)
     {
         if (!store->IsDynamic()) {
             return;
