@@ -135,6 +135,30 @@ void TTabletCellBundle::Load(TLoadContext& context)
     }
 }
 
+void TTabletCellBundle::OnProfiling(TTabletCellBundleProfilingCounters* counters)
+{
+    counters->TabletCountLimit.Update(ResourceLimits_.TabletCount);
+    counters->TabletCountUsage.Update(ResourceUsage_.Cluster().TabletCount);
+    counters->TabletStaticMemoryLimit.Update(ResourceLimits_.TabletStaticMemory);
+    counters->TabletStaticMemoryUsage.Update(ResourceUsage_.Cluster().TabletStaticMemory);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTabletCellBundleProfilingCounters::TTabletCellBundleProfilingCounters(TString bundleName)
+    : BundleName(std::move(bundleName))
+{
+    auto profiler = TabletServerProfiler
+        .WithPrefix("/tablet_cell_bundle_resources")
+        .WithTag("tablet_cell_bundle", BundleName)
+        .WithGlobal();
+
+    TabletCountLimit = profiler.Gauge("/tablet_count_limit");
+    TabletCountUsage = profiler.Gauge("/tablet_count_usage");
+    TabletStaticMemoryLimit = profiler.Gauge("/tablet_static_memory_limit");
+    TabletStaticMemoryUsage = profiler.Gauge("/tablet_static_memory_usage");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer

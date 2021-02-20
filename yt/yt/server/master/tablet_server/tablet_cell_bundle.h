@@ -23,6 +23,20 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletCellBundleProfilingCounters
+{
+    TTabletCellBundleProfilingCounters(TString bundleName);
+
+    NProfiling::TGauge TabletCountLimit;
+    NProfiling::TGauge TabletCountUsage;
+    NProfiling::TGauge TabletStaticMemoryLimit;
+    NProfiling::TGauge TabletStaticMemoryUsage;
+
+    TString BundleName;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletCellBundle
     : public NCellServer::TCellBundle
 {
@@ -52,6 +66,8 @@ public:
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
+
+    void OnProfiling(TTabletCellBundleProfilingCounters* counters);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
