@@ -71,7 +71,7 @@ public:
         // Slow lane.
         auto guard = Guard(SpinLock_);
 
-        if (!Limit_.load()) {
+        if (Limit_.load() < 0) {
             return VoidFuture;
         }
 
