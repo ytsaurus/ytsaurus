@@ -27,10 +27,8 @@ public class RpcServiceClient implements InvocationHandler {
 
     private RpcServiceClient(Class<?> interfaceClass, RpcOptions options) {
         this.serviceDescriptor = RpcServiceDescriptor.forInterface(interfaceClass);
-        this.serviceName =
-                options.getServiceName() != null ? options.getServiceName() : serviceDescriptor.getServiceName();
-        this.protocolVersion = options.getProtocolVersion() != 0 ? options.getProtocolVersion()
-                : serviceDescriptor.getProtocolVersion();
+        this.serviceName = serviceDescriptor.getServiceName();
+        this.protocolVersion = serviceDescriptor.getProtocolVersion();
         this.options = options;
     }
 
