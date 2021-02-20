@@ -439,6 +439,7 @@ class TestErasure(TestErasureBase):
 
 
 class TestErasureMulticell(TestErasure):
+    NUM_TEST_PARTITIONS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
 ##################################################################
