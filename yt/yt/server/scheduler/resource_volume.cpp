@@ -96,7 +96,7 @@ void ProfileResourceVolume(
     const TResourceVolume& volume,
     const TString& prefix)
 {
-    #define XX(name, Name) writer->AddGauge(prefix + "/" #name, static_cast<i64>(volume.Get##Name()));
+    #define XX(name, Name) writer->AddGauge(prefix + "/" #name, static_cast<double>(volume.Get##Name()));
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
 }
