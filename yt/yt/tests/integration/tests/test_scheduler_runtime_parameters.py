@@ -48,7 +48,7 @@ class TestRuntimeParameters(YTEnvSetup):
         )
         wait(lambda: op.get_state() == "running", iter=10)
 
-        assert op.get_runtime_progress("scheduling_info_per_pool_tree/default/weight", 0.0) == 5.0
+        wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/weight", 0.0) == 5.0)
 
         annotations_path = op.get_path() + "/@runtime_parameters/annotations"
         assert get(annotations_path) == {"foo": "abc"}
@@ -149,7 +149,7 @@ class TestRuntimeParameters(YTEnvSetup):
         with pytest.raises(YtError):
             update_op_parameters(op.id, parameters={"pool": "full_pool"})
 
-        assert op.get_runtime_progress("scheduling_info_per_pool_tree/default/pool") == "initial_pool"
+        wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/pool") == "initial_pool")
 
     @authors("renadeen")
     def test_change_pool_during_prepare_phase_bug(self):

@@ -134,6 +134,7 @@ class TestLowCpuUsageSchedulerAlertPresence(LowCpuUsageSchedulerAlertBase):
     }
 
     @authors("renadeen")
+    @flaky(max_runs=3)
     def test_low_cpu_alert_presence(self):
         op = run_test_vanilla("sleep 3")
         op.track()

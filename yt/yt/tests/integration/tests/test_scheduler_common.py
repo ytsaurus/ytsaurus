@@ -53,7 +53,7 @@ SCHEDULER_COMMON_NODE_CONFIG_PATCH = {
 
 
 class TestSchedulerCommon(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -942,7 +942,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 4
 
 
 ##################################################################
