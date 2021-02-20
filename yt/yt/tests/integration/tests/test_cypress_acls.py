@@ -251,6 +251,7 @@ class CheckPermissionBase(YTEnvSetup):
 
 
 class TestCypressAcls(CheckPermissionBase):
+    NUM_TEST_PARTITIONS = 2
     NUM_SCHEDULERS = 1
 
     @authors("babenko", "ignat")
@@ -1462,6 +1463,7 @@ class TestCypressAcls(CheckPermissionBase):
 
 
 class TestCypressAclsMulticell(TestCypressAcls):
+    NUM_TEST_PARTITIONS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
@@ -1472,6 +1474,7 @@ class TestCheckPermissionRpcProxy(CheckPermissionBase):
 
 
 class TestCypressAclsPortal(TestCypressAclsMulticell):
+    NUM_TEST_PARTITIONS = 3
     NUM_SECONDARY_MASTER_CELLS = 3
     ENABLE_TMP_PORTAL = True
 
