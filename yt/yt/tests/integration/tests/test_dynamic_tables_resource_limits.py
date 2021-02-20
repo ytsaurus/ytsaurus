@@ -509,15 +509,15 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         sync_create_cells(1, tablet_cell_bundle="b")
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 0)
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             self._create_ordered_table("//tmp/t", tablet_cell_bundle="b")
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             self._create_ordered_table("//tmp/t", tablet_cell_bundle="b", tablet_count=2)
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", pivot_keys=[[], [1]])
 
         assert get("//sys/tablet_cell_bundles/b/@ref_counter") == 2
@@ -556,7 +556,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         self._verify_resource_usage("b", "tablet_static_memory", data_size)
 
         set("//tmp/t1/@in_memory_mode", "uncompressed")
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             sync_mount_table("//tmp/t1")
 
         remount_table("//tmp/t0")
@@ -581,9 +581,9 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
             == 2
         )
 
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             reshard_table("//tmp/t1", [[], [1]])
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             reshard_table("//tmp/t2", 2)
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 4)
@@ -612,10 +612,10 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         )
 
         # Currently the table cannot be moved without 2x temporary quota.
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             move("//tmp/t", "//tmp/t_other")
 
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             copy("//tmp/t", "//tmp/t_copy")
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 2)
@@ -641,7 +641,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         self._verify_resource_usage("default", "tablet_count", 2)
 
         multicell_sleep()
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             set("//tmp/t/@tablet_cell_bundle", "b")
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 2)
@@ -661,7 +661,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         self._verify_resource_usage("b", "tablet_count", 0)
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 0)
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             alter_table("//tmp/t", dynamic=True)
 
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
@@ -682,7 +682,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         sync_unmount_table("//tmp/t")
 
         set("//tmp/t/@in_memory_mode", mode)
-        with raises_yt_error(TabletResourceLimitExceeded):
+        with raises_yt_error(BundleResourceLimitExceeded):
             mount_table("//tmp/t")
 
         def _verify():
@@ -779,6 +779,45 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         wait(lambda: get("//sys/tablet_actions/{}/@state".format(action_ids[0])) == "failed")
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
         self._verify_resource_usage("b", "tablet_count", 1)
+
+    @authors("ifsmirnov")
+    def test_no_in_memory_writes_when_resource_limits_violated(self):
+        create_tablet_cell_bundle("b")
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 100000)
+        create_account("a")
+        self._multicell_set("//sys/accounts/a/@resource_limits/tablet_static_memory", 1000000)
+        self._multicell_set("//sys/accounts/a/@resource_limits/tablet_count", 1000000)
+        sync_create_cells(1, "b")
+        self._create_sorted_table(
+            "//tmp/t",
+            account="a",
+            tablet_cell_bundle="b",
+            dynamic=False,
+            in_memory_mode="compressed")
+        write_table("//tmp/t", [{"key": 1}])
+        alter_table("//tmp/t", dynamic=True)
+        sync_mount_table("//tmp/t")
+
+        self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 0)
+        self._multicell_set("//sys/accounts/a/@resource_limits/tablet_static_memory", 0)
+        self._multicell_set("//sys/@config/tablet_manager/enable_tablet_resource_validation", False)
+        self._multicell_set("//sys/@config/security_manager/enable_tablet_resource_validation", False)
+
+        insert_rows("//tmp/t", [{"key": 1}])
+
+        self._multicell_set("//sys/@config/security_manager/enable_tablet_resource_validation", True)
+        with raises_yt_error(AccountLimitExceeded):
+            insert_rows("//tmp/t", [{"key": 1}])
+
+        self._multicell_set("//sys/@config/security_manager/enable_tablet_resource_validation", False)
+        insert_rows("//tmp/t", [{"key": 1}])
+
+        self._multicell_set("//sys/@config/tablet_manager/enable_tablet_resource_validation", True)
+        with raises_yt_error(BundleResourceLimitExceeded):
+            insert_rows("//tmp/t", [{"key": 1}])
+
+        self._multicell_set("//sys/@config/tablet_manager/enable_tablet_resource_validation", False)
+        insert_rows("//tmp/t", [{"key": 1}])
 
 
 class TestPerBundleAccountingMulticell(TestPerBundleAccounting):

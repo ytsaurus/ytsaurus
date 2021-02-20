@@ -16,7 +16,7 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
- class TSecurityManager
+class TSecurityManager
     : public NSecurityServer::IResourceLimitsManager
 {
 public:
@@ -28,12 +28,14 @@ public:
     TFuture<void> CheckResourceLimits(
         const TString& account,
         const TString& mediumName,
-        NTabletClient::EInMemoryMode inMemoryMode);
+        const std::optional<TString>& tabletCellBundle = std::nullopt,
+        NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None);
 
     virtual void ValidateResourceLimits(
         const TString& account,
         const TString& mediumName,
-        NTabletClient::EInMemoryMode inMemoryMode) override;
+        const std::optional<TString>& tabletCellBundle = std::nullopt,
+        NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None);
 
 private:
     class TImpl;

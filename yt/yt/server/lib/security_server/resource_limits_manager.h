@@ -14,7 +14,8 @@ struct IResourceLimitsManager
     virtual void ValidateResourceLimits(
         const TString& account,
         const TString& mediumName,
-        NTabletClient::EInMemoryMode inMemoryMode) = 0;
+        const std::optional<TString>& tabletCellBundle = std::nullopt,
+        NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IResourceLimitsManager)

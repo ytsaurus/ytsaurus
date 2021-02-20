@@ -57,7 +57,7 @@ DEFINE_ENUM(EErrorCode,
     ((TooManyRowsInTransaction)         (1717))
     ((UpstreamReplicaMismatch)          (1718))
     ((NoSuchDynamicStore)               (1719))
-    ((TabletResourceLimitExceeded)      (1720))
+    ((BundleResourceLimitExceeded)      (1720))
 );
 
 DEFINE_ENUM(EInMemoryMode,

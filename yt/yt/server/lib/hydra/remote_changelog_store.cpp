@@ -393,8 +393,7 @@ private:
 
             ResourceLimitsManager_->ValidateResourceLimits(
                 Options_->ChangelogAccount,
-                Options_->ChangelogPrimaryMedium,
-                NTabletClient::EInMemoryMode::None);
+                Options_->ChangelogPrimaryMedium);
 
             return New<TRemoteChangelogStore>(
                 Config_,
