@@ -1478,11 +1478,11 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
     @authors("shakurov")
     def test_columnar_acl_copy_yt_12749(self):
         set(
-            "//sys/@config/multicell_manager/cell_roles",
+            "//sys/@config/multicell_manager/cell_descriptors",
             {
-                "1": ["cypress_node_host"],
-                "2": ["cypress_node_host"],
-                "3": ["chunk_host"],
+                "1": {"roles": ["cypress_node_host"]},
+                "2": {"roles": ["cypress_node_host"]},
+                "3": {"roles": ["chunk_host"]},
             },
         )
 

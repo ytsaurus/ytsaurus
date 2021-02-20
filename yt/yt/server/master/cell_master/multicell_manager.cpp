@@ -1098,7 +1098,7 @@ private:
         NameMasterCellMap_.clear();
 
         auto populateCellName = [&] (TCellTag cellTag) {
-            auto name = GetDynamicConfig()->CellNames.Value(cellTag, ToString(cellTag));
+            auto name = ComputeMasterCellNameFromConfig(cellTag);
             YT_VERIFY(MasterCellNameMap_.emplace(cellTag, name).second);
             YT_VERIFY(NameMasterCellMap_.emplace(name, cellTag).second);
         };
@@ -1120,8 +1120,23 @@ private:
 
     EMasterCellRoles ComputeMasterCellRolesFromConfig(TCellTag cellTag)
     {
-        auto defaultRoles = GetDefaultMasterCellRoles(cellTag);
-        return GetDynamicConfig()->CellRoles.Value(cellTag, defaultRoles);
+        const auto& config = GetDynamicConfig();
+        auto it = config->CellDescriptors.find(cellTag);
+        if (it != config->CellDescriptors.end() && it->second->Roles) {
+            return *it->second->Roles;
+        }
+        return GetDefaultMasterCellRoles(cellTag);
+    }
+
+    TString ComputeMasterCellNameFromConfig(TCellTag cellTag)
+    {
+        const auto& config = GetDynamicConfig();
+        auto it = config->CellDescriptors.find(cellTag);
+        if (it != config->CellDescriptors.end() && it->second->Name) {
+            return *it->second->Name;
+        }
+
+        return ToString(cellTag);
     }
 };
 
