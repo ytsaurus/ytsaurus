@@ -1229,6 +1229,10 @@ public:
 
     virtual i64 GetTableRowIndex() const override
     {
+        if (!CurrentReader_) {
+            YT_VERIFY(FlushedToEmptyChunk_);
+            return 0;
+        }
         return CurrentReader_->GetTableRowIndex();
     }
 

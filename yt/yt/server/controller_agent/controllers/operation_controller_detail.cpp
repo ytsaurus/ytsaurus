@@ -5323,6 +5323,16 @@ void TOperationControllerBase::FetchInputTables()
         inputChunk->SetTableIndex(tableIndex);
         inputChunk->SetChunkIndex(totalChunkCount++);
 
+        if (inputChunk->IsDynamicStore() && !table->Schema->IsSorted()) {
+            if (!InputHasOrderedDynamicStores_) {
+                YT_LOG_DEBUG("Operation input has ordered dynamic stores, job interrupts "
+                    "are disabled (TableId: %v, TablePath: %v)",
+                    table->ObjectId,
+                    table->GetPath());
+                InputHasOrderedDynamicStores_ = true;
+            }
+        }
+
         if (inputChunk->GetRowCount() > 0) {
             // Input chunks may have zero row count in case of unsensible read range with coinciding
             // lower and upper row index. We skip such chunks.
@@ -8797,6 +8807,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalTimePerTree_);
     Persist(context, CompletedRowCount_);
     Persist(context, AutoMergeEnabled_);
+    Persist(context, InputHasOrderedDynamicStores_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
@@ -9085,7 +9096,7 @@ void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason a
 
 bool TOperationControllerBase::CanInterruptJobs() const
 {
-    return Config->EnableJobInterrupts;
+    return Config->EnableJobInterrupts && !InputHasOrderedDynamicStores_;
 }
 
 void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reason)

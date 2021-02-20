@@ -17,6 +17,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((MemoryReserveFactorOverride)          (300503))
     ((SimplifyForeignDataProcessing)        (300504))
     ((AutoMergePendingJobCount)             (300505))
+    ((NoOrderedDynamicStoreInterrupts)      (300506))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

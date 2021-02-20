@@ -60,7 +60,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         CompressedDataSize_ = 1;
         MaxBlockSize_ = DefaultMaxBlockSize;
 
-        UniqueKeys_ = TypeFromId(ChunkId_) == EObjectType::SortedDynamicTabletStore;
+        UniqueKeys_ = IsSortedDynamicStore();
         TabletId_ = FromProto<TTabletId>(chunkSpec.tablet_id());
     } else {
         YT_VERIFY(FromProto<EChunkType>(chunkMeta.type()) == EChunkType::Table);
@@ -100,9 +100,17 @@ void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
 
 bool TInputChunkBase::IsDynamicStore() const
 {
-    auto type = TypeFromId(ChunkId_);
-    return type == EObjectType::SortedDynamicTabletStore ||
-        type == EObjectType::OrderedDynamicTabletStore;
+    return IsSortedDynamicStore() || IsOrderedDynamicStore();
+}
+
+bool TInputChunkBase::IsSortedDynamicStore() const
+{
+    return TypeFromId(ChunkId_) == EObjectType::SortedDynamicTabletStore;
+}
+
+bool TInputChunkBase::IsOrderedDynamicStore() const
+{
+    return TypeFromId(ChunkId_) == EObjectType::OrderedDynamicTabletStore;
 }
 
 // Intentionally used.
@@ -149,10 +157,19 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
             GetProtoExtension<NTableClient::NProto::THeavyColumnStatisticsExt>(chunkSpec.chunk_meta().extensions()))
         : nullptr)
 {
-    if (TypeFromId(ChunkId_) == EObjectType::SortedDynamicTabletStore) {
+    if (IsSortedDynamicStore()) {
         BoundaryKeys_ = std::make_unique<TOwningBoundaryKeys>();
         BoundaryKeys_->MinKey = LowerLimit_ && LowerLimit_->HasLegacyKey() ? LowerLimit_->GetLegacyKey() : MinKey();
         BoundaryKeys_->MaxKey = UpperLimit_ && UpperLimit_->HasLegacyKey() ? UpperLimit_->GetLegacyKey() : MaxKey();
+    }
+
+    if (IsOrderedDynamicStore() && UpperLimit_ && UpperLimit_->HasRowIndex())
+    {
+        i64 lowerLimit = LowerLimit_ && LowerLimit_->HasRowIndex()
+            ? LowerLimit_->GetRowIndex()
+            : 0;
+        TotalRowCount_ = std::max<i64>(0, UpperLimit_->GetRowIndex() - lowerLimit);
+        TotalDataWeight_ = std::max(TotalDataWeight_, TotalRowCount_);
     }
 }
 
@@ -220,6 +237,10 @@ void TInputChunk::ReleaseHeavyColumnarStatisticsExt()
 
 i64 TInputChunk::GetRowCount() const
 {
+    if (IsOrderedDynamicStore() && (!UpperLimit_ || !UpperLimit_->HasRowIndex())) {
+        return 1;
+    }
+
     i64 lowerRowIndex = LowerLimit_ && LowerLimit_->HasRowIndex()
         ? LowerLimit_->GetRowIndex()
         : 0;

@@ -68,6 +68,8 @@ public:
     void SetReplicaList(const TChunkReplicaList& replicas);
 
     bool IsDynamicStore() const;
+    bool IsSortedDynamicStore() const;
+    bool IsOrderedDynamicStore() const;
 
 private:
     void CheckOffsets();
