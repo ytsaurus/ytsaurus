@@ -25,6 +25,7 @@ DEFINE_ENUM(ETabletBackgroundActivity,
     ((Flush)          (1))
     ((Partitioning)   (2))
     ((Preload)        (3))
+    ((Rotation)       (4))
 );
 
 DEFINE_ENUM(ETabletCellLifeStage,
