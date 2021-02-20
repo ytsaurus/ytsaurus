@@ -21,6 +21,9 @@ public:
             .GreaterThanOrEqual(0);
         RegisterParameter("period", Period)
             .Default(period);
+        RegisterParameter("enable_fifo_order", EnableFifoOrder)
+            .Default(true)
+            .DontSerializeDefault();
     }
 
     //! Limit on average throughput (per sec). Null means unlimited.
@@ -28,6 +31,11 @@ public:
 
     //! Period for which the bandwidth limit applies.
     TDuration Period;
+
+    //! If true, a request will be throttled even when bandwidth is immediately
+    //! available but there're other previously throttled requests waiting in
+    //! the queue.
+    bool EnableFifoOrder;
 };
 
 DEFINE_REFCOUNTED_TYPE(TThroughputThrottlerConfig)
