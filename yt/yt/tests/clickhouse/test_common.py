@@ -1256,10 +1256,22 @@ class TestClickHouseNoCache(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_no_clickhouse_cache(self):
+        patch = {
+            "yt": {
+                "permission_cache": {
+                    "refresh_time": 250,
+                },
+                "table_attribute_cache": {
+                    "refresh_time": 250,
+                },
+            }
+        }
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 123}])
-        with Clique(1) as clique:
+        with Clique(1, config_patch=patch) as clique:
             for i in range(4):
+                if i != 0:
+                    time.sleep(0.5)
                 assert clique.make_query('select * from "//tmp/t"') == [{"a": 123}]
 
 
