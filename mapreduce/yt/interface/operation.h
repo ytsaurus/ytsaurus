@@ -26,21 +26,27 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Tag class marking that the row type for table is not specified.
 struct TUnspecifiedTableStructure
 { };
 
+/// Tag class marking that table rows have protobuf type.
 struct TProtobufTableStructure
 {
-    // If we tag our table with ::google::protobuf::Message instead of real proto class
-    // this descriptor might be null.
+    /// @brief Descriptor of the protobuf type of table rows.
+    ///
+    /// @note If table is tagged with @ref ::google::protobuf::Message instead of real proto class
+    /// this descriptor might be null.
     const ::google::protobuf::Descriptor* Descriptor = nullptr;
 };
 
+/// Tag class marking that table rows have YDL type.
 struct TYdlTableStructure
 {
     NTi::TTypePtr Type = nullptr;
 };
 
+/// Tag class to specify table row type.
 using TTableStructure = ::TVariant<
     TUnspecifiedTableStructure,
     TProtobufTableStructure,
@@ -51,6 +57,7 @@ bool operator==(const TUnspecifiedTableStructure&, const TUnspecifiedTableStruct
 bool operator==(const TProtobufTableStructure& lhs, const TProtobufTableStructure& rhs);
 bool operator==(const TYdlTableStructure& lhs, const TYdlTableStructure& rhs);
 
+/// Table path marked with @ref NYT::TTableStructure tag.
 struct TStructuredTablePath
 {
     TStructuredTablePath(TRichYPath richYPath = TRichYPath(), TTableStructure description = TUnspecifiedTableStructure())
@@ -82,36 +89,45 @@ struct TStructuredTablePath
     TTableStructure Description;
 };
 
+/// Create marked table path from row type.
 template <typename TRow>
 TStructuredTablePath Structured(TRichYPath richYPath);
 
+/// Create tag class from row type.
 template <typename TRow>
 TTableStructure StructuredTableDescription();
 
 ///////////////////////////////////////////////////////////////////////////////
 
+/// Tag class marking that row stream is empty.
 struct TVoidStructuredRowStream
 { };
 
+/// Tag class marking that row stream consists of @ref NYT:TNode.
 struct TTNodeStructuredRowStream
 { };
 
+/// Tag class marking that row stream consists of @ref NYT::TYaMRRow.
 struct TTYaMRRowStructuredRowStream
 { };
 
+/// Tag class marking that row stream consists of YDL rows of given type.
 struct TYdlStructuredRowStream
 {
     NTi::TTypePtr Type = nullptr;
 };
 
+/// Tag class marking that row stream consists of protobuf rows of given type.
 struct TProtobufStructuredRowStream
 {
-    // If descriptor is nullptr, then operation works with multiple message types
+    /// @brief Descriptor of the protobuf type of table rows.
+    ///
+    /// @note If `Descriptor` is nullptr, then row stream consists of multiple message types.
     const ::google::protobuf::Descriptor* Descriptor = nullptr;
 };
 
-using
-TStructuredRowStreamDescription = ::TVariant<
+/// Tag class to specify type of rows in an operation row stream 
+using TStructuredRowStreamDescription = ::TVariant<
     TVoidStructuredRowStream,
     TTNodeStructuredRowStream,
     TTYaMRRowStructuredRowStream,
@@ -121,15 +137,18 @@ TStructuredRowStreamDescription = ::TVariant<
 
 ///////////////////////////////////////////////////////////////////////////////
 
+/// Tag class marking that current binary should be used in operation.
 struct TJobBinaryDefault
 { };
 
+/// Tag class marking that binary from specified local path should be used in operation.
 struct TJobBinaryLocalPath
 {
     TString Path;
     TMaybe<TString> MD5CheckSum;
 };
 
+/// Tag class marking that binary from specified Cypress path should be used in operation.
 struct TJobBinaryCypressPath
 {
     TYPath Path;
@@ -144,6 +163,7 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Base for input format hints of a user job.
 template <class TDerived>
 class TUserJobInputFormatHintsBase
 {
@@ -153,6 +173,7 @@ public:
     FLUENT_FIELD_OPTION(TFormatHints, InputFormatHints);
 };
 
+/// Base for output format hints of a user job.
 template <class TDerived>
 class TUserJobOutputFormatHintsBase
 {
@@ -162,6 +183,7 @@ public:
     FLUENT_FIELD_OPTION(TFormatHints, OutputFormatHints);
 };
 
+/// Base for format hints of a user job.
 template <class TDerived>
 class TUserJobFormatHintsBase
     : public TUserJobInputFormatHintsBase<TDerived>
@@ -171,23 +193,34 @@ public:
     using TSelf = TDerived;
 };
 
+/// User job format hints.
 class TUserJobFormatHints
     : public TUserJobFormatHintsBase<TUserJobFormatHints>
 { };
 
+/// Spec of input and output tables of a raw operation.
 template <class TDerived>
 class TRawOperationIoTableSpec
 {
 public:
     using TSelf = TDerived;
 
+    /// Add input table path to input path list.
     TDerived& AddInput(const TRichYPath& path);
+
+    /// Set input table path no. `tableIndex`.
     TDerived& SetInput(size_t tableIndex, const TRichYPath& path);
 
+    /// Add output table path to output path list.
     TDerived& AddOutput(const TRichYPath& path);
+
+    /// Set output table path no. `tableIndex`.
     TDerived& SetOutput(size_t tableIndex, const TRichYPath& path);
 
+    /// Get all input table paths.
     const TVector<TRichYPath>& GetInputs() const;
+
+    /// Get all output table paths.
     const TVector<TRichYPath>& GetOutputs() const;
 
 private:
@@ -195,18 +228,26 @@ private:
     TVector<TRichYPath> Outputs_;
 };
 
+/// Base spec for IO in "simple" raw operations (Map, Reduce etc.).
 template <class TDerived>
 struct TSimpleRawOperationIoSpec
     : public TRawOperationIoTableSpec<TDerived>
 {
     using TSelf = TDerived;
 
-    // Describes format for both input and output. `Format' is overriden by `InputFormat' and `OutputFormat'.
+    /// @brief Describes format for both input and output.
+    ///
+    /// @note `Format' is overriden by `InputFormat' and `OutputFormat'.
     FLUENT_FIELD_OPTION(TFormat, Format);
+
+    /// Describes input format.
     FLUENT_FIELD_OPTION(TFormat, InputFormat);
+
+    /// Describes output format.
     FLUENT_FIELD_OPTION(TFormat, OutputFormat);
 };
 
+/// Spec for IO in MapReduce operation.
 template <class TDerived>
 class TRawMapReduceOperationIoSpec
     : public TRawOperationIoTableSpec<TDerived>
@@ -214,34 +255,60 @@ class TRawMapReduceOperationIoSpec
 public:
     using TSelf = TDerived;
 
-    // Describes format for both input and output. `Format' is overriden by `InputFormat' and `OutputFormat'.
+    /// @brief Describes format for both input and output of mapper.
+    ///
+    /// @note `MapperFormat' is overriden by `MapperInputFormat' and `MapperOutputFormat'.
     FLUENT_FIELD_OPTION(TFormat, MapperFormat);
+
+    /// Describes mapper input format.
     FLUENT_FIELD_OPTION(TFormat, MapperInputFormat);
+
+    /// Describes mapper output format.
     FLUENT_FIELD_OPTION(TFormat, MapperOutputFormat);
 
+    /// @brief Describes format for both input and output of reduce combiner.
+    ///
+    /// @note `ReduceCombinerFormat' is overriden by `ReduceCombinerInputFormat' and `ReduceCombinerOutputFormat'.
     FLUENT_FIELD_OPTION(TFormat, ReduceCombinerFormat);
+
+    /// Describes reduce combiner input format.
     FLUENT_FIELD_OPTION(TFormat, ReduceCombinerInputFormat);
+
+    /// Describes reduce combiner output format.
     FLUENT_FIELD_OPTION(TFormat, ReduceCombinerOutputFormat);
 
+    /// @brief Describes format for both input and output of reducer.
+    ///
+    /// @note `ReducerFormat' is overriden by `ReducerInputFormat' and `ReducerOutputFormat'.
     FLUENT_FIELD_OPTION(TFormat, ReducerFormat);
+
+    /// Describes reducer input format.
     FLUENT_FIELD_OPTION(TFormat, ReducerInputFormat);
+
+    /// Describes reducer output format.
     FLUENT_FIELD_OPTION(TFormat, ReducerOutputFormat);
 
+    /// Add direct map output table path.
     TDerived& AddMapOutput(const TRichYPath& path);
+
+    /// Set direct map output table path no. `tableIndex`.
     TDerived& SetMapOutput(size_t tableIndex, const TRichYPath& path);
 
+    /// Get all direct map output table paths 
     const TVector<TRichYPath>& GetMapOutputs() const;
 
 private:
     TVector<TRichYPath> MapOutputs_;
 };
 
+/// Base spec of input tables 
 class TOperationInputSpecBase
 {
 public:
     template <class T, class = void>
     struct TFormatAdder;
 
+    /// Add input table path to input path list and specify type of rows.
     template <class T>
     void AddInput(const TRichYPath& path);
 
