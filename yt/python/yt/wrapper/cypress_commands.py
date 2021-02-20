@@ -41,7 +41,7 @@ class _MapOrderSorted(object):
 MAP_ORDER_SORTED = _MapOrderSorted()
 
 def get(path, max_size=None, attributes=None, format=None, read_from=None,
-        cache_sticky_group_size=None, client=None):
+        cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None, client=None):
     """Gets Cypress node content (attribute tree).
 
     :param path: path to tree, it must exist!
@@ -57,11 +57,11 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None,
     """
     if max_size is None:
         max_size = 65535
-
     params = {
         "path": YPath(path, client=client),
         "max_size": max_size}
     set_param(params, "attributes", attributes)
+    set_param(params, "suppress_transaction_coordinator_sync", suppress_transaction_coordinator_sync)
     set_master_read_params(params, read_from, cache_sticky_group_size)
     if get_api_version(client) == "v4":
         set_param(params, "return_only_value", True)
@@ -72,7 +72,7 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None,
         client=client)
     return result
 
-def set(path, value, format=None, recursive=False, force=None, client=None):
+def set(path, value, format=None, recursive=False, force=None, suppress_transaction_coordinator_sync=None, client=None):
     """Sets new value to Cypress node.
 
     :param path: path.
@@ -95,6 +95,7 @@ def set(path, value, format=None, recursive=False, force=None, client=None):
     }
     set_param(params, "recursive", recursive)
     set_param(params, "force", force)
+    set_param(params, "suppress_transaction_coordinator_sync", suppress_transaction_coordinator_sync)
 
     return _make_transactional_request(
         "set",
@@ -265,7 +266,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, lock_ex
 
 def list(path,
          max_size=None, format=None, absolute=None, attributes=None, sort=True, read_from=None,
-         cache_sticky_group_size=None, client=None):
+         cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None, client=None):
     """Lists directory (map_node) content. Node type must be "map_node".
 
     :param path: path.
@@ -308,6 +309,7 @@ def list(path,
         "path": YPath(path, client=client),
         "max_size": max_size}
     set_param(params, "attributes", attributes)
+    set_param(params, "suppress_transaction_coordinator_sync", suppress_transaction_coordinator_sync)
     set_master_read_params(params, read_from, cache_sticky_group_size)
     if get_api_version(client) == "v4":
         set_param(params, "return_only_value", True)
@@ -318,7 +320,7 @@ def list(path,
         client=client)
     return apply_function_to_result(_process_result, result)
 
-def exists(path, read_from=None, cache_sticky_group_size=None, client=None):
+def exists(path, read_from=None, cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None, client=None):
     """Checks if Cypress node exists.
 
     :param path: path.
@@ -330,6 +332,7 @@ def exists(path, read_from=None, cache_sticky_group_size=None, client=None):
         return result["value"] if get_api_version(client) == "v4" else result
     params = {"path": YPath(path, client=client)}
     set_master_read_params(params, read_from, cache_sticky_group_size)
+    set_param(params, "suppress_transaction_coordinator_sync", suppress_transaction_coordinator_sync)
     result = _make_formatted_transactional_request(
         "exists",
         params,

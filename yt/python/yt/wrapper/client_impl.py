@@ -240,7 +240,7 @@ class YtClient(ClientState):
         """
         return client_api.abort_job(job_id, client=self, interrupt_timeout=interrupt_timeout)
 
-    def list(self, path, max_size=None, format=None, absolute=None, attributes=None, sort=True, read_from=None, cache_sticky_group_size=None):
+    def list(self, path, max_size=None, format=None, absolute=None, attributes=None, sort=True, read_from=None, cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None):
         """
         Lists directory (map_node) content. Node type must be "map_node".
 
@@ -261,7 +261,7 @@ class YtClient(ClientState):
     
         """
         return client_api.list(path, client=self, max_size=max_size, format=format, absolute=absolute, attributes=attributes, sort=sort, read_from=read_from,
-            cache_sticky_group_size=cache_sticky_group_size)
+            cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync)
 
     def get_job_spec(self, job_id, omit_node_directory=None, omit_input_table_specs=None, omit_output_table_specs=None):
         """
@@ -347,7 +347,7 @@ class YtClient(ClientState):
         """
         return client_api.batch_apply(function, data, client=self)
 
-    def set(self, path, value, format=None, recursive=False, force=None):
+    def set(self, path, value, format=None, recursive=False, force=None, suppress_transaction_coordinator_sync=None):
         """
         Sets new value to Cypress node.
 
@@ -360,9 +360,9 @@ class YtClient(ClientState):
     .. seealso:: `set in the docs <https://yt.yandex-team.ru/docs/api/commands.html#set>`_
     
         """
-        return client_api.set(path, value, client=self, format=format, recursive=recursive, force=force)
+        return client_api.set(path, value, client=self, format=format, recursive=recursive, force=force, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync)
 
-    def exists(self, path, read_from=None, cache_sticky_group_size=None):
+    def exists(self, path, read_from=None, cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None):
         """
         Checks if Cypress node exists.
 
@@ -372,7 +372,7 @@ class YtClient(ClientState):
     .. seealso:: `exists in the docs <https://yt.yandex-team.ru/docs/api/commands.html#exists>`_
     
         """
-        return client_api.exists(path, client=self, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size)
+        return client_api.exists(path, client=self, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync)
 
     def unlock(self, path):
         """
@@ -1211,7 +1211,7 @@ class YtClient(ClientState):
         """
         return client_api.update_operation_parameters(operation_id, parameters, client=self)
 
-    def get(self, path, max_size=None, attributes=None, format=None, read_from=None, cache_sticky_group_size=None):
+    def get(self, path, max_size=None, attributes=None, format=None, read_from=None, cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None):
         """
         Gets Cypress node content (attribute tree).
 
@@ -1227,7 +1227,7 @@ class YtClient(ClientState):
     .. seealso:: `get in the docs <https://yt.yandex-team.ru/docs/api/commands.html#get>`_
     
         """
-        return client_api.get(path, client=self, max_size=max_size, attributes=attributes, format=format, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size)
+        return client_api.get(path, client=self, max_size=max_size, attributes=attributes, format=format, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync)
 
     def externalize(self, path, cell_tag):
         """

@@ -290,6 +290,8 @@ def exists(**kwargs):
 def add_exists_parser(add_parser):
     parser = add_parser("exists", exists)
     add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--suppress-transaction-coordinator-sync", action="store_true",
+                        help="suppress transaction coordinator sync")
     add_read_from_arguments(parser)
 
 LONG_FORMAT_ATTRIBUTES = ("type", "target_path", "account", "resource_usage", "modification_time")
@@ -354,6 +356,8 @@ def add_list_parser(add_parser):
                               "default value is enough to list any nonsystem directory."))
     parser.add_argument("--recursive-resource-usage", action="store_true",
                         help="use recursive resource usage for in long format mode")
+    parser.add_argument("--suppress-transaction-coordinator-sync", action="store_true",
+                        help="suppress transaction coordinator sync")
     add_read_from_arguments(parser)
     group.add_argument("--absolute", action="store_true", default=False, help="print absolute paths")
 
@@ -595,6 +599,8 @@ def add_get_parser(add_parser):
     add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--attribute", action="append", dest="attributes",
                         help="desired node attributes in the response")
+    parser.add_argument("--suppress-transaction-coordinator-sync", action="store_true",
+                        help="suppress transaction coordinator sync")
     add_read_from_arguments(parser)
 
 @copy_docstring_from(yt.set)
@@ -616,6 +622,8 @@ def add_set_parser(add_parser):
     add_structured_format_argument(parser, default=YT_STRUCTURED_DATA_FORMAT)
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
+    parser.add_argument("--suppress-transaction-coordinator-sync", action="store_true",
+                        help="suppress transaction coordinator sync")
     add_hybrid_argument(parser, "value", group_required=False,
                         help="new node attribute value, in {0} format. You can specify in bash pipe: "
                              "\"cat file_with_value | yt set //tmp/my_node\"".format(YT_ARGUMENTS_FORMAT))
