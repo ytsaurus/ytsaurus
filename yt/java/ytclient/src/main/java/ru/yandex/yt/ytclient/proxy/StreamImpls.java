@@ -17,6 +17,7 @@ import javax.annotation.Nullable;
 import NYT.NChunkClient.NProto.DataStatistics;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.Message;
+import com.google.protobuf.Parser;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.slf4j.Logger;
@@ -41,13 +42,11 @@ import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
-import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Codec;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.internal.LazyResponse;
-import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
@@ -73,7 +72,7 @@ abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer 
         controlFuture.complete(control);
     }
 
-    protected abstract RpcMessageParser<RspType> responseParser();
+    protected abstract Parser<RspType> responseParser();
 
     protected void maybeReinitCodec(int codecId) {
         if (currentCodecId != codecId) {
@@ -428,8 +427,8 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
     }
 
     @Override
-    protected RpcMessageParser<TRspWriteTable> responseParser() {
-        return RpcServiceMethodDescriptor.makeMessageParser(TRspWriteTable.class);
+    protected Parser<TRspWriteTable> responseParser() {
+        return TRspWriteTable.parser();
     }
 
     public CompletableFuture<TableWriter<T>> startUpload() {
@@ -444,9 +443,7 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
                 throw new IllegalArgumentException("protocol error");
             }
 
-            RpcMessageParser<TWriteTableMeta> metaParser = RpcServiceMethodDescriptor.makeMessageParser(TWriteTableMeta.class);
-            TWriteTableMeta metadata = RpcUtil.parseMessageBodyWithCompression(head, metaParser, Compression.None);
-
+            TWriteTableMeta metadata = RpcUtil.parseMessageBodyWithCompression(head, TWriteTableMeta.parser(), Compression.None);
             self.schema = ApiServiceUtil.deserializeTableSchema(metadata.getSchema());
 
             logger.debug("schema -> {}", schema.toYTree().toString());
@@ -572,8 +569,8 @@ class FileWriterImpl extends StreamWriterImpl<TRspWriteFile> implements FileWrit
     }
 
     @Override
-    protected RpcMessageParser<TRspWriteFile> responseParser() {
-        return RpcServiceMethodDescriptor.makeMessageParser(TRspWriteFile.class);
+    protected Parser<TRspWriteFile> responseParser() {
+        return TRspWriteFile.parser();
     }
 
     public CompletableFuture<FileWriter> startUpload() {
@@ -787,8 +784,7 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
 }
 
 class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements TableReader<T> {
-    private static final RpcMessageParser<TRspReadTableMeta> metaParser =
-            RpcServiceMethodDescriptor.makeMessageParser(TRspReadTableMeta.class);
+    private static final Parser<TRspReadTableMeta> metaParser = TRspReadTableMeta.parser();
 
     private final TableAttachmentReader<T> reader;
     private TRspReadTableMeta metadata = null;
@@ -798,8 +794,8 @@ class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements Tabl
     }
 
     @Override
-    protected RpcMessageParser<TRspReadTable> responseParser() {
-        return RpcServiceMethodDescriptor.makeMessageParser(TRspReadTable.class);
+    protected Parser<TRspReadTable> responseParser() {
+        return TRspReadTable.parser();
     }
 
     @Override
@@ -874,8 +870,8 @@ class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements FileReade
     }
 
     @Override
-    protected RpcMessageParser<TRspReadFile> responseParser() {
-        return RpcServiceMethodDescriptor.makeMessageParser(TRspReadFile.class);
+    protected Parser<TRspReadFile> responseParser() {
+        return TRspReadFile.parser();
     }
 
     @Override
@@ -886,8 +882,7 @@ class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements FileReade
     public CompletableFuture<FileReader> waitMetadata() {
         FileReaderImpl self = this;
         return readHead().thenApply((data) -> {
-            RpcMessageParser<TReadFileMeta> metaParser = RpcServiceMethodDescriptor.makeMessageParser(TReadFileMeta.class);
-            TReadFileMeta meta = RpcUtil.parseMessageBodyWithCompression(data, metaParser, Compression.None);
+            TReadFileMeta meta = RpcUtil.parseMessageBodyWithCompression(data, TReadFileMeta.parser(), Compression.None);
             self.revision = meta.getRevision();
             return self;
         });

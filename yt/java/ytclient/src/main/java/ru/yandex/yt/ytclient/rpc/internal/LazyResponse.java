@@ -4,18 +4,20 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import com.google.protobuf.MessageLite;
+import com.google.protobuf.Parser;
+
 import ru.yandex.bolts.collection.Option;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
-import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 /**
  * Реализация RpcClientResponse с ленивой десериализацией тела ответа при первом обращении
  */
-public class LazyResponse<ResponseType> implements RpcClientResponse<ResponseType> {
-    private final RpcMessageParser<ResponseType> parser;
+public class LazyResponse<ResponseType extends MessageLite> implements RpcClientResponse<ResponseType> {
+    private final Parser<ResponseType> parser;
     private byte[] bodyData;
     private ResponseType bodyMessage;
     private final List<byte[]> attachments;
@@ -23,7 +25,7 @@ public class LazyResponse<ResponseType> implements RpcClientResponse<ResponseTyp
     private final Option<Compression> compression;
 
     public LazyResponse(
-            RpcMessageParser<ResponseType> parser,
+            Parser<ResponseType> parser,
             byte[] body,
             List<byte[]> attachments,
             RpcClient sender,

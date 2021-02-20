@@ -6,6 +6,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.MessageLite;
+import com.google.protobuf.Parser;
 
 import ru.yandex.bolts.collection.Option;
 import ru.yandex.lang.NonNullApi;
@@ -14,16 +15,15 @@ import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
-import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 @NonNullApi
 public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite> extends RequestBuilderBase<RequestType, RpcClientResponse<ResponseType>> {
-    private final RpcMessageParser<ResponseType> parser;
+    private final Parser<ResponseType> parser;
 
     RequestWithResponseBuilder(
             TRequestHeader.Builder header, RequestType body,
-            RpcMessageParser<ResponseType> parser,
+            Parser<ResponseType> parser,
             RpcOptions options) {
         super(header, body, options);
         this.parser = parser;

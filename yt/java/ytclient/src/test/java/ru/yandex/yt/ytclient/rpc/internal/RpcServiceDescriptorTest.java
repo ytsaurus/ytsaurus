@@ -3,7 +3,6 @@ package ru.yandex.yt.ytclient.rpc.internal;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
-import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.MessageLite;
 import org.junit.Test;
 
@@ -34,7 +33,7 @@ public class RpcServiceDescriptorTest {
     {
         assertThat(m.getResponseBodyType(), is(equalTo(messageClass)));
         byte[] data = sampleMessage.toByteArray();
-        Object message = m.getResponseBodyParser().parse(CodedInputStream.newInstance(data));
+        Object message = m.getResponseBodyParser().parseFrom(data);
         assertThat(message, is(instanceOf(messageClass)));
         assertThat(message, is(equalTo(sampleMessage)));
     }

@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.util.Collections;
 
+import com.google.protobuf.Parser;
 import org.junit.Test;
 
 import ru.yandex.yt.TGuid;
@@ -9,16 +10,15 @@ import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
-import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class StreamReaderImplTest {
-    private byte[] bytes0 = {1, 2, 3, 4};
-    private byte[] bytes1 = {5, 6, 7, 8};
-    private byte[] bytes2 = {9, 10, 11, 12};
+    private final byte[] bytes0 = {1, 2, 3, 4};
+    private final byte[] bytes1 = {5, 6, 7, 8};
+    private final byte[] bytes2 = {9, 10, 11, 12};
 
     @Test
     public void testReadInStraightOrder() throws Exception {
@@ -62,7 +62,7 @@ public class StreamReaderImplTest {
         RpcClientStreamControl control = mock(RpcClientStreamControl.class);
         StreamReaderImpl<TRspReadTable> result = new StreamReaderImpl<>() {
             @Override
-            protected RpcMessageParser<TRspReadTable> responseParser() {
+            protected Parser<TRspReadTable> responseParser() {
                 return null;
             }
         };
