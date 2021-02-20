@@ -173,8 +173,6 @@ public:
 
         Type_ = type;
         if (Type_ == ETransactionType::Master) {
-            ReplicatedToMasterCellTags_ = options.ReplicateToMasterCellTags.value_or(TCellTagList());
-
             auto optionsCoordinatorCellTagOrError = GetCoordinatorMasterCellTagFromOptions(options);
             if (!optionsCoordinatorCellTagOrError.IsOK()) {
                 return MakeFuture(TError(optionsCoordinatorCellTagOrError));
@@ -656,6 +654,8 @@ private:
                 CoordinatorMasterCellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CoordinatorMasterCellTag_);
             }
         }
+
+        SetReplicatedToMasterCellTags(options.ReplicateToMasterCellTags.value_or(TCellTagList()));
 
         AutoAbort_ = options.AutoAbort;
         PingPeriod_ = options.PingPeriod;
@@ -1256,6 +1256,17 @@ private:
     {
         auto guard = Guard(SpinLock_);
         return RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end();
+    }
+
+    void SetReplicatedToMasterCellTags(const TCellTagList& replicatedToCellTags)
+    {
+        ReplicatedToMasterCellTags_ = replicatedToCellTags;
+        ReplicatedToMasterCellTags_.erase(
+            std::remove(
+                ReplicatedToMasterCellTags_.begin(),
+                ReplicatedToMasterCellTags_.end(),
+                CoordinatorMasterCellTag_),
+            ReplicatedToMasterCellTags_.end());
     }
 
     bool IsReplicatedToMasterCell(TCellId cellId)
