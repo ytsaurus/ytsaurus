@@ -414,7 +414,9 @@ void TClient::ValidateSuperuserPermissions()
     }
 
     auto pathToGroupYsonList = NSecurityClient::GetUserPath(*Options_.User) + "/@member_of_closure";
-    auto groupYsonList = WaitFor(GetNode(pathToGroupYsonList, {}))
+    TGetNodeOptions options;
+    options.SuppressTransactionCoordinatorSync = true;
+    auto groupYsonList = WaitFor(GetNode(pathToGroupYsonList, options))
         .ValueOrThrow();
 
     auto groups = ConvertTo<THashSet<TString>>(groupYsonList);
