@@ -131,16 +131,16 @@ TFuture<void> TRequestTracker::ThrottleUserRequest(TUser* user, int requestCount
 void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
 {
     user->SetRequestRateLimit(limit, type);
-    ReconfigureUserRequestRateThrottler(user);
+    ReconfigureUserRequestRateThrottlers(user);
 }
 
 void TRequestTracker::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config)
 {
     user->SetRequestLimits(std::move(config));
-    ReconfigureUserRequestRateThrottler(user);
+    ReconfigureUserRequestRateThrottlers(user);
 }
 
-void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
+void TRequestTracker::ReconfigureUserRequestRateThrottlers(TUser* user)
 {
     auto enableDistributedThrottler = GetDynamicConfig()->EnableDistributedThrottler;
     for (auto workloadType : {EUserWorkloadType::Read, EUserWorkloadType::Write}) {
@@ -156,6 +156,7 @@ void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
 
         auto config = New<TThroughputThrottlerConfig>();
         config->Period = GetDynamicConfig()->RequestRateSmoothingPeriod;
+        config->EnableFifoOrder = user->IsFifoThrottlingEnabled();
 
         auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
         auto requestRateLimit = user->GetRequestRateLimit(workloadType, cellTag);
@@ -214,7 +215,7 @@ void TRequestTracker::ReconfigureUserThrottlers()
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     for (auto [userId, user] : securityManager->Users()) {
         if (IsObjectAlive(user)) {
-            ReconfigureUserRequestRateThrottler(user);
+            ReconfigureUserRequestRateThrottlers(user);
         }
     }
 }

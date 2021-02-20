@@ -1814,7 +1814,7 @@ public:
                 << TErrorAttribute("increase", increase)
                 << TErrorAttribute("limit", limit);
         };
-        
+
         auto validateMasterMemoryIncrease = [&] (TAccount* account) {
             if (!dynamicConfig->EnableMasterMemoryUsageValidation || delta.MasterMemory <= 0) {
                 return;
@@ -1827,7 +1827,7 @@ public:
             auto multicellStatisticsIt = multicellStatistics.find(cellTag);
             if (cellLimitsIt != perCellLimit.end() && multicellStatisticsIt != multicellStatistics.end()) {
                 if (multicellStatisticsIt->second.ResourceUsage.MasterMemory + delta.MasterMemory >
-                    cellLimitsIt->second) 
+                    cellLimitsIt->second)
                 {
                     throwOverdraftError(Format("cell %v master memory", cellTag),
                         account,
@@ -2316,7 +2316,7 @@ private:
         MaybeRecomputeMembershipClosure();
 
         if (!IsRecovery()) {
-            RequestTracker_->ReconfigureUserRequestRateThrottler(user);
+            RequestTracker_->ReconfigureUserRequestRateThrottlers(user);
         }
 
         return user;

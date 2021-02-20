@@ -46,7 +46,7 @@ public:
         TUser* user,
         TUserRequestLimitsConfigPtr config);
 
-    void ReconfigureUserRequestRateThrottler(TUser* user);
+    void ReconfigureUserRequestRateThrottlers(TUser* user);
 
     void SetUserRequestQueueSizeLimit(
         TUser* user,

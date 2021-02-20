@@ -59,10 +59,16 @@ public:
 
         while (true) {
             TryUpdateAvailable();
-            auto available = Available_.load();
-            if (available <= 0 || QueueTotalCount_ > 0) {
+
+            if (EnableFifoOrder_ && QueueTotalCount_ > 0) {
                 break;
             }
+
+            auto available = Available_.load();
+            if (available <= 0) {
+                break;
+            }
+
             if (Available_.compare_exchange_strong(available, available - count)) {
                 return VoidFuture;
             }
@@ -191,6 +197,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        EnableFifoOrder_ = config->EnableFifoOrder;
+
         DoReconfigure(config->Limit, config->Period);
     }
 
@@ -224,6 +232,7 @@ private:
     // -1 indicates no limit
     std::atomic<double> Limit_;
     std::atomic<TDuration> Period_;
+    std::atomic<bool> EnableFifoOrder_;
     TDelayedExecutorCookie UpdateCookie_;
 
     std::queue<TThrottlerRequestPtr> Requests_;
