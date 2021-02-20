@@ -151,6 +151,8 @@ using TTabletResources = NTabletServer::TTabletResources;
 
 static const auto& Logger = TabletServerLogger;
 
+static constexpr auto ProfilingPeriod = TDuration::Seconds(5);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TProfilingCounters
@@ -277,6 +279,8 @@ public:
         for (auto* action : tabletCellBundle->TabletActions()) {
             action->SetTabletCellBundle(nullptr);
         }
+
+        BundleIdToProfilingCounters_.erase(tabletCellBundle->GetId());
     }
 
     TTablet* GetTabletOrThrow(TTabletId id)
@@ -2448,6 +2452,7 @@ private:
     TPeriodicExecutorPtr TabletCellStatisticsGossipExecutor_;
     TPeriodicExecutorPtr TableStatisticsGossipExecutor_;
     TPeriodicExecutorPtr BundleResourceUsageGossipExecutor_;
+    TPeriodicExecutorPtr ProfilingExecutor_;
 
     IReconfigurableThroughputThrottlerPtr TableStatisticsGossipThrottler_;
 
@@ -2488,6 +2493,9 @@ private:
         return &it->second;
     }
 
+    THashMap<TTabletCellBundleId, TTabletCellBundleProfilingCounters>
+        BundleIdToProfilingCounters_;
+
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
@@ -2498,6 +2506,23 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
+
+    TTabletCellBundleProfilingCounters GetOrCreateBundleProfilingCounters(
+        TTabletCellBundle* bundle)
+    {
+        auto it = BundleIdToProfilingCounters_.find(bundle->GetId());
+        if (it != BundleIdToProfilingCounters_.end()) {
+            if (it->second.BundleName == bundle->GetName()) {
+                return it->second;
+            } else {
+                BundleIdToProfilingCounters_.erase(it);
+            }
+        }
+
+        TTabletCellBundleProfilingCounters counters(bundle->GetName());
+        BundleIdToProfilingCounters_.emplace(bundle->GetId(), counters);
+        return counters;
+    }
 
     void OnTabletCellDecommissionStarted(TCellBase* cellBase)
     {
@@ -6024,6 +6049,30 @@ private:
         ScheduleTableStatisticsUpdate(table, scheduleTableDataStatisticsUpdate);
     }
 
+    void OnProfiling()
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsPrimaryMaster()) {
+            return;
+        }
+
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+
+        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
+            if (!IsObjectAlive(bundleBase) || bundleBase->GetType() != EObjectType::TabletCellBundle) {
+                continue;
+            }
+
+            auto* bundle = bundleBase->As<TTabletCellBundle>();
+            auto counters = GetOrCreateBundleProfilingCounters(bundle);
+            bundle->OnProfiling(&counters);
+        }
+    }
+
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -6058,6 +6107,12 @@ private:
             BIND(&TImpl::OnTabletCellBundleResourceUsageGossip, MakeWeak(this)),
             dynamicConfig->MulticellGossip->BundleResourceUsageGossipPeriod);
         BundleResourceUsageGossipExecutor_->Start();
+
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
+        ProfilingExecutor_->Start();
     }
 
     virtual void OnStopLeading() override
@@ -6083,6 +6138,13 @@ private:
             BundleResourceUsageGossipExecutor_->Stop();
             BundleResourceUsageGossipExecutor_.Reset();
         }
+
+        if (ProfilingExecutor_) {
+            ProfilingExecutor_->Stop();
+            ProfilingExecutor_.Reset();
+        }
+
+        BundleIdToProfilingCounters_.clear();
     }
 
 

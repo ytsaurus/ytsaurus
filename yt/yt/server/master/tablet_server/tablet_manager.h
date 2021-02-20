@@ -159,7 +159,7 @@ public:
         NTableServer::TTableNode* originatingNode,
         NTableServer::TTableNode* branchedNode);
 
-    void SendTableStatisticsUpdates(NChunkServer::TChunkOwnerBase* chunkOwniner);
+    void SendTableStatisticsUpdates(NChunkServer::TChunkOwnerBase* chunkOwner);
 
     TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id);
     TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id);
