@@ -1046,7 +1046,7 @@ class TReplicatorHintConfig
     : public NYTree::TYsonSerializable
 {
 public:
-   THashSet<TString> BannedReplicaClusters;
+    THashSet<TString> BannedReplicaClusters;
 
     TReplicatorHintConfig()
     {

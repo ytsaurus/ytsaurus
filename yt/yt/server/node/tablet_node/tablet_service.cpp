@@ -148,17 +148,16 @@ private:
         securityManager->ValidateResourceLimits(
             tabletSnapshot->WriterOptions->Account,
             tabletSnapshot->WriterOptions->MediumName,
+            Slot_->GetTabletCellBundleName(),
             tabletSnapshot->Config->InMemoryMode);
 
         auto slotOptions = Slot_->GetOptions();
         securityManager->ValidateResourceLimits(
             slotOptions->ChangelogAccount,
-            slotOptions->ChangelogPrimaryMedium,
-            EInMemoryMode::None);
+            slotOptions->ChangelogPrimaryMedium);
         securityManager->ValidateResourceLimits(
             slotOptions->SnapshotAccount,
-            slotOptions->SnapshotPrimaryMedium,
-            EInMemoryMode::None);
+            slotOptions->SnapshotPrimaryMedium);
 
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto requestData = requestCodec->Decompress(request->Attachments()[0]);

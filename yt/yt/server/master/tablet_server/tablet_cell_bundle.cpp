@@ -69,7 +69,7 @@ void TTabletCellBundle::ValidateResourceUsageIncrease(const TTabletResources& de
         if (delta.*resource > 0 &&
             usage.*resource + delta.*resource > limits.*resource)
         {
-            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::TabletResourceLimitExceeded,
+            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BundleResourceLimitExceeded,
                 "Tablet cell bundle %Qv is over %v limit",
                 GetName(),
                 resourceName)
