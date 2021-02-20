@@ -77,7 +77,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, PersistentSignature, InitialTransactionSignature);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, TransientSignature, InitialTransactionSignature);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, ReplicatedRowsPrepared, false);
+    DEFINE_BYVAL_RW_PROPERTY(bool, RowsPrepared, false);
     DEFINE_BYREF_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity);
 
 public:

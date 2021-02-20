@@ -459,9 +459,13 @@ public:
 
     int GetColumnLockCount() const;
 
-    // Only applicable to ordered tablets.
+    // Only applicable to physically ordered tablets.
     i64 GetTotalRowCount() const;
     void UpdateTotalRowCount();
+
+    // Only applicable to replicated tablets (these are always physically ordered).
+    i64 GetDelayedLocklessRowCount();
+    void SetDelayedLocklessRowCount(i64 value);
 
     // Only applicable to ordered tablets.
     i64 GetTrimmedRowCount() const;
@@ -549,6 +553,7 @@ private:
     TRowCachePtr RowCache_;
 
     i64 TabletLockCount_ = 0;
+    i64 DelayedLocklessRowCount_ = 0;
 
     TLockManagerPtr LockManager_;
 

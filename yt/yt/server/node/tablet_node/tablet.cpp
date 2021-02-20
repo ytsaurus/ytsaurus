@@ -1099,6 +1099,16 @@ void TTablet::UpdateTotalRowCount()
     }
 }
 
+i64 TTablet::GetDelayedLocklessRowCount()
+{
+    return DelayedLocklessRowCount_;
+}
+
+void TTablet::SetDelayedLocklessRowCount(i64 value)
+{
+    DelayedLocklessRowCount_ = value;
+}
+
 i64 TTablet::GetTrimmedRowCount() const
 {
     return RuntimeData_->TrimmedRowCount;

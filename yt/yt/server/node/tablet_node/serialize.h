@@ -23,6 +23,7 @@ DEFINE_ENUM(ETabletReign,
     ((AuthenticationIdentity)             (100101)) // babenko
     ((MountHint)                          (100102)) // ifsmirnov
     ((RowBufferEmptyRowDeserialization)   (100103)) // max42
+    ((YT_14346_ReplicationBarrier)        (100200)) // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
