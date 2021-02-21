@@ -3106,14 +3106,6 @@ private:
                 node->GetDefaultAddress());
         }
 
-        if (!cached) {
-            ScheduleChunkRefresh(chunk);
-        }
-
-        if (ChunkSealer_ && !cached && chunk->IsJournal()) {
-            ChunkSealer_->ScheduleSeal(chunk);
-        }
-
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
             ++ChunkReplicasAdded_;
         }
@@ -3121,6 +3113,35 @@ private:
         if (chunk->IsStaged() && !chunk->IsConfirmed() && !chunk->GetExpirationTime()) {
             ScheduleChunkExpiration(chunk);
         }
+
+        if (!cached) {
+            ScheduleChunkRefresh(chunk);
+            ScheduleChunkSeal(chunk);
+        }
+    }
+
+    void ApproveChunkReplica(
+        TNode* node,
+        TChunkPtrWithIndexes chunkWithIndexes)
+    {
+        auto* chunk = chunkWithIndexes.GetPtr();
+        auto nodeId = node->GetId();
+        TNodePtrWithIndexes nodeWithIndexes(
+            node,
+            chunkWithIndexes.GetReplicaIndex(),
+            chunkWithIndexes.GetMediumIndex(),
+            chunkWithIndexes.GetState());
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
+            nodeId,
+            node->GetDefaultAddress(),
+            chunkWithIndexes);
+
+        node->ApproveReplica(chunkWithIndexes);
+        chunk->ApproveReplica(nodeWithIndexes);
+
+        ScheduleChunkRefresh(chunk);
+        ScheduleChunkSeal(chunk);
     }
 
     void RemoveChunkReplica(
@@ -3247,21 +3268,16 @@ private:
         TNodePtrWithIndexes nodeWithIndexes(node, chunkIdWithIndexes.ReplicaIndex, chunkIdWithIndexes.MediumIndex, state);
 
         if (!cached && node->HasUnapprovedReplica(chunkWithIndexes)) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
-                nodeId,
-                node->GetDefaultAddress(),
+            ApproveChunkReplica(
+                node,
                 chunkWithIndexes);
-
-            node->ApproveReplica(chunkWithIndexes);
-            chunk->ApproveReplica(nodeWithIndexes);
-            return;
+        } else {
+            AddChunkReplica(
+                medium,
+                node,
+                chunkWithIndexes,
+                incremental ? EAddReplicaReason::IncrementalHeartbeat : EAddReplicaReason::FullHeartbeat);
         }
-
-        AddChunkReplica(
-            medium,
-            node,
-            chunkWithIndexes,
-            incremental ? EAddReplicaReason::IncrementalHeartbeat : EAddReplicaReason::FullHeartbeat);
     }
 
     void ProcessRemovedChunk(
