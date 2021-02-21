@@ -8,6 +8,93 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBlobHolder
+    : public TRefCounted
+{
+public:
+    explicit TBlobHolder(TBlob&& blob)
+        : Blob_(std::move(blob))
+    { }
+
+private:
+    const TBlob Blob_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStringHolder
+    : public TRefCounted
+{
+public:
+    TStringHolder(TString&& string, TRefCountedTypeCookie cookie)
+        : String_(std::move(string))
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        , Cookie_(cookie)
+#endif
+    {
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        TRefCountedTrackerFacade::AllocateTagInstance(Cookie_);
+        TRefCountedTrackerFacade::AllocateSpace(Cookie_, String_.length());
+#endif
+    }
+    ~TStringHolder()
+    {
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
+        TRefCountedTrackerFacade::FreeSpace(Cookie_, String_.length());
+#endif
+    }
+
+private:
+    const TString String_;
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    const TRefCountedTypeCookie Cookie_;
+#endif
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAllocationHolder
+    : public TRefCounted
+    , public TWithExtraSpace<TAllocationHolder>
+{
+public:
+    TAllocationHolder(size_t size, bool initializeStorage, TRefCountedTypeCookie cookie)
+        : Size_(size)
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        , Cookie_(cookie)
+#endif
+    {
+        if (initializeStorage) {
+            ::memset(GetExtraSpacePtr(), 0, Size_);
+        }
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        TRefCountedTrackerFacade::AllocateTagInstance(Cookie_);
+        TRefCountedTrackerFacade::AllocateSpace(Cookie_, Size_);
+#endif
+    }
+    ~TAllocationHolder()
+    {
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
+        TRefCountedTrackerFacade::FreeSpace(Cookie_, Size_);
+#endif
+    }
+
+    TMutableRef GetRef()
+    {
+        return TMutableRef(GetExtraSpacePtr(), Size_);
+    }
+
+private:
+    const size_t Size_;
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    const TRefCountedTypeCookie Cookie_;
+#endif
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 static const char EmptyRefData[0] = {};
 const TRef EmptyRef(EmptyRefData, static_cast<size_t>(0));
 const TSharedRef EmptySharedRef(EmptyRef, nullptr);
@@ -43,9 +130,12 @@ TSharedRef TSharedRef::FromBlob(TBlob&& blob)
 
 TSharedRef TSharedRef::MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie)
 {
-    auto blob = TBlob(tagCookie, ref.Size(), false, 1);
-    ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
-    return FromBlob(std::move(blob));
+    if (ref.Empty()) {
+        return TSharedRef();
+    }
+    auto result = TSharedMutableRef::Allocate(ref.Size(), false, tagCookie);
+    ::memcpy(result.Begin(), ref.Begin(), ref.Size());
+    return result;
 }
 
 std::vector<TSharedRef> TSharedRef::Split(size_t partSize) const
@@ -83,76 +173,12 @@ TSharedMutableRef TSharedMutableRef::FromBlob(TBlob&& blob)
 
 TSharedMutableRef TSharedMutableRef::MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie)
 {
-    auto blob = TBlob(tagCookie, ref.Size(), false);
-    ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
-    return FromBlob(std::move(blob));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSharedRef::TBlobHolder::TBlobHolder(TBlob&& blob)
-    : Blob_(std::move(blob))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSharedMutableRef::TBlobHolder::TBlobHolder(TBlob&& blob)
-    : Blob_(std::move(blob))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSharedMutableRef::TAllocationHolder::TAllocationHolder(
-    size_t size,
-    bool initializeStorage,
-    TRefCountedTypeCookie cookie)
-    : Size_(size)
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    , Cookie_(cookie)
-#endif
-{
-    if (initializeStorage) {
-        ::memset(GetExtraSpacePtr(), 0, Size_);
+    if (ref.Empty()) {
+        return TSharedMutableRef();
     }
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTrackerFacade::AllocateTagInstance(Cookie_);
-    TRefCountedTrackerFacade::AllocateSpace(Cookie_, Size_);
-#endif
-}
-
-TSharedMutableRef::TAllocationHolder::~TAllocationHolder()
-{
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
-    TRefCountedTrackerFacade::FreeSpace(Cookie_, Size_);
-#endif
-}
-
-TMutableRef TSharedMutableRef::TAllocationHolder::GetRef()
-{
-    return TMutableRef(GetExtraSpacePtr(), Size_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSharedRef::TStringHolder::TStringHolder(TString&& string, TRefCountedTypeCookie cookie)
-    : String_(std::move(string))
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    , Cookie_(cookie)
-#endif
-{
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTrackerFacade::AllocateTagInstance(Cookie_);
-    TRefCountedTrackerFacade::AllocateSpace(Cookie_, String_.length());
-#endif
-}
-
-TSharedRef::TStringHolder::~TStringHolder()
-{
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
-    TRefCountedTrackerFacade::FreeSpace(Cookie_, String_.length());
-#endif
+    auto result = Allocate(ref.Size(), false, tagCookie);
+    ::memcpy(result.Begin(), ref.Begin(), ref.Size());
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
