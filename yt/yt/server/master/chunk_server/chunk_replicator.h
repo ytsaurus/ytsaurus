@@ -110,6 +110,7 @@ public:
         std::vector<TJobPtr>* jobsToStart);
 
     bool IsReplicatorEnabled();
+    bool IsSealerEnabled();
     bool IsRefreshEnabled();
     bool IsRequisitionUpdateEnabled();
 

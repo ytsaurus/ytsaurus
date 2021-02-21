@@ -109,7 +109,6 @@ public:
     void ScheduleSeal(TChunk* chunk)
     {
         YT_ASSERT(chunk->IsAlive());
-        YT_ASSERT(chunk->IsJournal());
 
         if (IsSealNeeded(chunk)) {
             SealScanner_->EnqueueChunk(chunk);
