@@ -769,7 +769,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
 
 class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
-    NUM_TEST_PARTITIONS = 8
+    NUM_TEST_PARTITIONS = 12
 
     @authors("babenko")
     def test_force_unmount_on_remove(self):
