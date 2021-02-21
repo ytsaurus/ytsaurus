@@ -534,7 +534,7 @@ public:
             if (!dynamicConfig->EnableHunks) {
                 THROW_ERROR_EXCEPTION("Hunks are not enabled");
             }
-            
+
             hunkChunks.reserve(hunkRefsExt->refs_size());
             for (const auto& protoRef : hunkRefsExt->refs()) {
                 auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
@@ -813,7 +813,7 @@ public:
             &child + 1);
     }
 
-    
+
     void DetachFromChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
@@ -2410,10 +2410,6 @@ private:
         if (subresponse && subrequest->request_statistics()) {
             *subresponse->mutable_statistics() = chunk->GetStatistics().ToDataStatistics();
         }
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk confirmed (ChunkId: %v, Replicas: %v)",
-            chunkId,
-            replicas);
     }
 
     void ExecuteSealChunkSubrequest(
