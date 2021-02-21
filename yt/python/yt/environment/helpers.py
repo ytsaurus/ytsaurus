@@ -276,7 +276,21 @@ def read_config(filename, format="yson"):
         else:
             return to_native_str(f.read())
 
-def is_dead_or_zombie(pid):
+def is_dead(pid):
+    try:
+        os.waitpid(pid, os.P_NOWAIT)
+    except OSError:
+        pass
+
+    try:
+        with open("/proc/{0}/status".format(pid), "r") as f:
+            return False
+    except IOError:
+        pass
+
+    return True
+
+def is_zombie(pid):
     try:
         with open("/proc/{0}/status".format(pid), "r") as f:
             for line in f:
@@ -285,7 +299,7 @@ def is_dead_or_zombie(pid):
     except IOError:
         pass
 
-    return True
+    return False
 
 def is_file_locked(lock_file_path):
     if not os.path.exists(lock_file_path):

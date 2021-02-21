@@ -3,7 +3,7 @@ from __future__ import print_function
 from .configs_provider import _init_logging, build_configs
 from .default_config import get_dynamic_master_config
 from .helpers import (
-    read_config, write_config, is_dead_or_zombie, OpenPortIterator,
+    read_config, write_config, is_dead, is_zombie, OpenPortIterator,
     wait_for_removing_file_lock, get_value_from_config, WaitFailed,
     is_port_opened, is_file_locked)
 from .porto_helpers import PortoSubprocess, porto_avaliable
@@ -659,14 +659,17 @@ class YTInstance(object):
             if e.errno != errno.ESRCH:
                 raise
         try:
-            wait(lambda: is_dead_or_zombie(proc.pid))
+            wait(lambda: is_dead(proc.pid))
         except WaitFailed:
-            try:
-                with open("/proc/{0}/status".format(proc.pid), "r") as fin:
-                    logger.error("Process status: %s", fin.read().replace("\n", "\\n"))
-            except IOError:
-                pass
-            raise
+            if is_zombie(proc.pid):
+                os.waitpid(proc.pid, os.P_NOWAIT)
+            if not is_dead(proc.pid):
+                try:
+                    with open("/proc/{0}/status".format(proc.pid), "r") as fin:
+                        logger.error("Process status: %s", fin.read().replace("\n", "\\n"))
+                except IOError:
+                    pass
+                raise
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + "\n")

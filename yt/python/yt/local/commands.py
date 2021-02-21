@@ -1,7 +1,7 @@
 from yt.environment import YTInstance
 from yt.environment.api import LocalYtConfig
 import yt.environment.init_operation_archive as yt_env_init_operation_archive
-from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead_or_zombie, yatest_common
+from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead, yatest_common
 from yt.wrapper.common import generate_uuid, GB, MB
 from yt.common import YtError, require, is_process_alive
 
@@ -277,7 +277,7 @@ def stop(id, remove_working_dir=False, remove_runtime_data=False, path=None, ign
         killed = False
 
         while time.time() - start_time < YT_LOCAL_STOP_WAIT_TIME:
-            if is_dead_or_zombie(pid):
+            if is_dead(pid):
                 killed = True
                 break
 

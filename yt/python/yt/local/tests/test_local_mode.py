@@ -5,7 +5,7 @@ import yt.local as yt_local
 from yt.common import remove_file, is_process_alive, which
 from yt.wrapper import YtClient
 from yt.wrapper.common import generate_uuid
-from yt.environment.helpers import is_dead_or_zombie, OpenPortIterator
+from yt.environment.helpers import is_dead, OpenPortIterator
 from yt.test_helpers import get_tests_sandbox, wait
 import yt.subprocess_wrapper as subprocess
 import yt.environment.arcadia_interop as arcadia_interop
@@ -555,7 +555,7 @@ class TestLocalMode(object):
             while True:
                 print("Waiting all YT processes to exit...")
 
-                all_processes_dead = all(is_dead_or_zombie(pid) for pid in pids)
+                all_processes_dead = all(is_dead(pid) for pid in pids)
                 if all_processes_dead:
                     break
 
