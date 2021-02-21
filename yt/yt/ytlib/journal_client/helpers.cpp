@@ -561,7 +561,6 @@ private:
     };
     std::vector<TChunkMetaResult> ChunkMetaResults_;
 
-    bool HeaderResponseReceived_ = false;
     std::optional<NJournalClient::NProto::TOverlayedJournalChunkHeader> Header_;
 
     std::vector<TError> ChunkMetaInnerErrors_;
@@ -661,6 +660,10 @@ private:
         const TChunkReplicaDescriptor& replica,
         const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError)
     {
+        if (Header_) {
+            return;
+        }
+
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError, "Failed to get journal chunk header block (Replica: %v)",
                 replica);
@@ -669,17 +672,12 @@ private:
             return;
         }
 
-        if (Header_) {
-            return;
-        }
-
-        HeaderResponseReceived_ = true;
-
         const auto& rsp = rspOrError.Value();
 
         if (rsp->Attachments().size() < 1) {
-            YT_LOG_DEBUG("Journal chunk replica is missing header block (Replica: %v)",
+            YT_LOG_DEBUG(rspOrError, "Journal replica did not return chunk header block (Replica: %v)",
                 replica);
+            HeaderBlockInnerErrors_.push_back(TError("Journal replica %v did not return chunk header block", replica));
             return;
         }
 
@@ -732,13 +730,13 @@ private:
 
         TChunkQuorumInfo result;
         if (Overlayed_) {
-            if (!HeaderResponseReceived_) {
-                Promise_.Set(TError("Could not receive successful response to any header request for overlayed journal chunk %v",
-                    ChunkId_)
-                    << HeaderBlockInnerErrors_);
-                return;
-            }
-            if (Header_) {
+            if (miscExt.row_count() > 0) {
+                if (!Header_) {
+                    Promise_.Set(TError("Could not receive successful response to any header request for overlayed journal chunk %v",
+                        ChunkId_)
+                        << HeaderBlockInnerErrors_);
+                    return;
+                }
                 result.FirstOverlayedRowIndex = Header_->first_row_index();
                 result.RowCount = miscExt.row_count() - 1;
             } else {
