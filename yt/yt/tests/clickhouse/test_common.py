@@ -417,7 +417,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
 
             result = clique.make_query('select CAST(a as datetime) from "//tmp/t"')
-            assert result == [{"cast(a, 'datetime')": "2012-12-12 20:00:00"}]
+            assert result == [{"CAST(a, 'datetime')": "2012-12-12 20:00:00"}]
 
     @authors("max42")
     def test_settings(self):
