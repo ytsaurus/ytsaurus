@@ -11,6 +11,7 @@ from yt.logger_config import LOG_PATTERN
 import argparse
 import fcntl
 import logging
+import datetime
 import subprocess
 import time
 import os
@@ -71,8 +72,12 @@ def main():
         logrotate_enabled = False
         logger.warning("Logrotate is disabled. Cannot find logrotate binary.")
 
+    logrotate_interval = datetime.timedelta(seconds=options.logrotate_interval)
+
+    last_logrotate_time = datetime.datetime.now()
     while True:
-        if logrotate_enabled:
+        should_logrotate = logrotate_enabled and (last_logrotate_time + logrotate_interval < datetime.datetime.now())
+        if should_logrotate:
             logger.info("Calling logrotate process...")
             p = subprocess.Popen(["logrotate", options.logrotate_config_path, "--state", options.logrotate_state_file],
                                  stdout=subprocess.PIPE,
@@ -83,9 +88,12 @@ def main():
                              'stderr: "%s", stdout: "%s"', p.returncode, stderr, stdout)
             else:
                 logger.info("Logrotate executed successfully")
-            logger.info("Sleep %d seconds before next calling", options.logrotate_interval)
 
-        time.sleep(options.logrotate_interval)
+            last_logrotate_time = datetime.datetime.now()
+
+            logger.info("Wait %d seconds before next logrotate call", options.logrotate_interval)
+
+        time.sleep(1)
 
 if __name__ == "__main__":
     main()
