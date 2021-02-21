@@ -151,30 +151,6 @@ public:
 
 private:
     friend class TSharedRefArrayImpl;
-
-    class TBlobHolder
-        : public TRefCounted
-    {
-    public:
-        explicit TBlobHolder(TBlob&& blob);
-
-    private:
-        const TBlob Blob_;
-    };
-
-    class TStringHolder
-        : public TRefCounted
-    {
-    public:
-        TStringHolder(TString&& string, TRefCountedTypeCookie cookie);
-        ~TStringHolder();
-
-    private:
-        const TString String_;
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        const TRefCountedTypeCookie Cookie_;
-#endif
-    };
 };
 
 extern const TSharedRef EmptySharedRef;
@@ -239,34 +215,6 @@ public:
 
     //! Creates a reference for a part of existing range.
     TSharedMutableRef Slice(void* begin, void* end) const;
-
-private:
-    class TBlobHolder
-        : public TRefCounted
-    {
-    public:
-        explicit TBlobHolder(TBlob&& blob);
-
-    private:
-        const TBlob Blob_;
-    };
-
-    class TAllocationHolder
-        : public TRefCounted
-        , public TWithExtraSpace<TAllocationHolder>
-    {
-    public:
-        TAllocationHolder(size_t size, bool initializeStorage, TRefCountedTypeCookie cookie);
-        ~TAllocationHolder();
-
-        TMutableRef GetRef();
-
-    private:
-        const size_t Size_;
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        const TRefCountedTypeCookie Cookie_;
-#endif
-    };
 };
 
 ////////////////////////////////////////////////////////////////////////////////
