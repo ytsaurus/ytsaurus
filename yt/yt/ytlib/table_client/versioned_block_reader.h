@@ -61,7 +61,6 @@ public:
 
 private:
     const TSharedRef Block_;
-    typedef TReadOnlyBitmap<ui64> TBitmap;
 
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
@@ -75,11 +74,11 @@ private:
     const NProto::TSimpleVersionedBlockMeta& VersionedMeta_;
 
     TRef KeyData_;
-    TBitmap KeyNullFlags_;
+    TReadOnlyBitmap KeyNullFlags_;
 
     TRef ValueData_;
-    TBitmap ValueNullFlags_;
-    std::optional<TBitmap> ValueAggregateFlags_;
+    TReadOnlyBitmap ValueNullFlags_;
+    std::optional<TReadOnlyBitmap> ValueAggregateFlags_;
 
     TRef TimestampsData_;
 

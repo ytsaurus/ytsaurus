@@ -1,132 +1,157 @@
 #pragma once
 
-#include "blob.h"
 #include "ref.h"
 #include "small_vector.h"
+
+#include <util/system/align.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunk>
-struct TBitmapTraits
-{
-    // In this case compiler can replace divisions and modulos with shifts.
-    static_assert(
-        !(sizeof(TChunk) & (sizeof(TChunk) - 1)),
-        "sizeof(TChunk) must be a power of 2.");
-    static constexpr size_t Bytes = sizeof(TChunk);
-    static constexpr size_t Bits = Bytes * 8;
+namespace NBitmapDetail {
+    // No need to use word size other than ui8.
+    // Performance is same for ui8, ui16, ui32 and ui64 and is equal to 200 Mb/s.
 
-    static constexpr size_t GetChunkIndex(size_t bitIndex)
+    // BM_Bitmap_ui8      153148 ns       153108 ns         4492 bytes_per_second=204.105M/s
+    // BM_Bitmap_ui16     151758 ns       151720 ns         4462 bytes_per_second=205.971M/s
+    // BM_Bitmap_ui32     150381 ns       150352 ns         4672 bytes_per_second=207.846M/s
+    // BM_Bitmap_ui64     152476 ns       152442 ns         4668 bytes_per_second=204.996M/s
+
+    // We do not want to force alignment when reading bitmaps, hence we should prefer ui8.
+    // Alignment/padding in serialization should be used explicitly.
+
+    using TByte = ui8;
+    constexpr static size_t Bits = 8 * sizeof(TByte);
+    constexpr size_t SerializationAlignment = 8;
+
+    constexpr static TByte GetBitMask(size_t index)
     {
-        return bitIndex / Bits;
+        return static_cast<TByte>(1) << (index % Bits);
     }
 
-    static constexpr TChunk GetChunkMask(size_t bitIndex, bool value)
+    constexpr static size_t GetWordIndex(size_t index)
     {
-        return (value ? TChunk(1) : TChunk(0)) << (bitIndex % Bits);
+        return index / Bits;
     }
 
-    static constexpr size_t GetChunkCapacity(size_t bitCapacity)
+    constexpr static size_t GetByteSize(size_t size)
     {
-        return (bitCapacity + Bits - 1) / Bits;
+        return (size + Bits - 1) / Bits;
     }
-
-    static constexpr size_t GetByteCapacity(size_t bitCapacity)
-    {
-        return GetChunkCapacity(bitCapacity) * Bytes;
-    }
-};
+} // namespace NBitmapDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunk, int DefaultChunkCount = 1>
-class TAppendOnlyBitmap
+class TMutableBitmap
 {
-    using TTraits = TBitmapTraits<TChunk>;
-
 public:
-    explicit TAppendOnlyBitmap(size_t bitCapacity = 0)
+    using TByte = NBitmapDetail::TByte;
+
+    explicit TMutableBitmap(void* ptr = nullptr)
+        : Ptr_(static_cast<TByte*>(ptr))
+    { }
+
+    bool operator [] (size_t index) const
+    {
+        return Ptr_[NBitmapDetail::GetWordIndex(index)] & NBitmapDetail::GetBitMask(index);
+    }
+
+    void Set(size_t index)
+    {
+        Ptr_[NBitmapDetail::GetWordIndex(index)] |= NBitmapDetail::GetBitMask(index);
+    }
+
+    void Set(size_t index, bool value)
+    {
+        auto mask = NBitmapDetail::GetBitMask(index);
+        auto& word = Ptr_[NBitmapDetail::GetWordIndex(index)];
+        word = (word & ~mask) | (-value & mask);
+    }
+
+    TByte* GetData()
+    {
+        return Ptr_;
+    }
+
+    const TByte* GetData() const
+    {
+        return Ptr_;
+    }
+
+private:
+    TByte* Ptr_;
+};
+
+class TBitmap
+{
+public:
+    using TByte = NBitmapDetail::TByte;
+
+    TBitmap(const TMutableBitmap& bitmap)
+        : Ptr_(bitmap.GetData())
+    { }
+
+    explicit TBitmap(const void* ptr = nullptr)
+        : Ptr_(static_cast<const TByte*>(ptr))
+    { }
+
+    bool operator [] (size_t index) const
+    {
+        return Ptr_[NBitmapDetail::GetWordIndex(index)] & NBitmapDetail::GetBitMask(index);
+    }
+
+    const TByte* GetData() const
+    {
+        return Ptr_;
+    }
+
+private:
+    const TByte* Ptr_;
+};
+
+static_assert(sizeof(TBitmap) == sizeof(void*), "Do not modify TBitmap. Write your own class.");
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Like TBlobOutput.
+class TBitmapOutput
+{
+public:
+    using TByte = NBitmapDetail::TByte;
+
+    explicit TBitmapOutput(size_t bitCapacity = 0)
     {
         if (bitCapacity) {
-            Chunks_.reserve(TTraits::GetChunkCapacity(bitCapacity));
+            Chunks_.reserve(
+                AlignUp(NBitmapDetail::GetByteSize(bitCapacity), NBitmapDetail::SerializationAlignment));
         }
     }
 
     void Append(bool value)
     {
-        if (Chunks_.size() * sizeof(TChunk) * 8 == BitSize_) {
-            Chunks_.push_back(TChunk());
+        if (Chunks_.size() * NBitmapDetail::Bits == BitSize_) {
+            Chunks_.resize(Chunks_.size() + NBitmapDetail::SerializationAlignment, 0);
         }
-        Chunks_.back() |= TTraits::GetChunkMask(BitSize_, value);
-        ++BitSize_;
+        TMutableBitmap(Chunks_.data()).Set(BitSize_++, value);
     }
 
     bool operator[](size_t bitIndex) const
     {
         YT_ASSERT(bitIndex < BitSize_);
-        const auto chunkIndex = TTraits::GetChunkIndex(bitIndex);
-        const auto chunkMask = TTraits::GetChunkMask(bitIndex, true);
-        return (Chunks_[chunkIndex] & chunkMask) != 0;
-    }
-
-    size_t GetBitSize() const
-    {
-        return BitSize_;
+        return Chunks_[NBitmapDetail::GetWordIndex(bitIndex)] & NBitmapDetail::GetBitMask(bitIndex);
     }
 
     template <class TTag>
     TSharedRef Flush()
     {
-        auto blob = TBlob(TTag(), Chunks_.data(), Size());
-        return TSharedRef::FromBlob(std::move(blob));
+        YT_ASSERT(Chunks_.size() == GetByteSize());
+        return TSharedRef::MakeCopy<TTag>(TRef(GetData(), GetByteSize()));
     }
 
-    const TChunk* Data() const
+    const TByte* GetData() const
     {
         return Chunks_.data();
-    }
-
-    size_t Size() const
-    {
-        return Chunks_.size() * sizeof(TChunk);
-    }
-
-private:
-    SmallVector<TChunk, DefaultChunkCount> Chunks_;
-    size_t BitSize_ = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TChunk>
-class TReadOnlyBitmap
-{
-private:
-    using TTraits = TBitmapTraits<TChunk>;
-
-public:
-    TReadOnlyBitmap() = default;
-
-    TReadOnlyBitmap(const TChunk* chunks, size_t bitSize)
-        : Chunks_(chunks)
-        , BitSize_(bitSize)
-    { }
-
-    void Reset(const TChunk* chunks, size_t bitSize)
-    {
-        YT_VERIFY(chunks);
-        Chunks_ = chunks;
-        BitSize_ = bitSize;
-    }
-
-    bool operator[](size_t bitIndex) const
-    {
-        YT_ASSERT(bitIndex < BitSize_);
-        const auto chunkIndex = TTraits::GetChunkIndex(bitIndex);
-        const auto chunkMask = TTraits::GetChunkMask(bitIndex, true);
-        return (Chunks_[chunkIndex] & chunkMask) != 0;
     }
 
     size_t GetBitSize() const
@@ -136,23 +161,47 @@ public:
 
     size_t GetByteSize() const
     {
-        return TTraits::GetByteCapacity(BitSize_);
-    }
-
-    TRange<TChunk> GetData() const
-    {
-        return MakeRange(Chunks_, TTraits::GetChunkCapacity(BitSize_));
-    }
-
-    void Prefetch(size_t bitIndex)
-    {
-        YT_ASSERT(bitIndex < BitSize_);
-        const auto chunkIndex = TTraits::GetChunkIndex(bitIndex);
-        __builtin_prefetch(&Chunks_[chunkIndex], 0); // read-only prefetch
+        return AlignUp(Chunks_.size() * sizeof(TByte), NBitmapDetail::SerializationAlignment);
     }
 
 private:
-    const TChunk* Chunks_ = nullptr;
+    SmallVector<TByte, NBitmapDetail::SerializationAlignment> Chunks_;
+    size_t BitSize_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReadOnlyBitmap
+    : public TBitmap
+{
+public:
+    using TByte = NBitmapDetail::TByte;
+
+    TReadOnlyBitmap() = default;
+
+    TReadOnlyBitmap(const void* chunks, size_t bitSize)
+        : TBitmap(chunks)
+        , BitSize_(bitSize)
+    { }
+
+    void Reset(const void* chunks, size_t bitSize)
+    {
+        YT_VERIFY(chunks);
+        static_cast<TBitmap&>(*this) = TBitmap(chunks);
+        BitSize_ = bitSize;
+    }
+
+    size_t GetByteSize() const
+    {
+        return NBitmapDetail::GetByteSize(BitSize_);
+    }
+
+    TRef GetData() const
+    {
+        return TRef(TBitmap::GetData(), GetByteSize());
+    }
+
+private:
     size_t BitSize_ = 0;
 };
 

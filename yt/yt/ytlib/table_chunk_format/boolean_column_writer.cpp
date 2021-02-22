@@ -16,8 +16,9 @@ using namespace NTableClient;
 
 void DumpBooleanValues(
     TSegmentInfo* segmentInfo,
-    TAppendOnlyBitmap<ui64>& valueBitmap,
-    TAppendOnlyBitmap<ui64> nullBitmap)
+    TBitmapOutput& valueBitmap,
+    // Copy?
+    TBitmapOutput nullBitmap)
 {
     ui64 valueCount = valueBitmap.GetBitSize();
     segmentInfo->Data.push_back(TSharedRef::MakeCopy<TSegmentWriterTag>(TRef::FromPod(valueCount)));
@@ -53,8 +54,8 @@ public:
         if (ValuesPerRow_.empty()) {
             return 0;
         } else {
-            return Values_.Size() +
-               NullBitmap_.Size() +
+            return Values_.GetByteSize() +
+               NullBitmap_.GetByteSize() +
                TVersionedColumnWriterBase::GetCurrentSegmentSize();
         }
     }
@@ -68,12 +69,12 @@ public:
     }
 
 private:
-    TAppendOnlyBitmap<ui64> Values_;
+    TBitmapOutput Values_;
 
     void Reset()
     {
         TVersionedColumnWriterBase::Reset();
-        Values_ = TAppendOnlyBitmap<ui64>();
+        Values_ = TBitmapOutput();
     }
 
     void DumpSegment()
@@ -127,7 +128,7 @@ public:
     virtual i32 GetCurrentSegmentSize() const override
     {
         if (Values_.GetBitSize() > 0) {
-            return Values_.Size() + NullBitmap_.Size();
+            return Values_.GetByteSize() + NullBitmap_.GetByteSize();
         } else {
             return 0;
         }
@@ -144,13 +145,13 @@ public:
 private:
     const int ColumnIndex_;
 
-    TAppendOnlyBitmap<ui64> Values_;
-    TAppendOnlyBitmap<ui64> NullBitmap_;
+    TBitmapOutput Values_;
+    TBitmapOutput NullBitmap_;
 
     void Reset()
     {
-        Values_ = TAppendOnlyBitmap<ui64>();
-        NullBitmap_ = TAppendOnlyBitmap<ui64>();
+        Values_ = TBitmapOutput();
+        NullBitmap_ = TBitmapOutput();
     }
 
     void DumpSegment()

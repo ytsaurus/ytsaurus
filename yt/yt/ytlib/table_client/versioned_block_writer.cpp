@@ -32,7 +32,7 @@ TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(TTableSchemaPtr schema)
 {
     for (const auto& column : Schema_->Columns()) {
         if (column.Aggregate()) {
-            ValueAggregateFlags_ = TBitmap();
+            ValueAggregateFlags_ = TBitmapOutput();
             break;
         }
     }
@@ -45,7 +45,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
 {
     ++RowCount_;
 
-    std::optional<TBitmap> nullAggregateFlags;
+    std::optional<TBitmapOutput> nullAggregateFlags;
     int keyOffset = KeyStream_.GetSize();
     for (const auto* it = row.BeginKeys(); it != row.EndKeys(); ++it) {
         const auto& value = *it;
@@ -144,8 +144,8 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
 
 void TSimpleVersionedBlockWriter::WriteValue(
     TChunkedOutputStream& stream,
-    TBitmap& nullFlags,
-    std::optional<TBitmap>& aggregateFlags,
+    TBitmapOutput& nullFlags,
+    std::optional<TBitmapOutput>& aggregateFlags,
     const TUnversionedValue& value)
 {
     if (aggregateFlags) {
@@ -202,9 +202,9 @@ i64 TSimpleVersionedBlockWriter::GetBlockSize() const
         ValueStream_.GetSize() +
         TimestampStream_.GetSize() +
         StringDataStream_.GetSize() +
-        KeyNullFlags_.Size() +
-        ValueNullFlags_.Size() +
-        (ValueAggregateFlags_.operator bool() ? ValueAggregateFlags_->Size() : 0);
+        KeyNullFlags_.GetByteSize() +
+        ValueNullFlags_.GetByteSize() +
+        (ValueAggregateFlags_.operator bool() ? ValueAggregateFlags_->GetByteSize() : 0);
 }
 
 i64 TSimpleVersionedBlockWriter::GetRowCount() const

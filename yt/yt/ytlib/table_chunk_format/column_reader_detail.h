@@ -24,7 +24,7 @@ struct ISegmentReaderBase
     : public TNonCopyable
 {
     virtual ~ISegmentReaderBase() = default;
-    
+
     virtual void SkipToRowIndex(i64 rowIndex) = 0;
 };
 
@@ -101,9 +101,9 @@ protected:
 
     i64 SegmentRowIndex_ = 0;
 
-    
+
     i64 GetSegmentRowIndex(i64 rowIndex) const;
-    
+
     template <class TValueExtractor>
     void DoReadColumnarBatch(
         TValueExtractor* valueExtractor,
@@ -199,7 +199,7 @@ public:
 private:
     TValueExtractor ValueExtractor_;
 
-    
+
     void SetValue(NTableClient::TUnversionedValue* value, i64 rowIndex) const
     {
         ValueExtractor_.ExtractValue(value, rowIndex, ColumnId_, false);
@@ -346,7 +346,7 @@ private:
     TRleValueExtractor ValueExtractor_;
     i64 ValueIndex_ = 0;
 
-    
+
     i64 GetUpperValueIndex(i64 rowIndex) const
     {
         i64 upperValueIndex;
@@ -428,7 +428,7 @@ public:
     virtual i64 GetCurrentRowIndex() const override;
     virtual i64 GetBlockUpperRowIndex() const override;
     virtual i64 GetReadyUpperRowIndex() const override;
-    
+
     virtual int GetCurrentBlockIndex() const override;
     virtual std::optional<int> GetNextBlockIndex() const override;
 
@@ -445,7 +445,7 @@ protected:
     //! Index of the last segment in the current block.
     int LastBlockSegmentIndex_ = -1;
 
-    
+
     virtual ISegmentReaderBase* GetCurrentSegmentReader() const = 0;
     virtual void ResetCurrentSegmentReader() = 0;
     virtual void CreateCurrentSegmentReader() = 0;
@@ -492,7 +492,7 @@ protected:
 
     std::unique_ptr<IUnversionedSegmentReader> SegmentReader_;
 
-    
+
     virtual ISegmentReaderBase* GetCurrentSegmentReader() const override;
     virtual void ResetCurrentSegmentReader() override;
     virtual void CreateCurrentSegmentReader() override;
@@ -593,9 +593,9 @@ protected:
     const bool Aggregate_;
 
     TBitPackedUnsignedVectorReader<ui32> TimestampIndexReader_;
-    TReadOnlyBitmap<ui64> AggregateBitmap_;
+    TReadOnlyBitmap AggregateBitmap_;
 
-    
+
     const char* InitTimestampIndexReader(const char* ptr);
 };
 
@@ -804,7 +804,7 @@ private:
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetValues;
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetAllValues;
 
-    
+
     void SetValues(
         NTableClient::TMutableVersionedRow row,
         const std::pair<ui32, ui32>& timestampIndexRange,
@@ -988,7 +988,7 @@ private:
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetValues;
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetAllValues;
 
-    
+
     void SetValues(
         NTableClient::TMutableVersionedRow row,
         std::pair<ui32, ui32> timestampIndexRange,
@@ -1039,7 +1039,7 @@ protected:
 
     std::unique_ptr<IVersionedSegmentReader> SegmentReader_;
 
-    
+
     virtual ISegmentReaderBase* GetCurrentSegmentReader() const override;
     virtual void ResetCurrentSegmentReader() override;
     virtual void CreateCurrentSegmentReader() override;
@@ -1064,7 +1064,7 @@ void ReadColumnarNullBitmap(
     NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     i64 startIndex,
     i64 valueCount,
-    TRange<ui64> bitmap);
+    TRef bitmap);
 
 void ReadColumnarIntegerValues(
     NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
@@ -1078,7 +1078,7 @@ void ReadColumnarBooleanValues(
     NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     i64 startIndex,
     i64 valueCount,
-    TRange<ui64> bitmap);
+    TRef bitmap);
 
 template <typename T>
 void ReadColumnarFloatingPointValues(

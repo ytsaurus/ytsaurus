@@ -353,11 +353,12 @@ private:
 
     void UnsafeWriteNullBitmap(TRange<TUnversionedValue> values)
     {
-        auto nullBitmap = TAppendOnlyBitmap<ui64>(values.Size());
+        // TODO(lukyan): Allocate space and write directly.
+        auto nullBitmap = TBitmapOutput(values.Size());
         for (int index = 0; index < values.Size(); ++index) {
             nullBitmap.Append(values[index].Type == EValueType::Null);
         }
-        UnsafeWriteRaw(nullBitmap.Data(), nullBitmap.Size());
+        UnsafeWriteRaw(nullBitmap.GetData(), nullBitmap.GetByteSize());
     }
 
     void UnsafeWriteSchemafulValueRange(
@@ -396,7 +397,7 @@ private:
     size_t EstimateSchemafulValueRangeByteSize(TRange<TUnversionedValue> values)
     {
         size_t bytes = 0;
-        bytes += AlignUp<size_t>(TBitmapTraits<ui64>::GetByteCapacity(values.Size()), SerializationAlignment); // null bitmap
+        bytes += AlignUp<size_t>(NBitmapDetail::GetByteSize(values.Size()), SerializationAlignment); // null bitmap
         for (const auto& value : values) {
             if (IsStringLikeType(value.Type)) {
                 bytes += AlignUp<size_t>(8 + value.Length, SerializationAlignment);
@@ -832,12 +833,6 @@ private:
         }
     }
 
-    void DoReadNullBitmap(TReadOnlyBitmap<ui64>* nullBitmap, ui32 count)
-    {
-        auto* chunks = PeekRaw(TBitmapTraits<ui64>::GetByteCapacity(count));
-        nullBitmap->Reset(reinterpret_cast<const ui64*>(chunks), count);
-    }
-
     int DoReadRowCount()
     {
         int rowCount = ReadInt32();
@@ -892,8 +887,8 @@ private:
         TUnversionedValue* values,
         ui32 valueCount)
     {
-        TReadOnlyBitmap<ui64> nullBitmap;
-        DoReadNullBitmap(&nullBitmap, valueCount);
+        auto bitmapPtr = PeekRaw(NBitmapDetail::GetByteSize(valueCount));
+        TBitmap nullBitmap(bitmapPtr);
         for (size_t index = 0; index < valueCount; ++index) {
             DoReadSchemafulValue(schemaData[index], nullBitmap[index], deep, &values[index]);
         }

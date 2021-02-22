@@ -53,8 +53,8 @@ protected:
     i64 EmptyPendingRowCount_ = 0;
 
     std::vector<ui32> TimestampIndexes_;
-    TAppendOnlyBitmap<ui64> NullBitmap_;
-    TAppendOnlyBitmap<ui64> AggregateBitmap_;
+    TBitmapOutput NullBitmap_;
+    TBitmapOutput AggregateBitmap_;
 
     std::vector<ui32> ValuesPerRow_;
 

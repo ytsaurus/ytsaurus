@@ -75,7 +75,7 @@ i32 TVersionedColumnWriterBase::GetCurrentSegmentSize() const
         // Estimate dense size assuming max diff from expected to be 7.
         CompressedUnsignedVectorSizeInBytes(7, ValuesPerRow_.size()) +
         CompressedUnsignedVectorSizeInBytes(MaxTimestampIndex_, TimestampIndexes_.size()) +
-        AggregateBitmap_.Size();
+        AggregateBitmap_.GetByteSize();
 }
 
 void TVersionedColumnWriterBase::WriteUnversionedValues(TRange<NTableClient::TUnversionedRow> rows)
@@ -87,9 +87,9 @@ void TVersionedColumnWriterBase::WriteUnversionedValues(TRange<NTableClient::TUn
  void TVersionedColumnWriterBase::Reset()
  {
      TimestampIndexes_.clear();
-     NullBitmap_ = TAppendOnlyBitmap<ui64>();
+     NullBitmap_ = TBitmapOutput();
      if (Aggregate_) {
-         AggregateBitmap_ = TAppendOnlyBitmap<ui64>();
+         AggregateBitmap_ = TBitmapOutput();
      }
      ValuesPerRow_.clear();
 

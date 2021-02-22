@@ -62,7 +62,7 @@ public:
             return 0;
         } else {
             return Values_.size() * sizeof(double) +
-                   NullBitmap_.Size() +
+                   NullBitmap_.GetByteSize() +
                    TVersionedColumnWriterBase::GetCurrentSegmentSize();
         }
     }
@@ -159,12 +159,12 @@ private:
     const int ColumnIndex_;
 
     std::vector<T> Values_;
-    TAppendOnlyBitmap<ui64> NullBitmap_;
+    TBitmapOutput NullBitmap_;
 
     void Reset()
     {
         Values_.clear();
-        NullBitmap_ = TAppendOnlyBitmap<ui64>();
+        NullBitmap_ = TBitmapOutput();
     }
 
     void DumpSegment()
