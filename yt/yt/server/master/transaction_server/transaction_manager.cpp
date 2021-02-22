@@ -662,22 +662,15 @@ public:
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
     }
 
-    void ReplicateTransaction(TTransaction* transaction, TCellTagList dstCellTags)
-    {
-        for (auto dstCellTag : dstCellTags) {
-            ReplicateTransaction(transaction, dstCellTag);
-        }
-    }
-
-    TTransactionId ReplicateTransaction(TTransaction* transaction, TCellTag dstCellTag)
+    TTransactionId ReplicateTransaction(TTransaction* transaction, TCellTagList dstCellTags)
     {
         YT_VERIFY(IsObjectAlive(transaction));
         YT_VERIFY(transaction->IsNative());
         // NB: native transactions are always replicated, not externalized.
-        return ExternalizeTransaction(transaction, dstCellTag);
+        return ExternalizeTransaction(transaction, dstCellTags);
     }
 
-    TTransactionId ExternalizeTransaction(TTransaction* transaction, TCellTag dstCellTag)
+    TTransactionId ExternalizeTransaction(TTransaction* transaction, TCellTagList dstCellTags)
     {
         if (!transaction) {
             return {};
@@ -710,31 +703,40 @@ public:
         // Shall externalize if true, replicate otherwise.
         auto shouldExternalize = transaction->IsForeign();
 
-        SmallVector<TTransaction*, 32> transactionsToSend;
+        SmallVector<std::pair<TTransaction*, TCellTagList>, 16> transactionsToDstCells;
         for (auto* currentTransaction = transaction; currentTransaction; currentTransaction = currentTransaction->GetParent()) {
             YT_VERIFY(IsObjectAlive(currentTransaction));
-
             checkTransactionState(currentTransaction);
 
-            if (shouldExternalize) {
-                if (currentTransaction->IsExternalizedToCell(dstCellTag)) {
-                    break;
+            transactionsToDstCells.emplace_back(currentTransaction, TCellTagList());
+
+            for (auto dstCellTag : dstCellTags) {
+                if (shouldExternalize) {
+                    if (currentTransaction->IsExternalizedToCell(dstCellTag)) {
+                        continue;
+                    }
+                    currentTransaction->ExternalizedToCellTags().push_back(dstCellTag);
+                } else {
+                    if (currentTransaction->IsReplicatedToCell(dstCellTag)) {
+                        continue;
+                    }
+                    currentTransaction->ReplicatedToCellTags().push_back(dstCellTag);
                 }
-                currentTransaction->ExternalizedToCellTags().push_back(dstCellTag);
-            } else {
-                if (currentTransaction->IsReplicatedToCell(dstCellTag)) {
-                    break;
-                }
-                currentTransaction->ReplicatedToCellTags().push_back(dstCellTag);
+
+                transactionsToDstCells.back().second.push_back(dstCellTag);
             }
 
-            transactionsToSend.push_back(currentTransaction);
+            if (transactionsToDstCells.back().second.empty()) {
+                // Already present on all dst cells.
+                transactionsToDstCells.pop_back();
+                break;
+            }
         }
 
-        std::reverse(transactionsToSend.begin(), transactionsToSend.end());
+        std::reverse(transactionsToDstCells.begin(), transactionsToDstCells.end());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        for (auto* currentTransaction : transactionsToSend) {
+        for (const auto& [currentTransaction, cellTags] : transactionsToDstCells) {
             auto transactionId = currentTransaction->GetId();
             auto parentTransactionId = GetObjectId(currentTransaction->GetParent());
 
@@ -745,17 +747,17 @@ public:
                 effectiveTransactionId = MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag());
                 effectiveParentTransactionId = MakeExternalizedTransactionId(parentTransactionId, multicellManager->GetCellTag());
 
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Externalizing transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTag: %v, ExternalizedTransactionId: %v, ExternalizedParentTransactionId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Externalizing transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTags: %v, ExternalizedTransactionId: %v, ExternalizedParentTransactionId: %v)",
                     transactionId,
                     parentTransactionId,
-                    dstCellTag,
+                    cellTags,
                     effectiveTransactionId,
                     effectiveParentTransactionId);
             } else {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replicating transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTag: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replicating transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTags: %v)",
                     transactionId,
                     parentTransactionId,
-                    dstCellTag);
+                    cellTags);
             }
 
             // NB: technically, an externalized transaction *is* foreign, with its native cell being this one.
@@ -770,7 +772,7 @@ public:
                 startRequest.set_title(*currentTransaction->GetTitle());
             }
             startRequest.set_upload(currentTransaction->IsUpload());
-            multicellManager->PostToMaster(startRequest, dstCellTag);
+            multicellManager->PostToMasters(startRequest, cellTags);
         }
 
         return shouldExternalize
@@ -1331,7 +1333,7 @@ private:
         TReqReplicateTransactions* request,
         TRspReplicateTransactions* response)
     {
-        auto destinationCellTag = request->destination_cell_tag();
+        auto destinationCellTag = static_cast<TCellTag>(request->destination_cell_tag());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
@@ -1361,7 +1363,7 @@ private:
                 continue;
             }
 
-            auto replicatedTransactionId = ReplicateTransaction(transaction, destinationCellTag);
+            auto replicatedTransactionId = ReplicateTransaction(transaction, {destinationCellTag});
             YT_VERIFY(replicatedTransactionId == transactionId);
             YT_VERIFY(transaction->IsReplicatedToCell(destinationCellTag));
 
@@ -1827,9 +1829,9 @@ void TTransactionManager::AbortTransaction(
     Impl_->AbortTransaction(transaction, force);
 }
 
-TTransactionId TTransactionManager::ExternalizeTransaction(TTransaction* transaction, TCellTag dstCellTag)
+TTransactionId TTransactionManager::ExternalizeTransaction(TTransaction* transaction, TCellTagList dstCellTags)
 {
-    return Impl_->ExternalizeTransaction(transaction, dstCellTag);
+    return Impl_->ExternalizeTransaction(transaction, dstCellTags);
 }
 
 TTransactionId TTransactionManager::GetNearestExternalizedTransactionAncestor(

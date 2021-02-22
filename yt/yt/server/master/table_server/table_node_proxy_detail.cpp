@@ -1402,7 +1402,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     }
 
     if (table->IsExternal()) {
-        ExternalizeToMaster(context, table->GetExternalCellTag());
+        ExternalizeToMasters(context, {table->GetExternalCellTag()});
     }
 
     context->Reply();

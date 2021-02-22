@@ -881,29 +881,22 @@ void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
 
 void TObjectProxyBase::ExternalizeToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
 {
-    for (auto cellTag : cellTags) {
-        ExternalizeToMaster(context, cellTag);
-    }
-}
-
-void TObjectProxyBase::ExternalizeToMaster(IServiceContextPtr context, TCellTag cellTag)
-{
     auto* object = GetObject();
     YT_VERIFY(object->IsNative());
 
     auto* transaction = GetTransaction();
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, cellTag);
+    auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, cellTags);
 
     if (GetDynamicCypressManagerConfig()->ClearPrerequisitesFromExternalizedRequests) {
         ClearPrerequisiteTransactions(context);
     }
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToMaster(
+    multicellManager->PostToMasters(
         TCrossCellMessage(object->GetId(), externalizedTransactionId, std::move(context)),
-        cellTag);
+        cellTags);
 }
 
 void TObjectProxyBase::ClearPrerequisiteTransactions(NRpc::IServiceContextPtr& context)

@@ -1378,7 +1378,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     auto externalTransactionId = TrunkNode_->IsExternal()
-        ? transactionManager->ExternalizeTransaction(Transaction_, externalCellTag)
+        ? transactionManager->ExternalizeTransaction(Transaction_, {externalCellTag})
         : Transaction_->GetId();
 
     auto lockId = lockResult.Lock->GetId();

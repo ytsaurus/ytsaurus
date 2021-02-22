@@ -1243,7 +1243,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     auto maybeExternalizeTransaction = [&] (TCellTag dstCellTag) {
         return node->IsExternal()
-            ? transactionManager->ExternalizeTransaction(Transaction_, dstCellTag)
+            ? transactionManager->ExternalizeTransaction(Transaction_, {dstCellTag})
             : GetObjectId(Transaction_);
     };
 
@@ -1423,7 +1423,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     YT_VERIFY(node->GetTransaction() == Transaction_);
 
     if (node->IsExternal()) {
-        ExternalizeToMaster(context, node->GetExternalCellTag());
+        ExternalizeToMasters(context, {node->GetExternalCellTag()});
     }
 
     node->EndUpload(uploadContext);
