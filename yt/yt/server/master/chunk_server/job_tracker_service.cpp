@@ -214,7 +214,7 @@ private:
 
                     if (chunk->IsJournal()) {
                         YT_VERIFY(chunk->IsSealed());
-                        jobSpecExt->set_row_count(chunk->MiscExt().row_count());
+                        jobSpecExt->set_row_count(chunk->GetPhysicalSealedRowCount());
                     }
 
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
