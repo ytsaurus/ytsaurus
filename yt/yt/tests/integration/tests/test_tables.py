@@ -20,7 +20,11 @@ class TestTables(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_MASTER_CONFIG = {"chunk_manager": {"allow_multiple_erasure_parts_per_node": True}}
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    }
 
     def _wait_until_unlocked(self, path):
         wait(lambda: get(path + "/@lock_count") == 0)

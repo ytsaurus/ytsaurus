@@ -21,8 +21,11 @@ import __builtin__
 class TestMasterCellAddition(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 3
     DEFER_SECONDARY_CELL_START = True
+
     DELTA_MASTER_CONFIG = {
-        "world_initializer": {"update_period": 1000},
+        "world_initializer": {
+            "update_period": 1000
+        }
     }
 
     NUM_NODES = 3

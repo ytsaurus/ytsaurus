@@ -48,7 +48,11 @@ class AccountsTestSuiteBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
 
-    DELTA_MASTER_CONFIG = {"chunk_manager": {"allow_multiple_erasure_parts_per_node": True}}
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    }
 
     _root_account_name = "root"
     _non_root_builtin_accounts = [

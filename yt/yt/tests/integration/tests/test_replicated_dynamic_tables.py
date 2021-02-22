@@ -87,8 +87,14 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
                 "update_period": 500,
             },
         },
-        "tablet_node": {"replicator_data_weight_throttling_granularity": 1},
-        "tablet_node_hint_manager": {"replicator_hint_config_fetcher": {"update_period": 100}}
+        "tablet_node": {
+            "replicator_data_weight_throttling_granularity": 1
+        },
+        "tablet_node_hint_manager": {
+            "replicator_hint_config_fetcher": {
+                "update_period": 100
+            }
+        }
     }
 
     def setup(self):
@@ -1231,8 +1237,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     @authors("ivanashevi")
     def test_sync_replication_switch_with_not_enough_healthy_replicas(self):
-        DELTA_MASTER_CONFIG = {"replicated_table_tracker": {"check_period": 100}}
-
         self._create_cells()
         self._create_replicated_table(
             "//tmp/t",
@@ -2531,14 +2535,6 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
 
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
-    DELTA_MASTER_CONFIG = {
-        "tablet_manager": {
-            "tablet_cell_decommissioner": {
-                "decommission_check_period": 100,
-                "orphans_check_period": 100,
-            }
-        },
-    }
 
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])

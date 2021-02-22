@@ -326,7 +326,12 @@ class TestChunkServerMulticell(TestChunkServer):
 class TestMultipleErasurePartsPerNode(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
-    DELTA_MASTER_CONFIG = {"chunk_manager": {"allow_multiple_erasure_parts_per_node": True}}
+
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    }
 
     @authors("babenko")
     def test_allow_multiple_erasure_parts_per_node(self):

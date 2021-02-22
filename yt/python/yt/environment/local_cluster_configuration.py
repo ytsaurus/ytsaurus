@@ -7,10 +7,6 @@ from yt.packages.six import iteritems, itervalues
 
 MASTER_CONFIG_PATCHES = [
     {
-        "node_tracker": {
-            "max_concurrent_node_registrations": None,
-            "max_concurrent_node_unregistrations": None
-        },
         "cell_directory": None,
         "transaction_manager": None,
         "chunk_manager": None,
@@ -143,8 +139,6 @@ NODE_CONFIG_PATCHES = [
         "cell_directory_synchronizer": None,
         "exec_agent": {
             "scheduler_connector": {
-                # COMPAT(babenko): drop unsuccess_heartbeat_backoff_time
-                "unsuccess_heartbeat_backoff_time": 50,
                 "failed_heartbeat_backoff_start_time": 50,
                 "failed_heartbeat_backoff_max_time": 50,
                 "failed_heartbeat_backoff_multiplier": 1.0

@@ -166,14 +166,6 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
 
 class TestReplicatedDynamicTablesProfilingMulticell(TestReplicatedDynamicTablesProfiling):
     NUM_SECONDARY_MASTER_CELLS = 2
-    DELTA_MASTER_CONFIG = {
-        "tablet_manager": {
-            "tablet_cell_decommissioner": {
-                "decommission_check_period": 100,
-                "orphans_check_period": 100,
-            }
-        },
-    }
 
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])

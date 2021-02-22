@@ -249,50 +249,6 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTablesMulticellGossipConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletManagerConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    // COMPAT(savrus) This parameters are left only for compatibility with old config
-    TDuration CellScanPeriod;
-    TDuration PeerRevocationTimeout;
-    TDuration LeaderReassignmentTimeout;
-
-    int SafeOnlineNodeCount;
-
-    TTabletBalancerMasterConfigPtr TabletBalancer;
-    TTabletCellDecommissionerConfigPtr TabletCellDecommissioner;
-    TTabletActionManagerMasterConfigPtr TabletActionManager;
-    TDynamicTablesMulticellGossipConfigPtr MulticellGossip;
-
-    TTabletManagerConfig()
-    {
-        RegisterParameter("cell_scan_period", CellScanPeriod)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
-            .Default(TDuration::Minutes(1));
-        RegisterParameter("leader_reassignment_timeout", LeaderReassignmentTimeout)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
-            .GreaterThanOrEqual(0)
-            .Default(0);
-        RegisterParameter("tablet_balancer", TabletBalancer)
-            .DefaultNew();
-        RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
-            .DefaultNew();
-        RegisterParameter("tablet_action_manager", TabletActionManager)
-            .DefaultNew();
-        RegisterParameter("multicell_gossip", MulticellGossip)
-            // COMPAT(babenko)
-            .Alias("multicell_gossip_config")
-            .DefaultNew();
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDynamicTabletCellBalancerMasterConfig
     : public NYTree::TYsonSerializable
 {
@@ -455,8 +411,6 @@ public:
 
     bool EnableBulkInsert;
 
-    int CompatibilityVersion;
-
     bool DecommissionThroughExtraPeers;
 
     // TODO(gritukan): Move it to node dynamic config when it will be ready.
@@ -559,11 +513,6 @@ public:
             .Default(false);
         RegisterParameter("enable_tablet_resource_validation", EnableTabletResourceValidation)
             .Default(false);
-
-        // COMPAT(savrus) Special parameter to apply old file configs on fly.
-        RegisterParameter("compatibility_version", CompatibilityVersion)
-            .Default(0);
-
 
         RegisterPostprocessor([&] {
             MaxSnapshotCountToKeep = 2;

@@ -1026,7 +1026,11 @@ class TestJobStderr(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_MASTER_CONFIG = {"chunk_manager": {"allow_multiple_erasure_parts_per_node": True}}
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    }
 
     @authors("ignat")
     def test_stderr_ok(self):
@@ -1238,7 +1242,11 @@ class TestUserFiles(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_MASTER_CONFIG = {"chunk_manager": {"allow_multiple_erasure_parts_per_node": True}}
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    }
 
     @authors("ignat")
     def test_file_with_integer_name(self):

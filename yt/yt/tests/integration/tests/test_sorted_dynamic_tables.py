@@ -1691,6 +1691,7 @@ class TestSortedDynamicTablesSpecialColumnsPortal(TestSortedDynamicTablesSpecial
 
 class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
     NUM_NODES = 1
+
     DELTA_NODE_CONFIG = {
         "tablet_node": {
             "resource_limits": {
@@ -1851,6 +1852,7 @@ class TestSortedDynamicTablesMultipleWriteBatches(TestSortedDynamicTablesBase):
 
 class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
     NUM_NODES = 1
+
     DELTA_NODE_CONFIG = {
         "tablet_node": {
             "resource_limits": {

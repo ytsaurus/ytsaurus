@@ -14,7 +14,11 @@ class TestUsers(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
 
-    DELTA_MASTER_CONFIG = {"object_service": {"sticky_user_error_expire_time": 0}}
+    DELTA_MASTER_CONFIG = {
+        "object_service": {
+            "sticky_user_error_expire_time": 0
+        }
+    }
 
     @authors("babenko", "ignat")
     def test_user_ban1(self):

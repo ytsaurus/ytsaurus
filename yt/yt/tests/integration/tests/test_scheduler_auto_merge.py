@@ -34,7 +34,6 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     }
 
     DELTA_MASTER_CONFIG = {
-        "object_manager": {"gc_sweep_period": 10},
         "chunk_manager": {
             "allow_multiple_erasure_parts_per_node": True,
         },

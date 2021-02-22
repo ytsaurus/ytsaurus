@@ -49,12 +49,17 @@ class DynamicTablesBase(YTEnvSetup):
     NUM_SCHEDULERS = 0
     USE_DYNAMIC_TABLES = True
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "tablet_manager": {
             "leader_reassignment_timeout": 2000,
             "peer_revocation_timeout": 3000,
-        },
-        "chunk_manager": {"allow_multiple_erasure_parts_per_node": True},
+        }
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
     }
 
     def _create_sorted_table(self, path, **attributes):

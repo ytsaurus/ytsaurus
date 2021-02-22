@@ -103,6 +103,7 @@ class TestRpcProxyBase(YTEnvSetup):
 
 class TestRpcProxyClientRetries(TestRpcProxyBase):
     NUM_NODES = 2
+
     DELTA_RPC_DRIVER_CONFIG = {
         "enable_retries": True,
         "retry_backoff_time": 100,
@@ -112,11 +113,19 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
         "proxy_list_update_period": 1000,
         "proxy_list_retry_period": 100,
     }
+
     DELTA_RPC_PROXY_CONFIG = {
         "retry_request_queue_size_limit_exceeded": False,
-        "discovery_service": {"proxy_update_period": 100},
+        "discovery_service": {
+            "proxy_update_period": 100
+        },
     }
-    DELTA_MASTER_CONFIG = {"object_service": {"sticky_user_error_expire_time": 0}}
+
+    DELTA_MASTER_CONFIG = {
+        "object_service": {
+            "sticky_user_error_expire_time": 0
+        }
+    }
 
     @classmethod
     def setup_class(cls):

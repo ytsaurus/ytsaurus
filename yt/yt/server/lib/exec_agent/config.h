@@ -244,7 +244,6 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("failed_heartbeat_backoff_start_time", FailedHeartbeatBackoffStartTime)
             .GreaterThan(TDuration::Zero())
-            .Alias("unsuccess_heartbeat_backoff_time")
             .Default(TDuration::Seconds(5));
         RegisterParameter("failed_heartbeat_backoff_max_time", FailedHeartbeatBackoffMaxTime)
             .GreaterThan(TDuration::Zero())

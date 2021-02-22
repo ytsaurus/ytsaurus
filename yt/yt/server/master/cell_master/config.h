@@ -240,8 +240,6 @@ public:
 
     NObjectServer::TObjectServiceConfigPtr ObjectService;
 
-    NTabletServer::TTabletManagerConfigPtr TabletManager;
-
     NCypressServer::TCypressManagerConfigPtr CypressManager;
 
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;

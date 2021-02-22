@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 class TabletActionsBase(DynamicTablesBase):
     ENABLE_TABLET_BALANCER = True
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "tablet_manager": {
             "leader_reassignment_timeout": 2000,
             "peer_revocation_timeout": 3000,
@@ -43,7 +43,9 @@ class TabletActionsBase(DynamicTablesBase):
                 },
             },
         },
-        "master_cache_service": {"capacity": 0},
+        "master_cache_service": {
+            "capacity": 0
+        }
     }
 
     def _configure_bundle(self, bundle):

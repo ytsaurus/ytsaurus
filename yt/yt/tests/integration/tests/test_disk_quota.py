@@ -30,7 +30,11 @@ class TestDiskUsagePorto(YTEnvSetup):
         }
     }
 
-    DELTA_MASTER_CONFIG = {"cypress_manager": {"default_table_replication_factor": 1}}
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1
+        }
+    }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -203,7 +207,11 @@ class TestDiskMediumsPorto(YTEnvSetup):
         }
     }
 
-    DELTA_MASTER_CONFIG = {"cypress_manager": {"default_table_replication_factor": 1}}
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1
+        }
+    }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -430,7 +438,11 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
         }
     }
 
-    DELTA_MASTER_CONFIG = {"cypress_manager": {"default_table_replication_factor": 1}}
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1
+        }
+    }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -549,7 +561,11 @@ class TestDefaultDiskMediumPorto(YTEnvSetup):
         }
     }
 
-    DELTA_MASTER_CONFIG = {"cypress_manager": {"default_table_replication_factor": 1}}
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1
+        }
+    }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {

@@ -10,23 +10,45 @@ class TestCypressAnnotations(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 
-    DELTA_SCHEDULER_CONFIG = {"cypress_annotations": {"whoami": "scheduler"}}
+    DELTA_SCHEDULER_CONFIG = {
+        "cypress_annotations": {
+            "whoami": "scheduler"
+        }
+    }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {"cypress_annotations": {"whoami": "controller_agent"}}
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "cypress_annotations": {
+            "whoami": "controller_agent"
+        }
+    }
 
     DELTA_MASTER_CONFIG = {
-        "cypress_annotations": {"whoami": "master"},
+        "cypress_annotations": {
+            "whoami": "master"
+        },
         "world_initializer": {
             "init_retry_period": 100,
             "update_period": 100,
         },
     }
 
-    DELTA_NODE_CONFIG = {"cypress_annotations": {"whoami": "node"}}
+    DELTA_NODE_CONFIG = {
+        "cypress_annotations": {
+            "whoami": "node"
+        }
+    }
 
-    DELTA_PROXY_CONFIG = {"cypress_annotations": {"whoami": "proxy"}}
+    DELTA_PROXY_CONFIG = {
+        "cypress_annotations": {
+            "whoami": "proxy"
+        }
+    }
 
-    DELTA_RPC_PROXY_CONFIG = {"cypress_annotations": {"whoami": "rpc_proxy"}}
+    DELTA_RPC_PROXY_CONFIG = {
+        "cypress_annotations": {
+            "whoami": "rpc_proxy"
+        }
+    }
 
     @authors("prime", "psushin")
     def test_annotations(self):
