@@ -109,8 +109,8 @@ public:
     //! Mark that node has large job archivation queues.
     DEFINE_BYVAL_RW_PROPERTY(bool, JobReporterQueueIsTooLarge);
 
-    DEFINE_BYVAL_RW_PROPERTY(TFairShareSchedulingStatistics, LastPreemptiveHeartbeatStatistics);
-    DEFINE_BYVAL_RW_PROPERTY(TFairShareSchedulingStatistics, LastNonPreemptiveHeartbeatStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(TScheduleJobsStatistics, LastPreemptiveHeartbeatStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(TScheduleJobsStatistics, LastNonPreemptiveHeartbeatStatistics);
 
     //! Time statistics of currently running jobs. Used as penalties in scheduling segments rebalancing.
     DEFINE_BYVAL_RW_PROPERTY(TRunningJobStatistics, RunningJobStatistics);

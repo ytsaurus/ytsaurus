@@ -853,6 +853,7 @@ private:
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, RegisteredSchedulingTagFiltersLock_);
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters_;
     std::vector<int> FreeSchedulingTagFilterIndexes_;
+    
     struct TSchedulingTagFilterEntry
     {
         int Index;
@@ -1025,10 +1026,10 @@ private:
     TFairShareTreeSnapshotImplPtr TreeSnapshotImpl_;
     TFairShareTreeSnapshotImplPtr TreeSnapshotImplPrecommit_;
 
-    TFairShareSchedulingStage NonPreemptiveSchedulingStage_;
-    TFairShareSchedulingStage AggressivelyPreemptiveSchedulingStage_;
-    TFairShareSchedulingStage PreemptiveSchedulingStage_;
-    TFairShareSchedulingStage PackingFallbackSchedulingStage_;
+    TScheduleJobsStage NonPreemptiveSchedulingStage_;
+    TScheduleJobsStage AggressivelyPreemptiveSchedulingStage_;
+    TScheduleJobsStage PreemptiveSchedulingStage_;
+    TScheduleJobsStage PackingFallbackSchedulingStage_;
 
     TEventTimer FairSharePreUpdateTimer_;
     TEventTimer FairShareUpdateTimer_;
@@ -1158,7 +1159,7 @@ private:
             registeredSchedulingTagFilters = RegisteredSchedulingTagFilters_;
         }
 
-        TFairShareContext context(
+        TScheduleJobsContext context(
             schedulingContext,
             treeSnapshotImpl->RootElement()->GetSchedulableElementCount(),
             std::move(registeredSchedulingTagFilters),
@@ -1294,7 +1295,7 @@ private:
 
     void DoScheduleJobsWithoutPreemption(
         const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
-        TFairShareContext* context,
+        TScheduleJobsContext* context,
         TCpuInstant startTime)
     {
         YT_LOG_TRACE("Scheduling new jobs");
@@ -1309,7 +1310,7 @@ private:
 
     void DoScheduleJobsPackingFallback(
         const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
-        TFairShareContext* context,
+        TScheduleJobsContext* context,
         TCpuInstant startTime)
     {
         YT_LOG_TRACE("Scheduling jobs with packing ignored");
@@ -1325,7 +1326,7 @@ private:
 
     void DoScheduleJobsWithoutPreemptionImpl(
         const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
-        TFairShareContext* context,
+        TScheduleJobsContext* context,
         TCpuInstant startTime,
         bool ignorePacking,
         bool oneJobOnly)
@@ -1363,7 +1364,7 @@ private:
 
     void DoScheduleJobsWithAggressivePreemption(
         const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
-        TFairShareContext* context,
+        TScheduleJobsContext* context,
         TCpuInstant startTime)
     {
         DoScheduleJobsWithPreemptionImpl(
@@ -1375,7 +1376,7 @@ private:
 
     void DoScheduleJobsWithPreemption(
         const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
-        TFairShareContext* context,
+        TScheduleJobsContext* context,
         TCpuInstant startTime)
     {
         DoScheduleJobsWithPreemptionImpl(
@@ -1387,7 +1388,7 @@ private:
 
     void DoScheduleJobsWithPreemptionImpl(
         const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
-        TFairShareContext* context,
+        TScheduleJobsContext* context,
         TCpuInstant startTime,
         bool isAggressive)
     {
@@ -1400,7 +1401,7 @@ private:
         // 2. Initialize dynamic attributes and calculate local resource usages if scheduling without preemption was skipped.
         context->PrepareForScheduling(treeSnapshotImpl->RootElement());
 
-        // TODO(ignat): move this logic inside TFairShareContext.
+        // TODO(ignat): move this logic inside TScheduleJobsContext.
         if (!context->GetHasAggressivelyStarvingElements()) {
             context->SetHasAggressivelyStarvingElements(rootElement->HasAggressivelyStarvingElements(context, false));
         }
@@ -2220,7 +2221,7 @@ private:
         return nullptr;
     }
 
-    void ReactivateBadPackingOperations(TFairShareContext* context)
+    void ReactivateBadPackingOperations(TScheduleJobsContext* context)
     {
         for (const auto& operation : context->BadPackingOperations()) {
             // TODO(antonkikh): multiple activations can be implemented more efficiently.
@@ -2436,8 +2437,8 @@ private:
             .Item("min_share_resources").Value(element->GetSpecifiedStrongGuaranteeResources())
             .Item("strong_guarantee_resources").Value(element->GetSpecifiedStrongGuaranteeResources())
             // COMPAT(ignat): remove it after UI and other tools migration.
-            .Item("effective_min_share_resources").Value(element->EffectiveStrongGuaranteeResources())
-            .Item("effective_strong_guarantee_resources").Value(element->EffectiveStrongGuaranteeResources())
+            .Item("effective_min_share_resources").Value(attributes.EffectiveStrongGuaranteeResources)
+            .Item("effective_strong_guarantee_resources").Value(attributes.EffectiveStrongGuaranteeResources)
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("min_share_ratio").Value(MaxComponent(attributes.StrongGuaranteeShare))
 

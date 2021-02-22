@@ -49,26 +49,6 @@ DEFINE_ENUM(EPrescheduleJobOperationCriterion,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TScheduleJobsProfilingCounters
-{
-    TScheduleJobsProfilingCounters(const NProfiling::TRegistry& profiler);
-    
-    NProfiling::TCounter PrescheduleJobCount;
-    NProfiling::TEventTimer PrescheduleJobTime;
-    NProfiling::TEventTimer TotalControllerScheduleJobTime;
-    NProfiling::TEventTimer ExecControllerScheduleJobTime;
-    NProfiling::TEventTimer StrategyScheduleJobTime;
-    NProfiling::TEventTimer PackingRecordHeartbeatTime;
-    NProfiling::TEventTimer PackingCheckTime;
-    NProfiling::TEventTimer AnalyzeJobsTime;
-    NProfiling::TCounter ScheduleJobAttemptCount;
-    NProfiling::TCounter ScheduleJobFailureCount;
-
-    TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TCounter> ControllerScheduleJobFail;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TDetailedFairShare
 {
     TResourceVector StrongGuarantee = {};
@@ -99,6 +79,7 @@ struct TSchedulableAttributes
     TResourceVector PromisedFairShare;
 
     TJobResources UnschedulableOperationsResourceUsage;
+    TJobResources EffectiveStrongGuaranteeResources;
 
     double BurstRatio = 0.0;
     double TotalBurstRatio = 0.0;
@@ -147,15 +128,7 @@ struct TPersistentAttributes
     TDataCenter SchedulingSegmentDataCenter;
     std::optional<TInstant> FailingToScheduleAtDataCenterSince;
 
-    // NB: We don't want to reset all attributes.
-    void ResetOnElementEnabled()
-    {
-        auto resetAttributes = TPersistentAttributes();
-        resetAttributes.AccumulatedResourceVolume = AccumulatedResourceVolume;
-        resetAttributes.LastNonStarvingTime = TInstant::Now();
-        resetAttributes.SchedulingSegmentDataCenter = SchedulingSegmentDataCenter;
-        *this = resetAttributes;
-    }
+    void ResetOnElementEnabled();
 };
 
 class TChildHeap;
@@ -207,9 +180,38 @@ struct TUpdateFairShareContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareSchedulingStage
+struct TScheduleJobsProfilingCounters
 {
-    TFairShareSchedulingStage(TString loggingName, TScheduleJobsProfilingCounters profilingCounters);
+    TScheduleJobsProfilingCounters(const NProfiling::TRegistry& profiler);
+
+    NProfiling::TCounter PrescheduleJobCount;
+    NProfiling::TEventTimer PrescheduleJobTime;
+    NProfiling::TEventTimer TotalControllerScheduleJobTime;
+    NProfiling::TEventTimer ExecControllerScheduleJobTime;
+    NProfiling::TEventTimer StrategyScheduleJobTime;
+    NProfiling::TEventTimer PackingRecordHeartbeatTime;
+    NProfiling::TEventTimer PackingCheckTime;
+    NProfiling::TEventTimer AnalyzeJobsTime;
+    NProfiling::TCounter ScheduleJobAttemptCount;
+    NProfiling::TCounter ScheduleJobFailureCount;
+
+    TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TCounter> ControllerScheduleJobFail;
+};
+
+struct TFairShareScheduleJobResult
+{
+    TFairShareScheduleJobResult(bool finished, bool scheduled)
+        : Finished(finished)
+        , Scheduled(scheduled)
+    { }
+
+    bool Finished;
+    bool Scheduled;
+};
+
+struct TScheduleJobsStage
+{
+    TScheduleJobsStage(TString loggingName, TScheduleJobsProfilingCounters profilingCounters);
 
     const TString LoggingName;
     TScheduleJobsProfilingCounters ProfilingCounters;
@@ -217,14 +219,14 @@ struct TFairShareSchedulingStage
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareContext
+class TScheduleJobsContext
 {
 private:
     struct TStageState
     {
-        explicit TStageState(TFairShareSchedulingStage* schedulingStage);
+        explicit TStageState(TScheduleJobsStage* schedulingStage);
 
-        TFairShareSchedulingStage* const SchedulingStage;
+        TScheduleJobsStage* const SchedulingStage;
 
         bool PrescheduleExecuted = false;
 
@@ -255,14 +257,14 @@ private:
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<bool>, HasAggressivelyStarvingElements);
 
-    DEFINE_BYREF_RW_PROPERTY(TFairShareSchedulingStatistics, SchedulingStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TScheduleJobsStatistics, SchedulingStatistics);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TOperationElementPtr>, BadPackingOperations);
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<TStageState>, StageState);
 
 public:
-    TFairShareContext(
+    TScheduleJobsContext(
         ISchedulingContextPtr schedulingContext,
         int treeSize,
         std::vector<TSchedulingTagFilter> registeredSchedulingTagFilters,
@@ -276,7 +278,7 @@ public:
 
     TJobResources GetUsageDiscountFor(const TSchedulerElement* element) const;
 
-    void StartStage(TFairShareSchedulingStage* schedulingStage);
+    void StartStage(TScheduleJobsStage* schedulingStage);
 
     void ProfileStageTimingsAndLogStatistics();
 
@@ -303,17 +305,24 @@ private:
 class TSchedulerElementFixedState
 {
 public:
+    // These fields are input for fair share update and may be used in schedule jobs.
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceDemand);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsageAtUpdate);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits, TJobResources::Infinite());
-    DEFINE_BYREF_RW_PROPERTY(TJobResources, EffectiveStrongGuaranteeResources);
+
+    // These attributes are calculated during fair share update and used further in schedule jobs.
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
+
+    // These fields are persistent between updates.
     DEFINE_BYREF_RW_PROPERTY(TPersistentAttributes, PersistentAttributes);
+
+    // This field used as both in fair share update and in schedule jobs.
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulingTagFilterIndex, EmptySchedulingTagFilterIndex);
 
+    // These fields are used only during fair share update.
     DEFINE_BYREF_RO_PROPERTY(std::optional<TVectorPiecewiseLinearFunction>, FairShareByFitFactor);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TVectorPiecewiseLinearFunction>, FairShareBySuggestion);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TScalarPiecewiseLinearFunction>, MaxFitFactorBySuggestion);
+    DEFINE_BYREF_RO_PROPERTY( std::optional<TScalarPiecewiseLinearFunction>, MaxFitFactorBySuggestion);
 
 protected:
     TSchedulerElementFixedState(
@@ -327,24 +336,27 @@ protected:
 
     TFairShareStrategyTreeConfigPtr TreeConfig_;
 
+    // Used everywhere.
     TCompositeSchedulerElement* Parent_ = nullptr;
 
+    // Assigned in preupdate, used in fair share update.
     TJobResources TotalResourceLimits_;
     bool HasSpecifiedResourceLimits_ = false;
-
-    int PendingJobCount_ = 0;
-    TJobResourcesWithQuotaList DetailedMinNeededJobResources_;
-    TJobResources AggregatedMinNeededJobResources_;
-    TJobResources TotalNeededResources_;
-
-    bool Tentative_ = false;
-
     TInstant StartTime_;
 
+    // Operation specific field, aggregated in composite elements and used in fair share update.
+    int PendingJobCount_ = 0;
+
+    // Assigned in preupdate, used in schedule jobs.
+    bool Tentative_ = false;
+
+    // Assigned in postupdate, used in schedule jobs.
     int TreeIndex_ = UnassignedTreeIndex;
 
+    // Used only during fair share update.
     bool AreFairShareFunctionsPrepared_ = false;
 
+    // Flag indicates that we can change this fields.
     bool Mutable_ = true;
 
     const TString TreeId_;
@@ -352,23 +364,127 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareScheduleJobResult
-{
-    TFairShareScheduleJobResult(bool finished, bool scheduled)
-        : Finished(finished)
-        , Scheduled(scheduled)
-    { }
-
-    bool Finished;
-    bool Scheduled;
-};
-
 class TSchedulerElement
     : public TSchedulerElementFixedState
     , public TRefCounted
 {
 public:
-    //! Enumerates elements of the tree using inorder traversal. Returns first unused index.
+    //! === Common interface.
+    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
+
+    virtual TString GetId() const = 0;
+    virtual TString GetTreeId() const;
+
+    const NLogging::TLogger& GetLogger() const;
+    virtual TString GetLoggingString() const;
+    virtual bool AreDetailedLogsEnabled() const;
+
+    TCompositeSchedulerElement* GetMutableParent();
+    const TCompositeSchedulerElement* GetParent() const;
+
+    virtual bool IsRoot() const;
+    virtual bool IsOperation() const;
+    virtual TOperationElement* AsOperation();
+    virtual TPool* AsPool();
+
+    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
+
+    virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const;
+    void InitAccumulatedResourceVolume(TResourceVolume resourceVolume);
+
+    bool IsAlive() const;
+    void SetNonAlive();
+
+    TJobResources GetInstantResourceUsage() const;
+
+    // Used for diagnostics and for fair share update.
+    virtual TJobResources GetSpecifiedStrongGuaranteeResources() const;
+    virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const;
+
+    // Used for diagnostics and for preemption decisions.
+    virtual ESchedulableStatus GetStatus(bool atUpdate = true) const;
+
+    // Used for diagnostics only.
+    double GetMaxShareRatio() const;
+    virtual TResourceVector GetMaxShare() const = 0;
+    TResourceVector GetFairShare() const;
+    double GetResourceDominantUsageShareAtUpdate() const;
+    // =======================================
+
+    //! === Trunk node interface.
+    // Used to manipulate with SchedulingTagFilterIndex.
+    virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
+    // =======================================
+
+    //! === Pre fair share update methods.
+    //! Prepares attributes that need to be computed in the control thread in a thread-unsafe manner.
+    //! For example: TotalResourceLimits.
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context);
+
+    TJobResources ComputeTotalResourcesOnSuitableNodes() const;
+    TJobResources GetTotalResourceLimits() const;
+    virtual TJobResources GetSpecifiedResourceLimits() const = 0;
+
+    virtual void DisableNonAliveElements() = 0;
+
+    virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const = 0;
+    // =======================================
+
+    //! === Fair share update methods.
+    virtual TResourceVector DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context) = 0;
+
+    virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context);
+    virtual void DetermineEffectiveStrongGuaranteeResources();
+
+    TJobResources ComputeResourceLimits() const;
+    virtual TResourceVector ComputeLimitsShare() const;
+
+    TResourceVector GetResourceUsageShare() const;
+
+    double GetAccumulatedResourceRatioVolume() const;
+    TResourceVolume GetAccumulatedResourceVolume() const;
+    double GetIntegralShareRatioByVolume() const;
+    void IncreaseHierarchicalIntegralShare(const TResourceVector& delta);
+
+    TInstant GetStartTime() const;
+    int GetPendingJobCount() const;
+
+    virtual std::optional<double> GetSpecifiedWeight() const = 0;
+    virtual double GetWeight() const;
+
+    virtual double GetFairShareStarvationTolerance() const = 0;
+    virtual TDuration GetFairSharePreemptionTimeout() const = 0;
+
+    virtual void PrepareFairShareFunctions(TUpdateFairShareContext* context);
+    void ResetFairShareFunctions();
+    virtual void PrepareFairShareByFitFactor(TUpdateFairShareContext* context) = 0;
+    void PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext* context);
+    // =======================================
+
+    //! === Post fair share update methods.
+    bool GetStarving() const;
+    virtual void SetStarving(bool starving);
+    virtual void CheckForStarvation(TInstant now) = 0;
+
+    // Used to compute starvation status.
+    bool IsStrictlyDominatesNonBlocked(const TResourceVector& lhs, const TResourceVector& rhs) const;
+
+    // Publishes fair share and updates preemptable job lists of operations.
+    virtual void PublishFairShareAndUpdatePreemption() = 0;
+    virtual void UpdatePreemptionAttributes();
+
+    // Manage operation segments.
+    virtual void CollectOperationSchedulingSegmentContexts(
+        THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const = 0;
+    virtual void ApplyOperationSchedulingSegmentChanges(
+        const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) = 0;
+
+    //! This method reuses common code with schedule jobs logic to calculate dynamic attributes.
+    virtual void UpdateSchedulableAttributesFromDynamicAttributes(
+        TDynamicAttributesList* dynamicAttributesList,
+        const TChildHeapMap& childHeapMap);
+
+    // Enumerates elements of the tree using inorder traversal. Returns first unused index.
     virtual int EnumerateElements(
         int startIndex,
         TUpdateFairShareContext* context,
@@ -377,154 +493,48 @@ public:
     int GetTreeIndex() const;
     void SetTreeIndex(int treeIndex);
 
-    virtual void DisableNonAliveElements() = 0;
-
     virtual void MarkImmutable();
-
-    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
-
-    //! Prepares attributes that need to be computed in the control thread in a thread-unsafe manner.
-    //! For example: TotalResourceLimits.
-    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context);
-
-    virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context);
-
-    //! Publishes fair share and updates preemptable job lists of operations.
-    virtual void PublishFairShareAndUpdatePreemption() = 0;
-
-    virtual void UpdatePreemptionAttributes();
-    virtual void UpdateSchedulableAttributesFromDynamicAttributes(
-        TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap);
-
-    virtual void UpdateDynamicAttributes(
-        TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap) = 0;
-
-    virtual void CalculateCurrentResourceUsage(TFairShareContext* context) = 0;
-
-    virtual void PrescheduleJob(TFairShareContext* context, EPrescheduleJobOperationCriterion operationCriterion, bool aggressiveStarvationEnabled) = 0;
-    virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) = 0;
-
-    virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const = 0;
-
-    virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
-
-    virtual bool IsRoot() const;
-    virtual bool IsOperation() const;
-    virtual TOperationElement* AsOperation();
-    virtual TPool* AsPool();
-
-    virtual TString GetLoggingString() const;
-
-    bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
-
-    virtual bool IsSchedulable() const = 0;
-
-    virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
-
-    bool IsAlive() const;
-    void SetNonAlive();
-
-    TResourceVector GetFairShare() const;
-
-    virtual TString GetId() const = 0;
-
-    virtual std::optional<double> GetSpecifiedWeight() const = 0;
-    virtual double GetWeight() const;
-
-    virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const;
-    virtual TJobResources GetSpecifiedStrongGuaranteeResources() const;
-    virtual void DetermineEffectiveStrongGuaranteeResources();
-
-    virtual TResourceVector GetMaxShare() const = 0;
-
-    // Used for diagnostics.
-    double GetMaxShareRatio() const;
-
-    virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const;
-    double GetAccumulatedResourceRatioVolume() const;
-    TResourceVolume GetAccumulatedResourceVolume() const;
-    void InitAccumulatedResourceVolume(TResourceVolume resourceVolume);
-    double GetIntegralShareRatioByVolume() const;
-    void IncreaseHierarchicalIntegralShare(const TResourceVector& delta);
-
-    virtual double GetFairShareStarvationTolerance() const = 0;
-    virtual TDuration GetFairSharePreemptionTimeout() const = 0;
-
-    TCompositeSchedulerElement* GetMutableParent();
-    const TCompositeSchedulerElement* GetParent() const;
-
-    TInstant GetStartTime() const;
-    int GetPendingJobCount() const;
-
-    virtual ESchedulableStatus GetStatus(bool atUpdate = true) const;
-
-    bool GetStarving() const;
-    virtual void SetStarving(bool starving);
-    virtual void CheckForStarvation(TInstant now) = 0;
-
-    // Returns resource usage observed in current heartbeat.
-    TJobResources GetCurrentResourceUsage(const TDynamicAttributesList& dynamicAttributesList) const;
-
-    TResourceVector GetResourceUsageShare() const;
-
-    // Used for diagnostics.
-    double GetResourceDominantUsageShareAtUpdate() const;
-
-    virtual TString GetTreeId() const;
-
-    void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
 
     virtual void BuildElementMapping(
         TNonOwningOperationElementMap* enabledOperationMap,
         TNonOwningOperationElementMap* disabledOperationMap,
         TNonOwningPoolMap* poolMap) = 0;
+    // =======================================
 
-    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
+    //! === Schedule jobs related methods.
+    virtual void PrescheduleJob(
+        TScheduleJobsContext* context,
+        EPrescheduleJobOperationCriterion operationCriterion,
+        bool aggressiveStarvationEnabled) = 0;
+    virtual void UpdateDynamicAttributes(
+        TDynamicAttributesList* dynamicAttributesList,
+        const TChildHeapMap& childHeapMap) = 0;
 
     double ComputeLocalSatisfactionRatio(const TJobResources& resourceUsage) const;
 
-    const NLogging::TLogger& GetLogger() const;
+    virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) = 0;
 
-    virtual void PrepareFairShareFunctions(TUpdateFairShareContext* context);
-    void ResetFairShareFunctions();
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
+    virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context, bool aggressiveStarvationEnabled) const = 0;
 
-    virtual TResourceVector DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context) = 0;
+    // Returns resource usage observed in current heartbeat.
+    TJobResources GetCurrentResourceUsage(const TDynamicAttributesList& dynamicAttributesList) const;
 
-    virtual void PrepareFairShareByFitFactor(TUpdateFairShareContext* context) = 0;
-    void PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext* context);
+    virtual void CalculateCurrentResourceUsage(TScheduleJobsContext* context) = 0;
+    void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
+
+    virtual bool IsSchedulable() const = 0;
 
     bool IsResourceBlocked(EJobResourceType resource) const;
-
     bool AreAllResourcesBlocked() const;
 
-    bool IsStrictlyDominatesNonBlocked(const TResourceVector& lhs, const TResourceVector& rhs) const;
+    bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
 
-    virtual TJobResources GetSpecifiedResourceLimits() const = 0;
     bool AreResourceLimitsViolated() const;
+    // =======================================
 
-    TJobResources GetInstantResourceUsage() const;
-
-    TJobResources ComputeTotalResourcesOnSuitableNodes() const;
-
-    TJobResources ComputeResourceLimits() const;
-    virtual TResourceVector ComputeLimitsShare() const;
-
-    TJobResources GetTotalResourceLimits() const;
-
+    //! === Other mehtods based on snapshotted version of element.
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const;
-
-    void Profile(NProfiling::ISensorWriter* writer, bool profilingCompatibilityEnabled) const;
-
-    virtual bool AreDetailedLogsEnabled() const;
-
-    virtual void CollectOperationSchedulingSegmentContexts(
-        THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const = 0;
-    virtual void ApplyOperationSchedulingSegmentChanges(
-        const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) = 0;
-
-    virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const = 0;
 
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
@@ -556,9 +566,9 @@ protected:
 
     TString GetLoggingAttributesString() const;
 
-    TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
+    TJobResources GetLocalAvailableResourceLimits(const TScheduleJobsContext& context) const;
 
-    bool CheckDemand(const TJobResources& delta, const TFairShareContext& context);
+    bool CheckDemand(const TJobResources& delta, const TScheduleJobsContext& context);
 
     TResourceVector GetVectorSuggestion(double suggestion) const;
 
@@ -580,14 +590,17 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerElement)
 class TCompositeSchedulerElementFixedState
 {
 public:
+    // Used only in trunk version and profiling.
     DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
     DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, PendingOperationIds);
 
+    // Used only in schedule jobs.
     DEFINE_BYREF_RO_PROPERTY(double, AdjustedFairShareStarvationToleranceLimit);
     DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedFairSharePreemptionTimeoutLimit);
 
 protected:
+    // Used in fair share update.
     ESchedulingMode Mode_ = ESchedulingMode::Fifo;
     std::vector<EFifoSortParameter> FifoSortParameters_;
 };
@@ -612,112 +625,128 @@ public:
         const TCompositeSchedulerElement& other,
         TCompositeSchedulerElement* clonedParent);
 
-    virtual int EnumerateElements(
-        int startIndex,
-        TUpdateFairShareContext* context,
-        bool isSchedulableValueFilter) override;
 
-    virtual void DisableNonAliveElements() override;
-
-    virtual void MarkImmutable() override;
-
-    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
-
-    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
-    virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context) override;
-    virtual void PublishFairShareAndUpdatePreemption() override;
-    virtual void UpdatePreemptionAttributes() override;
-    virtual void UpdateSchedulableAttributesFromDynamicAttributes(
-        TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap) override;
-
-    virtual double GetFairShareStarvationToleranceLimit() const;
-    virtual TDuration GetFairSharePreemptionTimeoutLimit() const;
-
-    virtual void UpdateDynamicAttributes(
-        TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap) override;
-
-    virtual void CalculateCurrentResourceUsage(TFairShareContext* context) override;
-
-    virtual void PrescheduleJob(TFairShareContext* context, EPrescheduleJobOperationCriterion operationCriterion, bool aggressiveStarvationEnabled) override;
-    virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) override;
-
-    virtual bool IsSchedulable() const override;
-
-    virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
-
-    virtual bool IsExplicit() const;
-    virtual bool IsAggressiveStarvationEnabled() const;
-
-    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
-
+    //! === Common interface.
     void AddChild(TSchedulerElement* child, bool enabled = true);
     void EnableChild(const TSchedulerElementPtr& child);
     void DisableChild(const TSchedulerElementPtr& child);
     void RemoveChild(TSchedulerElement* child);
     bool IsEnabledChild(TSchedulerElement* child);
 
+    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
+
     // For testing only.
     std::vector<TSchedulerElementPtr> GetEnabledChildren();
     std::vector<TSchedulerElementPtr> GetDisabledChildren();
+    // =======================================
 
-    bool IsEmpty() const;
-
-    ESchedulingMode GetMode() const;
-    void SetMode(ESchedulingMode);
-
+    //! === Trunk node interface.
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
     int GetAvailableRunningOperationCount() const;
 
-    virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const = 0;
-    virtual bool AreImmediateOperationsForbidden() const = 0;
-
-    virtual void BuildElementMapping(
-        TNonOwningOperationElementMap* enabledOperationMap,
-        TNonOwningOperationElementMap* disabledOperationMap,
-        TNonOwningPoolMap* poolMap) override;
-
     void IncreaseOperationCount(int delta);
     void IncreaseRunningOperationCount(int delta);
 
-    virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
+    virtual bool IsExplicit() const;
+    virtual bool IsDefaultConfigured() const = 0;
+    virtual bool AreImmediateOperationsForbidden() const = 0;
 
-    virtual void PrepareFairShareFunctions(TUpdateFairShareContext* context) override;
+    bool IsEmpty() const;
+    // =======================================
 
-    virtual void PrepareFairShareByFitFactor(TUpdateFairShareContext* context) override;
+    //! === Pre fair share update methods.
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
+    virtual void DisableNonAliveElements() override;
 
+    virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
+    // =======================================
+
+    //! === Fair share update methods.
     virtual TResourceVector DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context) override;
 
     virtual void DetermineEffectiveStrongGuaranteeResources() override;
 
-    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
-    virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const = 0;
+    virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context) override;
 
-    virtual bool IsDefaultConfigured() const = 0;
+    TResourceVolume GetIntegralPoolCapacity() const;
+
+    TResourceVector GetHierarchicalAvailableLimitsShare() const;
 
     virtual double GetSpecifiedBurstRatio() const = 0;
     virtual double GetSpecifiedResourceFlowRatio() const = 0;
 
-    TResourceVector GetHierarchicalAvailableLimitsShare() const;
+    virtual void PrepareFairShareFunctions(TUpdateFairShareContext* context) override;
+    virtual void PrepareFairShareByFitFactor(TUpdateFairShareContext* context) override;
 
-    TResourceVolume GetIntegralPoolCapacity() const;
+    virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const = 0;
 
-    void InitializeChildHeap(TFairShareContext* context);
-    void UpdateChild(TFairShareContext* context, TSchedulerElement* child);
+    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
+    virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const = 0;
+
+    virtual double GetFairShareStarvationToleranceLimit() const;
+    virtual TDuration GetFairSharePreemptionTimeoutLimit() const;
+    // =======================================
+
+    //! === Post fair share update methods.
+    virtual void PublishFairShareAndUpdatePreemption() override;
+    virtual void UpdatePreemptionAttributes() override;
+
+    virtual void UpdateSchedulableAttributesFromDynamicAttributes(
+        TDynamicAttributesList* dynamicAttributesList,
+        const TChildHeapMap& childHeapMap) override;
 
     virtual void CollectOperationSchedulingSegmentContexts(
         THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const override;
     virtual void ApplyOperationSchedulingSegmentChanges(
         const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) override;
 
-    virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
+    virtual int EnumerateElements(
+        int startIndex,
+        TUpdateFairShareContext* context,
+        bool isSchedulableValueFilter) override;
+
+    virtual void MarkImmutable() override;
+
+    virtual void BuildElementMapping(
+        TNonOwningOperationElementMap* enabledOperationMap,
+        TNonOwningOperationElementMap* disabledOperationMap,
+        TNonOwningPoolMap* poolMap) override;
+    // =======================================
+
+    //! === Schedule jobs related methods.
+    virtual void PrescheduleJob(
+        TScheduleJobsContext* context,
+        EPrescheduleJobOperationCriterion operationCriterion,
+        bool aggressiveStarvationEnabled) override;
+    virtual void UpdateDynamicAttributes(
+        TDynamicAttributesList* dynamicAttributesList,
+        const TChildHeapMap& childHeapMap) override;
+
+    virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) override;
+
+    virtual bool IsAggressiveStarvationEnabled() const;
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
+    virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context, bool aggressiveStarvationEnabled) const override;
+
+    virtual void CalculateCurrentResourceUsage(TScheduleJobsContext* context) override;
+
+    virtual bool IsSchedulable() const override;
+
+    void InitializeChildHeap(TScheduleJobsContext* context);
+    void UpdateChild(TScheduleJobsContext* context, TSchedulerElement* child);
+    // =======================================
+
+    virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
+
+    // Mode_ is used in fair share update, also we publish this parameter to orchid.
+    ESchedulingMode GetMode() const;
 
 protected:
     using TChildMap = THashMap<TSchedulerElementPtr, int>;
     using TChildList = std::vector<TSchedulerElementPtr>;
 
+    // Supported in trunk version, used in fair share update.
     TChildMap EnabledChildToIndex_;
     TChildList EnabledChildren_;
     TChildList SortedEnabledChildren_;
@@ -725,8 +754,18 @@ protected:
     TChildMap DisabledChildToIndex_;
     TChildList DisabledChildren_;
 
+    // Computed in fair share update and used in schedule jobs.
     TChildList SchedulableChildren_;
 
+    static void AddChild(TChildMap* map, TChildList* list, const TSchedulerElementPtr& child);
+    static void RemoveChild(TChildMap* map, TChildList* list, const TSchedulerElementPtr& child);
+    static bool ContainsChild(const TChildMap& map, const TSchedulerElementPtr& child);
+
+    //! === Fair share update methods.
+    void InitIntegralPoolLists(TUpdateFairShareContext* context);
+    void AdjustStrongGuarantees();
+
+private:
     /// strict_mode = true means that a caller guarantees that the sum predicate is true at least for fit factor = 0.0.
     /// strict_mode = false means that if the sum predicate is false for any fit factor, we fit children to the least possible sum
     /// (i. e. use fit factor = 0.0)
@@ -737,14 +776,6 @@ protected:
         TValue maxSum,
         bool strictMode = true);
 
-    void InitIntegralPoolLists(TUpdateFairShareContext* context);
-    void AdjustStrongGuarantees();
-
-    void PrepareFairShareByFitFactorFifo(TUpdateFairShareContext* context);
-    void PrepareFairShareByFitFactorNormal(TUpdateFairShareContext* context);
-
-    void PrepareFifoPool();
-    void UpdateStrongGuaranteeNormal(TUpdateFairShareContext* context);
 
     using TChildSuggestions = std::vector<double>;
     TChildSuggestions GetEnabledChildSuggestionsFifo(double fitFactor);
@@ -754,12 +785,11 @@ protected:
     TSchedulerElement* GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const;
     TSchedulerElement* GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const;
 
-    static void AddChild(TChildMap* map, TChildList* list, const TSchedulerElementPtr& child);
-    static void RemoveChild(TChildMap* map, TChildList* list, const TSchedulerElementPtr& child);
-    static bool ContainsChild(const TChildMap& map, const TSchedulerElementPtr& child);
-
-private:
+    void PrepareFifoPool();
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
+
+    void PrepareFairShareByFitFactorFifo(TUpdateFairShareContext* context);
+    void PrepareFairShareByFitFactorNormal(TUpdateFairShareContext* context);
 
     static double GetMinChildWeight(const TChildList& children);
 };
@@ -774,9 +804,13 @@ protected:
     explicit TPoolFixedState(TString id);
 
     const TString Id_;
+    // Used only in trunk node.
     bool DefaultConfigured_ = true;
     bool EphemeralInDefaultParentPool_ = false;
     std::optional<TString> UserName_;
+
+    // Used in preupdate.
+    TSchedulingTagFilter SchedulingTagFilter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -800,33 +834,65 @@ public:
         const TPool& other,
         TCompositeSchedulerElement* clonedParent);
 
-    void SetUserName(const std::optional<TString>& userName);
-    const std::optional<TString>& GetUserName() const;
-
-    TPoolConfigPtr GetConfig() const;
-    void SetConfig(TPoolConfigPtr config);
-    void SetDefaultConfig();
-    void SetEphemeralInDefaultParentPool();
-
-    bool IsEphemeralInDefaultParentPool() const;
-
-    virtual bool IsDefaultConfigured() const override;
-    virtual bool IsExplicit() const override;
-    virtual bool IsAggressiveStarvationEnabled() const override;
-    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
-
-    virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
-
-    virtual TPool* AsPool() override;
+    //! === Common interface.
+    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
     virtual TString GetId() const override;
 
-    virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const override;
-    virtual TResourceVector GetMaxShare() const override;
+    virtual bool AreDetailedLogsEnabled() const override;
+
+    void AttachParent(TCompositeSchedulerElement* newParent);
+    void ChangeParent(TCompositeSchedulerElement* newParent);
+    void DetachParent();
+
+    virtual TPool* AsPool() override;
+
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const override;
 
+    virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const override;
+
     virtual ESchedulableStatus GetStatus(bool atUpdate = true) const override;
+
+    // Used for diagnostics only.
+    virtual TResourceVector GetMaxShare() const override;
+    // =======================================
+
+    //! === Trunk node interface.
+    TPoolConfigPtr GetConfig() const;
+    void SetConfig(TPoolConfigPtr config);
+    void SetDefaultConfig();
+
+    void SetUserName(const std::optional<TString>& userName);
+    const std::optional<TString>& GetUserName() const;
+
+    virtual int GetMaxOperationCount() const override;
+    virtual int GetMaxRunningOperationCount() const override;
+
+    void SetEphemeralInDefaultParentPool();
+    bool IsEphemeralInDefaultParentPool() const;
+
+    virtual bool IsExplicit() const override;
+    virtual bool IsDefaultConfigured() const override;
+    virtual bool AreImmediateOperationsForbidden() const override;
+
+    // Used to manipulate with SchedulingTagFilterIndex.
+    virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
+    // =======================================
+
+    //! === Pre fair share update methods.
+    virtual TJobResources GetSpecifiedResourceLimits() const override;
+    // =======================================
+
+    //! === Fair share update methods.
+    virtual double GetSpecifiedBurstRatio() const override;
+    virtual double GetSpecifiedResourceFlowRatio() const override;
+
+    virtual std::optional<double> GetSpecifiedWeight() const override;
+
+    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
+    virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
+
+    virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const override;
 
     virtual double GetFairShareStarvationTolerance() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
@@ -834,50 +900,38 @@ public:
     virtual double GetFairShareStarvationToleranceLimit() const override;
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const override;
 
-    virtual TJobResources GetSpecifiedResourceLimits() const override;
+    void UpdateAccumulatedResourceVolume(TDuration periodSinceLastUpdate);
 
+    void ApplyLimitsForRelaxedPool();
+    // =======================================
+
+    //! === Post fair share update methods.
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
-
-    virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
-
-    virtual int GetMaxRunningOperationCount() const override;
-    virtual int GetMaxOperationCount() const override;
-
-    virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const override;
-    virtual bool AreImmediateOperationsForbidden() const override;
-
-    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
-
-    void AttachParent(TCompositeSchedulerElement* newParent);
-    void ChangeParent(TCompositeSchedulerElement* newParent);
-    void DetachParent();
-
-    virtual THashSet<TString> GetAllowedProfilingTags() const override;
-
-    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
-    virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
     virtual void BuildElementMapping(
         TNonOwningOperationElementMap* enabledOperationMap,
         TNonOwningOperationElementMap* disabledOperationMap,
         TNonOwningPoolMap* poolMap) override;
+    // =======================================
 
-    virtual double GetSpecifiedBurstRatio() const override;
-    virtual double GetSpecifiedResourceFlowRatio() const override;
+    //! === Schedule jobs related methods.
+    virtual bool IsAggressiveStarvationEnabled() const override;
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
+    // =======================================
 
-    void UpdateAccumulatedResourceVolume(TDuration periodSinceLastUpdate);
+    //! === Other mehtods based on snapshotted version of element.
+    virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
 
-    void ApplyLimitsForRelaxedPool();
-    TResourceVector GetIntegralShareLimitForRelaxedPool() const;
-
-    virtual bool AreDetailedLogsEnabled() const override;
+    // =======================================
+    virtual THashSet<TString> GetAllowedProfilingTags() const override;
 
 private:
     TPoolConfigPtr Config_;
-    TSchedulingTagFilter SchedulingTagFilter_;
 
     void DoSetConfig(TPoolConfigPtr newConfig);
+
+    TResourceVector GetIntegralShareLimitForRelaxedPool() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPool)
@@ -886,17 +940,45 @@ DEFINE_REFCOUNTED_TYPE(TPool)
 
 class TOperationElementFixedState
 {
+public:
+    // Used by trunk node.
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
+
+    DEFINE_BYREF_RW_PROPERTY(std::optional<ESchedulingSegment>, SchedulingSegment);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<THashSet<TString>>, SpecifiedSchedulingSegmentDataCenters);
+
 protected:
     TOperationElementFixedState(
         IOperationStrategyHost* operation,
-        TFairShareStrategyOperationControllerConfigPtr controllerConfig);
+        TFairShareStrategyOperationControllerConfigPtr controllerConfig,
+        TSchedulingTagFilter schedulingTagFilter);
 
     const TOperationId OperationId_;
+
+    // Fixed in preupdate, used in postupdate.
     std::optional<EUnschedulableReason> UnschedulableReason_;
-    int SlotIndex_ = UndefinedSlotIndex;
-    TString UserName_;
+
     IOperationStrategyHost* const Operation_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
+
+    // Used only in trunk version.
+    TString UserName_;
+
+    // Used only for profiling.
+    int SlotIndex_ = UndefinedSlotIndex;
+
+    // Used in schedule jobs.
+    TJobResourcesWithQuotaList DetailedMinNeededJobResources_;
+    TJobResources AggregatedMinNeededJobResources_;
+
+    // Used to compute operation demand.
+    TJobResources TotalNeededResources_;
+
+    // Used in trunk node.
+    bool RunningInThisPoolTree_ = false;
+
+    // Fixed in preupdate and used to calculate resource limits.
+    TSchedulingTagFilter SchedulingTagFilter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -949,12 +1031,12 @@ public:
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
 
     void OnMinNeededResourcesUnsatisfied(
-        const TFairShareContext& context,
+        const TScheduleJobsContext& context,
         const TJobResources& availableResources,
         const TJobResources& minNeededResources);
     TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount() const;
 
-    void OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason);
+    void OnOperationDeactivated(const TScheduleJobsContext& context, EDeactivationReason reason);
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons() const;
     void ResetDeactivationReasonsFromLastNonStarvingTime();
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime() const;
@@ -1054,6 +1136,11 @@ class TOperationElement
     , public TOperationElementFixedState
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
+
+    DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
+
+public:
     TOperationElement(
         TFairShareStrategyTreeConfigPtr treeConfig,
         TStrategyOperationSpecPtr spec,
@@ -1069,197 +1156,212 @@ public:
         const TOperationElement& other,
         TCompositeSchedulerElement* clonedParent);
 
-    virtual void DisableNonAliveElements() override;
+    //! === Common interface.
+    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
-    virtual double GetFairShareStarvationTolerance() const override;
-    virtual TDuration GetFairSharePreemptionTimeout() const override;
+    virtual TString GetId() const override;
 
-    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
-    virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context) override;
-    virtual void PublishFairShareAndUpdatePreemption() override;
-    virtual void UpdatePreemptionAttributes() override;
-
-    virtual void PrepareFairShareByFitFactor(TUpdateFairShareContext* context) override;
-
-    virtual TResourceVector DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context) override;
+    virtual TString GetLoggingString() const override;
+    virtual bool AreDetailedLogsEnabled() const override;
 
     virtual bool IsOperation() const override;
+    virtual TOperationElement* AsOperation() override;
+
+    virtual ESchedulableStatus GetStatus(bool atUpdate = true) const override;
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 
-    virtual void UpdateDynamicAttributes(
-        TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap) override;
+    void InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode);
 
-    virtual void CalculateCurrentResourceUsage(TFairShareContext* context) override;
-
-    virtual void PrescheduleJob(TFairShareContext* context, EPrescheduleJobOperationCriterion operationCriterion, bool aggressiveStarvationEnabled) override;
-    virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) override;
-
-    virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
-
-    virtual TString GetLoggingString() const override;
-
-    virtual TString GetId() const override;
-
-    virtual TOperationElement* AsOperation() override;
-
-    virtual bool IsSchedulable() const override;
-
-    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
-
-    virtual std::optional<double> GetSpecifiedWeight() const override;
     virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const override;
     virtual TResourceVector GetMaxShare() const override;
+    // =======================================
+
+    //! === Trunk node interface.
+    int GetSlotIndex() const;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
-    virtual ESchedulableStatus GetStatus(bool atUpdate = true) const override;
-
-    virtual void SetStarving(bool starving) override;
-    virtual void CheckForStarvation(TInstant now) override;
-
-    bool IsPreemptionAllowed(
-        bool isAggressivePreemption,
-        const TDynamicAttributesList& dynamicAttributesList,
-        const TFairShareStrategyTreeConfigPtr& config) const;
-
-    void SetJobResourceUsage(TJobId jobId, const TJobResources& resources);
-
-    bool IsJobKnown(TJobId jobId) const;
-
-    bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
-
-    int GetRunningJobCount() const;
-    int GetPreemptableJobCount() const;
-    int GetAggressivelyPreemptableJobCount() const;
-
-    TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
-
-    TInstant GetLastNonStarvingTime() const;
-    TInstant GetLastScheduleJobSuccessTime() const;
-
-    int GetSlotIndex() const;
-
     TString GetUserName() const;
 
-    virtual TResourceVector ComputeLimitsShare() const override;
+    void Disable(bool markAsNonAlive);
+    void Enable();
 
+    void MarkOperationRunningInPool();
+    bool IsOperationRunningInPool() const;
+
+    void MarkPendingBy(TCompositeSchedulerElement* violatedPool);
+
+    void AttachParent(TCompositeSchedulerElement* newParent, int slotIndex);
+    void ChangeParent(TCompositeSchedulerElement* newParent, int slotIndex);
+    void DetachParent();
+    // =======================================
+
+    //! === Shared state interface.
     bool OnJobStarted(
         TJobId jobId,
         const TJobResources& resourceUsage,
         const TJobResources& precommittedResources,
         bool force = false);
     void OnJobFinished(TJobId jobId);
+    void SetJobResourceUsage(TJobId jobId, const TJobResources& resources);
 
-    virtual void BuildElementMapping(
-        TNonOwningOperationElementMap* enabledOperationMap,
-        TNonOwningOperationElementMap* disabledOperationMap,
-        TNonOwningPoolMap* poolMap) override;
+    bool IsJobKnown(TJobId jobId) const;
+    bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
 
-    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+    int GetRunningJobCount() const;
+    int GetPreemptableJobCount() const;
+    int GetAggressivelyPreemptableJobCount() const;
 
-    void OnMinNeededResourcesUnsatisfied(
-        const TFairShareContext& context,
-        const TJobResources& availableResources,
-        const TJobResources& minNeededResources);
-    TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount() const;
-
-    void ActivateOperation(TFairShareContext* context);
-    void DeactivateOperation(TFairShareContext* context, EDeactivationReason reason);
-
-    void OnOperationDeactivated(TFairShareContext* context, EDeactivationReason reason);
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons() const;
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime() const;
 
-    std::optional<TString> GetCustomProfilingTag() const;
+    TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
 
-    void Disable(bool markAsNonAlive);
-    void Enable();
+    TInstant GetLastScheduleJobSuccessTime() const;
+    // =======================================
 
-    EResourceTreeIncreaseResult TryIncreaseHierarchicalResourceUsagePrecommit(
-        const TJobResources& delta,
-        TJobResources* availableResourceLimitsOutput = nullptr);
+    //! === Pre fair share update methods.
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
+    virtual void DisableNonAliveElements() override;
 
-    void AttachParent(TCompositeSchedulerElement* newParent, int slotIndex);
-    void ChangeParent(TCompositeSchedulerElement* newParent, int slotIndex);
-    void DetachParent();
+    virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
+    // =======================================
 
-    void MarkOperationRunningInPool();
-    bool IsOperationRunningInPool() const;
+    //! === Fair share update methods.
+    virtual TResourceVector DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context) override;
+    virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context) override;
 
-    void UpdateAncestorsDynamicAttributes(
-        TFairShareContext* context,
-        const TJobResources& resourceUsageDelta,
-        bool checkAncestorsActiveness = true);
+    virtual TResourceVector ComputeLimitsShare() const override;
 
-    void MarkPendingBy(TCompositeSchedulerElement* violatedPool);
+    virtual double GetFairShareStarvationTolerance() const override;
+    virtual TDuration GetFairSharePreemptionTimeout() const override;
 
-    void InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode);
+    virtual std::optional<double> GetSpecifiedWeight() const override;
 
-    bool IsLimitingAncestorCheckEnabled() const;
+    virtual void PrepareFairShareByFitFactor(TUpdateFairShareContext* context) override;
 
-    virtual bool AreDetailedLogsEnabled() const override;
+    // =======================================
 
-    bool IsSchedulingSegmentCompatibleWithNode(ESchedulingSegment nodeSegment, const TDataCenter& nodeDataCenter) const;
+    //! === Post fair share update methods.
+    virtual void SetStarving(bool starving) override;
+    virtual void CheckForStarvation(TInstant now) override;
+
+    TInstant GetLastNonStarvingTime() const;
+
+    virtual void PublishFairShareAndUpdatePreemption() override;
+    virtual void UpdatePreemptionAttributes() override;
 
     virtual void CollectOperationSchedulingSegmentContexts(
         THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const override;
     virtual void ApplyOperationSchedulingSegmentChanges(
         const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) override;
 
-    virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
+    virtual void BuildElementMapping(
+        TNonOwningOperationElementMap* enabledOperationMap,
+        TNonOwningOperationElementMap* disabledOperationMap,
+        TNonOwningPoolMap* poolMap) override;
+    // =======================================
 
-    DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
+    //! === Schedule jobs related methods.
+    virtual void PrescheduleJob(
+        TScheduleJobsContext* context,
+        EPrescheduleJobOperationCriterion operationCriterion,
+        bool aggressiveStarvationEnabled) override;
+    virtual void UpdateDynamicAttributes(
+        TDynamicAttributesList* dynamicAttributesList,
+        const TChildHeapMap& childHeapMap) override;
 
-    DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
+    virtual void CalculateCurrentResourceUsage(TScheduleJobsContext* context) override;
 
-    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
+    virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) override;
 
-    DEFINE_BYREF_RW_PROPERTY(std::optional<ESchedulingSegment>, SchedulingSegment);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<THashSet<TString>>, SpecifiedSchedulingSegmentDataCenters);
+    void ActivateOperation(TScheduleJobsContext* context);
+    void DeactivateOperation(TScheduleJobsContext* context, EDeactivationReason reason);
+
+    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
+    virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context, bool aggressiveStarvationEnabled) const override;
+
+    bool IsPreemptionAllowed(
+        bool isAggressivePreemption,
+        const TDynamicAttributesList& dynamicAttributesList,
+        const TFairShareStrategyTreeConfigPtr& config) const;
+
+    virtual bool IsSchedulable() const override;
+
+    TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount() const;
+
+    bool IsLimitingAncestorCheckEnabled() const;
+
+    bool IsSchedulingSegmentCompatibleWithNode(ESchedulingSegment nodeSegment, const TDataCenter& nodeDataCenter) const;
+    // =======================================
+
+    std::optional<TString> GetCustomProfilingTag() const;
+
 
 private:
     const TOperationElementSharedStatePtr OperationElementSharedState_;
     const TFairShareStrategyOperationControllerPtr Controller_;
 
-    bool RunningInThisPoolTree_ = false;
-    TSchedulingTagFilter SchedulingTagFilter_;
-
-    bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
-
-    std::optional<EUnschedulableReason> ComputeUnschedulableReason() const;
-
+    //! === Controller related methods.
     bool IsMaxScheduleJobCallsViolated() const;
     bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
-    bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
-    std::optional<EDeactivationReason> CheckBlocked(const ISchedulingContextPtr& schedulingContext) const;
+    // =======================================
 
-    void RecordHeartbeat(const TPackingHeartbeatSnapshot& heartbeatSnapshot);
-    bool CheckPacking(const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
+    //! === Pre fair share update methods.
+    std::optional<EUnschedulableReason> ComputeUnschedulableReason() const;
 
-    TJobResources GetHierarchicalAvailableResources(const TFairShareContext& context) const;
-    TJobResources GetLocalAvailableResourceDemand(const TFairShareContext& context) const;
+    TJobResources ComputeResourceDemand() const;
 
-    std::optional<EDeactivationReason> TryStartScheduleJob(
-        const TFairShareContext& context,
-        TJobResources* precommittedResourcesOutput,
-        TJobResources* availableResourcesOutput);
+    virtual TJobResources GetSpecifiedResourceLimits() const override;
+    // =======================================
 
-    void FinishScheduleJob(const ISchedulingContextPtr& schedulingContext);
+    //! === Post fair share update methods.
+    void UpdatePreemptableJobsList();
+    // =======================================
 
+    //! === Schedule jobs related methods.
     TControllerScheduleJobResultPtr DoScheduleJob(
-        TFairShareContext* context,
+        TScheduleJobsContext* context,
         const TJobResources& availableResources,
         TJobResources* precommittedResources);
 
-    virtual TJobResources GetSpecifiedResourceLimits() const override;
-    TJobResources ComputeResourceDemand() const;
-
-    void UpdatePreemptableJobsList();
+    std::optional<EDeactivationReason> TryStartScheduleJob(
+        const TScheduleJobsContext& context,
+        TJobResources* precommittedResourcesOutput,
+        TJobResources* availableResourcesOutput);
+    void FinishScheduleJob(const ISchedulingContextPtr& schedulingContext);
 
     TFairShareStrategyPackingConfigPtr GetPackingConfig() const;
+    bool CheckPacking(const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
+
+    void RecordHeartbeat(const TPackingHeartbeatSnapshot& heartbeatSnapshot);
+
+    bool HasJobsSatisfyingResourceLimits(const TScheduleJobsContext& context) const;
+
+    void UpdateAncestorsDynamicAttributes(
+        TScheduleJobsContext* context,
+        const TJobResources& resourceUsageDelta,
+        bool checkAncestorsActiveness = true);
+
+    EResourceTreeIncreaseResult TryIncreaseHierarchicalResourceUsagePrecommit(
+        const TJobResources& delta,
+        TJobResources* availableResourceLimitsOutput = nullptr);
+
+    TJobResources GetHierarchicalAvailableResources(const TScheduleJobsContext& context) const;
+    TJobResources GetLocalAvailableResourceDemand(const TScheduleJobsContext& context) const;
+
+    std::optional<EDeactivationReason> CheckBlocked(const ISchedulingContextPtr& schedulingContext) const;
+    bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
+    
+    void OnOperationDeactivated(TScheduleJobsContext* context, EDeactivationReason reason);
+    
+    void OnMinNeededResourcesUnsatisfied(
+        const TScheduleJobsContext& context,
+        const TJobResources& availableResources,
+        const TJobResources& minNeededResources);
+    // =======================================
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElement)
@@ -1287,54 +1389,73 @@ public:
         const TString& treeId,
         const NLogging::TLogger& logger);
     TRootElement(const TRootElement& other);
+    
+    //! === Common methods.
+    virtual TString GetId() const override;
 
-    //! Computes various lightweight attributes in the tree. Thread-unsafe.
+    TRootElementPtr Clone();
+
+    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+    
+    virtual bool IsRoot() const override;
+
+    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
+    
+    // Used for diagnostics purposes.
+    virtual TJobResources GetSpecifiedStrongGuaranteeResources() const override;
+    virtual TResourceVector GetMaxShare() const override;
+    // =======================================
+
+    //! === Trunk node methods.
+    virtual int GetMaxRunningOperationCount() const override;
+    virtual int GetMaxOperationCount() const override;
+    
+    virtual bool IsDefaultConfigured() const override;
+    virtual bool AreImmediateOperationsForbidden() const override;
+
+    virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
+    // =======================================
+
+    //! === Pre fair share update methods.
+    // Computes various lightweight attributes in the tree. Must be called in control thread.
     void PreUpdate(TUpdateFairShareContext* context);
+
+    virtual TJobResources GetSpecifiedResourceLimits() const override;
+    // =======================================
+    
+    //! === Fair share update methods.
     //! Computes fair shares in the tree. Thread-safe.
     void Update(TUpdateFairShareContext* context);
 
     void UpdateFairShare(TUpdateFairShareContext* context);
     void UpdateRootFairShare();
 
-    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
-
-    virtual bool IsRoot() const override;
-
-    virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
-
-    virtual TString GetId() const override;
-
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual TJobResources GetSpecifiedStrongGuaranteeResources() const override;
+    
     virtual void DetermineEffectiveStrongGuaranteeResources() override;
-    virtual TResourceVector GetMaxShare() const override;
-
-    virtual double GetFairShareStarvationTolerance() const override;
-    virtual TDuration GetFairSharePreemptionTimeout() const override;
-
-    virtual TJobResources GetSpecifiedResourceLimits() const override;
-
-    virtual bool IsAggressiveStarvationEnabled() const override;
-
-    virtual void CheckForStarvation(TInstant now) override;
-
-    virtual int GetMaxRunningOperationCount() const override;
-    virtual int GetMaxOperationCount() const override;
-
+    
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const override;
-    virtual bool AreImmediateOperationsForbidden() const override;
-
-    virtual THashSet<TString> GetAllowedProfilingTags() const override;
-
+    
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
-    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
-    virtual bool IsDefaultConfigured() const override;
+    virtual double GetFairShareStarvationTolerance() const override;
+    virtual TDuration GetFairSharePreemptionTimeout() const override;
+    // =======================================
+    
+    //! === Post share update methods.
+    virtual void CheckForStarvation(TInstant now) override;
+    // =======================================
+
+    //! === Schedule jobs methods.
+    virtual bool IsAggressiveStarvationEnabled() const override;
+
+    // =======================================
+
+    //! === Other methods.
+    virtual THashSet<TString> GetAllowedProfilingTags() const override;
 
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
-
-    TRootElementPtr Clone();
 
     void BuildResourceDistributionInfo(NYTree::TFluentMap fluent) const;
 

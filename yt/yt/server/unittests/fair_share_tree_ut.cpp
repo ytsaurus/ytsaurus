@@ -422,7 +422,7 @@ protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
     TIntrusivePtr<TFairShareTreeHostMock> FairShareTreeHostMock_ = New<TFairShareTreeHostMock>(TreeConfig_);
-    TFairShareSchedulingStage SchedulingStageMock_ = TFairShareSchedulingStage(
+    TScheduleJobsStage SchedulingStageMock_ = TScheduleJobsStage(
         /* nameInLogs */ "Test scheduling stage",
         TScheduleJobsProfilingCounters(NProfiling::TRegistry{"/test_scheduling_stage"}));
 
@@ -562,7 +562,7 @@ protected:
             rootElement->Update(&updateContext);
         }
 
-        TFairShareContext context(
+        TScheduleJobsContext context(
             schedulingContext,
             rootElement->GetTreeSize(),
             /* registeredSchedulingTagFilters */ {},
@@ -2280,7 +2280,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         /* runningJobs */ {},
         host->GetMediumDirectory());
 
-    TFairShareContext context(
+    TScheduleJobsContext context(
         schedulingContext,
         rootElement->GetTreeSize(),
         /* registeredSchedulingTagFilters */ {},

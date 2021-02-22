@@ -24,7 +24,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, RunningJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TPreemptedJob>, PreemptedJobs);
 
-    DEFINE_BYVAL_RW_PROPERTY(TFairShareSchedulingStatistics, SchedulingStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(TScheduleJobsStatistics, SchedulingStatistics);
 
 public:
     TSchedulingContextBase(

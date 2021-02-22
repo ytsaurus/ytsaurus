@@ -20,7 +20,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareSchedulingStatistics
+struct TScheduleJobsStatistics
 {
     int ControllerScheduleJobCount = 0;
     int AggressivelyPreemptiveScheduleJobAttempts = 0;
@@ -36,7 +36,7 @@ struct TFairShareSchedulingStatistics
     TJobResources ResourceUsageDiscount;
 };
 
-void Serialize(const TFairShareSchedulingStatistics& event, NYson::IYsonConsumer* consumer);
+void Serialize(const TScheduleJobsStatistics& event, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,8 +86,8 @@ struct ISchedulingContext
 
     virtual NProfiling::TCpuInstant GetNow() const = 0;
 
-    virtual TFairShareSchedulingStatistics GetSchedulingStatistics() const = 0;
-    virtual void SetSchedulingStatistics(TFairShareSchedulingStatistics statistics) = 0;
+    virtual TScheduleJobsStatistics GetSchedulingStatistics() const = 0;
+    virtual void SetSchedulingStatistics(TScheduleJobsStatistics statistics) = 0;
 
     virtual ESchedulingSegment GetSchedulingSegment() const = 0;
 };
