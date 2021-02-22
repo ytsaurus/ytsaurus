@@ -27,6 +27,8 @@ def _maybe_purge_resolve_cache(flag, path):
 
 
 class TestPortals(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 2
+
     NUM_MASTERS = 3
     NUM_NODES = 3
     NUM_SECONDARY_MASTER_CELLS = 3

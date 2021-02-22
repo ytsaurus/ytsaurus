@@ -1832,6 +1832,8 @@ class TestUnversionedUpdateFormatRpcProxy(TestUnversionedUpdateFormat):
 
 
 class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
+    NUM_TEST_PARTITIONS = 2
+
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_ROLES = {

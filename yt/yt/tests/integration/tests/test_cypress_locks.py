@@ -1519,6 +1519,8 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
 
 
 class TestCypressLocksShardedTxNoBoomerangs(TestCypressLocksShardedTx):
+    NUM_TEST_PARTITIONS = 2
+
     def setup_method(self, method):
         super(TestCypressLocksShardedTxNoBoomerangs, self).setup_method(method)
         set("//sys/@config/object_service/enable_mutation_boomerangs", False)
