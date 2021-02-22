@@ -64,7 +64,6 @@ DECLARE_REFCOUNTED_STRUCT(ITabletCellBalancerProvider)
 
 struct ITabletCellBalancer;
 
-DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletCellDecommissionerConfig)

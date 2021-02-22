@@ -27,71 +27,15 @@ b"""
         hard_backoff_time = 100;
     };
 
-    transaction_manager = {
-        default_transaction_timeout = 300000;
-    };
-
     timestamp_manager = {
         commit_advance = 2000;
         request_backoff_time = 100;
         calibration_period = 200;
     };
 
-    chunk_manager = {
-        chunk_refresh_delay = 300;
-        chunk_refresh_period = 200;
-        chunk_properties_update_period = 200;
-    };
-
-    cypress_manager = {
-        statistics_flush_period = 200;
-    };
-
-    security_manager = {
-        user_statistics_gossip_period = 200;
-        account_statistics_gossip_period = 200;
-        user_statistics_flush_period = 200;
-        request_rate_smoothing_period = 60000;
-        account_master_memory_usage_update_period = 500;
-    };
-
-    node_tracker = {
-        max_concurrent_node_registrations = 100;
-        max_concurrent_node_unregistrations = 100;
-    };
-
-    object_manager = {
-        gc_sweep_period = 200;
-    };
-
     hive_manager = {
         ping_period = 1000;
         idle_post_period = 1000;
-    };
-
-    tablet_manager = {
-        cell_scan_period = 100;
-
-        tablet_balancer = {
-            enable_tablet_balancer = %false;
-        };
-
-        multicell_gossip_config = {
-            table_statistics_gossip_period = 100;
-            tablet_cell_statistics_gossip_period = 100;
-            tablet_cell_status_full_gossip_period = 100;
-            tablet_cell_status_incremental_gossip_period = 100;
-            bundle_resource_usage_gossip_period = 100;
-        };
-
-        tablet_cell_decommissioner = {
-            decommission_check_period = 100;
-            orphans_check_period = 100;
-        };
-    };
-
-    multicell_manager = {
-        cell_statistics_gossip_period = 200;
     };
 
     cell_directory_synchronizer = {
@@ -110,7 +54,7 @@ b"""
 
     chunk_manager = {
         chunk_refresh_delay = 300;
-        chunk_refresh_period = 100;
+        chunk_refresh_period = 200;
         chunk_properties_update_period = 100;
     };
 
@@ -124,9 +68,7 @@ b"""
     };
 
     security_manager = {
-        user_statistics_gossip_period = 200;
         account_statistics_gossip_period = 200;
-        user_statistics_flush_period = 200;
         request_rate_smoothing_period = 60000;
         account_master_memory_usage_update_period = 500;
         enable_delayed_membership_closure_recomputation = %false;
@@ -144,12 +86,32 @@ b"""
     };
 
     tablet_manager = {
+        cell_scan_period = 100;
         accumulate_preload_pending_store_count_correctly = %true;
         increase_upload_replication_factor = %true;
+
         replicated_table_tracker = {
+            check_period = 100;
             cluster_directory_synchronizer = {
                 sync_period = 500;
             };
+        };
+
+        tablet_balancer = {
+            enable_tablet_balancer = %false;
+        };
+
+        tablet_cell_decommissioner = {
+            decommission_check_period = 100;
+            orphans_check_period = 100;
+        };
+
+        multicell_gossip = {
+            table_statistics_gossip_period = 100;
+            tablet_cell_statistics_gossip_period = 100;
+            tablet_cell_status_full_gossip_period = 100;
+            tablet_cell_status_incremental_gossip_period = 100;
+            bundle_resource_usage_gossip_period = 100;
         };
     };
 }
@@ -298,7 +260,6 @@ b"""
 }
 """)
 
-# COMPAT(babenko): drop unsuccess_heartbeat_backoff_time
 def get_node_config():
     return yson.loads(
 b"""
@@ -411,7 +372,6 @@ b"""
         node_directory_prepare_backoff_time = 100;
 
         scheduler_connector = {
-            unsuccess_heartbeat_backoff_time  = 50;
             failed_heartbeat_backoff_start_time = 50;
             failed_heartbeat_backoff_max_time = 50;
             failed_heartbeat_backoff_multiplier = 1.0;

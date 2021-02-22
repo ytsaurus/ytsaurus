@@ -12,7 +12,12 @@ class TestRff(YTEnvSetup):
     NUM_MASTERS = 5
     NUM_NONVOTING_MASTERS = 2
     NUM_NODES = 3
-    DELTA_MASTER_CONFIG = {"hydra": {"max_commit_batch_delay": 1000}}
+
+    DELTA_MASTER_CONFIG = {
+        "hydra_manager": {
+            "max_commit_batch_delay": 1000
+        }
+    }
 
     @authors("babenko")
     def test_plain_read_table(self):

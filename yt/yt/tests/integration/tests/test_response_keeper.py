@@ -11,6 +11,7 @@ import time
 class TestResponseKeeper(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 0
+
     DELTA_MASTER_CONFIG = {
         "hydra_manager": {
             "response_keeper": {

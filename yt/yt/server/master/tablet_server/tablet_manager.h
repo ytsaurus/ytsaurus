@@ -36,9 +36,7 @@ class TTabletManager
     : public TRefCounted
 {
 public:
-    explicit TTabletManager(
-        TTabletManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TTabletManager(NCellMaster::TBootstrap* bootstrap);
     ~TTabletManager();
 
     void Initialize();

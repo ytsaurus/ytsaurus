@@ -10,7 +10,8 @@ from test_dynamic_tables import DynamicTablesBase
 
 class TestDynamicTableStateTransitions(DynamicTablesBase):
     NUM_TEST_PARTITIONS = 3
-    DELTA_MASTER_CONFIG = {
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "tablet_manager": {
             "leader_reassignment_timeout": 2000,
             "peer_revocation_timeout": 600000,

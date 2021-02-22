@@ -178,11 +178,8 @@ class TTabletManager::TImpl
     : public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(
-        TTabletManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap)
+    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap,  NCellMaster::EAutomatonThreadQueue::TabletManager)
-        , Config_(config)
         , TabletService_(New<TTabletService>(Bootstrap_))
         , TabletBalancer_(New<TTabletBalancer>(Bootstrap_))
         , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Bootstrap_))
@@ -1641,7 +1638,7 @@ public:
             req.set_update_mode(ToProto<int>(updateMode));
 
             auto stores = EnumerateStoresInChunkTree(appendChunkList);
-            
+
             i64 startingRowIndex = 0;
             for (const auto* store : stores) {
                 auto* descriptor = req.add_stores_to_add();
@@ -2398,8 +2395,6 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
 
 private:
-    const TTabletManagerConfigPtr Config_;
-
     const TTabletServicePtr TabletService_;
     const TTabletBalancerPtr TabletBalancer_;
     const TTabletCellDecommissionerPtr TabletCellDecommissioner_;
@@ -3841,7 +3836,7 @@ private:
                 const auto& upperPivot = tablet->GetIndex() == tablets.size() - 1
                     ? MaxKey()
                     : tablets[tablet->GetIndex() + 1]->GetPivotKey();
-                
+
                 std::vector<TChunkTree*> mergedChunksOrViews;
                 try {
                     mergedChunksOrViews = MergeChunkViewRanges(newTabletChildrenToBeMerged[relativeIndex], lowerPivot, upperPivot);
@@ -3849,7 +3844,7 @@ private:
                     YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Failed to merge chunk view ranges");
                     mergedChunksOrViews = {};
                 }
-                
+
                 auto* newTabletChunkList = newTabletChunkTrees[relativeIndex]->AsChunkList();
                 chunkManager->AttachToChunkList(newTabletChunkList, mergedChunksOrViews);
 
@@ -3858,7 +3853,7 @@ private:
                     if (oldEdenStoreIds.contains(chunkOrView->AsChunkView()->GetUnderlyingChunk()->GetId())) {
                         newEdenStoreIds[relativeIndex].push_back(chunkOrView->GetId());
                     }
-                    
+
                     if (chunkOrView->GetType() == EObjectType::Chunk) {
                         const auto* chunk = chunkOrView->AsChunk();
                         if (auto hunkRefsExt = FindProtoExtension<THunkRefsExt>(chunk->ChunkMeta().extensions())) {
@@ -3966,68 +3961,9 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
     }
 
-    void UpdateDynamicConfigAsync()
-    {
-        const auto& config = GetDynamicConfig();
-
-        if (config->CompatibilityVersion == 1) {
-            return;
-        }
-
-        auto newConfig = CloneYsonSerializable(config);
-
-        newConfig->ChunkReader->BlockRpcTimeout = TDuration::Seconds(10);
-        newConfig->ChunkReader->MinBackoffTime = TDuration::MilliSeconds(50);
-        newConfig->ChunkReader->MaxBackoffTime = TDuration::Seconds(1);
-
-        newConfig->ChunkReader->RetryTimeout = TDuration::Seconds(15);
-        newConfig->ChunkReader->SessionTimeout = TDuration::Minutes(1);
-
-        newConfig->ChunkReader->GroupSize = 16777216;
-        newConfig->ChunkReader->WindowSize = 20971520;
-
-        newConfig->ChunkWriter->BlockSize = 262144;
-        newConfig->ChunkWriter->SampleRate = 0.0005;
-
-        newConfig->CellScanPeriod = Config_->CellScanPeriod;
-        newConfig->SafeOnlineNodeCount = Config_->SafeOnlineNodeCount;
-        newConfig->LeaderReassignmentTimeout = Config_->LeaderReassignmentTimeout;
-        newConfig->PeerRevocationTimeout = Config_->PeerRevocationTimeout;
-
-        newConfig->MulticellGossip = Config_->MulticellGossip;
-
-        newConfig->TabletActionManager = Config_->TabletActionManager;
-
-        newConfig->TabletCellDecommissioner = Config_->TabletCellDecommissioner;
-
-        newConfig->TabletBalancer->ConfigCheckPeriod = Config_->TabletBalancer->ConfigCheckPeriod;
-        newConfig->TabletBalancer->BalancePeriod = Config_->TabletBalancer->BalancePeriod;
-
-        newConfig->CompatibilityVersion = 1;
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating dynamic tablet config (NewConfig: %v)",
-            ConvertToYsonString(newConfig, EYsonFormat::Text).ToString());
-
-        auto req = TYPathProxy::Set("//sys/@config/tablet_manager");
-        req->set_value(ConvertToYsonString(newConfig).ToString());
-        auto rootService = Bootstrap_->GetObjectManager()->GetRootService();
-        ExecuteVerb(rootService, req);
-    }
-
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig = nullptr)
     {
         const auto& config = GetDynamicConfig();
-
-        // COMPAT(savrus)
-        if (config->CompatibilityVersion == 0) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (multicellManager->IsPrimaryMaster() && IsLeader()) {
-                BIND(&TImpl::UpdateDynamicConfigAsync, MakeWeak(this))
-                    .Via(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
-                    .Run();
-            }
-            return;
-        }
 
         {
             const auto& gossipConfig = config->MulticellGossip;
@@ -5046,7 +4982,7 @@ private:
     void DiscardDynamicStores(TTablet* tablet)
     {
         auto stores = EnumerateStoresInChunkTree(tablet->GetChunkList());
-        
+
         std::vector<TChunkTree*> dynamicStores;
         for (auto* store : stores) {
             if (IsDynamicTabletStoreType(store->GetType())) {
@@ -5449,7 +5385,7 @@ private:
     void AttachChunksToTablet(TTablet* tablet, const std::vector<TChunkTree*>& chunkTrees)
     {
         auto* tabletChunkList = tablet->GetChunkList();
-        
+
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->AttachToTabletChunkList(tabletChunkList, chunkTrees);
     }
@@ -6696,10 +6632,8 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletAction, TTabletAction, 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletManager::TTabletManager(
-    TTabletManagerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
+TTabletManager::TTabletManager(NCellMaster::TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(bootstrap))
 { }
 
 TTabletManager::~TTabletManager() = default;

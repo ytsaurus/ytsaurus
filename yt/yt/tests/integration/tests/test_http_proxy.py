@@ -535,6 +535,7 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
 
 class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
     NUM_SCHEDULERS = 0
+
     DELTA_MASTER_CONFIG = {
         "hydra_manager": {
             "build_snapshot_delay": 10000,

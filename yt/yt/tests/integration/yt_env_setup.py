@@ -207,6 +207,7 @@ class YTEnvSetup(object):
     DELTA_DRIVER_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
+    DELTA_DYNAMIC_MASTER_CONFIG = {}
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
@@ -431,7 +432,6 @@ class YTEnvSetup(object):
                     "primary_master": instance.configs["master"][0]["primary_master"],
                     "secondary_masters": instance.configs["master"][0]["secondary_masters"],
                     "timestamp_provider": instance.configs["master"][0]["timestamp_provider"],
-                    "transaction_manager": instance.configs["master"][0]["transaction_manager"],
                     "table_mount_cache": instance.configs["driver"]["table_mount_cache"],
                     "permission_cache": instance.configs["driver"]["permission_cache"],
                     "cell_directory_synchronizer": instance.configs["driver"]["cell_directory_synchronizer"],
@@ -540,7 +540,7 @@ class YTEnvSetup(object):
         class_limit = (10 * 60) if is_asan_build() else (5 * 60)
 
         if class_duration > class_limit:
-            pytest.fail("Test class execution took more that {} seconds ({} seconds).\n".format(class_limit, class_duration) + 
+            pytest.fail("Test class execution took more that {} seconds ({} seconds).\n".format(class_limit, class_duration) +
                 "Check test stdout for detailed duration report.\n" +
                 "You can split class into smaller chunks, using NUM_TEST_PARTITIONS option.")
 
@@ -562,6 +562,7 @@ class YTEnvSetup(object):
             else:
                 scheduler_pool_trees_root = "//sys/pool_trees"
             self._restore_globals(
+                cluster_index=cluster_index,
                 master_cell_roles=master_cell_roles,
                 scheduler_count=scheduler_count,
                 scheduler_pool_trees_root=scheduler_pool_trees_root,
@@ -857,8 +858,11 @@ class YTEnvSetup(object):
 
         wait(check)
 
-    def _restore_globals(self, master_cell_roles, scheduler_count, scheduler_pool_trees_root, driver=None):
+    def _restore_globals(self, cluster_index, master_cell_roles, scheduler_count, scheduler_pool_trees_root, driver=None):
         dynamic_master_config = get_dynamic_master_config()
+        dynamic_master_config = update_inplace(
+            dynamic_master_config, self.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
+        )
         dynamic_master_config["multicell_manager"]["cell_roles"] = master_cell_roles
         if self.Env.get_component_version("ytserver-master").abi >= (20, 4):
             dynamic_master_config["enable_descending_sort_order"] = True

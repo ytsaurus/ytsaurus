@@ -2784,7 +2784,11 @@ class TestMinNeededResources(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {"scheduler": {"min_needed_resources_update_period": 200}}
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "min_needed_resources_update_period": 200
+        }
+    }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -2805,7 +2809,11 @@ class TestMinNeededResources(YTEnvSetup):
         "resource_limits": {"memory": 20 * 1024 * 1024 * 1024},
     }
 
-    DELTA_MASTER_CONFIG = {"cypress_manager": {"default_table_replication_factor": 1}}
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1
+        }
+    }
 
     @authors("ignat")
     def test_min_needed_resources(self):

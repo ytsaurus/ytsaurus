@@ -13,7 +13,7 @@ class TestMasterCellsSync(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_NODES = 3
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "tablet_manager": {
             "leader_reassignment_timeout": 2000,
             "peer_revocation_timeout": 3000,

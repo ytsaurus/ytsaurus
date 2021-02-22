@@ -688,7 +688,7 @@ void TBootstrap::DoInitialize()
 
     CellHydraJanitor_ = New<TCellHydraJanitor>(this);
 
-    TabletManager_ = New<TTabletManager>(Config_->TabletManager, this);
+    TabletManager_ = New<TTabletManager>(this);
 
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
 
