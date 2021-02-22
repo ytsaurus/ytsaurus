@@ -155,29 +155,47 @@ public:
             return p;
         }
 
-        auto tableProfiler = TabletNodeProfiler
-            .WithHot()
-            .WithSparse()
-            .WithRequiredTag("tablet_cell_bundle", bundle);
+
+        TTagSet tableTagSet;
+        tableTagSet.AddRequiredTag({"tablet_cell_bundle", bundle});
+
+        TTagSet diskTagSet = tableTagSet;
+
         switch (profilingMode) {
             case EDynamicTableProfilingMode::Disabled:
+                diskTagSet.AddTag({"account", account});
+                diskTagSet.AddTag({"medium", medium});
                 break;
                 
             case EDynamicTableProfilingMode::Path:
-                tableProfiler = tableProfiler.WithTag("table_path", tablePath, -1);
+                tableTagSet.AddTag({"table_path", tablePath}, -1);
+
+                diskTagSet = tableTagSet;
+                diskTagSet.AddTagWithChild({"account", account}, -1);
+                diskTagSet.AddTagWithChild({"medium", medium}, -2);
                 break;
 
             case EDynamicTableProfilingMode::Tag:
-                tableProfiler = tableProfiler.WithTag("table_tag", tableTag, -1);
+                tableTagSet.AddTag({"table_tag", tableTag}, -1);
+
+                diskTagSet = tableTagSet;
+                diskTagSet.AddTagWithChild({"account", account}, -1);
+                diskTagSet.AddTagWithChild({"medium", medium}, -2);
                 break;
 
             default:
                 YT_VERIFY(false);
         }
 
-        auto diskProfiler = tableProfiler
-            .WithTag("account", account, -1)
-            .WithRequiredTag("medium", medium, -1);
+        auto tableProfiler = TabletNodeProfiler
+            .WithHot()
+            .WithSparse()
+            .WithTags(tableTagSet);
+
+        auto diskProfiler = TabletNodeProfiler
+            .WithHot()
+            .WithSparse()
+            .WithTags(diskTagSet);
 
         p = New<TTableProfiler>(tableProfiler, diskProfiler);
         profiler = p;
