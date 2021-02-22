@@ -16,6 +16,11 @@ inline const TTagIndexList& TProjectionSet::Parents() const
     return Parents_;
 }
 
+inline const TTagIndexList& TProjectionSet::Children() const
+{
+    return Children_;
+}
+
 inline const TTagIndexList& TProjectionSet::Required() const
 {
     return Required_;
@@ -50,7 +55,7 @@ void TProjectionSet::Range(
     TFn fn) const
 {
     if (Enabled_) {
-        RangeSubsets(tags, Parents_, Required_, Excluded_, Alternative_, fn);
+        RangeSubsets(tags, Parents_, Children_, Required_, Excluded_, Alternative_, fn);
     } else {
         fn(tags);
     }
@@ -62,6 +67,7 @@ template <class TFn>
 void RangeSubsets(
     const TTagIdList& tags,
     const TTagIndexList& parents,
+    const TTagIndexList& children,
     const TTagIndexList& required,
     const TTagIndexList& excluded,
     const TTagIndexList& alternative,
@@ -89,8 +95,13 @@ void RangeSubsets(
         }
 
         bool skip = false;
-        for (size_t i = 0; i < tags.size(); i++) {
+        for (size_t i = 0; i < tags.size(); i++) {            
             if (!(mask & (1 << i))) {
+                if (children[i] != NoTagSentinel && (mask & (1 << children[i]))) {
+                    skip = true;
+                    break;
+                }
+
                 continue;
             }
 

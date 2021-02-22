@@ -10,6 +10,7 @@ namespace NYT::NProfiling {
 void TProjectionSet::Resize(int size)
 {
     Parents_.resize(size, NoTagSentinel);
+    Children_.resize(size, NoTagSentinel);
     Alternative_.resize(size, NoTagSentinel);
 }
 
@@ -42,6 +43,14 @@ void TTagSet::Append(const TTagSet& other)
         }
     }
 
+    for (auto i : other.Children_) {
+        if (i == NoTagSentinel) {
+            Children_.push_back(NoTagSentinel);
+        } else {
+            Children_.push_back(i + offset);
+        }
+    }
+
     for (auto i : other.Alternative_) {
         if (i == NoTagSentinel) {
             Alternative_.push_back(NoTagSentinel);
@@ -67,6 +76,7 @@ void TTagSet::AddTag(TTag tag, int parent)
         Parents_.push_back(NoTagSentinel);
     }
 
+    Children_.push_back(NoTagSentinel);
     Alternative_.push_back(NoTagSentinel);
     Tags_.emplace_back(std::move(tag));
 }
@@ -92,6 +102,13 @@ void TTagSet::AddAlternativeTag(TTag tag, int alternativeTo, int parent)
     if (alternativeIndex >= 0 && static_cast<size_t>(alternativeIndex) < Tags_.size()) {
         Alternative_.back() = alternativeIndex;
     }
+}
+
+void TTagSet::AddTagWithChild(TTag tag, int child)
+{
+    int childIndex = Tags_.size() + child;
+    AddTag(tag);
+    Children_.back() = childIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

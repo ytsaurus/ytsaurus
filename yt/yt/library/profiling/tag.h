@@ -31,6 +31,7 @@ class TProjectionSet
 {
 public:
     const TTagIndexList& Parents() const;
+    const TTagIndexList& Children() const;
     const TTagIndexList& Required() const;
     const TTagIndexList& Excluded() const;
     const TTagIndexList& Alternative() const;
@@ -46,6 +47,7 @@ public:
 protected:
     bool Enabled_ = true;
     TTagIndexList Parents_;
+    TTagIndexList Children_;
     TTagIndexList Required_;
     TTagIndexList Excluded_;
     TTagIndexList Alternative_;
@@ -64,6 +66,7 @@ public:
     void AddRequiredTag(TTag tag, int parent = NoParent);
     void AddExcludedTag(TTag tag, int parent = NoParent);
     void AddAlternativeTag(TTag tag, int alternativeTo, int parent = NoParent);
+    void AddTagWithChild(TTag tag, int child);
     void Append(const TTagSet& other);
 
     const TTagList& Tags() const;
@@ -78,6 +81,7 @@ template <class TFn>
 void RangeSubsets(
     const TTagIdList& tags,
     const TTagIndexList& parents,
+    const TTagIndexList& children,
     const TTagIndexList& required,
     const TTagIndexList& excluded,
     const TTagIndexList& alternative,
