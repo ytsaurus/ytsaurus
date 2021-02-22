@@ -1467,10 +1467,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
+    NUM_TEST_PARTITIONS = 5
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
+    NUM_TEST_PARTITIONS = 5
     ENABLE_TMP_PORTAL = True
 
 
