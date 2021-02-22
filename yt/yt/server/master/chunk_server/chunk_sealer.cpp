@@ -412,9 +412,6 @@ private:
                 "Failed to seal chunk %v",
                 chunkId);
         }
-
-        YT_LOG_DEBUG("Journal chunk sealed (ChunkId: %v)",
-            chunkId);
     }
 
     bool CreateSealJob(
