@@ -263,7 +263,7 @@ void TJobTracker::UpdateInterDCEdgeCapacities(bool force)
     }
 
     InterDCEdgeCapacitiesLastUpdateTime_ = GetCpuInstant();
-}   
+}
 
 const TJobTracker::TDataCenterSet& TJobTracker::GetUnsaturatedInterDCEdgesStartingFrom(const TDataCenter* dc)
 {
@@ -362,27 +362,30 @@ void TJobTracker::ProcessJobs(
             case EJobState::Waiting: {
                 if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout) {
                     jobsToAbort->push_back(job);
-                    YT_LOG_WARNING("Job timed out (JobId: %v, JobType: %v, Address: %v, Duration: %v)",
+                    YT_LOG_WARNING("Job timed out (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
                         jobId,
                         jobType,
                         address,
-                        TInstant::Now() - job->GetStartTime());
+                        TInstant::Now() - job->GetStartTime(),
+                        job->GetChunkIdWithIndexes());
                     break;
                 }
 
                 switch (job->GetState()) {
                     case EJobState::Running:
-                        YT_LOG_DEBUG("Job is running (JobId: %v, JobType: %v, Address: %v)",
+                        YT_LOG_DEBUG("Job is running (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                             jobId,
                             jobType,
-                            address);
+                            address,
+                            job->GetChunkIdWithIndexes());
                         break;
 
                     case EJobState::Waiting:
-                        YT_LOG_DEBUG("Job is waiting (JobId: %v, JobType: %v, Address: %v)",
+                        YT_LOG_DEBUG("Job is waiting (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                             jobId,
                             jobType,
-                            address);
+                            address,
+                            job->GetChunkIdWithIndexes());
                         break;
 
                     default:
@@ -406,25 +409,28 @@ void TJobTracker::ProcessJobs(
 
                 switch (job->GetState()) {
                     case EJobState::Completed:
-                        YT_LOG_DEBUG("Job completed (JobId: %v, JobType: %v, Address: %v)",
+                        YT_LOG_DEBUG("Job completed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                             jobId,
                             jobType,
-                            address);
+                            address,
+                            job->GetChunkIdWithIndexes());
                         break;
 
                     case EJobState::Failed:
-                        YT_LOG_WARNING(job->Error(), "Job failed (JobId: %v, JobType: %v, Address: %v)",
+                        YT_LOG_WARNING(job->Error(), "Job failed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                             jobId,
                             jobType,
-                            address);
+                            address,
+                            job->GetChunkIdWithIndexes());
                         rescheduleChunkRemoval();
                         break;
 
                     case EJobState::Aborted:
-                        YT_LOG_WARNING(job->Error(), "Job aborted (JobId: %v, JobType: %v, Address: %v)",
+                        YT_LOG_WARNING(job->Error(), "Job aborted (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                             jobId,
                             jobType,
-                            address);
+                            address,
+                            job->GetChunkIdWithIndexes());
                         rescheduleChunkRemoval();
                         break;
 
@@ -443,14 +449,14 @@ void TJobTracker::ProcessJobs(
     // Check for missing jobs
     THashSet<TJobPtr> currentJobSet(currentJobs.begin(), currentJobs.end());
     std::vector<TJobPtr> missingJobs;
-    for (const auto& pair : node->IdToJob()) {
-        const auto& job = pair.second;
+    for (const auto& [jobId, job] : node->IdToJob()) {
         if (currentJobSet.find(job) == currentJobSet.end()) {
             missingJobs.push_back(job);
-            YT_LOG_WARNING("Job is missing (JobId: %v, JobType: %v, Address: %v)",
-                job->GetJobId(),
+            YT_LOG_WARNING("Job is missing (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                jobId,
                 job->GetType(),
-                address);
+                address,
+                job->GetChunkIdWithIndexes());
         }
     }
 
