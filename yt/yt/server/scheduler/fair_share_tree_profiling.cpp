@@ -415,10 +415,10 @@ void TFairShareTreeProfiler::ProfilePool(
     buffer.AddGauge("/total_operation_count", element->OperationCount());
     if (profilingCompatibilityEnabled) {
         ProfileResources(&buffer, element->GetSpecifiedStrongGuaranteeResources(), "/min_share_resources");
-        ProfileResources(&buffer, element->EffectiveStrongGuaranteeResources(), "/effective_min_share_resources");
+        ProfileResources(&buffer, element->Attributes().EffectiveStrongGuaranteeResources, "/effective_min_share_resources");
     } else {
         ProfileResources(&buffer, element->GetSpecifiedStrongGuaranteeResources(), "/strong_guarantee_resources");
-        ProfileResources(&buffer, element->EffectiveStrongGuaranteeResources(), "/effective_strong_guarantee_resources");
+        ProfileResources(&buffer, element->Attributes().EffectiveStrongGuaranteeResources, "/effective_strong_guarantee_resources");
     }
 
     producer->Update(std::move(buffer));

@@ -33,7 +33,7 @@ public:
     }
 };
 
-void Serialize(const TFairShareSchedulingStatistics& statistics, IYsonConsumer* consumer)
+void Serialize(const TScheduleJobsStatistics& statistics, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
         .Item("preemptable_job_count").Value(statistics.PreemptableJobCount)
