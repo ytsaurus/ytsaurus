@@ -470,6 +470,7 @@ class TestJournalsChangeMedia(YTEnvSetup):
 
 
 class TestErasureJournals(TestJournals):
+    NUM_TEST_PARTITIONS = 3
     NUM_NODES = 20
 
     JOURNAL_ATTRIBUTES = {
@@ -514,10 +515,11 @@ class TestErasureJournals(TestJournals):
         assert read_journal("//tmp/j") == self.DATA * N
 
     @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     @authors("babenko")
-    def test_repair_jobs(self, erasure_codec):
+    def test_repair_jobs(self, erasure_codec, enable_chunk_preallocation):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
-        write_journal("//tmp/j", self.DATA)
+        write_journal("//tmp/j", self.DATA, enable_chunk_preallocation=enable_chunk_preallocation)
 
         chunk_ids = get("//tmp/j/@chunk_ids")
         chunk_id = chunk_ids[-1]
@@ -573,13 +575,14 @@ class TestErasureJournals(TestJournals):
         self._test_critical_erasure_state("lost_vital", 5)
 
     @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
+    @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     @authors("babenko", "ignat")
-    def test_read_with_repair(self, erasure_codec):
+    def test_read_with_repair(self, erasure_codec, enable_chunk_preallocation):
         if is_asan_build():
             pytest.skip()
 
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
-        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+        self._write_and_wait_until_sealed("//tmp/j", self.DATA, enable_chunk_preallocation=enable_chunk_preallocation)
 
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@quorum_row_count") == len(self.DATA)
