@@ -67,7 +67,7 @@ public:
     }
 
 protected:
-    TReadOnlyBitmap<ui64> NullBitmap_;
+    TReadOnlyBitmap NullBitmap_;
 
     using TIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
     using typename TIntegerValueExtractorBase<ValueType, Scan>::TValueReader;
@@ -77,10 +77,8 @@ protected:
         ValueReader_ = TValueReader(reinterpret_cast<const ui64*>(ptr));
         ptr += ValueReader_.GetByteSize();
 
-        NullBitmap_ = TReadOnlyBitmap<ui64>(
-            reinterpret_cast<const ui64*>(ptr),
-            ValueReader_.GetSize());
-        ptr += NullBitmap_.GetByteSize();
+        NullBitmap_ = TReadOnlyBitmap(ptr, ValueReader_.GetSize());
+        ptr += AlignUp(NullBitmap_.GetByteSize(), SerializationAlignment);
 
         return ptr;
     }

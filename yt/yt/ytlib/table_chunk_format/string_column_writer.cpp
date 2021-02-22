@@ -397,7 +397,7 @@ private:
 
     TSharedRef GetDirectDenseNullBitmap() const
     {
-        TAppendOnlyBitmap<ui64> nullBitmap(Values_.size());
+        TBitmapOutput nullBitmap(Values_.size());
 
         for (const auto& value : Values_) {
             nullBitmap.Append(value.data() == nullptr);
@@ -412,7 +412,7 @@ private:
         std::vector<ui32> offsets;
         offsets.reserve(Dictionary_.size());
 
-        TAppendOnlyBitmap<ui64> nullBitmap(RleRowIndexes_.size());
+        TBitmapOutput nullBitmap(RleRowIndexes_.size());
 
         ui32 stringOffset = 0;
         for (auto rowIndex : RleRowIndexes_) {

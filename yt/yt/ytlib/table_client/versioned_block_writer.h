@@ -43,19 +43,17 @@ public:
     static const int TimestampSize = 8;
 
 private:
-    typedef TAppendOnlyBitmap<ui64> TBitmap;
-
     const TTableSchemaPtr Schema_;
 
     const int SchemaColumnCount_;
     const int KeyColumnCount_;
 
     TChunkedOutputStream KeyStream_;
-    TBitmap KeyNullFlags_;
+    TBitmapOutput KeyNullFlags_;
 
     TChunkedOutputStream ValueStream_;
-    TBitmap ValueNullFlags_;
-    std::optional<TBitmap> ValueAggregateFlags_;
+    TBitmapOutput ValueNullFlags_;
+    std::optional<TBitmapOutput> ValueAggregateFlags_;
 
     TChunkedOutputStream TimestampStream_;
 
@@ -67,8 +65,8 @@ private:
 
     void WriteValue(
         TChunkedOutputStream& stream,
-        TBitmap& nullFlags,
-        std::optional<TBitmap>& aggregateFlags,
+        TBitmapOutput& nullFlags,
+        std::optional<TBitmapOutput>& aggregateFlags,
         const TUnversionedValue& value);
 
 };

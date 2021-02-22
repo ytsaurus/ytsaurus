@@ -28,23 +28,23 @@ public:
     }
 
 protected:
-    TReadOnlyBitmap<ui64> Values_;
-    TReadOnlyBitmap<ui64> NullBitmap_;
+    TReadOnlyBitmap Values_;
+    TReadOnlyBitmap NullBitmap_;
 
     const char* InitValueReader(const char* ptr)
     {
         ui64 valueCount = *reinterpret_cast<const ui64*>(ptr);
         ptr += sizeof(ui64);
 
-        Values_ = TReadOnlyBitmap<ui64>(
+        Values_ = TReadOnlyBitmap(
             reinterpret_cast<const ui64*>(ptr),
             valueCount);
-        ptr += Values_.GetByteSize();
+        ptr += AlignUp(Values_.GetByteSize(), SerializationAlignment);
 
-        NullBitmap_ = TReadOnlyBitmap<ui64>(
+        NullBitmap_ = TReadOnlyBitmap(
             reinterpret_cast<const ui64*>(ptr),
             valueCount);
-        ptr += NullBitmap_.GetByteSize();
+        ptr += AlignUp(NullBitmap_.GetByteSize(), SerializationAlignment);
 
         return ptr;
     }

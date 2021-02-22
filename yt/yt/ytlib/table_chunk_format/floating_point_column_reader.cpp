@@ -30,7 +30,7 @@ public:
 
 protected:
     TRange<T> Values_;
-    TReadOnlyBitmap<ui64> NullBitmap_;
+    TReadOnlyBitmap NullBitmap_;
 
     const char* InitValueReader(const char* ptr)
     {
@@ -40,8 +40,8 @@ protected:
         Values_ = MakeRange(reinterpret_cast<const T*>(ptr), valueCount);
         ptr += sizeof(T) * valueCount;
 
-        NullBitmap_ = TReadOnlyBitmap<ui64>(reinterpret_cast<const ui64*>(Values_.end()), valueCount);
-        ptr += NullBitmap_.GetByteSize();
+        NullBitmap_ = TReadOnlyBitmap(Values_.end(), valueCount);
+        ptr += AlignUp(NullBitmap_.GetByteSize(), SerializationAlignment);
 
         return ptr;
     }

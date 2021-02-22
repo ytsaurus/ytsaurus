@@ -57,7 +57,7 @@ protected:
         DistinctValues_.emplace(value, DistinctValues_.size() + 1);
     }
 
-    void DumpDirectValues(TSegmentInfo* segmentInfo, TAppendOnlyBitmap<ui64>& nullBitmap)
+    void DumpDirectValues(TSegmentInfo* segmentInfo, TBitmapOutput& nullBitmap)
     {
         for (i64 index = 0; index < Values_.size(); ++index) {
             if (!nullBitmap[index]) {
@@ -72,7 +72,7 @@ protected:
         segmentInfo->Data.push_back(nullBitmap.Flush<TSegmentWriterTag>());
     }
 
-    void DumpDictionaryValues(TSegmentInfo* segmentInfo, TAppendOnlyBitmap<ui64>& nullBitmap)
+    void DumpDictionaryValues(TSegmentInfo* segmentInfo, TBitmapOutput& nullBitmap)
     {
         std::vector<ui64> dictionary;
         dictionary.reserve(DistinctValues_.size());
@@ -169,7 +169,7 @@ private:
     {
         return
             CompressedUnsignedVectorSizeInBytes(MaxValue_ - MinValue_, Values_.size()) +
-            NullBitmap_.Size();
+            NullBitmap_.GetByteSize();
     }
 
     void DumpSegment()
@@ -276,13 +276,13 @@ private:
     const int ColumnIndex_;
     i64 RunCount_;
 
-    TAppendOnlyBitmap<ui64> NullBitmap_;
+    TBitmapOutput NullBitmap_;
 
     void Reset()
     {
         TIntegerColumnWriterBase::Reset();
 
-        NullBitmap_ = TAppendOnlyBitmap<ui64>();
+        NullBitmap_ = TBitmapOutput();
         RunCount_ = 0;
     }
 
@@ -328,7 +328,7 @@ private:
 
     void DumpDirectRleValues(TSegmentInfo* segmentInfo)
     {
-        TAppendOnlyBitmap<ui64> rleNullBitmap(RunCount_);
+        TBitmapOutput rleNullBitmap(RunCount_);
         std::vector<ui64> rowIndexes;
         rowIndexes.reserve(RunCount_);
 

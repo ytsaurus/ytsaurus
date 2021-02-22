@@ -71,16 +71,16 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
         TSimpleVersionedBlockWriter::TimestampSize * VersionedMeta_.timestamp_count());
 
     const char* ptr = TimestampsData_.End();
-    KeyNullFlags_.Reset(reinterpret_cast<const ui64*>(ptr), ChunkKeyColumnCount_ * Meta_.row_count());
-    ptr += KeyNullFlags_.GetByteSize();
+    KeyNullFlags_.Reset(ptr, ChunkKeyColumnCount_ * Meta_.row_count());
+    ptr += AlignUp(KeyNullFlags_.GetByteSize(), SerializationAlignment);
 
-    ValueNullFlags_.Reset(reinterpret_cast<const ui64*>(ptr), VersionedMeta_.value_count());
-    ptr += ValueNullFlags_.GetByteSize();
+    ValueNullFlags_.Reset(ptr, VersionedMeta_.value_count());
+    ptr += AlignUp(ValueNullFlags_.GetByteSize(), SerializationAlignment);
 
     for (const auto& column : ChunkSchema_->Columns()) {
         if (column.Aggregate()) {
-            ValueAggregateFlags_ = TBitmap(reinterpret_cast<const ui64*>(ptr), VersionedMeta_.value_count());
-            ptr += ValueAggregateFlags_->GetByteSize();
+            ValueAggregateFlags_ = TReadOnlyBitmap(ptr, VersionedMeta_.value_count());
+            ptr += AlignUp(ValueAggregateFlags_->GetByteSize(), SerializationAlignment);
             break;
         }
     }

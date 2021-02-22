@@ -57,10 +57,8 @@ const char* TVersionedValueExtractorBase::InitTimestampIndexReader(const char* p
     ptr += TimestampIndexReader_.GetByteSize();
 
     if (Aggregate_) {
-        AggregateBitmap_ = TReadOnlyBitmap<ui64>(
-            reinterpret_cast<const ui64*>(ptr),
-            TimestampIndexReader_.GetSize());
-        ptr += AggregateBitmap_.GetByteSize();
+        AggregateBitmap_ = TReadOnlyBitmap(ptr, TimestampIndexReader_.GetSize());
+        ptr += AlignUp(AggregateBitmap_.GetByteSize(), SerializationAlignment);
     }
 
     return ptr;
@@ -454,13 +452,13 @@ void ReadColumnarNullBitmap(
     NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     i64 startIndex,
     i64 valueCount,
-    TRange<ui64> bitmap)
+    TRef bitmap)
 {
     column->StartIndex = startIndex;
     column->ValueCount = valueCount;
 
     auto& nullBitmap = column->NullBitmap.emplace();
-    nullBitmap.Data = TRef(bitmap.Begin(), bitmap.End());
+    nullBitmap.Data = bitmap;
 }
 
 void ReadColumnarIntegerValues(
@@ -485,14 +483,14 @@ void ReadColumnarBooleanValues(
     NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     i64 startIndex,
     i64 valueCount,
-    TRange<ui64> bitmap)
+    TRef bitmap)
 {
     column->StartIndex = startIndex;
     column->ValueCount = valueCount;
 
     auto& values = column->Values.emplace();
     values.BitWidth = 1;
-    values.Data = TRef(bitmap.Begin(), bitmap.End());
+    values.Data = bitmap;
 }
 
 template <typename T>

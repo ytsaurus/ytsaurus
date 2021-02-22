@@ -575,7 +575,7 @@ void TReaderVirtualValues::FillRleColumn(IUnversionedColumnarRowBatch::TColumn* 
             rleColumn,
             /* startIndex */ 0,
             /* valueCount */ 1,
-            MakeRange(&value.Data.Uint64, 1));
+            TRef(&value.Data.Boolean, 1));
     } else if (value.Type == EValueType::Null) {
         rleColumn->StartIndex = 0;
         rleColumn->ValueCount = 1;

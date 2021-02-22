@@ -25,7 +25,7 @@ class TStringValueExtractorBase
 {
 protected:
     const NProto::TStringSegmentMeta& StringMeta_;
-    
+
     mutable TStatelessLexer Lexer_;
     using TOffsetsReader = TBitPackedUnsignedVectorReader<ui32, Scan>;
     TOffsetsReader OffsetReader_;
@@ -108,7 +108,7 @@ protected:
         ptr += OffsetReader_.GetByteSize();
 
         StringData_ = TRef(ptr, end);
-        
+
         return end;
     }
 };
@@ -132,7 +132,7 @@ public:
     }
 
 protected:
-    TReadOnlyBitmap<ui64> NullBitmap_;
+    TReadOnlyBitmap NullBitmap_;
 
     using TBase = TStringValueExtractorBase<ValueType, Scan, UnpackValue>;
     using TBase::SetStringValue;
@@ -147,10 +147,8 @@ protected:
         OffsetReader_ = TOffsetsReader(reinterpret_cast<const ui64*>(ptr));
         ptr += OffsetReader_.GetByteSize();
 
-        NullBitmap_ = TReadOnlyBitmap<ui64>(
-            reinterpret_cast<const ui64*>(ptr),
-            OffsetReader_.GetSize());
-        ptr += NullBitmap_.GetByteSize();
+        NullBitmap_ = TReadOnlyBitmap(ptr, OffsetReader_.GetSize());
+        ptr += AlignUp(NullBitmap_.GetByteSize(), SerializationAlignment);
 
         StringData_ = TRef(ptr, end);
         ptr += StringData_.Size();
@@ -250,12 +248,12 @@ public:
         : TDirectStringValueExtractorBase<ValueType, Scan, true>(meta)
     {
         const char* ptr = data.Begin();
-        
+
         RowIndexReader_ = TRowIndexReader(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
-        
+
         ptr = TDirectStringValueExtractorBase<ValueType, Scan, true>::InitDirectReader(ptr, data.End());
-        
+
         YT_VERIFY(ptr == data.End());
     }
 
@@ -577,7 +575,7 @@ public:
         const auto& stringMeta = CurrentSegmentMeta().GetExtension(TStringSegmentMeta::string_segment_meta);
         return std::max<i64>(1, stringMeta.expected_length()) * (upperRowIndex - lowerRowIndex);
     }
-        
+
 private:
     virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool scan) override
     {
