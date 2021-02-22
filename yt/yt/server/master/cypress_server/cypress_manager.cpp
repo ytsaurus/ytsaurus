@@ -404,7 +404,7 @@ public:
         if (external) {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto externalCellTag = node->GetExternalCellTag();
-            auto externalizedTransactionId = transactionManager->ExternalizeTransaction(node->GetTransaction(), externalCellTag);
+            auto externalizedTransactionId = transactionManager->ExternalizeTransaction(node->GetTransaction(), {externalCellTag});
             CreatedExternalNodes_.push_back(TCreatedExternalNode{
                 .NodeType = trunkNode->GetType(),
                 .NodeId = TVersionedNodeId(trunkNode->GetId(), externalizedTransactionId),
@@ -464,8 +464,8 @@ public:
         if (clonedNode->IsExternal()) {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto externalCellTag = clonedNode->GetExternalCellTag();
-            auto externalizedSourceTransactionId = transactionManager->ExternalizeTransaction(sourceNode->GetTransaction(), externalCellTag);
-            auto externalizedClonedTransactionId = transactionManager->ExternalizeTransaction(clonedNode->GetTransaction(), externalCellTag);
+            auto externalizedSourceTransactionId = transactionManager->ExternalizeTransaction(sourceNode->GetTransaction(), {externalCellTag});
+            auto externalizedClonedTransactionId = transactionManager->ExternalizeTransaction(clonedNode->GetTransaction(), {externalCellTag});
             ClonedExternalNodes_.push_back(TClonedExternalNode{
                 .Mode = mode,
                 .SourceNodeId = TVersionedObjectId(sourceNode->GetId(), externalizedSourceTransactionId),
@@ -511,7 +511,7 @@ public:
 
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto externalCellTag = clonedNode->GetExternalCellTag();
-            auto clonedNodeExternalizedTransactionId = transactionManager->ExternalizeTransaction(Transaction_, externalCellTag);
+            auto clonedNodeExternalizedTransactionId = transactionManager->ExternalizeTransaction(Transaction_, {externalCellTag});
             ClonedExternalNodes_.push_back(TClonedExternalNode{
                 .Mode = context->GetMode(),
                 .SourceNodeId = TVersionedObjectId(sourceNodeId, sourceNodeExternalizedTransactionId),
@@ -3168,7 +3168,7 @@ private:
         auto externalCellTag = trunkNode->GetExternalCellTag();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto externalizedTransactionId = transactionManager->ExternalizeTransaction(lock->GetTransaction(), externalCellTag);
+        auto externalizedTransactionId = transactionManager->ExternalizeTransaction(lock->GetTransaction(), {externalCellTag});
 
         NProto::TReqLockForeignNode request;
         ToProto(request.mutable_transaction_id(), externalizedTransactionId);
@@ -3197,7 +3197,7 @@ private:
         auto externalCellTag = trunkNode->GetExternalCellTag();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, externalCellTag);
+        auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, {externalCellTag});
 
         NProto::TReqUnlockForeignNode request;
         ToProto(request.mutable_transaction_id(), externalizedTransactionId);

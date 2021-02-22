@@ -69,7 +69,7 @@ public:
         bool force);
     TTransactionId ExternalizeTransaction(
         TTransaction* transaction,
-        NObjectClient::TCellTag dstCellTag);
+        NObjectClient::TCellTagList dstCellTags);
     TTransactionId GetNearestExternalizedTransactionAncestor(
         TTransaction* transaction,
         NObjectClient::TCellTag dstCellTag);

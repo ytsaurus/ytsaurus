@@ -192,9 +192,6 @@ protected:
     //! Posts the request to given masters externalizing the transaction if needed.
     void ExternalizeToMasters(NRpc::IServiceContextPtr context, const TCellTagList& cellTags);
 
-    //! Posts the request to a given master externalizing the transaction if needed.
-    void ExternalizeToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
-
     const NCypressServer::TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 
 private:
