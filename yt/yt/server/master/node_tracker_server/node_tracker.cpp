@@ -1115,17 +1115,17 @@ private:
             if (IsObjectAlive(node)) {
                 nodeList.push_back(node);
             } else {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "New node is dead, ignoring (NodeRole: %v, NodeId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "New node for role is dead, ignoring (NodeRole: %v, NodeId: %v)",
                     nodeRole,
                     node->GetId());
             }
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Update nodes (NodeRole: %v, Nodes: %v)",
+        NodeListPerRole_[nodeRole].UpdateAddresses();
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated nodes for role (NodeRole: %v, Nodes: %v)",
             nodeRole,
             MakeFormattableView(nodeList, TNodePtrAddressFormatter()));
-
-        NodeListPerRole_[nodeRole].UpdateAddresses();
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -1160,7 +1160,6 @@ private:
             Load(context, NodeListPerRole_);
         } else {
             Load(context, NodeListPerRole_[ENodeRole::MasterCache].Nodes());
-            NodeListPerRole_[ENodeRole::MasterCache].UpdateAddresses();
         }
 
         NodeMap_.LoadValues(context);
@@ -1243,6 +1242,10 @@ private:
             }
 
             YT_VERIFY(NameToDataCenterMap_.emplace(dc->GetName(), dc).second);
+        }
+
+        for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
+            NodeListPerRole_[nodeRole].UpdateAddresses();
         }
     }
 
