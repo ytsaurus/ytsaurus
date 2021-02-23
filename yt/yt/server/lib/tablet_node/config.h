@@ -154,6 +154,8 @@ public:
     bool EnableRejectsInDataNodeLookupIfThrottling;
 
     bool EnableDynamicStoreRead;
+    bool EnableNewScanReaderForLookup;
+    bool EnableNewScanReaderForSelect;
 
     TTableMountConfig()
     {
@@ -359,6 +361,14 @@ public:
 
         RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
             .Default(false);
+
+        RegisterParameter("enable_new_scan_reader_for_lookup", EnableNewScanReaderForLookup)
+            .Default(false)
+            .DontSerializeDefault();
+
+        RegisterParameter("enable_new_scan_reader_for_select", EnableNewScanReaderForSelect)
+            .Default(false)
+            .DontSerializeDefault();
 
         RegisterPostprocessor([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
