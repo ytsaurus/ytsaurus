@@ -53,10 +53,9 @@ class TestChunkServer(YTEnvSetup):
         )
 
     def _decommission_chunk_replicas(self, chunk_id, replica_count, node_to_decommission_count):
-        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == replica_count)
-
         nodes_to_decommission = get("#%s/@stored_replicas" % chunk_id)
         assert len(nodes_to_decommission) == replica_count
+
         nodes_to_decommission = nodes_to_decommission[:node_to_decommission_count]
         assert self._nodes_have_chunk(nodes_to_decommission, chunk_id)
 
@@ -95,15 +94,15 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
 
     @authors("babenko")
-    def test_decommission_regular(self):
+    def test_decommission_regular1(self):
         create("table", "//tmp/t")
-        write_table("//tmp/t", {"a": "b"})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
         self._test_decommission("//tmp/t", 3)
 
     @authors("shakurov")
     def test_decommission_regular2(self):
         create("table", "//tmp/t", attributes={"replication_factor": 4})
-        write_table("//tmp/t", {"a": "b"})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 4})
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
@@ -118,7 +117,7 @@ class TestChunkServer(YTEnvSetup):
             assert not get("//sys/cluster_nodes/%s/@decommissioned" % node)
 
     @authors("babenko")
-    def test_decommission_erasure(self):
+    def test_decommission_erasure1(self):
         create("table", "//tmp/t")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
         write_table("//tmp/t", {"a": "b"})
