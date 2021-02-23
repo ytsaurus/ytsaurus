@@ -49,7 +49,6 @@ void TNodeListForRole::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     Load(context, Nodes_);
-    UpdateAddresses();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
