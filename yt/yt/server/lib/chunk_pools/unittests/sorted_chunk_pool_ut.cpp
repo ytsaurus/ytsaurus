@@ -13,6 +13,8 @@
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/misc/blob_output.h>
@@ -32,6 +34,7 @@ using namespace NControllerAgent;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NTableClient;
 
 using NControllerAgent::TCompletedJobSummary;
@@ -180,7 +183,7 @@ protected:
         i64 rowCount = 1000)
     {
         auto inputChunk = New<TInputChunk>();
-        inputChunk->ChunkId() = TChunkId::Create();
+        inputChunk->ChunkId() = MakeRandomId(EObjectType::Chunk, /* cellTag */ 0x42);
         inputChunk->SetCompressedDataSize(size);
         inputChunk->SetTotalUncompressedDataSize(size);
         inputChunk->SetTotalDataWeight(size);
