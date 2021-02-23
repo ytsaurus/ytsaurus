@@ -470,7 +470,7 @@ class TestJournalsChangeMedia(YTEnvSetup):
 
 
 class TestErasureJournals(TestJournals):
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 4
     NUM_NODES = 20
 
     JOURNAL_ATTRIBUTES = {
