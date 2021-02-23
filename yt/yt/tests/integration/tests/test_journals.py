@@ -11,7 +11,7 @@ import random
 
 
 class TestJournals(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
     NUM_NODES = 5
 
@@ -30,6 +30,30 @@ class TestJournals(YTEnvSetup):
     def _write_and_wait_until_sealed(self, path, *args, **kwargs):
         write_journal(path, *args, **kwargs)
         wait_until_sealed(path)
+
+    def _write_slowly(self, path, rows, *args, **kwargs):
+        class SlowStream(TextIOBase):
+            def __init__(self, data):
+                self._data = data
+                self._position = 0
+
+            def read(self, size):
+                if size < 0:
+                    raise ValueError()
+
+                size = min(size, 1000)
+                size = min(size, len(self._data) - self._position)
+
+                sys.stderr.write("Reading {} bytes at position {}\n".format(size, self._position))
+                sleep(0.1)
+
+                result = self._data[self._position : self._position + size]
+                self._position = min(self._position + size, len(self._data))
+                return result
+
+        yson_rows = yson.dumps(rows, yson_type="list_fragment")
+
+        write_journal(path, input_stream=SlowStream(yson_rows), *args, **kwargs)
 
     def _wait_until_last_chunk_sealed(self, path):
         chunk_ids = get(path + "/@chunk_ids")
@@ -330,42 +354,24 @@ class TestJournals(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
-    def test_simulated_failures(self, enable_chunk_preallocation):
+    @pytest.mark.parametrize("seal_mode", ["client-side", "master-side"])
+    def test_simulated_failures(self, enable_chunk_preallocation, seal_mode):
         if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
             pytest.skip("Chunk preallocation is not available without 20.3+ masters")
 
-        set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", seal_mode=="master-side", recursive=True)
 
         create("journal", "//tmp/j")
 
         rows = self.DATA * 100
-        yson_rows = yson.dumps(rows, yson_type="list_fragment")
 
-        class SlowStream(TextIOBase):
-            def __init__(self, data):
-                self._data = data
-                self._position = 0
-
-            def read(self, size):
-                if size < 0:
-                    raise ValueError()
-
-                size = min(size, 1000)
-                size = min(size, len(self._data) - self._position)
-
-                sys.stderr.write("Reading {} bytes at position {}\n".format(size, self._position))
-                sleep(0.1)
-
-                result = self._data[self._position : self._position + size]
-                self._position = min(self._position + size, len(self._data))
-                return result
-
-        write_journal(
+        self._write_slowly(
             "//tmp/j",
-            input_stream=SlowStream(yson_rows),
+            rows,
             enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={
                 "dont_close": True,
+                "dont_seal": seal_mode=="master-side",
                 "max_batch_row_count": 10,
                 "max_flush_row_count": 10,
                 "max_chunk_row_count": 50,
@@ -375,6 +381,11 @@ class TestJournals(YTEnvSetup):
         )
 
         assert read_journal("//tmp/j") == rows
+
+        # If master-side chunk seal is disabled, some chunks can remain unsealed after write finish.
+        if seal_mode == "master-side":
+            self._wait_until_last_chunk_sealed("//tmp/j")
+            assert read_journal("//tmp/j") == rows
 
     @authors("ifsmirnov")
     def test_data_node_orchid(self):
@@ -500,6 +511,37 @@ class TestErasureJournals(TestJournals):
         }
     }
 
+    def _check_repair_jobs(self, path, rows):
+        chunk_ids = get("{}/@chunk_ids".format(path))
+        replica_count = len(get("#{}/@stored_replicas".format(chunk_ids[0])))
+
+        def _check_all_replicas_ok():
+            for chunk_id in chunk_ids:
+                replicas = get("#{}/@stored_replicas".format(chunk_id))
+                if len(replicas) != replica_count:
+                    return False
+                if not all(r.attributes["state"] == "sealed" for r in replicas):
+                    return False
+            return True
+
+        for i in xrange(10):
+            wait(_check_all_replicas_ok)
+
+            chunk_id = random.choice(chunk_ids)
+            replicas = get("#{}/@stored_replicas".format(chunk_id))
+            random.shuffle(replicas)
+            nodes_to_ban = [str(x) for x in replicas[:3]]
+
+            for node in nodes_to_ban:
+                set_node_banned(node, True)
+
+            wait(_check_all_replicas_ok)
+
+            assert read_journal("//tmp/j") == rows
+
+            for node in nodes_to_ban:
+                set_node_banned(node, False)
+
     @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @authors("babenko", "ignat")
     def test_seal_abruptly_closed_journal(self, erasure_codec):
@@ -521,30 +563,7 @@ class TestErasureJournals(TestJournals):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
         write_journal("//tmp/j", self.DATA, enable_chunk_preallocation=enable_chunk_preallocation)
 
-        chunk_ids = get("//tmp/j/@chunk_ids")
-        chunk_id = chunk_ids[-1]
-        replica_count = len(get("#{}/@stored_replicas".format(chunk_id)))
-
-        def _check_all_replicas_ok():
-            replicas = get("#{}/@stored_replicas".format(chunk_id))
-            return len(replicas) == replica_count and all(r.attributes["state"] == "sealed" for r in replicas)
-
-        for i in xrange(10):
-            wait(_check_all_replicas_ok)
-
-            replicas = get("#{}/@stored_replicas".format(chunk_id))
-            random.shuffle(replicas)
-            nodes_to_ban = [str(x) for x in replicas[:3]]
-
-            for node in nodes_to_ban:
-                set_node_banned(node, True)
-
-            wait(_check_all_replicas_ok)
-
-            assert read_journal("//tmp/j") == self.DATA
-
-            for node in nodes_to_ban:
-                set_node_banned(node, False)
+        self._check_repair_jobs("//tmp/j", self.DATA)
 
     def _test_critical_erasure_state(self, state, n):
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
@@ -605,6 +624,33 @@ class TestErasureJournals(TestJournals):
             set_node_banned(replica, True)
             check()
             set_node_banned(replica, False)
+
+    @authors("gritukan", "babenko")
+    def test_repair_overlayed_chunk(self):
+        if self.Env.get_component_version("ytserver-master").abi <= (20, 2):
+            pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+
+        create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_reed_solomon_3_3"])
+
+        rows = self.DATA * 100
+
+        self._write_slowly(
+            "//tmp/j",
+            rows,
+            enable_chunk_preallocation=True,
+            journal_writer={
+                "dont_close": True,
+                "dont_seal": True,
+                "max_batch_row_count": 10,
+                "max_flush_row_count": 10,
+                "max_chunk_row_count": 50,
+                "replica_failure_probability": 0.1,
+                "open_session_backoff_time": 100,
+            },
+        )
+        self._wait_until_last_chunk_sealed("//tmp/j")
+
+        self._check_repair_jobs("//tmp/j", rows)
 
 
 class TestErasureJournalsRpcProxy(TestErasureJournals):

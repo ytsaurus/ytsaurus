@@ -813,5 +813,22 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 GetPhysicalChunkRowCount(i64 logicalRowCount, bool overlayed)
+{
+    if (logicalRowCount == 0) {
+        // NB: Return zero even if the chunk is overlayed as it may be lacking its header record.
+        return 0;
+    }
+
+    if (overlayed) {
+        // NB: Plus one accounts for the header record.
+        return logicalRowCount + 1;
+    } else {
+        return logicalRowCount;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NJournalClient
 

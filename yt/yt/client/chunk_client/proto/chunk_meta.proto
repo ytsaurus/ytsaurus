@@ -78,6 +78,9 @@ message TMiscExt
 
     // When set, data nodes allow downloading this chunk by HTTP.
     optional bool shared_to_skynet = 18 [default = false];
+
+    // Number of rows in physical representation of this chunk (journals only).
+    optional int64 physical_row_count = 20;
 }
 
 message TPartInfo

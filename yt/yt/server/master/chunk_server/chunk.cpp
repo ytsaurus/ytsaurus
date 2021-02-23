@@ -22,6 +22,7 @@ namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NJournalClient;
 using namespace NObjectServer;
 using namespace NObjectClient;
 using namespace NSecurityServer;
@@ -438,16 +439,12 @@ bool TChunk::IsSealed() const
 i64 TChunk::GetPhysicalSealedRowCount() const
 {
     YT_VERIFY(MiscExt_.sealed());
-    auto rowCount = MiscExt_.row_count();
-    if (rowCount == 0) {
-        // NB: Return zero even if the chunk is overlayed as it may be lacking its header record.
-        return 0;
+    if (MiscExt_.has_physical_row_count()) {
+        return MiscExt_.physical_row_count();
+    } else {
+        // COMPAT(gritukan): Old journals do not have physical row count.
+        return GetPhysicalChunkRowCount(MiscExt_.row_count(), GetOverlayed());
     }
-    if (GetOverlayed()) {
-        // NB: Plus one accounts for the header record.
-        ++rowCount;
-    }
-    return rowCount;
 }
 
 void TChunk::Seal(const TChunkSealInfo& info)
@@ -457,6 +454,7 @@ void TChunk::Seal(const TChunkSealInfo& info)
     YT_VERIFY(MiscExt_.row_count() == 0);
     YT_VERIFY(MiscExt_.uncompressed_data_size() == 0);
     YT_VERIFY(MiscExt_.compressed_data_size() == 0);
+    YT_VERIFY(MiscExt_.physical_row_count() == 0);
     YT_VERIFY(ChunkInfo_.disk_space() == 0);
 
     MiscExt_.set_sealed(true);
@@ -466,6 +464,10 @@ void TChunk::Seal(const TChunkSealInfo& info)
     MiscExt_.set_row_count(info.row_count());
     MiscExt_.set_uncompressed_data_size(info.uncompressed_data_size());
     MiscExt_.set_compressed_data_size(info.compressed_data_size());
+    // COMPAT(gritukan)
+    if (info.has_physical_row_count()) {
+        MiscExt_.set_physical_row_count(info.physical_row_count());
+    }
     SetProtoExtension(ChunkMeta_.mutable_extensions(), MiscExt_);
     ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
 }

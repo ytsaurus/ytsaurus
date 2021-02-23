@@ -195,6 +195,7 @@ public:
 
     // For testing purposes only.
     bool DontClose;
+    bool DontSeal;
     double ReplicaFailureProbability;
 
     TJournalWriterConfig()
@@ -240,6 +241,8 @@ public:
             .Default(TDuration::Seconds(60));
 
         RegisterParameter("dont_close", DontClose)
+            .Default(false);
+        RegisterParameter("dont_seal", DontSeal)
             .Default(false);
         RegisterParameter("replica_failure_probability", ReplicaFailureProbability)
             .Default(0.0)

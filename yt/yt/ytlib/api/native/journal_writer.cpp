@@ -1079,6 +1079,7 @@ private:
                 req->mutable_info()->set_row_count(session->FlushedRowCount);
                 req->mutable_info()->set_uncompressed_data_size(session->FlushedDataSize);
                 req->mutable_info()->set_compressed_data_size(session->FlushedDataSize);
+                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->FlushedRowCount, Options_.EnableChunkPreallocation));
                 // COMPAT(babenko): YT-14089
                 req->mutable_misc()->set_sealed(true);
                 req->mutable_misc()->set_row_count(session->FlushedRowCount);
@@ -1628,6 +1629,12 @@ private:
 
         void ScheduleChunkSessionSeal(TChunkSessionPtr session)
         {
+            if (Config_->DontSeal) {
+                YT_LOG_WARNING("Client-side chunk seal is disabled, skipping chunk session seal (SessionId: %v)",
+                    session->Id);
+                return;
+            }
+
             YT_LOG_DEBUG("Scheduling chunk seal (SessionId: %v, SessionIndex: %v, FirstRowIndex: %v, RowCount: %v, DataSize: %v)",
                 session->Id,
                 session->Index,
@@ -1675,6 +1682,7 @@ private:
                 req->mutable_info()->set_row_count(session->FlushedRowCount);
                 req->mutable_info()->set_uncompressed_data_size(session->FlushedDataSize);
                 req->mutable_info()->set_compressed_data_size(session->FlushedDataSize);
+                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->FlushedRowCount, Options_.EnableChunkPreallocation));
             }
 
             SealInProgress_ = true;

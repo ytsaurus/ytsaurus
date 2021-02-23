@@ -413,6 +413,10 @@ private:
             req->mutable_info()->set_uncompressed_data_size(quorumInfo.UncompressedDataSize);
             req->mutable_info()->set_compressed_data_size(quorumInfo.CompressedDataSize);
 
+            // NB: Rows belonging both to the previous and current chunks are not accounted into logical row count
+            // but accounted into physical row count. This is important for proper chunk seal and repair.
+            req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(quorumInfo.RowCount, chunk->GetOverlayed()));
+
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 GetCumulativeError(batchRspOrError),
