@@ -417,7 +417,7 @@ public:
 
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfilerRegistry
-            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetPrimaryCellTag()))
+            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", BufferedProducer_);
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
