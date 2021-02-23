@@ -390,6 +390,13 @@ private:
                 .ValueOrThrow();
         }
 
+        if (quorumInfo.FirstOverlayedRowIndex && *quorumInfo.FirstOverlayedRowIndex < startRowIndex) {
+            YT_LOG_DEBUG("Journal chunk has a non-trivial overlap with the previous one (ChunkId: %v, StartRowIndex: %v, FirstOverlayedRowIndex: %v)",
+                chunkId,
+                startRowIndex,
+                *quorumInfo.FirstOverlayedRowIndex);
+        }
+
         {
             TChunkServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
 
