@@ -8,10 +8,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
+import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcRequest;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 class MockRpcClientFactory implements RpcClientFactory {
@@ -54,12 +55,12 @@ class MockRpcClientFactory implements RpcClientFactory {
             }
 
             @Override
-            public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
+            public RpcClientRequestControl send(RpcClient sender, RpcRequest<?> request, RpcClientResponseHandler handler, RpcOptions options) {
                 return null;
             }
 
             @Override
-            public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
+            public RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
                 return null;
             }
 

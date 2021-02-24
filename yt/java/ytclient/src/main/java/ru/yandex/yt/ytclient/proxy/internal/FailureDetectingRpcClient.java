@@ -10,11 +10,12 @@ import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientWrapper;
+import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcRequest;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 // TODO: move closer to user an make package private
@@ -61,17 +62,12 @@ public class FailureDetectingRpcClient extends RpcClientWrapper {
     }
 
     @Override
-    public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
-        return super.send(sender, request, wrapHandler(handler));
+    public RpcClientRequestControl send(RpcClient sender, RpcRequest<?> request, RpcClientResponseHandler handler, RpcOptions options) {
+        return super.send(sender, request, wrapHandler(handler), options);
     }
 
     @Override
-    public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
-        return super.send(this, request, wrapHandler(handler));
-    }
-
-    @Override
-    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
-        return super.startStream(sender, request, consumer);
+    public RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
+        return super.startStream(sender, request, consumer, options);
     }
 }

@@ -36,13 +36,18 @@ public class RpcClientWrapper implements RpcClient {
     }
 
     @Override
-    public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
-        return innerClient.send(sender, request, handler);
+    public RpcClientRequestControl send(
+            RpcClient sender,
+            RpcRequest<?> request,
+            RpcClientResponseHandler handler,
+            RpcOptions options)
+    {
+        return innerClient.send(sender, request, handler, options);
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
-        return innerClient.startStream(sender, request, consumer);
+    public RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
+        return innerClient.startStream(sender, request, consumer, options);
     }
 
     @Override
