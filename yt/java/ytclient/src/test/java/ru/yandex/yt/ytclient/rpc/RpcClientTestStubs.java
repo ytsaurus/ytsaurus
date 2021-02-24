@@ -35,7 +35,12 @@ public class RpcClientTestStubs {
         }
 
         @Override
-        public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
+        public RpcClientStreamControl startStream(
+                RpcClient sender,
+                RpcRequest<?> request,
+                RpcStreamConsumer consumer,
+                RpcOptions options)
+        {
             return null;
         }
 
@@ -61,13 +66,18 @@ public class RpcClientTestStubs {
         }
 
         @Override
-        public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
+        public RpcClientRequestControl send(
+                RpcClient sender,
+                RpcRequest request,
+                RpcClientResponseHandler handler,
+                RpcOptions options)
+        {
             return null;
         }
     }
 
     public static class RpcClientFactoryStub implements RpcClientFactory {
-        private Function<String, RpcClient> client;
+        private final Function<String, RpcClient> client;
 
         public RpcClientFactoryStub() {
             this.client = RpcClientStubImpl::new;

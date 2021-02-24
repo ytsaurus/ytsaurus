@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
-import ru.yandex.yt.rpc.TRequestHeaderOrBuilder;
+import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingParameters;
@@ -282,27 +282,60 @@ public class DefaultRpcBusClient implements RpcClient {
         protected RequestState state = RequestState.INITIALIZING;
         protected final RpcClient sender;
         protected final Session session;
-        protected final RpcClientRequest request;
+
+        protected final RpcRequest<?> rpcRequest;
+        protected final TRequestHeader.Builder requestHeader;
+
         protected final GUID requestId;
         protected Instant started;
         protected final Statistics stat;
         protected final RpcOptions options;
+        private final String description;
 
         // Подписка на событие с таймаутом, если он есть
         protected ScheduledFuture<?> timeoutFuture;
         private ScheduledFuture<?> ackTimeoutFuture;
 
-        RequestBase(RpcClient sender, Session session, RpcClientRequest request, Statistics stat) {
+        RequestBase(RpcClient sender, Session session, RpcRequest<?> rpcRequest, RpcOptions options, Statistics stat) {
             this.sender = Objects.requireNonNull(sender);
             this.session = Objects.requireNonNull(session);
-            this.request = Objects.requireNonNull(request);
-            this.requestId = request.getRequestId();
+            Objects.requireNonNull(rpcRequest);
+
+            this.rpcRequest = Objects.requireNonNull(rpcRequest);
+            this.requestHeader = rpcRequest.header.toBuilder();
+
+            this.requestId = RpcUtil.fromProto(rpcRequest.header.getRequestId());
             this.stat = stat;
-            this.options = request.getOptions();
+            this.options = Objects.requireNonNull(options);
+            this.description = String.format("%s/%s/%s", requestHeader.getService(), requestHeader.getMethod(), requestId);
+        }
+
+        @Override
+        public String toString() {
+            return description;
         }
 
         public void response(TResponseHeader header, List<byte[]> attachments) {
-            throw new IllegalArgumentException();
+            Duration elapsed = Duration.between(started, Instant.now());
+            stat.updateResponse(elapsed.toMillis());
+            logger.debug("Request `{}` finished in {} ms Session: {}", this, elapsed.toMillis(), session);
+
+            lock.lock();
+            try {
+                if (state == RequestState.INITIALIZING) {
+                    // Мы получили ответ до того, как приаттачили сессию
+                    // Этого не может произойти, проверка просто на всякий случай
+                    logger.error("Received response to {} before sending the request", this);
+                    return;
+                }
+                if (state == RequestState.FINISHED) {
+                    // Обработка запроса уже завершена
+                    return;
+                }
+                finishLocked();
+            } finally {
+                lock.unlock();
+            }
         }
 
         public void streamingPayload(TStreamingPayloadHeader header, List<byte[]> attachments) {
@@ -346,28 +379,37 @@ public class DefaultRpcBusClient implements RpcClient {
                 }
 
                 started = Instant.now();
-                request.header().setStartTime(RpcUtil.instantToMicros(started));
-                List<byte[]> message = request.serialize();
+                requestHeader.setStartTime(RpcUtil.instantToMicros(started));
 
-                logger.debug("Sending request `{}` Session: {}", request, session);
+                logger.debug("Sending request `{}` Session: {}", this, session);
                 session.register(this);
 
                 BusDeliveryTracking level =
                         options.getDefaultRequestAck() ? BusDeliveryTracking.FULL : BusDeliveryTracking.SENT;
 
+                final List<byte[]> message = RpcRequest.serialize(
+                        requestHeader.build(),
+                        rpcRequest.body,
+                        rpcRequest.attachments);
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {
                     Duration elapsed = Duration.between(started, Instant.now());
                     stat.updateAck(elapsed.toMillis());
                     if (exception != null) {
                         error(exception);
-                        logger.debug("({}) request `{}` acked in {} ms with error `{}`", session, request, elapsed.toMillis(), exception.toString());
+                        logger.debug("({}) request `{}` acked in {} ms with error `{}`",
+                                session,
+                                this,
+                                elapsed.toMillis(),
+                                exception.toString());
                     } else {
                         ack();
-                        logger.trace("Request `{}` acked in {} ms", request, elapsed.toMillis());
+                        logger.trace("Request `{}` acked in {} ms",
+                                this,
+                                elapsed.toMillis());
                     }
                 });
 
-                Duration timeout = request.getTimeout();
+                Duration timeout = RpcRequest.getTimeout(requestHeader);
                 Duration acknowledgementTimeout = options.getAcknowledgementTimeout();
                 // Регистрируем таймаут после того как положили запрос в очередь
                 lock.lock();
@@ -414,13 +456,13 @@ public class DefaultRpcBusClient implements RpcClient {
          */
         public CompletableFuture<Void> sendCancellation() {
             TRequestCancelationHeader.Builder builder = TRequestCancelationHeader.newBuilder();
-            TRequestHeaderOrBuilder header = request.header();
-            builder.setRequestId(header.getRequestId());
-            builder.setService(header.getService());
-            builder.setMethod(header.getMethod());
-            if (header.hasRealmId()) {
-                builder.setRealmId(header.getRealmId());
+            builder.setRequestId(requestHeader.getRequestId());
+            builder.setService(requestHeader.getService());
+            builder.setMethod(requestHeader.getMethod());
+            if (requestHeader.hasRealmId()) {
+                builder.setRealmId(requestHeader.getRealmId());
             }
+            logger.debug("Canceling request {}", this);
             return session.bus.send(RpcUtil.createCancelMessage(builder.build()), BusDeliveryTracking.NONE);
         }
 
@@ -517,7 +559,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 lock.unlock();
             }
             String message = String.format("Request acknowledgement timed out; requestId: %s; proxy: %s",
-                    requestId.toString(),
+                    requestId,
                     sender.getAddressString());
             timeout(new AcknowledgementTimeoutException(message));
         }
@@ -526,8 +568,15 @@ public class DefaultRpcBusClient implements RpcClient {
     private static class Request extends RequestBase {
         protected final RpcClientResponseHandler handler;
 
-        public Request(RpcClient sender, Session session, RpcClientRequest request, RpcClientResponseHandler handler, Statistics stat) {
-            super(sender, session, request, stat);
+        public Request(
+                RpcClient sender,
+                Session session,
+                RpcRequest<?> request,
+                RpcClientResponseHandler handler,
+                RpcOptions options,
+                Statistics stat)
+        {
+            super(sender, session, request, options, stat);
 
             this.handler = Objects.requireNonNull(handler);
         }
@@ -546,26 +595,7 @@ public class DefaultRpcBusClient implements RpcClient {
          */
         @Override
         public void response(TResponseHeader header, List<byte[]> attachments) {
-            Duration elapsed = Duration.between(started, Instant.now());
-            stat.updateResponse(elapsed.toMillis());
-            logger.debug("Request `{}` finished in {} ms Session: {}", request, elapsed.toMillis(), session);
-
-            lock.lock();
-            try {
-                if (state == RequestState.INITIALIZING) {
-                    // Мы получили ответ до того, как приаттачили сессию
-                    // Этого не может произойти, проверка просто на всякий случай
-                    logger.error("Received response to {} before sending the request", request);
-                    return;
-                }
-                if (state == RequestState.FINISHED) {
-                    // Обработка запроса уже завершена
-                    return;
-                }
-                finishLocked();
-            } finally {
-                lock.unlock();
-            }
+            super.response(header, attachments);
             try {
                 try {
                     handler.onResponse(sender, header, attachments);
@@ -587,8 +617,15 @@ public class DefaultRpcBusClient implements RpcClient {
         ScheduledFuture<?> readTimeoutFuture = null;
         ScheduledFuture<?> writeTimeoutFuture = null;
 
-        StreamingRequest(RpcClient sender, Session session, RpcClientRequest request, RpcStreamConsumer consumer, Statistics stat) {
-            super(sender, session, request, stat);
+        StreamingRequest(
+                RpcClient sender,
+                Session session,
+                RpcRequest<?> request,
+                RpcStreamConsumer consumer,
+                RpcOptions options,
+                Statistics stat)
+        {
+            super(sender, session, request, options, stat);
             this.consumer = consumer;
             this.readTimeout = options.getStreamingReadTimeout();
             this.writeTimeout = options.getStreamingWriteTimeout();
@@ -604,7 +641,7 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         private void setStreamingOptions() {
-            request.header().clearTimeout();
+            requestHeader.clearTimeout();
 
             TStreamingParameters.Builder builder = TStreamingParameters.newBuilder();
 
@@ -615,7 +652,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 builder.setWriteTimeout(RpcUtil.durationToMicros(writeTimeout));
             }
             builder.setWindowSize(options.getStreamingWindowSize());
-            request.header().setServerAttachmentsStreamingParameters(builder);
+            requestHeader.setServerAttachmentsStreamingParameters(builder);
         }
 
         @Override
@@ -679,8 +716,8 @@ public class DefaultRpcBusClient implements RpcClient {
 
         @Override
         public Compression getExpectedPayloadCompression() {
-            if (request.header().hasRequestCodec()) {
-                return Compression.fromValue(request.header().getRequestCodec());
+            if (requestHeader.hasRequestCodec()) {
+                return Compression.fromValue(requestHeader.getRequestCodec());
             } else {
                 return Compression.None;
             }
@@ -696,7 +733,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 if (state == RequestState.INITIALIZING) {
                     // Мы получили ответ до того, как приаттачили сессию
                     // Этого не может произойти, проверка просто на всякий случай
-                    logger.error("Received response to {} before sending the request", request);
+                    logger.error("Received response to {} before sending the request", this);
                     return;
                 }
                 if (state == RequestState.FINISHED) {
@@ -729,7 +766,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 if (state == RequestState.INITIALIZING) {
                     // Мы получили ответ до того, как приаттачили сессию
                     // Этого не может произойти, проверка просто на всякий случай
-                    logger.error("Received response to {} before sending the request", request);
+                    logger.error("Received response to {} before sending the request", this);
                     return;
                 }
                 if (state == RequestState.FINISHED) {
@@ -753,8 +790,7 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         @Override
-        protected void finishLocked()
-        {
+        protected void finishLocked() {
             clearReadTimeout();
             clearWriteTimeout();
             state = RequestState.FINISHED;
@@ -762,27 +798,7 @@ public class DefaultRpcBusClient implements RpcClient {
 
         @Override
         public void response(TResponseHeader header, List<byte[]> attachments) {
-            Duration elapsed = Duration.between(started, Instant.now());
-            stat.updateResponse(elapsed.toMillis());
-            logger.debug("Request `{}` finished in {} ms Session: {}", request, elapsed.toMillis(), session);
-
-            lock.lock();
-            try {
-                if (state == RequestState.INITIALIZING) {
-                    // Мы получили ответ до того, как приаттачили сессию
-                    // Этого не может произойти, проверка просто на всякий случай
-                    logger.error("Received response to {} before sending the request", request);
-                    return;
-                }
-                if (state == RequestState.FINISHED) {
-                    // Обработка запроса уже завершена
-                    return;
-                }
-                finishLocked();
-            } finally {
-                lock.unlock();
-            }
-
+            super.response(header, attachments);
             try {
                 lock.lock();
                 consumer.onResponse(sender, header, attachments);
@@ -797,12 +813,11 @@ public class DefaultRpcBusClient implements RpcClient {
         @Override
         public CompletableFuture<Void> feedback(long offset) {
             TStreamingFeedbackHeader.Builder builder = TStreamingFeedbackHeader.newBuilder();
-            TRequestHeaderOrBuilder header = request.header();
-            builder.setRequestId(header.getRequestId());
-            builder.setService(header.getService());
-            builder.setMethod(header.getMethod());
-            if (header.hasRealmId()) {
-                builder.setRealmId(header.getRealmId());
+            builder.setRequestId(requestHeader.getRequestId());
+            builder.setService(requestHeader.getService());
+            builder.setMethod(requestHeader.getMethod());
+            if (requestHeader.hasRealmId()) {
+                builder.setRealmId(requestHeader.getRealmId());
             }
             builder.setReadPosition(offset);
             return session.bus.send(Collections.singletonList(RpcUtil.createMessageHeader(RpcMessageType.STREAMING_FEEDBACK, builder.build())), BusDeliveryTracking.NONE);
@@ -811,13 +826,12 @@ public class DefaultRpcBusClient implements RpcClient {
         @Override
         public CompletableFuture<Void> sendEof() {
             TStreamingPayloadHeader.Builder builder = TStreamingPayloadHeader.newBuilder();
-            TRequestHeaderOrBuilder header = request.header();
-            builder.setRequestId(header.getRequestId());
-            builder.setService(header.getService());
-            builder.setMethod(header.getMethod());
+            builder.setRequestId(requestHeader.getRequestId());
+            builder.setService(requestHeader.getService());
+            builder.setMethod(requestHeader.getMethod());
             builder.setSequenceNumber(sequenceNumber.getAndIncrement());
-            if (header.hasRealmId()) {
-                builder.setRealmId(header.getRealmId());
+            if (requestHeader.hasRealmId()) {
+                builder.setRealmId(requestHeader.getRealmId());
             }
             return session.bus.send(RpcUtil.createEofMessage(builder.build()), BusDeliveryTracking.NONE).thenAccept((unused) -> {
                 lock.lock();
@@ -831,14 +845,13 @@ public class DefaultRpcBusClient implements RpcClient {
 
         private byte[] preparePayloadHeader() {
             TStreamingPayloadHeader.Builder builder = TStreamingPayloadHeader.newBuilder();
-            TRequestHeaderOrBuilder header = request.header();
-            builder.setRequestId(header.getRequestId());
-            builder.setService(header.getService());
-            builder.setMethod(header.getMethod());
+            builder.setRequestId(requestHeader.getRequestId());
+            builder.setService(requestHeader.getService());
+            builder.setMethod(requestHeader.getMethod());
             builder.setSequenceNumber(sequenceNumber.getAndIncrement());
-            builder.setCodec(request.header().getRequestCodec());
-            if (header.hasRealmId()) {
-                builder.setRealmId(header.getRealmId());
+            builder.setCodec(requestHeader.getRequestCodec());
+            if (requestHeader.hasRealmId()) {
+                builder.setRealmId(requestHeader.getRealmId());
             }
 
             return RpcUtil.createMessageHeader(RpcMessageType.STREAMING_PAYLOAD, builder.build());
@@ -966,22 +979,26 @@ public class DefaultRpcBusClient implements RpcClient {
     }
 
     @Override
-    public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
-        RequestBase pendingRequest = new Request(sender, getSession(), request, handler, stats);
-        pendingRequest.start();
-        return pendingRequest;
-    }
-
-    @Override
-    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
-        StreamingRequest pendingRequest = new StreamingRequest(sender, getSession(), request, consumer, stats);
-        pendingRequest.start();
-        return pendingRequest;
-    }
-
-    @Override
-    public ScheduledExecutorService executor()
+    public RpcClientRequestControl send(
+            RpcClient sender,
+            RpcRequest<?> request,
+            RpcClientResponseHandler handler,
+            RpcOptions options)
     {
+        RequestBase pendingRequest = new Request(sender, getSession(), request, handler, options, stats);
+        pendingRequest.start();
+        return pendingRequest;
+    }
+
+    @Override
+    public RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
+        StreamingRequest pendingRequest = new StreamingRequest(sender, getSession(), request, consumer, options, stats);
+        pendingRequest.start();
+        return pendingRequest;
+    }
+
+    @Override
+    public ScheduledExecutorService executor() {
         return getSession().eventLoop();
     }
 }

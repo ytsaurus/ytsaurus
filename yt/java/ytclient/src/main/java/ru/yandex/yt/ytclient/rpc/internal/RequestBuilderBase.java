@@ -22,8 +22,8 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcRequest;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 @NonNullFields
@@ -61,8 +61,8 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     }
 
     @Override
-    public List<byte[]> serialize() {
-        return RpcUtil.createRequestMessage(header.build(), body.build(), attachments);
+    public RpcRequest<?> getRpcRequest() {
+        return new RpcRequest<>(header.build(), body.build(), attachments);
     }
 
     @Override
@@ -70,7 +70,7 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
         CompletableFuture<ResponseType> result = new CompletableFuture<>();
         try {
             RpcClientResponseHandler handler = createHandler(result);
-            RpcClientRequestControl control = client.send(this, handler);
+            RpcClientRequestControl control = client.send(client, getRpcRequest(), handler, getOptions());
             result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
         } catch (Throwable e) {
             result.completeExceptionally(e);
@@ -88,8 +88,9 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
             RpcClientRequestControl control = FailoverRpcExecutor.execute(
                     executor,
                     clientPool,
-                    this,
+                    getRpcRequest(),
                     handler,
+                    getOptions(),
                     attemptCount);
             result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
         } catch (Throwable e) {
@@ -100,7 +101,7 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
 
     @Override
     public RpcClientStreamControl startStream(RpcClient client, RpcStreamConsumer consumer) {
-        return client.startStream(this, consumer);
+        return client.startStream(client, getRpcRequest(), consumer, getOptions());
     }
 
     @Override
@@ -150,7 +151,7 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
             }
         };
         CompletableFuture<RpcClient> clientFuture = clientPool.peekClient(clientReleaseFuture);
-        return clientFuture.thenApply(client -> client.startStream(this, wrappedConsumer));
+        return clientFuture.thenApply(client -> client.startStream(client, getRpcRequest(), wrappedConsumer, getOptions()));
     }
 
     protected abstract RpcClientResponseHandler createHandler(CompletableFuture<ResponseType> result);

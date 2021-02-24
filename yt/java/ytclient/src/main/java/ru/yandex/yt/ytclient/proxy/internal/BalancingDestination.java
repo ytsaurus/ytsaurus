@@ -10,11 +10,11 @@ import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransactionOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcRequest;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
@@ -69,12 +69,15 @@ public class BalancingDestination {
             public void unref() { }
 
             @Override
-            public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
+            public RpcClientRequestControl send(
+                    RpcClient sender, RpcRequest<?> request,
+                    RpcClientResponseHandler handler, RpcOptions options)
+            {
                 return null;
             }
 
             @Override
-            public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
+            public RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
                 return null;
             }
 

@@ -25,19 +25,13 @@ public interface RpcClient extends AutoCloseable {
      * <p>
      * Сериализация запроса происходит в текущем потоке
      */
-    RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler);
+    RpcClientRequestControl send(
+            RpcClient sender,
+            RpcRequest<?> request,
+            RpcClientResponseHandler handler,
+            RpcOptions options);
 
-    default
-    RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler)
-    {
-        return send(this, request, handler);
-    }
-
-    RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer);
-
-    default RpcClientStreamControl startStream(RpcClientRequest request, RpcStreamConsumer consumer) {
-        return startStream(this, request, consumer);
-    }
+    RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options);
 
     /**
      * Возвращает клиент с аутентификацией запросов по токену

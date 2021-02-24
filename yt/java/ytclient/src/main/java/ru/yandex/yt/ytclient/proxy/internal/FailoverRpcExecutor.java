@@ -13,14 +13,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientPool;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcFailoverPolicy;
+import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcRequest;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolder;
 
 public class FailoverRpcExecutor {
@@ -33,9 +35,10 @@ public class FailoverRpcExecutor {
     private final long failoverTimeout;
     private final long globalDeadline;
 
-    private final RpcClientRequest request;
+    private final RpcRequest request;
     private final GUID requestId;
     private final RpcClientResponseHandler baseHandler;
+    private final RpcOptions options;
 
     private final CompletableFuture<Result> result = new CompletableFuture<>();
     private final int attemptCount;
@@ -45,32 +48,41 @@ public class FailoverRpcExecutor {
     static public RpcClientRequestControl execute(
             ScheduledExecutorService executorService,
             RpcClientPool clientPool,
-            RpcClientRequest request,
+            RpcRequest request,
             RpcClientResponseHandler handler,
+            RpcOptions options,
             int attemptCount)
     {
-        return new FailoverRpcExecutor(executorService, clientPool, request, handler, attemptCount)
+        return new FailoverRpcExecutor(
+                executorService,
+                clientPool,
+                request,
+                handler,
+                options,
+                attemptCount)
                 .execute();
     }
 
     private FailoverRpcExecutor(
             ScheduledExecutorService executorService,
             RpcClientPool clientPool,
-            RpcClientRequest request,
+            RpcRequest<?> request,
             RpcClientResponseHandler handler,
+            RpcOptions options,
             int attemptCount)
     {
         this.serializedExecutorService = new ScheduledSerializedExecutorService(executorService);
         this.clientPool = clientPool;
-        this.metricsHolder = request.getOptions().getResponseMetricsHolder();
-        this.failoverPolicy = request.getOptions().getFailoverPolicy();
-        this.failoverTimeout = request.getOptions().getFailoverTimeout().toMillis();
-        this.globalDeadline = System.currentTimeMillis() + request.getOptions().getGlobalTimeout().toMillis();
+        this.metricsHolder = options.getResponseMetricsHolder();
+        this.failoverPolicy = options.getFailoverPolicy();
+        this.failoverTimeout = options.getFailoverTimeout().toMillis();
+        this.globalDeadline = System.currentTimeMillis() + options.getGlobalTimeout().toMillis();
         this.attemptCount = attemptCount;
 
         this.request = request;
-        this.requestId = request.getRequestId();
+        this.requestId = RpcRequest.getRequestId(request.header);
         this.baseHandler = handler;
+        this.options = options;
 
         this.mutableState = new MutableState();
     }
@@ -199,8 +211,12 @@ public class FailoverRpcExecutor {
             metricsHolder.inflightInc();
             metricsHolder.totalInc();
 
-            request.header().setTimeout((globalDeadline - now) * 1000); // in microseconds
-            cancellation.add(client.send(request, handler));
+            {
+                TRequestHeader.Builder requestHeader = request.header.toBuilder();
+                requestHeader.setTimeout((globalDeadline - now) * 1000); // in microseconds
+                RpcRequest<?> copy = new RpcRequest(requestHeader.build(), request.body, request.attachments);
+                cancellation.add(client.send(client, copy, handler, options));
+            }
 
             // schedule next step
             ScheduledFuture<?> scheduled = serializedExecutorService.schedule(

@@ -11,12 +11,12 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.TError;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientTestStubs;
 import ru.yandex.yt.ytclient.rpc.RpcError;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcRequest;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -58,7 +58,7 @@ public class DataCenterTest {
         RpcClientFactory factory = new RpcClientTestStubs.RpcClientFactoryStub();
         RpcClientFactory failFactory = new RpcClientFactoryStub((name) -> new RpcClientTestStubs.RpcClientStub(name) {
             @Override
-            public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
+            public RpcClientRequestControl send(RpcClient sender, RpcRequest<?> request, RpcClientResponseHandler handler, RpcOptions options) {
                 handler.onError(new RuntimeException("Rpc fail"));
                 return null;
             }
@@ -99,7 +99,12 @@ public class DataCenterTest {
         RpcClientFactory factory = new RpcClientTestStubs.RpcClientFactoryStub();
         RpcClientFactory failFactory = new RpcClientFactoryStub((name) -> new RpcClientTestStubs.RpcClientStub(name) {
             @Override
-            public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
+            public RpcClientRequestControl send(
+                    RpcClient sender,
+                    RpcRequest<?> request,
+                    RpcClientResponseHandler handler,
+                    RpcOptions options)
+            {
                 TError error = TError.newBuilder().setCode(1234).build();
                 handler.onError(new RpcError(error));
                 return null;
@@ -134,16 +139,13 @@ public class DataCenterTest {
         Random rnd = new Random(0);
         List<RpcClient> res;
 
-        Thread discovery = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(2000);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                dc.setProxies(Cf.set(hp(1), hp(2)), factory, rnd);
+        Thread discovery = new Thread(() -> {
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
+            dc.setProxies(Cf.set(hp(1), hp(2)), factory, rnd);
         });
         discovery.start();
 

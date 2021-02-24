@@ -20,22 +20,21 @@ import org.junit.Test;
 import ru.yandex.inside.yt.kosher.impl.common.YtException;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
+import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientPool;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcFailoverPolicy;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcRequest;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.fail;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static ru.yandex.yt.testlib.FutureUtils.getError;
 import static ru.yandex.yt.testlib.Matchers.isCausedBy;
 
@@ -174,7 +173,6 @@ public class FailoverRpcExecutorTest {
     }
 
     private RpcClient createClient(Consumer<RpcClientResponseHandler> handlerConsumer) {
-        RpcClientRequestControl control = mock(RpcClientRequestControl.class);
         return new RpcClient() {
             @Override
             public void ref() {
@@ -189,14 +187,23 @@ public class FailoverRpcExecutorTest {
             }
 
             @Override
-            public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request,
-                                                RpcClientResponseHandler handler) {
+            public RpcClientRequestControl send(
+                    RpcClient sender,
+                    RpcRequest<?> request,
+                    RpcClientResponseHandler handler,
+                    RpcOptions options)
+            {
                 handlerConsumer.accept(handler);
-                return control;
+                return () -> false;
             }
 
             @Override
-            public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
+            public RpcClientStreamControl startStream(
+                    RpcClient sender,
+                    RpcRequest<?> request,
+                    RpcStreamConsumer consumer,
+                    RpcOptions options)
+            {
                 return null;
             }
 
@@ -246,11 +253,16 @@ public class FailoverRpcExecutorTest {
             RpcOptions options,
             CompletableFuture<String> result,
             int clientCount,
-            int attemptCount) {
-        TRequestHeader.Builder header = TRequestHeader.newBuilder();
-        RpcClientRequest request = mock(RpcClientRequest.class);
-        when(request.getOptions()).thenReturn(options);
-        when(request.header()).thenReturn(header);
+            int attemptCount)
+    {
+        RpcRequest<?> rpcRequest;
+        {
+            TReqGetNode reqGetNode = TReqGetNode.newBuilder().setPath("/").build();
+            TRequestHeader.Builder header = TRequestHeader.newBuilder();
+            header.setService("service");
+            header.setMethod("method");
+            rpcRequest = new RpcRequest<>(header.build(), reqGetNode, List.of());
+        }
 
         RpcClientResponseHandler handler = new RpcClientResponseHandler() {
             @Override
@@ -278,8 +290,9 @@ public class FailoverRpcExecutorTest {
         return FailoverRpcExecutor.execute(
                 executorService,
                 RpcClientPool.collectionPool(clients),
-                request,
+                rpcRequest,
                 handler,
+                options,
                 attemptCount);
     }
 

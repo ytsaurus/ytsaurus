@@ -16,7 +16,7 @@ import ru.yandex.yt.rpc.TRequestHeader;
  * @param <RequestType>  Message.Builder
  * @param <ResponseType> Void или RpcClientResponse&lt;Message&gt;
  */
-public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder, ResponseType> extends RpcClientRequest {
+public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder, ResponseType> {
     /**
      * Имя пользователя по умолчанию
      */
@@ -106,4 +106,43 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
 
     RpcOptions getOptions();
 
+    /**
+     * Возвращает мутабельный заголовок запроса, который можно менять перед отправкой
+     */
+    TRequestHeader.Builder header();
+
+    RpcRequest<?> getRpcRequest();
+
+    /**
+     * Возвращает id запроса
+     */
+    default GUID getRequestId() {
+        return RpcUtil.fromProto(header().getRequestIdOrBuilder());
+    }
+
+    /**
+     * Имя сервиса к которому будет делаться запрос
+     */
+    default String getService() {
+        return header().getService();
+    }
+
+    /**
+     * Имя метода к которому будет делаться запрос
+     */
+    default String getMethod() {
+        return header().getMethod();
+    }
+
+    /**
+     * Возвращает timeout, в течение которого должен быть получен ответ на запрос
+     */
+    default Duration getTimeout() {
+        TRequestHeader.Builder header = header();
+        if (header.hasTimeout()) {
+            return RpcUtil.durationFromMicros(header.getTimeout());
+        } else {
+            return null;
+        }
+    }
 }
