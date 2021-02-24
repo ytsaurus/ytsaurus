@@ -740,6 +740,7 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
 
 
 class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
+    NUM_TEST_PARTITIONS = 6
     NUM_SECONDARY_MASTER_CELLS = 4
 
 

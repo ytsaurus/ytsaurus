@@ -1610,6 +1610,7 @@ class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
 
 
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
+    NUM_TEST_PARTITIONS = 15
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("babenko")
