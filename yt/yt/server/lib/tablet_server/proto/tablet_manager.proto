@@ -5,7 +5,6 @@ import "yt/core/misc/proto/error.proto";
 import "yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 import "yt/server/lib/tablet_node/proto/tablet_manager.proto";
-import "yt/server/lib/security_server/proto/security_manager.proto";
 import "yt/client/chunk_client/proto/data_statistics.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
