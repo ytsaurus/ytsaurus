@@ -774,7 +774,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
 
 class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
-    NUM_TEST_PARTITIONS = 12
+    NUM_TEST_PARTITIONS = 16
 
     @authors("babenko")
     def test_force_unmount_on_remove(self):
@@ -2400,7 +2400,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         # 5 bytes per second.
         set("//tmp/t/@throttlers", {"select": {"limit": 5}})
-        remount_table("//tmp/t")
+        # With remount throttler will be set asynchronously.
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         start_time = time.time()
         for i in range(5):
             assert select_rows("key, value from [//tmp/t] where key = {}".format(i)) == [{"key": i, "value": str(i)}]
