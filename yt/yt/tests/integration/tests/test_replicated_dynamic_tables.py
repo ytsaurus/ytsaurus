@@ -397,8 +397,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         assert sorted(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp1)) \
                == sorted([replica_id1, replica_id2])
-        assert get_in_sync_replicas("//tmp/t", None, timestamp=timestamp1) \
-               == []
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1)
+                     == [replica_id1])
+        assert get_in_sync_replicas("//tmp/t", None, timestamp=timestamp1) == [replica_id1]
 
         insert_rows("//tmp/t", rows, require_sync_replica=False)
 
