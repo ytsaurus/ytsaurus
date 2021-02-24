@@ -8,6 +8,8 @@
 
 #include <yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/client/table_client/row_buffer.h>
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
@@ -30,6 +32,7 @@ using namespace NControllerAgent;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NTableClient;
 
 using namespace ::testing;
@@ -79,7 +82,7 @@ protected:
         i64 rowCount = 1000)
     {
         auto inputChunk = New<TInputChunk>();
-        inputChunk->ChunkId() = TChunkId::Create();
+        inputChunk->ChunkId() = MakeRandomId(EObjectType::Chunk, /* cellTag */ 0x42);
         inputChunk->SetCompressedDataSize(size);
         inputChunk->SetTotalUncompressedDataSize(size);
         inputChunk->SetTotalDataWeight(size);
