@@ -115,22 +115,13 @@ public:
         return GetMasterChannelOrThrow(kind, CellTagFromId(cellId));
     }
 
-    TCellTagList GetMasterCellTagsWithRole(EMasterCellRoles role) const
+    TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) const
     {
-        TCellTagList result;
-
-        {
-            auto guard = ReaderGuard(SpinLock_);
-            auto range = RoleCellsMap_.equal_range(role);
-            for (auto it = range.first; it != range.second; ++it) {
-                result.emplace_back(it->second);
-            }
-        }
-
-        return result;
+        auto guard = ReaderGuard(SpinLock_);
+        return RoleCells_[role];
     }
 
-    TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRoles role)
+    TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role)
     {
         auto candidateCellTags = GetMasterCellTagsWithRole(role);
         if (candidateCellTags.empty()) {
@@ -152,8 +143,7 @@ public:
     {
         THashMap<TCellTag, EMasterCellRoles> cellRoles;
         cellRoles.reserve(protoDirectory.items_size());
-        THashMultiMap<EMasterCellRoles, TCellTag> roleCells;
-        roleCells.reserve(protoDirectory.items_size());
+        TEnumIndexedVector<EMasterCellRole, TCellTagList> roleCells;
         THashMap<TCellTag, std::vector<TString>> cellAddresses;
         cellAddresses.reserve(protoDirectory.items_size());
         TCellTagList secondaryCellTags;
@@ -169,10 +159,9 @@ public:
 
             auto roles = EMasterCellRoles::None;
             for (auto j = 0; j < item.roles_size(); ++j) {
-                auto role = EMasterCellRoles(item.roles(j));
-                Y_ASSERT(role != EMasterCellRoles::None);
-                roles = roles | role;
-                roleCells.emplace(role, cellTag);
+                auto role = EMasterCellRole(item.roles(j));
+                roles = roles | EMasterCellRoles(role);
+                roleCells[role].push_back(cellTag);
             }
 
             YT_VERIFY(cellRoles.emplace(cellTag, roles).second);
@@ -200,10 +189,15 @@ public:
                 PrimaryMasterCellTag_,
                 secondaryCellTags);
 
-            const auto primaryMasterCellRole = cellRoles[PrimaryMasterCellTag_];
+            const auto primaryMasterCellRoles = cellRoles[PrimaryMasterCellTag_];
             cellRoles.clear();
-            cellRoles.emplace(PrimaryMasterCellTag_, primaryMasterCellRole);
-            roleCells.clear();
+            cellRoles.emplace(PrimaryMasterCellTag_, primaryMasterCellRoles);
+            for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
+                roleCells[role].clear();
+                if (Any(primaryMasterCellRoles & EMasterCellRoles(role))) {
+                    roleCells[role].push_back(PrimaryMasterCellTag_);
+                }
+            }
         } else {
             YT_LOG_WARNING_UNLESS(
                 SecondaryMasterCellTags_ == secondaryCellTags,
@@ -243,7 +237,7 @@ public:
         {
             auto guard = WriterGuard(SpinLock_);
             CellRoleMap_ = std::move(cellRoles);
-            RoleCellsMap_ = std::move(roleCells);
+            RoleCells_ = std::move(roleCells);
         }
     }
 
@@ -253,21 +247,21 @@ public:
             auto guard = WriterGuard(SpinLock_);
 
             CellRoleMap_.clear();
-            RoleCellsMap_.clear();
-            auto addRole = [&] (auto cellTag, auto role) {
-                 CellRoleMap_[cellTag] |= role;
-                 RoleCellsMap_.emplace(role, cellTag);
+            RoleCells_ = {};
+            auto addRole = [&] (TCellTag cellTag, EMasterCellRole role) {
+                CellRoleMap_[cellTag] |= EMasterCellRoles(role);
+                RoleCells_[role].push_back(cellTag);
             };
 
-            addRole(PrimaryMasterCellTag_, EMasterCellRoles::TransactionCoordinator);
-            addRole(PrimaryMasterCellTag_, EMasterCellRoles::CypressNodeHost);
+            addRole(PrimaryMasterCellTag_, EMasterCellRole::TransactionCoordinator);
+            addRole(PrimaryMasterCellTag_, EMasterCellRole::CypressNodeHost);
 
             for (auto cellTag : SecondaryMasterCellTags_) {
-                addRole(cellTag, EMasterCellRoles::ChunkHost);
+                addRole(cellTag, EMasterCellRole::ChunkHost);
             }
 
             if (SecondaryMasterCellTags_.empty()) {
-                addRole(PrimaryMasterCellTag_, EMasterCellRoles::ChunkHost);
+                addRole(PrimaryMasterCellTag_, EMasterCellRole::ChunkHost);
             }
         }
 
@@ -289,8 +283,7 @@ private:
 
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellTag, EMasterCellRoles> CellRoleMap_;
-    // The keys are always single roles (i.e. each key is a role set consisting of exactly on member).
-    THashMultiMap<EMasterCellRoles, TCellTag> RoleCellsMap_;
+    TEnumIndexedVector<EMasterCellRole, TCellTagList> RoleCells_;
     TRandomGenerator RandomGenerator_;
 
     std::vector<IServicePtr> CachingObjectServices_;
@@ -461,12 +454,12 @@ IChannelPtr TCellDirectory::GetMasterChannelOrThrow(EMasterChannelKind kind, TCe
     return Impl_->GetMasterChannelOrThrow(kind, cellId);
 }
 
-TCellTagList TCellDirectory::GetMasterCellTagsWithRole(EMasterCellRoles role) const
+TCellTagList TCellDirectory::GetMasterCellTagsWithRole(EMasterCellRole role) const
 {
     return Impl_->GetMasterCellTagsWithRole(role);
 }
 
-TCellId TCellDirectory::GetRandomMasterCellWithRoleOrThrow(EMasterCellRoles role) const
+TCellId TCellDirectory::GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) const
 {
     return Impl_->GetRandomMasterCellWithRoleOrThrow(role);
 }

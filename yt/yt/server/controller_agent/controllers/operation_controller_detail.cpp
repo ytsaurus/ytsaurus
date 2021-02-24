@@ -1397,7 +1397,7 @@ void TOperationControllerBase::PickIntermediateDataCells()
     IntermediateOutputCellTagList = OutputClient
         ->GetNativeConnection()
         ->GetMasterCellDirectory()
-        ->GetMasterCellTagsWithRole(NCellMasterClient::EMasterCellRoles::ChunkHost);
+        ->GetMasterCellTagsWithRole(NCellMasterClient::EMasterCellRole::ChunkHost);
     if (IntermediateOutputCellTagList.empty()) {
         THROW_ERROR_EXCEPTION("No master cells with chunk host role found");
     }

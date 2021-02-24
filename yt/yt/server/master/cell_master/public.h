@@ -96,6 +96,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (RecursiveResourceUsageCache)
 );
 
+using NCellMasterClient::EMasterCellRole;
 using NCellMasterClient::EMasterCellRoles;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -648,7 +648,7 @@ private:
 
         if (type == ETransactionType::Master) {
             if (CoordinatorMasterCellTag_ == InvalidCellTag) {
-                CoordinatorMasterCellId_ = connection->GetMasterCellDirectory()->GetRandomMasterCellWithRoleOrThrow(EMasterCellRoles::TransactionCoordinator);
+                CoordinatorMasterCellId_ = connection->GetMasterCellDirectory()->GetRandomMasterCellWithRoleOrThrow(EMasterCellRole::TransactionCoordinator);
                 CoordinatorMasterCellTag_ = CellTagFromId(CoordinatorMasterCellId_);
             } else {
                 CoordinatorMasterCellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CoordinatorMasterCellTag_);

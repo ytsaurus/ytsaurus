@@ -250,15 +250,19 @@ void TChunkPlacement::InsertToLoadFactorMaps(TNode* node)
 
     auto* dataCenter = node->GetDataCenter();
 
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto chunkHostMasterCellCount = multicellManager->GetRoleMasterCellCount(EMasterCellRole::ChunkHost);
+
     // Iterate through IOWeights because IsValidBalancingTargetToInsert check if IOWeights contains medium
     for (const auto& [mediumIndex, _] : node->IOWeights()) {
-        auto* medium = Bootstrap_->GetChunkManager()->FindMediumByIndex(mediumIndex);
+        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
 
         if (!IsValidWriteTargetToInsert(medium, node)) {
             continue;
         }
 
-        auto loadFactor = node->GetLoadFactor(mediumIndex);
+        auto loadFactor = node->GetLoadFactor(mediumIndex, chunkHostMasterCellCount);
         if (!loadFactor) {
             continue;
         }

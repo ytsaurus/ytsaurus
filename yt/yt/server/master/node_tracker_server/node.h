@@ -288,7 +288,7 @@ public:
     //! Returns null if there's no storage of specified medium on this node.
     std::optional<double> GetFillFactor(int mediumIndex) const;
     //! Returns null if there's no storage of specified medium left on this node.
-    std::optional<double> GetLoadFactor(int mediumIndex) const;
+    std::optional<double> GetLoadFactor(int mediumIndex, int chunkHostMasterCellCount) const;
 
     bool IsWriteEnabled(int mediumIndex) const;
 
@@ -332,8 +332,7 @@ private:
     ENodeState* LocalStatePtr_ = nullptr;
     ENodeState AggregatedState_ = ENodeState::Unknown;
 
-
-    int GetHintedSessionCount(int mediumIndex) const;
+    int GetHintedSessionCount(int mediumIndex, int chunkHostMasterCellCount) const;
 
     void ComputeAggregatedState();
     void ComputeDefaultAddress();
