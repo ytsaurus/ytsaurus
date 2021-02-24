@@ -52,9 +52,9 @@ public:
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellId cellId);
 
-    NObjectClient::TCellTagList GetMasterCellTagsWithRole(EMasterCellRoles role) const;
+    NObjectClient::TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) const;
 
-    NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRoles role) const;
+    NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) const;
 
 private:
     class TImpl;

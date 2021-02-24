@@ -254,14 +254,22 @@ public:
         return it == MasterCellRolesMap_.end() ? EMasterCellRoles::None : it->second;
     }
 
-    TCellTagList GetRoleMasterCells(EMasterCellRoles cellRole)
+    TCellTagList GetRoleMasterCells(EMasterCellRole cellRole)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(MasterCellRolesLock_);
 
-        auto it = RoleMasterCellsMap_.find(cellRole);
-        return it == RoleMasterCellsMap_.end() ? EmptyCellTagList : it->second;
+        return RoleMasterCells_[cellRole];
+    }
+
+    int GetRoleMasterCellCount(EMasterCellRole cellRole)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        // NB: no locking here - just accessing atomics.
+
+        return RoleMasterCellCounts_[cellRole].load();
     }
 
     TString GetMasterCellName(NObjectClient::TCellTag cellTag)
@@ -487,7 +495,8 @@ private:
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MasterCellRolesLock_);
     THashMap<TCellTag, EMasterCellRoles> MasterCellRolesMap_;
-    THashMap<EMasterCellRoles, TCellTagList> RoleMasterCellsMap_;
+    TEnumIndexedVector<EMasterCellRole, TCellTagList> RoleMasterCells_;
+    TEnumIndexedVector<EMasterCellRole, std::atomic<int>> RoleMasterCellCounts_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MasterCellNamesLock_);
     THashMap<TCellTag, TString> MasterCellNameMap_;
@@ -1049,15 +1058,17 @@ private:
         auto guard = WriterGuard(MasterCellRolesLock_);
 
         MasterCellRolesMap_.clear();
-        RoleMasterCellsMap_.clear();
+        RoleMasterCells_ = {};
+        // NB: RoleMasterCellCounts_ is not accessed under a lock and is probably
+        // best updated gradually, without intermediate resetting to zero.
         auto populateCellRoles = [&] (TCellTag cellTag) {
             auto roles = ComputeMasterCellRolesFromConfig(cellTag);
 
             MasterCellRolesMap_[cellTag] = roles;
 
-            for (auto role : TEnumTraits<EMasterCellRoles>::GetDomainValues()) {
-                if (Any(roles & role)) {
-                    RoleMasterCellsMap_[role].push_back(cellTag);
+            for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
+                if (Any(roles & EMasterCellRoles(role))) {
+                    RoleMasterCells_[role].push_back(cellTag);
                 }
             }
         };
@@ -1067,26 +1078,29 @@ private:
             populateCellRoles(cellTag);
         }
 
-        auto ensureCellRoleConfigured = [&] (EMasterCellRoles role) {
-            if (RoleMasterCellsMap_.find(role) != RoleMasterCellsMap_.end()) {
+        auto ensureCellRoleConfigured = [&] (EMasterCellRole role) {
+            auto& roleCellTags = RoleMasterCells_[role];
+
+            if (!roleCellTags.empty()) {
                 return;
             }
 
-            YT_VERIFY(RoleMasterCellsMap_.emplace(role, TCellTagList(1, GetPrimaryCellTag())).second);
+            roleCellTags.push_back(GetPrimaryCellTag());
 
             auto& primaryCellRoles = MasterCellRolesMap_[GetPrimaryCellTag()];
-            YT_VERIFY(None(primaryCellRoles & role));
-            primaryCellRoles = primaryCellRoles | role;
+            YT_VERIFY(None(primaryCellRoles & EMasterCellRoles(role)));
+            primaryCellRoles = primaryCellRoles | EMasterCellRoles(role);
         };
 
-        ensureCellRoleConfigured(EMasterCellRoles::CypressNodeHost);
-        ensureCellRoleConfigured(EMasterCellRoles::TransactionCoordinator);
+        ensureCellRoleConfigured(EMasterCellRole::CypressNodeHost);
+        ensureCellRoleConfigured(EMasterCellRole::TransactionCoordinator);
 
-        for (auto role : TEnumTraits<EMasterCellRoles>::GetDomainValues()) {
-            auto it = RoleMasterCellsMap_.find(role);
-            if (it != RoleMasterCellsMap_.end()) {
-                SortUnique(it->second);
-            }
+        for (auto& roleCellTags : RoleMasterCells_) {
+            SortUnique(roleCellTags);
+        }
+
+        for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
+            RoleMasterCellCounts_[role] = static_cast<int>(RoleMasterCells_[role].size());
         }
     }
 
@@ -1248,9 +1262,14 @@ EMasterCellRoles TMulticellManager::GetMasterCellRoles(TCellTag cellTag)
     return Impl_->GetMasterCellRoles(cellTag);
 }
 
-TCellTagList TMulticellManager::GetRoleMasterCells(EMasterCellRoles cellRole)
+TCellTagList TMulticellManager::GetRoleMasterCells(EMasterCellRole cellRole)
 {
     return Impl_->GetRoleMasterCells(cellRole);
+}
+
+int TMulticellManager::GetRoleMasterCellCount(EMasterCellRole cellRole)
+{
+    return Impl_->GetRoleMasterCellCount(cellRole);
 }
 
 TString TMulticellManager::GetMasterCellName(NObjectClient::TCellTag cellTag)

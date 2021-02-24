@@ -108,7 +108,7 @@ TCellTag PickChunkHostingCell(
     YT_LOG_DEBUG("Master cell directory synchronized successfully");
 
     const auto& cellDirectory = connection->GetMasterCellDirectory();
-    auto cellId = cellDirectory->GetRandomMasterCellWithRoleOrThrow(NCellMasterClient::EMasterCellRoles::ChunkHost);
+    auto cellId = cellDirectory->GetRandomMasterCellWithRoleOrThrow(NCellMasterClient::EMasterCellRole::ChunkHost);
     return CellTagFromId(cellId);
 }
 

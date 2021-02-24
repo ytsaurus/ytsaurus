@@ -614,12 +614,15 @@ void TNode::AddSessionHint(int mediumIndex, ESessionType sessionType)
     }
 }
 
-int TNode::GetHintedSessionCount(int mediumIndex) const
+int TNode::GetHintedSessionCount(int mediumIndex, int chunkHostMasterCellCount) const
 {
+    // Individual chunk host cells are unaware of each other's hinted sessions
+    // scheduled to the same node. Take that into account to avoid bursts.
     return SessionCount_.lookup(mediumIndex).value_or(0) +
-        HintedUserSessionCount_.lookup(mediumIndex) +
-        HintedReplicationSessionCount_.lookup(mediumIndex) +
-        HintedRepairSessionCount_.lookup(mediumIndex);
+        chunkHostMasterCellCount * (
+            HintedUserSessionCount_.lookup(mediumIndex) +
+            HintedReplicationSessionCount_.lookup(mediumIndex) +
+            HintedRepairSessionCount_.lookup(mediumIndex));
 }
 
 int TNode::GetSessionCount(ESessionType sessionType) const
@@ -749,11 +752,12 @@ std::optional<double> TNode::GetFillFactor(int mediumIndex) const
     return FillFactors_.lookup(mediumIndex);
 }
 
-std::optional<double> TNode::GetLoadFactor(int mediumIndex) const
+std::optional<double> TNode::GetLoadFactor(int mediumIndex, int chunkHostMasterCellCount) const
 {
     // NB: Avoid division by zero.
     return SessionCount_.lookup(mediumIndex)
-        ? std::make_optional(static_cast<double>(GetHintedSessionCount(mediumIndex)) /
+        ? std::make_optional(
+            static_cast<double>(GetHintedSessionCount(mediumIndex, chunkHostMasterCellCount)) /
             std::max(IOWeights_.lookup(mediumIndex), 0.000000001))
         : std::nullopt;
 }

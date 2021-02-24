@@ -193,7 +193,7 @@ bool TAccount::IsChunkHostMasterMemoryLimitViolated(const TMulticellManagerPtr& 
 
 i64 TAccount::GetChunkHostMasterMemoryUsage(const TMulticellManagerPtr& multicellManager) const
 {
-    auto cellTags = multicellManager->GetRoleMasterCells(EMasterCellRoles::ChunkHost);
+    auto cellTags = multicellManager->GetRoleMasterCells(EMasterCellRole::ChunkHost);
     i64 totalRoleMasterMemory = 0;
     for (auto cellTag : cellTags) {
         auto roleMulticellStatisticsIt = MulticellStatistics_.find(cellTag);
@@ -204,7 +204,7 @@ i64 TAccount::GetChunkHostMasterMemoryUsage(const TMulticellManagerPtr& multicel
 
     return totalRoleMasterMemory;
 }
-    
+
 TAccountStatistics* TAccount::GetCellStatistics(NObjectClient::TCellTag cellTag)
 {
     return &GetOrCrash(MulticellStatistics_, cellTag);

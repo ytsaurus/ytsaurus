@@ -155,7 +155,7 @@ TCellTagList TTransactionReplicationSessionBase::GetCellTagsToSyncWithBeforeInvo
 {
     // TODO(shakurov): support tx coordinator decommissioning.
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto transactionCoordinatorCells = multicellManager->GetRoleMasterCells(EMasterCellRoles::TransactionCoordinator);
+    auto transactionCoordinatorCells = multicellManager->GetRoleMasterCells(EMasterCellRole::TransactionCoordinator);
     YT_VERIFY(std::is_sorted(transactionCoordinatorCells.begin(), transactionCoordinatorCells.end()));
 
     TCellTagList result;

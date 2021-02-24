@@ -122,7 +122,13 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    NObjectClient::TCellTagList GetRoleMasterCells(EMasterCellRoles cellRole);
+    NObjectClient::TCellTagList GetRoleMasterCells(EMasterCellRole cellRole);
+
+    //! Returns the number of cells configured for a given role.
+    /*!
+     *  \note Thread affinity: any
+     */
+    int GetRoleMasterCellCount(EMasterCellRole cellRole);
 
     //! Returns master cell name (cell tag is default cell name).
     //! Decimal representation of cell tag is the default.
@@ -150,7 +156,7 @@ public:
     //! Picks a random (but deterministically chosen) secondary master cell to
     //! host an external chunk-owning node.
     /*!
-     *  Only cells with EMasterCellRoles::ChunkHost are considered.
+     *  Only cells with EMasterCellRole::ChunkHost are considered.
      *  Cells with less-than-average number of chunks are typically preferred.
      *  The exact amount of skewness is controlled by #bias argument, 0 indicating no preference,
      *  and 1.0 indicating that cells with low number of chunks are picked twice as more often as those
