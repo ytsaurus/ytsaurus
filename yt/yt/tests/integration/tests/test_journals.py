@@ -360,6 +360,7 @@ class TestJournals(YTEnvSetup):
             pytest.skip("Chunk preallocation is not available without 20.3+ masters")
 
         set("//sys/@config/chunk_manager/enable_chunk_sealer", seal_mode=="master-side", recursive=True)
+        set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
 
         create("journal", "//tmp/j")
 
@@ -628,6 +629,8 @@ class TestErasureJournals(TestJournals):
     def test_repair_overlayed_chunk(self):
         if self.Env.get_component_version("ytserver-master").abi <= (20, 2):
             pytest.skip("Chunk preallocation is not available without 20.3+ masters")
+
+        set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
 
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_reed_solomon_3_3"])
 
