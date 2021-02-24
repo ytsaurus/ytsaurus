@@ -21,7 +21,7 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite> extends RequestBuilderBase<RequestType, RpcClientResponse<ResponseType>> {
     private final Parser<ResponseType> parser;
 
-    RequestWithResponseBuilder(
+    public RequestWithResponseBuilder(
             TRequestHeader.Builder header, RequestType body,
             Parser<ResponseType> parser,
             RpcOptions options) {
