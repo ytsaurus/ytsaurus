@@ -23,7 +23,6 @@ import io.netty.buffer.Unpooled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.bolts.collection.Option;
 import ru.yandex.bolts.collection.Tuple2;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
@@ -116,7 +115,7 @@ abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer 
                             responseParser(),
                             attachments.get(0),
                             new ArrayList<>(attachments.subList(1, attachments.size())), sender,
-                            Option.of(header)));
+                            header));
         }
     }
 

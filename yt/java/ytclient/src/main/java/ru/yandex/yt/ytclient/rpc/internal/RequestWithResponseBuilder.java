@@ -8,7 +8,6 @@ import java.util.concurrent.CompletableFuture;
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
 
-import ru.yandex.bolts.collection.Option;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
@@ -44,7 +43,7 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
                                     attachments.get(0),
                                     new ArrayList<>(attachments.subList(1, attachments.size())),
                                     sender,
-                                    Option.of(header)));
+                                    header));
                 }
             }
 
