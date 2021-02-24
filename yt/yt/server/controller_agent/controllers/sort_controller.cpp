@@ -2375,16 +2375,12 @@ protected:
         if (!SortStartThresholdReached) {
             if (SimpleSort) {
                 SortStartThresholdReached = true;
-            } else if (IsSamplingEnabled()) {
+            } else if (IsSamplingEnabled() && PartitionTreeDepth == 1) {
                 if (GetRootPartitionTask()->IsCompleted()) {
-                    auto totalDataWeight = GetRootPartitionTask()->GetCompletedDataWeight();
-                    auto completedDataWeight = GetFinalPartitionTask()->GetCompletedDataWeight();
-                    if (completedDataWeight >= totalDataWeight * Spec->ShuffleStartThreshold) {
-                        SortStartThresholdReached = true;
-                    }
+                    SortStartThresholdReached = true;
                 }
-            } else {
-                auto totalDataWeight = GetRootPartitionTask()->GetTotalDataWeight();
+            } else if (GetFinalPartitionTask()->GetChunkPoolInput()->IsFinished()) {
+                auto totalDataWeight = GetFinalPartitionTask()->GetTotalDataWeight();
                 auto completedDataWeight = GetFinalPartitionTask()->GetCompletedDataWeight();
                 if (completedDataWeight >= totalDataWeight * Spec->ShuffleStartThreshold) {
                     SortStartThresholdReached = true;
