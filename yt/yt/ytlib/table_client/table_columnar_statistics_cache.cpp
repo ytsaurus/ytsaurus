@@ -54,7 +54,7 @@ bool operator == (const TTableKey& lhs, const TTableKey& rhs)
 
 TString ToString(const TTableKey& key)
 {
-    return ToString(key.ObjectId);
+    return Format("#%v@%v%v", key.ObjectId, key.Revision, MakeShrunkFormattableView(key.Schema->GetColumnNames(), TDefaultFormatter(), 5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,6 +107,7 @@ public:
         keys.reserve(requests.size());
         for (const auto& request : requests) {
             keys.push_back({request.ObjectId, request.ExternalCellTag, request.ChunkCount, request.Schema, request.MinRevision});
+            YT_LOG_TRACE("Getting fresh columnar statistics (Key: %v)", keys.back());
         }
 
         std::vector<TErrorOr<TNamedColumnarStatistics>> finalResults;
@@ -141,6 +142,7 @@ public:
                 missedKeys.emplace_back(std::move(keys[index]));
                 missedIndices.push_back(index);
             } else {
+                ++hitCount;
                 finalResults[index] = EntryToNamedStatistics(*syncResult);
             }
         }

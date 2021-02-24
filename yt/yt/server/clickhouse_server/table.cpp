@@ -39,6 +39,7 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
         ? attributes->Get<ui64>("external_cell_tag")
         : CellTagFromId(ObjectId);
     ChunkCount = attributes->Get<i64>("chunk_count", 0);
+    Revision = attributes->Get<i64>("revision");
     Schema = attributes->Get<TTableSchemaPtr>("schema");
     Comparator = Schema->ToComparator();
 }
@@ -160,6 +161,14 @@ std::vector<TTablePtr> FetchTables(
     }
 
     throwOnErrors();
+
+    for (const auto& table : tables) {
+        YT_LOG_TRACE(
+            "Fetched table (Path: %v, Revision: %v, Columns: %v)",
+            table->Path,
+            table->Revision,
+            MakeShrunkFormattableView(table->Schema->GetColumnNames(), TDefaultFormatter(), 5));
+    }
 
     return tables;
 }
