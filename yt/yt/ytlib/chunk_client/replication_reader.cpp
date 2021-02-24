@@ -441,7 +441,10 @@ protected:
 
     //! List of candidates addresses to try during current pass, prioritized by:
     //! locality, ban counter, random number.
-    typedef std::priority_queue<TPeerQueueEntry, std::vector<TPeerQueueEntry>, std::function<bool(const TPeerQueueEntry&, const TPeerQueueEntry&)>> TPeerQueue;
+    typedef std::priority_queue<
+        TPeerQueueEntry,
+        std::vector<TPeerQueueEntry>,
+        std::function<bool(const TPeerQueueEntry&, const TPeerQueueEntry&)>> TPeerQueue;
     TPeerQueue PeerQueue_;
 
     //! Catalogue of peers, seen on current pass.
@@ -468,13 +471,15 @@ protected:
         , ReaderOptions_(reader->Options_)
         , ChunkId_(reader->ChunkId_)
         , SessionOptions_(options)
-        , WorkloadDescriptor_(ReaderConfig_->EnableWorkloadFifoScheduling ? options.WorkloadDescriptor.SetCurrentInstant() : options.WorkloadDescriptor)
+        , WorkloadDescriptor_(ReaderConfig_->EnableWorkloadFifoScheduling
+            ? options.WorkloadDescriptor.SetCurrentInstant()
+            : options.WorkloadDescriptor)
         , NodeDirectory_(reader->NodeDirectory_)
         , Networks_(reader->Networks_)
         , Logger(ChunkClientLogger.WithTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
             TGuid::Create(),
             options.ReadSessionId,
-            reader->ChunkId_))
+            ChunkId_))
     {
         SessionInvoker_ = GetCompressionInvoker(WorkloadDescriptor_);
         if (WorkloadDescriptor_.CompressionFairShareTag) {
@@ -1028,7 +1033,7 @@ private:
         reader->UpdateLastSeenReplicas(SeedReplicas_);
         if (SeedReplicas_.empty()) {
             RegisterError(TError("Chunk is lost"));
-            if (reader->Config_->FailOnNoSeeds) {
+            if (ReaderConfig_->FailOnNoSeeds) {
                 DiscardSeeds();
                 OnSessionFailed(/* fatal */ true);
             } else {
@@ -1058,7 +1063,7 @@ private:
         auto error = reader->RunSlownessChecker(TotalBytesReceived_, StartTime_);
         if (!error.IsOK()) {
             RegisterError(TError("Read session of chunk %v is slow; may attempting repair",
-                reader->GetChunkId())
+                ChunkId_)
                 << error);
             OnSessionFailed(/* fatal */ false);
             return true;
@@ -1098,7 +1103,7 @@ private:
         req->SetHeavy(true);
         req->set_fetch_from_cache(false);
         req->set_fetch_from_disk(false);
-        ToProto(req->mutable_chunk_id(), reader->ChunkId_);
+        ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->SetAcknowledgementTimeout(std::nullopt);
@@ -1120,7 +1125,7 @@ private:
         auto req = proxy.ProbeBlockSet();
         req->DeclareClientFeature(EChunkClientFeature::AllBlocksIndex);
         req->SetHeavy(true);
-        ToProto(req->mutable_chunk_id(), reader->ChunkId_);
+        ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->SetAcknowledgementTimeout(std::nullopt);
@@ -1356,7 +1361,7 @@ private:
     {
         for (int blockIndex : BlockIndexes_) {
             if (Blocks_.find(blockIndex) == Blocks_.end()) {
-                TBlockId blockId(reader->ChunkId_, blockIndex);
+                TBlockId blockId(ChunkId_, blockIndex);
                 auto block = reader->BlockCache_->Find(blockId, EBlockType::CompressedData);
                 if (block) {
                     YT_LOG_DEBUG("Block is fetched from cache (Block: %v)", blockIndex);
@@ -1385,9 +1390,9 @@ private:
         bool addedNewPeers = false;
         for (const auto& peerDescriptor : probeResult.PeerDescriptors) {
             int blockIndex = peerDescriptor.block_index();
-            TBlockId blockId(reader->ChunkId_, blockIndex);
+            TBlockId blockId(ChunkId_, blockIndex);
             for (auto peerNodeId : peerDescriptor.node_ids()) {
-                auto maybeSuggestedDescriptor = reader->NodeDirectory_->FindDescriptor(peerNodeId);
+                auto maybeSuggestedDescriptor = NodeDirectory_->FindDescriptor(peerNodeId);
                 if (!maybeSuggestedDescriptor) {
                     YT_LOG_DEBUG("Cannot resolve peer descriptor (NodeId: %v)",
                         peerNodeId);
@@ -1469,7 +1474,10 @@ private:
 
         SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime += pickPeerTimer.GetElapsedValue();
 
-        auto channel = MakePeersChannel(peers, ReaderConfig_->BlockRpcHedgingDelay, ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging);
+        auto channel = MakePeersChannel(
+            peers,
+            ReaderConfig_->BlockRpcHedgingDelay,
+            ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging);
         if (!channel) {
             RequestBlocks();
             return;
@@ -1493,7 +1501,7 @@ private:
         req->DeclareClientFeature(EChunkClientFeature::AllBlocksIndex);
         req->SetHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-        ToProto(req->mutable_chunk_id(), reader->ChunkId_);
+        ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
@@ -1556,7 +1564,7 @@ private:
             }
 
             int blockIndex = req->block_indexes(index);
-            auto blockId = TBlockId(reader->ChunkId_, blockIndex);
+            auto blockId = TBlockId(ChunkId_, blockIndex);
 
             if (auto error = block.ValidateChecksum(); !error.IsOK()) {
                 RegisterError(
@@ -1593,14 +1601,14 @@ private:
             ReinstallPeer(respondedPeer.AddressWithNetwork.Address);
         }
 
-        YT_LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v, "
-              "InvalidBlockCount: %v)",
-              respondedPeer.AddressWithNetwork,
-              respondedPeer.Type,
-              MakeShrunkFormattableView(receivedBlockIndexes, TDefaultFormatter(), 3),
-              bytesReceived,
-              rsp->peer_descriptors_size(),
-              invalidBlockCount);
+        YT_LOG_DEBUG("Finished processing block response "
+            "(Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v, InvalidBlockCount: %v)",
+            respondedPeer.AddressWithNetwork,
+            respondedPeer.Type,
+            MakeShrunkFormattableView(receivedBlockIndexes, TDefaultFormatter(), 3),
+            bytesReceived,
+            rsp->peer_descriptors_size(),
+            invalidBlockCount);
 
         if (!IsAddressLocal(respondedPeer.AddressWithNetwork.Address) && TotalBytesReceived_ > BytesThrottled_) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
@@ -1779,7 +1787,7 @@ private:
         auto req = proxy.GetBlockRange();
         req->SetHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-        ToProto(req->mutable_chunk_id(), reader->ChunkId_);
+        ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(BlockCount_);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
@@ -1817,7 +1825,7 @@ private:
             if (auto error = block.ValidateChecksum(); !error.IsOK()) {
                 RegisterError(
                     TError("Failed to validate received block checksum")
-                        << TErrorAttribute("block_id", ToString(TBlockId(reader->ChunkId_, FirstBlockIndex_ + blocksReceived)))
+                        << TErrorAttribute("block_id", ToString(TBlockId(ChunkId_, FirstBlockIndex_ + blocksReceived)))
                         << TErrorAttribute("peer", peerAddressWithNetwork)
                         << error,
                     /* raiseAlert */ true);
@@ -1999,7 +2007,7 @@ private:
         req->SetHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         req->set_enable_throttling(true);
-        ToProto(req->mutable_chunk_id(), reader->ChunkId_);
+        ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
         if (PartitionTag_) {
             req->set_partition_tag(*PartitionTag_);
@@ -2187,7 +2195,8 @@ private:
         // Specific bounds for lookup.
         if (PassIndex_ >= ReaderConfig_->LookupRequestPassCount) {
             if (WaitedForSchemaForTooLong_) {
-                RegisterError(TError("Some data node was healthy but was waiting for schema for too long; probably other tablet node has failed"));
+                RegisterError(TError(
+                    "Some data node was healthy but was waiting for schema for too long; probably other tablet node has failed"));
             }
             if (RetryIndex_ >= ReaderConfig_->LookupRequestRetryCount) {
                 OnSessionFailed(true);
@@ -2369,7 +2378,7 @@ private:
         auto req = proxy.LookupRows();
         req->SetHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-        ToProto(req->mutable_chunk_id(), reader->ChunkId_);
+        ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
 
         ToProto(req->mutable_read_session_id(), ReadSessionId_);
