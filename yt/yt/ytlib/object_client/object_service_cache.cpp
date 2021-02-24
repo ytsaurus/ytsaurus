@@ -106,12 +106,15 @@ void TObjectServiceCacheEntry::IncrementRate()
     auto guard = Guard(Lock_);
 
     auto now = TInstant::Now();
-    if (LastUpdateTime_.load() == TInstant::Zero()) {
-        ByteRate_ = TotalSpace_;
+    auto sinceLast = (now - LastUpdateTime_).SecondsFloat();
+    auto w = Exp2(-2. * sinceLast);
+
+    if (sinceLast > 0.01) {
+        auto average = TotalSpace_ * 1. / sinceLast;
+        ByteRate_ = w * ByteRate_ + (1 - w) * average;
     } else {
-        auto sinceLast = now - LastUpdateTime_;
-        auto w = Exp2(-2. * sinceLast.SecondsFloat());
-        ByteRate_ = w * ByteRate_ + TotalSpace_;
+        constexpr auto c = 1.386; // 2 * ln2
+        ByteRate_ = w * ByteRate_ + (1 - sinceLast * c / 2) * c * TotalSpace_;
     }
     LastUpdateTime_ = now;
 }
@@ -360,7 +363,6 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry)
     auto current = entry->GetByteRate();
 
     auto topEntryByteRateThreshold = TopEntryByteRateThreshold_.load();
-
     if (previous < topEntryByteRateThreshold && current >= topEntryByteRateThreshold) {
         auto guard = WriterGuard(TopEntriesLock_);
 
