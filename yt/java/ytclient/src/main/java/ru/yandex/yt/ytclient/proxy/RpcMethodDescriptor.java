@@ -10,7 +10,6 @@ import java.util.function.Supplier;
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
 
-import ru.yandex.bolts.collection.Option;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
@@ -78,7 +77,7 @@ public class RpcMethodDescriptor<RequestBuilder extends MessageLite.Builder, Res
                                     attachments.get(0),
                                     new ArrayList<>(attachments.subList(1, attachments.size())),
                                     sender,
-                                    Option.of(header)));
+                                    header));
                 }
             }
 
