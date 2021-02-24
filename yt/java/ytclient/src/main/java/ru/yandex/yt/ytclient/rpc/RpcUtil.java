@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -27,7 +26,6 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
-import io.netty.buffer.ByteBuf;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.TGuid;
@@ -35,7 +33,6 @@ import ru.yandex.yt.TGuidOrBuilder;
 import ru.yandex.yt.TSerializedMessageEnvelope;
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
 import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.rpc.internal.Codec;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
@@ -173,12 +170,6 @@ public class RpcUtil {
         return message;
     }
 
-    public static List<ByteBuf> createResponseMessage(TResponseHeader header, MessageLite body,
-            List<byte[]> attachments)
-    {
-        throw new UnsupportedOperationException("There is no server support");
-    }
-
     /**
      * Returns a new CompletableFuture that is already completed exceptionally with the given exception.
      *
@@ -188,32 +179,6 @@ public class RpcUtil {
         CompletableFuture<T> future = new CompletableFuture<>();
         future.completeExceptionally(ex);
         return future;
-    }
-
-    /**
-     * Транслирует результат src в соответствующий результат dst
-     */
-    public static <T> void relay(CompletableFuture<T> src, CompletableFuture<? super T> dst) {
-        if (src.isDone()) {
-            // Экономим стек и транслируем результат напрямую
-            if (!dst.isDone()) {
-                try {
-                    dst.complete(src.get());
-                } catch (Throwable e) {
-                    dst.completeExceptionally(e);
-                }
-            }
-        } else {
-            src.whenComplete((result, failure) -> {
-                if (!dst.isDone()) {
-                    if (failure != null) {
-                        dst.completeExceptionally(failure);
-                    } else {
-                        dst.complete(result);
-                    }
-                }
-            });
-        }
     }
 
     /**
@@ -288,66 +253,6 @@ public class RpcUtil {
     }
 
     /**
-     * Аналогично f.thenCompose(fn), но с дополнениями:
-     * <p>
-     * - Автоматически вызывается cancel(false) на результате fn
-     * - Если cancelF == true, то автоматически вызывается cancel(false) на f
-     */
-    public static <T, U> CompletableFuture<U> compose(CompletableFuture<T> f,
-            Function<? super T, ? extends CompletionStage<U>> fn, boolean cancelF)
-    {
-        CompletableFuture<U> result = new CompletableFuture<>();
-        if (f.isDone()) {
-            // Экономим стек и вызываем функцию напрямую
-            try {
-                CompletableFuture<U> intermediate = fn.apply(f.get()).toCompletableFuture();
-                relay(intermediate, result);
-                relayCancel(result, intermediate);
-            } catch (Throwable e) {
-                result.completeExceptionally(e);
-            }
-        } else {
-            f.whenComplete((r, e) -> {
-                if (!result.isDone()) {
-                    if (e != null) {
-                        result.completeExceptionally(e);
-                    } else {
-                        try {
-                            CompletableFuture<U> intermediate = fn.apply(r).toCompletableFuture();
-                            relay(intermediate, result);
-                            relayCancel(result, intermediate);
-                        } catch (Throwable e2) {
-                            result.completeExceptionally(e2);
-                        }
-                    }
-                }
-            });
-            if (cancelF) {
-                relayCancel(result, f);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Аналогично f.thenCompose(fn), но f и результат fn отменяются в случае отмены всей операции
-     */
-    public static <T, U> CompletableFuture<U> compose(CompletableFuture<T> f,
-            Function<? super T, ? extends CompletionStage<U>> fn)
-    {
-        return compose(f, fn, true);
-    }
-
-    /**
-     * Аналогично f.thenCompose(fn), но результат fn отменяется в случае отмены всей операции
-     */
-    public static <T, U> CompletableFuture<U> composeWithInnerCancel(CompletableFuture<T> f,
-            Function<? super T, ? extends CompletionStage<U>> fn)
-    {
-        return compose(f, fn, false);
-    }
-
-    /**
      * Replacement for {@link CompletableFuture#orTimeout} that is missing in JDK 8.
      * Additionally allows to specify error message.
      */
@@ -394,15 +299,6 @@ public class RpcUtil {
         long micros = Math.multiplyExact(instant.getEpochSecond(), MICROS_PER_SECOND);
         micros = Math.addExact(micros, instant.getNano() / NANOS_PER_MICROSECOND);
         return micros;
-    }
-
-    /**
-     * Конвертирует микросекунды yt в Instant
-     */
-    public static Instant instantFromMicros(long micros) {
-        long seconds = micros / MICROS_PER_SECOND;
-        long nanos = (micros % MICROS_PER_SECOND) * NANOS_PER_MICROSECOND;
-        return Instant.ofEpochSecond(seconds, nanos);
     }
 
     public static TGuid toProto(GUID guid) {
