@@ -10,15 +10,14 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
-import ru.yandex.yt.ytclient.rpc.internal.RpcServiceClient;
 
 public class DiscoveryServiceClient {
-    private final DiscoveryService service;
     private final RpcClient client;
+    private final RpcOptions options;
 
     public DiscoveryServiceClient(RpcClient client, RpcOptions options) {
         this.client = client;
-        this.service = RpcServiceClient.create(DiscoveryService.class, options);
+        this.options = options;
     }
 
     public RpcClient getClient() {
@@ -27,7 +26,8 @@ public class DiscoveryServiceClient {
 
     public CompletableFuture<List<String>> discoverProxies(String role) {
         RpcClientRequestBuilder<TReqDiscoverProxies.Builder, RpcClientResponse<TRspDiscoverProxies>> builder =
-                service.discoverProxies();
+                ApiServiceMethodTable.discoverProxies.createRequestBuilder(options);
+
         if (role != null) {
             builder.body().setRole(role);
         }
