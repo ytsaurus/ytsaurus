@@ -87,8 +87,7 @@ static const std::vector<TString> AttributesToCache{
     "chunk_count",
     "external",
     "external_cell_tag",
-    "partitions",
-    "partitioned_by",
+    "revision",
     "boundary_keys",
     "enable_dynamic_store_read",
 };
