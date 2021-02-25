@@ -181,11 +181,10 @@ message TRspGetBlockSet
     required bool disk_throttling = 7;
     required int64 disk_queue_size = 8;
     optional TChunkReaderStatistics chunk_reader_statistics = 10;
+    repeated fixed64 block_checksums = 9;
 
     // Blocks are returned via attachments and correspond to block_indexes
     // list in the request. Some blocks may be null.
-
-    repeated fixed64 block_checksums = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,11 +206,55 @@ message TRspGetBlockRange
     required bool disk_throttling = 5;
     required int64 disk_queue_size = 6;
     optional TChunkReaderStatistics chunk_reader_statistics = 8;
+    repeated fixed64 block_checksums = 7;
 
     // Blocks are returned via attachments and correspond to a prefix of
     // the requested range.
+}
 
-    repeated fixed64 block_checksums = 7;
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetBlockFragmentSet
+{
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 1;
+
+    message TSubrequest
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+
+        message TFragment
+        {
+            required int32 block_index = 1;
+            // If offset and length are omitted then the whole block is requested.
+            optional int32 offset = 2;
+            optional int32 length = 3;
+        }
+
+        repeated TFragment fragments = 2;
+    }
+
+    repeated TSubrequest subrequests = 2;
+}
+
+message TRspGetBlockFragmentSet
+{
+    message TSubresponse
+    {
+        required bool has_complete_chunk = 1;
+        required bool disk_throttling = 2;
+        repeated TPeerDescriptor peer_descriptors = 3;
+    }
+
+    repeated TSubresponse subresponses = 1;
+
+    optional TChunkReaderStatistics chunk_reader_statistics = 2;
+    required bool net_throttling = 3;
+
+    // Block fragments are returned via attachments and correspond to the flattened list
+    // of all fragment subrequests. Some attachments can be null (if the requested chunk is missing
+    // or a node is unable to complete the request due to throttling).
+    // No checksums are validated by the node (since there could be no checksums for arbitrary block fragments).
+    // Readers are encouraged to run consistency checks on their own (e.g. embed checksums into block fragments).
 }
 
 ////////////////////////////////////////////////////////////////////////////////
