@@ -1324,10 +1324,17 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->GetSpec()->JobProxyRefCountedTrackerLogPeriod));
     schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->GetSpec()->SuspendOperationIfAccountLimitExceeded);
 
-    if (TaskHost_->GetSpec()->WaitingJobTimeout) {
-        schedulerJobSpecExt->set_waiting_job_timeout(ToProto<i64>(*TaskHost_->GetSpec()->WaitingJobTimeout));
+    std::optional<TDuration> waitingJobTimeout;
+    if (TaskHost_->GetSpec()->WaitingJobTimeout && scheduleJobSpec.has_waiting_job_timeout()) {
+        waitingJobTimeout = std::max(*TaskHost_->GetSpec()->WaitingJobTimeout, FromProto<TDuration>(scheduleJobSpec.waiting_job_timeout()));
+    } else if (TaskHost_->GetSpec()->WaitingJobTimeout) {
+        waitingJobTimeout = *TaskHost_->GetSpec()->WaitingJobTimeout;
     } else if (scheduleJobSpec.has_waiting_job_timeout()) {
-        schedulerJobSpecExt->set_waiting_job_timeout(scheduleJobSpec.waiting_job_timeout());
+        waitingJobTimeout = FromProto<TDuration>(scheduleJobSpec.waiting_job_timeout());
+    }
+
+    if (waitingJobTimeout) {
+        schedulerJobSpecExt->set_waiting_job_timeout(ToProto<i64>(*waitingJobTimeout));
     }
 
     // Adjust sizes if approximation flag is set.
