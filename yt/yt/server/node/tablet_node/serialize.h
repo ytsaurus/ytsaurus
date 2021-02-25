@@ -22,8 +22,8 @@ DEFINE_ENUM(ETabletReign,
     ((DynamicStoreRead)                   (100100)) // ifsmirnov
     ((AuthenticationIdentity)             (100101)) // babenko
     ((MountHint)                          (100102)) // ifsmirnov
-    ((RowBufferEmptyRowDeserialization)   (100103)) // max42
-    ((YT_14346_ReplicationBarrier)        (100200)) // babenko
+    ((ReplicationBarrier_YT_14346)        (100103)) // babenko
+    ((RowBufferEmptyRowDeserialization)   (100200)) // max42
 );
 
 ////////////////////////////////////////////////////////////////////////////////
