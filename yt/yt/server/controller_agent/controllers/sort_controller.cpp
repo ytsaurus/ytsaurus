@@ -2235,10 +2235,18 @@ protected:
             std::vector<IChunkPoolInputPtr> shuffleChunkPoolInputs;
             shuffleChunkPoolInputs.reserve(partitions.size());
             for (auto& partition : partitions) {
-                auto shuffleChunkPool = CreateShuffleChunkPool(
-                    partition->Children.size(),
-                    Spec->DataWeightPerShuffleJob,
-                    Spec->MaxChunkSlicePerShuffleJob);
+                IShuffleChunkPoolPtr shuffleChunkPool;
+                if (level + 1 == PartitionTreeDepth) {
+                    shuffleChunkPool = CreateShuffleChunkPool(
+                        partition->Children.size(),
+                        Spec->DataWeightPerShuffleJob,
+                        Spec->MaxChunkSlicePerShuffleJob);
+                } else {
+                    shuffleChunkPool = CreateShuffleChunkPool(
+                        partition->Children.size(),
+                        Spec->DataWeightPerIntermediatePartitionJob,
+                        Spec->MaxChunkSlicePerIntermediatePartitionJob);
+                }
                 partition->ShuffleChunkPool = shuffleChunkPool;
                 partition->ShuffleChunkPoolInput = CreateIntermediateLivePreviewAdapter(shuffleChunkPool->GetInput(), this);
                 for (int childIndex = 0; childIndex < partition->Children.size(); ++childIndex) {
@@ -2532,6 +2540,20 @@ protected:
         }
     }
 
+    bool EnableNewPartitionsHeuristic() const
+    {
+        if (Spec->UseNewPartitionsHeuristic) {
+            return true;
+        }
+
+        int salt = OperationId.Parts64[1] & 255;
+        if (salt < Spec->NewPartitionsHeuristicProbability) {
+            return true;
+        }
+
+        return false;
+    }
+
     void ProcessInputs(const TTaskPtr& inputTask, const IJobSizeConstraintsPtr& jobSizeConstraints)
     {
         TPeriodicYielder yielder(PrepareYieldPeriod);
@@ -2657,16 +2679,34 @@ protected:
             PartitionCount = DivCeil(dataWeightAfterPartition, partitionSize);
         }
 
-        PartitionCount = std::clamp(PartitionCount, 1, Options->MaxPartitionCount);
+        PartitionCount = std::clamp(PartitionCount, 1, Options->MaxNewPartitionCount);
 
         if (Spec->MaxPartitionFactor) {
             MaxPartitionFactor = *Spec->MaxPartitionFactor;
         } else {
-            MaxPartitionFactor = DivCeil(GetMaxPartitionJobBufferSize(), Options->MinUncompressedBlockSize);
+            auto maxPartitionsWithDepth = [] (i64 depth, i64 partitionFactor) {
+                i64 partitions = 1;
+                for (i64 level = 1; level <= depth; ++level) {
+                    partitions *= partitionFactor;
+                }
+
+                return partitions;
+            };
+
+            i64 partitionFactorLimit = std::min<i64>(Options->MaxPartitionFactor, DivCeil(GetMaxPartitionJobBufferSize(), Options->MinUncompressedBlockSize));
+
+            i64 depth = 1;
+            while (maxPartitionsWithDepth(depth, partitionFactorLimit) < PartitionCount) {
+                ++depth;
+            }
+
+            MaxPartitionFactor = 2;
+            while (maxPartitionsWithDepth(depth, MaxPartitionFactor) < PartitionCount) {
+                ++MaxPartitionFactor;
+            }
         }
 
         MaxPartitionFactor = std::max(MaxPartitionFactor, 2);
-        MaxPartitionFactor = std::min(MaxPartitionFactor, Options->MaxPartitionFactor);
 
         YT_LOG_DEBUG("Suggesting partition count and max partition factor (PartitionCount: %v, MaxPartitionFactor: %v)",
             PartitionCount,
@@ -3133,7 +3173,7 @@ private:
                 TotalEstimatedInputRowCount,
                 InputCompressionRatio);
 
-            if (!Spec->UseNewPartitionsHeuristic) {
+            if (!EnableNewPartitionsHeuristic()) {
                 // Finally adjust partition count wrt block size constraints.
                 PartitionCount = AdjustPartitionCountToWriterBufferSize(
                     PartitionCount,
@@ -3160,7 +3200,7 @@ private:
             partitionKeys = BuildPartitionKeysByPivotKeys();
         }
 
-        if (Spec->UseNewPartitionsHeuristic) {
+        if (EnableNewPartitionsHeuristic()) {
             SuggestPartitionCountAndMaxPartitionFactor(partitionKeys.size() + 1);
         } else {
             PartitionCount = partitionKeys.size() + 1;
@@ -3223,6 +3263,9 @@ private:
                 shuffleStreamDescriptor.TargetDescriptor = PartitionTasks[partitionTaskLevel + 1]->GetVertexDescriptor();
             }
             PartitionTasks[partitionTaskLevel] = New<TPartitionTask>(this, std::vector<TStreamDescriptor>{shuffleStreamDescriptor}, partitionTaskLevel);
+        }
+
+        for (int partitionTaskLevel = 0; partitionTaskLevel < PartitionTreeDepth; ++partitionTaskLevel) {
             RegisterTask(PartitionTasks[partitionTaskLevel]);
         }
 
@@ -3298,7 +3341,7 @@ private:
         TFuture<void> asyncSamplesResult;
         YT_PROFILE_TIMING("/operations/sort/input_processing_time") {
             // TODO(gritukan): Should we do it here?
-            if (Spec->UseNewPartitionsHeuristic) {
+            if (EnableNewPartitionsHeuristic()) {
                 SuggestPartitionCountAndMaxPartitionFactor(std::nullopt);
             } else {
                 PartitionCount = SuggestPartitionCount();
@@ -3978,7 +4021,7 @@ private:
             partitionKeys = BuildPartitionKeysByPivotKeys();
         }
 
-        if (Spec->UseNewPartitionsHeuristic) {
+        if (EnableNewPartitionsHeuristic()) {
             std::optional<int> forcedPartitionCount;
             if (usePivotKeys) {
                 forcedPartitionCount = partitionKeys.size() + 1;
@@ -4000,7 +4043,7 @@ private:
             TotalEstimatedInputRowCount,
             InputCompressionRatio);
 
-        if (!Spec->UseNewPartitionsHeuristic) {
+        if (!EnableNewPartitionsHeuristic()) {
             PartitionCount = AdjustPartitionCountToWriterBufferSize(
                 PartitionCount,
                 RootPartitionPoolJobSizeConstraints->GetJobCount(),
@@ -4083,6 +4126,9 @@ private:
             }
 
             PartitionTasks[partitionTaskLevel] = (New<TPartitionTask>(this, std::move(partitionStreamDescriptors), partitionTaskLevel));
+        }
+
+        for (int partitionTaskLevel = 0; partitionTaskLevel < PartitionTreeDepth; ++partitionTaskLevel) {
             RegisterTask(PartitionTasks[partitionTaskLevel]);
         }
 
