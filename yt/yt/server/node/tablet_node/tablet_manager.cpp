@@ -2441,7 +2441,7 @@ private:
             case ETableReplicaMode::Sync: {
                 // COMPAT(babenko)
                 auto reign = GetCurrentMutationContext()->Request().Reign;
-                if (reign < ToUnderlying(ETabletReign::YT_14346_ReplicationBarrier)) {
+                if (reign < ToUnderlying(ETabletReign::ReplicationBarrier_YT_14346)) {
                     if (currentReplicationRowIndex < totalRowCount) {
                         THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not synchronously writeable since some rows are not replicated yet",
                             replicaInfo.GetId(),
