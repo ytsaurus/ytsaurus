@@ -1865,7 +1865,14 @@ public:
         std::vector<TFutureCallbackCookie> subscriptionCookies;
         subscriptionCookies.reserve(this->Futures_.size());
         for (const auto& future : this->Futures_) {
-            subscriptionCookies.push_back(future.Subscribe(BIND(&TAnyFutureCombiner::OnFutureSet, MakeStrong(this))));
+            TFutureCallbackCookie cookie;
+            if (future.IsSet()) {
+                cookie = NullFutureCallbackCookie;
+                OnFutureSet(future.Get());
+            } else {
+                cookie = future.Subscribe(BIND(&TAnyFutureCombiner::OnFutureSet, MakeStrong(this)));
+            }
+            subscriptionCookies.push_back(cookie);
         }
         this->RegisterSubscriptionCookies(std::move(subscriptionCookies));
 
@@ -1948,7 +1955,12 @@ public:
         }
 
         for (int index = 0; index < static_cast<int>(this->Futures_.size()); ++index) {
-            this->Futures_[index].Subscribe(BIND(&TAllFutureCombiner::OnFutureSet, MakeStrong(this), index));
+            const auto& future = this->Futures_[index];
+            if (future.IsSet()) {
+                OnFutureSet(index, future.Get());
+            } else {
+                future.Subscribe(BIND(&TAllFutureCombiner::OnFutureSet, MakeStrong(this), index));
+            }
         }
 
         if (Options_.PropagateCancelationToInput) {
@@ -2039,8 +2051,16 @@ public:
         std::vector<TFutureCallbackCookie> subscriptionCookies;
         subscriptionCookies.reserve(this->Futures_.size());
         for (int index = 0; index < static_cast<int>(this->Futures_.size()); ++index) {
-            subscriptionCookies.push_back(this->Futures_[index].Subscribe(
-                BIND(&TAnyNFutureCombiner::OnFutureSet, MakeStrong(this), index)));
+            TFutureCallbackCookie cookie;
+            const auto& future = this->Futures_[index];
+            if (future.IsSet()) {
+                cookie = NullFutureCallbackCookie;
+                OnFutureSet(index, future.Get());
+            } else {
+                cookie = future.Subscribe(
+                    BIND(&TAnyNFutureCombiner::OnFutureSet, MakeStrong(this), index));
+            }
+            subscriptionCookies.push_back(cookie);
         }
         this->RegisterSubscriptionCookies(std::move(subscriptionCookies));
 
@@ -2268,8 +2288,13 @@ private:
 
     void RunCallback(int index)
     {
-        Callbacks_[index].Run().Subscribe(
-            BIND(&TBoundedConcurrencyRunner::OnResult, MakeStrong(this), index));
+        auto future = Callbacks_[index]();
+        if (future.IsSet()) {
+            OnResult(index, future.Get());
+        } else {
+            future.Subscribe(
+                BIND(&TBoundedConcurrencyRunner::OnResult, MakeStrong(this), index));
+        }
     }
 
     void OnResult(int index, const TErrorOr<T>& result)
