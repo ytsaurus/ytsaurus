@@ -268,6 +268,7 @@ b"""
 
     master_cache_service = {
         capacity = 16777216;
+        rate_limit = 100;
     };
 
     node_directory_synchronizer = {
