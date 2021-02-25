@@ -1,0 +1,13 @@
+#include "private.h"
+
+namespace NYT::NMasterCache {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger MasterCacheLogger("MasterCache");
+
+const NProfiling::TRegistry MasterCacheProfiler("/master_cache");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NMasterCache

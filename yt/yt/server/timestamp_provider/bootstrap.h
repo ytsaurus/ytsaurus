@@ -1,0 +1,23 @@
+#pragma once
+
+#include "private.h"
+
+namespace NYT::NTimestampProvider {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IBootstrap
+{
+    virtual ~IBootstrap() = default;
+
+    virtual void Initialize() = 0;
+    virtual void Run() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IBootstrap> CreateBootstrap(TTimestampProviderConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTimestampProvider

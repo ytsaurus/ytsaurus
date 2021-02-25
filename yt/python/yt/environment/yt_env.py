@@ -79,7 +79,7 @@ def _get_yt_versions(custom_paths):
     result = OrderedDict()
     binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler", "ytserver-controller-agent",
                 "ytserver-http-proxy", "ytserver-proxy", "ytserver-job-proxy", "ytserver-clock",
-                "ytserver-exec", "ytserver-tools"]
+                "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache"]
     for binary in binaries:
         binary_path = _get_yt_binary_path(binary, custom_paths=custom_paths)
         if binary_path is not None:
@@ -158,7 +158,8 @@ class YTInstance(object):
                     raise YtError("ytserver-all binary is missing at path " + ytserver_all_path)
                 makedirp(self.bin_path)
                 programs = ["master", "clock", "node", "job-proxy", "exec",
-                            "proxy", "http-proxy", "tools", "scheduler", "controller-agent"]
+                            "proxy", "http-proxy", "tools", "scheduler",
+                            "controller-agent", "timestamp-provider", "master-cache"]
                 for program in programs:
                     os.symlink(os.path.abspath(ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
                 os.environ["PATH"] = self.bin_path + ":" + os.environ["PATH"]
@@ -240,6 +241,10 @@ class YTInstance(object):
             for dir_ in clock_tmpfs_dirs:
                 makedirp(dir_)
 
+        timestamp_provider_dirs = [os.path.join(self.runtime_data_path, "timestamp_provider", str(i)) for i in xrange(self.yt_config.timestamp_provider_count)]
+        for dir_ in timestamp_provider_dirs:
+            makedirp(dir_)
+
         scheduler_dirs = [os.path.join(self.runtime_data_path, "scheduler", str(i)) for i in xrange(self.yt_config.scheduler_count)]
         for dir_ in scheduler_dirs:
             makedirp(dir_)
@@ -258,6 +263,10 @@ class YTInstance(object):
             for dir_ in node_tmpfs_dirs:
                 makedirp(dir_)
 
+        master_cache_dirs = [os.path.join(self.runtime_data_path, "master_cache", str(i)) for i in xrange(self.yt_config.master_cache_count)]
+        for dir_ in master_cache_dirs:
+            makedirp(dir_)
+
         http_proxy_dirs = [os.path.join(self.runtime_data_path, "http_proxy", str(i)) for i in xrange(self.yt_config.http_proxy_count)]
         for dir_ in http_proxy_dirs:
             makedirp(dir_)
@@ -270,27 +279,31 @@ class YTInstance(object):
                 "master_tmpfs": master_tmpfs_dirs,
                 "clock": clock_dirs,
                 "clock_tmpfs": clock_tmpfs_dirs,
+                "timestamp_provider": timestamp_provider_dirs,
                 "scheduler": scheduler_dirs,
                 "controller_agent": controller_agent_dirs,
                 "node": node_dirs,
                 "node_tmpfs": node_tmpfs_dirs,
+                "master_cache_dirs": master_cache_dirs,
                 "http_proxy": http_proxy_dirs,
                 "rpc_proxy": rpc_proxy_dirs}
 
     def _prepare_environment(self, ports_generator, modify_configs_func):
         logger.info("Preparing cluster instance as follows:")
-        logger.info("  clocks             %d", self.yt_config.clock_count)
-        logger.info("  masters            %d (%d nonvoting)", self.yt_config.master_count, self.yt_config.nonvoting_master_count)
-        logger.info("  nodes              %d", self.yt_config.node_count)
-        logger.info("  schedulers         %d", self.yt_config.scheduler_count)
-        logger.info("  controller agents  %d", self.yt_config.controller_agent_count)
+        logger.info("  clocks                %d", self.yt_config.clock_count)
+        logger.info("  masters               %d (%d nonvoting)", self.yt_config.master_count, self.yt_config.nonvoting_master_count)
+        logger.info("  timestamp providers   %d", self.yt_config.timestamp_provider_count)
+        logger.info("  nodes                 %d", self.yt_config.node_count)
+        logger.info("  master caches         %d", self.yt_config.master_cache_count)
+        logger.info("  schedulers            %d", self.yt_config.scheduler_count)
+        logger.info("  controller agents     %d", self.yt_config.controller_agent_count)
 
         if self.yt_config.secondary_cell_count > 0:
-            logger.info("  secondary cells    %d", self.yt_config.secondary_cell_count)
+            logger.info("  secondary cells       %d", self.yt_config.secondary_cell_count)
 
-        logger.info("  HTTP proxies       %d", self.yt_config.http_proxy_count)
-        logger.info("  RPC proxies        %d", self.yt_config.rpc_proxy_count)
-        logger.info("  working dir        %s", self.yt_config.path)
+        logger.info("  HTTP proxies          %d", self.yt_config.http_proxy_count)
+        logger.info("  RPC proxies           %d", self.yt_config.rpc_proxy_count)
+        logger.info("  working dir           %s", self.yt_config.path)
 
         if self.yt_config.master_count == 0:
             logger.warning("Master count is zero. Instance is not prepared.")
@@ -311,8 +324,12 @@ class YTInstance(object):
             self._prepare_masters(cluster_configuration["master"])
         if self.yt_config.clock_count > 0:
             self._prepare_clocks(cluster_configuration["clock"])
+        if self.yt_config.timestamp_provider_count > 0:
+            self._prepare_timestamp_providers(cluster_configuration["timestamp_provider"])
         if self.yt_config.node_count > 0:
             self._prepare_nodes(cluster_configuration["node"])
+        if self.yt_config.master_cache_count > 0:
+            self._prepare_master_caches(cluster_configuration["master_cache"])
         if self.yt_config.scheduler_count > 0:
             self._prepare_schedulers(cluster_configuration["scheduler"])
         if self.yt_config.controller_agent_count > 0:
@@ -360,6 +377,12 @@ class YTInstance(object):
 
             if self.yt_config.clock_count > 0:
                 self.start_clock(sync=False)
+
+            if self.yt_config.timestamp_provider_count > 0:
+                self.start_timestamp_providers(sync=False)
+
+            if self.yt_config.master_cache_count > 0:
+                self.start_master_caches(sync=False)
 
             if self.yt_config.rpc_proxy_count > 0:
                 self.start_rpc_proxy(sync=False)
@@ -432,7 +455,8 @@ class YTInstance(object):
             self.kill_service("watcher")
             killed_services.add("watcher")
 
-        for name in ["http_proxy", "node", "scheduler", "controller_agent", "master", "rpc_proxy"]:
+        for name in ["http_proxy", "node", "scheduler", "controller_agent", "master",
+                     "rpc_proxy", "timestamp_provider", "master_caches"]:
             if name in self.configs:
                 self.kill_service(name)
                 killed_services.add(name)
@@ -482,15 +506,25 @@ class YTInstance(object):
         return self.get_http_proxy_addresses()[0]
 
     def get_http_proxy_addresses(self):
-        if not self.yt_config.http_proxy_count > 0:
+        if self.yt_config.http_proxy_count == 0:
             raise YtError("Http proxies are not started")
         return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "port", "http_proxy")) for config in self.configs["http_proxy"]]
 
     def get_grpc_proxy_address(self):
-        if not self.yt_config.rpc_proxy_count > 0:
+        if self.yt_config.rpc_proxy_count == 0:
             raise YtError("Rpc proxies are not started")
         addresses = get_value_from_config(self.configs["rpc_proxy"][0], "grpc_server/addresses", "rpc_proxy")
         return addresses[0]["address"]
+
+    def get_timestamp_provider_monitoring_addresses(self):
+        if self.yt_config.timestamp_provider_count == 0:
+            raise YtError("Timestamp providers are not started")
+        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "monitoring_port", "timestamp_provider")) for config in self.configs["timestamp_provider"]]
+
+    def get_master_cache_monitoring_addresses(self):
+        if self.yt_config.master_cache_count == 0:
+            raise YtError("Master caches are not started")
+        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "monitoring_port", "master_cache")) for config in self.configs["master_cacje"]]
 
     def kill_schedulers(self, indexes=None):
         self.kill_service("scheduler", indexes=indexes)
@@ -894,6 +928,41 @@ class YTInstance(object):
 
         self._wait_or_skip(lambda: self._wait_for(quorum_ready, "clock", max_wait_time=30), sync)
 
+    def _prepare_timestamp_providers(self, timestamp_provider_configs):
+        for timestamp_provider_index in xrange(self.yt_config.timestamp_provider_count):
+            timestamp_provider_config_name = "timestamp_provider-{0}.yson".format(timestamp_provider_index)
+            config_path = os.path.join(self.configs_path, timestamp_provider_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Timestamp provider config {0} not found. It is possible that you requested "
+                                  "more timestamp providers than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = timestamp_provider_configs[timestamp_provider_index]
+                write_config(config, config_path)
+
+            self.configs["timestamp_provider"].append(config)
+            self.config_paths["timestamp_provider"].append(config_path)
+            self._service_processes["timestamp_provider"].append(None)
+
+    def start_timestamp_providers(self, sync=True):
+        self._run_yt_component("timestamp-provider", name="timestamp_provider")
+
+        def timestamp_providers_ready():
+            self._validate_processes_are_running("timestamp_provider")
+
+            addresses = self.get_timestamp_provider_monitoring_addresses()
+            try:
+                for address in addresses:
+                    resp = requests.get("http://{0}/orchid".format(address))
+                    resp.raise_for_status()
+            except (requests.exceptions.RequestException, socket.error):
+                return False, traceback.format_exc()
+
+            return True
+
+        self._wait_or_skip(lambda: self._wait_for(timestamp_providers_ready, "timestamp_provider", max_wait_time=20), sync)
+
     def _prepare_nodes(self, node_configs, force_overwrite=False):
         if force_overwrite:
             self.configs["node"] = []
@@ -929,6 +998,41 @@ class YTInstance(object):
 
         wait_function = lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.yt_config.node_count * 6.0, 60))
         self._wait_or_skip(wait_function, sync)
+
+    def _prepare_master_caches(self, master_cache_configs):
+        for master_cache_index in xrange(self.yt_config.master_cache_count):
+            master_cache_config_name = "master_cache-{0}.yson".format(master_cache_index)
+            config_path = os.path.join(self.configs_path, master_cache_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Master cache config {0} not found. It is possible that you requested "
+                                  "more timestamp providers than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = master_cache_configs[master_cache_index]
+                write_config(config, config_path)
+
+            self.configs["master_cache"].append(config)
+            self.config_paths["master_cache"].append(config_path)
+            self._service_processes["master_cache"].append(None)
+
+    def start_master_caches(self, sync=True):
+        self._run_yt_component("master-cache", name="master_cache")
+
+        def master_caches_ready():
+            self._validate_processes_are_running("master_cache")
+
+            addresses = self.get_master_cache_monitoring_addresses()
+            try:
+                for address in addresses:
+                    resp = requests.get("http://{0}/orchid".format(address))
+                    resp.raise_for_status()
+            except (requests.exceptions.RequestException, socket.error):
+                return False, traceback.format_exc()
+
+            return True
+
+        self._wait_or_skip(lambda: self._wait_for(master_caches_ready, "master_cache", max_wait_time=20), sync)
 
     def _prepare_schedulers(self, scheduler_configs, force_overwrite=False):
         if force_overwrite:

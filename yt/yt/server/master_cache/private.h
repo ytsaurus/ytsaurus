@@ -1,0 +1,23 @@
+#pragma once
+
+#include <yt/library/profiling/sensor.h>
+
+#include <yt/core/logging/log.h>
+
+namespace NYT::NMasterCache {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TMasterCacheConfig)
+
+struct IBootstrap;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger MasterCacheLogger;
+
+extern const NProfiling::TRegistry MasterCacheProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NMasterCache
