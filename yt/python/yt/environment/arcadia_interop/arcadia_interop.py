@@ -74,6 +74,7 @@ def get_binary_path(path, arcadia_root, **kwargs):
 
 PROGRAMS = [("master", "master/bin"),
             ("clock", "clock_server/bin"),
+            ("timestamp-provider", "timestamp_provider/bin"),
             ("node", "node/bin"),
             ("job-proxy", "job_proxy/bin"),
             ("exec", "exec/bin"),
@@ -81,7 +82,8 @@ PROGRAMS = [("master", "master/bin"),
             ("http-proxy", "http_proxy/bin"),
             ("tools", "tools/bin"),
             ("scheduler", "scheduler/bin"),
-            ("controller-agent", "controller_agent/bin")]
+            ("controller-agent", "controller_agent/bin"),
+            ("master-cache", "master_cache/bin")]
 
 def prepare_yt_binaries(destination,
                         source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=True,

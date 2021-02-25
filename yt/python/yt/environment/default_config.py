@@ -188,6 +188,17 @@ b"""
 }
 """)
 
+def get_timestamp_provider_config():
+    return yson.loads(
+b"""
+{
+    timestamp_provider = {
+        soft_backoff_time = 100;
+        hard_backoff_time = 100;
+        update_period = 500;
+    };
+}
+""")
 
 def get_controller_agent_config():
     return yson.loads(
@@ -432,6 +443,25 @@ b"""
     };
 }
 """)
+
+def get_master_cache_config():
+    return yson.loads(
+b"""
+{
+    cluster_connection = {
+        enable_read_from_followers = %true;
+        scheduler = {
+            retry_backoff_time = 100;
+        };
+        node_directory_synchronizer = {
+            sync_period = 100;
+            success_expiration_time = 100;
+            failure_expiration_time = 100;
+        };
+    };
+}
+"""
+)
 
 def get_dynamic_node_config():
     return yson.loads(

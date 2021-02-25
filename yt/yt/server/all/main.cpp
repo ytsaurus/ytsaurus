@@ -10,6 +10,8 @@
 #include <yt/server/exec/program.h>
 #include <yt/server/log_tailer/program.h>
 #include <yt/server/discovery_server/program.h>
+#include <yt/server/timestamp_provider/program.h>
+#include <yt/server/master_cache/program.h>
 
 #include <yt/ytlib/program/program.h>
 
@@ -56,6 +58,8 @@ int main(int argc, const char** argv)
         {"ytserver-controller-agent", [&] { return NYT::NControllerAgent::TControllerAgentProgram().Run(argc, argv); }},
         {"ytserver-log-tailer", [&] { return NYT::NLogTailer::TLogTailerProgram().Run(argc, argv); }},
         {"ytserver-discovery", [&] { return NYT::NClusterDiscoveryServer::TClusterDiscoveryServerProgram().Run(argc, argv); }},
+        {"ytserver-timestamp-provider", [&] { return NYT::NTimestampProvider::TTimestampProviderProgram().Run(argc, argv); }},
+        {"ytserver-master-cache", [&] { return NYT::NMasterCache::TMasterCacheProgram().Run(argc, argv); }},
     };
 
     for (const auto program : programs) {

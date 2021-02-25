@@ -17,12 +17,25 @@ import os
 from copy import deepcopy
 
 
-def _get_timestamp_provider_addresses(yt_config, master_connection_configs, clock_connection_configs):
-    if yt_config.clock_count == 0:
-        return master_connection_configs[master_connection_configs["primary_cell_tag"]]["addresses"]
-    else:
+def _get_timestamp_provider_addresses(yt_config,
+                                      master_connection_configs,
+                                      clock_connection_configs,
+                                      timestamp_provider_addresses):
+    if yt_config.timestamp_provider_count > 0 and timestamp_provider_addresses is not None:
+        return timestamp_provider_addresses
+    elif yt_config.clock_count > 0:
         return clock_connection_configs[clock_connection_configs["cell_tag"]]["addresses"]
+    else:
+        return master_connection_configs[master_connection_configs["primary_cell_tag"]]["addresses"]
 
+
+def _get_master_cache_addresses(yt_config,
+                                master_cache_addresses,
+                                node_addresses):
+    if yt_config.master_cache_count > 0:
+        return master_cache_addresses
+    else:
+        return node_addresses
 
 def build_configs(yt_config, ports_generator, dirs, logs_dir):
     clock_configs, clock_connection_configs = _build_clock_configs(
@@ -40,30 +53,77 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         ports_generator,
         logs_dir)
 
-    scheduler_configs = _build_scheduler_configs(dirs["scheduler"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-                                                 ports_generator, logs_dir, yt_config)
+    timestamp_provider_configs, timestamp_provider_addresses = _build_timestamp_provider_configs(
+        yt_config,
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_configs),
+        ports_generator,
+        logs_dir)
 
-    controller_agent_configs = _build_controller_agent_configs(dirs["controller_agent"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-                                                               ports_generator, logs_dir, yt_config)
+    master_cache_configs, master_cache_addresses = _build_master_cache_configs(
+        yt_config,
+        master_connection_configs,
+        clock_connection_configs,
+        timestamp_provider_addresses,
+        ports_generator,
+        logs_dir)
 
     node_configs, node_addresses = _build_node_configs(
         dirs["node"],
         dirs["node_tmpfs"],
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_configs),
+        timestamp_provider_addresses,
+        master_cache_addresses,
         ports_generator,
         logs_dir,
         yt_config)
 
-    http_proxy_configs = _build_http_proxy_config(dirs["http_proxy"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-                                                  ports_generator, logs_dir, master_cache_nodes=node_addresses, yt_config=yt_config)
+    if len(master_cache_addresses) == 0:
+        master_cache_addresses = node_addresses
+
+    scheduler_configs = _build_scheduler_configs(
+        dirs["scheduler"],
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_configs),
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        ports_generator,
+        logs_dir,
+        yt_config)
+
+    controller_agent_configs = _build_controller_agent_configs(
+        dirs["controller_agent"],
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_configs),
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        ports_generator,
+        logs_dir,
+        yt_config)
+
+    http_proxy_configs = _build_http_proxy_config(
+        dirs["http_proxy"],
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_configs),
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        ports_generator,
+        logs_dir,
+        yt_config=yt_config)
 
     http_proxy_url = None
     if yt_config.http_proxy_count > 0:
         http_proxy_url = "{0}:{1}".format(yt_config.fqdn, http_proxy_configs[0]["port"])
 
-    rpc_proxy_configs = _build_rpc_proxy_configs(logs_dir, deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-                                                    node_addresses, ports_generator, yt_config)
+    rpc_proxy_configs = _build_rpc_proxy_configs(
+        logs_dir,
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_configs),
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        ports_generator,
+        yt_config)
 
     rpc_client_config = None
     rpc_proxy_addresses = None
@@ -78,25 +138,31 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         }
 
     driver_configs = _build_native_driver_configs(
-        deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-        master_cache_nodes=node_addresses,
-        yt_config=yt_config,
-    )
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_configs),
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        yt_config=yt_config)
 
     rpc_driver_config = _build_rpc_driver_config(
-        deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-        master_cache_nodes=node_addresses, rpc_proxy_addresses=rpc_proxy_addresses, http_proxy_url=http_proxy_url,
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_configs),
+        master_cache_addresses,
+        rpc_proxy_addresses=rpc_proxy_addresses,
+        http_proxy_url=http_proxy_url,
         yt_config=yt_config,
     )
 
     cluster_configuration = {
         "master": master_configs,
         "clock": clock_configs,
+        "timestamp_provider": timestamp_provider_configs,
         "driver": driver_configs,
         "rpc_driver": rpc_driver_config,
         "scheduler": scheduler_configs,
         "controller_agent": controller_agent_configs,
         "node": node_configs,
+        "master_cache": master_cache_configs,
         "http_proxy": http_proxy_configs,
         "rpc_proxy": rpc_proxy_configs,
         "rpc_client": rpc_client_config,
@@ -104,8 +170,12 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
 
     return cluster_configuration
 
-def _build_master_configs(yt_config, master_dirs, master_tmpfs_dirs, clock_connection_configs,
-                          ports_generator, logs_dir):
+def _build_master_configs(yt_config,
+                          master_dirs,
+                          master_tmpfs_dirs,
+                          clock_connection_configs,
+                          ports_generator,
+                          logs_dir):
     ports = []
 
     cell_tags = [str(yt_config.primary_cell_tag + index)
@@ -164,7 +234,7 @@ def _build_master_configs(yt_config, master_dirs, master_tmpfs_dirs, clock_conne
             config["enable_timestamp_manager"] = (yt_config.clock_count == 0)
 
             set_at(config, "timestamp_provider/addresses",
-                   _get_timestamp_provider_addresses(yt_config, connection_configs, clock_connection_configs))
+                   _get_timestamp_provider_addresses(yt_config, connection_configs, clock_connection_configs, None))
 
             set_at(config, "snapshots/path",
                    os.path.join(master_dirs[cell_index][master_index], "snapshots"))
@@ -253,8 +323,75 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
 
     return configs, connection_configs
 
-def _build_scheduler_configs(scheduler_dirs, master_connection_configs, clock_connection_configs,
-                             ports_generator, logs_dir, yt_config):
+def _build_timestamp_provider_configs(yt_config,
+                                      master_connection_configs,
+                                      clock_connection_configs,
+                                      ports_generator,
+                                      logs_dir):
+    configs = []
+    addresses = []
+
+    for index in xrange(yt_config.timestamp_provider_count):
+        config = default_config.get_timestamp_provider_config()
+
+        init_singletons(config, yt_config.fqdn, "timestamp_provider", {"timestamp_provider_index": str(index)})
+
+        set_at(config, "timestamp_provider/addresses", _get_timestamp_provider_addresses(yt_config, master_connection_configs, clock_connection_configs, None))
+
+        config["rpc_port"] = next(ports_generator)
+        config["monitoring_port"] = next(ports_generator)
+        config["logging"] = _init_logging(logs_dir,
+                                          "timestamp-provider-" + str(index),
+                                          yt_config,
+                                          log_errors_to_stderr=True)
+
+        configs.append(config)
+        addresses.append("localhost:{}".format(config["rpc_port"]))
+
+    return configs, addresses
+
+def _build_master_cache_configs(yt_config,
+                                master_connection_configs,
+                                clock_connection_configs,
+                                timestamp_provider_addresses,
+                                ports_generator,
+                                logs_dir):
+    configs = []
+    addresses = []
+
+    for index in xrange(yt_config.master_cache_count):
+        config = default_config.get_master_cache_config()
+
+        init_singletons(config, yt_config.fqdn, "master_cache", {"master_cache_index": str(index)})
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_configs,
+                timestamp_provider_addresses,
+                [], # master cache addresses
+                config_template=config["cluster_connection"])
+
+        config["rpc_port"] = next(ports_generator)
+        config["monitoring_port"] = next(ports_generator)
+        config["logging"] = _init_logging(logs_dir,
+                                         "master-cache-" + str(index),
+                                         yt_config,
+                                         has_structured_logs=True)
+
+        configs.append(config)
+        addresses.append("localhost:{}".format(config["rpc_port"]))
+
+    return configs, addresses
+
+def _build_scheduler_configs(scheduler_dirs,
+                             master_connection_configs,
+                             clock_connection_configs,
+                             timestamp_provider_addresses,
+                             master_cache_addresses,
+                             ports_generator,
+                             logs_dir,
+                             yt_config):
     configs = []
 
     for index in xrange(yt_config.scheduler_count):
@@ -266,6 +403,8 @@ def _build_scheduler_configs(scheduler_dirs, master_connection_configs, clock_co
                 yt_config,
                 master_connection_configs,
                 clock_connection_configs,
+                timestamp_provider_addresses,
+                master_cache_addresses,
                 config_template=config["cluster_connection"])
 
         config["rpc_port"] = next(ports_generator)
@@ -279,8 +418,14 @@ def _build_scheduler_configs(scheduler_dirs, master_connection_configs, clock_co
 
     return configs
 
-def _build_controller_agent_configs(controller_agent_dirs, master_connection_configs, clock_connection_configs,
-                                    ports_generator, logs_dir, yt_config):
+def _build_controller_agent_configs(controller_agent_dirs,
+                                    master_connection_configs,
+                                    clock_connection_configs,
+                                    timestamp_provider_addresses,
+                                    master_cache_addresses,
+                                    ports_generator,
+                                    logs_dir,
+                                    yt_config):
     configs = []
 
     for index in xrange(yt_config.controller_agent_count):
@@ -292,6 +437,8 @@ def _build_controller_agent_configs(controller_agent_dirs, master_connection_con
                 yt_config,
                 master_connection_configs,
                 clock_connection_configs,
+                timestamp_provider_addresses,
+                master_cache_addresses,
                 config_template=config["cluster_connection"])
 
         config["rpc_port"] = next(ports_generator)
@@ -305,8 +452,15 @@ def _build_controller_agent_configs(controller_agent_dirs, master_connection_con
 
     return configs
 
-def _build_node_configs(node_dirs, node_tmpfs_dirs, master_connection_configs, clock_connection_configs,
-                        ports_generator, logs_dir, yt_config):
+def _build_node_configs(node_dirs,
+                        node_tmpfs_dirs,
+                        master_connection_configs,
+                        clock_connection_configs,
+                        timestamp_provider_addresses,
+                        master_cache_addresses,
+                        ports_generator,
+                        logs_dir,
+                        yt_config):
     configs = []
     addresses = []
 
@@ -333,6 +487,8 @@ def _build_node_configs(node_dirs, node_tmpfs_dirs, master_connection_configs, c
                 yt_config,
                 master_connection_configs,
                 clock_connection_configs,
+                timestamp_provider_addresses,
+                master_cache_addresses,
                 config_template=config["cluster_connection"])
 
         set_at(config, "data_node/multiplexed_changelog/path", os.path.join(node_dirs[index], "multiplexed"))
@@ -432,13 +588,21 @@ def _build_node_configs(node_dirs, node_tmpfs_dirs, master_connection_configs, c
 
     return configs, addresses
 
-def _build_http_proxy_config(proxy_dir, master_connection_configs, clock_connection_configs, ports_generator, logs_dir, master_cache_nodes, yt_config):
+def _build_http_proxy_config(proxy_dir,
+                             master_connection_configs,
+                             clock_connection_configs,
+                             timestamp_provider_addresses,
+                             master_cache_addresses,
+                             ports_generator,
+                             logs_dir,
+                             yt_config):
     driver_config = default_config.get_driver_config()
     update_inplace(driver_config, _build_cluster_connection_config(
         yt_config,
         master_connection_configs,
         clock_connection_configs,
-        master_cache_nodes=master_cache_nodes))
+        timestamp_provider_addresses,
+        master_cache_addresses))
 
     proxy_configs = []
 
@@ -461,7 +625,11 @@ def _build_http_proxy_config(proxy_dir, master_connection_configs, clock_connect
 
     return proxy_configs
 
-def _build_native_driver_configs(master_connection_configs, clock_connection_configs, master_cache_nodes, yt_config):
+def _build_native_driver_configs(master_connection_configs,
+                                 clock_connection_configs,
+                                 timestamp_provider_addresses,
+                                 master_cache_addresses,
+                                 yt_config):
     secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
     primary_cell_tag = master_connection_configs["primary_cell_tag"]
 
@@ -475,7 +643,8 @@ def _build_native_driver_configs(master_connection_configs, clock_connection_con
                 yt_config,
                 master_connection_configs,
                 clock_connection_configs,
-                master_cache_nodes=master_cache_nodes))
+                timestamp_provider_addresses,
+                master_cache_addresses))
         else:
             tag = secondary_cell_tags[cell_index - 1]
             cell_connection_config = {
@@ -485,7 +654,8 @@ def _build_native_driver_configs(master_connection_configs, clock_connection_con
                     "addresses": _get_timestamp_provider_addresses(
                         yt_config,
                         master_connection_configs,
-                        clock_connection_configs
+                        clock_connection_configs,
+                        timestamp_provider_addresses,
                     ),
                 },
                 "transaction_manager": {
@@ -507,8 +677,12 @@ def _build_native_driver_configs(master_connection_configs, clock_connection_con
 
     return configs
 
-def _build_rpc_driver_config(master_connection_configs, clock_connection_configs, master_cache_nodes,
-                             rpc_proxy_addresses, http_proxy_url, yt_config):
+def _build_rpc_driver_config(master_connection_configs,
+                             clock_connection_configs,
+                             master_cache_nodes,
+                             rpc_proxy_addresses,
+                             http_proxy_url,
+                             yt_config):
     config = default_config.get_driver_config()
     config["connection_type"] = "rpc"
 
@@ -519,7 +693,13 @@ def _build_rpc_driver_config(master_connection_configs, clock_connection_configs
 
     return config
 
-def _build_rpc_proxy_configs(logs_dir, master_connection_configs, clock_connection_configs, master_cache_nodes, ports_generator, yt_config):
+def _build_rpc_proxy_configs(logs_dir,
+                             master_connection_configs,
+                             clock_connection_configs,
+                             timestamp_provider_addresses,
+                             master_cache_addresses,
+                             ports_generator,
+                             yt_config):
     configs = []
 
     for rpc_proxy_index in xrange(yt_config.rpc_proxy_count):
@@ -558,7 +738,8 @@ def _build_rpc_proxy_configs(logs_dir, master_connection_configs, clock_connecti
             yt_config,
             master_connection_configs,
             clock_connection_configs,
-            master_cache_nodes=master_cache_nodes)
+            timestamp_provider_addresses,
+            master_cache_addresses)
         config["logging"] = _init_logging(logs_dir, "rpc-proxy-{}".format(rpc_proxy_index), yt_config)
 
         config["rpc_port"] = yt_config.rpc_proxy_ports[rpc_proxy_index] if yt_config.rpc_proxy_ports else next(ports_generator)
@@ -570,7 +751,8 @@ def _build_rpc_proxy_configs(logs_dir, master_connection_configs, clock_connecti
 def _build_cluster_connection_config(yt_config,
                                      master_connection_configs,
                                      clock_connection_configs,
-                                     master_cache_nodes=None,
+                                     timestamp_provider_addresses,
+                                     master_cache_addresses,
                                      config_template=None):
     primary_cell_tag = master_connection_configs["primary_cell_tag"]
     secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
@@ -582,7 +764,8 @@ def _build_cluster_connection_config(yt_config,
             "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
         },
         "timestamp_provider": {
-            "addresses": _get_timestamp_provider_addresses(yt_config, master_connection_configs, clock_connection_configs),
+            "addresses": _get_timestamp_provider_addresses(yt_config, master_connection_configs,
+                                                           clock_connection_configs, timestamp_provider_addresses),
             "update_period": 500,
             "soft_backoff_time": 100,
             "hard_backoff_time": 100
@@ -631,14 +814,14 @@ def _build_cluster_connection_config(yt_config,
     if config_template is not None:
         cluster_connection = update_inplace(config_template, cluster_connection)
 
-    if yt_config.enable_master_cache and master_cache_nodes:
+    if yt_config.enable_master_cache and len(master_cache_addresses) > 0:
         cluster_connection["master_cache"] = {
             "enable_master_cache_discovery": False,
             "master_cache_discovery_period": 100,
             "soft_backoff_time": 100,
             "hard_backoff_time": 100,
             "rpc_timeout": 25000,
-            "addresses": master_cache_nodes,
+            "addresses": master_cache_addresses,
             "cell_id": master_connection_configs[primary_cell_tag]["cell_id"],
         }
 

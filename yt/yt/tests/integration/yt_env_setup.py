@@ -185,6 +185,7 @@ class Checker(Thread):
 class YTEnvSetup(object):
     NUM_MASTERS = 3
     NUM_CLOCKS = 0
+    NUM_TIMESTAMP_PROVIDERS = 0
     NUM_NONVOTING_MASTERS = 0
     NUM_SECONDARY_MASTER_CELLS = 0
     DEFER_SECONDARY_CELL_START = False
@@ -192,6 +193,7 @@ class YTEnvSetup(object):
     MASTER_CELL_ROLES = {}
     NUM_NODES = 5
     DEFER_NODE_START = False
+    NUM_MASTER_CACHES = 0
     NUM_SCHEDULERS = 0
     DEFER_SCHEDULER_START = False
     NUM_CONTROLLER_AGENTS = None
@@ -301,8 +303,10 @@ class YTEnvSetup(object):
             secondary_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
             defer_secondary_cell_start=cls.get_param("DEFER_SECONDARY_CELL_START", index),
             clock_count=cls.get_param("NUM_CLOCKS", index),
+            timestamp_provider_count=cls.get_param("NUM_TIMESTAMP_PROVIDERS", index),
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
+            master_cache_count=cls.get_param("NUM_MASTER_CACHES", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             defer_scheduler_start=cls.get_param("DEFER_SCHEDULER_START", index),
             controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index) if cls.get_param("NUM_CONTROLLER_AGENTS", index) is not None else cls.get_param("NUM_SCHEDULERS", index),
