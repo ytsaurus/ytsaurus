@@ -56,9 +56,14 @@ class TestJournals(YTEnvSetup):
         write_journal(path, input_stream=SlowStream(yson_rows), *args, **kwargs)
 
     def _wait_until_last_chunk_sealed(self, path):
-        chunk_ids = get(path + "/@chunk_ids")
-        chunk_id = chunk_ids[-1]
-        wait(lambda: all(r.attributes["state"] == "sealed" for r in get("#{}/@stored_replicas".format(chunk_id))))
+        def check():
+            try:
+                chunk_ids = get(path + "/@chunk_ids")
+                chunk_id = chunk_ids[-1]
+                return lambda: all(r.attributes["state"] == "sealed" for r in get("#{}/@stored_replicas".format(chunk_id)))
+            except:
+                return False
+        wait(check)
 
     def _truncate_and_check(self, path, row_count):
         rows = read_journal(path)
