@@ -635,7 +635,7 @@ class TestErasureJournals(TestJournals):
 
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_reed_solomon_3_3"])
 
-        rows = self.DATA * 100
+        rows = self.DATA * 20
 
         self._write_slowly(
             "//tmp/j",
