@@ -36,7 +36,6 @@ TClientWriter::TClientWriter(
             GetWriteTableCommand(),
             format,
             path,
-            BUFFER_SIZE,
             options));
     }
 }

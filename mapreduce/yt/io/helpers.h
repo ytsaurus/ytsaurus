@@ -73,6 +73,9 @@ static void AddWriterOptionsToNode(const TWriterOptions& options, TNode* node)
     if (options.MinUploadReplicationFactor_) {
         (*node)["min_upload_replication_factor"] = *options.MinUploadReplicationFactor_;
     }
+    if (options.DesiredChunkSize_) {
+        (*node)["desired_chunk_size"] = *options.DesiredChunkSize_;
+    }
 }
 
 template <>
@@ -104,7 +107,7 @@ inline TNode FormIORequestParameters(
 }
 
 template <>
-inline TNode FormIORequestParameters<TTableWriterOptions>(
+inline TNode FormIORequestParameters(
     const TRichYPath& path,
     const TTableWriterOptions& options)
 {

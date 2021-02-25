@@ -22,7 +22,6 @@ TFileWriter::TFileWriter(
         GetWriteFileCommand(),
         TMaybe<TFormat>(),
         path,
-        BUFFER_SIZE,
         options)
 { }
 
@@ -33,8 +32,20 @@ TFileWriter::~TFileWriter()
 
 void TFileWriter::DoWrite(const void* buf, size_t len)
 {
-    RetryfulWriter_.Write(buf, len);
-    RetryfulWriter_.NotifyRowEnd();
+    // If user tunes RetryBlockSize / DesiredChunkSize he expects
+    // us to send data exactly by RetryBlockSize. So behaviour of the writer is predictable.
+    //
+    // We want to avoid situation when size of sent data slightly exceeded DesiredChunkSize
+    // and server produced one chunk of desired size and one small chunk.
+    while (len > 0) {
+        const auto retryBlockRemainingSize = RetryfulWriter_.GetRetryBlockRemainingSize();
+        Y_VERIFY(retryBlockRemainingSize > 0);
+        const auto firstWriteLen = Min(len, retryBlockRemainingSize);
+        RetryfulWriter_.Write(buf, firstWriteLen);
+        RetryfulWriter_.NotifyRowEnd();
+        len -= firstWriteLen;
+        buf = static_cast<const char*>(buf) + firstWriteLen;
+    }
 }
 
 void TFileWriter::DoFinish()

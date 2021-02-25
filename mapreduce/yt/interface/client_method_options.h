@@ -317,15 +317,38 @@ struct TWriterOptions
 {
     using TSelf = TWriterOptions;
 
-    // When set to true upload will be considered successful as soon as
-    // MinUploadReplicationFactor number of replicas are created.
+    /// When set to true upload will be considered successful as soon as
+    /// MinUploadReplicationFactor number of replicas are created.
     FLUENT_FIELD_OPTION(bool, EnableEarlyFinish);
 
-    // Number of replicas to be created.
+    /// Number of replicas to be created.
     FLUENT_FIELD_OPTION(ui64, UploadReplicationFactor);
 
-    // Min number of created replicas needed to consider upload successful.
+    /// Min number of created replicas needed to consider upload successful.
     FLUENT_FIELD_OPTION(ui64, MinUploadReplicationFactor);
+    
+    ///
+    /// @brief Desired size of a chunk.
+    ///
+    /// @see @ref NYT::TWriterOptions::RetryBlockSize
+    FLUENT_FIELD_OPTION(ui64, DesiredChunkSize);
+    
+    ///
+    /// @brief Size of data block accumulated in memory to provide retries.
+    ///
+    /// Data is accumulated in memory buffer so in case error occurs data could be resended.
+    /// 
+    /// If `RetryBlockSize` is not set buffer size is set to `DesiredChunkSize`.
+    /// If niether `RetryBlockSize` nor `DesiredChunkSize` is set size of buffer is 64MB.
+    ///
+    /// NOTE: written chunks cannot be greater than size of this memory buffer.
+    ///
+    /// Since DesiredChunkSize is compared against data already compressed with compression codec
+    /// it makes sense to set `RetryBlockSize = DesiredChunkSize / ExpectedCompressionRatio`
+    /// 
+    /// @see @ref NYT::TWriterOptions::DesiredChunkSize
+    /// @see @ref NYT::TWriterOptions::SingleHttpRequest
+    FLUENT_FIELD_OPTION(size_t, RetryBlockSize);
 };
 
 struct TFileWriterOptions
@@ -391,13 +414,16 @@ struct TTableReaderOptions
 struct TTableWriterOptions
     : public TIOOptions<TTableWriterOptions>
 {
-    // If set to true no retry is made but we also make less requests to master.
-    // If set to false writer can make up to `TConfig::RetryCount` attempts to send each block of data.
-    //
-    // NOTE: writers' methods might throw strange exceptions that might look like network error
-    // when `SingleHttpRequest == true` and YT node encounters an error
-    // (due to limitations of HTTP protocol YT node have no chance to report error
-    // before it reads the whole input so it just drops the connection).
+    ///
+    /// @brief Enable or disable retryful writing.
+    ///
+    /// If set to true no retry is made but we also make less requests to master.
+    /// If set to false writer can make up to `TConfig::RetryCount` attempts to send each block of data.
+    ///
+    /// NOTE: writers' methods might throw strange exceptions that might look like network error
+    /// when `SingleHttpRequest == true` and YT node encounters an error
+    /// (due to limitations of HTTP protocol YT node have no chance to report error
+    /// before it reads the whole input so it just drops the connection).
     FLUENT_FIELD_DEFAULT(bool, SingleHttpRequest, false);
 
     // Allows to change the size of locally buffered rows before flushing to yt
@@ -446,6 +472,7 @@ struct TAttachTransactionOptions
 {
     using TSelf = TAttachTransactionOptions;
 
+    ///
     /// @brief Ping transaction automatically.
     ///
     /// When set to |true| library creates a thread that pings transaction.
@@ -453,6 +480,7 @@ struct TAttachTransactionOptions
     /// it's user responsibility to ping it.
     FLUENT_FIELD_DEFAULT(bool, AutoPingable, false);
 
+    ///
     /// @brief Abort transaction on program termination.
     ///
     /// Should the transaction be aborted on program termination
@@ -737,6 +765,7 @@ struct TSkyShareTableOptions
 {
     using TSelf = TSkyShareTableOptions;
 
+    ///
     /// @brief Key columns that are used to group files in a table into torrents.
     ///
     /// One torrent is created for each value of `KeyColumns` columns.

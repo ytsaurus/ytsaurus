@@ -35,18 +35,17 @@ public:
         const TString& command,
         const TMaybe<TFormat>& format,
         const TRichYPath& path,
-        size_t bufferSize,
         const TWriterOptions& options)
         : ClientRetryPolicy_(std::move(clientRetryPolicy))
         , Auth_(auth)
         , Command_(command)
         , Format_(format)
-        , BufferSize_(bufferSize)
+        , BufferSize_(GetBufferSize(options.WriterOptions_))
         , ParentTransactionId_(parentId)
         , WriteTransaction_()
         , FilledBuffers_(2)
         , EmptyBuffers_(2)
-        , Buffer_(bufferSize * 2)
+        , Buffer_(BufferSize_ * 2)
         , Thread_(TThread::TParams{SendThread, this}.SetName("retryful_writer"))
     {
         Parameters_ = FormIORequestParameters(path, options);
@@ -66,16 +65,24 @@ public:
             NDetail::NRawClient::Lock(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, WriteTransaction_->GetId(), path.Path_, lockMode);
         }
 
-        EmptyBuffers_.Push(TBuffer(bufferSize * 2));
+        EmptyBuffers_.Push(TBuffer(BufferSize_ * 2));
     }
 
     ~TRetryfulWriter() override;
     void NotifyRowEnd() override;
     void Abort() override;
+    
+    size_t GetRetryBlockRemainingSize() const
+    {
+      return (BufferSize_ > Buffer_.size()) ? (BufferSize_ - Buffer_.size()) : 0;
+    }
 
 protected:
     void DoWrite(const void* buf, size_t len) override;
     void DoFinish() override;
+
+private:
+    static size_t GetBufferSize(const TMaybe<TWriterOptions>& writerOptions);
 
 private:
     const IClientRetryPolicyPtr ClientRetryPolicy_;

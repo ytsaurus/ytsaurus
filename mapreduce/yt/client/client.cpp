@@ -60,8 +60,6 @@ namespace NYT {
 
 namespace NDetail {
 
-const size_t TClientBase::BUFFER_SIZE = 64 << 20;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientBase::TClientBase(
@@ -260,7 +258,6 @@ TRawTableWriterPtr TClientBase::CreateRawWriter(
         GetWriteTableCommand(),
         format,
         CanonizeYPath(path),
-        BUFFER_SIZE,
         options).Get();
 }
 
