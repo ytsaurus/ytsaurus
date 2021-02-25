@@ -7,6 +7,8 @@
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/finish_or_die.h>
 
+#include <util/generic/size_literals.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,6 +141,19 @@ void TRetryfulWriter::Abort()
         WriteTransaction_->Abort();
     }
     WriterState_ = Completed;
+}
+
+size_t TRetryfulWriter::GetBufferSize(const TMaybe<TWriterOptions>& writerOptions)
+{
+    auto retryBlockSize = TMaybe<size_t>();
+    if (writerOptions) {
+        if (writerOptions->RetryBlockSize_) {
+            retryBlockSize = *writerOptions->RetryBlockSize_;
+        } else if (writerOptions->DesiredChunkSize_) {
+            retryBlockSize = *writerOptions->DesiredChunkSize_;
+        }
+    }
+    return retryBlockSize.GetOrElse(64_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
