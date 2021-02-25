@@ -405,8 +405,7 @@ class TestErasure(TestErasureBase):
     def test_part_loss_time(self):
         # Ban 4 nodes so that banning any more would result in an inability to repair.
         nodes = ls("//sys/cluster_nodes")
-        for node in nodes[:4]:
-            set_node_banned(node, True)
+        set_banned_flag(True, nodes[:4])
 
         create("table", "//tmp/t1", attributes={"erasure_codec": "lrc_12_2_2"})
         write_table("//tmp/t1", {"a": "b"})
@@ -488,15 +487,13 @@ class TestDynamicTablesErasure(TestErasureBase):
         chunk_id = get_singular_chunk_id("//tmp/table")
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
         banned_nodes = replicas[:4]
-        for node in banned_nodes:
-            set_node_banned(str(node), True)
+        set_banned_flag(True, banned_nodes)
         time.sleep(1)
 
         # Banned replicas' replication readers are marked as failed.
         _failing_read()
 
-        for node in banned_nodes[:2]:
-            set_node_banned(str(node), False)
+        set_banned_flag(False, banned_nodes[:-2])
         time.sleep(1)
 
         # Failure timeout will expire later.

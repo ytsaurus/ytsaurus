@@ -532,15 +532,13 @@ class TestErasureJournals(TestJournals):
             random.shuffle(replicas)
             nodes_to_ban = [str(x) for x in replicas[:3]]
 
-            for node in nodes_to_ban:
-                set_node_banned(node, True)
+            set_banned_flag(True, nodes_to_ban)
 
             wait(_check_all_replicas_ok)
 
             assert read_journal("//tmp/j") == rows
 
-            for node in nodes_to_ban:
-                set_node_banned(node, False)
+            set_banned_flag(False, nodes_to_ban)
 
     @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @authors("babenko", "ignat")
@@ -578,11 +576,9 @@ class TestErasureJournals(TestJournals):
 
         assert not exists(check_path)
         replicas = get("#{}/@stored_replicas".format(chunk_id))
-        for r in replicas[:n]:
-            set_node_banned(str(r), True)
+        set_banned_flag(True, replicas[:n])
         wait(lambda: exists(check_path))
-        for r in replicas[:n]:
-            set_node_banned(str(r), False)
+        set_banned_flag(False, replicas[:n])
         wait(lambda: not exists(check_path))
 
     @authors("babenko")

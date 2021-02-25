@@ -80,14 +80,12 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/table", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}])
 
         nodes = ls("//sys/cluster_nodes")
-        for node in nodes:
-            set_node_banned(node, True)
+        set_banned_flag(True, nodes)
 
         with pytest.raises(YtError):
             read_table("//tmp/table")
 
-        for node in nodes:
-            set_node_banned(node, False)
+        set_banned_flag(False, nodes)
 
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
