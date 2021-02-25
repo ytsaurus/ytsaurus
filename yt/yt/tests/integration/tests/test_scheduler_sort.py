@@ -125,6 +125,7 @@ def sort_3_phase_depth_2(in_, out, sort_by):
             "partition_count": 10,
             "max_partition_factor": 4,
             "data_weight_per_sort_job": 1,
+            "data_weight_per_intermediate_partition_job": 10,
             "partition_job_io": {
                 "table_writer": {
                     "desired_chunk_size": 1,

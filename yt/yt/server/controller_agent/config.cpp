@@ -322,6 +322,10 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
         .Default(200000)
         .GreaterThan(0);
 
+    RegisterParameter("max_new_partition_count", MaxNewPartitionCount)
+        .Default(2'000'000)
+        .GreaterThan(0);
+
     RegisterParameter("max_partition_factor", MaxPartitionFactor)
         .Default(500)
         .GreaterThan(1);

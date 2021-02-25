@@ -1149,7 +1149,13 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Alias("data_size_per_sort_job")
         .Default(2_GB)
         .GreaterThan(0);
+    RegisterParameter("data_weight_per_intermediate_partition_job", DataWeightPerIntermediatePartitionJob)
+        .Default(2_GB)
+        .GreaterThan(0);
     RegisterParameter("max_chunk_slice_per_shuffle_job", MaxChunkSlicePerShuffleJob)
+        .Default(8000)
+        .GreaterThan(0);
+    RegisterParameter("max_chunk_slice_per_intermediate_partition_job", MaxChunkSlicePerIntermediatePartitionJob)
         .Default(8000)
         .GreaterThan(0);
     RegisterParameter("shuffle_start_threshold", ShuffleStartThreshold)
@@ -1187,6 +1193,9 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(0.7);
     RegisterParameter("use_new_sorted_pool", UseNewSortedPool)
         .Default(false);
+    RegisterParameter("new_partitions_heuristic_probability", NewPartitionsHeuristicProbability)
+        .Default(0)
+        .InRange(0, 256);
 
     RegisterPostprocessor([&] {
         NTableClient::ValidateSortColumns(SortBy);
@@ -1258,7 +1267,7 @@ TSortOperationSpec::TSortOperationSpec()
 
     RegisterParameter("max_input_data_weight", MaxInputDataWeight)
         .GreaterThan(0)
-        .Default(500_TB);
+        .Default(5_PB);
 
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
