@@ -111,8 +111,8 @@ public:
             }
         }
 
-        promise.OnCanceled(BIND([promise, this, this_ = MakeStrong(this)] (const TError& error) {
-            {
+        promise.OnCanceled(BIND([promise, this, thisWeak_ = MakeWeak(this)] (const TError& error) {
+            if (auto this_ = thisWeak_.Lock()) {
                 auto guard = Guard(Lock_);
                 auto it = std::find(Queue_.begin(), Queue_.end(), promise);
                 if (it != Queue_.end()) {
