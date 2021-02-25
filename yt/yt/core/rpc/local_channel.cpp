@@ -78,6 +78,8 @@ public:
             auto error = TError(
                 EErrorCode::NoSuchService,
                 "Service is not registered")
+                << *EndpointAttributes
+                << TErrorAttribute("request_id", request->GetRequestId())
                 << TErrorAttribute("service", serviceId.ServiceName)
                 << TErrorAttribute("realm_id", serviceId.RealmId);
             responseHandler->HandleError(error);
@@ -97,13 +99,18 @@ public:
             serializedRequest = request->Serialize();
         } catch (const std::exception& ex) {
             responseHandler->HandleError(TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
+                << *EndpointAttributes
+                << TErrorAttribute("request_id", request->GetRequestId())
                 << ex);
             return nullptr;
         }
 
         serializedRequest = AdjustMessageMemoryZone(std::move(serializedRequest), options.MemoryZone);
 
-        auto session = New<TSession>(std::move(responseHandler), options.Timeout);
+        auto session = New<TSession>(
+            request->GetRequestId(),
+            std::move(responseHandler),
+            options.Timeout);
 
         service->HandleRequest(
             std::make_unique<NProto::TRequestHeader>(request->Header()),
@@ -136,7 +143,7 @@ public:
 
 private:
     class TSession;
-    typedef TIntrusivePtr<TSession> TSessionPtr;
+    using TSessionPtr = TIntrusivePtr<TSession>;
 
     const IServerPtr Server_;
 
@@ -146,8 +153,12 @@ private:
         : public IBus
     {
     public:
-        TSession(IClientResponseHandlerPtr handler, std::optional<TDuration> timeout)
-            : Handler_(std::move(handler))
+        TSession(
+            TRequestId requestId,
+            IClientResponseHandlerPtr handler,
+            std::optional<TDuration> timeout)
+            : RequestId_(requestId)
+            , Handler_(std::move(handler))
         {
             if (timeout) {
                 TDelayedExecutor::Submit(
@@ -209,38 +220,35 @@ private:
         { }
 
     private:
+        const TRequestId RequestId_;
         const IClientResponseHandlerPtr Handler_;
 
-        std::atomic<bool> Replied_ = {false};
+        std::atomic<bool> Replied_ = false;
 
 
         bool AcquireLock()
         {
-            bool expected = false;
-            return Replied_.compare_exchange_strong(expected, true);
+            return !Replied_.exchange(true);
         }
 
         void OnTimeout(bool aborted)
         {
-            if (AcquireLock()) {
-                TError error;
-                if (aborted) {
-                    error = TError(NYT::EErrorCode::Canceled, "Request timed out (timer was aborted)");
-                } else {
-                    error = TError(NYT::EErrorCode::Timeout, "Request timed out");
-                }
-
-                ReportError(error);
+            if (!AcquireLock()) {
+                return;
             }
+
+            ReportError(aborted
+                ? TError(NYT::EErrorCode::Canceled, "Request timed out (timer was aborted)")
+                : TError(NYT::EErrorCode::Timeout, "Request timed out"));
         }
 
         void ReportError(const TError& error)
         {
             auto detailedError = error
+                << TErrorAttribute("request_id", RequestId_)
                 << GetEndpointAttributes();
             Handler_->HandleError(detailedError);
         }
-
     };
 
     class TClientRequestControl
