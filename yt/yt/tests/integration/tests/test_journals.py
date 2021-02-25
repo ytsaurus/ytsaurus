@@ -376,7 +376,7 @@ class TestJournals(YTEnvSetup):
             rows,
             enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={
-                "dont_close": True,
+                "dont_close": seal_mode=="client-side",
                 "dont_seal": seal_mode=="master-side",
                 "max_batch_row_count": 10,
                 "max_flush_row_count": 10,
@@ -642,7 +642,6 @@ class TestErasureJournals(TestJournals):
             rows,
             enable_chunk_preallocation=True,
             journal_writer={
-                "dont_close": True,
                 "dont_seal": True,
                 "max_batch_row_count": 10,
                 "max_flush_row_count": 10,
