@@ -15,7 +15,6 @@
 
 #include <yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/event_log.h>
 
 #include <yt/server/lib/chunk_pools/chunk_pool.h>

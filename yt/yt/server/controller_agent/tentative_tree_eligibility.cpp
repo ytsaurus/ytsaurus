@@ -2,8 +2,6 @@
 
 #include "operation_controller.h"
 
-#include <yt/server/lib/scheduler/config.h>
-
 namespace NYT::NControllerAgent {
 
 using namespace NJobTrackerClient;

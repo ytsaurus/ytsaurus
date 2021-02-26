@@ -58,7 +58,6 @@ using namespace NYPath;
 using namespace NChunkPools;
 using namespace NTableClient;
 using namespace NLogging;
-using namespace NJobProxy;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NSecurityClient;

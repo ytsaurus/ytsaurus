@@ -6,8 +6,6 @@
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
 
-#include <yt/server/lib/containers/public.h>
-
 #include <yt/server/node/data_node/artifact.h>
 #include <yt/server/node/data_node/chunk.h>
 #include <yt/server/node/data_node/chunk_cache.h>
@@ -17,11 +15,10 @@
 
 #include <yt/server/node/job_agent/job.h>
 #include <yt/server/node/job_agent/gpu_manager.h>
+
+#include <yt/server/lib/containers/public.h>
+
 #include <yt/server/lib/job_agent/job_reporter.h>
-
-#include <yt/server/lib/scheduler/config.h>
-
-#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -40,6 +37,11 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/library/profiling/sensor.h>
+#include <yt/library/profiling/producer.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/delayed_executor.h>
 
@@ -51,9 +53,6 @@
 
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/statistics.h>
-
-#include <yt/library/profiling/sensor.h>
-#include <yt/library/profiling/producer.h>
 
 #include <yt/core/rpc/dispatcher.h>
 

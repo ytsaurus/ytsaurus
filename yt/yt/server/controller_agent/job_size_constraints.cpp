@@ -2,8 +2,6 @@
 
 #include "config.h"
 
-#include <yt/server/lib/scheduler/config.h>
-
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/ytlib/scheduler/config.h>

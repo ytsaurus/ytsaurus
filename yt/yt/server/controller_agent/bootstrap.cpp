@@ -11,8 +11,6 @@
 
 #include <yt/server/lib/misc/address_helpers.h>
 
-#include <yt/server/lib/scheduler/config.h>
-
 #include <yt/ytlib/program/build_attributes.h>
 #include <yt/ytlib/program/config.h>
 
