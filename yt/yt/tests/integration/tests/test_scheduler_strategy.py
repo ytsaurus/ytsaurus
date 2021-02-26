@@ -3646,6 +3646,7 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             "scheduling_segments_manage_period": 100,
             "scheduling_segments_initialization_timeout": 100,
             "operations_update_period": 100,
+            "operation_hangup_check_period": 100,
         }
     }
 
@@ -4025,6 +4026,50 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
         small_op.track()
+
+    @authors("eshcherbin")
+    def test_fail_operations_with_custom_tag_filter(self):
+        blocking_op = run_sleeping_vanilla(
+            job_count=5,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment_data_center")
+                     in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS)
+        dc = get(scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment_data_center")
+        other_dc = [dz for dz in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS if dz != dc][0]
+
+        op1 = run_sleeping_vanilla(
+            spec={"pool": "large_gpu", "scheduling_tag_filter": dc},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        op1.wait_for_state("failed")
+
+        op2 = run_sleeping_vanilla(
+            spec={"pool": "large_gpu", "scheduling_tag_filter": other_dc},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op2.id), 0.1))
+
+        op3 = run_sleeping_vanilla(
+            spec={"pool": "large_gpu", "scheduling_tag_filter": "{} & !{}".format(dc, other_dc)},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op3.id), 0.1))
+        time.sleep(1.0)
+        op3.wait_for_state("running")
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op3.id), 0.0))
+
+        op4 = run_sleeping_vanilla(
+            spec={"pool": "large_gpu", "scheduling_tag_filter": dc},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op4.id), 0.05))
+        time.sleep(1.0)
+        op4.wait_for_state("running")
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op4.id), 0.0))
+
 
 ##################################################################
 
