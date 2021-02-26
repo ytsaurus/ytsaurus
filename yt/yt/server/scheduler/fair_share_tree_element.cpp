@@ -1096,9 +1096,7 @@ void TCompositeSchedulerElement::UpdateCumulativeAttributes(TUpdateFairShareCont
     Attributes_.TotalBurstRatio = Attributes_.BurstRatio;
     Attributes_.ResourceFlowRatio = GetSpecifiedResourceFlowRatio();
     Attributes_.TotalResourceFlowRatio = Attributes_.ResourceFlowRatio;
-    Attributes_.UnschedulableOperationsResourceUsage = TJobResources();
 
-    SchedulableChildren_.clear();
     for (const auto& child : EnabledChildren_) {
         child->UpdateCumulativeAttributes(context);
 
@@ -1115,12 +1113,7 @@ void TCompositeSchedulerElement::UpdateCumulativeAttributes(TUpdateFairShareCont
 
         Attributes_.TotalResourceFlowRatio += child->Attributes().TotalResourceFlowRatio;
         Attributes_.TotalBurstRatio += child->Attributes().TotalBurstRatio;
-        Attributes_.UnschedulableOperationsResourceUsage += child->Attributes().UnschedulableOperationsResourceUsage;
         PendingJobCount_ += child->GetPendingJobCount();
-
-        if (child->IsSchedulable()) {
-            SchedulableChildren_.push_back(child);
-        }
     }
 
     TSchedulerElement::UpdateCumulativeAttributes(context);
@@ -1139,6 +1132,19 @@ void TCompositeSchedulerElement::PublishFairShareAndUpdatePreemption()
 
     for (const auto& child : EnabledChildren_) {
         child->PublishFairShareAndUpdatePreemption();
+    }
+}
+
+void TCompositeSchedulerElement::BuildSchedulableChildrenLists(TUpdateFairShareContext* context)
+{
+    Attributes_.UnschedulableOperationsResourceUsage = TJobResources();
+    SchedulableChildren_.clear();
+    for (const auto& child : EnabledChildren_) {
+        child->BuildSchedulableChildrenLists(context);
+        Attributes_.UnschedulableOperationsResourceUsage += child->Attributes().UnschedulableOperationsResourceUsage;
+        if (child->IsSchedulable()) {
+            SchedulableChildren_.push_back(child);
+        }
     }
 }
 
@@ -3233,11 +3239,6 @@ void TOperationElement::UpdateCumulativeAttributes(TUpdateFairShareContext* cont
 
     // This should be called after |BestAllocationShare| update since it is used to compute the limits.
     TSchedulerElement::UpdateCumulativeAttributes(context);
-
-    if (!IsSchedulable()) {
-        ++context->UnschedulableReasons[*UnschedulableReason_];
-        Attributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
-    }
 }
 
 void TOperationElement::PublishFairShareAndUpdatePreemption()
@@ -3246,6 +3247,14 @@ void TOperationElement::PublishFairShareAndUpdatePreemption()
     ResourceTreeElement_->SetFairShare(Attributes_.FairShare.Total);
 
     UpdatePreemptionAttributes();
+}
+    
+void TOperationElement::BuildSchedulableChildrenLists(TUpdateFairShareContext* context)
+{
+    if (!IsSchedulable()) {
+        ++context->UnschedulableReasons[*UnschedulableReason_];
+        Attributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
+    }
 }
 
 void TOperationElement::UpdatePreemptionAttributes()
@@ -4439,6 +4448,8 @@ void TRootElement::Update(TUpdateFairShareContext* context)
     UpdateFairShare(context);
 
     PublishFairShareAndUpdatePreemption();
+
+    BuildSchedulableChildrenLists(context);
 
     // Calculate tree sizes.
     SchedulableElementCount_ = TCompositeSchedulerElement::EnumerateElements(0, context, /* isSchedulableValueFilter*/ true);

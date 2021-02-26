@@ -6,6 +6,8 @@
 #include <yt/library/numeric/double_array.h>
 #include <yt/library/numeric/piecewise_linear_function.h>
 
+#include <yt/core/ytree/fluent.h>
+
 #include <yt/core/profiling/metrics_accumulator.h>
 
 #include <util/generic/cast.h>

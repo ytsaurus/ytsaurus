@@ -469,6 +469,8 @@ public:
     // Used to compute starvation status.
     bool IsStrictlyDominatesNonBlocked(const TResourceVector& lhs, const TResourceVector& rhs) const;
 
+    virtual void BuildSchedulableChildrenLists(TUpdateFairShareContext* context) = 0;
+
     // Publishes fair share and updates preemptable job lists of operations.
     virtual void PublishFairShareAndUpdatePreemption() = 0;
     virtual void UpdatePreemptionAttributes();
@@ -689,6 +691,8 @@ public:
     // =======================================
 
     //! === Post fair share update methods.
+    virtual void BuildSchedulableChildrenLists(TUpdateFairShareContext* context) override;
+
     virtual void PublishFairShareAndUpdatePreemption() override;
     virtual void UpdatePreemptionAttributes() override;
 
@@ -1249,6 +1253,8 @@ public:
     virtual void CheckForStarvation(TInstant now) override;
 
     TInstant GetLastNonStarvingTime() const;
+    
+    virtual void BuildSchedulableChildrenLists(TUpdateFairShareContext* context) override;
 
     virtual void PublishFairShareAndUpdatePreemption() override;
     virtual void UpdatePreemptionAttributes() override;
