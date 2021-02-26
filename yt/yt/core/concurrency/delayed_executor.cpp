@@ -252,6 +252,9 @@ private:
 
     static thread_local bool InDelayedPollerThread_;
 
+    NProfiling::TGauge ScheduledCallbacksGauge_ = ConcurrencyProfiler.Gauge("/delayed_executor/scheduled_callbacks");
+    NProfiling::TCounter SubmittedCallbacksCounter_ = ConcurrencyProfiler.Counter("/delayed_executor/submitted_callbacks");
+    NProfiling::TCounter CanceledCallbacksCounter_ = ConcurrencyProfiler.Counter("/delayed_executor/canceled_callbacks");
     NProfiling::TCounter StaleCallbacksCounter_ = ConcurrencyProfiler.Counter("/delayed_executor/stale_callbacks");
 
     /*!
@@ -422,6 +425,7 @@ private:
     {
         auto now = TInstant::Now();
 
+        int submittedCallbacks = 0;
         SubmitQueue_.DequeueAll(false, [&] (const TDelayedExecutorEntryPtr& entry) {
             if (entry->Canceled) {
                 return;
@@ -433,11 +437,14 @@ private:
                     now);
             }
             YT_VERIFY(entry->Callback);
-            auto pair = ScheduledEntries_.insert(entry);
-            YT_VERIFY(pair.second);
-            entry->Iterator = pair.first;
+            auto [it, inserted] = ScheduledEntries_.insert(entry);
+            YT_VERIFY(inserted);
+            entry->Iterator = it;
+            ++submittedCallbacks;
         });
+        SubmittedCallbacksCounter_.Increment(submittedCallbacks);
 
+        int canceledCallbacks = 0;
         CancelQueue_.DequeueAll(false, [&] (const TDelayedExecutorEntryPtr& entry) {
             if (entry->Canceled) {
                 return;
@@ -448,7 +455,11 @@ private:
                 ScheduledEntries_.erase(*entry->Iterator);
                 entry->Iterator.reset();
             }
+            ++canceledCallbacks;
         });
+        CanceledCallbacksCounter_.Increment(submittedCallbacks);
+
+        ScheduledCallbacksGauge_.Update(ScheduledEntries_.size());
 
         while (!ScheduledEntries_.empty()) {
             auto it = ScheduledEntries_.begin();
