@@ -274,6 +274,16 @@ TRegistry TRegistry::WithProjectionsDisabled() const
     return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
+TRegistry TRegistry::WithRenameDisabled() const
+{
+    if (!Enabled_) {
+        return {};
+    }
+    auto opts = Options_;
+    opts.DisableSensorsRename = true;
+    return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
+}
+
 TRegistry TRegistry::WithHot() const
 {
     if (!Enabled_) {

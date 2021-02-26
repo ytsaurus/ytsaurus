@@ -227,6 +227,7 @@ void TProducerSet::ReadSensors(
         auto readOptions = options;
         readOptions.Sparse = buffer.Options.Sparse;
         readOptions.Global = buffer.Options.Global;
+        readOptions.DisableSensorsRename = buffer.Options.DisableSensorsRename;
 
         int sensorsEmitted = 0;
         sensorsEmitted += buffer.CountersCube.ReadSensors(name, readOptions, *TagRegistry_, consumer);

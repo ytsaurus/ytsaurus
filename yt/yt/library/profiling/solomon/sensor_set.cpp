@@ -221,6 +221,7 @@ void TSensorSet::ReadSensors(
     auto readOptions = options;
     readOptions.Sparse = Options_.Sparse;
     readOptions.Global = Options_.Global;
+    readOptions.DisableSensorsRename = Options_.DisableSensorsRename;
     readOptions.BucketBound = THistogram::BucketBoundsSeconds(Options_);
 
     int sensorsEmitted = 0;
