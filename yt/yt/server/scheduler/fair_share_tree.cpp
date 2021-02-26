@@ -478,6 +478,32 @@ public:
                 << TErrorAttribute("last_non_starving_time", element->GetLastNonStarvingTime());
         }
 
+        // NB(eshcherbin): See YT-14393.
+        {
+            const auto& segment = element->SchedulingSegment();
+            const auto& dataCenter = element->PersistentAttributes().SchedulingSegmentDataCenter;
+            if (segment && IsDataCenterAwareSchedulingSegment(*segment) && dataCenter && !element->GetSchedulingTagFilter().IsEmpty()) {
+                auto tagFilter = element->GetSchedulingTagFilter().GetBooleanFormula().GetFormula();
+                bool isDataCenterFilter = false;
+                for (const auto& possibleDataCenter : Config_->SchedulingSegments->DataCenters) {
+                    // NB(eshcherbin): This doesn't cover all the cases, only the most usual.
+                    // Don't really want to check boolean formula satisfiability here.
+                    if (tagFilter == possibleDataCenter) {
+                        isDataCenterFilter = true;
+                        break;
+                    }
+                }
+
+                if (isDataCenterFilter && tagFilter != *dataCenter) {
+                    return TError(
+                        "Operation has a data center specified in the scheduling tag filter, which causes scheduling problems; "
+                        "use \"scheduling_segment_data_centers\" spec option instead")
+                        << TErrorAttribute("scheduling_tag_filter", tagFilter)
+                        << TErrorAttribute("available_data_centers", Config_->SchedulingSegments->DataCenters);
+                }
+            }
+        }
+
         return TError();
     }
 
