@@ -144,6 +144,7 @@ std::tuple<TColumnFilter, TIdMapping> CreateOrderedReadParameters(
 template <class TRow>
 class TRemoteDynamicStoreReaderBase
     : public virtual IReaderBase
+    , public TTimingReaderBase
 {
 public:
     TRemoteDynamicStoreReaderBase(
@@ -173,11 +174,6 @@ public:
         }
 
         YT_LOG_DEBUG("Created remote dynamic store reader");
-    }
-
-    virtual TFuture<void> GetReadyEvent() const
-    {
-        return ReadyEvent_;
     }
 
     virtual TDataStatistics GetDataStatistics() const
@@ -224,7 +220,6 @@ protected:
     TColumnFilter ColumnFilter_;
     TIdMapping IdMapping_;
 
-    TPromise<void> ReadyEvent_ = NewPromise<void>();
     NConcurrency::IAsyncZeroCopyInputStreamPtr InputStream_;
     TFuture<TRows> RowsFuture_;
     int RowIndex_;
@@ -254,13 +249,10 @@ protected:
         std::vector<TRow> rows;
         rows.reserve(options.MaxRowsPerRead);
 
-        YT_VERIFY(ReadyEvent_);
-
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        auto readyEvent = ReadyEvent();
+        if (!readyEvent.IsSet() || !readyEvent.Get().IsOK()) {
             return CreateEmptyRowBatch<TRow>();
         }
-
-        ReadyEvent_ = NewPromise<void>();
 
         YT_VERIFY(RowsFuture_);
 
@@ -289,11 +281,15 @@ protected:
             }
         }
 
-        ReadyEvent_.SetFrom(RowsFuture_);
-        return CreateBatchFromRows(MakeSharedRange(rows, MakeStrong(this)));
+        SetReadyEvent(RowsFuture_.AsVoid());
+        if (rows.empty()) {
+            return CreateEmptyRowBatch<TRow>();
+        } else {
+            return CreateBatchFromRows(MakeSharedRange(rows, MakeStrong(this)));
+        }
     }
 
-    void DoOpen()
+    TFuture<void> DoOpen()
     {
         YT_LOG_DEBUG("Opening remote dynamic store reader");
 
@@ -343,26 +339,27 @@ protected:
             req->ServerAttachmentsStreamingParameters().WriteTimeout = Config_->ServerWriteTimeout;
             req->ServerAttachmentsStreamingParameters().WindowSize = Config_->WindowSize;
 
-            ReadyEvent_ = NewPromise<void>();
-            CreateRpcClientInputStream(std::move(req))
+            SetReadyEvent(CreateRpcClientInputStream(std::move(req))
                 .Apply(BIND([&, this_ = MakeStrong(this)] (const TErrorOr<IAsyncZeroCopyInputStreamPtr>& errorOrStream) {
                     if (errorOrStream.IsOK()) {
                         YT_LOG_DEBUG("Input stream initialized");
                         InputStream_ = errorOrStream.Value();
                         RequestRows();
-                        ReadyEvent_.SetFrom(RowsFuture_);
+                        return RowsFuture_.AsVoid();
                     } else {
                         YT_LOG_DEBUG("Failed to initialize input stream");
-                        ReadyEvent_.Set(errorOrStream);
+                        return MakeFuture<void>(errorOrStream);
                     }
-                }));
+                })));
         } catch (const std::exception& ex) {
             FailedChunkIds_.push_back(storeId);
-            THROW_ERROR_EXCEPTION("Failed to open remote dynamic store reader")
+            SetReadyEvent(MakeFuture(TError("Failed to open remote dynamic store reader")
                 << ex
                 << TErrorAttribute("dynamic_store_id", storeId)
-                << TErrorAttribute("tablet_id", tabletId);
+                << TErrorAttribute("tablet_id", tabletId)));
         }
+
+        return ReadyEvent();
     }
 
 private:
@@ -412,12 +409,7 @@ public:
 
     virtual TFuture<void> Open()
     {
-        try {
-            DoOpen();
-        } catch (const std::exception& ex) {
-            return MakeFuture(TError(ex));
-        }
-        return ReadyEvent_;
+        return DoOpen();
     }
 
     virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -544,20 +536,14 @@ public:
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
         TRange<NTableClient::TUnversionedRow> /*unreadRows*/) const override
     {
-        // XXX(ifsmirnov)
+        // TODO(ifsmirnov): interrupts for ordered remote dynamic stores are disabled.
         return {};
     }
 
     virtual const NChunkClient::TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
-        // XXX(ifsmirnov)
-        YT_ABORT();
-    }
-
-    virtual TTimingStatistics GetTimingStatistics() const override
-    {
-        // YT_ABORT();
-        return {};
+        // TODO(ifsmirnov, max42): used only in CHYT which does not yet support ordered dynamic tables.
+        YT_UNIMPLEMENTED();
     }
 
 private:
