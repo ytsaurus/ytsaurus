@@ -1,7 +1,6 @@
 package org.apache.spark.sql.v2
 
 import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
-import org.apache.log4j.Logger
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
@@ -13,6 +12,7 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.{AtomicType, StructType}
 import org.apache.spark.sql.vectorized.{ColumnarBatch, YtVectorizedReader}
 import org.apache.spark.util.SerializableConfiguration
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.VectorizedCapacity
 import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
@@ -100,7 +100,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   }
 
   private def createSplit(file: YtPartitionedFile): YtInputSplit = {
-    val log = Logger.getLogger(getClass)
+    val log = LoggerFactory.getLogger(getClass)
     val split = YtInputSplit(file, resultSchema)
 
     log.info(s"Reading ${split.ytPath}, " +

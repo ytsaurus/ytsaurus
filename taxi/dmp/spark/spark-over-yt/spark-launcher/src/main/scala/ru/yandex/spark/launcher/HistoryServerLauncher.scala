@@ -1,11 +1,11 @@
 package ru.yandex.spark.launcher
 
 import com.twitter.scalding.Args
-import org.apache.log4j.Logger
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
 object HistoryServerLauncher extends App with VanillaLauncher with SparkLauncher {
-  val log = Logger.getLogger(getClass)
+  val log = LoggerFactory.getLogger(getClass)
 
   val launcherArgs = HistoryServerLauncherArgs(args)
   import launcherArgs._

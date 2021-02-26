@@ -1,8 +1,8 @@
 package org.apache.spark.deploy.master
 
-import org.apache.log4j.Logger
 import org.apache.spark.serializer.{DeserializationStream, SerializationStream, Serializer}
 import org.apache.spark.util.Utils
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.YtClient
 
@@ -13,7 +13,7 @@ import scala.reflect.ClassTag
 class YtPersistenceEngine(baseDir: String,
                           serializer: Serializer)
                          (implicit yt: YtClient) extends PersistenceEngine {
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   YtWrapper.createDir(baseDir, ignoreExisting = true)
 

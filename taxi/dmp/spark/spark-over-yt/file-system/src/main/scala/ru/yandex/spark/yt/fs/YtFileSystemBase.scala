@@ -7,7 +7,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
-import org.apache.log4j.Logger
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
@@ -15,12 +15,11 @@ import ru.yandex.yt.ytclient.proxy.YtClient
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.reflect.internal.util.Statistics
 
 trait YtFileSystemBase extends FileSystem with LogLazy {
   val id: String = UUID.randomUUID().toString
 
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   private var _uri: URI = _
   private var _workingDirectory: Path = new Path("/")
@@ -43,8 +42,8 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
   }
 
   protected def create(f: Path, permission: FsPermission, overwrite: Boolean, bufferSize: Int,
-                      replication: Short, blockSize: Long, progress: Progressable,
-                      statistics: FileSystem.Statistics): FSDataOutputStream = {
+                       replication: Short, blockSize: Long, progress: Progressable,
+                       statistics: FileSystem.Statistics): FSDataOutputStream = {
     log.debugLazy(s"Create new file: $f")
     val path = ytPath(f)
 

@@ -2,8 +2,8 @@ package ru.yandex.spark.yt.fs
 
 import java.util.concurrent.atomic.AtomicReference
 
-import org.apache.log4j.Logger
 import org.apache.spark.sql.SparkSession
+import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
 import ru.yandex.spark.yt.wrapper.YtWrapper
@@ -13,7 +13,7 @@ import ru.yandex.yt.ytclient.proxy.YtClient
 import scala.collection.concurrent.TrieMap
 
 object YtClientProvider {
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   private val conf = new AtomicReference[YtClientConfiguration]
   private val client = TrieMap.empty[String, YtRpcClient]

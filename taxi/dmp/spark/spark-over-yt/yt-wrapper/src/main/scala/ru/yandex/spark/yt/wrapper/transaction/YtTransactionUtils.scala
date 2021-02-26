@@ -1,6 +1,8 @@
 package ru.yandex.spark.yt.wrapper.transaction
 
-import org.apache.log4j.Logger
+import java.time.{Duration => JDuration}
+
+import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper._
@@ -17,7 +19,12 @@ import scala.util.Random
 trait YtTransactionUtils {
   self: LogLazy =>
 
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
+
+  def createTransaction(timeout: JDuration, sticky: Boolean)
+                       (implicit yt: YtClient): ApiServiceTransaction = {
+    createTransaction(None, toScalaDuration(timeout), sticky)
+  }
 
   def createTransaction(parent: Option[String], timeout: Duration, sticky: Boolean = false)
                        (implicit yt: YtClient): ApiServiceTransaction = {

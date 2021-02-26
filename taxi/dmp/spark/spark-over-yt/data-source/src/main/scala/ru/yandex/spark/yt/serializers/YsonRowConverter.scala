@@ -2,7 +2,6 @@ package ru.yandex.spark.yt.serializers
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import org.apache.log4j.Logger
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{GenericRowWithSchema, UnsafeArrayData, UnsafeMapData, UnsafeRow}
@@ -22,8 +21,6 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 
 class YsonRowConverter(schema: StructType, skipNulls: Boolean) extends YTreeSerializer[Row] {
-  private val log = Logger.getLogger(getClass)
-
   private val indexedFields = schema.zipWithIndex
   private val entityNode = new YTreeEntityNodeImpl(new EmptyMap)
 

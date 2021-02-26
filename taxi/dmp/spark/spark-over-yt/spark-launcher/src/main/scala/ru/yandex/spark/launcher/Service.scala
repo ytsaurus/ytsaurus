@@ -3,13 +3,13 @@ package ru.yandex.spark.launcher
 import java.net.InetAddress
 
 import com.google.common.net.HostAndPort
-import org.apache.log4j.Logger
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.discovery.{Address, DiscoveryService}
 
 import scala.concurrent.duration.Duration
 
 sealed trait Service {
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   def name: String
 

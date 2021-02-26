@@ -4,14 +4,15 @@ import java.util
 import java.util.concurrent.{CompletableFuture, TimeUnit}
 
 import org.apache.hadoop.fs.Path
-import org.apache.log4j.Logger
 import org.apache.spark.metrics.yt.YtMetricsRegister
 import org.apache.spark.metrics.yt.YtMetricsRegister.ytMetricsSource._
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.sql.types.StructType
+import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
+import ru.yandex.spark.yt.fs.conf._
 import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
 import ru.yandex.spark.yt.serializers.InternalRowSerializer
 import ru.yandex.spark.yt.wrapper.LogLazy
@@ -20,7 +21,6 @@ import ru.yandex.yt.ytclient.proxy.TableWriter
 import ru.yandex.yt.ytclient.proxy.request.{TransactionalOptions, WriteTable}
 
 import scala.concurrent.{Await, Future}
-import ru.yandex.spark.yt.fs.conf._
 
 class YtOutputWriter(path: String,
                      schema: StructType,
@@ -31,7 +31,7 @@ class YtOutputWriter(path: String,
 
   import writeConfiguration._
 
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   private val schemaHint = options.ytConf(YtTableSparkSettings.WriteSchemaHint)
 

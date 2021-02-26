@@ -1,12 +1,12 @@
 package org.apache.spark.metrics.yt
 
 import com.codahale.metrics.{Counter, Timer}
-import org.apache.log4j.Logger
 import org.apache.spark.SparkEnv
+import org.slf4j.LoggerFactory
 
 object YtMetricsRegister {
   lazy val ytMetricsSource = new YtMetricsSource
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   private var _initialized = false
 

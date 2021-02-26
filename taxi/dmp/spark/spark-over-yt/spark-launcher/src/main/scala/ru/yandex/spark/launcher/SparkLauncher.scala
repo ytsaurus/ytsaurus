@@ -1,11 +1,11 @@
 package ru.yandex.spark.launcher
 
-import java.io.{File, PrintWriter, StringWriter}
+import java.io.File
 import java.net.InetAddress
 
 import io.circe.generic.auto._
 import io.circe.parser._
-import org.apache.log4j.Logger
+import org.slf4j.{Logger, LoggerFactory}
 import ru.yandex.spark.discovery.{Address, CypressDiscoveryService, DiscoveryService}
 import ru.yandex.spark.launcher.Service.{BasicService, MasterService, WorkerService}
 import ru.yandex.spark.yt.wrapper.YtWrapper
@@ -21,7 +21,7 @@ import scala.util.{Failure, Success, Try}
 trait SparkLauncher {
   self: VanillaLauncher =>
 
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
   private val masterClass = "org.apache.spark.deploy.master.Master"
   private val workerClass = "org.apache.spark.deploy.worker.Worker"
   private val historyServerClass = "org.apache.spark.deploy.history.HistoryServer"
@@ -91,7 +91,7 @@ trait SparkLauncher {
     val thread = new Thread(() => {
       var process: Process = null
       try {
-        val log = Logger.getLogger(self.getClass)
+        val log = LoggerFactory.getLogger(self.getClass)
         process = runSparkClass(className, systemProperties, namedArgs, positionalArgs, log)
         log.warn(s"Spark exit value: ${process.exitValue()}")
       } catch {

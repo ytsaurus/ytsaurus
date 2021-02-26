@@ -1,7 +1,7 @@
 package ru.yandex.spark.launcher
 
 import com.twitter.scalding.Args
-import org.apache.log4j.Logger
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.discovery.DiscoveryService
 import ru.yandex.spark.launcher.ByopLauncher.ByopConfig
 import ru.yandex.spark.yt.wrapper.Utils
@@ -11,7 +11,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with ByopLauncher {
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
   private val workerArgs = WorkerLauncherArgs(args)
   private val byopConfig = ByopConfig.create(sparkSystemProperties, args)
 

@@ -2,7 +2,6 @@ package ru.yandex.spark.yt.wrapper.table
 
 import java.nio.ByteBuffer
 
-import org.apache.log4j.Logger
 import ru.yandex.yt.ytclient.proxy.TableReader
 
 import scala.annotation.tailrec
@@ -10,7 +9,6 @@ import scala.concurrent.duration.Duration
 
 
 class TableCopyByteStream(reader: TableReader[ByteBuffer], timeout: Duration) extends YtArrowInputStream {
-  private val log = Logger.getLogger(getClass)
   private var _batch: ByteBuffer = _
   private var _batchBytesLeft = 0
   private val nextPageToken: Array[(Byte, Int)] = Array(-1, -1, -1, -1, 0, 0, 0, 0).map(_.toByte).zipWithIndex

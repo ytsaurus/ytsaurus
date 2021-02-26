@@ -3,7 +3,6 @@ package ru.yandex.spark.yt.format.batch
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.dictionary.Dictionary
 import org.apache.arrow.vector.ipc.ArrowStreamReader
-import org.apache.log4j.Logger
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch}
 import ru.yandex.spark.yt.serializers.SchemaConverter
@@ -14,8 +13,6 @@ import scala.collection.JavaConverters._
 class ArrowBatchReader(stream: YtArrowInputStream,
                        totalRowCount: Long,
                        schema: StructType) extends BatchReaderBase(totalRowCount) {
-  private val log = Logger.getLogger(getClass)
-
   private val indexedSchema = schema.fields.map(f => SchemaConverter.indexedDataType(f.dataType))
 
   private val allocator = ArrowUtils.rootAllocator.newChildAllocator(s"stdin reader", 0, Long.MaxValue)

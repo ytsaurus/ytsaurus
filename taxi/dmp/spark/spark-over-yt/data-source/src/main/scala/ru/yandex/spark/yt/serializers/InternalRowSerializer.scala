@@ -2,13 +2,13 @@ package ru.yandex.spark.yt.serializers
 
 import java.util.concurrent.{Executors, TimeUnit}
 
-import org.apache.log4j.Logger
 import org.apache.spark.metrics.yt.YtMetricsRegister
 import org.apache.spark.metrics.yt.YtMetricsRegister.ytMetricsSource._
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.YsonType
+import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.yt.ytclient.`object`.{WireProtocolWriteable, WireRowSerializer}
@@ -23,7 +23,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogicalType])
   extends WireRowSerializer[InternalRow] with LogLazy {
 
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   private val tableSchema = SchemaConverter.tableSchema(schema, Nil, schemaHint)
 
@@ -94,7 +94,6 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
 }
 
 object InternalRowSerializer {
-  private val log = Logger.getLogger(getClass)
   private val deserializers: ThreadLocal[mutable.Map[StructType, InternalRowSerializer]] = ThreadLocal.withInitial(() => mutable.ListMap.empty)
   private val context = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4))
 

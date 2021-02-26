@@ -65,6 +65,8 @@ trait YtCypressUtils {
     PathType.fromString(attrs(YtAttributes.`type`).stringValue())
   }
 
+  def exists(path: String)(implicit yt: YtClient): Boolean = exists(path, None)
+
   def exists(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Boolean = {
     val request = new ExistsNode(s"${formatPath(path)}/@").optionalTransaction(transaction)
     yt.existsNode(request).join().booleanValue()
