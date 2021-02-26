@@ -1,6 +1,5 @@
 from yt.environment import YTInstance
 from yt.environment.api import LocalYtConfig
-import yt.environment.init_operation_archive as yt_env_init_operation_archive
 from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead, yatest_common
 from yt.wrapper.common import generate_uuid, GB, MB
 from yt.common import YtError, require, is_process_alive
