@@ -645,7 +645,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::Abort()
 {
-    Cancel(TError("Cache item insertion aborted"));
+    Cancel(TError(NYT::EErrorCode::Canceled, "Cache item insertion aborted"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

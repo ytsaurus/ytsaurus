@@ -655,15 +655,20 @@ private:
                     AcquireReplyLock();
 
                     cookie.GetValue()
-                        .Subscribe(BIND([this, this_ = MakeStrong(this), subrequestIndex] (const TErrorOr<TObjectServiceCacheEntryPtr>& entry) {
+                        .Subscribe(BIND([this, this_ = MakeStrong(this), subrequestIndex] (const TErrorOr<TObjectServiceCacheEntryPtr>& entryOrError) {
                             auto& subrequest = Subrequests_[subrequestIndex];
-                            if (!entry.IsOK()) {
-                                Reply(entry);
+                            if (!entryOrError.IsOK()) {
+                                if (entryOrError.FindMatching(NYT::EErrorCode::Canceled)) {
+                                    Reply(TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
+                                    << entryOrError);
+                                } else {
+                                    Reply(entryOrError);
+                                }
                                 return;
                             }
-                            const auto& value = entry.Value();
-                            subrequest.Revision = value->GetRevision();
-                            OnSuccessfullSubresponse(&subrequest, value->GetResponseMessage());
+                            const auto& entry = entryOrError.Value();
+                            subrequest.Revision = entry->GetRevision();
+                            OnSuccessfullSubresponse(&subrequest, entry->GetResponseMessage());
                         }));
                 }
             }
