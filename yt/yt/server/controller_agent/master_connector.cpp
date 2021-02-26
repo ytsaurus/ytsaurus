@@ -9,8 +9,6 @@
 #include "snapshot_builder.h"
 #include "snapshot_downloader.h"
 
-#include <yt/server/lib/scheduler/config.h>
-
 #include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/server/lib/misc/update_executor.h>

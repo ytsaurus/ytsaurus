@@ -2,8 +2,6 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/lib/scheduler/config.h>
-
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/api/native/client.h>

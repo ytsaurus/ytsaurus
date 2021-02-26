@@ -2,12 +2,11 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/server/lib/scheduler/config.h>
-
-#include <yt/client/api/file_reader.h>
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
+
+#include <yt/client/api/file_reader.h>
 
 namespace NYT::NControllerAgent {
 

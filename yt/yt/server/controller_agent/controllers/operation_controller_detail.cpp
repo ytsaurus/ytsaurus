@@ -143,7 +143,6 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
 using namespace NFormats;
-using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NCoreDump::NProto;

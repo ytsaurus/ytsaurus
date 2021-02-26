@@ -40,7 +40,6 @@ namespace NYT::NControllerAgent::NControllers {
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
-using namespace NJobProxy;
 using namespace NChunkClient;
 using namespace NChunkPools;
 using namespace NChunkClient::NProto;

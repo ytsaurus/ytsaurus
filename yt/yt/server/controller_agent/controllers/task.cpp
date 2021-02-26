@@ -13,8 +13,6 @@
 
 #include <yt/server/lib/chunk_pools/helpers.h>
 
-#include <yt/server/lib/scheduler/config.h>
-
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>

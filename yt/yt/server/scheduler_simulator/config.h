@@ -1,6 +1,12 @@
 #pragma once
 
-#include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/misc/config.h>
+
+#include <yt/ytlib/api/native/config.h>
+
+#include <yt/ytlib/event_log/config.h>
+
+#include <yt/ytlib/program/program.h>
 
 #include <yt/core/ytree/public.h>
 #include <yt/core/ytree/yson_serializable.h>
