@@ -2,14 +2,12 @@ package ru.yandex.spark.yt.wrapper.file
 
 import java.io.OutputStream
 
-import org.apache.log4j.Logger
 import ru.yandex.spark.yt.wrapper.client.YtRpcClient
 import ru.yandex.yt.ytclient.proxy.FileWriter
 
 import scala.annotation.tailrec
 
 class YtFileOutputStream(writer: FileWriter, yt: Option[YtRpcClient]) extends OutputStream {
-  private val log = Logger.getLogger(getClass)
   private var closed = false
 
   override def write(b: Int): Unit = {

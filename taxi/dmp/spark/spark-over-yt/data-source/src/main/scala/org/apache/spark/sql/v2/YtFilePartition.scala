@@ -1,15 +1,15 @@
 package org.apache.spark.sql.v2
 
 import org.apache.hadoop.fs.{FileStatus, Path}
-import org.apache.log4j.Logger
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.datasources.{PartitionDirectory, PartitionedFile}
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format.YtPartitionedFile
 import ru.yandex.spark.yt.fs.{YtDynamicPath, YtFileStatus, YtPath, YtStaticPath}
 
 object YtFilePartition {
-  @transient private val log = Logger.getLogger(getClass)
+  @transient private val log = LoggerFactory.getLogger(getClass)
 
   def maxSplitBytes(sparkSession: SparkSession,
                     selectedPartitions: Seq[PartitionDirectory],

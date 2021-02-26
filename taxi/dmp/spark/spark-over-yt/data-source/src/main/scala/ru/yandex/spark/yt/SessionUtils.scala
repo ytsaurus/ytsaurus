@@ -2,9 +2,9 @@ package ru.yandex.spark.yt
 
 import java.util.UUID
 
-import org.apache.log4j.Logger
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.YtClientProvider
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
@@ -12,7 +12,7 @@ import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 object SessionUtils {
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
   private val sparkDefaults = Map(
     "spark.hadoop.yt.byop.enabled" -> "true",
     "spark.hadoop.yt.read.arrow.enabled" -> "true",

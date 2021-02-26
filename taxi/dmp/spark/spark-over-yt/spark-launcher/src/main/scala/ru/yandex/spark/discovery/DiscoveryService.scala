@@ -3,7 +3,7 @@ package ru.yandex.spark.discovery
 import java.net.{InetSocketAddress, Socket}
 
 import com.google.common.net.HostAndPort
-import org.apache.log4j.Logger
+import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -29,7 +29,7 @@ trait DiscoveryService {
 }
 
 object DiscoveryService {
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   @tailrec
   final def waitFor[T](f: => Option[T], timeout: Long, retryCount: Int = 2): Option[T] = {

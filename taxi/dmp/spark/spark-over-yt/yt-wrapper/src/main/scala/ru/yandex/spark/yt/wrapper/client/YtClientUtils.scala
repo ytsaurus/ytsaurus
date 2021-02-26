@@ -5,21 +5,21 @@ import java.util.{ArrayList => JArrayList}
 
 import com.google.common.net.HostAndPort
 import io.netty.channel.nio.NioEventLoopGroup
-import org.apache.log4j.Logger
+import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.inside.yt.kosher.impl.{YtUtils => InsideYtUtils}
-import ru.yandex.yt.ytclient.bus.{BusConnector, DefaultBusConnector}
+import ru.yandex.spark.yt.wrapper.YtJavaConverters._
+import ru.yandex.spark.yt.wrapper.system.SystemUtils
+import ru.yandex.yt.ytclient.bus.DefaultBusConnector
 import ru.yandex.yt.ytclient.proxy.internal.{DiscoveryMethod, HostPort}
 import ru.yandex.yt.ytclient.proxy.{YtClient, YtCluster}
 import ru.yandex.yt.ytclient.rpc.RpcOptions
-import ru.yandex.spark.yt.wrapper.YtJavaConverters._
-import ru.yandex.spark.yt.wrapper.system.SystemUtils
 
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}
 
 trait YtClientUtils {
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   def createRpcClient(id: String, config: YtClientConfiguration): YtRpcClient = {
     log.info(s"Create RPC YT Client, id $id, configuration ${config.copy(token = "*****")}")

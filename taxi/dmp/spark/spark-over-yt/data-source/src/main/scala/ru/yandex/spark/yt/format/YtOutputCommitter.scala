@@ -3,8 +3,8 @@ package ru.yandex.spark.yt.format
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.mapreduce.{JobContext, TaskAttemptContext}
-import org.apache.log4j.Logger
 import org.apache.spark.internal.io.FileCommitProtocol
+import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
@@ -98,7 +98,7 @@ object YtOutputCommitter {
 
   import ru.yandex.spark.yt.format.conf.SparkYtInternalConfiguration._
 
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   private val pingFutures = scala.collection.concurrent.TrieMap.empty[String, (ApiServiceTransaction, YtWrapper.Cancellable[Unit])]
 

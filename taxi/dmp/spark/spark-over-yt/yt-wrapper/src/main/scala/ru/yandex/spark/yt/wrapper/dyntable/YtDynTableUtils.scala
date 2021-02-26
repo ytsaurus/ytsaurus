@@ -8,6 +8,7 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.yt.ytclient.proxy.YtClient
+import java.time.{Duration => JDuration}
 
 import scala.annotation.tailrec
 import scala.concurrent.TimeoutException
@@ -62,6 +63,11 @@ trait YtDynTableUtils {
 
   def unmountTable(path: String)(implicit yt: YtClient): Unit = {
     yt.unmountTable(formatPath(path)).join()
+  }
+
+  def waitState(path: String, state: TabletState, timeout: JDuration)
+               (implicit yt: YtClient): Unit = {
+    waitState(path, state, toScalaDuration(timeout)).get
   }
 
   def waitState(path: String, state: TabletState, timeout: Duration)

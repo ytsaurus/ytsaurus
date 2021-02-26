@@ -3,11 +3,11 @@ package ru.yandex.spark.launcher.rest
 import java.net.BindException
 
 import io.netty.channel.unix.Errors.NativeIoException
-import org.apache.log4j.Logger
 import org.eclipse.jetty.util.MultiException
+import org.slf4j.LoggerFactory
 
 object Utils {
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   def isBindCollision(exception: Throwable): Boolean = {
     import scala.collection.JavaConverters._

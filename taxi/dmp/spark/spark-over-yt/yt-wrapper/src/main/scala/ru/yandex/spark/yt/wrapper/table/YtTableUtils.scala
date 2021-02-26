@@ -4,7 +4,6 @@ import java.io.{BufferedInputStream, FileInputStream, InputStream}
 import java.nio.ByteBuffer
 import java.nio.file.Paths
 
-import org.apache.log4j.Logger
 import ru.yandex.bolts.collection.impl.DefaultListF
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.inside.yt.kosher.common.GUID
@@ -26,14 +25,18 @@ import scala.language.postfixOps
 trait YtTableUtils {
   self: YtCypressUtils with YtTransactionUtils =>
 
-  private val log = Logger.getLogger(getClass)
-
   def createTable(path: String,
                   settings: YtTableSettings,
                   transaction: Option[String] = None)
                  (implicit yt: YtClient): Unit = {
     createDir(Paths.get(path).getParent.toString, transaction, ignoreExisting = true)
     createTable(path, settings.options, transaction)
+  }
+
+  def createTable(path: String,
+                  settings: YtTableSettings)
+                 (implicit yt: YtClient): Unit = {
+    createTable(path, settings, None)
   }
 
   def createTable(path: String,

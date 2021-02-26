@@ -1,7 +1,7 @@
 package ru.yandex.spark.launcher
 
 import com.twitter.scalding.Args
-import org.apache.log4j.Logger
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.discovery.SparkConfYsonable
 import ru.yandex.spark.launcher.rest.MasterWrapperLauncher
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
@@ -10,7 +10,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 object MasterLauncher extends App with VanillaLauncher with SparkLauncher with MasterWrapperLauncher {
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
   val masterArgs = MasterLauncherArgs(args)
   import masterArgs._
 

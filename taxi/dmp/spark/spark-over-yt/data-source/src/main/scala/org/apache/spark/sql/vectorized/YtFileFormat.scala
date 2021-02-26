@@ -3,9 +3,7 @@ package org.apache.spark.sql.vectorized
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.hadoop.mapreduce.{Job, TaskAttemptContext}
-import org.apache.log4j.Logger
 import org.apache.spark.TaskContext
-import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.execution.datasources._
@@ -13,6 +11,8 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.{AtomicType, StructType}
 import org.apache.spark.sql.v2.YtTable
+import org.apache.spark.sql.{AnalysisException, SparkSession}
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
 import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
@@ -61,14 +61,14 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
 
     val batchMaxSize = hadoopConf.ytConf(VectorizedCapacity)
 
-    val log = Logger.getLogger(getClass)
+    val log = LoggerFactory.getLogger(getClass)
     log.info(s"Batch read enabled: $readBatch")
     log.info(s"Batch return enabled: $returnBatch")
     log.info(s"Arrow enabled: $arrowEnabledValue")
 
     {
       case ypf: YtPartitionedFile =>
-        val log = Logger.getLogger(getClass)
+        val log = LoggerFactory.getLogger(getClass)
         implicit val yt: YtClient = YtClientProvider.ytClient(ytClientConf)
         val split = YtInputSplit(ypf, requiredSchema)
         log.info(s"Reading ${split.ytPath}")

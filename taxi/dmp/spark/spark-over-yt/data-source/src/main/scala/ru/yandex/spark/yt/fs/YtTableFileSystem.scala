@@ -5,8 +5,8 @@ import java.io.FileNotFoundException
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
-import org.apache.log4j.Logger
 import org.apache.spark.sql.SparkSession
+import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.cypress.PathType
@@ -17,7 +17,7 @@ import scala.language.postfixOps
 
 @SerialVersionUID(1L)
 class YtTableFileSystem extends YtFileSystemBase {
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   override def listStatus(f: Path): Array[FileStatus] = {
     log.debugLazy(s"List status $f")

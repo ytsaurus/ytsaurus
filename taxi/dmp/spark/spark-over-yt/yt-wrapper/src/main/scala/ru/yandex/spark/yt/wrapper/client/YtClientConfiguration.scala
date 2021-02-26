@@ -1,6 +1,9 @@
 package ru.yandex.spark.yt.wrapper.client
 
+import java.time.{Duration => JDuration}
+
 import ru.yandex.spark.yt.wrapper.Utils
+import ru.yandex.spark.yt.wrapper.YtJavaConverters.toScalaDuration
 import ru.yandex.yt.ytclient.rpc.RpcCredentials
 
 import scala.concurrent.duration._
@@ -67,6 +70,18 @@ object YtClientConfiguration {
     byop = ByopConfiguration.DISABLED,
     masterWrapperUrl = None,
     extendedFileTimeout = true
+  )
+
+  def create(proxy: String,
+             user: String,
+             token: String,
+             timeout: JDuration,
+             proxyRole: String,
+             byop: ByopConfiguration,
+             masterWrapperUrl: String,
+             extendedFileTimeout: Boolean) = new YtClientConfiguration(
+    proxy, user, token, toScalaDuration(timeout),
+    Option(proxyRole), byop, Option(masterWrapperUrl), extendedFileTimeout
   )
 }
 

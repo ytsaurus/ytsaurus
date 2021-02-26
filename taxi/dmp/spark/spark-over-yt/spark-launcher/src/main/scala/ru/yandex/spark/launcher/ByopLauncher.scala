@@ -6,7 +6,7 @@ import java.nio.file.{Files, Path, Paths}
 
 import com.google.common.net.HostAndPort
 import com.twitter.scalding.Args
-import org.apache.log4j.Logger
+import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode}
@@ -25,7 +25,7 @@ import scala.sys.process._
 trait ByopLauncher {
   self: VanillaLauncher =>
 
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
 
   private def waitByopStart(config: ByopConfig, process: Thread, timeout: Duration): Unit = {
     val address = HostAndPort.fromParts("localhost", config.rpcPort)

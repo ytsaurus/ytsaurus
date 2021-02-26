@@ -2,14 +2,14 @@ package ru.yandex.spark.yt.wrapper.table
 
 import java.util.concurrent.TimeUnit
 
-import org.apache.log4j.Logger
+import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.yt.ytclient.proxy.TableReader
 
 import scala.concurrent.duration.Duration
 
 class TableIterator[T](reader: TableReader[T], timeout: Duration) extends Iterator[T] with AutoCloseable with LogLazy {
-  private val log = Logger.getLogger(getClass)
+  private val log = LoggerFactory.getLogger(getClass)
   private var chunk: java.util.Iterator[T] = _
   private var prevRowCount: Long = 0
 

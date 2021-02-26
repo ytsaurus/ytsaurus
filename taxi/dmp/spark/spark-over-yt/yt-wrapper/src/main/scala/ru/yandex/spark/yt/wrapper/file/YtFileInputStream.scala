@@ -3,14 +3,12 @@ package ru.yandex.spark.yt.wrapper.file
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
 
-import org.apache.log4j.Logger
 import ru.yandex.yt.ytclient.proxy.FileReader
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl
 
 import scala.concurrent.duration.Duration
 
 class YtFileInputStream(reader: FileReader, timeout: Duration) extends InputStream {
-  private val log = Logger.getLogger(getClass)
   private var chunk: Iterator[Byte] = _
   private var closed: Boolean = false
 
