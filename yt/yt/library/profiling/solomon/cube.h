@@ -38,6 +38,7 @@ struct TReadOptions
 
     bool Sparse = false;
     bool Global = false;
+    bool DisableSensorsRename = false;
 
     int LingerWindowSize = 0;
 };

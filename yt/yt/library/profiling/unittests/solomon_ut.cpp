@@ -423,6 +423,26 @@ TEST(TSolomonRegistry, DisableProjections)
     ASSERT_EQ(1, result.Counters["yt.d.bigb{mode=percentile;p=99}"]);
 }
 
+TEST(TSolomonRegistry, DisableRenaming)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+    TRegistry r(impl, "/d", "");
+
+    auto p0 = New<TDebugProducer>();
+    r.WithRenameDisabled().AddProducer("/bigb", p0);
+    p0->Buffer.AddGauge("/gauge", 10);
+    p0->Buffer.AddCounter("/counter", 5);
+
+
+    auto result = Collect(impl);
+    ASSERT_EQ(1u, result.Gauges.size());
+    EXPECT_EQ(10.0, result.Gauges["/d/bigb/gauge{}"]);
+
+    ASSERT_EQ(1u, result.Counters.size());
+    EXPECT_EQ(5, result.Counters["/d/bigb/counter{}"]);
+}
+
 DECLARE_REFCOUNTED_STRUCT(TCounterProducer)
 
 struct TCounterProducer

@@ -130,6 +130,7 @@ struct TSensorOptions
     bool Global = false;
     bool Sparse = false;
     bool Hot = false;
+    bool DisableSensorsRename = false;
 
     TDuration HistogramMin;
     TDuration HistogramMax;
@@ -202,6 +203,9 @@ public:
 
     //! WithProjectionsDisabled disables local aggregation.
     TRegistry WithProjectionsDisabled() const;
+
+    //! WithRenameDisabled disables sensors name normalization
+    TRegistry WithRenameDisabled() const;
 
     //! WithHot sets hot flag on all sensors created using returned registry.
     /*!

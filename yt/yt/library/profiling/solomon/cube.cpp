@@ -168,16 +168,24 @@ int TCube<T>::ReadSensors(
 
         TString sensorName;
         sensorName.reserve(name.size() + (suffix ? suffix->size() : 0));
-        if (name[0] != '/') {
-            sensorName.push_back(name[0]);
-        }
-        for (size_t i = 1; i < name.size(); ++i) {
-            if (name[i] == '/') {
-                sensorName.push_back('.');
-            } else {
-                sensorName.push_back(name[i]);
+        if (options.DisableSensorsRename) {
+            sensorName += name;
+        } else {
+            if (name[0] != '/') {
+                sensorName.push_back(name[0]);
+            }
+            for (size_t i = 1; i < name.size(); ++i) {
+                if (name[i] == '/') {
+                    sensorName.push_back('.');
+                } else {
+                    sensorName.push_back(name[i]);
+                }
+            }
+            if (sensorName.back() == '.') {
+                sensorName.pop_back();
             }
         }
+
         if (suffix) {
             sensorName += *suffix;
         }
