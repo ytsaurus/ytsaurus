@@ -48,10 +48,6 @@ def get_dynamic_master_config():
     return yson.loads(
 b"""
 {
-    object_service = {
-        enable_two_level_cache = %true;
-    };
-
     chunk_manager = {
         chunk_refresh_delay = 300;
         chunk_refresh_period = 200;

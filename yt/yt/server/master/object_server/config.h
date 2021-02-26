@@ -160,7 +160,7 @@ public:
     TDynamicObjectServiceConfig()
     {
         RegisterParameter("enable_two_level_cache", EnableTwoLevelCache)
-            .Default(false);
+            .Default(true);
         RegisterParameter("enable_mutation_boomerangs", EnableMutationBoomerangs)
             .Default(true);
         RegisterParameter("schedule_reply_retry_backoff", ScheduleReplyRetryBackoff)
