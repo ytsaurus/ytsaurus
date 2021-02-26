@@ -7,6 +7,8 @@
 #include <yt/core/misc/shutdown.h>
 
 #include <util/system/yield.h>
+#include <util/system/env.h>
+#include <util/system/backtrace.h>
 
 namespace NYT::NConcurrency {
 
@@ -27,10 +29,22 @@ private:
             : Owner_(owner)
         {
             YT_VERIFY(Owner_->Refs_.fetch_add(1, std::memory_order_acquire) > 0);
+
+            if (Owner_->Debug_) {
+                CaptureBacktrace();
+
+                auto guard = Guard(Owner_->InvokerLock_);
+                Owner_->AliveInvokers_.insert(this);
+            }
         }
 
         virtual ~TInvoker() override
         {
+            if (Owner_->Debug_) {
+                auto guard = Guard(Owner_->InvokerLock_);
+                Owner_->AliveInvokers_.erase(this);
+            }
+
             YT_VERIFY(Owner_->Refs_.fetch_sub(1, std::memory_order_release) > 0);
         }
 
@@ -40,6 +54,11 @@ private:
                 TCurrentInvokerGuard guard(std::move(this_));
                 callback.Run();
             }));
+        }
+
+        const std::vector<void*>& GetBacktrace() const
+        {
+            return Backtrace_;
         }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
@@ -55,6 +74,21 @@ private:
 #endif
     private:
         TFinalizerThread* Owner_;
+        std::vector<void*> Backtrace_;
+
+        void CaptureBacktrace()
+        {
+            Backtrace_.resize(128);
+            while (true) {
+                auto size = BackTrace(Backtrace_.data(), Backtrace_.size());
+                if (size != Backtrace_.size()) {
+                    Backtrace_.resize(size);
+                    break;
+                }
+
+                Backtrace_.resize(Backtrace_.size() * 2);
+            }
+        }
     };
 
     bool IsSameProcess()
@@ -64,7 +98,8 @@ private:
 
 public:
     TFinalizerThread()
-        : ThreadName_("Finalizer")
+        : Debug_(GetEnv("YT_FINALIZER_DEBUG") != "")
+        , ThreadName_("Finalizer")
         , Queue_(New<TMpscInvokerQueue>(
             CallbackEventCount_,
             GetThreadTags("Finalizer")))
@@ -102,9 +137,19 @@ public:
                     Sleep(TDuration::MilliSeconds(1));
                 }
                 if (Refs_ != 1) {
-                    // Things gone really bad.
+                    // Things gone slightly bad.
                     TRefCountedTrackerFacade::Dump();
-                    YT_VERIFY(false && "Hung during ShutdownFinalizerThread");
+
+                    {
+                        auto guard = Guard(InvokerLock_);
+                        for (auto invoker : AliveInvokers_) {
+                            auto backtrace = invoker->GetBacktrace();
+                            Cerr << "\nTFinalizerThread::TInvoker 0x%x" << static_cast<void*>(invoker) << " allocated at:\n";
+                            FormatBackTrace(&Cerr, backtrace.data(), backtrace.size());
+                        }
+                    }
+
+                    YT_VERIFY(false && "Hung during ShutdownFinalizerThread. Run with YT_FINALIZER_DEBUG=1 to see detailed output.");
                 }
             }
 
@@ -143,6 +188,10 @@ public:
 private:
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const std::shared_ptr<TEventCount> ShutdownEventCount_ = std::make_shared<TEventCount>();
+
+    const bool Debug_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, InvokerLock_);
+    THashSet<TInvoker*> AliveInvokers_;
 
     const TString ThreadName_;
     const TMpscInvokerQueuePtr Queue_;
