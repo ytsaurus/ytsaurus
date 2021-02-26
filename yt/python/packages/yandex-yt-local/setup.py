@@ -31,7 +31,7 @@ def main():
     setup(
         name = PACKAGE_NAME,
         version = get_version(),
-        packages = ["yt.local", "yt.environment", "yt.test_helpers"],
+        packages = ["yt.local", "yt.environment", "yt.environment.api", "yt.test_helpers"],
         scripts = scripts,
 
         install_requires = requires,
