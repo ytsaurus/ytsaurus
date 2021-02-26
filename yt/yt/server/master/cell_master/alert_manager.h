@@ -4,32 +4,33 @@
 
 #include <yt/core/actions/signal.h>
 
-#include <yt/core/ytree/public.h>
-
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConfigManager
+using TAlertSource = std::function<std::vector<TError>()>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAlertManager
     : public TRefCounted
 {
 public:
-    explicit TConfigManager(NCellMaster::TBootstrap* bootstrap);
-    ~TConfigManager();
+    explicit TAlertManager(TBootstrap* bootstrap);
+    ~TAlertManager();
 
     void Initialize();
 
-    const TDynamicClusterConfigPtr& GetConfig() const;
-    void SetConfig(NYTree::INodePtr configNode);
+    void RegisterAlertSource(TAlertSource alertSource);
 
-    DECLARE_SIGNAL(void(TDynamicClusterConfigPtr), ConfigChanged);
+    std::vector<TError> GetAlerts() const;
 
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TConfigManager)
+DEFINE_REFCOUNTED_TYPE(TAlertManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

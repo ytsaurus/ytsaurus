@@ -51,7 +51,6 @@ b"""
     chunk_manager = {
         chunk_refresh_delay = 300;
         chunk_refresh_period = 200;
-        chunk_properties_update_period = 100;
     };
 
     node_tracker = {

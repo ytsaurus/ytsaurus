@@ -281,10 +281,15 @@ class TDynamicCellMasterConfig
 public:
     TDuration MutationTimeCommitPeriod;
 
+    TDuration AlertUpdatePeriod;
+
     TDynamicCellMasterConfig()
     {
         RegisterParameter("mutation_time_commit_period", MutationTimeCommitPeriod)
             .Default(TDuration::Minutes(10));
+
+        RegisterParameter("alert_update_period", AlertUpdatePeriod)
+            .Default(TDuration::Seconds(30));
     }
 };
 

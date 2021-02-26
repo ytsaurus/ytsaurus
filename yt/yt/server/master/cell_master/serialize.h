@@ -149,6 +149,7 @@ DEFINE_ENUM(EMasterReign,
     ((Hunks)                                                        (1506))  // babenko
     ((EnableMasterCacheDiscoveryByDefault)                          (1507))  // aleksandra-zh
     ((CellDescriptorMap)                                            (1508))  // aleksandra-zh
+    ((MasterAlerts)                                                 (1509))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

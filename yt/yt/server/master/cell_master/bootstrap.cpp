@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 #include "private.h"
+#include "alert_manager.h"
 #include "config.h"
 #include "config_manager.h"
 #include "epoch_history_manager.h"
@@ -243,6 +244,11 @@ TCellTag TBootstrap::GetPrimaryCellTag() const
 const TCellTagList& TBootstrap::GetSecondaryCellTags() const
 {
     return SecondaryCellTags_;
+}
+
+const TAlertManagerPtr& TBootstrap::GetAlertManager() const
+{
+    return AlertManager_;
 }
 
 const TConfigManagerPtr& TBootstrap::GetConfigManager() const
@@ -636,6 +642,8 @@ void TBootstrap::DoInitialize()
 
     HydraFacade_ = New<THydraFacade>(Config_, this);
 
+    AlertManager_ = New<TAlertManager>(this);
+
     ConfigManager_ = New<TConfigManager>(this);
 
     EpochHistoryManager_ = New<TEpochHistoryManager>(this);
@@ -722,6 +730,7 @@ void TBootstrap::DoInitialize()
         });
 
     fileSnapshotStore->Initialize();
+    AlertManager_->Initialize();
     ConfigManager_->Initialize();
     ObjectManager_->Initialize();
     SecurityManager_->Initialize();

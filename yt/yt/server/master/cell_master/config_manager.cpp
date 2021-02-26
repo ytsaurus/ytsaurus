@@ -1,3 +1,4 @@
+#include "alert_manager.h"
 #include "automaton.h"
 #include "bootstrap.h"
 #include "config_manager.h"
@@ -5,6 +6,9 @@
 #include "multicell_manager.h"
 #include "serialize.h"
 #include "config.h"
+
+// COMPAT(gritukan)
+#include "serialize.h"
 
 #include <yt/server/master/tablet_server/config.h>
 
@@ -16,6 +20,7 @@ namespace NYT::NCellMaster {
 
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +51,9 @@ public:
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
                 BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+
+            Bootstrap_->GetAlertManager()->RegisterAlertSource(
+                BIND(&TImpl::GetAlerts, MakeStrong(this)));
         }
     }
 
@@ -56,13 +64,25 @@ public:
         return Config_;
     }
 
-    void SetConfig(TDynamicClusterConfigPtr config)
+    void SetConfig(INodePtr configNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto newConfig = New<TDynamicClusterConfig>();
+        newConfig->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+        newConfig->Load(configNode);
 
         auto oldConfig = std::move(Config_);
-        Config_ = std::move(config);
+        Config_ = std::move(newConfig);
+
+        auto unrecognizedOptions = Config_->GetUnrecognizedRecursively();
+        if (unrecognizedOptions->GetChildCount() > 0) {
+            UnrecognizedOptionsAlert_ = TError("Found unrecognized options in dynamic cluster config")
+                << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, EYsonFormat::Text));
+        } else {
+            UnrecognizedOptionsAlert_ = TError();
+        }
+
         ReplicateConfigToSecondaryMasters();
 
         NTracing::TNullTraceContextGuard nullTraceContext;
@@ -74,6 +94,8 @@ public:
 private:
     TDynamicClusterConfigPtr Config_ = New<TDynamicClusterConfig>();
 
+    TError UnrecognizedOptionsAlert_;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void Save(NCellMaster::TSaveContext& context) const
@@ -82,6 +104,7 @@ private:
 
         using NYT::Save;
         Save(context, *Config_);
+        Save(context, UnrecognizedOptionsAlert_);
     }
 
     void Load(NCellMaster::TLoadContext& context)
@@ -90,6 +113,11 @@ private:
 
         using NYT::Load;
         Load(context, *Config_);
+
+        // COMPAT(gritukan)
+        if (context.GetVersion() >= EMasterReign::MasterAlerts) {
+            Load(context, UnrecognizedOptionsAlert_);
+        }
     }
 
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
@@ -114,6 +142,18 @@ private:
             multicellManager->PostToSecondaryMasters(req);
         }
     }
+
+    std::vector<TError> GetAlerts() const
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        std::vector<TError> alerts;
+        if (!UnrecognizedOptionsAlert_.IsOK()) {
+            alerts.push_back(UnrecognizedOptionsAlert_);
+        }
+
+        return alerts;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,9 +175,9 @@ const TDynamicClusterConfigPtr& TConfigManager::GetConfig() const
     return Impl_->GetConfig();
 }
 
-void TConfigManager::SetConfig(TDynamicClusterConfigPtr config)
+void TConfigManager::SetConfig(INodePtr configNode)
 {
-    Impl_->SetConfig(std::move(config));
+    Impl_->SetConfig(std::move(configNode));
 }
 
 DELEGATE_SIGNAL(TConfigManager, void(TDynamicClusterConfigPtr), ConfigChanged, *Impl_);

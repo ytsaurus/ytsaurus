@@ -11,6 +11,7 @@
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/server/master/cell_master/alert_manager.h>
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
@@ -58,6 +59,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::ChunkRefreshEnabled);
         descriptors->push_back(EInternedAttributeKey::ChunkRequisitionUpdateEnabled);
         descriptors->push_back(EInternedAttributeKey::RegisteredMasterCellTags);
+        descriptors->push_back(EInternedAttributeKey::MasterAlerts);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Config)
             .SetWritable(true)
             .SetOpaque(true));
@@ -70,6 +72,7 @@ private:
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& alertManager = Bootstrap_->GetAlertManager();
 
         switch (key) {
             case EInternedAttributeKey::CellTag:
@@ -136,6 +139,11 @@ private:
                     .Value(hydraManager->GetReadOnly());
                 return true;
 
+            case EInternedAttributeKey::MasterAlerts:
+                BuildYsonFluently(consumer)
+                    .Value(alertManager->GetAlerts());
+                return true;
+
             default:
                 break;
         }
@@ -149,7 +157,7 @@ private:
             case EInternedAttributeKey::Config: {
                 ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
                 const auto& configManager = Bootstrap_->GetConfigManager();
-                configManager->SetConfig(ConvertTo<TDynamicClusterConfigPtr>(value));
+                configManager->SetConfig(ConvertTo<INodePtr>(value));
                 return true;
             }
 

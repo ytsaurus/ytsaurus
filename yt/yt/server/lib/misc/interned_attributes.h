@@ -205,6 +205,7 @@
     XX(LogFairShareRatioDisagreementThreshold, log_fair_share_ratio_disagreement_threshold) \
     XX(LowerLimit, lower_limit) \
     XX(MainResource, main_resource) \
+    XX(MasterAlerts, master_alerts) \
     XX(MasterCacheNodes, master_cache_nodes) \
     XX(MasterMetaSize, master_meta_size) \
     XX(MaxBlockSize, max_block_size) \
