@@ -298,9 +298,18 @@ class TestGetJob(_TestGetJobCommon):
         # still reports "running" to archive.
         del job_from_archive["job_id_partition_hash"]
         del job_from_archive["operation_id_hash"]
-        _update_job_in_archive(op.id, job_id, job_from_archive)
 
-        self._check_get_job(op.id, job_id, before_start_time, archive_state="running", has_spec=None)
+        def _check_get_job():
+            _update_job_in_archive(op.id, job_id, job_from_archive)
+            job_info = retry(lambda: get_job(op.id, job_id))
+            assert job_info["job_id"] == job_id
+            assert job_info["archive_state"] == "running"
+            controller_agent_state = job_info.get("controller_agent_state")
+            if controller_agent_state is None:
+                assert job_info["is_stale"]
+            else:
+                assert controller_agent_state == "aborted"
+        wait_assert(_check_get_job)
 
         _delete_job_from_archive(op.id, job_id)
 
