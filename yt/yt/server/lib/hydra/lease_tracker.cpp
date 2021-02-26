@@ -222,7 +222,7 @@ void TLeaseTracker::EnableTracking()
 
 TFuture<void> TLeaseTracker::GetNextQuorumFuture()
 {
-    return
+    auto result =
         BIND([=, this_ = MakeStrong(this)] {
             VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -236,6 +236,10 @@ TFuture<void> TLeaseTracker::GetNextQuorumFuture()
         })
         .AsyncVia(EpochContext_->EpochControlInvoker)
         .Run();
+
+    LeaseCheckExecutor_->ScheduleOutOfBand();
+
+    return result;
 }
 
 void TLeaseTracker::SubscribeLeaseLost(const TCallback<void(const TError&)>& callback)
