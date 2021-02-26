@@ -78,6 +78,7 @@ public:
 
     const NObjectClient::TCellTagList& GetSecondaryCellTags() const;
 
+    const TAlertManagerPtr& GetAlertManager() const;
     const TConfigManagerPtr& GetConfigManager() const;
     const TMulticellManagerPtr& GetMulticellManager() const;
     const NRpc::IServerPtr& GetRpcServer() const;
@@ -136,6 +137,7 @@ private:
     NObjectClient::TCellTag PrimaryCellTag_;
     NObjectClient::TCellTagList SecondaryCellTags_;
 
+    TAlertManagerPtr AlertManager_;
     TConfigManagerPtr ConfigManager_;
     TMulticellManagerPtr MulticellManager_;
     NRpc::IServerPtr RpcServer_;

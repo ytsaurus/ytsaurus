@@ -225,6 +225,19 @@ class TestMasterCellsSync(YTEnvSetup):
         set("//sys/@config", {})
         self._check_true_for_secondary(lambda driver: check(driver, False))
 
+    @authors("gritukan")
+    def test_master_alerts_sync(self):
+        def check(alert_count):
+            wait(lambda: len(get("//sys/@master_alerts")) == alert_count)
+            self._check_true_for_secondary(lambda driver: len(get("//sys/@master_alerts", driver=driver)) == alert_count)
+
+        set("//sys/@config/cell_master/alert_update_period", 100)
+
+        check(0)
+        set("//sys/@config/foo", "bar")
+        check(1)
+        remove("//sys/@config/foo")
+        check(0)
 
 ##################################################################
 
