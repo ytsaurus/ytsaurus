@@ -541,3 +541,48 @@ class TestWebJsonFormat(YTEnvSetup):
         assert output["incomplete_columns"] == "false"
         assert output["incomplete_all_column_names"] == "false"
         assert output["all_column_names"] == get_expected_all_column_names()
+
+    @authors("levysotsky")
+    def test_non_ascii_column_names(self):
+        column_name = u"not_ascii_Ё"
+        encoded_column_name = u"not_ascii_\xc3\x90\xc2\x81"
+        field_name = u"ПолеТожеНеАски"
+        schema = [
+            {
+                "name": column_name.encode("utf-8"),
+                "type_v3": struct_type([
+                    (field_name.encode("utf-8"), "int64"),
+                ]),
+            },
+        ]
+        create("table", TABLE_PATH, attributes={"schema": schema})
+        write_table(TABLE_PATH, [
+            {
+                column_name.encode("utf-8"): {
+                    field_name: 13,
+                },
+            },
+        ])
+
+        format_ = get_web_json_format(
+            10**6,
+            10**6,
+            value_format="yql",
+            string_weight_limit=10**6,
+        )
+        output = json.loads(read_table(TABLE_PATH, output_format=format_))
+
+        assert "yql_type_registry" in output
+        type_registry = output["yql_type_registry"]
+
+        assert len(output["rows"]) == 1
+        actual_row = output["rows"][0]
+        value_and_type = actual_row.get(encoded_column_name)
+        assert value_and_type is not None
+        value, type_ = value_and_type
+        assert value == [u"13"]
+        assert type_registry[int(type_)] == [u"StructType", [[field_name, [u"DataType", u"Int64"]]]]
+
+        assert output["incomplete_columns"] == "false"
+        assert output["incomplete_all_column_names"] == "false"
+        assert output["all_column_names"] == [encoded_column_name]
