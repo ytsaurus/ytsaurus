@@ -698,7 +698,7 @@ void TWriterForWebJson<TValueWriter>::DoClose()
 
         for (const auto columnName : allColumnNamesSorted) {
             ResponseBuilder_->OnListItem();
-            ResponseBuilder_->OnStringScalar(columnName);
+            ResponseBuilder_->OnStringScalar(Utf8Transcoder_.Encode(columnName));
         }
 
         ResponseBuilder_->OnEndList();

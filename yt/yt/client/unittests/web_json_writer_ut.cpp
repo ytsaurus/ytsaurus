@@ -54,6 +54,7 @@ protected:
     int KeyBId_ = -1;
     int KeyCId_ = -1;
     int KeyDId_ = -1;
+    int KeyNonAsciiId_ = -1;
 
     int TableIndexColumnId_ = -1;
     int RowIndexColumnId_ = -1;
@@ -67,6 +68,7 @@ protected:
         KeyBId_ = NameTable_->RegisterName("column_b");
         KeyCId_ = NameTable_->RegisterName("column_c");
         // We do not register KeyD intentionally.
+        KeyNonAsciiId_ = NameTable_->RegisterName("column_non_ascii_\xd0\x81");
 
         TableIndexColumnId_ = NameTable_->RegisterName(TableIndexColumnName);
         RowIndexColumnId_ = NameTable_->RegisterName(RowIndexColumnName);
@@ -679,6 +681,58 @@ TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
     })")));
     CHECK_YQL_TYPE_AND_VALUE(row3, "column_b", R"(["DataType"; "Yson"])", row3BValue, yqlTypes);
     CHECK_YQL_TYPE_AND_VALUE(row3, "column_c", R"(["DataType"; "Double"])", 2.71828, yqlTypes);
+}
+
+TEST_F(TWriterForWebJson, ColumnNameEncoding)
+{
+    Config_->MaxAllColumnNamesCount = 2;
+    Config_->ValueFormat = EWebJsonValueFormat::Yql;
+
+    CreateStandardWriter();
+
+    {
+        TUnversionedOwningRowBuilder builder;
+        std::vector<TUnversionedOwningRow> rows;
+        builder.AddValue(MakeUnversionedUint64Value(100500, KeyAId_));
+        builder.AddValue(MakeUnversionedInt64Value(-100500, KeyNonAsciiId_));
+        rows.push_back(builder.FinishRow());
+
+        std::vector<TUnversionedRow> nonOwningRows(rows.begin(), rows.end());
+        EXPECT_EQ(true, Writer_->Write(nonOwningRows));
+        Writer_->Close().Get().ThrowOnError();
+    }
+
+    auto result = ParseJsonToNode(OutputStream_.Str());
+    ASSERT_EQ(result->GetType(), ENodeType::Map);
+
+    auto rows = result->AsMap()->FindChild("rows");
+    ASSERT_TRUE(rows);
+    auto incompleteColumns = result->AsMap()->FindChild("incomplete_columns");
+    ASSERT_TRUE(incompleteColumns);
+    auto incompleteAllColumnNames = result->AsMap()->FindChild("incomplete_all_column_names");
+    ASSERT_TRUE(incompleteAllColumnNames);
+    auto allColumnNames = result->AsMap()->FindChild("all_column_names");
+    ASSERT_TRUE(allColumnNames);
+    auto yqlTypeRegistry = result->AsMap()->FindChild("yql_type_registry");
+    ASSERT_TRUE(yqlTypeRegistry);
+
+    ASSERT_EQ(allColumnNames->GetType(), ENodeType::List);
+    std::vector<TString> allColumnNamesVector;
+    ASSERT_NO_THROW(allColumnNamesVector = ConvertTo<decltype(allColumnNamesVector)>(allColumnNames));
+    EXPECT_EQ(allColumnNamesVector, (std::vector<TString>{"column_a", "column_non_ascii_\xc3\x90\xc2\x81"}));
+
+    ASSERT_EQ(yqlTypeRegistry->GetType(), ENodeType::List);
+    auto yqlTypes = ConvertTo<std::vector<INodePtr>>(yqlTypeRegistry);
+
+    ASSERT_EQ(rows->GetType(), ENodeType::List);
+    ASSERT_EQ(rows->AsList()->GetChildCount(), 1);
+
+    auto row1 = rows->AsList()->GetChildOrThrow(0);
+
+    ASSERT_EQ(row1->GetType(), ENodeType::Map);
+    EXPECT_EQ(row1->AsMap()->GetChildCount(), 2);
+    CHECK_YQL_TYPE_AND_VALUE(row1, "column_a", R"(["DataType"; "Uint64"])", "100500", yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row1, "column_non_ascii_\xc3\x90\xc2\x81", R"(["DataType"; "Int64"])", "-100500", yqlTypes);
 }
 
 TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
