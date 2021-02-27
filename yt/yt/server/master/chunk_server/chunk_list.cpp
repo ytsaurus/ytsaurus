@@ -8,6 +8,7 @@ namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NChunkClient;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,10 +29,21 @@ void TChunkList::IncrementVersion()
     ++Version_;
 }
 
-void TChunkList::ValidateSealed()
+void TChunkList::ValidateLastChunkSealed()
 {
-    if (!Statistics_.Sealed) {
-        THROW_ERROR_EXCEPTION("Chunk list %v is not sealed",
+    if (Kind_ != EChunkListKind::JournalRoot) {
+        return;
+    }
+
+    if (Children_.empty()) {
+        return;
+    }
+
+    const auto* lastChunk = Children_.back();
+    YT_VERIFY(IsJournalChunkType(lastChunk->GetType()));
+    if (!lastChunk->IsSealed()) {
+        THROW_ERROR_EXCEPTION("Last chunk %v of chunk list %v is not sealed",
+            lastChunk->GetId(),
             GetId());
     }
 }

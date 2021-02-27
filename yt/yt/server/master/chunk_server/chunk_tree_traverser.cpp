@@ -180,7 +180,7 @@ protected:
 
             auto* child = chunkList->Children()[entry.ChildIndex];
 
-            YT_LOG_TRACE("Current child (Index: %v, Id: %v, Kind: %v)", 
+            YT_LOG_TRACE("Current child (Index: %v, Id: %v, Kind: %v)",
                 entry.ChildIndex,
                 child->GetId(),
                 child->GetType());
@@ -630,7 +630,6 @@ protected:
     {
         auto* chunkList = entry->ChunkList;
         auto* child = chunkList->Children()[entry->ChildIndex];
-        const auto& statistics = chunkList->Statistics();
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
 
         bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet;
@@ -665,7 +664,6 @@ protected:
                         PopStack();
                         return;
                     }
-                    YT_VERIFY(statistics.Sealed);
                     childLowerLimit.SetRowIndex(childLimit);
 
                     // NB: Dynamic stores at the end of the chunk list may be arbitrarily large
@@ -920,11 +918,12 @@ protected:
         i64 total)
     {
         const auto& children = chunkList->Children();
-        if (limit >= total) {
-            return static_cast<int>(children.size());
+        int adjustedIndex = children.size();
+        if (limit < total) {
+            const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
+            adjustedIndex = std::max(currentIndex, cumulativeStatistics.UpperBound(limit, member));
         }
-        const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
-        int adjustedIndex = std::max(currentIndex, cumulativeStatistics.UpperBound(limit, member));
+        // NB: Unsealed chunks are not accounted in chunk list statistics.
         while (adjustedIndex > 0 && !IsSealedChild(children[adjustedIndex - 1]) ) {
             --adjustedIndex;
         }
@@ -950,7 +949,7 @@ protected:
                     chunkList,
                     RowCountMember,
                     *lowerRowIndex,
-                    statistics.Sealed ? statistics.LogicalRowCount : Max<i64>());
+                    statistics.LogicalRowCount);
             }
 
             // Chunk index.
@@ -1096,7 +1095,6 @@ protected:
             // Row index.
             if (isOrdered) {
                 if (const auto& lowerRowIndex = lowerLimit.GetRowIndex()) {
-                    YT_VERIFY(statistics.Sealed);
                     chunkIndex = AdjustStartChildIndex(
                         chunkIndex,
                         chunkList,

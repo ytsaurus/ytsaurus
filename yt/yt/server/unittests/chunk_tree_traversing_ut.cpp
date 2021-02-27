@@ -178,6 +178,49 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestTraverserContext
+    : public IChunkTraverserContext
+{
+public:
+    virtual bool IsSynchronous() const override
+    {
+        return true;
+    }
+
+    virtual IInvokerPtr GetInvoker() const override
+    {
+        YT_ABORT();
+    }
+
+    virtual void OnPop(TChunkTree* /*node*/) override
+    { }
+
+    virtual void OnPush(TChunkTree* /*node*/) override
+    { }
+
+    virtual void OnShutdown(const std::vector<TChunkTree*>& /*nodes*/) override
+    { }
+
+    virtual void OnTimeSpent(TDuration /*time*/) override
+    { }
+
+    virtual TFuture<TUnsealedChunkStatistics> GetUnsealedChunkStatistics(TChunk* chunk) override
+    {
+        const auto& statistics = GetOrCrash(ChunkIdToUnsealedChunkStatistics_, chunk->GetId());
+        return MakeFuture<TUnsealedChunkStatistics>(statistics);
+    }
+
+    void SetUnsealedChunkStatistics(TChunk* chunk, TUnsealedChunkStatistics statistics)
+    {
+        ChunkIdToUnsealedChunkStatistics_[chunk->GetId()] = statistics;
+    }
+
+private:
+    THashMap<TChunkId, TUnsealedChunkStatistics> ChunkIdToUnsealedChunkStatistics_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNaiveChunkTreeTraverser
 {
 public:
@@ -1111,7 +1154,6 @@ TEST_F(TChunkTreeTraversingTest, StartIndex)
 
     AttachToChunkList(root, std::vector<TChunkTree*>{chunk1, chunk2, chunk3});
 
-    root->Statistics().Sealed = false;
     auto context = GetSyncChunkTraverserContext();
 
     {
@@ -1302,6 +1344,73 @@ TEST_F(TChunkTreeTraversingTest, OrderedDynamicEmptyTablet)
     }
 }
 
+TEST_F(TChunkTreeTraversingTest, SemiSealedJournal)
+{
+    // NB: Sealed journal chunks in tests have 100 rows by default.
+    auto* root = CreateChunkList(EChunkListKind::JournalRoot);
+    auto* chunk1 = CreateJournalChunk(/* sealed */ true, /* overlayed */ false);
+    auto* chunk2 = CreateJournalChunk(/* sealed */ false, /* overlayed */ false);
+    AttachToChunkList(root, {chunk1});
+    AttachToChunkList(root, {chunk2});
+
+    auto context = New<TTestTraverserContext>();
+    {
+        IChunkTraverserContext::TUnsealedChunkStatistics statistics{
+            .RowCount = 100
+        };
+        context->SetUnsealedChunkStatistics(chunk2, statistics);
+    }
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetRowIndex(10);
+
+        TLegacyReadLimit upperLimit;
+        upperLimit.SetRowIndex(120);
+
+        TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
+
+        std::set<TChunkInfo> correctResult{
+            TChunkInfo(
+                chunk1,
+                /* rowIndex */ 0,
+                /* tabletIndex */ std::nullopt,
+                TLegacyReadLimit().SetRowIndex(10),
+                TLegacyReadLimit().SetRowIndex(100)),
+            TChunkInfo(
+                chunk2,
+                /* rowIndex */ 100,
+                /* tabletIndex */ std::nullopt,
+                TLegacyReadLimit().SetRowIndex(0),
+                TLegacyReadLimit().SetRowIndex(20)),
+        };
+        EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+    }
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetRowIndex(110);
+
+        TLegacyReadLimit upperLimit;
+        upperLimit.SetRowIndex(250);
+
+        TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
+
+        std::set<TChunkInfo> correctResult{
+            TChunkInfo(
+                chunk2,
+                /* rowIndex */ 100,
+                /* tabletIndex */ std::nullopt,
+                TLegacyReadLimit().SetRowIndex(10),
+                TLegacyReadLimit().SetRowIndex(100)),
+        };
+        EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraverseWithKeyColumnCount
@@ -1322,7 +1431,6 @@ TEST_P(TTraverseWithKeyColumnCount, TestStatic)
 
     AttachToChunkList(root, std::vector<TChunkTree*>{chunk1, chunk2});
 
-    root->Statistics().Sealed = false;
     auto context = GetSyncChunkTraverserContext();
 
     {

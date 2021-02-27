@@ -28,7 +28,6 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     LogicalChunkCount += other.LogicalChunkCount;
     ChunkListCount += other.ChunkListCount;
     Rank = std::max(Rank, other.Rank);
-    Sealed = other.Sealed;
 
     if (DataWeight == -1 || other.DataWeight == -1) {
         DataWeight = -1;
@@ -48,8 +47,7 @@ void TChunkTreeStatistics::Deaccumulate(const TChunkTreeStatistics& other)
     ChunkCount -= other.ChunkCount;
     LogicalChunkCount -= other.LogicalChunkCount;
     ChunkListCount -= other.ChunkListCount;
-    // NB: Rank and Sealed are ignored intentionally since there's no way to
-    // deaccumulate these values.
+    // NB: Rank is ignored intentionally since there's no way to deaccumulate it.
 
     if (DataWeight == -1 || other.DataWeight == -1) {
         DataWeight = -1;
@@ -85,7 +83,11 @@ void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& conte
     Persist(context, LogicalChunkCount);
     Persist(context, ChunkListCount);
     Persist(context, Rank);
-    Persist(context, Sealed);
+    // COMPAT(gritukan)
+    if (context.IsLoad() && context.GetVersion() < NCellMaster::EMasterReign::DropSealedFromChunkTreeStatistics) {
+        bool sealed;
+        Persist(context, sealed);
+    }
 }
 
 bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
@@ -101,7 +103,6 @@ bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
         LogicalChunkCount == other.LogicalChunkCount &&
         ChunkListCount == other.ChunkListCount &&
         Rank == other.Rank &&
-        Sealed == other.Sealed &&
         (DataWeight == -1 || other.DataWeight == -1 || DataWeight == other.DataWeight);
 }
 
@@ -132,7 +133,6 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
             .Item("logical_chunk_count").Value(statistics.LogicalChunkCount)
             .Item("chunk_list_count").Value(statistics.ChunkListCount)
             .Item("rank").Value(statistics.Rank)
-            .Item("sealed").Value(statistics.Sealed)
         .EndMap();
 }
 
