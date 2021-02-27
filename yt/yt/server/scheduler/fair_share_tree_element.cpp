@@ -3221,13 +3221,8 @@ void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
     Tentative_ = RuntimeParameters_->Tentative;
     StartTime_ = Operation_->GetStartTime();
 
-    TSchedulerElement::PreUpdateBottomUp(context);
-}
-
-void TOperationElement::UpdateCumulativeAttributes(TUpdateFairShareContext* context)
-{
-    YT_VERIFY(Mutable_);
-
+    // NB: It was moved from regular fair share update for performing split.
+    // It can be performed in fair share thread as second step of preupdate.
     if (PersistentAttributes_.LastBestAllocationRatioUpdateTime + TreeConfig_->BestAllocationRatioUpdatePeriod > context->Now) {
         auto allocationLimits = GetAdjustedResourceLimits(
             ResourceDemand_,
@@ -3237,8 +3232,7 @@ void TOperationElement::UpdateCumulativeAttributes(TUpdateFairShareContext* cont
         PersistentAttributes_.LastBestAllocationRatioUpdateTime = context->Now;
     }
 
-    // This should be called after |BestAllocationShare| update since it is used to compute the limits.
-    TSchedulerElement::UpdateCumulativeAttributes(context);
+    TSchedulerElement::PreUpdateBottomUp(context);
 }
 
 void TOperationElement::PublishFairShareAndUpdatePreemption()
