@@ -1235,7 +1235,6 @@ public:
 
     //! === Fair share update methods.
     virtual TResourceVector DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context) override;
-    virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context) override;
 
     virtual TResourceVector ComputeLimitsShare() const override;
 
