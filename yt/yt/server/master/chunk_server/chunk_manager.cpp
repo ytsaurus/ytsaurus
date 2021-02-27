@@ -2332,7 +2332,7 @@ private:
             auto chunkListId = FromProto<TChunkListId>(subrequest->chunk_list_id());
             chunkList = GetChunkListOrThrow(chunkListId);
             if (!overlayed) {
-                chunkList->ValidateSealed();
+                chunkList->ValidateLastChunkSealed();
             }
             chunkList->ValidateUniqueAncestors();
         }

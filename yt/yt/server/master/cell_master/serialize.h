@@ -139,6 +139,7 @@ DEFINE_ENUM(EMasterReign,
     ((HierarchicalIntegralLimitsFix)                                (1455))  // renadeen
     ((BatchedReplicateTransactionMethod)                            (1456))  // shakurov
     ((PhysicalRowCount)                                             (1457))  // gritukan
+    ((DropSealedFromChunkTreeStatistics)                            (1458))  // gritukan
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42

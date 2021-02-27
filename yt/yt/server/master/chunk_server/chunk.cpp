@@ -67,9 +67,6 @@ TChunkTreeStatistics TChunk::GetStatistics() const
         result.ChunkCount = 1;
         result.LogicalChunkCount = 1;
         result.Rank = 0;
-        result.Sealed = IsSealed();
-    } else {
-        result.Sealed = false;
     }
     return result;
 }

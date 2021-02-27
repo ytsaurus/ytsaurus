@@ -1980,10 +1980,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             changelog = "//sys/tablet_cells/{0}/changelogs/000000001".format(cell)
             if not exists(changelog):
                 return False
+            if not get("{}/@sealed".format(changelog)):
+                return False
             chunk_list = get(changelog + "/@chunk_list_id")
             statistics = get("#{0}/@statistics".format(chunk_list))
-            if not statistics["sealed"]:
-                return False
             cumulative_statistics = get("#{0}/@cumulative_statistics".format(chunk_list))
             assert cumulative_statistics[-1]["row_count"] == statistics["row_count"]
             assert cumulative_statistics[-1]["chunk_count"] == statistics["chunk_count"]

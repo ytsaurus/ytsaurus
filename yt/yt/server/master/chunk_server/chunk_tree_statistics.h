@@ -50,9 +50,6 @@ struct TChunkTreeStatistics
     //! Chunk lists have rank |1 + maxChildRank|, where |maxChildRank = 0| if there are no children.
     int Rank = 0;
 
-    //! |false| indicates that there is an unsealed journal chunk at the end.
-    bool Sealed = true;
-
     void Accumulate(const TChunkTreeStatistics& other);
     void Deaccumulate(const TChunkTreeStatistics& other);
 
