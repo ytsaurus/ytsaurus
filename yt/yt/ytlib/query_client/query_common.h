@@ -84,16 +84,22 @@ bool IsRelationalBinaryOp(EBinaryOp opcode);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDataRanges
+struct TDataSource
 {
-    //! Either a chunk id or tablet id.
-    NObjectClient::TObjectId Id;
-    //! Mount revision for a tablet.
-    NHydra::TRevision MountRevision;
-    TSharedRange<TRowRange> Ranges;
+    // Could be:
+    // * a table id;
+    // * a tablet id.
+    NObjectClient::TObjectId ObjectId;
+    // If #ObjectId is a tablet id then this is the id of the cell hosting this tablet.
+    // COMPAT(babenko): legacy clients may omit this field.
+    NObjectClient::TCellId CellId;
 
+    NHydra::TRevision MountRevision;
+
+    TSharedRange<TRowRange> Ranges;
     std::vector<EValueType> Schema;
     TSharedRange<TRow> Keys;
+
     //! If |true|, these ranges could be reclassified into a set of discrete lookup keys.
     bool LookupSupported = true;
 

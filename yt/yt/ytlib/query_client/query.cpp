@@ -597,7 +597,9 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     ToProto(proto->mutable_foreign_equations(), original->ForeignEquations);
     ToProto(proto->mutable_self_equations(), original->SelfEquations);
 
-    ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
+    ToProto(proto->mutable_foreign_object_id(), original->ForeignObjectId);
+    ToProto(proto->mutable_foreign_cell_id(), original->ForeignCellId);
+
     proto->set_is_left(original->IsLeft);
 
     // COMPAT(lukyan)
@@ -621,7 +623,8 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     FromProto(&result->ForeignJoinedColumns, serialized.foreign_joined_columns());
     FromProto(&result->ForeignEquations, serialized.foreign_equations());
     FromProto(&result->SelfEquations, serialized.self_equations());
-    FromProto(&result->ForeignDataId, serialized.foreign_data_id());
+    FromProto(&result->ForeignObjectId, serialized.foreign_object_id());
+    FromProto(&result->ForeignCellId, serialized.foreign_cell_id());
     FromProto(&result->IsLeft, serialized.is_left());
     FromProto(&result->CommonKeyPrefix, serialized.common_key_prefix());
 
@@ -839,9 +842,10 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
+void ToProto(NProto::TDataSource* serialized, const TDataSource& original)
 {
-    ToProto(serialized->mutable_id(), original.Id);
+    ToProto(serialized->mutable_object_id(), original.ObjectId);
+    ToProto(serialized->mutable_cell_id(), original.CellId);
     serialized->set_mount_revision(original.MountRevision);
 
     NTableClient::TWireProtocolWriter rangesWriter;
@@ -867,18 +871,19 @@ void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original)
     serialized->set_key_width(original.KeyWidth);
 }
 
-void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
+void FromProto(TDataSource* original, const NProto::TDataSource& serialized)
 {
-    FromProto(&original->Id, serialized.id());
+    FromProto(&original->ObjectId, serialized.object_id());
+    FromProto(&original->CellId, serialized.cell_id());
     original->MountRevision = serialized.mount_revision();
 
-    struct TDataRangesBufferTag
+    struct TDataSourceBufferTag
     { };
 
     TRowRanges ranges;
-    auto rowBuffer = New<TRowBuffer>(TDataRangesBufferTag());
+    auto rowBuffer = New<TRowBuffer>(TDataSourceBufferTag());
     NTableClient::TWireProtocolReader rangesReader(
-        TSharedRef::FromString<TDataRangesBufferTag>(serialized.ranges()),
+        TSharedRef::FromString<TDataSourceBufferTag>(serialized.ranges()),
         rowBuffer);
     while (!rangesReader.IsFinished()) {
         auto lowerBound = rangesReader.ReadUnversionedRow(true);
@@ -889,7 +894,7 @@ void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized)
 
     if (serialized.has_keys()) {
         NTableClient::TWireProtocolReader keysReader(
-            TSharedRef::FromString<TDataRangesBufferTag>(serialized.keys()),
+            TSharedRef::FromString<TDataSourceBufferTag>(serialized.keys()),
             rowBuffer);
 
         auto schema = keysReader.ReadTableSchema();

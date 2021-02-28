@@ -188,7 +188,7 @@ TWriteOpClosure::TWriteOpClosure()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
+std::pair<TQueryPtr, TDataSource> GetForeignQuery(
     TQueryPtr subquery,
     TConstJoinClausePtr joinClause,
     std::vector<TRow> keys,
@@ -199,8 +199,9 @@ std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
 
     auto newQuery = New<TQuery>(*subquery);
 
-    TDataRanges dataSource;
-    dataSource.Id = joinClause->ForeignDataId;
+    TDataSource dataSource;
+    dataSource.ObjectId = joinClause->ForeignObjectId;
+    dataSource.CellId = joinClause->ForeignCellId;
 
     if (foreignKeyPrefix > 0) {
         if (foreignKeyPrefix == foreignEquations.size()) {

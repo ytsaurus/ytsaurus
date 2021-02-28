@@ -203,7 +203,7 @@ protected:
 
         auto inputChunk = New<TInputChunk>();
         static int ChunkIndex = 1;
-        inputChunk->ChunkId() = TChunkId(ChunkIndex++, 0);
+        inputChunk->SetChunkId(TChunkId(ChunkIndex++, 0));
         inputChunk->SetCompressedDataSize(size);
         inputChunk->SetTotalUncompressedDataSize(size);
         inputChunk->SetTotalDataWeight(size);
@@ -375,7 +375,7 @@ protected:
         auto stripe = New<TChunkStripe>();
         for (const auto& dataSlice : dataSlices) {
             stripe->DataSlices.emplace_back(dataSlice);
-            ActiveChunks_.insert(dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId());
+            ActiveChunks_.insert(dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId());
         }
         return stripe;
     }
@@ -416,7 +416,7 @@ protected:
     {
         auto stripe = CreateStripe({dataSlice});
         auto cookie = ChunkPool_->Add(std::move(stripe));
-        InputCookieToChunkId_[cookie] = dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId();
+        InputCookieToChunkId_[cookie] = dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
         return cookie;
     }
 
@@ -451,7 +451,7 @@ protected:
         YT_VERIFY(oldChunkId);
         dataSlice->InputStreamIndex = dataSlice->GetTableIndex();
         ChunkPool_->Reset(cookie, New<TChunkStripe>(dataSlice), IdentityChunkMapping);
-        InputCookieToChunkId_[cookie] = dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId();
+        InputCookieToChunkId_[cookie] = dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
     }
 
     void ExtractOutputCookiesWhilePossible()
@@ -736,7 +736,7 @@ protected:
                         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                             auto chunk = chunkSlice->GetInputChunk();
                             EXPECT_TRUE(chunk);
-                            EXPECT_TRUE(ActiveChunks_.contains(chunk->ChunkId()));
+                            EXPECT_TRUE(ActiveChunks_.contains(chunk->GetChunkId()));
                         }
                     }
                 }
@@ -3282,7 +3282,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
     THashMap<TChunkStripePtr, TChunkId> stripeToChunkId;
 
     for (const auto& dataSlice : CreatedUnversionedPrimaryDataSliceSet_) {
-        auto chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId();
+        auto chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
         chunkIdToDataSlice[chunkId] = dataSlice;
         auto stripe = CreateStripe({dataSlice});
         YT_VERIFY(stripeToChunkId.emplace(stripe, chunkId).second);
@@ -3452,7 +3452,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
                 const auto& stripe = stripeList->Stripes[0];
                 const auto& dataSlice = stripe->DataSlices.front();
                 const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
-                auto chunkId = chunk->ChunkId();
+                auto chunkId = chunk->GetChunkId();
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(resumedChunks.contains(chunkId));
                 ASSERT_TRUE(!suspendedChunks.contains(chunkId));

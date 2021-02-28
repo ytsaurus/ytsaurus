@@ -83,6 +83,8 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/helpers.h>
 
+#include <yt/core/misc/atomic_object.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
@@ -195,24 +197,29 @@ public:
 
     const TString& GetTabletCellBundleName() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return TabletCellBundleName_;
     }
 
-    const IDistributedHydraManagerPtr& GetHydraManager() const
+    IDistributedHydraManagerPtr GetHydraManager() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(HydraManagerLock_);
-        return HydraManager_;
+        return HydraManager_.Load();
     }
 
     const TResponseKeeperPtr& GetResponseKeeper() const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return ResponseKeeper_;
     }
 
     const TTabletAutomatonPtr& GetAutomaton() const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return Automaton_;
     }
 
@@ -227,16 +234,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(InvokersLock_);
-        return EpochAutomatonInvokers_[queue];
+        return EpochAutomatonInvokers_[queue].Load();
     }
 
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(InvokersLock_);
-        return GuardedAutomatonInvokers_[queue];
+        return GuardedAutomatonInvokers_[queue].Load();
     }
 
     const THiveManagerPtr& GetHiveManager() const
@@ -335,10 +340,7 @@ public:
             }
 
             DynamicConfigVersion_ = updateInfo.dynamic_config_version();
-            {
-                auto guard = Guard(DynamicOptionsLock_);
-                DynamicOptions_ = std::move(dynamicOptions);
-            }
+            DynamicOptions_.Store(std::move(dynamicOptions));
 
             YT_LOG_DEBUG("Updated dynamic config (DynamicConfigVersion: %v)",
                 DynamicConfigVersion_);
@@ -456,19 +458,20 @@ public:
                 Owner_,
                 SnapshotQueue_->GetInvoker());
 
-            auto rpcServer = Bootstrap_->GetRpcServer();
-
             ResponseKeeper_ = New<TResponseKeeper>(
                 Config_->HydraManager->ResponseKeeper,
                 GetAutomatonInvoker(),
                 Logger,
                 addTags(TabletNodeProfiler));
 
-            TDistributedHydraManagerOptions hydraManagerOptions;
-            hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
-            hydraManagerOptions.UseFork = false;
-            hydraManagerOptions.WriteChangelogsAtFollowers = false;
-            hydraManagerOptions.WriteSnapshotsAtFollowers = false;
+            auto rpcServer = Bootstrap_->GetRpcServer();
+
+            TDistributedHydraManagerOptions hydraManagerOptions{
+                .UseFork = false,
+                .WriteChangelogsAtFollowers = false,
+                .WriteSnapshotsAtFollowers = false,
+                .ResponseKeeper = ResponseKeeper_
+            };
 
             auto hydraManager = CreateDistributedHydraManager(
                 Config_->HydraManager,
@@ -482,7 +485,7 @@ public:
                 SnapshotStoreThunk_,
                 hydraManagerOptions,
                 hydraManagerDynamicOptions);
-            SetHydraManager(hydraManager);
+            HydraManager_.Store(hydraManager);
 
             hydraManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
             hydraManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
@@ -497,13 +500,7 @@ public:
                 BIND(&TImpl::OnLeaderLeaseCheckThunk, MakeWeak(this))
                     .AsyncVia(Bootstrap_->GetControlInvoker()));
 
-            {
-                auto guard = Guard(InvokersLock_);
-                for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
-                    auto unguardedInvoker = GetAutomatonInvoker(queue);
-                    GuardedAutomatonInvokers_[queue] = hydraManager->CreateGuardedAutomatonInvoker(unguardedInvoker);
-                }
-            }
+            InitGuardedInvokers();
 
             ElectionManager_ = CreateDistributedElectionManager(
                 Config_->ElectionManager,
@@ -552,7 +549,7 @@ public:
                 Bootstrap_->GetTransactionTrackerInvoker(),
                 hydraManager,
                 Automaton_,
-                GetResponseKeeper(),
+                ResponseKeeper_,
                 TransactionManager_,
                 GetCellId(),
                 connection->GetTimestampProvider(),
@@ -605,6 +602,8 @@ public:
 
     const IYPathServicePtr& GetOrchidService()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return OrchidService_;
     }
 
@@ -617,17 +616,16 @@ public:
 
     double GetUsedCpu(double cpuPerTabletSlot) const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return GetDynamicOptions()->CpuPerTabletSlot.value_or(cpuPerTabletSlot);
     }
 
-    const TDynamicTabletCellOptionsPtr GetDynamicOptions() const
+    TDynamicTabletCellOptionsPtr GetDynamicOptions() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(DynamicOptionsLock_);
-        auto options = DynamicOptions_;
-        guard.Release();
-        return options;
+        return DynamicOptions_.Load();
     }
 
     const TTabletCellOptionsPtr& GetOptions() const
@@ -657,8 +655,11 @@ private:
 
     TTabletCellOptionsPtr Options_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, DynamicOptionsLock_);
-    TDynamicTabletCellOptionsPtr DynamicOptions_ = New<TDynamicTabletCellOptions>();
+    NLogging::TLogger Logger;
+
+    const TRuntimeTabletCellDataPtr RuntimeData_ = New<TRuntimeTabletCellData>();
+
+    TAtomicObject<TDynamicTabletCellOptionsPtr> DynamicOptions_ = New<TDynamicTabletCellOptions>();
 
     int DynamicConfigVersion_ = -1;
 
@@ -669,8 +670,7 @@ private:
 
     IElectionManagerPtr ElectionManager_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, HydraManagerLock_);
-    IDistributedHydraManagerPtr HydraManager_;
+    TAtomicObject<IDistributedHydraManagerPtr> HydraManager_;
 
     TResponseKeeperPtr ResponseKeeper_;
 
@@ -685,11 +685,8 @@ private:
 
     TTabletAutomatonPtr Automaton_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, InvokersLock_);
-    TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> EpochAutomatonInvokers_;
-    TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> GuardedAutomatonInvokers_;
-
-    const TRuntimeTabletCellDataPtr RuntimeData_ = New<TRuntimeTabletCellData>();
+    TEnumIndexedVector<EAutomatonThreadQueue, TAtomicObject<IInvokerPtr>> EpochAutomatonInvokers_;
+    TEnumIndexedVector<EAutomatonThreadQueue, TAtomicObject<IInvokerPtr>> GuardedAutomatonInvokers_;
 
     bool Initialized_ = false;
     bool Finalizing_ = false;
@@ -697,14 +694,9 @@ private:
 
     IYPathServicePtr OrchidService_;
 
-    NLogging::TLogger Logger;
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-
-    void SetHydraManager(IDistributedHydraManagerPtr hydraManager)
-    {
-        auto guard = Guard(HydraManagerLock_);
-        std::swap(HydraManager_, hydraManager);
-    }
 
     IYPathServicePtr CreateOrchidService()
     {
@@ -767,13 +759,41 @@ private:
             PeerId_);
     }
 
+    void InitEpochInvokers()
+    {
+        auto hydraManager = GetHydraManager();
+        if (!hydraManager) {
+            return;
+        }
+
+        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
+            EpochAutomatonInvokers_[queue].Store(
+                hydraManager
+                    ->GetAutomatonCancelableContext()
+                    ->CreateInvoker(GetAutomatonInvoker(queue)));
+        }
+    }
+
     void ResetEpochInvokers()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        {
-            auto guard = Guard(InvokersLock_);
-            std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
+        for (auto& invoker : EpochAutomatonInvokers_) {
+            invoker.Store(GetNullInvoker());
+        }
+    }
+
+    void InitGuardedInvokers()
+    {
+        auto hydraManager = GetHydraManager();
+        if (!hydraManager) {
+            return;
+        }
+        
+        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
+            auto unguardedInvoker = GetAutomatonInvoker(queue);
+            GuardedAutomatonInvokers_[queue].Store(
+                hydraManager->CreateGuardedAutomatonInvoker(unguardedInvoker));
         }
     }
 
@@ -781,9 +801,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        {
-            auto guard = Guard(InvokersLock_);
-            std::fill(GuardedAutomatonInvokers_.begin(), GuardedAutomatonInvokers_.end(), GetNullInvoker());
+        for (auto& invoker : GuardedAutomatonInvokers_) {
+            invoker.Store(GetNullInvoker());
         }
     }
 
@@ -792,19 +811,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto hydraManager = GetHydraManager();
-        if (!hydraManager) {
-            return;
-        }
-
-        {
-            auto guard = Guard(InvokersLock_);
-            for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
-                EpochAutomatonInvokers_[queue] = hydraManager
-                    ->GetAutomatonCancelableContext()
-                    ->CreateInvoker(GetAutomatonInvoker(queue));
-            }
-        }
+        InitEpochInvokers();
     }
 
     void OnStopEpoch()
@@ -854,7 +861,7 @@ private:
             WaitFor(hydraManager->Finalize())
                 .ThrowOnError();
         }
-        SetHydraManager(nullptr);
+        HydraManager_.Store(nullptr);
 
         if (ElectionManager_) {
             ElectionManager_->Finalize();
@@ -890,11 +897,6 @@ private:
 
         TabletManager_.Reset();
     }
-
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -949,7 +951,7 @@ const TString& TTabletSlot::GetTabletCellBundleName() const
     return Impl_->GetTabletCellBundleName();
 }
 
-const IDistributedHydraManagerPtr& TTabletSlot::GetHydraManager() const
+IDistributedHydraManagerPtr TTabletSlot::GetHydraManager() const
 {
     return Impl_->GetHydraManager();
 }

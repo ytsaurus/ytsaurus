@@ -2478,7 +2478,8 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
         auto joinClause = New<TJoinClause>();
         joinClause->Schema.Original = foreignTableSchema;
-        joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
+        joinClause->ForeignObjectId = GetObjectIdFromDataSplit(foreignDataSplit);
+        joinClause->ForeignCellId = GetCellIdFromDataSplit(foreignDataSplit);
         joinClause->IsLeft = join.IsLeft;
 
         // BuildPredicate and BuildTypedExpression are used with foreignBuilder.
@@ -2739,8 +2740,9 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     auto fragment = std::make_unique<TPlanFragment>();
     fragment->Query = query;
-    fragment->Ranges.Id = GetObjectIdFromDataSplit(selfDataSplit);
-    fragment->Ranges.Ranges = MakeSharedRange(std::move(rowRanges), std::move(buffer));
+    fragment->DataSource.ObjectId = GetObjectIdFromDataSplit(selfDataSplit);
+    fragment->DataSource.CellId = GetCellIdFromDataSplit(selfDataSplit);
+    fragment->DataSource.Ranges = MakeSharedRange(std::move(rowRanges), std::move(buffer));
     return fragment;
 }
 

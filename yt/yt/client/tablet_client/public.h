@@ -39,6 +39,7 @@ DEFINE_ENUM(ETableReplicaMode,
 DEFINE_ENUM(EErrorCode,
     ((TransactionLockConflict)          (1700))
     ((NoSuchTablet)                     (1701))
+    ((NoSuchCell)                       (1721))
     ((TabletNotMounted)                 (1702))
     ((AllWritesDisabled)                (1703))
     ((InvalidMountRevision)             (1704))

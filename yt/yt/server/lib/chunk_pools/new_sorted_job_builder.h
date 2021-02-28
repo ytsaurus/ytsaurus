@@ -23,7 +23,7 @@ struct INewSortedJobBuilder
     virtual i64 GetTotalDataSliceCount() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(INewSortedJobBuilder);
+DEFINE_REFCOUNTED_TYPE(INewSortedJobBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 

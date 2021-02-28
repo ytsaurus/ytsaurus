@@ -340,9 +340,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
     {
         TDataSplit dataSplit;
 
-        ToProto(
-            dataSplit.mutable_chunk_id(),
-            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("h", EValueType::Int64)
@@ -397,9 +395,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     {
         TDataSplit dataSplit;
 
-        ToProto(
-            dataSplit.mutable_chunk_id(),
-            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
         auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
@@ -424,9 +420,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     {
         TDataSplit dataSplit;
 
-        ToProto(
-            dataSplit.mutable_chunk_id(),
-            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("ExportIDHash", EValueType::Int64)
@@ -453,9 +447,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     {
         TDataSplit dataSplit;
 
-        ToProto(
-            dataSplit.mutable_chunk_id(),
-            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
@@ -477,9 +469,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     {
         TDataSplit dataSplit;
 
-        ToProto(
-            dataSplit.mutable_chunk_id(),
-            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
@@ -567,9 +557,7 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
     {
         TDataSplit dataSplit;
 
-        ToProto(
-            dataSplit.mutable_chunk_id(),
-            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
@@ -613,9 +601,7 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
     {
         TDataSplit dataSplit;
 
-        ToProto(
-            dataSplit.mutable_chunk_id(),
-            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
@@ -1336,7 +1322,7 @@ protected:
                 std::vector<TRow> keys,
                 TRowBufferPtr permanentBuffer) mutable
             {
-                TDataRanges dataSource;
+                TDataSource dataSource;
                 TQueryPtr preparedSubquery;
                 std::tie(preparedSubquery, dataSource) = GetForeignQuery(
                     subquery,

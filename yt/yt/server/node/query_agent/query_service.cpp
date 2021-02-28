@@ -469,7 +469,16 @@ private:
             MemoryTracker_);
 
         // TODO(lukyan): Use memoryChunkProvider in FromProto.
-        auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
+        auto dataSources = FromProto<std::vector<TDataSource>>(request->data_sources());
+        // COMPAT(babenko)
+        for (const auto& dataSource : dataSources) {
+            if (!dataSource.CellId) {
+                YT_LOG_DEBUG("Missing cell id in QueryService.Execute request (RequestId: %v, User: %v)",
+                    context->GetRequestId(),
+                    context->RequestHeader().user());
+                break;
+            }
+        }
 
         YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
@@ -548,33 +557,49 @@ private:
 
         TRetentionConfigPtr retentionConfig;
         if (request->has_retention_config()) {
-            retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonString(request->retention_config()));
+            retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonStringBuf(request->retention_config()));
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
-        int batchCount = request->tablet_ids_size();
-        YT_VERIFY(batchCount == request->mount_revisions_size());
-        YT_VERIFY(batchCount == request->Attachments().size());
-
-        auto tabletIds = FromProto<std::vector<TTabletId>>(request->tablet_ids());
+        int subrequestCount = request->tablet_ids_size();
+        if (subrequestCount != request->mount_revisions_size()) {
+            THROW_ERROR_EXCEPTION("Wrong number of revisions: expected %v, got %v",
+                subrequestCount,
+                request->mount_revisions_size());
+        }
+        if (subrequestCount != request->Attachments().size()) {
+            THROW_ERROR_EXCEPTION("Wrong number of attachments: expected %v, got %v",
+                subrequestCount,
+                request->mount_revisions_size());
+        }
 
         context->SetRequestInfo("TabletIds: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %v",
-            tabletIds,
+            MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) {
+                FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf());
+            }),
             timestamp,
             requestCodecId,
             responseCodecId,
             blockReadOptions.ReadSessionId,
             retentionConfig);
 
+        // COMAPT(babenko)
+        if (request->cell_ids_size() == 0 && request->tablet_ids_size() > 0) {
+            YT_LOG_DEBUG("Missing cell id in QueryService.Multiread request (RequestId: %v, User: %v)",
+                context->GetRequestId(),
+                context->RequestHeader().user());
+        }
+
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
 
         bool useLookupCache = request->use_lookup_cache();
 
-        std::vector<TCallback<TFuture<TSharedRef>()>> batchCallbacks;
-        for (size_t index = 0; index < batchCount; ++index) {
-            auto tabletId = tabletIds[index];
+        std::vector<TCallback<TFuture<TSharedRef>()>> subrequestCallbacks;
+        for (int index = 0; index < subrequestCount; ++index) {
+            auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
+            auto cellId = index < request->cell_ids_size() ? FromProto<TCellId>(request->cell_ids(index)) : TCellId();
             auto mountRevision = request->mount_revisions(index);
             auto attachment = request->Attachments()[index];
 
@@ -592,13 +617,13 @@ private:
                         [&] {
                             TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
-                            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId, mountRevision);
-
+                            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
                             slotManager->ValidateTabletAccess(tabletSnapshot, timestamp);
 
                             auto requestData = requestCodec->Decompress(attachment);
 
-                            struct TLookupRowBufferTag { };
+                            struct TLookupRowBufferTag
+                            { };
                             TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
                             TWireProtocolWriter writer;
 
@@ -622,10 +647,10 @@ private:
                 }
             }).AsyncVia(Bootstrap_->GetTabletLookupPoolInvoker());
 
-            batchCallbacks.push_back(callback);
+            subrequestCallbacks.push_back(callback);
         }
 
-        auto results = WaitFor(RunWithBoundedConcurrency(batchCallbacks, Config_->MaxSubqueries))
+        auto results = WaitFor(RunWithBoundedConcurrency(subrequestCallbacks, Config_->MaxSubqueries))
             .ValueOrThrow();
 
         for (const auto& result : results) {
@@ -642,14 +667,26 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetTabletInfo)
     {
-        auto tabletIds = FromProto<std::vector<TTabletId>>(request->tablet_ids());
+        context->SetRequestInfo("TabletIds: %v",
+            MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) {
+                FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf());
+            }));
 
-        context->SetRequestInfo("TabletIds: %v", tabletIds);
+        // COMAPT(babenko)
+        if (request->cell_ids_size() == 0 && request->tablet_ids_size() > 0) {
+            YT_LOG_DEBUG("Missing cell id in QueryService.GetTabletInfo request (RequestId: %v, User: %v)",
+                context->GetRequestId(),
+                context->RequestHeader().user());
+        }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
-        for (auto tabletId : tabletIds) {
-            auto tabletSnapshot = slotManager->GetLatestTabletSnapshotOrThrow(tabletId);
+        for (int index = 0; index < request->tablet_ids_size(); ++index) {
+            auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
+            // COMPAT(babenko)
+            auto cellId = index < request->cell_ids_size() ? FromProto<TCellId>(request->cell_ids(index)) : TCellId();
+
+            auto tabletSnapshot = slotManager->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
@@ -679,16 +716,24 @@ private:
     {
         auto storeId = FromProto<TDynamicStoreId>(request->store_id());
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto cellId = FromProto<TCellId>(request->tablet_id());
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
 
-        context->SetRequestInfo("StoreId: %v, TabletId: %v, ReadSessionId: %v, Timestamp: %llx",
+        context->SetRequestInfo("StoreId: %v, TabletId: %v, CellId: %v, ReadSessionId: %v, Timestamp: %llx",
             storeId,
             tabletId,
+            cellId,
             readSessionId,
             request->timestamp());
 
+        if (!cellId) {
+            YT_LOG_DEBUG("Missing cell id in QueryService.ReadDynamicStore request (RequestId: %v, User: %v)",
+                context->GetRequestId(),
+                context->RequestHeader().user());
+        }
+
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetLatestTabletSnapshotOrThrow(tabletId);
+        auto tabletSnapshot = slotManager->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
         if (tabletSnapshot->IsPreallocatedDynamicStoreId(storeId)) {
             YT_LOG_DEBUG("Dynamic store is not created yet, sending nothing (TabletId: %v, StoreId: %v, "
@@ -1020,7 +1065,12 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, FetchTabletStores)
     {
-        context->SetRequestInfo("SubrequestCount: %v", request->subrequests_size());
+        context->SetRequestInfo("Subrequests: %v",
+            MakeFormattableView(request->subrequests(), [] (auto* builder, const auto& subrequest) {
+                builder->AppendFormat("{TabletId: %v, TableIndex: %v}",
+                    FromProto<TTabletId>(subrequest.tablet_id()),
+                    subrequest.table_index());
+            }));
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
@@ -1030,15 +1080,22 @@ private:
             auto* subresponse = response->add_subresponses();
 
             auto tabletId = FromProto<TTabletId>(subrequest.tablet_id());
+            auto cellId = FromProto<TCellId>(subrequest.tablet_id());
             auto tableIndex = subrequest.table_index();
+
+            // COMPAT(babenko)
+            if (!cellId) {
+                YT_LOG_DEBUG("Missing cell id in QueryService.FetchTabletStores request (RequestId: %v, User: %v)",
+                    context->GetRequestId(),
+                    context->RequestHeader().user());
+            }
 
             try {
                 NTabletNode::TTabletSnapshotPtr tabletSnapshot;
                 try {
                     tabletSnapshot = subrequest.has_mount_revision()
-                        ? slotManager->GetTabletSnapshotOrThrow(tabletId, subrequest.mount_revision())
-                        : slotManager->GetLatestTabletSnapshotOrThrow(tabletId);
-
+                        ? slotManager->GetTabletSnapshotOrThrow(tabletId, cellId, subrequest.mount_revision())
+                        : slotManager->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
                     slotManager->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
                 } catch (const std::exception& ex) {
                     subresponse->set_tablet_missing(true);

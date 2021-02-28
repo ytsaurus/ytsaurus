@@ -379,11 +379,11 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
 
     // Get tablet info and do some sanity checks.
     const auto& tableMountCache = client->GetTableMountCache();
-    auto mountInfo = WaitFor(tableMountCache->GetTableInfo(userObject.GetPath()))
+    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(userObject.GetPath()))
         .ValueOrThrow();
-    mountInfo->ValidateDynamic();
-    mountInfo->ValidateSorted();
-    mountInfo->ValidateNotReplicated();
+    tableInfo->ValidateDynamic();
+    tableInfo->ValidateSorted();
+    tableInfo->ValidateNotReplicated();
 
     // Visit all tablets and group tablet subrequests by nodes.
     using TSubrequest = NQueryClient::NProto::TReqFetchTabletStores::TSubrequest;
@@ -392,22 +392,22 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
     const auto& connection = client->GetNativeConnection();
     const auto& cellDirectory = connection->GetCellDirectory();
 
-    for (int tabletIndex = 0; tabletIndex < mountInfo->Tablets.size(); ++tabletIndex) {
-        const auto& tablet = mountInfo->Tablets[tabletIndex];
+    for (int tabletIndex = 0; tabletIndex < tableInfo->Tablets.size(); ++tabletIndex) {
+        const auto& tabletInfo = tableInfo->Tablets[tabletIndex];
 
-        if (tablet->State != ETabletState::Mounted && tablet->State != ETabletState::Frozen) {
+        if (tabletInfo->State != ETabletState::Mounted && tabletInfo->State != ETabletState::Frozen) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::TabletNotMounted,
                 "Tablet %v is not mounted",
-                tablet->TabletId)
-                << TErrorAttribute("tablet_state", tablet->State);
+                tabletInfo->TabletId)
+                << TErrorAttribute("tablet_state", tabletInfo->State);
         }
 
         TSubrequest subrequest;
-
-        ToProto(subrequest.mutable_tablet_id(), tablet->TabletId);
+        ToProto(subrequest.mutable_tablet_id(), tabletInfo->TabletId);
+        ToProto(subrequest.mutable_tablet_id(), tabletInfo->CellId);
         subrequest.set_table_index(0);
-        subrequest.set_mount_revision(tablet->MountRevision);
+        subrequest.set_mount_revision(tabletInfo->MountRevision);
         for (int rangeIndex = 0; rangeIndex < ranges.size(); ++rangeIndex) {
             const auto& range = ranges[rangeIndex];
             // We don't do any pruning for now.
@@ -417,7 +417,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
         subrequest.set_fetch_samples(true);
         subrequest.set_data_size_between_samples(5 *  1024 * 1024);
 
-        const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(tablet->CellId);
+        const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
         const auto& primaryPeerDescriptor = NApi::NNative::GetPrimaryTabletPeerDescriptor(
             cellDescriptor,
             NHydra::EPeerKind::Leader);

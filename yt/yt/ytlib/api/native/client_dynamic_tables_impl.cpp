@@ -271,6 +271,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
             subrequest.Request = proxy.GetTabletInfo();
         }
         ToProto(subrequest.Request->add_tablet_ids(), tabletInfo->TabletId);
+        ToProto(subrequest.Request->add_cell_ids(), tabletInfo->CellId);
         subrequest.ResultIndexes.push_back(resultIndex);
     }
 
@@ -685,8 +686,8 @@ TRowset TClient::DoLookupRowsOnce(
 
         auto req = proxy.Multiread();
         req->SetMultiplexingBand(options.MultiplexingBand);
-        req->set_request_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
-        req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
+        req->set_request_codec(ToProto<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
+        req->set_response_codec(ToProto<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
         req->set_timestamp(options.Timestamp);
         req->set_enable_partial_result(options.EnablePartialResult);
         req->set_use_lookup_cache(options.UseLookupCache);
@@ -699,9 +700,10 @@ TRowset TClient::DoLookupRowsOnce(
         }
 
         for (const auto& batch : batches) {
+            ToProto(req->add_cell_ids(), cellId);
             ToProto(req->add_tablet_ids(), batch.TabletId);
             req->add_mount_revisions(batch.MountRevision);
-            TSharedRef requestData = codec->Compress(boundEncoder(batch.Keys));
+            auto requestData = codec->Compress(boundEncoder(batch.Keys));
             req->Attachments().push_back(requestData);
         }
 
@@ -832,7 +834,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         fetchFunctions,
         options.Timestamp);
     const auto& query = fragment->Query;
-    const auto& dataSource = fragment->Ranges;
+    const auto& dataSource = fragment->DataSource;
 
     for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
         if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
@@ -858,9 +860,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             .Columns = std::move(columns)
         });
     };
-    addTableForPermissionCheck(dataSource.Id, query->Schema);
+    addTableForPermissionCheck(dataSource.ObjectId, query->Schema);
     for (const auto& joinClause : query->JoinClauses) {
-        addTableForPermissionCheck(joinClause->ForeignDataId, joinClause->Schema);
+        addTableForPermissionCheck(joinClause->ForeignObjectId, joinClause->Schema);
     }
 
     if (options.ExecutionPool) {

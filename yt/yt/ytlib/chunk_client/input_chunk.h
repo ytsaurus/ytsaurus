@@ -31,9 +31,10 @@ namespace NYT::NChunkClient {
 class TInputChunkBase
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(TChunkId, ChunkId);
+    // TODO(babenko): this could also be a store id.
+    DEFINE_BYVAL_RW_PROPERTY(TChunkId, ChunkId);
 
-    typedef std::array<TChunkReplica, MaxInputChunkReplicaCount> TInputChunkReplicas;
+    using TInputChunkReplicas = std::array<TChunkReplica, MaxInputChunkReplicaCount>;
     DEFINE_BYREF_RO_PROPERTY(TInputChunkReplicas, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(int, TableIndex, -1);
@@ -43,7 +44,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, TableChunkFormat);
     DEFINE_BYVAL_RW_PROPERTY(i64, ChunkIndex, -1);
     DEFINE_BYVAL_RW_PROPERTY(i64, TabletIndex, -1);
-    DEFINE_BYREF_RW_PROPERTY(NTabletClient::TTabletId, TabletId);
+    DEFINE_BYVAL_RW_PROPERTY(NTabletClient::TTabletId, TabletId);
+    // TODO(babenko): See YT-14339: Add CellId and pass it around.
+    // NB: This will require controller agent snapshot version promotion!
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, OverrideTimestamp);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, TotalUncompressedDataSize, -1);

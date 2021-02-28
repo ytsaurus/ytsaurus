@@ -141,7 +141,10 @@ message TJoinClause
     repeated string self_joined_columns = 7;
     repeated string foreign_joined_columns = 8;
 
-    required NYT.NProto.TGuid foreign_data_id = 9;
+    required NYT.NProto.TGuid foreign_object_id = 9;
+    // COMPAT(babenko): legacy clients may omit this field.
+    optional NYT.NProto.TGuid foreign_cell_id = 15;
+
     required bool is_left = 10;
 
     optional uint64 common_key_prefix = 11 [default = 0];
@@ -216,9 +219,12 @@ message TQueryOptions
     optional bool suppress_access_tracking = 12;
 }
 
-message TDataRanges
+message TDataSource
 {
-    required NYT.NProto.TGuid id = 1;
+    required NYT.NProto.TGuid object_id = 1;
+    // COMPAT(babenko): legacy clients may omit this field.
+    optional NYT.NProto.TGuid cell_id = 7;
+
     required int64 mount_revision = 2;
     required bytes ranges = 3;
     optional bool lookup_supported = 4 [default = true];

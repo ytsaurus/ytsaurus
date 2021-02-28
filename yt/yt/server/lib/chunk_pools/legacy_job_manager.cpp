@@ -201,7 +201,7 @@ TString TLegacyJobStub::GetDebugString() const
             }
             std::vector<TChunkId> chunkIds;
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                chunkIds.emplace_back(chunkSlice->GetInputChunk()->ChunkId());
+                chunkIds.emplace_back(chunkSlice->GetInputChunk()->GetChunkId());
             }
             builder.AppendFormat("{DataWeight: %v, LowerLimit: %v, UpperLimit: %v, InputStreamIndex: %v, ChunkIds: %v}",
                 dataSlice->GetDataWeight(),

@@ -125,7 +125,7 @@ private:
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
-        for (size_t index = 0; index < request->chunk_id_size(); ++index) {
+        for (int index = 0; index < request->chunk_id_size(); ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_id(index));
 
             // COMPAT(ifsmirnov)

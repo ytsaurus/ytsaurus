@@ -163,7 +163,7 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
                 totalColumnDataWeight += statistics.TimestampTotalWeight.value_or(sizeof(TTimestamp));
             } else {
                 THROW_ERROR_EXCEPTION("Cannot apply column selectivity factor for chunk of an old table format")
-                    << TErrorAttribute("chunk_id", chunk->ChunkId())
+                    << TErrorAttribute("chunk_id", chunk->GetChunkId())
                     << TErrorAttribute("table_chunk_format", chunk->GetTableChunkFormat());
             }
             totalColumnDataWeight += statistics.ColumnDataWeightsSum;

@@ -691,9 +691,9 @@ private:
         auto miscExt = FindProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
         if (miscExt) {
             // Note that misc extension for given chunk may already be present as same chunk may appear several times.
-            MiscExtMap_.emplace(inputChunk->ChunkId(), New<TRefCountedMiscExt>(*miscExt));
+            MiscExtMap_.emplace(inputChunk->GetChunkId(), New<TRefCountedMiscExt>(*miscExt));
         } else {
-            MiscExtMap_.emplace(inputChunk->ChunkId(), nullptr);
+            MiscExtMap_.emplace(inputChunk->GetChunkId(), nullptr);
         }
 
         auto tableIndex = inputChunk->GetTableIndex();

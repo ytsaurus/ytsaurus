@@ -339,9 +339,9 @@ void TBootstrap::DoInitialize()
     NodeResourceManager_ = New<TNodeResourceManager>(this);
 
     TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
-    TabletSlotManager_ = New<NTabletNode::TSlotManager>(Config_->TabletNode, this);
+    TabletSlotManager_ = NTabletNode::CreateSlotManager(this);
     TabletNodeStructuredLogger_ = NTabletNode::CreateStructuredLogger(this);
-    MasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::TSlotManager::PopulateAlerts, TabletSlotManager_));
+    MasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::ISlotManager::PopulateAlerts, TabletSlotManager_));
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
@@ -879,7 +879,7 @@ const NTabletNode::IHintManagerPtr& TBootstrap::GetTabletNodeHintManager() const
     return TabletNodeHintManager_;
 }
 
-const NTabletNode::TSlotManagerPtr& TBootstrap::GetTabletSlotManager() const
+const NTabletNode::ISlotManagerPtr& TBootstrap::GetTabletSlotManager() const
 {
     return TabletSlotManager_;
 }

@@ -52,23 +52,23 @@ static const auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSlotManager::TImpl
-    : public TRefCounted
+class TSlotManager
+    : public ISlotManager
 {
 public:
-    TImpl(
-        TTabletNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
-        : Config_(config)
-        , Bootstrap_(bootstrap)
+    explicit TSlotManager(NClusterNode::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+        , Config_(Bootstrap_->GetConfig()->TabletNode)
         , SlotScanExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
-            BIND(&TImpl::OnScanSlots, Unretained(this)),
+            BIND(&TSlotManager::OnScanSlots, Unretained(this)),
             Config_->SlotScanPeriod))
-        , OrchidService_(TOrchidService::Create(MakeWeak(this), Bootstrap_->GetControlInvoker()))
+        , OrchidService_(TOrchidService::Create(
+            MakeWeak(this),
+            Bootstrap_->GetControlInvoker()))
     { }
 
-    void Initialize()
+    virtual void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -76,61 +76,22 @@ public:
         SlotScanExecutor_->Start();
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND(&TSlotManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    void SetTotalTabletSlotCount(int slotCount)
+    virtual int GetTotalTabletSlotCount() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (Slots_.size() == slotCount) {
-            return;
-        }
-
-        YT_LOG_INFO("Updating tablet slot count (OldTabletSlotCount: %v, NewTabletSlotCount: %v)",
-            Slots_.size(),
-            slotCount);
-
-        if (slotCount < Slots_.size()) {
-            std::vector<TFuture<void>> asyncFinalizations;
-            asyncFinalizations.reserve(Slots_.size() - slotCount);
-            for (int slotIndex = slotCount; slotIndex < Slots_.size(); ++slotIndex) {
-                const auto& slot = Slots_[slotIndex];
-                if (slot) {
-                    asyncFinalizations.push_back(slot->Finalize());
-                }
-            }
-
-            auto error = WaitFor(AllSet(asyncFinalizations));
-            YT_LOG_WARNING_UNLESS(error.IsOK(), error, "Failed to finalize tablet slot during slot manager reconfiguration");
-        }
-
-        Slots_.resize(slotCount);
-
-        if (slotCount > 0) {
-            // Requesting latest timestamp enables periodic background time synchronization.
-            // For tablet nodes, it is crucial because of non-atomic transactions that require
-            // in-sync time for clients.
-            Bootstrap_
-                ->GetMasterConnection()
-                ->GetTimestampProvider()
-                ->GetLatestTimestamp();
-        }
+        return IndexToSlot_.size();
     }
 
-    int GetTotalTabletSlotCount() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return Slots_.size();
-    }
-
-    int GetAvailableTabletSlotCount() const
+    virtual int GetAvailableTabletSlotCount() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         int availableSlotCount = 0;
-        for (const auto& slot : Slots_) {
+        for (const auto& slot : IndexToSlot_) {
             if (!slot) {
                 ++availableSlotCount;
             }
@@ -139,32 +100,32 @@ public:
         return availableSlotCount;
     }
 
-    int GetUsedTabletSlotConut() const
+    virtual int GetUsedTabletSlotCount() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return Slots_.size() - GetAvailableTabletSlotCount();
+        return IndexToSlot_.size() - GetAvailableTabletSlotCount();
     }
 
-    bool HasFreeTabletSlots() const
+    virtual bool HasFreeTabletSlots() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return GetAvailableTabletSlotCount() > 0;
     }
 
-    bool IsOutOfMemory(const std::optional<TString>& poolTag) const
+    virtual bool IsOutOfMemory(const std::optional<TString>& poolTag) const override
     {
         const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
         return tracker->IsExceeded(EMemoryCategory::TabletDynamic, poolTag);
     }
 
-    double GetUsedCpu(double cpuPerTabletSlot) const
+    virtual double GetUsedCpu(double cpuPerTabletSlot) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         double result = 0;
-        for (const auto& slot : Slots_) {
+        for (const auto& slot : IndexToSlot_) {
             if (slot) {
                 result += slot->GetUsedCpu(cpuPerTabletSlot);
             }
@@ -172,63 +133,76 @@ public:
         return result;
     }
 
-    const std::vector<TTabletSlotPtr>& Slots() const
+    virtual const std::vector<TTabletSlotPtr>& Slots() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return Slots_;
+        return IndexToSlot_;
     }
 
-    TTabletSlotPtr FindSlot(TCellId id)
+    virtual TTabletSlotPtr FindSlot(TCellId id) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        for (const auto& slot : Slots_) {
-            if (slot && slot->GetCellId() == id) {
-                return slot;
-            }
-        }
-
-        return nullptr;
+        auto guard = ReaderGuard(CellIdToSlotLock_);
+        auto it = CellIdToSlot_.find(id);
+        return it == CellIdToSlot_.end() ? nullptr : it->second;
     }
 
 
-
-    void CreateSlot(const TCreateTabletSlotInfo& createInfo)
+    virtual void CreateSlot(const TCreateTabletSlotInfo& createInfo) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         int index = GetFreeSlotIndex();
-        Slots_[index] = New<TTabletSlot>(index, Config_, createInfo, Bootstrap_);
-        Slots_[index]->Initialize();
+
+        auto slot = New<TTabletSlot>(index, Config_, createInfo, Bootstrap_);
+        slot->Initialize();
+
+        IndexToSlot_[index] = slot;
+
+        {
+            auto guard = WriterGuard(CellIdToSlotLock_);
+            YT_VERIFY(CellIdToSlot_.emplace(slot->GetCellId(), slot).second);
+        }
 
         UpdateTabletCellBundleMemoryPoolWeight(createInfo.tablet_cell_bundle());
     }
 
-    void ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabletSlotInfo& configureInfo)
+    virtual void ConfigureSlot(
+        const TTabletSlotPtr& slot,
+        const TConfigureTabletSlotInfo& configureInfo) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         slot->Configure(configureInfo);
     }
 
-    void RemoveSlot(TTabletSlotPtr slot)
+    virtual TFuture<void> RemoveSlot(const TTabletSlotPtr& slot) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        slot->Finalize().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) {
-            VERIFY_THREAD_AFFINITY(ControlThread);
+        return slot->Finalize()
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TError&) {
+                VERIFY_THREAD_AFFINITY(ControlThread);
 
-            if (Slots_[slot->GetIndex()] == slot) {
-                Slots_[slot->GetIndex()].Reset();
-            }
+                if (IndexToSlot_[slot->GetIndex()] == slot) {
+                    IndexToSlot_[slot->GetIndex()].Reset();
+                }
 
-            UpdateTabletCellBundleMemoryPoolWeight(slot->GetTabletCellBundleName());
-        }).Via(Bootstrap_->GetControlInvoker()));
+                {
+                    auto guard = WriterGuard(CellIdToSlotLock_);
+                    if (auto it = CellIdToSlot_.find(slot->GetCellId()); it && it->second == slot) {
+                        CellIdToSlot_.erase(it);
+                    }
+                }
+
+                UpdateTabletCellBundleMemoryPoolWeight(slot->GetTabletCellBundleName());
+            }).Via(Bootstrap_->GetControlInvoker()));
     }
 
 
-    std::vector<TTabletSnapshotPtr> GetTabletSnapshots()
+    virtual std::vector<TTabletSnapshotPtr> GetTabletSnapshots() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -241,29 +215,25 @@ public:
         return snapshots;
     }
 
-    TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId)
+    virtual TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return DoFindTabletSnapshot(tabletId, std::nullopt);
     }
 
-    TTabletSnapshotPtr GetLatestTabletSnapshotOrThrow(TTabletId tabletId)
+    virtual TTabletSnapshotPtr GetLatestTabletSnapshotOrThrow(
+        TTabletId tabletId,
+        TCellId cellId) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto snapshot = FindLatestTabletSnapshot(tabletId);
-        if (!snapshot) {
-            THROW_ERROR_EXCEPTION(
-                NTabletClient::EErrorCode::NoSuchTablet,
-                "Tablet %v is not known",
-                tabletId)
-                << TErrorAttribute("tablet_id", tabletId);
-        }
+        ThrowOnMissingTabletSnapshot(tabletId, cellId, snapshot);
         return snapshot;
     }
 
-    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId, TRevision mountRevision)
+    virtual TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId, TRevision mountRevision) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -273,23 +243,22 @@ public:
             : nullptr;
     }
 
-    TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId, TRevision mountRevision)
+    virtual TTabletSnapshotPtr GetTabletSnapshotOrThrow(
+        TTabletId tabletId,
+        TCellId cellId,
+        TRevision mountRevision) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto snapshot = DoFindTabletSnapshot(tabletId, mountRevision);
-        if (!snapshot) {
-            THROW_ERROR_EXCEPTION(
-                NTabletClient::EErrorCode::NoSuchTablet,
-                "Tablet %v is not known",
-                tabletId)
-                << TErrorAttribute("tablet_id", tabletId);
-        }
+        ThrowOnMissingTabletSnapshot(tabletId, cellId, snapshot);
         snapshot->ValidateMountRevision(mountRevision);
         return snapshot;
     }
 
-    void ValidateTabletAccess(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
+    virtual void ValidateTabletAccess(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        TTimestamp timestamp) override
     {
         if (timestamp != AsyncLastCommittedTimestamp) {
             const auto& hydraManager = tabletSnapshot->HydraManager;
@@ -301,7 +270,10 @@ public:
         }
     }
 
-    void RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet, std::optional<TLockManagerEpoch> epoch)
+    virtual void RegisterTabletSnapshot(
+        const TTabletSlotPtr& slot,
+        TTablet* tablet,
+        std::optional<TLockManagerEpoch> epoch) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -332,7 +304,7 @@ public:
             slot->GetCellId());
     }
 
-    void UnregisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
+    virtual void UnregisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -348,7 +320,7 @@ public:
                     slot->GetCellId());
 
                 TDelayedExecutor::Submit(
-                    BIND(&TImpl::EvictTabletSnapshot, MakeStrong(this), tablet->GetId(), snapshot)
+                    BIND(&TSlotManager::EvictTabletSnapshot, MakeStrong(this), tablet->GetId(), snapshot)
                         .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()),
                     Config_->TabletSnapshotEvictionTimeout);
 
@@ -358,7 +330,7 @@ public:
         // NB: It's fine not to find anything.
     }
 
-    void UnregisterTabletSnapshots(TTabletSlotPtr slot)
+    virtual void UnregisterTabletSnapshots(TTabletSlotPtr slot) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -386,51 +358,38 @@ public:
         }
     }
 
-    void UpdateTabletCellBundleMemoryPoolWeight(const TString& bundleName)
+    virtual void UpdateTabletCellBundleMemoryPoolWeight(const TString& bundleName) override
     {
         const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
 
         i64 totalWeight = 0;
-        for (int index = 0; index < Slots_.size(); ++index) {
-            if (Slots_[index] && Slots_[index]->GetTabletCellBundleName() == bundleName) {
-                totalWeight += Slots_[index]->GetDynamicOptions()->DynamicMemoryPoolWeight;
+        for (const auto& slot : IndexToSlot_) {
+            if (slot && slot->GetTabletCellBundleName() == bundleName) {
+                totalWeight += slot->GetDynamicOptions()->DynamicMemoryPoolWeight;
             }
         }
 
         YT_LOG_DEBUG("Tablet cell bundle memory pool weight updated (Bundle: %v, Weight: %v)",
             bundleName,
             totalWeight);
+
         memoryTracker->SetPoolWeight(bundleName, totalWeight);
     }
 
-    void PopulateAlerts(std::vector<TError>* alerts)
+    virtual void PopulateAlerts(std::vector<TError>* /*alerts*/) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
-
-        // TODO(sandello): Make this one symmetrical to checks in tablet_manager.cpp
-        /*
-        for (const auto& it : TabletIdToSnapshot_) {
-            if (it.second->OverlappingStoreCount >= it.second->Config->MaxOverlappingStoreCount) {
-                auto alert = TError("Too many overlapping stores in tablet %v, rotation disabled", it.first)
-                    << TErrorAttribute("overlapping_store_count", it.second->OverlappingStoreCount)
-                    << TErrorAttribute("overlapping_store_limit", it.second->Config->MaxOverlappingStoreCount);
-                alerts->push_back(std::move(alert));
-            }
-        }
-        */
     }
 
 
-    IYPathServicePtr GetOrchidService()
+    virtual IYPathServicePtr GetOrchidService() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return OrchidService_;
     }
 
-    void ValidateCellSnapshot(IAsyncZeroCopyInputStreamPtr reader)
+    virtual void ValidateCellSnapshot(IAsyncZeroCopyInputStreamPtr reader) override
     {
         if (Slots().empty()) {
             THROW_ERROR_EXCEPTION("No tablet slots in node config");
@@ -492,7 +451,7 @@ private:
         : public TVirtualMapBase
     {
     public:
-        static IYPathServicePtr Create(TWeakPtr<TImpl> impl, IInvokerPtr invoker)
+        static IYPathServicePtr Create(TWeakPtr<TSlotManager> impl, IInvokerPtr invoker)
         {
             return New<TOrchidService>(std::move(impl))
                 ->Via(invoker);
@@ -517,7 +476,7 @@ private:
         virtual i64 GetSize() const override
         {
             if (auto owner = Owner_.Lock()) {
-                return owner->GetUsedTabletSlotConut();
+                return owner->GetUsedTabletSlotCount();
             }
             return 0;
         }
@@ -533,19 +492,22 @@ private:
         }
 
     private:
-        const TWeakPtr<TImpl> Owner_;
+        const TWeakPtr<TSlotManager> Owner_;
 
-        explicit TOrchidService(TWeakPtr<TImpl> owner)
+        explicit TOrchidService(TWeakPtr<TSlotManager> owner)
             : Owner_(std::move(owner))
         { }
 
         DECLARE_NEW_FRIEND();
     };
 
-    const TTabletNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
+    const TTabletNodeConfigPtr Config_;
 
-    std::vector<TTabletSlotPtr> Slots_;
+    std::vector<TTabletSlotPtr> IndexToSlot_;
+
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, CellIdToSlotLock_);
+    THashMap<TCellId, TTabletSlotPtr> CellIdToSlot_;
 
     TPeriodicExecutorPtr SlotScanExecutor_;
 
@@ -557,76 +519,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-
-    void EvictTabletSnapshot(TTabletId tabletId, const TTabletSnapshotPtr& snapshot)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = WriterGuard(TabletSnapshotsSpinLock_);
-
-        auto range = TabletIdToSnapshot_.equal_range(tabletId);
-        for (auto it = range.first; it != range.second; ++it) {
-            if (it->second == snapshot) {
-                TabletIdToSnapshot_.erase(it);
-                guard.Release();
-
-                // This is where snapshot dies. It's also nice to have logging moved outside
-                // of a critical section.
-                YT_LOG_DEBUG("Tablet snapshot evicted (TabletId: %v, CellId: %v)",
-                    tabletId,
-                    snapshot->CellId);
-                break;
-            }
-        }
-    }
-
-
-    void OnScanSlots()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_LOG_DEBUG("Slot scan started");
-
-        Bootstrap_->GetTabletNodeStructuredLogger()->LogEvent("begin_slot_scan");
-
-        BeginSlotScan_.Fire();
-
-        std::vector<TFuture<void>> asyncResults;
-        for (auto slot : Slots_) {
-            if (!slot)
-                continue;
-
-            asyncResults.push_back(
-                BIND([=, this_ = MakeStrong(this)] () {
-                    ScanSlot_.Fire(slot);
-                })
-                .AsyncVia(slot->GetGuardedAutomatonInvoker())
-                .Run()
-                // Silent any error to avoid premature return from WaitFor.
-                .Apply(BIND([] (const TError&) { })));
-        }
-        auto result = WaitFor(AllSucceeded(asyncResults));
-        YT_VERIFY(result.IsOK());
-
-        EndSlotScan_.Fire();
-
-        Bootstrap_->GetTabletNodeStructuredLogger()->LogEvent("end_slot_scan");
-
-        YT_LOG_DEBUG("Slot scan completed");
-    }
-
-
-    int GetFreeSlotIndex()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        for (int index = 0; index < Slots_.size(); ++index) {
-            if (!Slots_[index]) {
-                return index;
-            }
-        }
-        YT_ABORT();
-    }
 
     TTabletSnapshotPtr DoFindTabletSnapshot(TTabletId tabletId, std::optional<TRevision> mountRevision)
     {
@@ -661,6 +553,167 @@ private:
         return snapshot;
     }
 
+    void EvictTabletSnapshot(TTabletId tabletId, const TTabletSnapshotPtr& snapshot)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = WriterGuard(TabletSnapshotsSpinLock_);
+
+        auto range = TabletIdToSnapshot_.equal_range(tabletId);
+        for (auto it = range.first; it != range.second; ++it) {
+            if (it->second == snapshot) {
+                TabletIdToSnapshot_.erase(it);
+                guard.Release();
+
+                // This is where snapshot dies. It's also nice to have logging moved outside
+                // of a critical section.
+                YT_LOG_DEBUG("Tablet snapshot evicted (TabletId: %v, CellId: %v)",
+                    tabletId,
+                    snapshot->CellId);
+                break;
+            }
+        }
+    }
+
+    void ThrowOnMissingTabletSnapshot(
+        TTabletId tabletId,
+        TCellId cellId,
+        const TTabletSnapshotPtr& snapshot)
+    {
+        if (snapshot) {
+            return;
+        }
+
+        if (!cellId) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::NoSuchTablet,
+                "Tablet %v is not known",
+                tabletId)
+                << TErrorAttribute("tablet_id", tabletId);
+        }
+
+        auto slot = FindSlot(cellId);
+        if (!slot){
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::NoSuchCell,
+                "Cell %v is not known",
+                cellId)
+                << TErrorAttribute("tablet_id", tabletId)
+                << TErrorAttribute("cell_id", cellId);
+        }
+
+        auto hydraManager = slot->GetHydraManager();
+        if (hydraManager && !hydraManager->IsActive()) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::NoSuchCell,
+                "Cell %v is not active")
+                << TErrorAttribute("tablet_id", tabletId)
+                << TErrorAttribute("cell_id", cellId);
+        } else {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::NoSuchTablet,
+                "Tablet %v is not known",
+                tabletId)
+                << TErrorAttribute("tablet_id", tabletId)
+                << TErrorAttribute("cell_id", cellId);
+        }
+    }
+
+
+    void OnScanSlots()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_DEBUG("Slot scan started");
+
+        Bootstrap_->GetTabletNodeStructuredLogger()->LogEvent("begin_slot_scan");
+
+        BeginSlotScan_.Fire();
+
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& slot : IndexToSlot_) {
+            if (!slot) {
+                continue;
+            }
+
+            asyncResults.push_back(
+                BIND([=, this_ = MakeStrong(this)] () {
+                    ScanSlot_.Fire(slot);
+                })
+                .AsyncVia(slot->GetGuardedAutomatonInvoker())
+                .Run()
+                // Silent any error to avoid premature return from WaitFor.
+                .Apply(BIND([] (const TError&) { })));
+        }
+        auto result = WaitFor(AllSucceeded(asyncResults));
+        YT_VERIFY(result.IsOK());
+
+        EndSlotScan_.Fire();
+
+        Bootstrap_->GetTabletNodeStructuredLogger()->LogEvent("end_slot_scan");
+
+        YT_LOG_DEBUG("Slot scan completed");
+    }
+
+
+    void SetTotalTabletSlotCount(int slotCount)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (IndexToSlot_.size() == slotCount) {
+            return;
+        }
+
+        YT_LOG_INFO("Updating tablet slot count (OldTabletSlotCount: %v, NewTabletSlotCount: %v)",
+            IndexToSlot_.size(),
+            slotCount);
+
+        if (slotCount < IndexToSlot_.size()) {
+            std::vector<TFuture<void>> futures;
+            for (int slotIndex = slotCount; slotIndex < IndexToSlot_.size(); ++slotIndex) {
+                if (const auto& slot = IndexToSlot_[slotIndex]) {
+                    futures.push_back(RemoveSlot(slot));
+                }
+            }
+
+            auto error = WaitFor(AllSet(std::move(futures)));
+            YT_LOG_ALERT_UNLESS(error.IsOK(), error, "Failed to finalize tablet slot during slot manager reconfiguration");
+        }
+
+        while (IndexToSlot_.size() > slotCount) {
+            if (const auto& slot = IndexToSlot_.back()) {
+                THROW_ERROR_EXCEPTION("Slot %v with cell %d did not finalize properly, total slot count update failed",
+                    slot->GetIndex(),
+                    slot->GetCellId());
+            }
+            IndexToSlot_.pop_back();
+        }
+        IndexToSlot_.resize(slotCount);
+
+        if (slotCount > 0) {
+            // Requesting latest timestamp enables periodic background time synchronization.
+            // For tablet nodes, it is crucial because of non-atomic transactions that require
+            // in-sync time for clients.
+            Bootstrap_
+                ->GetMasterConnection()
+                ->GetTimestampProvider()
+                ->GetLatestTimestamp();
+        }
+    }
+
+    int GetFreeSlotIndex()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (int index = 0; index < IndexToSlot_.size(); ++index) {
+            if (!IndexToSlot_[index]) {
+                return index;
+            }
+        }
+        YT_ABORT();
+    }
+
+
     void OnDynamicConfigChanged(
         const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldConfig */,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig)
@@ -673,147 +726,10 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-TSlotManager::TSlotManager(
-    TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(
-        config,
-        bootstrap))
-{ }
-
-TSlotManager::~TSlotManager()
-{ }
-
-void TSlotManager::Initialize()
+ISlotManagerPtr CreateSlotManager(NClusterNode::TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TSlotManager>(bootstrap);
 }
-
-bool TSlotManager::IsOutOfMemory(const std::optional<TString>& poolTag) const
-{
-    return Impl_->IsOutOfMemory(poolTag);
-}
-
-int TSlotManager::GetTotalTabletSlotCount() const
-{
-    return Impl_->GetTotalTabletSlotCount();
-}
-
-int TSlotManager::GetAvailableTabletSlotCount() const
-{
-    return Impl_->GetAvailableTabletSlotCount();
-}
-
-int TSlotManager::GetUsedTabletSlotCount() const
-{
-    return Impl_->GetUsedTabletSlotConut();
-}
-
-bool TSlotManager::HasFreeTabletSlots() const
-{
-    return Impl_->HasFreeTabletSlots();
-}
-
-double TSlotManager::GetUsedCpu(double cpuPerTabletSlot) const
-{
-    return Impl_->GetUsedCpu(cpuPerTabletSlot);
-}
-
-const std::vector<TTabletSlotPtr>& TSlotManager::Slots() const
-{
-    return Impl_->Slots();
-}
-
-TTabletSlotPtr TSlotManager::FindSlot(TCellId id)
-{
-    return Impl_->FindSlot(id);
-}
-
-void TSlotManager::CreateSlot(const TCreateTabletSlotInfo& createInfo)
-{
-    Impl_->CreateSlot(createInfo);
-}
-
-void TSlotManager::ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabletSlotInfo& configureInfo)
-{
-    Impl_->ConfigureSlot(slot, configureInfo);
-}
-
-void TSlotManager::RemoveSlot(TTabletSlotPtr slot)
-{
-    Impl_->RemoveSlot(slot);
-}
-
-std::vector<TTabletSnapshotPtr> TSlotManager::GetTabletSnapshots()
-{
-    return Impl_->GetTabletSnapshots();
-}
-
-TTabletSnapshotPtr TSlotManager::FindLatestTabletSnapshot(TTabletId tabletId)
-{
-    return Impl_->FindLatestTabletSnapshot(tabletId);
-}
-
-TTabletSnapshotPtr TSlotManager::GetLatestTabletSnapshotOrThrow(TTabletId tabletId)
-{
-    return Impl_->GetLatestTabletSnapshotOrThrow(tabletId);
-}
-
-TTabletSnapshotPtr TSlotManager::FindTabletSnapshot(TTabletId tabletId, TRevision mountRevision)
-{
-    return Impl_->FindTabletSnapshot(tabletId, mountRevision);
-}
-
-TTabletSnapshotPtr TSlotManager::GetTabletSnapshotOrThrow(TTabletId tabletId, TRevision mountRevision)
-{
-    return Impl_->GetTabletSnapshotOrThrow(tabletId, mountRevision);
-}
-
-void TSlotManager::ValidateTabletAccess(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
-{
-    Impl_->ValidateTabletAccess(tabletSnapshot, timestamp);
-}
-
-void TSlotManager::RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet, std::optional<TLockManagerEpoch> epoch)
-{
-    Impl_->RegisterTabletSnapshot(std::move(slot), tablet, epoch);
-}
-
-void TSlotManager::UnregisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
-{
-    Impl_->UnregisterTabletSnapshot(std::move(slot), tablet);
-}
-
-void TSlotManager::UnregisterTabletSnapshots(TTabletSlotPtr slot)
-{
-    Impl_->UnregisterTabletSnapshots(std::move(slot));
-}
-
-void TSlotManager::UpdateTabletCellBundleMemoryPoolWeight(const TString& bundleName)
-{
-    Impl_->UpdateTabletCellBundleMemoryPoolWeight(bundleName);
-}
-
-void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
-{
-    Impl_->PopulateAlerts(alerts);
-}
-
-IYPathServicePtr TSlotManager::GetOrchidService()
-{
-    return Impl_->GetOrchidService();
-}
-
-void TSlotManager::ValidateCellSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader)
-{
-    Impl_->ValidateCellSnapshot(reader);
-}
-
-DELEGATE_SIGNAL(TSlotManager, void(), BeginSlotScan, *Impl_);
-DELEGATE_SIGNAL(TSlotManager, void(TTabletSlotPtr), ScanSlot, *Impl_);
-DELEGATE_SIGNAL(TSlotManager, void(), EndSlotScan, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

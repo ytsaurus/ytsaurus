@@ -204,14 +204,15 @@ private:
             auto chunkDataSize = chunk->GetUncompressedDataSize();
 
             if (!chunk->BoundaryKeys()) {
-                THROW_ERROR_EXCEPTION("Missing boundary keys in chunk %v", chunk->ChunkId());
+                THROW_ERROR_EXCEPTION("Missing boundary keys in chunk %v", chunk->GetChunkId());
             }
+            
             const auto& comparator = sliceRequest.Comparator;
             auto minKey = chunk->BoundaryKeys()->MinKey;
             auto maxKey = chunk->BoundaryKeys()->MaxKey;
             auto chunkSliceDataWeight = sliceRequest.ChunkSliceDataWeight;
             auto sliceByKeys = sliceRequest.SliceByKeys;
-            auto chunkType = TypeFromId(chunk->ChunkId());
+            auto chunkType = TypeFromId(chunk->GetChunkId());
 
             // TODO(gritukan): Comparing rows using == here is ok, but quite ugly.
             if (chunkDataSize < chunkSliceDataWeight ||

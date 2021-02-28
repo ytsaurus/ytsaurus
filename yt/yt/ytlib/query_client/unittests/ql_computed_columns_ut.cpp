@@ -43,7 +43,7 @@ protected:
             &PrepareMock_,
             source);
         const auto& query = fragment->Query;
-        const auto& dataSource = fragment->Ranges;
+        const auto& dataSource = fragment->DataSource;
 
         auto rowBuffer = New<TRowBuffer>();
 
@@ -53,7 +53,7 @@ protected:
 
         auto prunedSplits = GetPrunedRanges(
             query,
-            dataSource.Id,
+            dataSource.ObjectId,
             dataSource.Ranges,
             rowBuffer,
             ColumnEvaluatorCache_,
@@ -86,7 +86,7 @@ protected:
             query->WhereClause,
             query->JoinClauses[0]->Schema.Original,
             query->JoinClauses[0]->GetKeyColumns(),
-            query->JoinClauses[0]->ForeignDataId,
+            query->JoinClauses[0]->ForeignObjectId,
             MakeSharedRange(foreignSplits),
             rowBuffer,
             ColumnEvaluatorCache_,
@@ -127,9 +127,7 @@ private:
     {
         TDataSplit dataSplit;
 
-        ToProto(
-            dataSplit.mutable_chunk_id(),
-            MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
 
         if (path == "//t") {
             SetTableSchema(&dataSplit, Schema_);

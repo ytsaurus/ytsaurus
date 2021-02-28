@@ -303,11 +303,11 @@ void TTabletChunkSpecFetcher::AddSorted(
         }
     };
 
-    const auto& tablets = tableMountInfo.Tablets;
+    const auto& tabletInfos = tableMountInfo.Tablets;
 
     // Aggregate subrequests per-tablet. Note that there may be more than one read range,
     // so each subrequest may ask about multiple ranges.
-    std::vector<std::optional<TSubrequest>> tabletIndexToSubrequest(tablets.size());
+    std::vector<std::optional<TSubrequest>> tabletIndexToSubrequest(tabletInfos.size());
 
     for (const auto& [rangeIndex, range] : Enumerate(ranges)) {
         validateReadLimit(range.LowerLimit(), "lower");
@@ -316,21 +316,21 @@ void TTabletChunkSpecFetcher::AddSorted(
         size_t tabletIndex = 0;
         if (range.LowerLimit().KeyBound()) {
             tabletIndex = std::upper_bound(
-                tablets.begin(),
-                tablets.end(),
+                tabletInfos.begin(),
+                tabletInfos.end(),
                 range.LowerLimit().KeyBound(),
                 [&] (const TKeyBound& lowerBound, const TTabletInfoPtr& tabletInfo) {
                     return comparator.CompareKeyBounds(lowerBound, tabletInfo->GetLowerKeyBound()) < 0;
-                }) - tablets.begin();
+                }) - tabletInfos.begin();
             if (tabletIndex != 0) {
                 --tabletIndex;
             }
         }
 
-        for (; tabletIndex != tablets.size(); ++tabletIndex) {
-            const auto& tablet = tablets[tabletIndex];
+        for (; tabletIndex != tabletInfos.size(); ++tabletIndex) {
+            const auto& tabletInfo = tabletInfos[tabletIndex];
 
-            auto tabletLowerBound = tablet->GetLowerKeyBound();
+            auto tabletLowerBound = tabletInfo->GetLowerKeyBound();
 
             if (range.UpperLimit().KeyBound() &&
                 comparator.IsRangeEmpty(tabletLowerBound, range.UpperLimit().KeyBound()))
@@ -338,9 +338,9 @@ void TTabletChunkSpecFetcher::AddSorted(
                 break;
             }
 
-            auto tabletUpperBound = tabletIndex + 1 == tablets.size()
+            auto tabletUpperBound = tabletIndex + 1 == tabletInfos.size()
                 ? TKeyBound::MakeUniversal(/* isUpper */ true)
-                : tablets[tabletIndex + 1]->GetLowerKeyBound().Invert();
+                : tabletInfos[tabletIndex + 1]->GetLowerKeyBound().Invert();
 
             auto subrangeLowerBound = tabletLowerBound;
             if (range.LowerLimit().KeyBound()) {
@@ -363,8 +363,9 @@ void TTabletChunkSpecFetcher::AddSorted(
             if (!subrequest) {
                 subrequest.emplace();
                 subrequest->set_table_index(tableIndex);
-                subrequest->set_mount_revision(tablet->MountRevision);
-                ToProto(subrequest->mutable_tablet_id(), tablet->TabletId);
+                subrequest->set_mount_revision(tabletInfo->MountRevision);
+                ToProto(subrequest->mutable_tablet_id(), tabletInfo->TabletId);
+                ToProto(subrequest->mutable_cell_id(), tabletInfo->CellId);
             }
 
             subrequest->add_range_indices(rangeIndex);
@@ -387,8 +388,8 @@ void TTabletChunkSpecFetcher::AddSorted(
     const auto& connection = Options_.Client->GetNativeConnection();
     const auto& cellDirectory = connection->GetCellDirectory();
 
-    for (size_t tabletIndex = 0; tabletIndex < tablets.size(); ++tabletIndex) {
-        const auto& tablet = tablets[tabletIndex];
+    for (size_t tabletIndex = 0; tabletIndex < tabletInfos.size(); ++tabletIndex) {
+        const auto& tablet = tabletInfos[tabletIndex];
         auto& subrequest = tabletIndexToSubrequest[tabletIndex];
         if (subrequest) {
             YT_LOG_TRACE(
@@ -458,7 +459,8 @@ void TTabletChunkSpecFetcher::DoFetch()
         if (missingTabletIds.size() > MissingTabletIdCountLimit) {
             missingTabletIds.resize(MissingTabletIdCountLimit);
         }
-        THROW_ERROR_EXCEPTION("Error while fetching chunks due to missing tablets: %v", missingTabletIds);
+        THROW_ERROR_EXCEPTION("Error while fetching chunks due to missing tablets %v",
+            missingTabletIds);
     }
 }
 
@@ -476,8 +478,8 @@ void TTabletChunkSpecFetcher::DoFetchFromNode(const TAddressWithNetwork& address
     auto channel = connection->GetChannelFactory()->CreateChannel(address);
 
     TQueryServiceProxy proxy(std::move(channel));
+    
     auto req = proxy.FetchTabletStores();
-
     ToProto(req->mutable_subrequests(), state.Subrequests);
     Options_.InitializeFetchRequest(req.Get());
     req->SetResponseCodec(Options_.ResponseCodecId);

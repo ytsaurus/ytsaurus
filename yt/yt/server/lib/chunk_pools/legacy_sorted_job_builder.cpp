@@ -323,7 +323,7 @@ private:
         for (const auto& dataSlice : GetKeys(DataSliceToInputCookie_)) {
             std::vector<TChunkId> chunkIds;
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                chunkIds.emplace_back(chunkSlice->GetInputChunk()->ChunkId());
+                chunkIds.push_back(chunkSlice->GetInputChunk()->GetChunkId());
             }
             YT_LOG_DEBUG("Data slice (Address: %v, DataWeight: %v, InputStreamIndex: %v, ChunkIds: %v)",
                 dataSlice.Get(),

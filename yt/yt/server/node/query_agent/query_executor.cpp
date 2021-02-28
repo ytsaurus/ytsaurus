@@ -211,19 +211,20 @@ class TTabletSnapshotCache
 {
 public:
     TTabletSnapshotCache(
-        TSlotManagerPtr slotManager,
-        const NLogging::TLogger& logger)
+        ISlotManagerPtr slotManager,
+        NLogging::TLogger logger)
         : SlotManager_(std::move(slotManager))
-        , Logger(logger)
+        , Logger(std::move(logger))
     { }
 
     void ValidateAndRegisterTabletSnapshot(
         TTabletId tabletId,
+        TCellId cellId,
         NHydra::TRevision mountRevision,
         TTimestamp timestamp,
         bool suppressAccessTracking)
     {
-        auto tabletSnapshot = SlotManager_->GetTabletSnapshotOrThrow(tabletId, mountRevision);
+        auto tabletSnapshot = SlotManager_->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
 
         SlotManager_->ValidateTabletAccess(tabletSnapshot, timestamp);
 
@@ -261,11 +262,11 @@ public:
     }
 
 private:
-    const TSlotManagerPtr SlotManager_;
+    const ISlotManagerPtr SlotManager_;
     const NLogging::TLogger Logger;
 
     THashMap<TTabletId, TTabletSnapshotPtr> Map_;
-    TObjectId TableId_;
+    TTableId TableId_;
 
     NProfiling::TTagIdList ProfilerTags_;
     bool MultipleTables_ = false;
@@ -285,7 +286,7 @@ public:
         IEvaluatorPtr evaluator,
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
-        std::vector<TDataRanges> dataSources,
+        std::vector<TDataSource> dataSources,
         IUnversionedRowsetWriterPtr writer,
         IMemoryChunkProviderPtr memoryChunkProvider,
         IInvokerPtr invoker,
@@ -315,15 +316,19 @@ public:
     TQueryStatistics Execute(TServiceProfilerGuard& profilerGuard)
     {
         for (const auto& source : DataSources_) {
-            if (TypeFromId(source.Id) == EObjectType::Tablet) {
-                TabletSnapshots_.ValidateAndRegisterTabletSnapshot(
-                    source.Id,
-                    source.MountRevision,
-                    QueryOptions_.Timestamp,
-                    QueryOptions_.SuppressAccessTracking);
-            } else {
-                THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
-                    TypeFromId(source.Id));
+            auto type = TypeFromId(source.ObjectId);
+            switch (type) {
+                case  EObjectType::Tablet:
+                    TabletSnapshots_.ValidateAndRegisterTabletSnapshot(
+                        source.ObjectId,
+                        source.CellId,
+                        source.MountRevision,
+                        QueryOptions_.Timestamp,
+                        QueryOptions_.SuppressAccessTracking);
+                    break;
+                default:
+                    THROW_ERROR_EXCEPTION("Unsupported data source type %Qlv",
+                        type);
             }
         }
 
@@ -344,7 +349,7 @@ private:
     const TConstQueryPtr Query_;
 
     const TConstExternalCGInfoPtr ExternalCGInfo_;
-    const std::vector<TDataRanges> DataSources_;
+    const std::vector<TDataSource> DataSources_;
     const IUnversionedRowsetWriterPtr Writer_;
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
 
@@ -360,12 +365,12 @@ private:
 
     typedef std::function<ISchemafulUnversionedReaderPtr()> TSubreaderCreator;
 
-    void LogSplits(const std::vector<TDataRanges>& splits)
+    void LogSplits(const std::vector<TDataSource>& splits)
     {
         if (QueryOptions_.VerboseLogging) {
             for (const auto& split : splits) {
                 YT_LOG_DEBUG("Ranges in split %v: %v",
-                    split.Id,
+                    split.ObjectId,
                     MakeFormattableView(split.Ranges, TRangeFormatter()));
             }
         }
@@ -374,7 +379,7 @@ private:
     TQueryStatistics DoCoordinateAndExecute(
         std::vector<TRefiner> refiners,
         std::vector<TSubreaderCreator> subreaderCreators,
-        std::vector<std::vector<TDataRanges>> readRanges)
+        std::vector<std::vector<TDataSource>> readRanges)
     {
         auto clientOptions = NApi::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_
@@ -423,7 +428,7 @@ private:
                         minKeyWidth = std::min(minKeyWidth, split.KeyWidth);
                     }
 
-                    YT_LOG_DEBUG("Profiling (CommonKeyPrefix: %v, minKeyWidth: %v)",
+                    YT_LOG_DEBUG("Profiling query (CommonKeyPrefix: %v, MinKeyWidth: %v)",
                         joinClause->CommonKeyPrefix,
                         minKeyWidth);
 
@@ -488,8 +493,9 @@ private:
                             }
                         }
 
-                        TDataRanges dataSource;
-                        dataSource.Id = joinClause->ForeignDataId;
+                        TDataSource dataSource;
+                        dataSource.ObjectId = joinClause->ForeignObjectId;
+                        dataSource.CellId = joinClause->ForeignCellId;
 
                         if (isRanges) {
                             prefixRanges.erase(
@@ -542,7 +548,7 @@ private:
                             this,
                             this_ = MakeStrong(this)
                         ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer) {
-                            TDataRanges dataSource;
+                            TDataSource dataSource;
                             TQueryPtr foreignQuery;
                             std::tie(foreignQuery, dataSource) = GetForeignQuery(
                                 subquery,
@@ -658,7 +664,7 @@ private:
     {
         YT_LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
-        std::vector<TDataRanges> rangesByTablet;
+        std::vector<TDataSource> dataSourcesByTablet;
 
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
 
@@ -694,27 +700,29 @@ private:
             TRowRanges rowRanges;
             std::vector<TRow> keys;
 
-            auto pushRanges = [&] () {
+            auto pushRanges = [&] {
                 if (!rowRanges.empty()) {
                     rangesCount += rowRanges.size();
-                    TDataRanges item;
-                    item.Id = source.Id;
-                    item.KeyWidth = source.KeyWidth;
-                    item.Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder(), rowBuffer);
-                    item.LookupSupported = source.LookupSupported;
-                    rangesByTablet.emplace_back(std::move(item));
+                    dataSourcesByTablet.push_back(TDataSource{
+                        .ObjectId = source.ObjectId,
+                        .CellId = source.CellId,
+                        .KeyWidth = source.KeyWidth,
+                        .Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder(), rowBuffer),
+                        .LookupSupported = source.LookupSupported
+                    });
                 }
             };
 
-            auto pushKeys = [&] () {
+            auto pushKeys = [&] {
                 if (!keys.empty()) {
-                    TDataRanges item;
-                    item.Id = source.Id;
-                    item.KeyWidth = source.KeyWidth;
-                    item.Keys = MakeSharedRange(std::move(keys), source.Ranges.GetHolder());
-                    item.Schema = keySchema;
-                    item.LookupSupported = source.LookupSupported;
-                    rangesByTablet.emplace_back(std::move(item));
+                    dataSourcesByTablet.push_back(TDataSource{
+                        .ObjectId = source.ObjectId,
+                        .CellId = source.CellId,
+                        .KeyWidth = source.KeyWidth,
+                        .Keys = MakeSharedRange(std::move(keys), source.Ranges.GetHolder()),
+                        .Schema = keySchema,
+                        .LookupSupported = source.LookupSupported
+                    });
                 }
             };
 
@@ -756,18 +764,18 @@ private:
 
         YT_LOG_DEBUG("Splitting ranges (RangeCount: %v)", rangesCount);
 
-        auto splits = Split(std::move(rangesByTablet), rowBuffer);
+        auto splits = Split(std::move(dataSourcesByTablet), rowBuffer);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
-        std::vector<std::vector<TDataRanges>> readRanges;
+        std::vector<std::vector<TDataSource>> readRanges;
 
         auto processSplitsRanges = [&] (int beginIndex, int endIndex) {
             if (beginIndex == endIndex) {
                 return;
             }
 
-            std::vector<TDataRanges> groupedSplit(splits.begin() + beginIndex, splits.begin() + endIndex);
+            std::vector<TDataSource> groupedSplit(splits.begin() + beginIndex, splits.begin() + endIndex);
             readRanges.push_back(groupedSplit);
 
             std::vector<TRowRange> keyRanges;
@@ -791,7 +799,7 @@ private:
                     groupedSplit.begin(),
                     groupedSplit.end(),
                     0,
-                    [] (size_t sum, const TDataRanges& element) {
+                    [] (size_t sum, const TDataSource& element) {
                         return sum + element.Ranges.Size();
                     });
                 YT_LOG_DEBUG("Generating reader for %v splits from %v ranges",
@@ -811,7 +819,7 @@ private:
                     }
 
                     const auto& group = groupedSplit[index++];
-                    return GetMultipleRangesReader(group.Id, group.Ranges);
+                    return GetMultipleRangesReader(group.ObjectId, group.Ranges);
                 };
 
                 return CreatePrefetchingOrderedSchemafulReader(std::move(bottomSplitReaderGenerator));
@@ -827,7 +835,7 @@ private:
             }
             size_t lastOffset = beginIndex;
             for (size_t index = beginIndex; index < endIndex; ++index) {
-                if (index > lastOffset && splits[index].Id != splits[lastOffset].Id) {
+                if (index > lastOffset && splits[index].ObjectId != splits[lastOffset].ObjectId) {
                     processSplitsRanges(lastOffset, index);
                     lastOffset = index;
                 }
@@ -838,7 +846,7 @@ private:
         auto processSplitKeys = [&] (int index) {
             readRanges.push_back({splits[index]});
 
-            auto tabletId = splits[index].Id;
+            auto tabletId = splits[index].ObjectId;
             const auto& keys = splits[index].Keys;
 
             refiners.push_back([keys, inferRanges = Query_->InferRanges] (
@@ -886,22 +894,23 @@ private:
             std::move(readRanges));
     }
 
-    std::vector<TDataRanges> Split(std::vector<TDataRanges> rangesByTablet, TRowBufferPtr rowBuffer)
+    std::vector<TDataSource> Split(std::vector<TDataSource> dataSourcesByTablet, TRowBufferPtr rowBuffer)
     {
-        std::vector<TDataRanges> groupedSplits;
+        std::vector<TDataSource> groupedSplits;
 
         bool isSortedTable = false;
 
-        for (auto& tablePartIdRange : rangesByTablet) {
-            auto tablePartId = tablePartIdRange.Id;
-            auto& ranges = tablePartIdRange.Ranges;
+        for (auto& tabletIdRange : dataSourcesByTablet) {
+            auto tabletId = tabletIdRange.ObjectId;
+            auto cellId = tabletIdRange.CellId;
+            auto& ranges = tabletIdRange.Ranges;
 
-            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tablePartId);
+            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
 
-            YT_VERIFY(tablePartIdRange.Keys.Empty() != ranges.Empty());
+            YT_VERIFY(tabletIdRange.Keys.Empty() != ranges.Empty());
 
             if (!tabletSnapshot->TableSchema->IsSorted() || ranges.Empty()) {
-                groupedSplits.push_back(tablePartIdRange);
+                groupedSplits.push_back(tabletIdRange);
                 continue;
             }
 
@@ -923,14 +932,13 @@ private:
                 Logger);
 
             for (const auto& split : splits) {
-                TDataRanges dataRanges;
-
-                dataRanges.Id = tablePartId;
-                dataRanges.KeyWidth = tablePartIdRange.KeyWidth;
-                dataRanges.Ranges = split;
-                dataRanges.LookupSupported = tablePartIdRange.LookupSupported;
-
-                groupedSplits.push_back(std::move(dataRanges));
+                groupedSplits.push_back(TDataSource{
+                    .ObjectId = tabletId,
+                    .CellId = cellId,
+                    .KeyWidth = tabletIdRange.KeyWidth,
+                    .Ranges = split,
+                    .LookupSupported = tabletIdRange.LookupSupported
+                });
             }
         }
 
@@ -942,8 +950,8 @@ private:
             }
 
             for (auto it = groupedSplits.begin(), itEnd = groupedSplits.end(); it + 1 < itEnd; ++it) {
-                const TDataRanges& lhs = *it;
-                const TDataRanges& rhs = *(it + 1);
+                const auto& lhs = *it;
+                const auto& rhs = *(it + 1);
 
                 const auto& lhsValue = lhs.Ranges ? lhs.Ranges.Back().second : lhs.Keys.Back();
                 const auto& rhsValue = rhs.Ranges ? rhs.Ranges.Front().first : rhs.Keys.Front();
@@ -956,7 +964,7 @@ private:
     }
 
     ISchemafulUnversionedReaderPtr GetMultipleRangesReader(
-        TObjectId tabletId,
+        TTabletId tabletId,
         const TSharedRange<TRowRange>& bounds)
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
@@ -1034,7 +1042,7 @@ TQueryStatistics ExecuteSubquery(
     IEvaluatorPtr evaluator,
     TConstQueryPtr query,
     TConstExternalCGInfoPtr externalCGInfo,
-    std::vector<TDataRanges> dataSources,
+    std::vector<TDataSource> dataSources,
     IUnversionedRowsetWriterPtr writer,
     IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,

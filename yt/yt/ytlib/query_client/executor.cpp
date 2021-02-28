@@ -186,7 +186,7 @@ public:
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
-        TDataRanges dataSource,
+        TDataSource dataSource,
         IUnversionedRowsetWriterPtr writer,
         const TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) override
@@ -222,7 +222,7 @@ private:
         const TClientBlockReadOptions& blockReadOptions,
         const IUnversionedRowsetWriterPtr& writer,
         int subrangesCount,
-        std::function<std::pair<std::vector<TDataRanges>, TString>(int)> getSubsources)
+        std::function<std::pair<std::vector<TDataSource>, TString>(int)> getSubsources)
     {
         auto Logger = MakeQueryLogger(query);
 
@@ -248,7 +248,7 @@ private:
             writer,
             refiners,
             [&] (const TConstQueryPtr& subquery, int index) {
-                std::vector<TDataRanges> dataSources;
+                std::vector<TDataSource> dataSources;
                 TString address;
                 std::tie(dataSources, address) = getSubsources(index);
 
@@ -281,7 +281,7 @@ private:
     TQueryStatistics DoExecute(
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
-        TDataRanges dataSource,
+        TDataSource dataSource,
         const TQueryOptions& options,
         const TClientBlockReadOptions& blockReadOptions,
         IUnversionedRowsetWriterPtr writer)
@@ -311,13 +311,13 @@ private:
         YT_LOG_DEBUG("Regrouping %v splits into groups",
             allSplits.size());
 
-        THashMap<TString, std::vector<TDataRanges>> groupsByAddress;
+        THashMap<TString, std::vector<TDataSource>> groupsByAddress;
         for (const auto& split : allSplits) {
             const auto& address = split.second;
             groupsByAddress[address].push_back(split.first);
         }
 
-        std::vector<std::pair<std::vector<TDataRanges>, TString>> groupedSplits;
+        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedSplits;
         for (const auto& group : groupsByAddress) {
             groupedSplits.emplace_back(group.second, group.first);
         }
@@ -341,7 +341,7 @@ private:
     TQueryStatistics DoExecuteOrdered(
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
-        TDataRanges dataSource,
+        TDataSource dataSource,
         const TQueryOptions& options,
         const TClientBlockReadOptions& blockReadOptions,
         IUnversionedRowsetWriterPtr writer)
@@ -369,12 +369,14 @@ private:
             allSplits.size(),
             [&] (int index) {
                 const auto& split = allSplits[index];
+                const auto& [dataSource, address] = split;
 
-                YT_LOG_DEBUG("Delegating request to tablet (TabletId: %v, Address: %v)",
-                    split.first.Id,
-                    split.second);
+                YT_LOG_DEBUG("Delegating request to tablet (TabletId: %v, CellId: %v, Address: %v)",
+                    dataSource.ObjectId,
+                    dataSource.CellId,
+                    address);
 
-                return std::make_pair(std::vector<TDataRanges>{split.first}, split.second);
+                return std::make_pair(std::vector<TDataSource>{dataSource}, address);
             });
     }
 
@@ -382,7 +384,7 @@ private:
         TConstQueryPtr query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
-        std::vector<TDataRanges> dataSources,
+        std::vector<TDataSource> dataSources,
         const TString& address)
     {
         auto Logger = MakeQueryLogger(query);
@@ -445,15 +447,15 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TQueryExecutor)
 
-std::vector<std::pair<TDataRanges, TString>> InferRanges(
+std::vector<std::pair<TDataSource, TString>> InferRanges(
     NNative::IConnectionPtr connection,
     TConstQueryPtr query,
-    const TDataRanges& dataSource,
+    const TDataSource& dataSource,
     const TQueryOptions& options,
     TRowBufferPtr rowBuffer,
     const NLogging::TLogger& Logger)
 {
-    auto tableId = dataSource.Id;
+    auto tableId = dataSource.ObjectId;
 
     auto tableMountCache = connection->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
@@ -471,8 +473,7 @@ std::vector<std::pair<TDataRanges, TString>> InferRanges(
 
     THashMap<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
-    auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) -> TString
-    {
+    auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) {
         const auto& cellDirectory = connection->GetCellDirectory();
         const auto& networks = connection->GetNetworks();
 
@@ -490,21 +491,22 @@ std::vector<std::pair<TDataRanges, TString>> InferRanges(
         return peerDescriptor.GetAddressOrThrow(networks);
     };
 
-    std::vector<std::pair<TDataRanges, TString>> subsources;
-    auto getSubsource = [&] (TShardIt it, size_t keyWidth) -> TDataRanges*
-    {
+    std::vector<std::pair<TDataSource, TString>> subsources;
+    auto getSubsource = [&] (TShardIt it, size_t keyWidth) {
         // `.Slice(1, tablets.size())`, `*(it - 1)` and `(*shardIt)->PivotKey` are related.
         // If there would be (*shardIt)->NextPivotKey then no .Slice(1, tablets.size()) and *(it - 1) are needed.
 
         YT_VERIFY(it != tableInfo->Tablets.begin()); // But can be equal to end.
 
-        const TTabletInfoPtr& tabletInfo = *(it - 1);
-        TDataRanges dataSubsource;
+        const auto& tabletInfo = *(it - 1);
+        
+        TDataSource dataSubsource;
 
         dataSubsource.Schema = dataSource.Schema;
         dataSubsource.LookupSupported = tableInfo->IsSorted();
 
-        dataSubsource.Id = tabletInfo->TabletId;
+        dataSubsource.ObjectId = tabletInfo->TabletId;
+        dataSubsource.CellId = tabletInfo->CellId;
         dataSubsource.MountRevision = tabletInfo->MountRevision;
         dataSubsource.KeyWidth = keyWidth;
 

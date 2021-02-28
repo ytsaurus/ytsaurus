@@ -374,7 +374,7 @@ private:
                     if (chunkSliceFetcher && (isPrimary || SliceForeignChunks_)) {
                         if (SortedJobOptions_.LogDetails) {
                             YT_LOG_DEBUG("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, SliceSize: %v, KeyColumnCount: %v, SliceByKeys: %v)",
-                                inputChunk->ChunkId(),
+                                inputChunk->GetChunkId(),
                                 inputChunk->GetDataWeight(),
                                 isPrimary,
                                 sliceSize,

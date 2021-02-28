@@ -4,6 +4,8 @@
 #include "chunk_meta_extensions.h"
 #include "input_chunk.h"
 
+#include <yt/ytlib/query_client/helpers.h>
+
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/serialize.h>
 #include <yt/client/table_client/unversioned_row.h>
@@ -19,6 +21,7 @@
 
 namespace NYT::NChunkClient {
 
+using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NYson;
@@ -696,7 +699,7 @@ void TInputChunkSlice::Persist(const TPersistenceContext& context)
 TString ToString(const TInputChunkSlicePtr& slice)
 {
     return Format("ChunkId: %v, LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v, PartIndex: %v",
-        slice->GetInputChunk()->ChunkId(),
+        slice->GetInputChunk()->GetChunkId(),
         slice->IsLegacy ? ToString(slice->LegacyLowerLimit()) : ToString(slice->LowerLimit()),
         slice->IsLegacy ? ToString(slice->LegacyUpperLimit()) : ToString(slice->UpperLimit()),
         slice->GetRowCount(),
@@ -908,7 +911,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
     // NB(psushin): always setting row_count_override is important for GetJobInputPaths handle to work properly.
     chunkSpec->set_row_count_override(inputSlice->GetRowCount());
     if (inputSlice->GetInputChunk()->IsDynamicStore()) {
-        ToProto(chunkSpec->mutable_tablet_id(), inputSlice->GetInputChunk()->TabletId());
+        SetTabletId(chunkSpec, inputSlice->GetInputChunk()->GetTabletId());
     }
 }
 
