@@ -31,6 +31,16 @@ NObjectClient::TObjectId GetObjectIdFromDataSplit(const TDataSplit& dataSplit)
     return FromProto<NObjectClient::TObjectId>(dataSplit.chunk_id());
 }
 
+NObjectClient::TObjectId GetTabletIdFromDataSplit(const TDataSplit& dataSplit)
+{
+    return FromProto<NTabletClient::TTabletId>(dataSplit.tablet_id());
+}
+
+NObjectClient::TCellId GetCellIdFromDataSplit(const TDataSplit& dataSplit)
+{
+    return FromProto<NObjectClient::TCellId>(dataSplit.cell_id());
+}
+
 TTableSchemaPtr GetTableSchemaFromDataSplit(const TDataSplit& dataSplit)
 {
     return FromProto<TTableSchemaPtr>(GetProtoExtension<TTableSchemaExt>(
@@ -79,6 +89,16 @@ bool IsSorted(const TDataSplit& dataSplit)
 void SetObjectId(TDataSplit* dataSplit, NObjectClient::TObjectId objectId)
 {
     ToProto(dataSplit->mutable_chunk_id(), objectId);
+}
+
+void SetTabletId(TDataSplit* dataSplit, NTabletClient::TTabletId tabletId)
+{
+    ToProto(dataSplit->mutable_tablet_id(), tabletId);
+}
+
+void SetCelllId(TDataSplit* dataSplit, NObjectClient::TCellId cellId)
+{
+    ToProto(dataSplit->mutable_cell_id(), cellId);
 }
 
 void SetTableSchema(TDataSplit* dataSplit, const TTableSchema& tableSchema)

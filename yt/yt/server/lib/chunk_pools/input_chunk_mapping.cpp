@@ -149,16 +149,16 @@ void TInputChunkMapping::ValidateSortedChunkConsistency(
             newBoundaryKeysYson = TYsonString(TStringBuf("#"));
         }
         THROW_ERROR_EXCEPTION("Corresponding chunks in old and new stripes have different boundary keys")
-            << TErrorAttribute("old_chunk_id", oldChunk->ChunkId())
+            << TErrorAttribute("old_chunk_id", oldChunk->GetChunkId())
             << TErrorAttribute("old_boundary_keys", oldBoundaryKeysYson)
-            << TErrorAttribute("new_chunk_id", newChunk->ChunkId())
+            << TErrorAttribute("new_chunk_id", newChunk->GetChunkId())
             << TErrorAttribute("new_boundary_keys", newBoundaryKeysYson);
     }
     if (oldChunk->GetRowCount() != newChunk->GetRowCount()) {
         THROW_ERROR_EXCEPTION("Corresponding chunks in old and new stripes have different row counts")
-            << TErrorAttribute("old_chunk_id", oldChunk->ChunkId())
+            << TErrorAttribute("old_chunk_id", oldChunk->GetChunkId())
             << TErrorAttribute("old_row_count", oldChunk->GetRowCount())
-            << TErrorAttribute("new_chunk_id", newChunk->ChunkId())
+            << TErrorAttribute("new_chunk_id", newChunk->GetChunkId())
             << TErrorAttribute("new_row_count", newChunk->GetRowCount());
     }
 }

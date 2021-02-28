@@ -8,6 +8,7 @@
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/query_client/query_service_proxy.h>
+#include <yt/ytlib/query_client/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -166,7 +167,7 @@ public:
             ReadSessionId_ = TReadSessionId::Create();
         }
 
-        Logger.AddTag("StoreId: %v", FromProto<TDynamicStoreId>(ChunkSpec_.chunk_id()));
+        Logger.AddTag("StoreId: %v", GetObjectIdFromDataSplit(ChunkSpec_));
         Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
 
         if (ChunkSpec_.has_row_index_is_absolute() && !ChunkSpec_.row_index_is_absolute()) {
@@ -179,11 +180,9 @@ public:
     virtual TDataStatistics GetDataStatistics() const
     {
         TDataStatistics dataStatistics;
-
         dataStatistics.set_chunk_count(1);
         dataStatistics.set_uncompressed_data_size(UncompressedDataSize_);
         dataStatistics.set_compressed_data_size(UncompressedDataSize_);
-
         dataStatistics.set_row_count(RowCount_);
         dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
@@ -293,8 +292,9 @@ protected:
     {
         YT_LOG_DEBUG("Opening remote dynamic store reader");
 
-        auto storeId = FromProto<TStoreId>(ChunkSpec_.chunk_id());
-        auto tabletId = FromProto<TTabletId>(ChunkSpec_.tablet_id());
+        auto storeId = GetObjectIdFromDataSplit(ChunkSpec_);
+        auto tabletId = GetTabletIdFromDataSplit(ChunkSpec_);
+        auto cellId = GetCellIdFromDataSplit(ChunkSpec_);
 
         try {
             if (ChunkSpec_.replicas_size() == 0) {
@@ -319,8 +319,9 @@ protected:
             TQueryServiceProxy proxy(channel);
 
             auto req = proxy.ReadDynamicStore();
-            ToProto(req->mutable_tablet_id(), tabletId);
             ToProto(req->mutable_store_id(), storeId);
+            ToProto(req->mutable_tablet_id(), tabletId);
+            ToProto(req->mutable_cell_id(), cellId);
             if (!ColumnFilter_.IsUniversal()) {
                 ToProto(req->mutable_column_filter()->mutable_indexes(), ColumnFilter_.GetIndexes());
             }
@@ -720,7 +721,7 @@ public:
             ReadSessionId_ = TReadSessionId::Create();
         }
 
-        Logger.AddTag("StoreId: %v", FromProto<TGuid>(ChunkSpec_.chunk_id()));
+        Logger.AddTag("StoreId: %v", GetObjectIdFromDataSplit(ChunkSpec_));
         Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
 
         YT_LOG_DEBUG("Retrying remote dynamic store reader created");
@@ -845,7 +846,7 @@ protected:
 
     bool IsDynamicStoreSpec(const TChunkSpec& chunkSpec)
     {
-        auto storeId = FromProto<TStoreId>(chunkSpec.chunk_id());
+        auto storeId = GetObjectIdFromDataSplit(chunkSpec);
         return IsDynamicTabletStoreType(TypeFromId(storeId));
     }
 
@@ -904,7 +905,7 @@ protected:
             RetryCount_,
             Config_->RetryCount);
 
-        auto storeId = FromProto<TDynamicStoreId>(ChunkSpec_.chunk_id());
+        auto storeId = GetObjectIdFromDataSplit(ChunkSpec_);
 
         NRpc::IChannelPtr channel;
         try {
@@ -991,7 +992,7 @@ protected:
             PatchChunkSpecWithContinuationToken();
 
             YT_LOG_DEBUG("Dynamic store located: falling back to chunk reader (ChunkId: %v)",
-                FromProto<TChunkId>(ChunkSpec_.chunk_id()));
+                GetObjectIdFromDataSplit(ChunkSpec_));
 
             return ChunkReaderFactory_(ChunkSpec_, ReaderMemoryManager_)
                 .Apply(BIND(&TRetryingRemoteDynamicStoreReaderBase::OnChunkReaderCreated, MakeStrong(this)));

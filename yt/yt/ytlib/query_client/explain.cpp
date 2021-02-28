@@ -24,7 +24,7 @@ using namespace NConcurrency;
 void GetQueryInfo(
     NApi::NNative::IConnectionPtr connection,
     const TConstQueryPtr query,
-    const TDataRanges& dataSource,
+    const TDataSource& dataSource,
     TFluentAny& fluent,
     bool isSubquery,
     const NApi::TExplainQueryOptions& options)
@@ -95,13 +95,13 @@ void GetQueryInfo(
 
                 auto allSplits = InferRanges(connection, query, dataSource, queryOptions, rowBuffer, Logger);
 
-                THashMap<TString, std::vector<TDataRanges>> groupsByAddress;
+                THashMap<TString, std::vector<TDataSource>> groupsByAddress;
                 for (const auto& split : allSplits) {
                     const auto& address = split.second;
                     groupsByAddress[address].push_back(split.first);
                 }
 
-                std::vector<std::pair<std::vector<TDataRanges>, TString>> groupedSplits;
+                std::vector<std::pair<std::vector<TDataSource>, TString>> groupedSplits;
                 for (const auto& group : groupsByAddress) {
                     groupedSplits.emplace_back(group.second, group.first);
                 }
@@ -147,7 +147,7 @@ NYson::TYsonString BuildExplainQueryYson(
     const NApi::TExplainQueryOptions& options)
 {
     const auto& query = fragment->Query;
-    const TDataRanges& dataSource = fragment->Ranges;
+    const TDataSource& dataSource = fragment->DataSource;
 
     return BuildYsonStringFluently()
         .BeginMap()

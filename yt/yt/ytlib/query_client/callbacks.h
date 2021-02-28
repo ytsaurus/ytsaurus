@@ -15,7 +15,7 @@ namespace NYT::NQueryClient {
 
 using TExecuteQueryCallback = std::function<TFuture<void>(
     const TQueryPtr& query,
-    TDataRanges dataRanges,
+    TDataSource dataSource,
     IUnversionedRowsetWriterPtr writer)>;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,7 +26,7 @@ struct IExecutor
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
-        TDataRanges dataSource,
+        TDataSource dataSource,
         IUnversionedRowsetWriterPtr writer,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TQueryOptions& options) = 0;

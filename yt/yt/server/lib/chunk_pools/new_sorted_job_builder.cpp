@@ -113,7 +113,7 @@ TString GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice)
     std::vector<TChunkId> chunkIds;
     chunkIds.reserve(dataSlice->ChunkSlices.size());
     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-        chunkIds.emplace_back(chunkSlice->GetInputChunk()->ChunkId());
+        chunkIds.push_back(chunkSlice->GetInputChunk()->GetChunkId());
     }
     return Format("{Address: %v, DataWeight: %v, KeyBounds: %v:%v, InputStreamIndex: %v, ChunkIds: %v}",
         dataSlice.Get(),
@@ -1244,7 +1244,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TNewSortedJobBuilder);
+DEFINE_REFCOUNTED_TYPE(TNewSortedJobBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 

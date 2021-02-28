@@ -81,27 +81,16 @@ TTableSchemaPtr GetSampleTableSchema()
 TDataSplit MakeSimpleSplit(const TYPath& /*path*/, ui64 counter)
 {
     TDataSplit dataSplit;
-
-    ToProto(
-        dataSplit.mutable_chunk_id(),
-        MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
-
+    SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
     SetTableSchema(&dataSplit, *GetSampleTableSchema());
-
     return dataSplit;
 }
 
 TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter)
 {
     TDataSplit dataSplit;
-
-    ToProto(
-        dataSplit.mutable_chunk_id(),
-        MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
-
-    TTableSchema tableSchema(columns);
-    SetTableSchema(&dataSplit, tableSchema);
-
+    SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
+    SetTableSchema(&dataSplit, TTableSchema(columns));
     return dataSplit;
 }
 

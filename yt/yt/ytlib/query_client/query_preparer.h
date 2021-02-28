@@ -43,7 +43,7 @@ std::unique_ptr<TParsedSource> ParseSource(
 struct TPlanFragment
 {
     TQueryPtr Query;
-    TDataRanges Ranges;
+    TDataSource DataSource;
 };
 
 std::unique_ptr<TPlanFragment> PreparePlanFragment(

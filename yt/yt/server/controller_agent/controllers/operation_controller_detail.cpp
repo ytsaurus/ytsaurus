@@ -2291,7 +2291,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
             } else {
                 std::vector<std::vector<TChunkTreeId>> tabletChunks(table->PivotKeys.size());
                 for (const auto& chunk : table->OutputChunks) {
-                    auto chunkId  = chunk->ChunkId();
+                    auto chunkId  = chunk->GetChunkId();
                     auto& minKey = chunk->BoundaryKeys()->MinKey;
                     auto& maxKey = chunk->BoundaryKeys()->MaxKey;
 
@@ -3204,7 +3204,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputC
                         inputStripe.Stripe->DataSlices.end(),
                         [&] (TLegacyDataSlicePtr slice) {
                             try {
-                                return chunkId == slice->GetSingleUnversionedChunkOrThrow()->ChunkId();
+                                return chunkId == slice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
                             } catch (const std::exception& ex) {
                                 //FIXME(savrus) allow data slices to be unavailable.
                                 THROW_ERROR_EXCEPTION("Dynamic table chunk became unavailable") << ex;
@@ -3298,7 +3298,7 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(TChunkId chunkId, co
         for (auto& dataSlice : completedJob->InputStripe->DataSlices) {
             // Intermediate chunks are always unversioned.
             auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
-            if (inputChunk->ChunkId() == chunkId) {
+            if (inputChunk->GetChunkId() == chunkId) {
                 inputChunk->SetReplicaList(replicas);
             }
         }
@@ -4811,9 +4811,9 @@ void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr
             livePreviewDescriptor.VertexDescriptor,
             livePreviewDescriptor.LivePreviewIndex,
             chunk);
-        chunkIds.emplace_back(chunk->ChunkId());
+        chunkIds.push_back(chunk->GetChunkId());
         YT_LOG_DEBUG("Releasing intermediate chunk (ChunkId: %v, VertexDescriptor: %v, LivePreviewIndex: %v)",
-            chunk->ChunkId(),
+            chunk->GetChunkId(),
             livePreviewDescriptor.VertexDescriptor,
             livePreviewDescriptor.LivePreviewIndex);
         LivePreviewChunks_.erase(it);
@@ -5367,7 +5367,7 @@ void TOperationControllerBase::FetchInputTables()
 
 void TOperationControllerBase::RegisterInputChunk(const TInputChunkPtr& inputChunk)
 {
-    auto chunkId = inputChunk->ChunkId();
+    auto chunkId = inputChunk->GetChunkId();
 
     // Insert an empty TInputChunkDescriptor if a new chunkId is encountered.
     auto& chunkDescriptor = InputChunkMap[chunkId];
@@ -6559,7 +6559,7 @@ void TOperationControllerBase::CollectTotals()
     for (const auto& table : InputTables_) {
         for (const auto& inputChunk : table->Chunks) {
             if (IsUnavailable(inputChunk, CheckParityReplicas())) {
-                auto chunkId = inputChunk->ChunkId();
+                auto chunkId = inputChunk->GetChunkId();
 
                 switch (Spec_->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Fail:
@@ -7230,21 +7230,21 @@ void TOperationControllerBase::RegisterTeleportChunk(
         key = BuildBoundaryKeysFromOutputResult(resultBoundaryKeys, StandardStreamDescriptors_[tableIndex], RowBuffer);
     }
 
-    table->OutputChunkTreeIds.emplace_back(key, chunk->ChunkId());
+    table->OutputChunkTreeIds.emplace_back(key, chunk->GetChunkId());
 
     if (table->Dynamic) {
         table->OutputChunks.push_back(chunk);
     }
 
     if (IsOutputLivePreviewSupported()) {
-        AttachToLivePreview(chunk->ChunkId(), table->LivePreviewTableId);
+        AttachToLivePreview(chunk->GetChunkId(), table->LivePreviewTableId);
     }
 
     RegisterOutputRows(chunk->GetRowCount(), tableIndex);
 
     YT_LOG_DEBUG("Teleport chunk registered (Table: %v, ChunkId: %v, Key: %v)",
         tableIndex,
-        chunk->ChunkId(),
+        chunk->GetChunkId(),
         key);
 }
 
@@ -7260,7 +7260,7 @@ void TOperationControllerBase::RegisterInputStripe(const TChunkStripePtr& stripe
     for (const auto& dataSlice : stripe->DataSlices) {
         for (const auto& slice : dataSlice->ChunkSlices) {
             auto inputChunk = slice->GetInputChunk();
-            auto chunkId = inputChunk->ChunkId();
+            auto chunkId = inputChunk->GetChunkId();
 
             if (!visitedChunks.insert(chunkId).second) {
                 continue;
@@ -7286,7 +7286,7 @@ void TOperationControllerBase::RegisterRecoveryInfo(
 {
     for (const auto& dataSlice : stripe->DataSlices) {
         // NB: intermediate slice must be trivial.
-        auto chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->ChunkId();
+        auto chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
         YT_VERIFY(ChunkOriginMap.emplace(chunkId, completedJob).second);
     }
 

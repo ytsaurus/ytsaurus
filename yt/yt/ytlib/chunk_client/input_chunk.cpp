@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <yt/ytlib/query_client/helpers.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/library/erasure/impl/codec.h>
@@ -16,6 +18,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
+using namespace NQueryClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -23,9 +26,9 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
-    : ChunkId_(FromProto<TChunkId>(chunkSpec.chunk_id()))
+    : ChunkId_(GetObjectIdFromDataSplit(chunkSpec))
     , TableIndex_(chunkSpec.table_index())
-    , ErasureCodec_(NErasure::ECodec(chunkSpec.erasure_codec()))
+    , ErasureCodec_(FromProto<NErasure::ECodec>(chunkSpec.erasure_codec()))
     , TableRowIndex_(chunkSpec.table_row_index())
     , RangeIndex_(chunkSpec.range_index())
     , TabletIndex_(chunkSpec.tablet_index())
@@ -59,9 +62,8 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         TotalRowCount_ = 1;
         CompressedDataSize_ = 1;
         MaxBlockSize_ = DefaultMaxBlockSize;
-
         UniqueKeys_ = IsSortedDynamicStore();
-        TabletId_ = FromProto<TTabletId>(chunkSpec.tablet_id());
+        TabletId_ = GetTabletIdFromDataSplit(chunkSpec);
     } else {
         YT_VERIFY(FromProto<EChunkType>(chunkMeta.type()) == EChunkType::Table);
         TableChunkFormat_ = CheckedEnumCast<ETableChunkFormat>(chunkMeta.format());
@@ -292,15 +294,16 @@ i64 TInputChunk::ApplySelectivityFactors(i64 dataSize) const
 //! ToProto is used to pass chunk specs to job proxy as part of TTableInputSpec.
 void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType)
 {
-    ToProto(chunkSpec->mutable_chunk_id(), inputChunk->ChunkId_);
-    const auto& replicas = inputChunk->GetReplicaList();
-    ToProto(chunkSpec->mutable_replicas(), replicas);
+    SetObjectId(chunkSpec, inputChunk->GetChunkId());
+
+    ToProto(chunkSpec->mutable_replicas(), inputChunk->GetReplicaList());
+
     if (inputChunk->TableIndex_ >= 0) {
         chunkSpec->set_table_index(inputChunk->TableIndex_);
     }
 
     if (inputChunk->ErasureCodec_ != NErasure::ECodec::None) {
-        chunkSpec->set_erasure_codec(static_cast<int>(inputChunk->ErasureCodec_));
+        chunkSpec->set_erasure_codec(ToProto<int>(inputChunk->ErasureCodec_));
     }
 
     if (inputChunk->TableRowIndex_ > 0) {
@@ -344,13 +347,14 @@ TString ToString(const TInputChunkPtr& inputChunk)
             inputChunk->BoundaryKeys()->MinKey,
             inputChunk->BoundaryKeys()->MaxKey);
     }
+
     return Format(
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, TableRowIndex: %v, "
         "RangeIndex: %v, ChunkIndex: %v, TabletIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
         "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
         "BoundaryKeys: {%v}, PartitionsExt: {%v}}",
-        inputChunk->ChunkId(),
-        JoinToString(inputChunk->Replicas()),
+        inputChunk->GetChunkId(),
+        inputChunk->GetReplicaList(),
         inputChunk->GetTableIndex(),
         inputChunk->GetErasureCodec(),
         inputChunk->GetTableRowIndex(),
@@ -387,7 +391,7 @@ TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, TNodeId nodeId)
     YT_VERIFY(replicaIt != inputChunk->Replicas().end());
 
     TChunkIdWithIndexes chunkIdWithIndexes(
-        inputChunk->ChunkId(),
+        inputChunk->GetChunkId(),
         replicaIt->GetReplicaIndex(),
         0 /* mediumIndex */);
     return EncodeChunkId(chunkIdWithIndexes);

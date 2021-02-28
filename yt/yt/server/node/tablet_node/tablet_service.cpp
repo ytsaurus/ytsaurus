@@ -252,9 +252,10 @@ private:
         TTabletId tabletId,
         NHydra::TRevision mountRevision)
     {
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId, mountRevision);
-        tabletSnapshot->ValidateCellId(Slot_->GetCellId());
+        auto cellId = Slot_->GetCellId();
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
+        tabletSnapshot->ValidateCellId(cellId);
         return tabletSnapshot;
     }
 

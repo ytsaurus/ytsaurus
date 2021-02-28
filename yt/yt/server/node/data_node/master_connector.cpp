@@ -873,8 +873,8 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
             protoSlotInfo->set_peer_id(slot->GetPeerId());
             protoSlotInfo->set_dynamic_config_version(slot->GetDynamicConfigVersion());
-            if (slot->GetResponseKeeper()) {
-                protoSlotInfo->set_is_response_keeper_warming_up(slot->GetResponseKeeper()->IsWarmingUp());
+            if (auto responseKeeper = slot->GetResponseKeeper()) {
+                protoSlotInfo->set_is_response_keeper_warming_up(responseKeeper->IsWarmingUp());
             }
 
             YT_VERIFY(CellIdToSlotId.emplace(slot->GetCellId(), slotId).second);

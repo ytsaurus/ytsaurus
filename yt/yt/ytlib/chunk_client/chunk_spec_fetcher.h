@@ -130,8 +130,8 @@ public:
     TFuture<void> Fetch();
 
 private:
-    TOptions Options_;
-    IInvokerPtr Invoker_;
+    const TOptions Options_;
+    const IInvokerPtr Invoker_;
     const NLogging::TLogger& Logger;
 
     i64 TotalChunkCount_ = 0;

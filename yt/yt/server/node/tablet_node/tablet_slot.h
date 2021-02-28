@@ -62,7 +62,8 @@ public:
     const NHiveClient::TCellDescriptor& GetCellDescriptor() const;
     const TString& GetTabletCellBundleName() const;
 
-    const NHydra::IDistributedHydraManagerPtr& GetHydraManager() const;
+    NHydra::IDistributedHydraManagerPtr GetHydraManager() const;
+    
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
     const TTabletAutomatonPtr& GetAutomaton() const;
 

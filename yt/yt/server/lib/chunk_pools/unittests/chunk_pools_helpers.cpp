@@ -7,7 +7,7 @@ namespace NYT {
 template <>
 void PrintTo(const TIntrusivePtr<NChunkClient::TInputChunk>& chunk, std::ostream* os)
 {
-    *os << ToString(chunk->ChunkId());
+    *os << ToString(chunk->GetChunkId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

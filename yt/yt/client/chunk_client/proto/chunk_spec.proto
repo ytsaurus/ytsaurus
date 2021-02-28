@@ -11,7 +11,16 @@ option python_package = "yt_proto.yt.client.chunk_client.proto";
 // Describes a portion of table chunk.
 message TChunkSpec
 {
+    // COMPAT(babenko)
+    // The way these fields are used is quite chaotic. Possible encodings are as follows:
+    // 1) chunk_id is the actual chunk id, others are not used (for static tables only);
+    // 2) chunk_id is a tablet id, cell_id is the id of the cell hosting this tablet (for queries);
+    // 3) chunk_id is a dynamic store id, tablet_id is the id of the tablet containing this store, and
+    //    cell_id is the id of the cell hosting this tablet (for dynamic store reads).
+    // In all cases, cell_id could be missing (for legacy clients).
     required NYT.NProto.TGuid chunk_id = 1;
+    optional NYT.NProto.TGuid tablet_id = 20;
+    optional NYT.NProto.TGuid cell_id = 22;
 
     // Lower boundary, inclusive.
     optional TReadLimit lower_limit = 2;
@@ -22,12 +31,7 @@ message TChunkSpec
     // Initial seed addresses. The reader may ask the master for additional ones.
     repeated fixed32 replicas = 4;
 
-    // Deprecated = 5;
-    // Deprecated = 6;
-
     optional int32 table_index = 7 [default = 0];
-
-    // Deprecated = 8;
 
     optional int32 erasure_codec = 9 [default = 0];
 
@@ -62,12 +66,11 @@ message TChunkSpec
 
     optional int32 tablet_index = 19;
 
-    // Tablet for reading from dynamic store.
-    optional NYT.NProto.TGuid tablet_id = 20;
-
     // True if row_index upper/lower_limit is absolute (table-wise or tablet-wise)
     // rather than relative (chunk-wise).
     optional bool row_index_is_absolute = 21 [default = false];
+
+    reserved 5, 6, 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

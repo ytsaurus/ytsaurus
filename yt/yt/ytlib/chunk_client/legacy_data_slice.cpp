@@ -520,7 +520,7 @@ std::optional<TChunkId> IsUnavailable(const TLegacyDataSlicePtr& dataSlice, bool
 {
     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
         if (IsUnavailable(chunkSlice->GetInputChunk(), checkParityParts)) {
-            return chunkSlice->GetInputChunk()->ChunkId();
+            return chunkSlice->GetInputChunk()->GetChunkId();
         }
     }
     return std::nullopt;

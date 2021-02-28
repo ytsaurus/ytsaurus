@@ -75,7 +75,7 @@ public:
     const NJobAgent::TJobControllerPtr& GetJobController() const;
     const NJobAgent::TJobReporterPtr& GetJobReporter() const;
     const NTabletNode::IHintManagerPtr& GetTabletNodeHintManager() const;
-    const NTabletNode::TSlotManagerPtr& GetTabletSlotManager() const;
+    const NTabletNode::ISlotManagerPtr& GetTabletSlotManager() const;
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::IInMemoryManagerPtr& GetInMemoryManager() const;
     const NTabletNode::TVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
@@ -186,7 +186,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr TabletNodePreloadInThrottler_;
 
     NTabletNode::IHintManagerPtr TabletNodeHintManager_;
-    NTabletNode::TSlotManagerPtr TabletSlotManager_;
+    NTabletNode::ISlotManagerPtr TabletSlotManager_;
     NTabletNode::TSecurityManagerPtr SecurityManager_;
     NTabletNode::IInMemoryManagerPtr InMemoryManager_;
     NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;

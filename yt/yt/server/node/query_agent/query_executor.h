@@ -28,7 +28,7 @@ NQueryClient::TQueryStatistics ExecuteSubquery(
     NQueryClient::IEvaluatorPtr evaluator,
     NQueryClient::TConstQueryPtr query,
     NQueryClient::TConstExternalCGInfoPtr externalCGInfo,
-    std::vector<NQueryClient::TDataRanges> dataSources,
+    std::vector<NQueryClient::TDataSource> dataSources,
     NQueryClient::IUnversionedRowsetWriterPtr writer,
     IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,

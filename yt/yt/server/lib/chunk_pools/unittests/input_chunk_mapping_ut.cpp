@@ -67,7 +67,7 @@ protected:
         i64 size = 1_KB)
     {
         auto inputChunk = New<TInputChunk>();
-        inputChunk->ChunkId() = TChunkId::Create();
+        inputChunk->SetChunkId(TChunkId::Create());
         inputChunk->SetCompressedDataSize(size);
         inputChunk->SetTotalUncompressedDataSize(size);
         inputChunk->SetTotalDataWeight(size);
@@ -95,8 +95,8 @@ protected:
 
     TInputChunkPtr CopyChunk(const TInputChunkPtr& chunk)
     {
-        TInputChunkPtr chunkCopy = New<TInputChunk>();
-        chunkCopy->ChunkId() = chunk->ChunkId();
+        auto chunkCopy = New<TInputChunk>();
+        chunkCopy->SetChunkId(chunk->GetChunkId());
         chunkCopy->SetCompressedDataSize(chunk->GetCompressedDataSize());
         chunkCopy->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(*chunk->BoundaryKeys());
         chunkCopy->SetTotalRowCount(chunk->GetRowCount());
@@ -107,7 +107,7 @@ protected:
     {
         std::vector<TInputChunkPtr> chunks;
         for (const auto& dataSlice : stripe->DataSlices) {
-            chunks.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow());
+            chunks.push_back(dataSlice->GetSingleUnversionedChunkOrThrow());
         }
         return chunks;
     }
@@ -116,7 +116,7 @@ protected:
     {
         std::vector<TChunkId> result;
         for (const auto& chunk : chunks) {
-            result.emplace_back(chunk->ChunkId());
+            result.push_back(chunk->GetChunkId());
         }
         return result;
     }

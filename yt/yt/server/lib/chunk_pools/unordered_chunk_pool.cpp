@@ -557,7 +557,7 @@ private:
 
             YT_LOG_TRACE("Slicing unversioned chunk (ChunkId: %v, DataWeight: %v, SliceDataWeight: %v, SliceRowCount: %v, "
                 "SliceCount: %v)",
-                chunk->ChunkId(),
+                chunk->GetChunkId(),
                 chunk->GetDataWeight(),
                 JobSizeConstraints_->GetInputSliceDataWeight(),
                 JobSizeConstraints_->GetInputSliceRowCount(),

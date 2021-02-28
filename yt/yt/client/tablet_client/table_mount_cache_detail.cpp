@@ -151,6 +151,7 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
 {
     static std::vector<TErrorCode> retriableCodes = {
         NTabletClient::EErrorCode::NoSuchTablet,
+        NTabletClient::EErrorCode::NoSuchCell,
         NTabletClient::EErrorCode::TabletNotMounted,
         NTabletClient::EErrorCode::InvalidMountRevision,
         NYTree::EErrorCode::ResolveError

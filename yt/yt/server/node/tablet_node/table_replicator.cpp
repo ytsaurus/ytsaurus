@@ -78,7 +78,7 @@ public:
         TTableReplicaInfo* replicaInfo,
         NNative::IConnectionPtr localConnection,
         TTabletSlotPtr slot,
-        TSlotManagerPtr slotManager,
+        ISlotManagerPtr slotManager,
         IHintManagerPtr hintManager,
         IInvokerPtr workerInvoker,
         IThroughputThrottlerPtr nodeInThrottler,
@@ -132,7 +132,7 @@ private:
     const TTabletManagerConfigPtr Config_;
     const NNative::IConnectionPtr LocalConnection_;
     const TTabletSlotPtr Slot_;
-    const TSlotManagerPtr SlotManager_;
+    const ISlotManagerPtr SlotManager_;
     const IHintManagerPtr HintManager_;
     const IInvokerPtr WorkerInvoker_;
 
@@ -925,7 +925,7 @@ TTableReplicator::TTableReplicator(
     TTableReplicaInfo* replicaInfo,
     NNative::IConnectionPtr localConnection,
     TTabletSlotPtr slot,
-    TSlotManagerPtr slotManager,
+    ISlotManagerPtr slotManager,
     IHintManagerPtr hintManager,
     IInvokerPtr workerInvoker,
     IThroughputThrottlerPtr nodeInThrottler,

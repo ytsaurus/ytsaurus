@@ -332,7 +332,10 @@ struct TJoinClause
 
     bool IsLeft = false;
 
-    TGuid ForeignDataId;
+    //! See #TDataSource::ObjectId.
+    NObjectClient::TObjectId ForeignObjectId;
+    //! See #TDataSource::CellId.
+    NObjectClient::TCellId ForeignCellId;
 
     TTableSchemaPtr GetRenamedSchema() const
     {
@@ -1088,8 +1091,8 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized);
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized);
 
-void ToProto(NProto::TDataRanges* serialized, const TDataRanges& original);
-void FromProto(TDataRanges* original, const NProto::TDataRanges& serialized);
+void ToProto(NProto::TDataSource* serialized, const TDataSource& original);
+void FromProto(TDataSource* original, const NProto::TDataSource& serialized);
 
 TString InferName(TConstExpressionPtr expr, bool omitValues = false);
 TString InferName(TConstBaseQueryPtr query, bool omitValues = false);

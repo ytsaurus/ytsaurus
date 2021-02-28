@@ -142,6 +142,10 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
 
             auto req = proxy.GetTabletInfo();
             ToProto(req->mutable_tablet_ids(), perCellTabletIds);
+            for (int index = 0; index < perCellTabletIds.size(); ++index) {
+                ToProto(req->add_cell_ids(), cellId);
+            }
+
             futures.push_back(req->Invoke());
         }
         
@@ -248,6 +252,10 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
 
         auto req = proxy.GetTabletInfo();
         ToProto(req->mutable_tablet_ids(), tabletIds);
+        for (int index = 0; index < tabletIds.size(); ++index) {
+            ToProto(req->add_cell_ids(), cellId);
+        }
+
         asyncResults.push_back(req->Invoke());
     }
 

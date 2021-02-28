@@ -327,7 +327,7 @@ struct TCGAggregateCallbacks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TQueryPtr, TDataRanges> GetForeignQuery(
+std::pair<TQueryPtr, TDataSource> GetForeignQuery(
     TQueryPtr subquery,
     TConstJoinClausePtr joinClause,
     std::vector<TRow> keys,

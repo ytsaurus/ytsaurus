@@ -19,106 +19,113 @@ namespace NYT::NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Controls all tablet slots running at this node.
-class TSlotManager
+struct ISlotManager
     : public TRefCounted
 {
-public:
-    TSlotManager(
-        TTabletNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
-    ~TSlotManager();
+    // The following methods have ControlThread affinity.
+    
+    virtual void Initialize() = 0;
 
-    void Initialize();
-
-    bool IsOutOfMemory(const std::optional<TString>& poolTag) const;
+    virtual bool IsOutOfMemory(const std::optional<TString>& poolTag) const = 0;
 
     //! Returns the total number of tablet slots.
-    int GetTotalTabletSlotCount() const;
+    virtual int GetTotalTabletSlotCount() const = 0;
 
     //! Returns the number of available (not used) slots.
-    int GetAvailableTabletSlotCount() const;
+    virtual int GetAvailableTabletSlotCount() const = 0;
 
     //! Returns the number of currently used slots.
-    int GetUsedTabletSlotCount() const;
+    virtual int GetUsedTabletSlotCount() const = 0;
 
     //! Returns |true| if there are free tablet slots and |false| otherwise.
-    bool HasFreeTabletSlots() const;
+    virtual bool HasFreeTabletSlots() const = 0;
 
     //! Returns fraction of CPU used by tablet slots (in terms of resource limits).
-    double GetUsedCpu(double cpuPerTabletSlot) const;
+    virtual double GetUsedCpu(double cpuPerTabletSlot) const = 0;
 
-    const std::vector<TTabletSlotPtr>& Slots() const;
-    TTabletSlotPtr FindSlot(NHydra::TCellId id);
-    void CreateSlot(const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo);
-    void ConfigureSlot(TTabletSlotPtr slot, const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo);
-    void RemoveSlot(TTabletSlotPtr slot);
-
+    virtual const std::vector<TTabletSlotPtr>& Slots() const = 0;
+    virtual void CreateSlot(const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo) = 0;
+    virtual void ConfigureSlot(const TTabletSlotPtr& slot, const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo) = 0;
+    virtual TFuture<void> RemoveSlot(const TTabletSlotPtr& slot) = 0;
 
     // The following methods are safe to call them from any thread.
 
+    //! Finds the slot by cell id, returns null if none.
+    virtual TTabletSlotPtr FindSlot(NHydra::TCellId id) = 0;
+
     //! Returns the list of snapshots for all registered tablets.
-    std::vector<TTabletSnapshotPtr> GetTabletSnapshots();
+    virtual std::vector<TTabletSnapshotPtr> GetTabletSnapshots() = 0;
 
     //! Returns the snapshot for a given tablet with latest mount revision or |nullptr| if none.
-    TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId);
+    virtual TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId) = 0;
 
     //! Returns the snapshot for a given tablet with latest mount revision or throws
     //! if no such tablet is known.
-    TTabletSnapshotPtr GetLatestTabletSnapshotOrThrow(TTabletId tabletId);
+    /*!
+     *  \param cellId serves as a hint for better diagnostics and could be null.
+     */
+    virtual TTabletSnapshotPtr GetLatestTabletSnapshotOrThrow(
+        TTabletId tabletId,
+        TCellId cellId) = 0;
 
     //! Returns the snapshot for a given tablet with given mount revision or |nullptr| if none.
-    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId, NHydra::TRevision mountRevision);
+    virtual TTabletSnapshotPtr FindTabletSnapshot(
+        TTabletId tabletId,
+        NHydra::TRevision mountRevision) = 0;
 
     //! Returns the snapshot for a given tablet with given mount revision
     //! or throws if no such tablet is known.
-    TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId, NHydra::TRevision mountRevision);
+    /*!
+     *  \param cellId serves as a hint for better diagnostics and could be null.
+     */
+    virtual TTabletSnapshotPtr GetTabletSnapshotOrThrow(
+        TTabletId tabletId,
+        TCellId cellId,
+        NHydra::TRevision mountRevision) = 0;
 
     //! If #timestamp is other than #AsyncLastCommitted then checks
     //! that the Hydra instance has a valid leader lease.
     //! Throws on failure.
-    void ValidateTabletAccess(
+    virtual void ValidateTabletAccess(
         const TTabletSnapshotPtr& tabletSnapshot,
-        NTransactionClient::TTimestamp timestamp);
+        NTransactionClient::TTimestamp timestamp) = 0;
 
     //! Informs the manager that some slot now serves #tablet.
     //! It is fine to update an already registered snapshot.
-    void RegisterTabletSnapshot(
-        TTabletSlotPtr slot,
+    virtual void RegisterTabletSnapshot(
+        const TTabletSlotPtr& slot,
         TTablet* tablet,
-        std::optional<TLockManagerEpoch> epoch = std::nullopt);
+        std::optional<TLockManagerEpoch> epoch = std::nullopt) = 0;
 
     //! Informs the manager that #tablet is no longer served.
     //! It is fine to attempt to unregister a snapshot that had never been registered.
-    void UnregisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet);
+    virtual void UnregisterTabletSnapshot(
+        TTabletSlotPtr slot,
+        TTablet* tablet) = 0;
 
     //! Informs the manager that #slot no longer serves any tablet.
-    void UnregisterTabletSnapshots(TTabletSlotPtr slot);
+    virtual void UnregisterTabletSnapshots(TTabletSlotPtr slot) = 0;
 
     //! Informs the manager that the share of tablet dynamic memory
     //! of the corresponding bundle has changed.
-    void UpdateTabletCellBundleMemoryPoolWeight(const TString& bundleName);
+    virtual void UpdateTabletCellBundleMemoryPoolWeight(const TString& bundleName) = 0;
 
-    //! Returns a thread pool invoker used for building tablet snapshots.
-    IInvokerPtr GetSnapshotPoolInvoker();
+    //! Adds slot-related alerts to #alerts.
+    virtual void PopulateAlerts(std::vector<TError>* alerts) = 0;
 
-    void PopulateAlerts(std::vector<TError>* alerts);
-
-    NYTree::IYPathServicePtr GetOrchidService();
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     //! Creates and configures a fake tablet slot and validates the tablet cell snapshot.
-    void ValidateCellSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
+    virtual void ValidateCellSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) = 0;
 
-    DECLARE_SIGNAL(void(), BeginSlotScan);
-    DECLARE_SIGNAL(void(TTabletSlotPtr), ScanSlot);
-    DECLARE_SIGNAL(void(), EndSlotScan);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    DECLARE_INTERFACE_SIGNAL(void(), BeginSlotScan);
+    DECLARE_INTERFACE_SIGNAL(void(TTabletSlotPtr), ScanSlot);
+    DECLARE_INTERFACE_SIGNAL(void(), EndSlotScan);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSlotManager)
+DEFINE_REFCOUNTED_TYPE(ISlotManager)
+
+ISlotManagerPtr CreateSlotManager(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

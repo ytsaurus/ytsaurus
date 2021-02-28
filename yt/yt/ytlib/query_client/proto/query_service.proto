@@ -30,7 +30,7 @@ message TReqExecute
     repeated TExternalFunctionImpl external_functions = 5;
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
     required TQueryOptions options = 2;
-    repeated TDataRanges data_sources = 3;
+    repeated TDataSource data_sources = 3;
     // TODO(kiselyovp) move codec to header
     required int32 response_codec = 4; // ECodec
     reserved 7; // deprecated
@@ -52,6 +52,8 @@ message TReqMultiread
     optional string retention_config = 3;
     required uint64 timestamp = 4;
     repeated NYT.NProto.TGuid tablet_ids = 5;
+    // COMPAT(babenko): legacy clients may omit this field.
+    repeated NYT.NProto.TGuid cell_ids = 9;
     repeated int64 mount_revisions = 6;
     optional bool enable_partial_result = 7 [default=false];
     optional bool use_lookup_cache = 8 [default=false];
@@ -68,8 +70,10 @@ message TRspMultiread
 
 message TReqReadDynamicStore
 {
-    required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid store_id = 2;
+    required NYT.NProto.TGuid tablet_id = 1;
+    // COMPAT(babenko): legacy clients may omit this field.
+    optional NYT.NProto.TGuid cell_id = 12;
     optional uint64 timestamp = 3;
     optional bytes lower_bound  = 4;
     optional bytes upper_bound = 5;
@@ -94,6 +98,8 @@ message TRspReadDynamicStore
 message TReqGetTabletInfo
 {
     repeated NYT.NProto.TGuid tablet_ids = 1;
+    // COMPAT(babenko): legacy clients may omit this field.
+    repeated NYT.NProto.TGuid cell_ids = 2;
 }
 
 message TReplicaInfo
@@ -126,6 +132,8 @@ message TReqFetchTabletStores
     message TSubrequest
     {
         required NYT.NProto.TGuid tablet_id = 1;
+        // COMPAT(babenko): legacy clients may omit this field.
+        optional NYT.NProto.TGuid cell_id = 9;
         optional int64 mount_revision = 2;
         repeated NYT.NChunkClient.NProto.TReadRange ranges = 3;
         repeated int32 range_indices = 4;

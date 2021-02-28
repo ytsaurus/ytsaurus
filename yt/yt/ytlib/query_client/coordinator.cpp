@@ -120,7 +120,7 @@ TRowRanges GetPrunedRanges(
         rangeExtractors,
         options);
 
-    auto keyRangeFormatter = [] (const TRowRange& range) -> TString {
+    auto keyRangeFormatter = [] (const TRowRange& range) {
         return Format("[%v .. %v]",
             range.first,
             range.second);
