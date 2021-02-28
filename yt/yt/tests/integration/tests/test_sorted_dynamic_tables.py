@@ -464,9 +464,19 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         verify_map = {}
         revision_map = {}
 
+        optional_columns = ["a", "b", "c", "s", "t"]
+        required_columns = ["v", "i"]
+
         def get_checksum(row):
-            row_data = " ".join(yson.dumps(row.get(col, yson.YsonEntity())) for col in ["v", "i", "a", "b", "c", "s", "t"])
+            row_data = " ".join(yson.dumps(row.get(col, yson.YsonEntity())) for col in (required_columns + optional_columns))
             return row_data
+
+        def check_row(row, check):
+            check_values = dict(zip(required_columns + optional_columns, check.split(" ")))
+            for name, value in row.iteritems():
+                if name in ["k", "md5"]:
+                    continue
+                assert yson.dumps(value) == check_values[name]
 
         # Decorate to simplify grep.
         def decorate_key(key):
@@ -500,11 +510,16 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             for i in xrange(1, 10):
                 keys = [{"k": decorate_key(k)} for k in sample(range(1, count), 10)]
-                result = lookup_rows("//tmp/t", keys, use_lookup_cache=True)
+                lookup_value_columns = ["k", "md5"] + required_columns + sample(optional_columns, randint(2, len(optional_columns)))
+                result = lookup_rows(
+                    "//tmp/t",
+                    keys,
+                    column_names=lookup_value_columns,
+                    use_lookup_cache=True)
 
                 for row in result:
                     assert row["k"] == decorate_key(row["v"])
-                    assert get_checksum(row) == row["md5"]
+                    check_row(row, row["md5"])
                     revision = row["i"]
                     assert revision >= revision_map.get(row["k"], 0)
                     revision_map[row["k"]] = revision
