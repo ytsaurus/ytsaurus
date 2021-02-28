@@ -159,7 +159,7 @@ public:
                 &DynamicEdenSessions_,
                 dynamicEdenStores,
                 LookupKeys_,
-                false);
+                UseLookupCache_);
             auto otherAsyncReadSessions = CreateReadSessions(
                 &ChunkEdenSessions_,
                 chunkEdenStores,
@@ -173,7 +173,7 @@ public:
                 &DynamicEdenSessions_,
                 dynamicEdenStores,
                 LookupKeys_,
-                false);
+                UseLookupCache_);
             if (!dynamicEdenReadSessions.empty()) {
                 WaitFor(AllSucceeded(dynamicEdenReadSessions))
                     .ThrowOnError();
