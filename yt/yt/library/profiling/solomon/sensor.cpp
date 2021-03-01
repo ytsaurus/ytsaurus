@@ -110,7 +110,7 @@ static auto GenericBucketBounds() {
     return result;
 }
 
-static  std::vector<TDuration> BucketBounds(const TSensorOptions& options)
+static std::vector<TDuration> BucketBounds(const TSensorOptions& options)
 {
     if (options.HistogramMin.Zero() && options.HistogramMax.Zero()) {
         return {};

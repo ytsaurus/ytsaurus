@@ -3647,6 +3647,9 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             "scheduling_segments_initialization_timeout": 100,
             "operations_update_period": 100,
             "operation_hangup_check_period": 100,
+        },
+        "solomon_exporter": {
+            "grid_step": 100,
         }
     }
 
@@ -3923,34 +3926,26 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)
 
-        fair_resource_amount_default_last = Metric.at_scheduler(
-            "scheduler/segments/fair_resource_amount",
-            with_tags={"segment": "default"},
-            aggr_method="last",
-        )
-        current_resource_amount_default_last = Metric.at_scheduler(
-            "scheduler/segments/current_resource_amount",
-            with_tags={"segment": "default"},
-            aggr_method="last",
-        )
-        fair_resource_amount_large_last = Metric.at_scheduler(
-            "scheduler/segments/fair_resource_amount",
-            with_tags={"segment": "large_gpu"},
-            grouped_by_tags=["data_center"],
-            aggr_method="last",
-        )
-        current_resource_amount_large_last = Metric.at_scheduler(
-            "scheduler/segments/current_resource_amount",
-            with_tags={"segment": "large_gpu"},
-            grouped_by_tags=["data_center"],
-            aggr_method="last",
-        )
+        profiler = Profiler.at_scheduler()
 
-        wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 0)
-        wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 80)
+        profiler.list()
+        profiler.list(attributes=["cube_size", "object_count"])
+
+        fair_resource_amount_default_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "default"})
+        current_resource_amount_default_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "default"})
+        fair_resource_amount_large_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "large_gpu"})
+        current_resource_amount_large_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "large_gpu"})
+
+        abc = profiler.gauge("scheduler/segments/custom_sensor", fixed_tags=[("tagA", "valueA"), ("tagB", "valueB")])
+        for i in range(10):
+            abc.get(verbose=True)
+            time.sleep(0.3)
+
+        wait(lambda: fair_resource_amount_default_sensor.get(verbose=True) == 0)
+        wait(lambda: current_resource_amount_default_sensor.get(verbose=True) == 80)
         for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
-            wait(lambda: fair_resource_amount_large_last.update().get(dc, verbose=True) == 0)
-            wait(lambda: current_resource_amount_large_last.update().get(dc, verbose=True) == 0)
+            wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": dc}, verbose=True) == 0)
+            wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": dc}, verbose=True) == 0)
 
         blocking_op = run_sleeping_vanilla(
             job_count=20,
@@ -3959,11 +3954,11 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
 
-        wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 80)
-        wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 80)
+        wait(lambda: fair_resource_amount_default_sensor.get(verbose=True) == 80)
+        wait(lambda: current_resource_amount_default_sensor.get(verbose=True) == 80)
         for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
-            wait(lambda: fair_resource_amount_large_last.update().get(dc, verbose=True) == 0)
-            wait(lambda: current_resource_amount_large_last.update().get(dc, verbose=True) == 0)
+            wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": dc}, verbose=True) == 0)
+            wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": dc}, verbose=True) == 0)
 
         op1 = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
@@ -3976,17 +3971,17 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
         time.sleep(3.0)
 
-        wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 72)
-        wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 80)
-        wait(lambda: fair_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
-        wait(lambda: current_resource_amount_large_last.update().get(op1_dc, verbose=True) == 0)
+        wait(lambda: fair_resource_amount_default_sensor.get(verbose=True) == 72)
+        wait(lambda: current_resource_amount_default_sensor.get(verbose=True) == 80)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 8)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 0)
 
         set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000)
 
-        wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 72)
-        wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 72)
-        wait(lambda: fair_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
-        wait(lambda: current_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
+        wait(lambda: fair_resource_amount_default_sensor.get(verbose=True) == 72)
+        wait(lambda: current_resource_amount_default_sensor.get(verbose=True) == 72)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 8)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 8)
 
         op2 = run_sleeping_vanilla(
             job_count=2,
@@ -3999,12 +3994,12 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         op2_dc = get(scheduler_orchid_operation_path(op2.id) + "/scheduling_segment_data_center")
         assert op1_dc != op2_dc
 
-        wait(lambda: fair_resource_amount_default_last.update().get(verbose=True) == 56)
-        wait(lambda: current_resource_amount_default_last.update().get(verbose=True) == 56)
-        wait(lambda: fair_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
-        wait(lambda: current_resource_amount_large_last.update().get(op1_dc, verbose=True) == 8)
-        wait(lambda: fair_resource_amount_large_last.update().get(op2_dc, verbose=True) == 16)
-        wait(lambda: current_resource_amount_large_last.update().get(op2_dc, verbose=True) == 16)
+        wait(lambda: fair_resource_amount_default_sensor.get(verbose=True) == 56)
+        wait(lambda: current_resource_amount_default_sensor.get(verbose=True) == 56)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 8)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 8)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op2_dc}, verbose=True) == 16)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op2_dc}, verbose=True) == 16)
 
     @authors("eshcherbin")
     def test_fail_large_gpu_operation_started_in_several_trees(self):

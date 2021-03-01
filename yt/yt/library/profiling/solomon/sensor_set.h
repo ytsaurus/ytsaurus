@@ -11,6 +11,8 @@
 #include <yt/core/misc/intrusive_ptr.h>
 #include <yt/core/misc/error.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +188,12 @@ public:
         const TReadOptions& options,
         const TTagRegistry& tagsRegistry,
         ::NMonitoring::IMetricConsumer* consumer) const;
+
+    int ReadSensorValues(
+        const TTagIdList& tagIds,
+        int index,
+        const TReadOptions& options,
+        NYTree::TFluentAny fluent) const;
 
     void LegacyReadSensors(const TString& name, TTagRegistry* tagRegistry);
 

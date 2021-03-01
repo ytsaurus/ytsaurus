@@ -11,6 +11,8 @@
 
 namespace NYT::NProfiling {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -390,6 +392,80 @@ int TCube<T>::ReadSensors(
 
     return sensorsEmitted;
 }
+
+template <class T>
+int TCube<T>::ReadSensorValues(
+    const TTagIdList& tagIds,
+    int index,
+    const TReadOptions& options,
+    TFluentAny fluent) const
+{
+    auto it = Projections_.find(tagIds);
+    if (it == Projections_.end()) {
+        return 0;
+    }
+
+    const auto& projection = it->second;
+    const auto& value = projection.Values[index];
+
+    int valuesRead = 0;
+    if constexpr (std::is_same_v<T, i64>) {
+        // NB(eshcherbin): Not much sense in returning rate here.
+        fluent.Value(Rollup(projection, index));
+        ++valuesRead;
+    } else if constexpr (std::is_same_v<T, double>) {
+        fluent.Value(value);
+        ++valuesRead;
+    } else if constexpr (std::is_same_v<T, TSummarySnapshot<double>>) {
+        if (options.ExportSummaryAsMax) {
+            fluent.Value(value.Max());
+        } else {
+            fluent
+                .BeginMap()
+                    .Item("sum").Value(value.Sum())
+                    .Item("min").Value(value.Min())
+                    .Item("max").Value(value.Max())
+                    .Item("last").Value(value.Last())
+                    .Item("count").Value(static_cast<ui64>(value.Count()))
+                .EndMap();
+        }
+        ++valuesRead;
+    } else if constexpr (std::is_same_v<T, TSummarySnapshot<TDuration>>) {
+        if (options.ExportSummaryAsMax) {
+            fluent.Value(value.Max().SecondsFloat());
+        } else {
+            fluent
+                .BeginMap()
+                    .Item("sum").Value(value.Sum().SecondsFloat())
+                    .Item("min").Value(value.Min().SecondsFloat())
+                    .Item("max").Value(value.Max().SecondsFloat())
+                    .Item("last").Value(value.Last().SecondsFloat())
+                    .Item("count").Value(static_cast<ui64>(value.Count()))
+                .EndMap();
+        }
+        ++valuesRead;
+    } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
+        std::vector<std::pair<double, int>> hist;
+        hist.reserve(value.Times.size());
+        for (size_t i = 0; i < value.Times.size(); ++i) {
+            int bucketValue = i < value.Values.size() ? value.Values[i] : 0;
+            hist.emplace_back(value.Times[i].SecondsFloat(), bucketValue);
+        }
+
+        fluent.DoMapFor(hist, [] (TFluentMap fluent, const auto& bar) {
+            fluent
+                .Item("bound").Value(bar.first)
+                .Item("count").Value(bar.second);
+        });
+        ++valuesRead;
+    } else {
+        THROW_ERROR_EXCEPTION("Unexpected cube type");
+    }
+
+    return valuesRead;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 template class TCube<double>;
 template class TCube<i64>;

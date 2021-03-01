@@ -22,6 +22,8 @@ TTagIdList TTagRegistry::Encode(const TTagList& tags)
         }
     }
 
+    std::sort(ids.begin(), ids.end());
+
     return ids;
 }
 
@@ -30,7 +32,24 @@ TTagIdList TTagRegistry::Encode(const TTagSet& tags)
     return Encode(tags.Tags());
 }
 
-const std::pair<TString, TString>& TTagRegistry::Decode(TTagId tagId) const
+std::optional<TTagIdList> TTagRegistry::TryEncode(const TTagList& tags) const
+{
+    TTagIdList ids;
+
+    for (const auto& tag : tags) {
+        if (auto it = TagByName_.find(tag); it != TagByName_.end()) {
+            ids.push_back(it->second);
+        } else {
+            return {};
+        }
+    }
+
+    std::sort(ids.begin(), ids.end());
+
+    return ids;
+}
+
+const TTag& TTagRegistry::Decode(TTagId tagId) const
 {
     if (tagId < 1 || static_cast<size_t>(tagId) > TagById_.size()) {
         THROW_ERROR_EXCEPTION("Invalid tag")

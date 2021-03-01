@@ -1,10 +1,13 @@
 #pragma once
 
+#include "private.h"
 #include "tag_registry.h"
 
 #include <limits>
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/summary.h>
+
+#include <yt/core/ytree/fluent.h>
 
 #include <library/cpp/monlib/metrics/metric_consumer.h>
 
@@ -83,6 +86,12 @@ public:
         const TReadOptions& options,
         const TTagRegistry& tagsRegistry,
         ::NMonitoring::IMetricConsumer* consumer) const;
+
+    int ReadSensorValues(
+        const TTagIdList& tagIds,
+        int index,
+        const TReadOptions& options,
+        NYTree::TFluentAny fluent) const;
 
 private:
     int WindowSize_;

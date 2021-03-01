@@ -10,6 +10,7 @@
 #include <yt/core/http/public.h>
 
 #include <yt/core/ytree/yson_serializable.h>
+#include <yt/core/ytree/ypath_detail.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/producer.h>
@@ -152,6 +153,8 @@ public:
     void Start();
     void Stop();
 
+    NYTree::IYPathServicePtr GetService() const;
+
 private:
     const TSolomonExporterConfigPtr Config_;
     const IInvokerPtr Invoker_;
@@ -169,6 +172,27 @@ private:
     TEventTimer CollectionStartDelay_;
     TCounter WindowErrors_;
     TCounter ReadDelays_;
+
+    class TSensorService
+        : public NYTree::TYPathServiceBase
+        , public NYTree::TSupportsGet
+        , public NYTree::TSupportsList
+    {
+    public:
+        TSensorService(TSolomonRegistryPtr registry, IInvokerPtr invoker);
+
+    private:
+        using TTagMap = THashMap<TString, TString>;
+
+        const TSolomonRegistryPtr Registry_;
+        const IInvokerPtr Invoker_;
+
+        virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+        virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+        virtual void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
+    };
+
+    const TIntrusivePtr<TSensorService> Root_;
 
     void DoCollect();
     void DoPushCoreProfiling();

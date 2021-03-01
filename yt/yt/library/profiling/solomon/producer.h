@@ -84,6 +84,13 @@ public:
         const TReadOptions& options,
         ::NMonitoring::IMetricConsumer* consumer) const;
 
+    int ReadSensorValues(
+        const TString& name,
+        const TTagIdList& tagIds,
+        int index,
+        const TReadOptions& options,
+        NYTree::TFluentAny fluent) const;
+
     std::vector<TSensorInfo> ListSensors() const;
     void LegacyReadSensors();
 

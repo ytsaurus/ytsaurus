@@ -77,6 +77,11 @@ void Initialize(
         exporter->Register("/solomon", monitoringServer);
         exporter->Start();
 
+        SetNodeByYPath(
+            *orchidRoot,
+            "/sensors",
+            CreateVirtualNode(exporter->GetService()));
+
         monitoringServer->AddHandler(
             "/orchid/",
             GetOrchidYPathHttpHandler(*orchidRoot));

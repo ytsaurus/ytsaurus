@@ -262,6 +262,123 @@ class Metric(object):
         return data
 
 
+class Profiler(object):
+    def __init__(self, path, fixed_tags={}, namespace="yt"):
+        self.path = path
+        self.namespace = namespace
+        self.fixed_tags = fixed_tags
+
+    @staticmethod
+    def at_scheduler(*args, **kwargs):
+        return Profiler("//sys/scheduler/orchid/sensors", *args, **kwargs)
+
+    @staticmethod
+    def at_node(node, *args, **kwargs):
+        return Profiler("//sys/cluster_nodes/{0}/orchid/sensors".format(node), *args, **kwargs)
+
+    @staticmethod
+    def at_tablet_node(node, *args, **kwargs):
+        tablets = get(node + "/@tablets")
+        address = get("#{0}/@peers/0/address".format(tablets[0]["cell_id"]))
+        return Profiler("//sys/cluster_nodes/{0}/orchid/sensors".format(address), *args, **kwargs)
+
+    @staticmethod
+    def at_master(master_index=0, *args, **kwargs):
+        primary_masters = [key for key in get("//sys/primary_masters")]
+        return Profiler(
+            "//sys/primary_masters/{0}/orchid/sensors".format(primary_masters[master_index]),
+            *args,
+            **kwargs
+        )
+
+    @staticmethod
+    def at_proxy(proxy, *args, **kwargs):
+        return Profiler("//sys/proxies/{0}/orchid/sensors".format(proxy), *args, **kwargs)
+
+    def with_tags(self, tags):
+        return Profiler(self.path, fixed_tags=dict(self.fixed_tags, **tags), namespace=self.namespace)
+
+    def list(self, **kwargs):
+        ls(self.path, **kwargs)
+
+    def get(self, name, tags, verbose=False, verbose_value_name="value", postprocessor=lambda value: value, **kwargs):
+        value = get(self.path, name="{}/{}".format(self.namespace, name), tags=tags, **kwargs)
+        if value is not None:
+            value = postprocessor(value)
+        if verbose:
+            print_debug("{} of sensor \"{}\" with tags {}: {}".format(verbose_value_name.capitalize(), name, tags, value))
+        return value
+
+    class _Sensor(object):
+        def __init__(self, profiler, name, fixed_tags):
+            self.profiler = profiler
+            self.name = name
+            self.fixed_tags = fixed_tags
+
+        def get(self, tags={}, **kwargs):
+            return self.profiler.get(self.name, dict(self.fixed_tags, **tags), default=None, **kwargs)
+
+    class Gauge(_Sensor):
+        def get(self, *args, **kwargs):
+            return super(Profiler.Gauge, self).get(*args, postprocessor=float, **kwargs)
+
+    class Counter(_Sensor):
+        def __init__(self, profiler, name, tags):
+            super(Profiler.Counter, self).__init__(profiler, name, fixed_tags=tags)
+            self.start_value = self.get(default=0)
+
+        def get_delta(self, **kwargs):
+            return self.get(
+                verbose_value_name="delta",
+                postprocessor=lambda value: int(value) - self.start_value,
+                **kwargs
+            )
+
+    class Summary(_Sensor):
+        def get_summary(self, *args, **kwargs):
+            return self.get(
+                export_summary_as_max=False,
+                verbose_value_name="summary",
+                *args,
+                **kwargs
+            )
+
+        def get_max(self, *args, **kwargs):
+            return self.get(
+                export_summary_as_max=True,
+                verbose_value_name="max",
+                *args,
+                **kwargs
+            )
+
+        def _get_summary_part(self, part, *args, **kwargs):
+            return self.get(
+                export_summary_as_max=False,
+                verbose_value_name=part,
+                postprocessor=lambda summary: summary[part],
+                *args,
+                **kwargs
+            )
+
+        def get_min(self, *args, **kwargs):
+            return self._get_summary_part("min", *args, **kwargs)
+
+        def get_last(self, *args, **kwargs):
+            return self._get_summary_part("last", *args, **kwargs)
+
+        def get_count(self, *args, **kwargs):
+            return self._get_summary_part("count", *args, **kwargs)
+
+    def gauge(self, name, fixed_tags={}):
+        return Profiler.Gauge(self, name, fixed_tags)
+
+    def counter(self, name, tags):
+        return Profiler.Counter(self, name, tags)
+
+    def summary(self, name, fixed_tags={}):
+        return Profiler.Summary(self, name, fixed_tags)
+
+
 def parse_yt_time(time):
     return parser.parse(time)
 

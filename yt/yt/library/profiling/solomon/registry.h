@@ -11,6 +11,8 @@
 
 #include <yt/core/profiling/public.h>
 
+#include <yt/core/ytree/fluent.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/impl.h>
 
@@ -91,6 +93,12 @@ public:
     void ReadSensors(
         const TReadOptions& options,
         ::NMonitoring::IMetricConsumer* consumer) const;
+
+    void ReadRecentSensorValue(
+        const TString& name,
+        const TTagList& tags,
+        const TReadOptions& options,
+        NYTree::TFluentAny fluent) const;
 
     //! LegacyReadSensors sends sensor values to core/profiling.
     void LegacyReadSensors();
