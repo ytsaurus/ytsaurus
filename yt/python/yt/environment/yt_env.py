@@ -173,6 +173,9 @@ class YTInstance(object):
         abi_versions = set(imap(lambda v: v.abi, self._binaries.values()))
         self.abi_version = abi_versions.pop()
 
+        if "ytserver-master" not in self._binaries:
+            raise YtError("Failed to find YT binaries (ytserver-*) in $PATH. Make sure that YT is installed.")
+
         self._lock = RLock()
 
         self.configs = defaultdict(list)
