@@ -7,8 +7,7 @@
 #include <yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/server/node/cluster_node/bootstrap.h>
-
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/server/node/job_agent/job_controller.h>
 
@@ -69,7 +68,7 @@ void TSchedulerConnector::SendHeartbeat()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    const auto& masterConnector = Bootstrap_->GetMasterConnector();
+    const auto& masterConnector = Bootstrap_->GetClusterNodeMasterConnector();
     if (!masterConnector->IsConnected()) {
         return;
     }

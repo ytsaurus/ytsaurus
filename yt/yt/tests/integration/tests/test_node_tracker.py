@@ -205,6 +205,33 @@ class TestNodeTrackerMulticell(TestNodeTracker):
 
 ################################################################################
 
+class TestNodeTrackerWithLegacyHeartbeats(TestNodeTracker):
+    DELTA_NODE_CONFIG = {
+        "tags": ["config_tag1", "config_tag2"],
+        "use_new_heartbeats": False,
+        "exec_agent": {
+            "slot_manager": {
+                "slot_location_statistics_update_period": 100,
+            },
+        },
+    }
+
+
+class TestNodeTrackerMulticellWithLegacyHeartbeats(TestNodeTracker):
+    DELTA_NODE_CONFIG = {
+        "tags": ["config_tag1", "config_tag2"],
+        "use_new_heartbeats": False,
+        "exec_agent": {
+            "slot_manager": {
+                "slot_location_statistics_update_period": 100,
+            },
+        },
+    }
+
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+################################################################################
+
 
 class TestRemoveClusterNodes(YTEnvSetup):
     NUM_MASTERS = 1

@@ -2613,3 +2613,17 @@ class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSing
     def setup_method(self, method):
         super(DynamicTablesSingleCellBase, self).setup_method(method)
         set("//sys/@config/tablet_manager/abandon_leader_lease_during_recovery", True)
+
+
+class TestDynamicTablesWithLegacyHeartbeats(DynamicTablesSingleCellBase):
+    DELTA_NODE_CONFIG = {
+        "use_new_heartbeats": False,
+    }
+
+
+class TestDynamicTablesMulticellWithLegacyHeartbeats(DynamicTablesSingleCellBase):
+    DELTA_NODE_CONFIG = {
+        "use_new_heartbeats": False,
+    }
+
+    NUM_SECONDARY_MASTER_CELLS = 2

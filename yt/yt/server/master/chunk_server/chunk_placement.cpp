@@ -126,7 +126,7 @@ TChunkPlacement::TChunkPlacement(
 
 void TChunkPlacement::OnNodeRegistered(TNode* node)
 {
-    if (node->GetLocalState() != ENodeState::Online) {
+    if (!node->ReportedDataNodeHeartbeat()) {
         return;
     }
 
@@ -590,7 +590,7 @@ bool TChunkPlacement::IsValidWriteTargetToAllocate(
 
 bool TChunkPlacement::IsValidWriteTargetCore(TNode* node)
 {
-    if (node->GetLocalState() != ENodeState::Online) {
+    if (!node->ReportedDataNodeHeartbeat()) {
         // Do not write anything to a node before its first heartbeat or after it is unregistered.
         return false;
     }
@@ -651,7 +651,7 @@ bool TChunkPlacement::IsValidBalancingTargetCore(TNode* node)
 
 bool TChunkPlacement::IsValidRemovalTarget(TNode* node)
 {
-    if (node->GetLocalState() != ENodeState::Online) {
+    if (!node->ReportedDataNodeHeartbeat()) {
         // Do not remove anything from a node before its first heartbeat or after it is unregistered.
         return false;
     }

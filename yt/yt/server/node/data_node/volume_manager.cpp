@@ -23,13 +23,13 @@ IVolumeManagerPtr CreatePortoVolumeManager(
 #include "chunk.h"
 #include "chunk_cache.h"
 #include "helpers.h"
-#include "master_connector.h"
 #include "private.h"
 
 #include <yt/server/node/data_node/volume.pb.h>
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/server/lib/containers/instance.h>
 #include <yt/server/lib/containers/porto_executor.h>
@@ -1112,7 +1112,7 @@ private:
         }
 
         auto path = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), "tmpfs_layers");
-        Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(BIND(
+        Bootstrap_->GetClusterNodeMasterConnector()->SubscribePopulateAlerts(BIND(
             &TLayerCache::PopulateTmpfsAlert,
             MakeWeak(this)));
 
@@ -1591,8 +1591,7 @@ public:
                 auto error = TError("Layer location at %v is disabled", locationConfig->Path)
                     << ex;
                 YT_LOG_WARNING(error);
-                auto masterConnector = bootstrap->GetMasterConnector();
-                masterConnector->RegisterAlert(error);
+                bootstrap->GetClusterNodeMasterConnector()->RegisterStaticAlert(error);
             }
         }
 

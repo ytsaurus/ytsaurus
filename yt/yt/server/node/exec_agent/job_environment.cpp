@@ -6,9 +6,10 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/server/node/data_node/config.h>
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/server/lib/misc/public.h>
 
@@ -223,8 +224,7 @@ protected:
         YT_LOG_ERROR(alert);
         YT_VERIFY(!Logger.GetAbortOnAlert());
 
-        auto masterConnector = Bootstrap_->GetMasterConnector();
-        masterConnector->RegisterAlert(alert);
+        Bootstrap_->GetClusterNodeMasterConnector()->RegisterStaticAlert(alert);
     }
 
     virtual void AddArguments(TProcessBasePtr process, int slotIndex)

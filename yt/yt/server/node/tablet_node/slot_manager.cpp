@@ -12,7 +12,7 @@
 #include <yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/server/node/data_node/config.h>
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/server/lib/tablet_node/config.h>
 

@@ -5,12 +5,13 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/server/node/data_node/artifact.h>
 #include <yt/server/node/data_node/chunk.h>
 #include <yt/server/node/data_node/chunk_cache.h>
 #include <yt/server/node/data_node/location.h>
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/legacy_master_connector.h>
 #include <yt/server/node/data_node/volume_manager.h>
 
 #include <yt/server/node/job_agent/job.h>
@@ -118,7 +119,7 @@ public:
         , Invoker_(Bootstrap_->GetJobInvoker())
         , StartTime_(TInstant::Now())
         , TrafficMeter_(New<TTrafficMeter>(
-            Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
+            Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor().GetDataCenter()))
         , JobSpec_(std::move(jobSpec))
         , SchedulerJobSpecExt_(&JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
         , UserJobSpec_(SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_user_job_spec() ? &SchedulerJobSpecExt_->user_job_spec() : nullptr)

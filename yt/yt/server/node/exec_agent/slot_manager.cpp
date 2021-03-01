@@ -8,10 +8,10 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/node_resource_manager.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 #include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/data_node/chunk_cache.h>
-#include <yt/server/node/data_node/master_connector.h>
 #include <yt/server/node/data_node/volume_manager.h>
 
 #include <yt/server/node/job_agent/job_controller.h>
@@ -51,7 +51,7 @@ TSlotManager::TSlotManager(
 
 void TSlotManager::Initialize()
 {
-    Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(
+    Bootstrap_->GetClusterNodeMasterConnector()->SubscribePopulateAlerts(
         BIND(&TSlotManager::PopulateAlerts, MakeStrong(this)));
     Bootstrap_->GetJobController()->SubscribeJobFinished(
         BIND(&TSlotManager::OnJobFinished, MakeStrong(this)));

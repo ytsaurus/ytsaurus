@@ -95,6 +95,8 @@ private:
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AlertCount)
             .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Flavors)
+            .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletSlots)
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IOWeights)
@@ -229,8 +231,12 @@ private:
                     break;
                 }
 
+                // XXX(gritukan): Should we look at flavours here?
+                // Probably it's better not to send data node statistics of the tablet node.
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
-                const auto& statistics = node->Statistics();
+                const auto& clusterNodeStatistics = node->ClusterNodeStatistics();
+                const auto& dataNodeStatistics = node->DataNodeStatistics();
+                const auto& execNodeStatistics = node->ExecNodeStatistics();
 
                 auto serializeStorageLocationStatistics = [&] (TFluentList fluent, const TStorageLocationStatistics& storageLocationStatistics) {
                     auto mediumIndex = storageLocationStatistics.medium_index();
@@ -256,16 +262,16 @@ private:
 
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("total_available_space").Value(statistics.total_available_space())
-                        .Item("total_used_space").Value(statistics.total_used_space())
-                        .Item("total_stored_chunk_count").Value(statistics.total_stored_chunk_count())
-                        .Item("total_cached_chunk_count").Value(statistics.total_cached_chunk_count())
+                        .Item("total_available_space").Value(dataNodeStatistics.total_available_space())
+                        .Item("total_used_space").Value(dataNodeStatistics.total_used_space())
+                        .Item("total_stored_chunk_count").Value(dataNodeStatistics.total_stored_chunk_count())
+                        .Item("total_cached_chunk_count").Value(dataNodeStatistics.total_cached_chunk_count())
                         .Item("total_session_count").Value(node->GetTotalSessionCount())
-                        .Item("full").Value(statistics.full())
+                        .Item("full").Value(dataNodeStatistics.full())
                         // TODO(gritukan): Drop it in favour of `storage_locations'.
-                        .Item("locations").DoListFor(statistics.storage_locations(), serializeStorageLocationStatistics)
-                        .Item("storage_locations").DoListFor(statistics.storage_locations(), serializeStorageLocationStatistics)
-                        .Item("slot_locations").DoListFor(statistics.slot_locations(), [&] (TFluentList fluent, const TSlotLocationStatistics& slotLocationStatistics) {
+                        .Item("locations").DoListFor(dataNodeStatistics.storage_locations(), serializeStorageLocationStatistics)
+                        .Item("storage_locations").DoListFor(dataNodeStatistics.storage_locations(), serializeStorageLocationStatistics)
+                        .Item("slot_locations").DoListFor(execNodeStatistics.slot_locations(), [&] (TFluentList fluent, const TSlotLocationStatistics& slotLocationStatistics) {
                             auto mediumIndex = slotLocationStatistics.medium_index();
                             const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
                             if (!IsObjectAlive(medium)) {
@@ -290,7 +296,7 @@ private:
                                     })
                                 .EndMap();
                         })
-                        .Item("media").DoMapFor(statistics.media(), [&] (TFluentMap fluent, const TMediumStatistics& mediumStatistics) {
+                        .Item("media").DoMapFor(dataNodeStatistics.media(), [&] (TFluentMap fluent, const TMediumStatistics& mediumStatistics) {
                             auto mediumIndex = mediumStatistics.medium_index();
                             const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
                             if (!IsObjectAlive(medium)) {
@@ -303,10 +309,10 @@ private:
                         })
                         .Item("memory").BeginMap()
                             .Item("total").BeginMap()
-                                .Item("used").Value(statistics.memory().total_used())
-                                .Item("limit").Value(statistics.memory().total_limit())
+                                .Item("used").Value(clusterNodeStatistics.memory().total_used())
+                                .Item("limit").Value(clusterNodeStatistics.memory().total_limit())
                             .EndMap()
-                            .DoFor(statistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
+                            .DoFor(clusterNodeStatistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
                                 fluent.Item(FormatEnum(EMemoryCategory(category.type())))
                                     .BeginMap()
                                         .DoIf(category.has_limit(), [&] (TFluentMap fluent) {
@@ -317,7 +323,7 @@ private:
                             })
                         .EndMap()
                         .Item("network").BeginMap()
-                            .DoFor(statistics.network(), [] (TFluentMap fluent, const TNetworkStatistics& statistics) {
+                            .DoFor(clusterNodeStatistics.network(), [] (TFluentMap fluent, const TNetworkStatistics& statistics) {
                                 fluent.Item(statistics.network())
                                     .BeginMap()
                                         .Item("throttling_reads").Value(statistics.throttling_reads())
@@ -333,7 +339,7 @@ private:
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(node->Statistics().full());
+                    .Value(node->DataNodeStatistics().full());
                 return true;
 
             case EInternedAttributeKey::Alerts:
@@ -358,6 +364,14 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(node->GetNodeAddresses());
+                return true;
+
+            case EInternedAttributeKey::Flavors:
+                if (!isGood) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(node->Flavors());
                 return true;
 
             case EInternedAttributeKey::TabletSlots:

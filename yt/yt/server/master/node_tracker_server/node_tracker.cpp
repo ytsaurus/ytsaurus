@@ -9,6 +9,15 @@
 #include "rack_type_handler.h"
 #include "data_center_type_handler.h"
 
+// COMPAT(gritukan)
+#include "exec_node_tracker.h"
+#include <yt/server/master/chunk_server/data_node_tracker.h>
+#include <yt/server/master/cell_server/tablet_node_tracker.h>
+#include <yt/ytlib/node_tracker_client/interop.h>
+#include <yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
+#include <yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
+#include <yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h>
+
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
@@ -99,15 +108,13 @@ class TNodeTracker::TImpl
     : public TMasterAutomatonPart
 {
 public:
-    TImpl(
-        TNodeTrackerConfigPtr config,
-        TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::NodeTracker)
-        , Config_(config)
+    explicit TImpl(TBootstrap* bootstrap)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::NodeTracker)
     {
         RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraDisposeNode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraClusterNodeHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetCellNodeDescriptors, Unretained(this)));
@@ -212,6 +219,16 @@ public:
         mutation->CommitAndReply(context);
     }
 
+    void ProcessHeartbeat(TCtxHeartbeatPtr context)
+    {
+        auto mutation = CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            context,
+            &TImpl::HydraClusterNodeHeartbeat,
+            this);
+        CommitMutationWithSemaphore(std::move(mutation), std::move(context), HeartbeatSemaphore_);
+    }
+
     void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context)
     {
         auto mutation = CreateMutation(
@@ -240,6 +257,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(DataCenter, TDataCenter);
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
+    DEFINE_SIGNAL(void(TNode* node), NodeOnline);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
     DEFINE_SIGNAL(void(TNode* node), NodeDisposed);
     DEFINE_SIGNAL(void(TNode* node), NodeBanChanged);
@@ -248,8 +266,6 @@ public:
     DEFINE_SIGNAL(void(TNode* node), NodeTagsChanged);
     DEFINE_SIGNAL(void(TNode* node, TRack*), NodeRackChanged);
     DEFINE_SIGNAL(void(TNode* node, TDataCenter*), NodeDataCenterChanged);
-    DEFINE_SIGNAL(void(TNode* node, TReqFullHeartbeat* request), FullHeartbeat);
-    DEFINE_SIGNAL(void(TNode* node, TReqIncrementalHeartbeat* request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
     DEFINE_SIGNAL(void(TDataCenter*), DataCenterCreated);
     DEFINE_SIGNAL(void(TDataCenter*), DataCenterRenamed);
     DEFINE_SIGNAL(void(TDataCenter*), DataCenterDestroyed);
@@ -362,6 +378,11 @@ public:
         return result;
     }
 
+    void UpdateLastSeenTime(TNode* node)
+    {
+        const auto* mutationContext = GetCurrentMutationContext();
+        node->SetLastSeenTime(mutationContext->GetTimestamp());
+    }
 
     void SetNodeBanned(TNode* node, bool value)
     {
@@ -707,6 +728,42 @@ public:
         return NodeListPerRole_[nodeRole].Addresses();
     }
 
+    void OnNodeHeartbeat(TNode* node, ENodeFlavor heartbeatFlavor)
+    {
+        if (node->ReportedHeartbeats().emplace(heartbeatFlavor).second) {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node reported heartbeat for the first time "
+                "(NodeId: %v, Address: %v, HeartbeatFlavor: %v)",
+                node->GetId(),
+                node->GetDefaultAddress(),
+                heartbeatFlavor);
+
+            CheckNodeOnline(node);
+        }
+    }
+
+    void CheckNodeOnline(TNode* node)
+    {
+        auto expectedFlavors = node->Flavors();
+
+        // Exec and cluster node heartbeats are not reported to secondary masters.
+        if (Bootstrap_->GetMulticellManager()->IsSecondaryMaster()) {
+            expectedFlavors.erase(ENodeFlavor::Exec);
+            expectedFlavors.erase(ENodeFlavor::Cluster);
+        }
+
+        if (node->GetLocalState() == ENodeState::Registered && node->ReportedHeartbeats() == expectedFlavors) {
+            UpdateNodeCounters(node, -1);
+            node->SetLocalState(ENodeState::Online);
+            UpdateNodeCounters(node, +1);
+
+            NodeOnline_.Fire(node);
+
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is online (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+        }
+    }
+
     void RequestNodeHeartbeat(TNodeId nodeId)
     {
         auto* node = FindNode(nodeId);
@@ -728,8 +785,6 @@ public:
     }
 
 private:
-    const TNodeTrackerConfigPtr Config_;
-
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -759,6 +814,7 @@ private:
     TPeriodicExecutorPtr IncrementalNodeStatesGossipExecutor_;
     TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
 
+    const TAsyncSemaphorePtr HeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
     const TAsyncSemaphorePtr FullHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
     const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
     const TAsyncSemaphorePtr DisposeNodeSemaphore_ = New<TAsyncSemaphore>(0);
@@ -778,6 +834,9 @@ private:
     THashSet<TString> PendingRegisterNodeAddreses_;
     TNodeDiscoveryManagerPtr MasterCacheManager_;
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
+
+    // COMPAT(gritukan)
+    bool NeedToUnregisterAllNodes_ = false;
 
     using TNodeGroupList = SmallVector<TNodeGroup*, 4>;
 
@@ -825,6 +884,19 @@ private:
         const auto& address = GetDefaultAddress(addresses);
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
         auto tags = FromProto<std::vector<TString>>(request->tags());
+        auto flavors = FromProto<THashSet<ENodeFlavor>>(request->flavors());
+
+        // COMPAT(gritukan)
+        if (flavors.empty()) {
+            flavors = THashSet<ENodeFlavor>{
+                ENodeFlavor::Cluster,
+                ENodeFlavor::Data,
+                ENodeFlavor::Exec,
+                ENodeFlavor::Tablet,
+            };
+        }
+
+        flavors.insert(ENodeFlavor::Cluster);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster() && IsLeader()) {
@@ -882,6 +954,8 @@ private:
 
         node->SetNodeTags(tags);
 
+        node->Flavors() = flavors;
+
         if (request->has_cypress_annotations()) {
             node->SetAnnotations(TYsonString(request->cypress_annotations(), EYsonType::Node));
         }
@@ -907,19 +981,22 @@ private:
                 SyncExecuteVerb(rootService, req);
             }
             node->SetLocalState(ENodeState::Offline);
+            node->ReportedHeartbeats().clear();
 
             THROW_ERROR_EXCEPTION("Node %Qv (#%v) created and provisionally banned",
                 address,
                 node->GetId());
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node registered (NodeId: %v, Address: %v, Tags: %v, Flavors: %v, LeaseTransactionId: %v)",
             node->GetId(),
             address,
             tags,
+            flavors,
             leaseTransactionId);
 
         node->SetLocalState(ENodeState::Registered);
+        node->ReportedHeartbeats().clear();
 
         UpdateNodeCounters(node, +1);
 
@@ -931,6 +1008,11 @@ private:
         NodeRegistered_.Fire(node);
 
         response->set_node_id(node->GetId());
+        response->set_use_new_heartbeats(GetDynamicConfig()->UseNewHeartbeats);
+
+        // NB: Exec nodes should not report heartbeats to secondary masters,
+        // so node can already be online for this cell.
+        CheckNodeOnline(node);
 
         if (context) {
             context->SetResponseInfo("NodeId: %v",
@@ -943,12 +1025,14 @@ private:
         auto nodeId = request->node_id();
 
         auto* node = FindNode(nodeId);
-        if (!IsObjectAlive(node))
+        if (!IsObjectAlive(node)) {
             return;
+        }
 
         auto state = node->GetLocalState();
-        if (state != ENodeState::Registered && state != ENodeState::Online)
+        if (state != ENodeState::Registered && state != ENodeState::Online) {
             return;
+        }
 
         UnregisterNode(node, true);
     }
@@ -957,13 +1041,40 @@ private:
     {
         auto nodeId = request->node_id();
         auto* node = FindNode(nodeId);
-        if (!IsObjectAlive(node))
+        if (!IsObjectAlive(node)) {
             return;
+        }
 
-        if (node->GetLocalState() != ENodeState::Unregistered)
+        if (node->GetLocalState() != ENodeState::Unregistered) {
             return;
+        }
 
         DisposeNode(node);
+    }
+
+    void HydraClusterNodeHeartbeat(
+        const TCtxHeartbeatPtr& /*context*/,
+        TReqHeartbeat* request,
+        TRspHeartbeat* response)
+    {
+        auto nodeId = request->node_id();
+        auto& statistics = request->statistics();
+
+        auto* node = GetNodeOrThrow(nodeId);
+
+        node->ValidateRegistered();
+
+        YT_PROFILE_TIMING("/node_tracker/cluster_node_heartbeat_time") {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing cluster node heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
+                nodeId,
+                node->GetDefaultAddress(),
+                node->GetLocalState(),
+                statistics);
+
+            UpdateLastSeenTime(node);
+
+            DoProcessHeartbeat(node, request, response);
+        }
     }
 
     void HydraFullHeartbeat(
@@ -989,19 +1100,45 @@ private:
                 node->GetLocalState(),
                 statistics);
 
-            UpdateNodeCounters(node, -1);
-            node->SetLocalState(ENodeState::Online);
-            UpdateNodeCounters(node, +1);
-
-            node->SetStatistics(std::move(statistics), Bootstrap_->GetChunkManager());
-
             UpdateLastSeenTime(node);
+
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (multicellManager->IsPrimaryMaster()) {
+                TReqHeartbeat req;
+                TRspHeartbeat rsp;
+                FromFullHeartbeatRequest(&req, *request);
+                DoProcessHeartbeat(node, &req, &rsp);
+            }
+
+            {
+                NDataNodeTrackerClient::NProto::TReqFullHeartbeat req;
+                FromFullHeartbeatRequest(&req, *request);
+
+                const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+                dataNodeTracker->ProcessFullHeartbeat(node, &req);
+            }
+
+            if (multicellManager->IsPrimaryMaster()) {
+                NExecNodeTrackerClient::NProto::TReqHeartbeat req;
+                NExecNodeTrackerClient::NProto::TRspHeartbeat rsp;
+                FromFullHeartbeatRequest(&req, *request);
+
+                const auto& execNodeTracker = Bootstrap_->GetExecNodeTracker();
+                execNodeTracker->ProcessHeartbeat(node, &req, &rsp);
+            }
+
+            {
+                NTabletNodeTrackerClient::NProto::TReqHeartbeat req;
+                NTabletNodeTrackerClient::NProto::TRspHeartbeat rsp;
+                FromFullHeartbeatRequest(&req, *request);
+
+                const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
+                tabletNodeTracker->ProcessHeartbeat(node, &req, &rsp, /* legacyFullHeartbeat */ true);
+            }
 
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node online (NodeId: %v, Address: %v)",
                 nodeId,
                 node->GetDefaultAddress());
-
-            FullHeartbeat_.Fire(node, request);
         }
     }
 
@@ -1028,37 +1165,49 @@ private:
                 node->GetLocalState(),
                 statistics);
 
-            node->SetStatistics(std::move(statistics), Bootstrap_->GetChunkManager());
-            node->Alerts() = FromProto<std::vector<TError>>(request->alerts());
-
             UpdateLastSeenTime(node);
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsPrimaryMaster()) {
-                if (auto* rack = node->GetRack()) {
-                    response->set_rack(rack->GetName());
-                    if (auto* dc = rack->GetDataCenter()) {
-                        response->set_data_center(dc->GetName());
-                    }
-                }
-
-                auto rspTags = response->mutable_tags();
-                SmallVector<TString, 16> sortedTags(node->Tags().begin(), node->Tags().end());
-                std::sort(sortedTags.begin(), sortedTags.end());
-                for (auto tag : sortedTags) {
-                    rspTags->Add(std::move(tag));
-                }
-
-                *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
-                response->set_disable_scheduler_jobs(node->GetDisableSchedulerJobs());
-                response->set_disable_write_sessions(node->GetDisableWriteSessions());
-                response->set_decommissioned(node->GetDecommissioned());
-
-                node->SetDisableWriteSessionsReportedByNode(request->write_sessions_disabled());
-                node->SetDisableWriteSessionsSentToNode(node->GetDisableWriteSessions());
+                TReqHeartbeat req;
+                TRspHeartbeat rsp;
+                FromIncrementalHeartbeatRequest(&req, *request);
+                DoProcessHeartbeat(node, &req, &rsp);
+                FillIncrementalHeartbeatResponse(response, rsp);
             }
 
-            IncrementalHeartbeat_.Fire(node, request, response);
+            {
+                NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat req;
+                NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat rsp;
+                FromIncrementalHeartbeatRequest(&req, *request);
+
+                const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+                dataNodeTracker->ProcessIncrementalHeartbeat(node, &req, &rsp);
+
+                FillIncrementalHeartbeatResponse(response, rsp);
+            }
+
+            if (multicellManager->IsPrimaryMaster()) {
+                NExecNodeTrackerClient::NProto::TReqHeartbeat req;
+                NExecNodeTrackerClient::NProto::TRspHeartbeat rsp;
+                FromIncrementalHeartbeatRequest(&req, *request);
+
+                const auto& execNodeTracker = Bootstrap_->GetExecNodeTracker();
+                execNodeTracker->ProcessHeartbeat(node, &req, &rsp);
+
+                FillIncrementalHeartbeatResponse(response, rsp);
+            }
+
+            {
+                NTabletNodeTrackerClient::NProto::TReqHeartbeat req;
+                NTabletNodeTrackerClient::NProto::TRspHeartbeat rsp;
+                FromIncrementalHeartbeatRequest(&req, *request);
+
+                const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
+                tabletNodeTracker->ProcessHeartbeat(node, &req, &rsp);
+
+                FillIncrementalHeartbeatResponse(response, rsp);
+            }
         }
     }
 
@@ -1128,6 +1277,41 @@ private:
             MakeFormattableView(nodeList, TNodePtrAddressFormatter()));
     }
 
+    void DoProcessHeartbeat(
+        TNode* node,
+        TReqHeartbeat* request,
+        TRspHeartbeat* response)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster());
+
+        auto& statistics = *request->mutable_statistics();
+        node->SetClusterNodeStatistics(std::move(statistics));
+
+        node->Alerts() = FromProto<std::vector<TError>>(request->alerts());
+
+        OnNodeHeartbeat(node, ENodeFlavor::Cluster);
+
+        if (auto* rack = node->GetRack()) {
+            response->set_rack(rack->GetName());
+            if (auto* dc = rack->GetDataCenter()) {
+                response->set_data_center(dc->GetName());
+            }
+        }
+
+        auto rspTags = response->mutable_tags();
+        SmallVector<TString, 16> sortedTags(node->Tags().begin(), node->Tags().end());
+        std::sort(sortedTags.begin(), sortedTags.end());
+        for (auto tag : sortedTags) {
+            rspTags->Add(std::move(tag));
+        }
+
+        *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
+        response->set_decommissioned(node->GetDecommissioned());
+
+        node->SetDisableWriteSessionsSentToNode(node->GetDisableWriteSessions());
+    }
+
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         NodeMap_.SaveKeys(context);
@@ -1149,6 +1333,8 @@ private:
         NodeMap_.LoadKeys(context);
         RackMap_.LoadKeys(context);
         DataCenterMap_.LoadKeys(context);
+
+        NeedToUnregisterAllNodes_ = context.GetVersion() < EMasterReign::NodeFlavors;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1247,6 +1433,20 @@ private:
         for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
             NodeListPerRole_[nodeRole].UpdateAddresses();
         }
+
+        // COMPAT(gritukan)
+        if (NeedToUnregisterAllNodes_) {
+            for (const auto& [nodeId, node] : NodeMap_) {
+                if (!IsObjectAlive(node)) {
+                    continue;
+                }
+                if (node->GetLocalState() == ENodeState::Registered ||
+                    node->GetLocalState() == ENodeState::Online)
+                {
+                    UnregisterNode(node, /* propagate */ false);
+                }
+            }
+        }
     }
 
     virtual void OnRecoveryStarted() override
@@ -1344,7 +1544,6 @@ private:
         }
     }
 
-
     void RegisterLeaseTransaction(TNode* node)
     {
         auto* transaction = node->GetLeaseTransaction();
@@ -1369,17 +1568,12 @@ private:
         node->SetRegisterTime(mutationContext->GetTimestamp());
     }
 
-    void UpdateLastSeenTime(TNode* node)
-    {
-        const auto* mutationContext = GetCurrentMutationContext();
-        node->SetLastSeenTime(mutationContext->GetTimestamp());
-    }
-
     void OnTransactionFinished(TTransaction* transaction)
     {
         auto it = TransactionToNodeMap_.find(transaction);
-        if (it == TransactionToNodeMap_.end())
+        if (it == TransactionToNodeMap_.end()) {
             return;
+        }
 
         auto* node = it->second;
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node lease transaction finished (NodeId: %v, Address: %v, TransactionId: %v)",
@@ -1472,6 +1666,7 @@ private:
 
             UpdateNodeCounters(node, -1);
             node->SetLocalState(ENodeState::Unregistered);
+            node->ReportedHeartbeats().clear();
             NodeUnregistered_.Fire(node);
 
             if (propagate) {
@@ -1495,6 +1690,7 @@ private:
     {
         YT_PROFILE_TIMING("/node_tracker/node_dispose_time") {
             node->SetLocalState(ENodeState::Offline);
+            node->ReportedHeartbeats().clear();
             NodeDisposed_.Fire(node);
 
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node offline (NodeId: %v, Address: %v)",
@@ -1589,12 +1785,15 @@ private:
         TReqRegisterNode request;
         request.set_node_id(node->GetId());
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
-        *request.mutable_statistics() = node->Statistics();
         for (const auto& tag : node->NodeTags()) {
             request.add_tags(tag);
         }
         request.set_cypress_annotations(node->GetAnnotations().ToString());
         request.set_build_version(node->GetVersion());
+
+        for (auto flavor : node->Flavors()) {
+            request.add_flavors(static_cast<int>(flavor));
+        }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
@@ -1659,7 +1858,6 @@ private:
                 TReqRegisterNode request;
                 request.set_node_id(node->GetId());
                 ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
-                *request.mutable_statistics() = node->Statistics();
                 multicellManager->PostToMaster(request, cellTag);
             }
             {
@@ -1881,6 +2079,7 @@ private:
 
     void ReconfigureNodeSemaphores()
     {
+        HeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentClusterNodeHeartbeats);
         FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
         IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);
         DisposeNodeSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentNodeUnregistrations);
@@ -1904,7 +2103,7 @@ private:
             }
             TotalNodeStatistics_.OnlineNodeCount += 1;
 
-            const auto& statistics = node->Statistics();
+            const auto& statistics = node->DataNodeStatistics();
             for (const auto& location : statistics.storage_locations()) {
                 int mediumIndex = location.medium_index();
                 if (!node->GetDecommissioned()) {
@@ -1944,14 +2143,11 @@ DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, DataCenter, TDataCenter, DataCe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeTracker::TNodeTracker(
-    TNodeTrackerConfigPtr config,
-    TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
+TNodeTracker::TNodeTracker(TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(bootstrap))
 { }
 
-TNodeTracker::~TNodeTracker()
-{ }
+TNodeTracker::~TNodeTracker() = default;
 
 void TNodeTracker::Initialize()
 {
@@ -2006,6 +2202,11 @@ std::vector<TNode*> TNodeTracker::GetRackNodes(const TRack* rack)
 std::vector<TRack*> TNodeTracker::GetDataCenterRacks(const TDataCenter* dc)
 {
     return Impl_->GetDataCenterRacks(dc);
+}
+
+void TNodeTracker::UpdateLastSeenTime(TNode* node)
+{
+    Impl_->UpdateLastSeenTime(node);
 }
 
 void TNodeTracker::SetNodeBanned(TNode* node, bool value)
@@ -2086,6 +2287,11 @@ void TNodeTracker::ProcessRegisterNode(
     Impl_->ProcessRegisterNode(address, context);
 }
 
+void TNodeTracker::ProcessHeartbeat(TCtxHeartbeatPtr context)
+{
+    Impl_->ProcessHeartbeat(context);
+}
+
 void TNodeTracker::ProcessFullHeartbeat(TCtxFullHeartbeatPtr context)
 {
     Impl_->ProcessFullHeartbeat(context);
@@ -2141,6 +2347,11 @@ const std::vector<TString>& TNodeTracker::GetNodeAddressesForRole(ENodeRole node
     return Impl_->GetNodeAddressesForRole(nodeRole);
 }
 
+void TNodeTracker::OnNodeHeartbeat(TNode* node, ENodeFlavor heartbeatFlavor)
+{
+    return Impl_->OnNodeHeartbeat(node, heartbeatFlavor);
+}
+
 void TNodeTracker::RequestNodeHeartbeat(TNodeId nodeId)
 {
     return Impl_->RequestNodeHeartbeat(nodeId);
@@ -2151,6 +2362,7 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, DataCenter, TDataCenter, *Impl_)
 
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeOnline, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisposed, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeBanChanged, *Impl_);
@@ -2159,8 +2371,6 @@ DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisableTabletCellsChanged, *Impl
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeTagsChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TRack*), NodeRackChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TDataCenter*), NodeDataCenterChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqFullHeartbeat*), FullHeartbeat, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqIncrementalHeartbeat*, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterCreated, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterRenamed, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterDestroyed, *Impl_);

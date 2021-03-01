@@ -1,5 +1,6 @@
 #include "job.h"
 #include "private.h"
+#include "block_peer_table.h"
 #include "chunk_block_manager.h"
 #include "chunk.h"
 #include "chunk_store.h"
@@ -8,10 +9,10 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 #include "master_connector.h"
-#include "block_peer_table.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/server/node/job_agent/job.h>
 
@@ -553,7 +554,7 @@ private:
         // Once we switch from push replication to pull, this code is likely
         // to appear in TReplicateChunkJob as well.
         YT_LOG_INFO("Waiting for heartbeat barrier");
-        const auto& masterConnector = Bootstrap_->GetMasterConnector();
+        const auto& masterConnector = Bootstrap_->GetDataNodeMasterConnector();
         WaitFor(masterConnector->GetHeartbeatBarrier(CellTagFromId(chunkId)))
             .ThrowOnError();
     }
@@ -792,8 +793,8 @@ private:
             options,
             Bootstrap_->GetMasterClient(),
             NodeDirectory_,
-            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-            Bootstrap_->GetMasterConnector()->GetNodeId(),
+            Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
+            Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
             partChunkId,
             partReplicas,
             Bootstrap_->GetBlockCache(),

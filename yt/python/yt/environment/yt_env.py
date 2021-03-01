@@ -1146,9 +1146,18 @@ class YTInstance(object):
                     else:
                         raise
 
+                nodes = client.list("//sys/cluster_nodes", attributes=["flavors"])
+                def check_node(node):
+                    # COMPAT(gritukan)
+                    if "flavors" not in node.attributes:
+                        return True
+                    return "exec" in node.attributes["flavors"]
+
+                exec_nodes = list(filter(check_node, nodes))
+
                 if not self.yt_config.defer_node_start:
                     nodes = list(itervalues(client.get(active_scheduler_orchid_path + "/scheduler/nodes")))
-                    return len(nodes) == self.yt_config.node_count and all(check_node_state(node) for node in nodes)
+                    return len(nodes) == len(exec_nodes) and all(check_node_state(node) for node in nodes)
 
                 return True
 

@@ -16,8 +16,9 @@
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
 #include <yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
@@ -1409,7 +1410,7 @@ private:
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
+            Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetRpcServer(),
             Bootstrap_
                 ->GetMasterClient()
@@ -1927,7 +1928,7 @@ private:
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
+            Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetRpcServer(),
             Bootstrap_
                 ->GetMasterClient()

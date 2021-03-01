@@ -7,8 +7,9 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/server/lib/misc/disk_health_checker.h>
 
@@ -693,8 +694,8 @@ void TSlotLocation::Disable(const TError& error)
     YT_LOG_ERROR(alert);
     YT_VERIFY(!Logger.GetAbortOnAlert());
 
-    auto masterConnector = Bootstrap_->GetMasterConnector();
-    masterConnector->RegisterAlert(alert);
+    const auto& masterConnector = Bootstrap_->GetClusterNodeMasterConnector();
+    masterConnector->RegisterStaticAlert(alert);
 
     DiskResourcesUpdateExecutor_->Stop();
 }

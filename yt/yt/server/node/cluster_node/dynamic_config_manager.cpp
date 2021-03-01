@@ -2,9 +2,8 @@
 
 #include "bootstrap.h"
 #include "config.h"
+#include "master_connector.h"
 #include "private.h"
-
-#include <yt/server/node/data_node/master_connector.h>
 
 namespace NYT::NClusterNode {
 
@@ -24,7 +23,7 @@ TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(TBootstrap* b
         bootstrap->GetControlInvoker())
     , Bootstrap_(bootstrap)
 {
-    Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(
+    Bootstrap_->GetClusterNodeMasterConnector()->SubscribePopulateAlerts(
         BIND([this, this_ = MakeStrong(this)] (std::vector<TError>* alerts) {
             auto errors = GetErrors();
             for (auto error : errors) {
@@ -35,7 +34,7 @@ TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(TBootstrap* b
 
 std::vector<TString> TClusterNodeDynamicConfigManager::GetInstanceTags() const
 {
-    return Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetTags();
+    return Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor().GetTags();
 }
 
 DEFINE_REFCOUNTED_TYPE(TClusterNodeDynamicConfigManager)

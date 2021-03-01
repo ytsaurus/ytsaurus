@@ -539,6 +539,88 @@ DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(gritukan): Drop all the optionals in this class after configs migration.
+class TMasterConnectorConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between consequent incremental data node heartbeats.
+    std::optional<TDuration> IncrementalHeartbeatPeriod;
+
+    //! Splay for data node heartbeats.
+    TDuration IncrementalHeartbeatPeriodSplay;
+
+    //! Period between consequent job heartbeats to a given cell.
+    std::optional<TDuration> JobHeartbeatPeriod;
+
+    //! Splay for job heartbeats.
+    TDuration JobHeartbeatPeriodSplay;
+
+    //! Timeout for incremental data node heartbeat RPC request.
+    std::optional<TDuration> IncrementalHeartbeatTimeout;
+
+    //! Timeout for full data node heartbeat RPC request.
+    std::optional<TDuration> FullHeartbeatTimeout;
+
+    //! Timeout for job heartbeat RPC request.
+    std::optional<TDuration> JobHeartbeatTimeout;
+
+    TMasterConnectorConfig()
+    {
+        RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
+            .Default();
+        RegisterParameter("incremental_heartbeat_period_splay", IncrementalHeartbeatPeriodSplay)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("job_heartbeat_period", JobHeartbeatPeriod)
+            .Default();
+        RegisterParameter("job_heartbeat_period_splay", JobHeartbeatPeriodSplay)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
+            .Default();
+        RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
+            .Default();
+        RegisterParameter("job_heartbeat_timeout", JobHeartbeatTimeout)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterConnectorDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between consequent incremental data node heartbeats.
+    std::optional<TDuration> IncrementalHeartbeatPeriod;
+
+    //! Splay for data node heartbeats.
+    std::optional<TDuration> IncrementalHeartbeatPeriodSplay;
+
+    //! Period between consequent job heartbeats to a given cell.
+    std::optional<TDuration> JobHeartbeatPeriod;
+
+    //! Splay for job heartbeats.
+    std::optional<TDuration> JobHeartbeatPeriodSplay;
+
+    TMasterConnectorDynamicConfig()
+    {
+        RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
+            .Default();
+        RegisterParameter("incremental_heartbeat_period_splay", IncrementalHeartbeatPeriodSplay)
+            .Default();
+        RegisterParameter("job_heartbeat_period", JobHeartbeatPeriod)
+            .Default();
+        RegisterParameter("job_heartbeat_period_splay", JobHeartbeatPeriodSplay)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -557,9 +639,6 @@ public:
 
     //! Controls incremental heartbeats from node to master.
     NConcurrency::TThroughputThrottlerConfigPtr IncrementalHeartbeatThrottler;
-
-    //! Period between consequent full heartbeats.
-    std::optional<TDuration> FullHeartbeatPeriod;
 
     //! Period between consequent registration attempts.
     TDuration RegisterRetryPeriod;
@@ -726,6 +805,9 @@ public:
     //! Delay between node initializatin and start of background artifact validation.
     TDuration BackgroundArtifactValidationDelay;
 
+    //! Master connector config.
+    TMasterConnectorConfigPtr MasterConnector;
+
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -736,8 +818,6 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("incremental_heartbeat_period_splay", IncrementalHeartbeatPeriodSplay)
             .Default(TDuration::Seconds(5));
-        RegisterParameter("full_heartbeat_period", FullHeartbeatPeriod)
-            .Default();
         RegisterParameter("register_retry_period", RegisterRetryPeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("register_retry_splay", RegisterRetrySplay)
@@ -918,6 +998,9 @@ public:
         RegisterParameter("background_artifact_validation_delay", BackgroundArtifactValidationDelay)
             .Default(TDuration::Minutes(5));
 
+        RegisterParameter("master_connector", MasterConnector)
+            .DefaultNew();
+
         RegisterPreprocessor([&] {
             ChunkMetaCache->Capacity = 1_GB;
             BlocksExtCache->Capacity = 1_GB;
@@ -949,6 +1032,26 @@ public:
             // Instantiate default throttler configs.
             for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
                 Throttlers[kind] = New<NConcurrency::TThroughputThrottlerConfig>();
+            }
+        });
+
+        RegisterPostprocessor([&] {
+            // COMPAT(gritukan)
+            if (!MasterConnector->IncrementalHeartbeatPeriod) {
+                MasterConnector->IncrementalHeartbeatPeriod = IncrementalHeartbeatPeriod;
+            }
+            if (!MasterConnector->JobHeartbeatPeriod) {
+                // This is not a mistake!
+                MasterConnector->JobHeartbeatPeriod = IncrementalHeartbeatPeriod;
+            }
+            if (!MasterConnector->FullHeartbeatTimeout) {
+                MasterConnector->FullHeartbeatTimeout = FullHeartbeatTimeout;
+            }
+            if (!MasterConnector->IncrementalHeartbeatTimeout) {
+                MasterConnector->IncrementalHeartbeatTimeout = IncrementalHeartbeatTimeout;
+            }
+            if (!MasterConnector->JobHeartbeatTimeout) {
+                MasterConnector->JobHeartbeatTimeout = JobHeartbeatTimeout;
             }
         });
     }
@@ -989,6 +1092,8 @@ public:
     TSlruCacheDynamicConfigPtr ChangelogReaderCache;
     TTableSchemaCacheDynamicConfigPtr TableSchemaCache;
 
+    TMasterConnectorDynamicConfigPtr MasterConnector;
+
     TDataNodeDynamicConfig()
     {
         RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
@@ -1017,6 +1122,9 @@ public:
         RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
             .DefaultNew();
         RegisterParameter("table_schema_cache", TableSchemaCache)
+            .DefaultNew();
+
+        RegisterParameter("master_connector", MasterConnector)
             .DefaultNew();
     }
 };

@@ -22,9 +22,10 @@
 #include "tablet_profiling.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/server/node/data_node/chunk_block_manager.h>
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/server/node/tablet_node/transaction_manager.h>
 
@@ -610,7 +611,7 @@ private:
 
         virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
         {
-            return Owner_->Bootstrap_->GetMasterConnector()->GetLocalDescriptor();
+            return Owner_->Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor();
         }
 
     private:
@@ -3664,7 +3665,7 @@ private:
                     Bootstrap_->GetChunkBlockManager(),
                     Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
-                    Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
+                    Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor());
                 store->Initialize(descriptor);
                 return store;
             }
@@ -3689,7 +3690,7 @@ private:
                     Bootstrap_->GetChunkBlockManager(),
                     Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
-                    Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
+                    Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor());
                 store->Initialize(descriptor);
                 return store;
             }

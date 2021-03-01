@@ -61,9 +61,10 @@ DEFINE_ENUM(ENodeState,
     ((Unknown)    (-1))
     // Not registered.
     ((Offline)     (0))
-    // Registered but did not report the first heartbeat yet.
+    // Registered but did not report some of the heartbeats.
     ((Registered)  (1))
-    // Registered and reported the first heartbeat.
+    // Registered and reported all the expected types of heartbeats
+    // at least once.
     ((Online)      (2))
     // Unregistered and placed into disposal queue.
     ((Unregistered)(3))
@@ -74,6 +75,17 @@ DEFINE_ENUM(ENodeState,
 DEFINE_ENUM(ENodeRole,
     ((MasterCache)       (0))
     ((TimestampProvider) (1))
+);
+
+DEFINE_ENUM(ENodeFlavor,
+    // Used internally. Every node is a cluster node.
+    ((Cluster)      (0))
+    // Node that is used to store chunks.
+    ((Data)         (1))
+    // Node that is used to execute jobs.
+    ((Exec)         (2))
+    // Node that is used to host tablet cells.
+    ((Tablet)       (3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

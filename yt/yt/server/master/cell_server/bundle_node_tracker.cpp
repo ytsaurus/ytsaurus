@@ -1,6 +1,7 @@
 #include "public.h"
 #include "private.h"
 #include "bundle_node_tracker.h"
+#include "tablet_node_tracker.h"
 #include "tamed_cell_manager.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
@@ -31,13 +32,13 @@ public:
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeOnline(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDisposed(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeBanChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDisableTabletCellsChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeTagsChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnNodeFullHeartbeat, MakeWeak(this)));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         cellManager->SubscribeCellBundleCreated(BIND(&TImpl::OnCellBundleCreated, MakeWeak(this)));
@@ -96,7 +97,7 @@ private:
         YT_LOG_DEBUG("Bundle node tracker caught bundle change signal (BundleId: %v)",
             bundle->GetId());
 
-        RevisitCellBundleNodes(&NodeMap_[bundle], bundle);
+        RevisitCellBundleNodes(&GetOrCrash(NodeMap_, bundle), bundle);
     }
 
     void RevisitCellBundleNodes(TNodeSet* nodeSet, TCellBundle* bundle)
@@ -115,20 +116,20 @@ private:
         YT_VERIFY(NodeMap_.erase(bundle) > 0);
     }
 
-    void OnNodeFullHeartbeat(TNode* node, TReqFullHeartbeat* /*request*/)
-    {
-        OnNodeChanged(node);
-    }
-
     void OnNodeChanged(TNode* node)
     {
         YT_LOG_DEBUG("Bundle node tracker caught node change signal (NodeAddress: %v)",
             node->GetDefaultAddress());
 
+        // TODO(gritukan): Ignore non-tablet nodes.
+
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         for (auto [bundleId, bundle] : cellManager->CellBundles()) {
             // TODO(savrus) Use hostility checker from cell tracker.
-            AddOrRemoveNode(&NodeMap_[bundle], bundle, node);
+            if (!IsObjectAlive(bundle)) {
+                continue;
+            }
+            AddOrRemoveNode(&GetOrCrash(NodeMap_, bundle), bundle, node);
         }
     }
 
@@ -137,10 +138,11 @@ private:
         bool good = CheckIfNodeCanHostCells(node);
         bool satisfy = bundle->NodeTagFilter().IsSatisfiedBy(node->Tags());
 
-        YT_LOG_DEBUG("Bundle node tracker is checking node (NodeAddress: %v, BundleId: %v, State: %v, IsGood: %v, Satisfy: %v)",
+        YT_LOG_DEBUG("Bundle node tracker is checking node (NodeAddress: %v, BundleId: %v, State: %v, ReportedTabletNodeHeartbeat: %v, IsGood: %v, Satisfy: %v)",
             node->GetDefaultAddress(),
             bundle->GetId(),
             node->GetLocalState(),
+            node->ReportedTabletNodeHeartbeat(),
             good,
             satisfy);
 
@@ -201,7 +203,7 @@ bool CheckIfNodeCanHostCells(const TNode* node)
         return false;
     }
 
-    if (node->GetLocalState() != ENodeState::Online) {
+    if (!node->ReportedTabletNodeHeartbeat()) {
         return false;
     }
 

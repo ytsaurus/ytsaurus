@@ -7,7 +7,7 @@
 #include "chunk_store.h"
 #include "config.h"
 #include "location.h"
-#include "master_connector.h"
+#include "legacy_master_connector.h"
 #include "network_statistics.h"
 #include "block_peer_table.h"
 #include "block_peer_updater.h"
@@ -18,6 +18,7 @@
 #include "chunk_meta_manager.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -1494,7 +1495,7 @@ private:
 
     void ValidateConnected()
     {
-        if (!Bootstrap_->GetMasterConnector()->IsConnected()) {
+        if (!Bootstrap_->GetClusterNodeMasterConnector()->IsConnected()) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::MasterNotConnected,
                 "Master is not connected");

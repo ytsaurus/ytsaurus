@@ -1,5 +1,6 @@
 #include "automaton.h"
 #include "private.h"
+#include "master_connector.h"
 #include "security_manager.h"
 #include "serialize.h"
 #include "slot_manager.h"
@@ -44,8 +45,9 @@
 #include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
@@ -825,9 +827,22 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeMasterConnector();
+        if (!clusterNodeMasterConnector->IsConnected()) {
+            return;
+        }
+
         // Notify master about recovery completion as soon as possible via out-of-order heartbeat.
-        auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
-        Bootstrap_->GetMasterConnector()->ScheduleNodeHeartbeat(primaryCellTag, true);
+        if (clusterNodeMasterConnector->UseNewHeartbeats()) {
+            const auto& masterConnector = Bootstrap_->GetTabletNodeMasterConnector();
+            for (auto masterCellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
+                masterConnector->ScheduleHeartbeat(masterCellTag, /* immediately */ true);
+            }
+        } else {
+            // Old heartbeats are heavy, so we send out-of-order heartbeat to primary master cell only.
+            auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
+            Bootstrap_->GetLegacyMasterConnector()->ScheduleNodeHeartbeat(primaryCellTag, /* immediately */ true);
+        }
     }
 
     static TFuture<void> OnLeaderLeaseCheckThunk(TWeakPtr<TImpl> weakThis)

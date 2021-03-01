@@ -88,6 +88,9 @@ public:
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
     const NNodeTrackerServer::TNodeTrackerPtr& GetNodeTracker() const;
+    const NChunkServer::IDataNodeTrackerPtr& GetDataNodeTracker() const;
+    const NNodeTrackerServer::IExecNodeTrackerPtr& GetExecNodeTracker() const;
+    const NCellServer::ITabletNodeTrackerPtr& GetTabletNodeTracker() const;
     const NTransactionServer::TTransactionManagerPtr& GetTransactionManager() const;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
     const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
@@ -149,6 +152,9 @@ private:
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;
     NNodeTrackerServer::TNodeTrackerPtr NodeTracker_;
+    NChunkServer::IDataNodeTrackerPtr DataNodeTracker_;
+    NNodeTrackerServer::IExecNodeTrackerPtr ExecNodeTracker_;
+    NCellServer::ITabletNodeTrackerPtr TabletNodeTracker_;
     NTransactionServer::TTransactionManagerPtr TransactionManager_;
     NTimestampServer::TTimestampManagerPtr TimestampManager_;
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;

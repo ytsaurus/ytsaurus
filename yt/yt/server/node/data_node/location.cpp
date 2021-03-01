@@ -6,10 +6,11 @@
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "journal_manager.h"
-#include "master_connector.h"
+#include "legacy_master_connector.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 #include <yt/server/lib/hydra/private.h>
@@ -707,8 +708,7 @@ void TLocation::MarkAsDisabled(const TError& error)
 {
     auto alert = TError("Chunk location at %v is disabled", GetPath())
         << error;
-    auto masterConnector = Bootstrap_->GetMasterConnector();
-    masterConnector->RegisterAlert(alert);
+    Bootstrap_->GetClusterNodeMasterConnector()->RegisterStaticAlert(alert);
 
     Enabled_.store(false);
     AvailableSpace_.store(0);

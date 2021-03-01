@@ -823,7 +823,7 @@ class YTEnvSetup(object):
         )
 
     def _wait_for_scheduler_state_restored(self, driver=None):
-        node_count = len(yt_commands.ls("//sys/cluster_nodes", driver=driver))
+        exec_node_count = len(yt_commands.get_exec_nodes())
 
         def check():
             responses = yt_commands.execute_batch(
@@ -857,7 +857,7 @@ class YTEnvSetup(object):
                 and yt_commands.get_batch_output(responses[0]) == ["default"]
                 and yt_commands.get_batch_output(responses[1]) == "default"
                 and yt_commands.get_batch_output(responses[2]) == ["<Root>"]
-                and yt_commands.get_batch_output(responses[3]) == node_count
+                and yt_commands.get_batch_output(responses[3]) == exec_node_count
             )
 
         wait(check)

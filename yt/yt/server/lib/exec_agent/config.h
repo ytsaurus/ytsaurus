@@ -258,6 +258,34 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMasterConnectorConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between consequent exec node heartbeats.
+    TDuration HeartbeatPeriod;
+
+    //! Splay for exec node heartbeats.
+    TDuration HeartbeatPeriodSplay;
+
+    //! Timeout of the exec node heartbeat RPC request.
+    TDuration HeartbeatTimeout;
+
+    TMasterConnectorConfig()
+    {
+        RegisterParameter("heartbeat_period", HeartbeatPeriod)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
+            .Default(TDuration::Seconds(60));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBindConfig
     : public NYTree::TYsonSerializable
 {
@@ -369,6 +397,8 @@ public:
 
     TUserJobMonitoringConfigPtr UserJobMonitoring;
 
+    TMasterConnectorConfigPtr MasterConnector;
+
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -434,10 +464,53 @@ public:
 
         RegisterParameter("user_job_monitoring", UserJobMonitoring)
             .DefaultNew();
+
+        RegisterParameter("master_connector", MasterConnector)
+            .DefaultNew();
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecAgentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterConnectorDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between consequent exec node heartbeats.
+    std::optional<TDuration> HeartbeatPeriod;
+
+    //! Splay for exec node heartbeats.
+    std::optional<TDuration> HeartbeatPeriodSplay;
+
+    TMasterConnectorDynamicConfig()
+    {
+        RegisterParameter("heartbeat_period", HeartbeatPeriod)
+            .Default();
+        RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExecAgentDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TMasterConnectorDynamicConfigPtr MasterConnector;
+
+    TExecAgentDynamicConfig()
+    {
+        RegisterParameter("master_connector", MasterConnector)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TExecAgentDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,0 +1,197 @@
+#include "master_connector.h"
+#include "private.h"
+
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/server/node/cluster_node/master_connector.h>
+
+#include <yt/server/node/exec_agent/slot_location.h>
+#include <yt/server/node/exec_agent/slot_manager.h>
+
+#include <yt/server/node/job_agent/job_controller.h>
+
+#include <yt/ytlib/exec_node_tracker_client/exec_node_tracker_service_proxy.h>
+
+#include <yt/core/rpc/helpers.h>
+
+#include <yt/core/utilex/random.h>
+
+namespace NYT::NExecAgent {
+
+using namespace NClusterNode;
+using namespace NConcurrency;
+using namespace NExecNodeTrackerClient;
+using namespace NExecNodeTrackerClient::NProto;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NRpc;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ExecAgentLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterConnector
+    : public IMasterConnector
+{
+public:
+    TMasterConnector(TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+        , Config_(Bootstrap_->GetConfig()->ExecAgent->MasterConnector)
+        , HeartbeatPeriod_(Config_->HeartbeatPeriod)
+        , HeartbeatPeriodSplay_(Config_->HeartbeatPeriodSplay)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+    }
+
+    virtual void Initialize() override
+    {
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeMasterConnector();
+        clusterNodeMasterConnector->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
+        clusterNodeMasterConnector->SubscribeMasterDisconnected(BIND(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+    }
+
+    virtual TReqHeartbeat GetHeartbeatRequest() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_VERIFY(NodeId_);
+
+        TReqHeartbeat heartbeat;
+
+        heartbeat.set_node_id(*NodeId_);
+
+        auto* statistics = heartbeat.mutable_statistics();
+        const auto& slotManager = Bootstrap_->GetExecSlotManager();
+        for (const auto& location : slotManager->GetLocations()) {
+            auto* locationStatistics = statistics->add_slot_locations();
+            *locationStatistics = location->GetSlotLocationStatistics();
+
+            // Slot location statistics might be not computed yet, so we set medium index separately.
+            locationStatistics->set_medium_index(location->GetMediumDescriptor().Index);
+        }
+
+        return heartbeat;
+    }
+
+    virtual void OnHeartbeatResponse(const TRspHeartbeat& response) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        bool disableSchedulerJobs = response.disable_scheduler_jobs() || Bootstrap_->Decommissioned();
+        Bootstrap_->GetJobController()->SetDisableSchedulerJobs(disableSchedulerJobs);
+    }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    const TMasterConnectorConfigPtr Config_;
+
+    std::optional<TNodeId> NodeId_;
+
+    IInvokerPtr HeartbeatInvoker_;
+
+    TDuration HeartbeatPeriod_;
+    TDuration HeartbeatPeriodSplay_;
+
+    void OnMasterConnected(TNodeId nodeId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_VERIFY(!NodeId_);
+        NodeId_ = nodeId;
+
+        HeartbeatInvoker_ = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterConnectionInvoker();
+
+        if (Bootstrap_->GetClusterNodeMasterConnector()->UseNewHeartbeats()) {
+            StartHeartbeats();
+        }
+    }
+
+    void OnMasterDisconnected()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        NodeId_ = std::nullopt;
+    }
+
+    void OnDynamicConfigChanged(
+        const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const TClusterNodeDynamicConfigPtr& newNodeConfig)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        HeartbeatPeriod_ = newNodeConfig->ExecAgent->MasterConnector->HeartbeatPeriod.value_or(Config_->HeartbeatPeriod);
+        HeartbeatPeriodSplay_ = newNodeConfig->ExecAgent->MasterConnector->HeartbeatPeriodSplay.value_or(Config_->HeartbeatPeriodSplay);
+    }
+
+    void StartHeartbeats()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_INFO("Starting exec node heartbeats");
+        ScheduleHeartbeat(/* immediately */ true);
+    }
+
+    void ScheduleHeartbeat(bool immediately)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto delay = immediately ? TDuration::Zero() : HeartbeatPeriod_ + RandomDuration(HeartbeatPeriodSplay_);
+        TDelayedExecutor::Submit(
+            BIND(&TMasterConnector::ReportHeartbeat, MakeWeak(this)),
+            delay,
+            HeartbeatInvoker_);
+    }
+
+    void ReportHeartbeat()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Exec node heartbeats are required at primary master only.
+        auto masterChannel = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterChannel(PrimaryMasterCellTag);
+        TExecNodeTrackerServiceProxy proxy(masterChannel);
+
+        auto req = proxy.Heartbeat();
+        req->SetTimeout(Config_->HeartbeatTimeout);
+
+        static_cast<TReqHeartbeat&>(*req) = GetHeartbeatRequest();
+
+        YT_LOG_INFO("Sending exec node heartbeat to master (%v)",
+            req->statistics());
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (rspOrError.IsOK()) {
+            OnHeartbeatResponse(*rspOrError.Value());
+
+            YT_LOG_INFO("Successfully reported exec node heartbeat to master");
+
+            // Schedule next heartbeat.
+            ScheduleHeartbeat(/* immediately */ false);
+        } else {
+            YT_LOG_WARNING(rspOrError, "Error reporting exec node heartbeat to master");
+            if (IsRetriableError(rspOrError)) {
+                ScheduleHeartbeat(/* immediately*/ false);
+            } else {
+                Bootstrap_->GetClusterNodeMasterConnector()->ResetAndRegisterAtMaster();
+            }
+        }
+    }
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IMasterConnectorPtr CreateMasterConnector(TBootstrap* bootstrap)
+{
+    return New<TMasterConnector>(bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NExecAgent

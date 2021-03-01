@@ -28,7 +28,7 @@ public:
     explicit TNetworkStatistics(TDataNodeConfigPtr config);
 
     void IncrementReadThrottlingCounter(const TString& name);
-    void UpdateStatistics(NNodeTrackerClient::NProto::TNodeStatistics* statistics);
+    void UpdateStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics* statistics);
 
 private:
     const TDataNodeConfigPtr Config_;

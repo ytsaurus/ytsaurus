@@ -6,9 +6,10 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 #include <yt/server/node/cluster_node/node_resource_manager.h>
 
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/legacy_master_connector.h>
 #include <yt/server/node/data_node/chunk_cache.h>
 
 #include <yt/server/node/exec_agent/slot_manager.h>
@@ -1000,8 +1001,8 @@ TFuture<void> TJobController::TImpl::PrepareHeartbeatRequest(
         BIND([=, this_ = MakeStrong(this)] {
             VERIFY_THREAD_AFFINITY(JobThread);
 
-            const auto& masterConnector = Bootstrap_->GetMasterConnector();
-            request->set_node_id(masterConnector->GetNodeId());
+            const auto& masterConnector = Bootstrap_->GetClusterNodeMasterConnector();
+            request->set_node_id(Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId());
             ToProto(request->mutable_node_descriptor(), masterConnector->GetLocalDescriptor());
             *request->mutable_resource_limits() = GetResourceLimits();
             *request->mutable_resource_usage() = GetResourceUsage(/* includeWaiting */ true);

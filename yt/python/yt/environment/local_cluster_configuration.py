@@ -90,6 +90,10 @@ NODE_CONFIG_PATCHES = [
             "transaction_manager": None,
             "scheduler": None
         },
+        "master_connector": {
+            "heartbeat_period": 300,
+            "heartbeat_period_splay": 50,
+        },
         "data_node": {
             "max_bytes_per_read": 10 * GB,
             "multiplexed_changelog": None,
@@ -102,7 +106,13 @@ NODE_CONFIG_PATCHES = [
                 }
             },
             "incremental_heartbeat_period": 300,
-            "incremental_heartbeat_period_splay": 150
+            "incremental_heartbeat_period_splay": 150,
+            "master_connector": {
+                "incremental_heartbeat_period": 200,
+                "incremental_heartbeat_period_splay": 50,
+                "job_heartbeat_period": 200,
+                "job_heartbeat_period_splay": 50,
+            },
         },
         "exec_agent": {
             "scheduler_connector": None
@@ -125,14 +135,22 @@ NODE_CONFIG_PATCHES = [
                     "expiration_time": 25000,
                     "warmup_time": 30000,
                 }
-            }
+            },
+            "master_connector": {
+                "heartbeat_period": 300,
+                "heartbeat_period_splay": 50,
+            },
         },
         "exec_agent": {
             "job_proxy_heartbeat_period": 100,
             "scheduler_connector": {
                 "heartbeat_period": 100,
                 "heartbeat_splay": 50
-            }
+            },
+            "master_connector": {
+                "heartbeat_period": 300,
+                "heartbeat_period_splay": 50,
+            },
         }
     },
     {

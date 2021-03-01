@@ -17,6 +17,8 @@
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/rpc/service_detail.h>
@@ -29,9 +31,7 @@ class TNodeTracker
     : public TRefCounted
 {
 public:
-    TNodeTracker(
-        TNodeTrackerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TNodeTracker(NCellMaster::TBootstrap* bootstrap);
 
     ~TNodeTracker();
 
@@ -43,9 +43,16 @@ public:
     using TCtxRegisterNodePtr = TIntrusivePtr<TCtxRegisterNode>;
     void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context);
 
-    typedef NRpc::TTypedServiceContext<
+    using TCtxHeartbeat = NRpc::TTypedServiceContext<
+        NNodeTrackerClient::NProto::TReqHeartbeat,
+        NNodeTrackerClient::NProto::TRspHeartbeat>;
+    using TCtxHeartbeatPtr = TIntrusivePtr<TCtxHeartbeat>;
+    void ProcessHeartbeat(TCtxHeartbeatPtr context);
+
+    // Legacy heartbeats.
+    using TCtxFullHeartbeat = NRpc::TTypedServiceContext<
         NNodeTrackerClient::NProto::TReqFullHeartbeat,
-        NNodeTrackerClient::NProto::TRspFullHeartbeat> TCtxFullHeartbeat;
+        NNodeTrackerClient::NProto::TRspFullHeartbeat>;
     using TCtxFullHeartbeatPtr = TIntrusivePtr<TCtxFullHeartbeat>;
     void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context);
 
@@ -63,6 +70,9 @@ public:
 
     //! Fired when a node gets registered.
     DECLARE_SIGNAL(void(TNode* node), NodeRegistered);
+
+    //! Fired when a node becomes online.
+    DECLARE_SIGNAL(void(TNode* node), NodeOnline);
 
     //! Fired when a node gets unregistered.
     DECLARE_SIGNAL(void(TNode* node), NodeUnregistered);
@@ -101,19 +111,6 @@ public:
     //! Fired when a data center is removed.
     DECLARE_SIGNAL(void(TDataCenter* dataCenter), DataCenterDestroyed);
 
-    //! Fired when a full heartbeat is received from a node.
-    DECLARE_SIGNAL(void(
-        TNode* node,
-        NNodeTrackerClient::NProto::TReqFullHeartbeat* request),
-        FullHeartbeat);
-
-    //! Fired when an incremental heartbeat is received from a node.
-    DECLARE_SIGNAL(void(
-        TNode* node,
-        NNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request,
-        NNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response),
-        IncrementalHeartbeat);
-
 
     //! Constructs the full object id from a (short) node id.
     NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId);
@@ -151,6 +148,8 @@ public:
      */
     std::vector<TRack*> GetDataCenterRacks(const TDataCenter* dc);
 
+    //! Sets last seen time of the node to now.
+    void UpdateLastSeenTime(TNode* node);
 
     //! Sets the "banned" flag and notifies the subscribers.
     void SetNodeBanned(TNode* node, bool value);
@@ -211,6 +210,9 @@ public:
 
     //! Returns the list of default addresses of nodes with the given role.
     const std::vector<TString>& GetNodeAddressesForRole(NNodeTrackerClient::ENodeRole nodeRole);
+
+    //! Called by node trackers when node reports a heartbeat.
+    void OnNodeHeartbeat(TNode* node, NNodeTrackerClient::ENodeFlavor heartbeatFlavor);
 
     void RequestNodeHeartbeat(TNodeId nodeId);
 

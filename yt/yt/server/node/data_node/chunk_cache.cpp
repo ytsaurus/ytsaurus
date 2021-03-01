@@ -6,9 +6,10 @@
 #include "chunk_block_manager.h"
 #include "config.h"
 #include "location.h"
-#include "master_connector.h"
+#include "legacy_master_connector.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/client/formats/config.h>
 
@@ -882,8 +883,8 @@ private:
                 artifactDownloadOptions,
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
-                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-                Bootstrap_->GetMasterConnector()->GetNodeId(),
+                Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
+                Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
                 chunkId,
                 seedReplicas,
                 Bootstrap_->GetBlockCache(),
@@ -1032,8 +1033,8 @@ private:
             Config_->ArtifactCacheReader,
             readerOptions,
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-            Bootstrap_->GetMasterConnector()->GetNodeId(),
+            Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
+            Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
             blockReadOptions,
@@ -1148,8 +1149,8 @@ private:
             Config_->ArtifactCacheReader,
             readerOptions,
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-            Bootstrap_->GetMasterConnector()->GetNodeId(),
+            Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
+            Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
             dataSourceDirectory,

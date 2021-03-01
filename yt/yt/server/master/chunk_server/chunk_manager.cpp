@@ -13,6 +13,7 @@
 #include "chunk_view.h"
 #include "chunk_view_proxy.h"
 #include "config.h"
+#include "data_node_tracker.h"
 #include "dynamic_store.h"
 #include "dynamic_store_proxy.h"
 #include "expiration_tracker.h"
@@ -55,6 +56,8 @@
 
 #include <yt/server/master/journal_server/journal_node.h>
 #include <yt/server/master/journal_server/journal_manager.h>
+
+#include <yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
@@ -103,6 +106,7 @@ using namespace NCypressServer;
 using namespace NSecurityServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NDataNodeTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJournalClient;
@@ -409,11 +413,13 @@ public:
         nodeTracker->SubscribeNodeRackChanged(BIND(&TImpl::OnNodeRackChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDataCenterChanged(BIND(&TImpl::OnNodeDataCenterChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullHeartbeat, MakeWeak(this)));
-        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
         nodeTracker->SubscribeDataCenterCreated(BIND(&TImpl::OnDataCenterCreated, MakeWeak(this)));
         nodeTracker->SubscribeDataCenterRenamed(BIND(&TImpl::OnDataCenterRenamed, MakeWeak(this)));
         nodeTracker->SubscribeDataCenterDestroyed(BIND(&TImpl::OnDataCenterDestroyed, MakeWeak(this)));
+
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        dataNodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullDataNodeHeartbeat, MakeWeak(this)));
+        dataNodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalDataNodeHeartbeat, MakeWeak(this)));
 
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfilerRegistry
@@ -585,8 +591,9 @@ public:
                 replica.GetMediumIndex(),
                 chunk->IsJournal() ? EChunkReplicaState::Active : EChunkReplicaState::Generic);
 
-            if (node->GetLocalState() != ENodeState::Online) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tried to confirm chunk at non-online node (ChunkId: %v, Address: %v, State: %v)",
+            if (!node->ReportedDataNodeHeartbeat()) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tried to confirm chunk at node that did not report data node heartbeat yet "
+                    "(ChunkId: %v, Address: %v, State: %v)",
                     id,
                     node->GetDefaultAddress(),
                     node->GetLocalState());
@@ -1659,7 +1666,7 @@ private:
             if (!ChunkReplicator_) {
                 return;
             }
-            if (node->GetLocalState() != ENodeState::Online) {
+            if (!node->ReportedDataNodeHeartbeat()) {
                 return;
             }
             if (job &&
@@ -1834,7 +1841,7 @@ private:
 
     void OnNodeChanged(TNode* node)
     {
-        if (node->GetLocalState() == ENodeState::Online) {
+        if (node->ReportedDataNodeHeartbeat()) {
             ScheduleNodeRefresh(node);
         }
     }
@@ -1870,9 +1877,9 @@ private:
         }
     }
 
-    void OnFullHeartbeat(
+    void OnFullDataNodeHeartbeat(
         TNode* node,
-        NNodeTrackerServer::NProto::TReqFullHeartbeat* request)
+        NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request)
     {
         for (const auto& mediumReplicas : node->Replicas()) {
             YT_VERIFY(mediumReplicas.second.empty());
@@ -1892,10 +1899,9 @@ private:
         }
     }
 
-    void OnIncrementalHeartbeat(
+    void OnIncrementalDataNodeHeartbeat(
         TNode* node,
-        TReqIncrementalHeartbeat* request,
-        TRspIncrementalHeartbeat* /*response*/)
+        NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request)
     {
         node->ShrinkHashTables();
 

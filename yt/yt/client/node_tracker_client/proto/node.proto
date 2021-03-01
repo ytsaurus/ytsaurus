@@ -6,6 +6,13 @@ import "yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(gritukan): Move it to TReqFullChunkHeartbeat after switching to new heartbeats.
+message TMediumChunkStatistics
+{
+    required int32 medium_index = 1;
+    required int32 chunk_count = 2;
+}
+
 // Describes the current state of a storage location.
 message TStorageLocationStatistics
 {
@@ -160,6 +167,38 @@ message TNodeDescriptor
     optional string rack = 2;
     optional string data_center = 3;
     repeated string tags = 4;
+}
+
+message TClusterNodeStatistics
+{
+    required TMemoryStatistics memory = 1;
+    repeated TNetworkStatistics network = 2;
+}
+
+message TDataNodeStatistics
+{
+    required int64 total_available_space = 1;
+    required int64 total_used_space = 2;
+    required int32 total_stored_chunk_count = 3;
+    required int32 total_cached_chunk_count = 4;
+    required int32 total_user_session_count = 5;
+    required int32 total_replication_session_count = 6;
+    required int32 total_repair_session_count = 7;
+    required int64 total_low_watermark_space = 8;
+    required bool full = 9;
+    repeated TStorageLocationStatistics storage_locations = 10;
+    repeated TMediumStatistics media = 11;
+}
+
+message TExecNodeStatistics
+{
+    repeated TSlotLocationStatistics slot_locations = 1;
+}
+
+message TTabletNodeStatistics
+{
+    required int32 available_tablet_slots = 1;
+    required int32 used_tablet_slots = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

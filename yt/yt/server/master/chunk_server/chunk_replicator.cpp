@@ -151,7 +151,7 @@ TChunkReplicator::TChunkReplicator(
     }
 
     for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
-        if (node->GetLocalState() != ENodeState::Online) {
+        if (!node->ReportedDataNodeHeartbeat()) {
             continue;
         }
         for (const auto& replica : node->DestroyedReplicas()) {
@@ -1430,7 +1430,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             {
                 for (auto nodeWithIndexes : statistics.DecommissionedRemovalReplicas) {
                     auto* node = nodeWithIndexes.GetPtr();
-                    if (node->GetLocalState() != ENodeState::Online) {
+                    if (!node->ReportedDataNodeHeartbeat()) {
                         continue;
                     }
 
@@ -1477,7 +1477,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                         }
 
                         auto* node = replica.GetPtr();
-                        if (node->GetLocalState() != ENodeState::Online) {
+                        if (!node->ReportedDataNodeHeartbeat()) {
                             continue;
                         }
 
@@ -1506,7 +1506,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             }
 
             auto* node = replica.GetPtr();
-            if (node->GetLocalState() != ENodeState::Online) {
+            if (!node->ReportedDataNodeHeartbeat()) {
                 continue;
             }
 

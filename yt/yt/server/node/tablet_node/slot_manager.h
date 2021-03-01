@@ -23,7 +23,7 @@ struct ISlotManager
     : public TRefCounted
 {
     // The following methods have ControlThread affinity.
-    
+
     virtual void Initialize() = 0;
 
     virtual bool IsOutOfMemory(const std::optional<TString>& poolTag) const = 0;

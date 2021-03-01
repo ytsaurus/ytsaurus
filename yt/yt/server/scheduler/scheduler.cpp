@@ -75,6 +75,7 @@
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profile_manager.h>
 
+#include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/service_combiner.h>
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/exception_helpers.h>
@@ -2303,7 +2304,8 @@ private:
             "state",
             "io_weights",
             "scheduling_segment",
-            "data_center"
+            "data_center",
+            "flavors"
         });
         batchReq->AddRequest(req, "get_nodes");
     }
@@ -2319,6 +2321,25 @@ private:
         try {
             const auto& rsp = rspOrError.Value();
             auto nodesList = ConvertToNode(TYsonString(rsp->value()))->AsList();
+            // TODO(gritukan): Use per-flavor node maps here.
+            {
+                auto execNodesList = GetEphemeralNodeFactory()->CreateList();
+                for (const auto& node : nodesList->GetChildren()) {
+                    // COMPAT(gritukan)
+                    if (!node->Attributes().Contains("flavors")) {
+                        execNodesList->AddChild(CloneNode(node));
+                        continue;
+                    }
+
+                    const auto& flavors = node->Attributes().Get<std::vector<ENodeFlavor>>("flavors");
+                    if (std::find(flavors.begin(), flavors.end(), ENodeFlavor::Exec) != flavors.end()) {
+                        execNodesList->AddChild(CloneNode(node));
+                    }
+                }
+
+                nodesList = std::move(execNodesList);
+            }
+
             std::vector<std::vector<std::pair<TString, INodePtr>>> nodesForShard(NodeShards_.size());
             std::vector<std::vector<TString>> nodeAddressesForShard(NodeShards_.size());
 

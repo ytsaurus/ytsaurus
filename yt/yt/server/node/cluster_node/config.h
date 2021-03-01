@@ -253,11 +253,21 @@ public:
     std::optional<TDuration> IncrementalHeartbeatPeriod;
     std::optional<TDuration> IncrementalHeartbeatPeriodSplay;
 
+    //! Period between consequent cluster node heartbeats.
+    std::optional<TDuration> HeartbeatPeriod;
+
+    //! Splay for cluster node heartbeats.
+    std::optional<TDuration> HeartbeatPeriodSplay;
+
     TMasterConnectorDynamicConfig()
     {
         RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
             .Default();
         RegisterParameter("incremental_heartbeat_period_splay", IncrementalHeartbeatPeriodSplay)
+            .Default();
+        RegisterParameter("heartbeat_period", HeartbeatPeriod)
+            .Default();
+        RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
             .Default();
     }
 };
@@ -337,6 +347,72 @@ DEFINE_REFCOUNTED_TYPE(TClusterNodeConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(gritukan): Drop optionals here after configs migration.
+class TMasterConnectorConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Timeout for lease transactions.
+    std::optional<TDuration> LeaseTransactionTimeout;
+
+    //! Period between consequent lease transaction pings.
+    std::optional<TDuration> LeaseTransactionPingPeriod;
+
+    //! Splay for the first node registration.
+    std::optional<TDuration> FirstRegisterSplay;
+
+    //! Period between consequent registration attempts.
+    std::optional<TDuration> RegisterRetryPeriod;
+
+    //! Splay for consequent registration attempts.
+    std::optional<TDuration> RegisterRetrySplay;
+
+    //! Timeout for RegisterNode RPC requests.
+    std::optional<TDuration> RegisterTimeout;
+
+    //! Period between consequent cluster node heartbeats.
+    TDuration HeartbeatPeriod;
+
+    //! Splay for cluster node heartbeats.
+    TDuration HeartbeatPeriodSplay;
+
+    //! Timeout of the cluster node heartbeat RPC request.
+    TDuration HeartbeatTimeout;
+
+    //! Controls if cluster and cell directories are to be synchronized on connect.
+    //! Useful for tests.
+    std::optional<bool> SyncDirectoriesOnConnect;
+
+    TMasterConnectorConfig()
+    {
+        RegisterParameter("lease_trascation_timeout", LeaseTransactionTimeout)
+            .Default();
+        RegisterParameter("lease_transaction_ping_period", LeaseTransactionPingPeriod)
+            .Default();
+
+        RegisterParameter("register_retry_period", RegisterRetryPeriod)
+            .Default();
+        RegisterParameter("register_retry_splay", RegisterRetrySplay)
+            .Default();
+        RegisterParameter("register_timeout", RegisterTimeout)
+            .Default();
+
+        RegisterParameter("heartbeat_period", HeartbeatPeriod)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
+            .Default(TDuration::Seconds(60));
+
+        RegisterParameter("sync_directories_on_connect", SyncDirectoriesOnConnect)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClusterNodeConfig
     : public TServerConfig
 {
@@ -398,6 +474,15 @@ public:
     //! Dynamic config manager config.
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
 
+    //! If |true|, new master heartbeats are used (if master supports them).
+    bool UseNewHeartbeats;
+
+    //! List of the node flavors.
+    std::vector<NNodeTrackerClient::ENodeFlavor> Flavors;
+
+    //! Master connector config.
+    TMasterConnectorConfigPtr MasterConnector;
+
     TClusterNodeConfig()
     {
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
@@ -448,6 +533,19 @@ public:
             .Default(false);
 
         RegisterParameter("dynamic_config_manager", DynamicConfigManager)
+            .DefaultNew();
+
+        RegisterParameter("use_new_heartbeats", UseNewHeartbeats)
+            .Default(false);
+
+        RegisterParameter("flavors", Flavors)
+            .Default(std::vector<NNodeTrackerClient::ENodeFlavor>({
+                NNodeTrackerClient::ENodeFlavor::Data,
+                NNodeTrackerClient::ENodeFlavor::Exec,
+                NNodeTrackerClient::ENodeFlavor::Tablet
+            }));
+
+        RegisterParameter("master_connector", MasterConnector)
             .DefaultNew();
 
         RegisterPostprocessor([&] {
@@ -504,6 +602,30 @@ public:
             }
 
             DynamicConfigManager->IgnoreConfigAbsence = true;
+
+            // COMPAT(gritukan)
+            if (!MasterConnector->LeaseTransactionTimeout) {
+                MasterConnector->LeaseTransactionTimeout = DataNode->LeaseTransactionTimeout;
+            }
+            if (!MasterConnector->LeaseTransactionPingPeriod) {
+                MasterConnector->LeaseTransactionPingPeriod = DataNode->LeaseTransactionPingPeriod;
+            }
+            if (!MasterConnector->FirstRegisterSplay) {
+                // This is not a mistake!
+                MasterConnector->FirstRegisterSplay = DataNode->IncrementalHeartbeatPeriod;
+            }
+            if (!MasterConnector->RegisterRetryPeriod) {
+                MasterConnector->RegisterRetryPeriod = DataNode->RegisterRetryPeriod;
+            }
+            if (!MasterConnector->RegisterRetrySplay) {
+                MasterConnector->RegisterRetrySplay = DataNode->RegisterRetrySplay;
+            }
+            if (!MasterConnector->RegisterTimeout) {
+                MasterConnector->RegisterTimeout = DataNode->RegisterTimeout;
+            }
+            if (!MasterConnector->SyncDirectoriesOnConnect) {
+                MasterConnector->SyncDirectoriesOnConnect = DataNode->SyncDirectoriesOnConnect;
+            }
         });
     }
 
@@ -553,6 +675,9 @@ public:
     //! Query agent configuration part.
     NQueryAgent::TQueryAgentDynamicConfigPtr QueryAgent;
 
+    //! Exec agent configuration part.
+    NExecAgent::TExecAgentDynamicConfigPtr ExecAgent;
+
     //! Metadata cache service configuration.
     NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;
 
@@ -578,6 +703,8 @@ public:
         RegisterParameter("tablet_node", TabletNode)
             .DefaultNew();
         RegisterParameter("query_agent", QueryAgent)
+            .DefaultNew();
+        RegisterParameter("exec_agent", ExecAgent)
             .DefaultNew();
         RegisterParameter("caching_object_service", CachingObjectService)
             .DefaultNew();

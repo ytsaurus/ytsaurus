@@ -56,6 +56,7 @@ b"""
     node_tracker = {
         full_node_states_gossip_period = 1000;
         total_node_statistics_update_period = 1000;
+        use_new_heartbeats = %true;
     };
 
     object_manager = {
@@ -337,6 +338,13 @@ b"""
         };
         register_retry_period = 100;
 
+        master_connector = {
+            incremental_heartbeat_period = 200;
+            incremental_heartbeat_period_splay = 50;
+            job_heartbeat_period = 200;
+            job_heartbeat_period_splay = 50;
+        };
+
         chunk_meta_cache = {
             capacity = 1000000;
             shard_count = 1;
@@ -390,7 +398,12 @@ b"""
         job_controller = {
             total_confirmation_period = 5000;
             cpu_per_tablet_slot = 0.0;
-        }
+        };
+
+        master_connector = {
+            heartbeat_period = 100;
+            heartbeat_period_splay = 30;
+        };
     };
 
     tablet_node = {
@@ -423,6 +436,11 @@ b"""
             idle_post_period = 1000;
             rpc_timeout = 1000;
         };
+
+        master_connector = {
+            heartbeat_period = 100;
+            heartbeat_period_splay = 30;
+        };
     };
 
     query_agent = {
@@ -436,6 +454,13 @@ b"""
     dynamic_config_manager = {
         update_period = 50;
     };
+
+    master_connector = {
+        heartbeat_period = 100;
+        heartbeat_period_splay = 30;
+    };
+
+    use_new_heartbeats = %true;
 }
 """)
 

@@ -4,7 +4,7 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/server/lib/misc/private.h>
 

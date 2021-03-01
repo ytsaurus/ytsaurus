@@ -3,6 +3,7 @@
 #include "batching_chunk_service.h"
 #include "dynamic_config_manager.h"
 #include "node_resource_manager.h"
+#include "master_connector.h"
 #include "private.h"
 
 #include <yt/server/lib/exec_agent/config.h>
@@ -18,6 +19,7 @@
 #include <yt/server/node/data_node/job.h>
 #include <yt/server/node/data_node/journal_dispatcher.h>
 #include <yt/server/node/data_node/location.h>
+#include <yt/server/node/data_node/legacy_master_connector.h>
 #include <yt/server/node/data_node/master_connector.h>
 #include <yt/server/node/data_node/network_statistics.h>
 #include <yt/server/node/data_node/p2p_block_distributor.h>
@@ -33,6 +35,7 @@
 #include <yt/server/node/exec_agent/job_environment.h>
 #include <yt/server/node/exec_agent/job.h>
 #include <yt/server/node/exec_agent/job_prober_service.h>
+#include <yt/server/node/exec_agent/master_connector.h>
 #include <yt/server/node/exec_agent/private.h>
 #include <yt/server/node/exec_agent/scheduler_connector.h>
 #include <yt/server/node/exec_agent/slot_manager.h>
@@ -51,6 +54,7 @@
 #include <yt/server/node/tablet_node/hint_manager.h>
 #include <yt/server/node/tablet_node/in_memory_manager.h>
 #include <yt/server/node/tablet_node/in_memory_service.h>
+#include <yt/server/node/tablet_node/master_connector.h>
 #include <yt/server/node/tablet_node/partition_balancer.h>
 #include <yt/server/node/tablet_node/security_manager.h>
 #include <yt/server/node/tablet_node/slot_manager.h>
@@ -233,6 +237,36 @@ bool TBootstrap::IsReadOnly() const
     return false;
 }
 
+void TBootstrap::SetDecommissioned(bool decommissioned)
+{
+    Decommissioned_ = decommissioned;
+}
+
+bool TBootstrap::Decommissioned() const
+{
+    return Decommissioned_;
+}
+
+const THashSet<ENodeFlavor>& TBootstrap::GetFlavors() const
+{
+    return Flavors_;
+}
+
+bool TBootstrap::IsDataNode() const
+{
+    return Flavors_.contains(ENodeFlavor::Data);
+}
+
+bool TBootstrap::IsExecNode() const
+{
+    return Flavors_.contains(ENodeFlavor::Exec);
+}
+
+bool TBootstrap::IsTabletNode() const
+{
+    return Flavors_.contains(ENodeFlavor::Tablet);
+}
+
 void TBootstrap::DoInitialize()
 {
     auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
@@ -241,10 +275,16 @@ void TBootstrap::DoInitialize()
         Config_->ClusterConnection->Networks = GetLocalNetworks();
     }
 
-    YT_LOG_INFO("Initializing node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
+    {
+        const auto& flavors = Config_->Flavors;
+        Flavors_ = THashSet<ENodeFlavor>(flavors.begin(), flavors.end());
+    }
+
+    YT_LOG_INFO("Initializing node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v, Flavors: %v)",
         GetValues(localRpcAddresses),
         Config_->ClusterConnection->PrimaryMaster->Addresses,
-        Config_->Tags);
+        Config_->Tags,
+        Flavors_);
 
     MemoryUsageTracker_ = New<TNodeMemoryTracker>(
         Config_->ResourceLimits->TotalMemory,
@@ -285,20 +325,6 @@ void TBootstrap::DoInitialize()
     MasterClient_ = MasterConnection_->CreateNativeClient(
         TClientOptions::FromUser(NSecurityClient::RootUserName));
 
-    MasterConnector_ = New<NDataNode::TMasterConnector>(
-        Config_->DataNode,
-        localRpcAddresses,
-        NYT::GetLocalAddresses(Config_->Addresses, Config_->SkynetHttpPort),
-        NYT::GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort),
-        Config_->Tags,
-        this);
-    MasterConnector_->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
-    MasterConnector_->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
-    MasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
-
-    DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
-    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
-
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
@@ -315,6 +341,27 @@ void TBootstrap::DoInitialize()
     for (const auto& config : Config_->ClusterConnection->SecondaryMasters) {
         createBatchingChunkService(config);
     }
+
+    LegacyMasterConnector_ = New<NDataNode::TLegacyMasterConnector>(Config_->DataNode, Config_->Tags, this);
+
+    TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
+
+    ClusterNodeMasterConnector_ = NClusterNode::CreateMasterConnector(
+        this,
+        localRpcAddresses,
+        NYT::GetLocalAddresses(Config_->Addresses, Config_->SkynetHttpPort),
+        NYT::GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort),
+        Config_->Tags);
+    ClusterNodeMasterConnector_->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
+    ClusterNodeMasterConnector_->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
+    ClusterNodeMasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
+
+    DataNodeMasterConnector_ = NDataNode::CreateMasterConnector(this);
+    ExecNodeMasterConnector_ = NExecAgent::CreateMasterConnector(this);
+    TabletNodeMasterConnector_ = NTabletNode::CreateMasterConnector(this);
+
+    DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
+    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
     BlobReaderCache_ = CreateBlobReaderCache(this);
 
@@ -341,7 +388,8 @@ void TBootstrap::DoInitialize()
     TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
     TabletSlotManager_ = NTabletNode::CreateSlotManager(this);
     TabletNodeStructuredLogger_ = NTabletNode::CreateStructuredLogger(this);
-    MasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::ISlotManager::PopulateAlerts, TabletSlotManager_));
+
+    ClusterNodeMasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::ISlotManager::PopulateAlerts, TabletSlotManager_));
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
@@ -537,14 +585,16 @@ void TBootstrap::DoInitialize()
 
     JobReporter_ = New<TJobReporter>(
         Config_->ExecAgent->JobReporter,
-        this->GetMasterConnection(),
-        this->GetMasterConnector()->GetLocalDescriptor().GetDefaultAddress());
+        GetMasterConnection(),
+        GetClusterNodeMasterConnector()->GetLocalDescriptor().GetDefaultAddress());
 
     RpcServer_->RegisterService(CreateJobProberService(this));
 
     RpcServer_->RegisterService(CreateSupervisorService(this));
 
-    SchedulerConnector_ = New<TSchedulerConnector>(Config_->ExecAgent->SchedulerConnector, this);
+    if (IsExecNode()) {
+        SchedulerConnector_ = New<TSchedulerConnector>(Config_->ExecAgent->SchedulerConnector, this);
+    }
 
     ColumnEvaluatorCache_ = NQueryClient::CreateColumnEvaluatorCache(Config_->TabletNode->ColumnEvaluatorCache);
 
@@ -742,8 +792,24 @@ void TBootstrap::DoRun()
     // Do not start subsystems until everything is initialized.
     BlockPeerUpdater_->Start();
     P2PBlockDistributor_->Start();
-    MasterConnector_->Start();
-    SchedulerConnector_->Start();
+
+    ClusterNodeMasterConnector_->Initialize();
+    if (IsDataNode()) {
+        DataNodeMasterConnector_->Initialize();
+    }
+    if (IsExecNode()) {
+        ExecNodeMasterConnector_->Initialize();
+    }
+    if (IsTabletNode()) {
+        TabletNodeMasterConnector_->Initialize();
+    }
+    ClusterNodeMasterConnector_->Start();
+    LegacyMasterConnector_->Start();
+
+    if (IsExecNode()) {
+        SchedulerConnector_->Start();
+    }
+
     StoreCompactor_->Start();
     StoreFlusher_->Start();
     StoreTrimmer_->Start();
@@ -761,7 +827,7 @@ void TBootstrap::DoValidateConfig()
     auto unrecognized = Config_->GetUnrecognizedRecursively();
     if (unrecognized && unrecognized->GetChildCount() > 0) {
         if (Config_->EnableUnrecognizedOptionsAlert) {
-            MasterConnector_->RegisterAlert(TError(EErrorCode::UnrecognizedConfigOption, "Node config contains unrecognized options")
+            ClusterNodeMasterConnector_->RegisterStaticAlert(TError(EErrorCode::UnrecognizedConfigOption, "Node config contains unrecognized options")
                 << TErrorAttribute("unrecognized", unrecognized));
         }
         if (Config_->AbortOnUnrecognizedOptions) {
@@ -989,9 +1055,29 @@ const IJournalDispatcherPtr& TBootstrap::GetJournalDispatcher() const
     return JournalDispatcher_;
 }
 
-const TMasterConnectorPtr& TBootstrap::GetMasterConnector() const
+const TLegacyMasterConnectorPtr& TBootstrap::GetLegacyMasterConnector() const
 {
-    return MasterConnector_;
+    return LegacyMasterConnector_;
+}
+
+const NClusterNode::IMasterConnectorPtr& TBootstrap::GetClusterNodeMasterConnector() const
+{
+    return ClusterNodeMasterConnector_;
+}
+
+const NDataNode::IMasterConnectorPtr& TBootstrap::GetDataNodeMasterConnector() const
+{
+    return DataNodeMasterConnector_;
+}
+
+const NExecAgent::IMasterConnectorPtr& TBootstrap::GetExecNodeMasterConnector() const
+{
+    return ExecNodeMasterConnector_;
+}
+
+const NTabletNode::IMasterConnectorPtr& TBootstrap::GetTabletNodeMasterConnector() const
+{
+    return TabletNodeMasterConnector_;
 }
 
 const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
@@ -1168,7 +1254,7 @@ bool TBootstrap::IsSimpleEnvironment() const
 TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const
 {
     auto proxyConfig = CloneYsonSerializable(JobProxyConfigTemplate_);
-    auto localDescriptor = GetMasterConnector()->GetLocalDescriptor();
+    auto localDescriptor = GetClusterNodeMasterConnector()->GetLocalDescriptor();
     proxyConfig->DataCenter = localDescriptor.GetDataCenter();
     proxyConfig->Rack = localDescriptor.GetRack();
     proxyConfig->Addresses = localDescriptor.Addresses();
@@ -1198,7 +1284,7 @@ void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
     }
 }
 
-void TBootstrap::OnMasterConnected()
+void TBootstrap::OnMasterConnected(TNodeId /* nodeId */)
 {
     for (const auto& cachingObjectService : CachingObjectServices_) {
         RpcServer_->RegisterService(cachingObjectService);
