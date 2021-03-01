@@ -12,25 +12,21 @@ using TAlertSource = std::function<std::vector<TError>()>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAlertManager
-    : public TRefCounted
+struct IAlertManager
+    : public virtual TRefCounted
 {
-public:
-    explicit TAlertManager(TBootstrap* bootstrap);
-    ~TAlertManager();
+    virtual void Initialize() = 0;
 
-    void Initialize();
+    virtual void RegisterAlertSource(TAlertSource alertSource) = 0;
 
-    void RegisterAlertSource(TAlertSource alertSource);
-
-    std::vector<TError> GetAlerts() const;
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual std::vector<TError> GetAlerts() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TAlertManager)
+DEFINE_REFCOUNTED_TYPE(IAlertManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IAlertManagerPtr CreateAlertManager(TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

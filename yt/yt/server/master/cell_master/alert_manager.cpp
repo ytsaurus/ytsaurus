@@ -6,8 +6,6 @@
 #include "config_manager.h"
 #include "hydra_facade.h"
 #include "multicell_manager.h"
-
-// COMPAT(gritukan)
 #include "serialize.h"
 
 #include <yt/server/master/cell_master/proto/alert_manager.pb.h>
@@ -28,45 +26,46 @@ static const auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAlertManager::TImpl
-    : public TMasterAutomatonPart
+class TAlertManager
+    : public IAlertManager
+    , public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(TBootstrap* bootstrap)
+    explicit TAlertManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::Default)
         , UpdateAlertsExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::UpdateAlerts, MakeWeak(this))))
+            BIND(&TAlertManager::UpdateAlerts, MakeWeak(this))))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
         RegisterLoader(
             "AlertManager",
-            BIND(&TImpl::Load, Unretained(this)));
+            BIND(&TAlertManager::Load, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "AlertManager",
-            BIND(&TImpl::Save, Unretained(this)));
+            BIND(&TAlertManager::Save, Unretained(this)));
 
-        RegisterMethod(BIND(&TImpl::HydraSetCellAlerts, Unretained(this)));
+        RegisterMethod(BIND(&TAlertManager::HydraSetCellAlerts, Unretained(this)));
     }
 
-    void Initialize()
+    virtual void Initialize() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND(&TAlertManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    void RegisterAlertSource(TAlertSource alertSource)
+    virtual void RegisterAlertSource(TAlertSource alertSource) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         AlertSources_.push_back(alertSource);
     }
 
-    std::vector<TError> GetAlerts() const
+    virtual std::vector<TError> GetAlerts() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -149,10 +148,7 @@ private:
 
         using NYT::Load;
 
-        // COMPAT(gritukan)
-        if (context.GetVersion() >= EMasterReign::MasterAlerts) {
-            Load(context, CellTagToAlerts_);
-        }
+        Load(context, CellTagToAlerts_);
     }
 
     void Save(TSaveContext& context)
@@ -199,25 +195,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAlertManager::TAlertManager(TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TAlertManager::~TAlertManager() = default;
-
-void TAlertManager::Initialize()
+IAlertManagerPtr CreateAlertManager(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
-}
-
-void TAlertManager::RegisterAlertSource(TAlertSource alertSource)
-{
-    Impl_->RegisterAlertSource(alertSource);
-}
-
-std::vector<TError> TAlertManager::GetAlerts() const
-{
-    return Impl_->GetAlerts();
+    return New<TAlertManager>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

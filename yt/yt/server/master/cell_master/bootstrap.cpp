@@ -252,7 +252,7 @@ const TCellTagList& TBootstrap::GetSecondaryCellTags() const
     return SecondaryCellTags_;
 }
 
-const TAlertManagerPtr& TBootstrap::GetAlertManager() const
+const IAlertManagerPtr& TBootstrap::GetAlertManager() const
 {
     return AlertManager_;
 }
@@ -663,7 +663,7 @@ void TBootstrap::DoInitialize()
 
     HydraFacade_ = New<THydraFacade>(Config_, this);
 
-    AlertManager_ = New<TAlertManager>(this);
+    AlertManager_ = CreateAlertManager(this);
 
     ConfigManager_ = New<TConfigManager>(this);
 
