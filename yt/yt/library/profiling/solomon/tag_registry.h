@@ -16,7 +16,10 @@ public:
     TTagIdList Encode(const TTagSet& tags);
     TTagIdList Encode(const TTagList& tags);
 
-    const std::pair<TString, TString>& Decode(TTagId tagId) const;
+    //! TryEncode returns null if tags contains an unknown tag.
+    std::optional<TTagIdList> TryEncode(const TTagList& tags) const;
+
+    const TTag& Decode(TTagId tagId) const;
     int GetSize() const;
     THashMap<TString, int> TopByKey() const;
 
@@ -24,8 +27,8 @@ public:
 
 private:
     // TODO(prime@): maybe do something about the fact that tags are never freed.
-    THashMap<std::pair<TString, TString>, TTagId> TagByName_;
-    std::deque<std::pair<TString, TString>> TagById_;
+    THashMap<TTag, TTagId> TagByName_;
+    std::deque<TTag> TagById_;
 
     THashMap<TTagId, TTagId> LegacyTags_;
 };

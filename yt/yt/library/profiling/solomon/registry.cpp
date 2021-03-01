@@ -12,6 +12,8 @@
 
 namespace NYT::NProfiling {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSolomonRegistry::TSolomonRegistry()
@@ -315,6 +317,46 @@ void TSolomonRegistry::ReadSensors(
     }
 
     Producers_.ReadSensors(readOptions, consumer);
+}
+
+void TSolomonRegistry::ReadRecentSensorValue(
+    const TString& name,
+    const TTagList& tags,
+    const TReadOptions& options,
+    TFluentAny fluent) const
+{
+    if (Iteration_ == 0) {
+        THROW_ERROR_EXCEPTION("No sensors have been collected so far");
+    }
+
+    int valuesRead = 0;
+    if (auto tagIds = Tags_.TryEncode(tags)) {
+        auto index = IndexOf(Iteration_ - 1);
+
+        if (auto it = Sensors_.find(name);
+            it != Sensors_.end())
+        {
+            const auto& set = it->second;
+            valuesRead += set.ReadSensorValues(*tagIds, index, options, fluent);
+        }
+
+        valuesRead += Producers_.ReadSensorValues(name, *tagIds, index, options, fluent);
+    }
+
+    if (valuesRead == 0) {
+        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
+            "No such sensor or projection")
+                << TErrorAttribute("name", name)
+                << TErrorAttribute("tags", tags);
+    }
+
+    if (valuesRead > 1) {
+        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
+            "More than one projection found for sensor")
+                << TErrorAttribute("name", name)
+                << TErrorAttribute("tags", tags)
+                << TErrorAttribute("values_read", valuesRead);
+    }
 }
 
 std::vector<TSensorInfo> TSolomonRegistry::ListSensors() const

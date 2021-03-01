@@ -76,6 +76,7 @@ TSolomonExporter::TSolomonExporter(
         Invoker_,
         BIND(&TSolomonExporter::DoPushCoreProfiling, MakeWeak(this)),
         TDuration::MilliSeconds(500)))
+    , Root_(New<TSensorService>(Registry_, Invoker_))
 {
     if (Config_->EnableSelfProfiling) {
         Registry_->Profile(TRegistry{Registry_, ""});
@@ -589,6 +590,84 @@ void TSolomonExporter::DoPushCoreProfiling()
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Legacy push failed");
     }
+}
+
+IYPathServicePtr TSolomonExporter::GetService() const
+{
+    return Root_->Via(Invoker_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSolomonExporter::TSensorService::TSensorService(TSolomonRegistryPtr registry, IInvokerPtr invoker)
+    : Registry_(std::move(registry))
+    , Invoker_(std::move(invoker))
+{ }
+
+bool TSolomonExporter::TSensorService::DoInvoke(const NRpc::IServiceContextPtr& context)
+{
+    DISPATCH_YPATH_SERVICE_METHOD(Get);
+    DISPATCH_YPATH_SERVICE_METHOD(List);
+    return TYPathServiceBase::DoInvoke(context);
+}
+
+void TSolomonExporter::TSensorService::GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context)
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    auto options = FromProto(request->options());
+    auto name = options->Find<TString>("name");
+    auto tagMap = options->Find<TTagMap>("tags").value_or(TTagMap{});
+    auto exportSummaryAsMax = options->Find<bool>("export_summary_as_max").value_or(true);
+    context->SetRequestInfo("Name: %v, Tags: %v, ExportSummaryAsMax: %v", name, tagMap, exportSummaryAsMax);
+
+    if (!name) {
+        response->set_value(BuildYsonStringFluently().Entity().ToString());
+        context->Reply();
+        return;
+    }
+
+    TTagList tags(tagMap.begin(), tagMap.end());
+    TReadOptions readOptions{.ExportSummaryAsMax = exportSummaryAsMax};
+    response->set_value(BuildYsonStringFluently()
+        .Do([&](TFluentAny fluent) {
+            Registry_->ReadRecentSensorValue(*name, tags, readOptions, fluent);
+        }).ToString());
+    context->Reply();
+}
+
+void TSolomonExporter::TSensorService::ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context)
+{
+    VERIFY_INVOKER_AFFINITY(Invoker_);
+
+    auto attributeKeys = FromProto<THashSet<TString>>(request->attributes().keys());
+    context->SetRequestInfo("AttributeKeys: %v", attributeKeys);
+
+    response->set_value(BuildYsonStringFluently()
+        .DoListFor(Registry_->ListSensors(), [&] (TFluentList fluent, const TSensorInfo& sensorInfo) {
+            if (!sensorInfo.Error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Broken sensor")
+                    << TErrorAttribute("name", sensorInfo.Name)
+                    << sensorInfo.Error;
+            }
+
+            if (attributeKeys.empty()) {
+                fluent.Item().Value(sensorInfo.Name);
+            } else {
+                fluent
+                    .Item().BeginMap()
+                    .Item("name").Value(sensorInfo.Name)
+                    .DoIf(attributeKeys.contains("cube_size"), [&] (TFluentMap fluent) {
+                        fluent.Item("cube_size").Value(sensorInfo.CubeSize);
+                    })
+                    .DoIf(attributeKeys.contains("object_count"), [&] (TFluentMap fluent) {
+                        fluent.Item("object_count").Value(sensorInfo.CubeSize);
+                    })
+                    .EndMap();
+            }
+        }).ToString());
+
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

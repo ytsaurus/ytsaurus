@@ -11,6 +11,10 @@
 
 namespace NYT::NProfiling {
 
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_REFCOUNTED_TYPE(TProducerState)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -234,6 +238,31 @@ void TProducerSet::ReadSensors(
         sensorsEmitted += buffer.GaugesCube.ReadSensors(name, readOptions, *TagRegistry_, consumer);
         buffer.SensorEmitted.Update(sensorsEmitted);
     }
+}
+
+int TProducerSet::ReadSensorValues(
+    const TString& name,
+    const TTagIdList& tagIds,
+    int index,
+    const TReadOptions& options,
+    TFluentAny fluent) const
+{
+    auto it = Buffers_.find(name);
+    if (it == Buffers_.end()) {
+        return 0;
+    }
+
+    const auto& buffer = it->second;
+    if (!buffer.Error.IsOK()) {
+        THROW_ERROR_EXCEPTION("Broken sensor")
+            << buffer.Error;
+    }
+
+    int valuesRead = 0;
+    valuesRead += buffer.CountersCube.ReadSensorValues(tagIds, index, options, fluent);
+    valuesRead += buffer.GaugesCube.ReadSensorValues(tagIds, index, options, fluent);
+
+    return valuesRead;
 }
 
 void TProducerSet::LegacyReadSensors()

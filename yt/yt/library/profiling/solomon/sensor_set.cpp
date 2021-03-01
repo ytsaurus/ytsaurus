@@ -9,6 +9,8 @@
 
 namespace NYT::NProfiling {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = SolomonLogger;
@@ -233,6 +235,28 @@ void TSensorSet::ReadSensors(
     sensorsEmitted += HistogramsCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
 
     SensorsEmitted_.Update(sensorsEmitted);
+}
+
+int TSensorSet::ReadSensorValues(
+    const TTagIdList& tagIds,
+    int index,
+    const TReadOptions& options,
+    TFluentAny fluent) const
+{
+    if (!Error_.IsOK()) {
+        THROW_ERROR_EXCEPTION("Broken sensor")
+            << Error_;
+    }
+
+    int valuesRead = 0;
+    valuesRead += CountersCube_.ReadSensorValues(tagIds, index, options, fluent);
+    valuesRead += TimeCountersCube_.ReadSensorValues(tagIds, index, options, fluent);
+    valuesRead += GaugesCube_.ReadSensorValues(tagIds, index, options, fluent);
+    valuesRead += SummariesCube_.ReadSensorValues(tagIds, index, options, fluent);
+    valuesRead += TimersCube_.ReadSensorValues(tagIds, index, options, fluent);
+    valuesRead += HistogramsCube_.ReadSensorValues(tagIds, index, options, fluent);
+
+    return valuesRead;
 }
 
 void TSensorSet::LegacyReadSensors(const TString& name, TTagRegistry* tagRegistry)
