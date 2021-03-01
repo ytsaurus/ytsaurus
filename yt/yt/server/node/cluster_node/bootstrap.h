@@ -97,7 +97,11 @@ public:
     const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const;
     const NDataNode::TTableSchemaCachePtr& GetTableSchemaCache() const;
     const NDataNode::IJournalDispatcherPtr& GetJournalDispatcher() const;
-    const NDataNode::TMasterConnectorPtr& GetMasterConnector() const;
+    const NDataNode::TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const;
+    const IMasterConnectorPtr& GetClusterNodeMasterConnector() const;
+    const NDataNode::IMasterConnectorPtr& GetDataNodeMasterConnector() const;
+    const NExecAgent::IMasterConnectorPtr& GetExecNodeMasterConnector() const;
+    const NTabletNode::IMasterConnectorPtr& GetTabletNodeMasterConnector() const;
     const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const;
@@ -126,6 +130,14 @@ public:
     void ValidateSnapshot(const TString& fileName);
 
     bool IsReadOnly() const;
+
+    void SetDecommissioned(bool decommissioned);
+    bool Decommissioned() const;
+
+    const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const;
+    bool IsDataNode() const;
+    bool IsExecNode() const;
+    bool IsTabletNode() const;
 
 private:
     const TClusterNodeConfigPtr Config_;
@@ -174,7 +186,11 @@ private:
     NDataNode::IBlobReaderCachePtr BlobReaderCache_;
     NDataNode::TTableSchemaCachePtr TableSchemaCache_;
     NDataNode::IJournalDispatcherPtr JournalDispatcher_;
-    NDataNode::TMasterConnectorPtr MasterConnector_;
+    NDataNode::TLegacyMasterConnectorPtr LegacyMasterConnector_;
+    IMasterConnectorPtr ClusterNodeMasterConnector_;
+    NDataNode::IMasterConnectorPtr DataNodeMasterConnector_;
+    NExecAgent::IMasterConnectorPtr ExecNodeMasterConnector_;
+    NTabletNode::IMasterConnectorPtr TabletNodeMasterConnector_;
     ICoreDumperPtr CoreDumper_;
     TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     NObjectClient::TObjectServiceCachePtr ObjectServiceCache_;
@@ -206,13 +222,17 @@ private:
     NTabletNode::IPartitionBalancerPtr PartitionBalancer_;
     NTabletNode::IBackingStoreCleanerPtr BackingStoreCleaner_;
 
+    THashSet<NNodeTrackerClient::ENodeFlavor> Flavors_;
+
+    bool Decommissioned_ = false;
+
     void DoInitialize();
     void DoRun();
     void DoValidateConfig();
     void DoValidateSnapshot(const TString& fileName);
     void PopulateAlerts(std::vector<TError>* alerts);
 
-    void OnMasterConnected();
+    void OnMasterConnected(NNodeTrackerClient::TNodeId nodeId);
     void OnMasterDisconnected();
 
     void OnDynamicConfigChanged(

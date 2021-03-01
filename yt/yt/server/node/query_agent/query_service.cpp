@@ -4,8 +4,7 @@
 #include "private.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
-
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/server/node/query_agent/config.h>
 
@@ -956,7 +955,7 @@ private:
             ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
         }
 
-        auto localNodeId = Bootstrap_->GetMasterConnector()->GetNodeId();
+        auto localNodeId = Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId();
         ToProto(chunkSpec->mutable_replicas(), chunk->GetReplicas(localNodeId));
 
         chunkSpec->set_erasure_codec(miscExt.erasure_codec());
@@ -991,7 +990,7 @@ private:
         // For dynamic stores it is more or less the same.
         chunkSpec->set_data_weight_override(dynamicStore->GetUncompressedDataSize());
 
-        auto localNodeId = Bootstrap_->GetMasterConnector()->GetNodeId();
+        auto localNodeId = Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId();
         TChunkReplica replica(localNodeId, GenericChunkReplicaIndex);
         chunkSpec->add_replicas(ToProto<ui32>(replica));
 

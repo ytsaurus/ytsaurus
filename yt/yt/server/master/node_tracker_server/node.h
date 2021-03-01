@@ -90,10 +90,28 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, Annotations);
     DEFINE_BYVAL_RW_PROPERTY(TString, Version);
 
-    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
-    void SetStatistics(
-        NNodeTrackerClient::NProto::TNodeStatistics&& statistics,
-        const NChunkServer::TChunkManagerPtr& chunkManager);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NNodeTrackerClient::ENodeFlavor>, Flavors);
+
+    //! Helpers for |Flavors| access.
+    bool IsDataNode() const;
+    bool IsExecNode() const;
+    bool IsTabletNode() const;
+
+    //! Each node flavor corresponds to some node heartbeat type. This set contains heartbeat
+    //! types that were reported by the node since last registration. In particular,
+    //! node is considered online iff |Flavors| == |ReportedHeartbeats|.
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NNodeTrackerClient::ENodeFlavor>, ReportedHeartbeats);
+
+    //! Helpers for |ReportedHeartbeats| access.
+    bool ReportedClusterNodeHeartbeat() const;
+    bool ReportedDataNodeHeartbeat() const;
+    bool ReportedExecNodeHeartbeat() const;
+    bool ReportedTabletNodeHeartbeat() const;
+
+    void ValidateRegistered();
+
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TClusterNodeStatistics, ClusterNodeStatistics);
+    void SetClusterNodeStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics&& statistics);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TError>, Alerts);
 
@@ -106,7 +124,16 @@ public:
     // Lease tracking.
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, LeaseTransaction);
 
+    // Exec Node stuff.
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TExecNodeStatistics, ExecNodeStatistics);
+    void SetExecNodeStatistics(NNodeTrackerClient::NProto::TExecNodeStatistics&& statistics);
+
     // Chunk Manager stuff.
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TDataNodeStatistics, DataNodeStatistics);
+    void SetDataNodeStatistics(
+        NNodeTrackerClient::NProto::TDataNodeStatistics&& statistics,
+        const NChunkServer::TChunkManagerPtr& chunkManager);
+
     DEFINE_BYVAL_RO_PROPERTY(bool, Banned);
     void ValidateNotBanned();
 
@@ -133,7 +160,10 @@ public:
 
     // Transient copies of DisableWriteSessions.
     DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessionsSentToNode);
+    void SetDisableWriteSessionsSentToNode(bool value);
+
     DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessionsReportedByNode);
+    void SetDisableWriteSessionsReportedByNode(bool value);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TMediumReplicaSet = THashSet<TChunkPtrWithIndexes>;
@@ -194,6 +224,9 @@ public:
 
     using TCellSlotList = SmallVector<TCellSlot, NTabletClient::TypicalTabletSlotCount>;
     DEFINE_BYREF_RW_PROPERTY(TCellSlotList, TabletSlots);
+
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TTabletNodeStatistics, TabletNodeStatistics);
+    void SetTabletNodeStatistics(NNodeTrackerClient::NProto::TTabletNodeStatistics&& statistics);
 
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
@@ -351,8 +384,6 @@ private:
     void SetBanned(bool value);
     void SetDecommissioned(bool value);
     void SetDisableWriteSessions(bool value);
-    void SetDisableWriteSessionsSentToNode(bool value);
-    void SetDisableWriteSessionsReportedByNode(bool value);
 
     void SetNodeTags(const std::vector<TString>& tags);
     void SetUserTags(const std::vector<TString>& tags);

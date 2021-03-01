@@ -5,6 +5,7 @@
 #include "cell_bundle.h"
 #include "cell_bundle_type_handler.h"
 #include "cell_type_handler_base.h"
+#include "tablet_node_tracker.h"
 #include "tamed_cell_manager.h"
 #include "cell_tracker.h"
 
@@ -94,6 +95,7 @@ using namespace NObjectServer;
 using namespace NProfiling;
 using namespace NSecurityServer;
 using namespace NTableServer;
+using namespace NTabletNodeTrackerClient::NProto;
 using namespace NTabletServer::NProto;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
@@ -102,7 +104,6 @@ using namespace NYTree;
 using namespace NYson;
 
 using NNodeTrackerClient::TNodeDescriptor;
-using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 using NTransactionServer::TTransaction;
 
 using NYT::FromProto;
@@ -172,8 +173,10 @@ public:
     void Initialize()
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
+
+        const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
+        tabletNodeTracker->SubscribeHeartbeat(BIND(&TImpl::OnTabletNodeHeartbeat, MakeWeak(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
@@ -1074,10 +1077,10 @@ private:
         UpdateNodeTabletSlotCount(node, 0);
     }
 
-    void OnIncrementalHeartbeat(
+    void OnTabletNodeHeartbeat(
         TNode* node,
-        TReqIncrementalHeartbeat* request,
-        TRspIncrementalHeartbeat* response)
+        NTabletNodeTrackerClient::NProto::TReqHeartbeat* request,
+        NTabletNodeTrackerClient::NProto::TRspHeartbeat* response)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1121,7 +1124,7 @@ private:
                 return;
             }
 
-            auto* protoInfo = response->add_tablet_slots_configure();
+            auto* protoInfo = response->add_tablet_slots_to_configure();
 
             auto cellId = cell->GetId();
             auto peerId = cell->GetPeerId(node->GetDefaultAddress());
@@ -1157,7 +1160,7 @@ private:
                 return;
             }
 
-            auto* protoInfo = response->add_tablet_slots_update();
+            auto* protoInfo = response->add_tablet_slots_to_update();
 
             auto cellId = cell->GetId();
 
@@ -1318,7 +1321,7 @@ private:
 
         // Request slot starts.
         {
-            int availableSlots = node->Statistics().available_tablet_slots();
+            int availableSlots = node->TabletNodeStatistics().available_tablet_slots();
             auto it = AddressToCell_.find(address);
             if (it != AddressToCell_.end()) {
                 for (auto [cell, peerId] : it->second) {

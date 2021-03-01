@@ -5,7 +5,7 @@
 #include "journal_chunk.h"
 #include "journal_manager.h"
 #include "location.h"
-#include "master_connector.h"
+#include "legacy_master_connector.h"
 #include "session.h"
 #include "session_manager.h"
 

@@ -11,29 +11,27 @@ import "yt/ytlib/chunk_client/proto/heartbeat.proto";
 message TReqRegisterNode
 {
     required TNodeAddressMap node_addresses = 1;
-    optional TNodeStatistics statistics = 2;
+
     optional NYT.NProto.TGuid lease_transaction_id = 3;
     optional int32 node_id = 4;
     repeated string tags = 5;
     optional string cypress_annotations = 6;
     optional string build_version = 7;
+    repeated int32 flavors = 8; // ENodeFlavor
+
+    reserved 2;
 }
 
 message TRspRegisterNode
 {
     required int32 node_id = 1;
+    optional bool use_new_heartbeats = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqFullHeartbeat
 {
-    message TMediumChunkStatistics
-    {
-        required int32 medium_index = 1;
-        required int32 chunk_count = 2;
-    }
-
     required int32 node_id = 1;
     required TNodeStatistics statistics = 2;
 
@@ -82,6 +80,28 @@ message TRspIncrementalHeartbeat
     optional bool disable_scheduler_jobs = 8;
     optional bool disable_write_sessions = 11;
     optional bool decommissioned = 12;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqHeartbeat
+{
+    required int32 node_id = 1;
+
+    required TClusterNodeStatistics statistics = 2;
+
+    repeated NYT.NProto.TError alerts = 3;
+}
+
+message TRspHeartbeat
+{
+    optional string rack = 1;
+    optional string data_center = 2;
+    repeated string tags = 3;
+
+    optional TNodeResourceLimitsOverrides resource_limits_overrides = 4;
+
+    optional bool decommissioned = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

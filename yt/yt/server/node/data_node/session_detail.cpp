@@ -2,7 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "location.h"
-#include "master_connector.h"
+#include "legacy_master_connector.h"
 #include "session_manager.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>

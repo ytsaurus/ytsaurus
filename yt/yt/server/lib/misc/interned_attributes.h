@@ -147,6 +147,7 @@
     XX(FairShareStarvationToleranceLimit, fair_share_starvation_tolerance_limit) \
     XX(FifoSortParameters, fifo_sort_parameters) \
     XX(FileName, file_name) \
+    XX(Flavors, flavors) \
     XX(FlushLagTime, flush_lag_time) \
     XX(FlushedRowCount, flushed_row_count) \
     XX(ForcedCompactionRevision, forced_compaction_revision) \

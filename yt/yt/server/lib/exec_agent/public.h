@@ -61,8 +61,12 @@ DECLARE_REFCOUNTED_CLASS(TSimpleJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TPortoJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSlotManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorConfig)
+DECLARE_REFCOUNTED_CLASS(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TExecAgentConfig)
 DECLARE_REFCOUNTED_CLASS(TBindConfig)
+
+DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TExecAgentDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

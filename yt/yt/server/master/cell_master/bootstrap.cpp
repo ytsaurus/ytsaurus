@@ -10,6 +10,8 @@
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/chunk_service.h>
+#include <yt/server/master/chunk_server/data_node_tracker.h>
+#include <yt/server/master/chunk_server/data_node_tracker_service.h>
 #include <yt/server/master/chunk_server/cypress_integration.h>
 #include <yt/server/master/chunk_server/job_tracker_service.h>
 
@@ -41,10 +43,14 @@
 #include <yt/server/master/journal_server/journal_node.h>
 #include <yt/server/master/journal_server/journal_node_type_handler.h>
 
+#include <yt/server/master/cell_server/tablet_node_tracker.h>
+#include <yt/server/master/cell_server/tablet_node_tracker_service.h>
 #include <yt/server/master/cell_server/tamed_cell_manager.h>
 #include <yt/server/master/cell_server/cell_hydra_janitor.h>
 
 #include <yt/server/master/node_tracker_server/cypress_integration.h>
+#include <yt/server/master/node_tracker_server/exec_node_tracker.h>
+#include <yt/server/master/node_tracker_server/exec_node_tracker_service.h>
 #include <yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/server/master/node_tracker_server/node_tracker_service.h>
 
@@ -294,6 +300,21 @@ const ISnapshotStorePtr& TBootstrap::GetSnapshotStore() const
 const TNodeTrackerPtr& TBootstrap::GetNodeTracker() const
 {
     return NodeTracker_;
+}
+
+const IDataNodeTrackerPtr& TBootstrap::GetDataNodeTracker() const
+{
+    return DataNodeTracker_;
+}
+
+const IExecNodeTrackerPtr& TBootstrap::GetExecNodeTracker() const
+{
+    return ExecNodeTracker_;
+}
+
+const ITabletNodeTrackerPtr& TBootstrap::GetTabletNodeTracker() const
+{
+    return TabletNodeTracker_;
 }
 
 const TTransactionManagerPtr& TBootstrap::GetTransactionManager() const
@@ -682,7 +703,13 @@ void TBootstrap::DoInitialize()
 
     TransactionManager_ = New<TTransactionManager>(this);
 
-    NodeTracker_ = New<TNodeTracker>(Config_->NodeTracker, this);
+    NodeTracker_ = New<TNodeTracker>(this);
+
+    DataNodeTracker_ = CreateDataNodeTracker(this);
+
+    ExecNodeTracker_ = CreateExecNodeTracker(this);
+
+    TabletNodeTracker_ = CreateTabletNodeTracker(this);
 
     CypressManager_ = New<TCypressManager>(this);
 
@@ -736,6 +763,9 @@ void TBootstrap::DoInitialize()
     SecurityManager_->Initialize();
     TransactionManager_->Initialize();
     NodeTracker_->Initialize();
+    DataNodeTracker_->Initialize();
+    ExecNodeTracker_->Initialize();
+    TabletNodeTracker_->Initialize();
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
     TamedCellManager_->Initialize();
@@ -771,7 +801,10 @@ void TBootstrap::DoInitialize()
         RpcServer_->RegisterService(service); // cell realm
     }
     RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, fileSnapshotStore)); // cell realm
-    RpcServer_->RegisterService(CreateNodeTrackerService(Config_->NodeTracker, this)); // master hydra service
+    RpcServer_->RegisterService(CreateNodeTrackerService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateDataNodeTrackerService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateExecNodeTrackerService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateTabletNodeTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateObjectService(Config_->ObjectService, this)); // master hydra service
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateChunkService(this)); // master hydra service

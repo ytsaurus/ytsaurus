@@ -17,6 +17,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/ytlib/node_tracker_client/interop.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/core/net/address.h>
@@ -136,21 +137,67 @@ void TNode::ComputeDefaultAddress()
     DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(GetAddressesOrThrow(EAddressType::InternalRpc));
 }
 
-void TNode::SetStatistics(
-    NNodeTrackerClient::NProto::TNodeStatistics&& statistics,
-    const NChunkServer::TChunkManagerPtr& chunkManager)
+bool TNode::IsDataNode() const
 {
-    Statistics_.Swap(&statistics);
-    ComputeFillFactors();
-    ComputeSessionCount();
-    RecomputeIOWeights(chunkManager);
+    return Flavors_.contains(ENodeFlavor::Data);
+}
+
+bool TNode::IsExecNode() const
+{
+    return Flavors_.contains(ENodeFlavor::Exec);
+}
+
+bool TNode::IsTabletNode() const
+{
+    return Flavors_.contains(ENodeFlavor::Tablet);
+}
+
+bool TNode::ReportedClusterNodeHeartbeat() const
+{
+    return ReportedHeartbeats_.contains(ENodeFlavor::Cluster);
+}
+
+bool TNode::ReportedDataNodeHeartbeat() const
+{
+    return ReportedHeartbeats_.contains(ENodeFlavor::Data);
+}
+
+bool TNode::ReportedExecNodeHeartbeat() const
+{
+    return ReportedHeartbeats_.contains(ENodeFlavor::Exec);
+}
+
+bool TNode::ReportedTabletNodeHeartbeat() const
+{
+    return ReportedHeartbeats_.contains(ENodeFlavor::Tablet);
+}
+
+void TNode::ValidateRegistered()
+{
+    auto state = GetLocalState();
+    if (state == ENodeState::Registered || state == ENodeState::Online) {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION(NNodeTrackerClient::EErrorCode::InvalidState, "Node is not registered")
+        << TErrorAttribute("local_node_state", state);
+}
+
+void TNode::SetClusterNodeStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics&& statistics)
+{
+    ClusterNodeStatistics_.Swap(&statistics);
+}
+
+void TNode::SetExecNodeStatistics(NNodeTrackerClient::NProto::TExecNodeStatistics&& statistics)
+{
+    ExecNodeStatistics_.Swap(&statistics);
 }
 
 void TNode::ComputeFillFactors()
 {
     TMediumMap<std::pair<i64, i64>> freeAndUsedSpace;
 
-    for (const auto& location : Statistics_.storage_locations()) {
+    for (const auto& location : DataNodeStatistics_.storage_locations()) {
         auto mediumIndex = location.medium_index();
         auto& space = freeAndUsedSpace[mediumIndex];
         auto& freeSpace = space.first;
@@ -173,7 +220,7 @@ void TNode::ComputeFillFactors()
 void TNode::ComputeSessionCount()
 {
     SessionCount_.clear();
-    for (const auto& location : Statistics_.storage_locations()) {
+    for (const auto& location : DataNodeStatistics_.storage_locations()) {
         auto mediumIndex = location.medium_index();
         if (location.enabled() && !location.full()) {
             SessionCount_[mediumIndex] = SessionCount_[mediumIndex].value_or(0) + location.session_count();
@@ -249,7 +296,7 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
 void TNode::RecomputeIOWeights(const NChunkServer::TChunkManagerPtr& chunkManager)
 {
     IOWeights_.clear();
-    for (const auto& statistics : Statistics_.media()) {
+    for (const auto& statistics : DataNodeStatistics_.media()) {
         auto mediumIndex = statistics.medium_index();
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         if (!medium || medium->GetCache()) {
@@ -326,7 +373,10 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, NodeTags_);
     Save(context, RegisterTime_);
     Save(context, LastSeenTime_);
-    Save(context, Statistics_);
+    Save(context, ClusterNodeStatistics_);
+    Save(context, DataNodeStatistics_);
+    Save(context, ExecNodeStatistics_);
+    Save(context, TabletNodeStatistics_);
     Save(context, Alerts_);
     Save(context, ResourceLimits_);
     Save(context, ResourceUsage_);
@@ -358,6 +408,8 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, TabletSlots_);
     Save(context, Annotations_);
     Save(context, Version_);
+    Save(context, Flavors_);
+    Save(context, ReportedHeartbeats_);
 }
 
 void TNode::Load(NCellMaster::TLoadContext& context)
@@ -388,7 +440,22 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, NodeTags_);
     Load(context, RegisterTime_);
     Load(context, LastSeenTime_);
-    Load(context, Statistics_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() < EMasterReign::NodeFlavors) {
+        NNodeTrackerClient::NProto::TNodeStatistics legacyStatistics;
+        Load(context, legacyStatistics);
+        FromNodeStatistics(&ClusterNodeStatistics_, legacyStatistics);
+        FromNodeStatistics(&DataNodeStatistics_, legacyStatistics);
+        FromNodeStatistics(&ExecNodeStatistics_, legacyStatistics);
+        FromNodeStatistics(&TabletNodeStatistics_, legacyStatistics);
+    } else {
+        Load(context, ClusterNodeStatistics_);
+        Load(context, DataNodeStatistics_);
+        Load(context, ExecNodeStatistics_);
+        Load(context, TabletNodeStatistics_);
+    }
+
     Load(context, Alerts_);
     Load(context, ResourceLimits_);
     Load(context, ResourceUsage_);
@@ -414,6 +481,12 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, TabletSlots_);
     Load(context, Annotations_);
     Load(context, Version_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::NodeFlavors) {
+        Load(context, Flavors_);
+        Load(context, ReportedHeartbeats_);
+    }
 
     ComputeDefaultAddress();
 }
@@ -534,7 +607,7 @@ bool TNode::RemoveDestroyedReplica(const TChunkIdWithIndexes& replica)
 
 void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 {
-    YT_ASSERT(GetLocalState() == ENodeState::Online);
+    YT_ASSERT(ReportedDataNodeHeartbeat());
     ChunkRemovalQueue_[replica].set(replica.MediumIndex);
 }
 
@@ -551,7 +624,7 @@ void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 
 void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority)
 {
-    YT_ASSERT(GetLocalState() == ENodeState::Online);
+    YT_ASSERT(ReportedDataNodeHeartbeat());
     ChunkReplicationQueues_[priority][replica.ToGenericState()].set(targetMediumIndex);
 }
 
@@ -574,7 +647,7 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int t
 
 void TNode::AddToChunkSealQueue(TChunkPtrWithIndexes replica)
 {
-    YT_ASSERT(GetLocalState() == ENodeState::Online);
+    YT_ASSERT(ReportedDataNodeHeartbeat());
     ChunkSealQueue_.insert(replica);
 }
 
@@ -629,11 +702,11 @@ int TNode::GetSessionCount(ESessionType sessionType) const
 {
     switch (sessionType) {
         case ESessionType::User:
-            return Statistics_.total_user_session_count() + TotalHintedUserSessionCount_;
+            return DataNodeStatistics_.total_user_session_count() + TotalHintedUserSessionCount_;
         case ESessionType::Replication:
-            return Statistics_.total_replication_session_count() + TotalHintedReplicationSessionCount_;
+            return DataNodeStatistics_.total_replication_session_count() + TotalHintedReplicationSessionCount_;
         case ESessionType::Repair:
-            return Statistics_.total_repair_session_count() + TotalHintedRepairSessionCount_;
+            return DataNodeStatistics_.total_repair_session_count() + TotalHintedRepairSessionCount_;
         default:
             YT_ABORT();
     }
@@ -642,9 +715,9 @@ int TNode::GetSessionCount(ESessionType sessionType) const
 int TNode::GetTotalSessionCount() const
 {
     return
-        Statistics_.total_user_session_count() + TotalHintedUserSessionCount_ +
-        Statistics_.total_replication_session_count() + TotalHintedReplicationSessionCount_ +
-        Statistics_.total_repair_session_count() + TotalHintedRepairSessionCount_;
+        DataNodeStatistics_.total_user_session_count() + TotalHintedUserSessionCount_ +
+        DataNodeStatistics_.total_replication_session_count() + TotalHintedReplicationSessionCount_ +
+        DataNodeStatistics_.total_repair_session_count() + TotalHintedRepairSessionCount_;
 }
 
 TNode::TCellSlot* TNode::FindCellSlot(const TCellBase* cell)
@@ -721,6 +794,16 @@ void TNode::SetVisitMark(int mediumIndex, ui64 mark)
     VisitMarks_[mediumIndex] = mark;
 }
 
+void TNode::SetDataNodeStatistics(
+    NNodeTrackerClient::NProto::TDataNodeStatistics&& statistics,
+    const TChunkManagerPtr& chunkManager)
+{
+    DataNodeStatistics_.Swap(&statistics);
+    ComputeFillFactors();
+    ComputeSessionCount();
+    RecomputeIOWeights(chunkManager);
+}
+
 void TNode::ValidateNotBanned()
 {
     if (Banned_) {
@@ -731,13 +814,13 @@ void TNode::ValidateNotBanned()
 int TNode::GetTotalTabletSlots() const
 {
     return
-        Statistics_.used_tablet_slots() +
-        Statistics_.available_tablet_slots();
+        TabletNodeStatistics_.used_tablet_slots() +
+        TabletNodeStatistics_.available_tablet_slots();
 }
 
 bool TNode::HasMedium(int mediumIndex) const
 {
-    const auto& locations = Statistics_.storage_locations();
+    const auto& locations = DataNodeStatistics_.storage_locations();
     auto it = std::find_if(
         locations.begin(),
         locations.end(),
@@ -906,6 +989,11 @@ void TNode::SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& r
 void TNode::SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& resourceLimits)
 {
     ResourceLimits_ = resourceLimits;
+}
+
+void TNode::SetTabletNodeStatistics(NNodeTrackerClient::NProto::TTabletNodeStatistics&& statistics)
+{
+    TabletNodeStatistics_.Swap(&statistics);
 }
 
 TCellNodeStatistics TNode::ComputeCellStatistics() const

@@ -32,20 +32,20 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTrackerService
-    : public NCellMaster::TMasterHydraServiceBase
+    : public TMasterHydraServiceBase
 {
 public:
-    explicit TNodeTrackerService(
-        TNodeTrackerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap)
+    explicit TNodeTrackerService(TBootstrap* bootstrap)
         : TMasterHydraServiceBase(
             bootstrap,
             TNodeTrackerServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::NodeTrackerService,
             NodeTrackerServerLogger)
-        , Config_(config)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
+
+        // Legacy heartbeats.
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
@@ -55,8 +55,6 @@ public:
     }
 
 private:
-    const TNodeTrackerConfigPtr Config_;
-
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, RegisterNode)
     {
         ValidateClusterInitialized();
@@ -79,13 +77,11 @@ private:
         auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
         const auto& addresses = GetAddressesOrThrow(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
-        const auto& statistics = request->statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
 
-        context->SetRequestInfo("Address: %v, LeaseTransactionId: %v, %v",
+        context->SetRequestInfo("Address: %v, LeaseTransactionId: %v",
             address,
-            leaseTransactionId,
-            statistics);
+            leaseTransactionId);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->FindNodeByAddress(address);
@@ -94,6 +90,25 @@ private:
         }
 
         nodeTracker->ProcessRegisterNode(address, context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, Heartbeat)
+    {
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        auto nodeId = request->node_id();
+        const auto& statistics = request->statistics();
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+
+        context->SetRequestInfo("NodeId: %v, Address: %v, %v",
+            nodeId,
+            node->GetDefaultAddress(),
+            statistics);
+
+        nodeTracker->ProcessHeartbeat(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, FullHeartbeat)
@@ -137,11 +152,11 @@ private:
     }
 };
 
-NRpc::IServicePtr CreateNodeTrackerService(
-    TNodeTrackerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap)
+////////////////////////////////////////////////////////////////////////////////
+
+NRpc::IServicePtr CreateNodeTrackerService(TBootstrap* bootstrap)
 {
-    return New<TNodeTrackerService>(config, bootstrap);
+    return New<TNodeTrackerService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

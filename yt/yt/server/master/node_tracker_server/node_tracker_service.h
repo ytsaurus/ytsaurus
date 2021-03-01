@@ -10,9 +10,7 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateNodeTrackerService(
-    TNodeTrackerConfigPtr config,
-    NCellMaster::TBootstrap* bootstrap);
+NRpc::IServicePtr CreateNodeTrackerService(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

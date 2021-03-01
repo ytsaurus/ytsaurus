@@ -5,6 +5,7 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/server/node/data_node/config.h>
@@ -215,7 +216,7 @@ void TP2PBlockDistributor::DistributeBlocks()
 
     // Filter nodes that are not local and that are allowed by node tag filter.
     auto nodes = Bootstrap_->GetNodeDirectory()->GetAllDescriptors();
-    auto localNodeId = Bootstrap_->GetMasterConnector()->GetNodeId();
+    auto localNodeId = Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId();
     nodes.erase(std::remove_if(nodes.begin(), nodes.end(), [&] (const auto& pair) {
         return
             pair.first == localNodeId ||
@@ -353,7 +354,7 @@ TP2PBlockDistributor::TChosenBlocks TP2PBlockDistributor::ChooseBlocks()
             // in the replication reader.
             // I'm trying to deal with it assuming that the origin of a block with
             // Null source is current node.
-            source = Bootstrap_->GetMasterConnector()->GetLocalDescriptor();
+            source = Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor();
         }
         if (chosenBlocks.TotalSize + blockSize <= Config_->MaxPopulateRequestSize || chosenBlocks.TotalSize == 0) {
             YT_LOG_DEBUG("Block is ready for distribution (BlockId: %v, RequestCount: %v, LastDistributionTime: %v, "

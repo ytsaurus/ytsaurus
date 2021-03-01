@@ -349,6 +349,24 @@ DEFINE_REFCOUNTED_TYPE(TDynamicReplicatedTableTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicTabletNodeTrackerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int MaxConcurrentHeartbeats;
+
+    TDynamicTabletNodeTrackerConfig()
+    {
+        RegisterParameter("max_concurrent_heartbeats", MaxConcurrentHeartbeats)
+            .Default(10)
+            .GreaterThan(0);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTabletNodeTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicTabletManagerConfig
     : public NHydra::THydraJanitorConfig
 {
@@ -446,6 +464,8 @@ public:
     // TODO(ifsmirnov): remove and set default to true.
     bool EnableTabletResourceValidation;
 
+    TDynamicTabletNodeTrackerConfigPtr TabletNodeTracker;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -513,6 +533,9 @@ public:
             .Default(false);
         RegisterParameter("enable_tablet_resource_validation", EnableTabletResourceValidation)
             .Default(false);
+
+        RegisterParameter("tablet_node_tracker", TabletNodeTracker)
+            .DefaultNew();
 
         RegisterPostprocessor([&] {
             MaxSnapshotCountToKeep = 2;

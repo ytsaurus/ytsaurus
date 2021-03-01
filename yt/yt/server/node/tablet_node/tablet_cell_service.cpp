@@ -5,7 +5,11 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/cluster_node/master_connector.h>
+
+#include <yt/server/node/data_node/legacy_master_connector.h>
+
+#include <yt/server/node/tablet_node/master_connector.h>
 
 #include <yt/server/lib/hydra/hydra_service.h>
 
@@ -42,11 +46,22 @@ private:
     {
         context->SetRequestInfo();
 
-        auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
-        Bootstrap_->GetMasterConnector()->ScheduleNodeHeartbeat(primaryCellTag, true);
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeMasterConnector();
+        if (clusterNodeMasterConnector->IsConnected()) {
+            auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
+            if (clusterNodeMasterConnector->UseNewHeartbeats()) {
+                const auto& masterConnector = Bootstrap_->GetTabletNodeMasterConnector();
+                masterConnector->ScheduleHeartbeat(primaryCellTag, /* immediately */ true);
+            } else {
+                Bootstrap_->GetLegacyMasterConnector()->ScheduleNodeHeartbeat(primaryCellTag, /* immediately */ true);
+            }
+        }
+
         context->Reply();
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IServicePtr CreateTabletCellService(NClusterNode::TBootstrap* bootstrap)
 {

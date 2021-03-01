@@ -78,11 +78,10 @@ private:
             node->GetDefaultAddress(),
             FormatResourceUsage(resourceUsage, resourceLimits));
 
-        if (node->GetLocalState() != ENodeState::Online) {
+        if (!node->ReportedDataNodeHeartbeat()) {
             THROW_ERROR_EXCEPTION(
                 NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process a heartbeat in %Qlv state",
-                node->GetLocalState());
+                "Cannot process a job heartbeat unless data node heartbeat is reported");
         }
 
         const auto& configManager = Bootstrap_->GetConfigManager();

@@ -18,6 +18,9 @@ public:
         .SetProtocolVersion(14));
 
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterNode);
+    DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
+
+    // Legacy heartbeats.
     DEFINE_RPC_PROXY_METHOD(NProto, FullHeartbeat);
     DEFINE_RPC_PROXY_METHOD(NProto, IncrementalHeartbeat);
 };

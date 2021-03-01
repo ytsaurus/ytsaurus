@@ -3,8 +3,8 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/master_connector.h>
 #include <yt/server/node/data_node/helpers.h>
 
 #include <yt/server/lib/job_agent/gpu_helpers.h>
@@ -140,7 +140,7 @@ TGpuManager::TGpuManager(
         HealthCheckExecutor_->Start();
     }
 
-    Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(
+    Bootstrap_->GetClusterNodeMasterConnector()->SubscribePopulateAlerts(
         BIND(&TGpuManager::PopulateAlerts, MakeStrong(this)));
 }
 

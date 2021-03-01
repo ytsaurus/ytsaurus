@@ -1,0 +1,43 @@
+package NYT.NDataNodeTrackerClient.NProto;
+
+import "yt/ytlib/chunk_client/proto/heartbeat.proto";
+
+import "yt/client/node_tracker_client/proto/node.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFullHeartbeat
+{
+    required int32 node_id = 1;
+
+    required NNodeTrackerClient.NProto.TDataNodeStatistics statistics = 2;
+    repeated NNodeTrackerClient.NProto.TMediumChunkStatistics chunk_statistics = 3;
+
+    repeated NChunkClient.NProto.TChunkAddInfo chunks = 4;
+
+    optional bool write_sessions_disabled = 5;
+}
+
+message TRspFullHeartbeat
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqIncrementalHeartbeat
+{
+    required int32 node_id = 1;
+
+    required NNodeTrackerClient.NProto.TDataNodeStatistics statistics = 2;
+
+    repeated NChunkClient.NProto.TChunkAddInfo added_chunks = 3;
+    repeated NChunkClient.NProto.TChunkRemoveInfo removed_chunks = 4;
+
+    optional bool write_sessions_disabled = 5;
+}
+
+message TRspIncrementalHeartbeat
+{
+    optional bool disable_write_sessions = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

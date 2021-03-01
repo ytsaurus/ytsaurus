@@ -95,6 +95,12 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (TamedCellManager)
     (SchedulerPoolManager)
     (RecursiveResourceUsageCache)
+    (ExecNodeTracker)
+    (ExecNodeTrackerService)
+    (TabletNodeTracker)
+    (TabletNodeTrackerService)
+    (DataNodeTracker)
+    (DataNodeTrackerService)
 );
 
 using NCellMasterClient::EMasterCellRole;

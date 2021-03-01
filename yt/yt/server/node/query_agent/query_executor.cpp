@@ -9,7 +9,7 @@
 #include <yt/server/node/data_node/chunk.h>
 #include <yt/server/node/data_node/chunk_registry.h>
 #include <yt/server/node/data_node/local_chunk_reader.h>
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/server/lib/hydra/hydra_manager.h>
 

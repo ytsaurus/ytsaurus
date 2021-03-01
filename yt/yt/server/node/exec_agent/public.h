@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/server/lib/exec_agent/public.h>
+
 #include <yt/server/lib/job_agent/public.h>
 
 #include <yt/core/misc/optional.h>
@@ -31,6 +32,8 @@ struct TUserSandboxOptions
 };
 
 extern const TString ProxyConfigFileName;
+
+DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 
 DECLARE_REFCOUNTED_CLASS(TSlotManager)
 DECLARE_REFCOUNTED_CLASS(TSlotLocation)

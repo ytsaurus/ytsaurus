@@ -793,6 +793,57 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMasterConnectorConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between consequent tablet node heartbeats.
+    TDuration HeartbeatPeriod;
+
+    //! Splay for tablet node heartbeats.
+    TDuration HeartbeatPeriodSplay;
+
+    //! Timeout of the tablet node heartbeat RPC request.
+    TDuration HeartbeatTimeout;
+
+    TMasterConnectorConfig()
+    {
+        RegisterParameter("heartbeat_period", HeartbeatPeriod)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
+            .Default(TDuration::Seconds(60));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterConnectorDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between consequent tablet node heartbeats.
+    std::optional<TDuration> HeartbeatPeriod;
+
+    //! Splay for tablet node heartbeats.
+    std::optional<TDuration> HeartbeatPeriodSplay;
+
+    TMasterConnectorDynamicConfig()
+    {
+        RegisterParameter("heartbeat_period", HeartbeatPeriod)
+            .Default();
+        RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TResourceLimitsConfig
     : public NYTree::TYsonSerializable
 {
@@ -848,6 +899,8 @@ public:
     TDuration FullStructuredTabletHeartbeatPeriod;
     TDuration IncrementalStructuredTabletHeartbeatPeriod;
 
+    TMasterConnectorDynamicConfigPtr MasterConnector;
+
     TTabletNodeDynamicConfig()
     {
         RegisterParameter("slots", Slots)
@@ -877,6 +930,9 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("incremental_structured_tablet_heartbeat_period", IncrementalStructuredTabletHeartbeatPeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("master_connector", MasterConnector)
+            .DefaultNew();
     }
 };
 
@@ -954,6 +1010,8 @@ public:
     //! Column evaluator used for handling tablet writes.
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
 
+    TMasterConnectorConfigPtr MasterConnector;
+
     TTabletNodeConfig()
     {
         RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
@@ -1022,6 +1080,9 @@ public:
             .Default(TDuration::Seconds(5));
 
         RegisterParameter("column_evaluator_cache", ColumnEvaluatorCache)
+            .DefaultNew();
+
+        RegisterParameter("master_connector", MasterConnector)
             .DefaultNew();
 
         RegisterPreprocessor([&] {

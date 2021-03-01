@@ -28,7 +28,7 @@ void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
     counters->ThrottledReadsCounter.Increment();
 }
 
-void TNetworkStatistics::UpdateStatistics(NNodeTrackerClient::NProto::TNodeStatistics* statistics)
+void TNetworkStatistics::UpdateStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics* statistics)
 {
     Counters_.IterateReadOnly([this, statistics] (const auto& name, const auto& counters) {
         auto* network = statistics->add_network();

@@ -199,6 +199,29 @@ DEFINE_REFCOUNTED_TYPE(TMediumConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicDataNodeTrackerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int MaxConcurrentFullHeartbeats;
+
+    int MaxConcurrentIncrementalHeartbeats;
+
+    TDynamicDataNodeTrackerConfig()
+    {
+        RegisterParameter("max_concurrent_full_heartbeats", MaxConcurrentFullHeartbeats)
+            .Default(1)
+            .GreaterThan(0);
+        RegisterParameter("max_concurrent_incremental_heartbeats", MaxConcurrentIncrementalHeartbeats)
+            .Default(10)
+            .GreaterThan(0);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicDataNodeTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicChunkManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -324,6 +347,8 @@ public:
     //! When a node executes a chunk removal job, it will keep the set of known
     //! chunk replicas (and suggest these to others) for some time.
     TDuration ChunkRemovalJobReplicasExpirationTime;
+
+    TDynamicDataNodeTrackerConfigPtr DataNodeTracker;
 
     // COMPAT(babenko)
     bool EnableHunks;
@@ -461,7 +486,10 @@ public:
         RegisterParameter("chunk_removal_job_replicas_expiration_time", ChunkRemovalJobReplicasExpirationTime)
             .Default(TDuration::Minutes(15));
 
-        RegisterParameter("enable_hunks", EnableHunks)
+        RegisterParameter("data_node_tracker", DataNodeTracker)
+            .DefaultNew();
+
+            RegisterParameter("enable_hunks", EnableHunks)
             .Default(false);
 
         RegisterPreprocessor([&] () {

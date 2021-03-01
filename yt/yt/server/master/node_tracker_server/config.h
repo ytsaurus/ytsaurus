@@ -94,6 +94,9 @@ public:
     int MaxConcurrentNodeRegistrations;
     int MaxConcurrentNodeUnregistrations;
 
+    int MaxConcurrentClusterNodeHeartbeats;
+    int MaxConcurrentExecNodeHeartbeats;
+
     int MaxConcurrentFullHeartbeats;
     int MaxConcurrentIncrementalHeartbeats;
 
@@ -101,6 +104,8 @@ public:
 
     TNodeDiscoveryManagerConfigPtr MasterCacheManager;
     TNodeDiscoveryManagerConfigPtr TimestampProviderManager;
+
+    bool UseNewHeartbeats;
 
     TDynamicNodeTrackerConfig()
     {
@@ -125,6 +130,13 @@ public:
             .Default(5)
             .GreaterThan(0);
 
+        RegisterParameter("max_concurrent_cluster_node_heartbeats", MaxConcurrentClusterNodeHeartbeats)
+            .Default(50)
+            .GreaterThan(0);
+        RegisterParameter("max_concurrent_exec_node_heartbeats", MaxConcurrentExecNodeHeartbeats)
+            .Default(50)
+            .GreaterThan(0);
+
         RegisterParameter("max_concurrent_full_heartbeats", MaxConcurrentFullHeartbeats)
             .Default(1)
             .GreaterThan(0);
@@ -139,6 +151,9 @@ public:
             .DefaultNew();
         RegisterParameter("timestamp_provider_manager", TimestampProviderManager)
             .DefaultNew();
+
+        RegisterParameter("use_new_heartbeats", UseNewHeartbeats)
+            .Default(false);
     }
 };
 

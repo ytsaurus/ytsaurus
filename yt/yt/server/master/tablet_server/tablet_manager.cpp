@@ -23,6 +23,7 @@
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/serialize.h>
 
+#include <yt/server/master/cell_server/tablet_node_tracker.h>
 #include <yt/server/master/cell_server/tamed_cell_manager.h>
 
 #include <yt/server/master/chunk_server/chunk_list.h>
@@ -124,6 +125,7 @@ using namespace NTableServer;
 using namespace NTabletClient::NProto;
 using namespace NTabletClient;
 using namespace NTabletNode::NProto;
+using namespace NTabletNodeTrackerClient::NProto;
 using namespace NTransactionServer;
 using namespace NTransactionClient;
 using namespace NYPath;
@@ -133,7 +135,6 @@ using namespace NCellServer;
 using namespace NProfiling;
 
 using NNodeTrackerClient::TNodeDescriptor;
-using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 using NTabletNode::EStoreType;
 using NTabletNode::TTableMountConfigPtr;
 using NTabletNode::DynamicStoreIdPoolSize;
@@ -231,8 +232,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSetTabletCellBundleResourceUsage, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletCellBundleResourceUsage, Unretained(this)));
 
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
+        const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
+        tabletNodeTracker->SubscribeHeartbeat(BIND(&TImpl::OnTabletNodeHeartbeat, MakeWeak(this)));
     }
 
     void Initialize()
@@ -2453,7 +2454,7 @@ private:
 
     using TProfilerKey = std::tuple<std::optional<ETabletStoresUpdateReason>, TString, bool>;
 
-    TTimeCounter IncrementalHeartbeatCounter_ = TabletServerProfiler.TimeCounter("/incremental_heartbeat");
+    TTimeCounter TabletNodeHeartbeatCounter_ = TabletServerProfiler.TimeCounter("/tablet_node_heartbeat");
     THashMap<TProfilerKey, TProfilingCounters> Counters_;
 
     TProfilingCounters* GetCounters(std::optional<ETabletStoresUpdateReason> reason, TTableNode* table)
@@ -4407,10 +4408,10 @@ private:
         }
     }
 
-    void OnIncrementalHeartbeat(
+    void OnTabletNodeHeartbeat(
         TNode* node,
-        TReqIncrementalHeartbeat* request,
-        TRspIncrementalHeartbeat* response)
+        NTabletNodeTrackerClient::NProto::TReqHeartbeat* request,
+        NTabletNodeTrackerClient::NProto::TRspHeartbeat* response)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -4521,7 +4522,7 @@ private:
             TabletBalancer_->OnTabletHeartbeat(tablet);
         }
 
-        IncrementalHeartbeatCounter_.Add(timer.GetElapsedTime());
+        TabletNodeHeartbeatCounter_.Add(timer.GetElapsedTime());
     }
 
     void HydraUpdateUpstreamTabletState(NProto::TReqUpdateUpstreamTabletState* request)

@@ -151,6 +151,7 @@ DEFINE_ENUM(EMasterReign,
     ((EnableMasterCacheDiscoveryByDefault)                          (1507))  // aleksandra-zh
     ((CellDescriptorMap)                                            (1508))  // aleksandra-zh
     ((MasterAlerts)                                                 (1509))  // gritukan
+    ((NodeFlavors)                                                  (1510))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2584,3 +2584,29 @@ def update_controller_agent_config(path, value):
     for agent in ls("//sys/controller_agents/instances"):
         orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(agent)
         wait(lambda: get("{}/{}".format(orchid_config_path, path)) == value)
+
+
+def get_nodes_with_flavor(flavor):
+    cluster_nodes = ls("//sys/cluster_nodes", attributes=["flavors"])
+    nodes = []
+    for node in cluster_nodes:
+        # COMPAT(gritukan)
+        if "flavors" not in node.attributes:
+            nodes.append(str(node))
+            continue
+
+        if flavor in node.attributes["flavors"]:
+            nodes.append(str(node))
+    return nodes
+
+
+def get_data_nodes():
+    return get_nodes_with_flavor("data")
+
+
+def get_exec_nodes():
+    return get_nodes_with_flavor("exec")
+
+
+def get_tablet_nodes():
+    return get_nodes_with_flavor("tablet")

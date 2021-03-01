@@ -2,10 +2,10 @@
 #include "private.h"
 #include "chunk_block_manager.h"
 #include "config.h"
-#include "master_connector.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -66,7 +66,7 @@ void TBlockPeerUpdater::Update()
 
     auto expirationDeadline = GetPeerUpdateExpirationTime().ToDeadLine();
     auto localDescriptor = Bootstrap_
-        ->GetMasterConnector()
+        ->GetClusterNodeMasterConnector()
         ->GetLocalDescriptor();
     const auto& channelFactory = Bootstrap_
         ->GetMasterClient()
@@ -87,7 +87,7 @@ void TBlockPeerUpdater::Update()
 
         const auto& request = it->second;
         request->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
-        request->set_peer_node_id(Bootstrap_->GetMasterConnector()->GetNodeId());
+        request->set_peer_node_id(Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId());
         request->set_peer_expiration_deadline(ToProto<ui64>(expirationDeadline));
         auto* protoBlockId = request->add_block_ids();
         const auto& blockId = block->GetKey();
