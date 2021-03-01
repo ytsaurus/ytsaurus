@@ -13,7 +13,7 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/fiber_api.h>
+#include <yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/monlib/encode/format.h>
 #include <library/cpp/monlib/encode/json/json.h>
@@ -53,7 +53,7 @@ bool TSolomonExporterConfig::Filter(const TString& shardName, const TString& sen
                 matchedShard = name;
                 continue;
             }
-               
+
             if (prefix.size() == static_cast<size_t>(matchSize) && name == shardName) {
                 matchedShard = name;
             }
@@ -166,7 +166,7 @@ void TSolomonExporter::Stop()
 void TSolomonExporter::DoCollect()
 {
     auto nowUnix = TInstant::Now().GetValue();
-    nowUnix -= (nowUnix % Config_->GridStep.GetValue());    
+    nowUnix -= (nowUnix % Config_->GridStep.GetValue());
     auto nextGridTime = TInstant::FromValue(nowUnix) + Config_->GridStep;
 
     auto waitUntil = [] (auto deadline) {
@@ -241,7 +241,7 @@ void TSolomonExporter::HandleStatus(const IRequestPtr&, const IResponseWriterPtr
         }
 
         invalidSensors[sensor.Name] = sensor.Error;
-    }    
+    }
 
     rsp->SetStatus(EStatusCode::OK);
     ReplyJson(rsp, [&] (auto consumer) {
@@ -366,7 +366,7 @@ void TSolomonExporter::HandleShard(
 
             case NMonitoring::EFormat::SPACK:
                 encoder = NMonitoring::EncoderSpackV1(
-                    &buffer, 
+                    &buffer,
                     NMonitoring::ETimePrecision::SECONDS,
                     compression,
                     NMonitoring::EMetricsMergingMode::MERGE_METRICS);

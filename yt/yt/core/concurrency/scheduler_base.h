@@ -1,6 +1,9 @@
 #pragma once
 
-#include "scheduler.h"
+#include "public.h"
+#include "event_count.h"
+
+#include <yt/core/actions/public.h>
 
 #include <yt/core/misc/common.h>
 #include <yt/core/misc/shutdownable.h>
@@ -62,41 +65,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerThreadBase)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TFiberReusingAdapter
-    : public TSchedulerThreadBase
-{
-public:
-    TFiberReusingAdapter(
-        std::shared_ptr<TEventCount> callbackEventCount,
-        const TString& threadName);
-    TFiberReusingAdapter(
-        std::shared_ptr<TEventCount> callbackEventCount,
-        const TString& threadName,
-        const NProfiling::TTagSet& tags);
-
-    void CancelWait();
-    void PrepareWait();
-    void Wait();
-
-    virtual TClosure BeginExecute() = 0;
-    virtual void EndExecute() = 0;
-
-private:
-    std::optional<TEventCount::TCookie> Cookie_;
-
-    virtual bool OnLoop(TEventCount::TCookie* cookie) override;
-};
-
-/////////////////////////////////////////////////////////////////////////////
-
-// Temporary adapters.
-using TSchedulerThread = TFiberReusingAdapter;
-
-DECLARE_REFCOUNTED_TYPE(TSchedulerThread)
-DEFINE_REFCOUNTED_TYPE(TSchedulerThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 

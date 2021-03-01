@@ -1,6 +1,6 @@
 #pragma once
 
-#include "scheduler_base.h"
+#include "scheduler_thread.h"
 #include "spinlock.h"
 
 #include <yt/core/actions/public.h>

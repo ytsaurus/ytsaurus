@@ -1,5 +1,4 @@
 #pragma once
-#include "fiber_api.h"
 
 #include <yt/core/misc/common.h>
 
@@ -11,6 +10,57 @@ IInvokerPtr GetCurrentInvoker();
 } //namespace NYT
 
 namespace NYT::NConcurrency {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TFiberCanceler = TCallback<void(const TError&)>;
+
+TFiberCanceler GetCurrentFiberCanceler();
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns the current fiber id.
+TFiberId GetCurrentFiberId();
+
+//! Sets the current fiber id.
+void SetCurrentFiberId(TFiberId id);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Thrown when a fiber is being terminated by an external event.
+class TFiberCanceledException
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PushContextHandler(std::function<void()> out, std::function<void()> in);
+void PopContextHandler();
+
+class TContextSwitchGuard
+{
+public:
+    TContextSwitchGuard(std::function<void()> out, std::function<void()> in);
+    TContextSwitchGuard(const TContextSwitchGuard& other) = delete;
+    ~TContextSwitchGuard();
+};
+
+class TOneShotContextSwitchGuard
+    : public TContextSwitchGuard
+{
+public:
+    explicit TOneShotContextSwitchGuard(std::function<void()> handler);
+
+private:
+    bool Active_;
+
+};
+
+class TForbidContextSwitchGuard
+    : public TOneShotContextSwitchGuard
+{
+public:
+    TForbidContextSwitchGuard();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +81,9 @@ template <class T>
 void Yield();
 
 void SwitchTo(IInvokerPtr invoker);
+
+//! Returns |true| if there is enough remaining stack space.
+bool CheckFreeStackSpace(size_t space);
 
 ////////////////////////////////////////////////////////////////////////////////
 
