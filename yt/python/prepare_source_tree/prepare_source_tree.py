@@ -37,6 +37,7 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     "chardet",
     "idna",
     "six",
+    ("attr", "attrs"),
 ]
 
 PY23_BINARIES = [

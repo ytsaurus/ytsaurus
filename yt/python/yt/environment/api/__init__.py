@@ -1,4 +1,7 @@
-import attr
+try:
+    import yt.packages.attr as attr
+except ImportError:
+    import attr
 
 
 @attr.s
