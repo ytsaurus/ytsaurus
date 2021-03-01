@@ -102,9 +102,6 @@ public:
 
     THistogramSnapshot GetSnapshotAndReset();
 
-    static std::vector<double> BucketBoundsSeconds(const TSensorOptions& options);
-    static std::vector<TDuration> BucketBounds(const TSensorOptions& options);
-
 private:
     std::vector<TDuration> Bounds_;
     std::vector<std::atomic<int>> Buckets_;

@@ -9,6 +9,8 @@
 #include <yt/core/misc/weak_ptr.h>
 #include <yt/core/misc/small_vector.h>
 
+#include <vector>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,6 +137,8 @@ struct TSensorOptions
     TDuration HistogramMin;
     TDuration HistogramMax;
 
+    std::vector<TDuration> HistogramBounds;
+
     bool operator == (const TSensorOptions& other) const;
     bool operator != (const TSensorOptions& other) const;
 };
@@ -256,6 +260,10 @@ public:
      *  1us, 2us, 4us, 8us, ..., 500us, 1ms, 2ms, ..., 500ms, 1s, ...
      */
     TEventTimer Histogram(const TString& name, TDuration min, TDuration max) const;
+
+    //! Histogram is used to measure distribution of event durations.
+    //! Allows to use custom bounds, bounds should be sorted (maximum 65 elements are allowed)
+    TEventTimer Histogram(const TString& name, std::vector<TDuration> bounds) const;
 
     void AddFuncCounter(
         const TString& name,

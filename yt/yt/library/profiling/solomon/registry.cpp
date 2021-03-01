@@ -128,7 +128,7 @@ ITimerImplPtr TSolomonRegistry::RegisterTimerSummary(
         });
 }
 
-ITimerImplPtr TSolomonRegistry::RegisterExponentialTimerHistogram(
+ITimerImplPtr TSolomonRegistry::RegisterTimerHistogram(
     const TString& name,
     const TTagSet& tags,
     TSensorOptions options)

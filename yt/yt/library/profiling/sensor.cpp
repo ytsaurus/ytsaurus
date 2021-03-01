@@ -2,6 +2,7 @@
 #include "impl.h"
 
 #include <yt/core/misc/assert.h>
+#include <yt/core/misc/format.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -128,12 +129,15 @@ TEventTimerGuard::~TEventTimerGuard()
 
 TString ToString(const TSensorOptions& options)
 {
-    return "{sparse=" + ToString(options.Sparse) +
-        ";global=" + ToString(options.Global) +
-        ";hot=" + ToString(options.Hot) +
-        ":histogram_min=" + ToString(options.HistogramMin) +
-        ":histogram_max=" + ToString(options.HistogramMax) +
-        "}";
+    return Format(
+        "{sparse=%v;global=%v;hot=%v;histogram_min=%v;histogram_max=%v;histogram_bounds=%v}",
+        options.Sparse,
+        options.Global,
+        options.Hot,
+        options.HistogramMin,
+        options.HistogramMax,
+        options.HistogramBounds
+    );
 }
 
 bool TSensorOptions::operator == (const TSensorOptions& other) const
@@ -142,7 +146,8 @@ bool TSensorOptions::operator == (const TSensorOptions& other) const
         Global == other.Global &&
         Hot == other.Hot &&
         HistogramMin == other.HistogramMin &&
-        HistogramMax == other.HistogramMax;
+        HistogramMax == other.HistogramMax &&
+        HistogramBounds == other.HistogramBounds;
 }
 
 bool TSensorOptions::operator != (const TSensorOptions& other) const
@@ -302,7 +307,7 @@ TCounter TRegistry::Counter(const TString& name) const
     }
 
     TCounter counter;
-    counter.Counter_ = Impl_->RegisterCounter(Namespace_ + Prefix_ + name, Tags_, Options_);;
+    counter.Counter_ = Impl_->RegisterCounter(Namespace_ + Prefix_ + name, Tags_, Options_);
     return counter;
 }
 
@@ -313,7 +318,7 @@ TTimeCounter TRegistry::TimeCounter(const TString& name) const
     }
 
     TTimeCounter counter;
-    counter.Counter_ = Impl_->RegisterTimeCounter(Namespace_ + Prefix_ + name, Tags_, Options_);;
+    counter.Counter_ = Impl_->RegisterTimeCounter(Namespace_ + Prefix_ + name, Tags_, Options_);
     return counter;
 }
 
@@ -324,7 +329,7 @@ TGauge TRegistry::Gauge(const TString& name) const
     }
 
     TGauge gauge;
-    gauge.Gauge_ = Impl_->RegisterGauge(Namespace_ + Prefix_ + name, Tags_, Options_);;
+    gauge.Gauge_ = Impl_->RegisterGauge(Namespace_ + Prefix_ + name, Tags_, Options_);
     return gauge;
 }
 
@@ -335,7 +340,7 @@ TTimeGauge TRegistry::TimeGauge(const TString& name) const
     }
 
     TTimeGauge gauge;
-    gauge.Gauge_ = Impl_->RegisterTimeGauge(Namespace_ + Prefix_ + name, Tags_, Options_);;
+    gauge.Gauge_ = Impl_->RegisterTimeGauge(Namespace_ + Prefix_ + name, Tags_, Options_);
     return gauge;
 }
 
@@ -346,7 +351,7 @@ TSummary TRegistry::Summary(const TString& name) const
     }
 
     TSummary summary;
-    summary.Summary_ = Impl_->RegisterSummary(Namespace_ + Prefix_ + name, Tags_, Options_);;
+    summary.Summary_ = Impl_->RegisterSummary(Namespace_ + Prefix_ + name, Tags_, Options_);
     return summary;
 }
 
@@ -372,7 +377,20 @@ TEventTimer TRegistry::Histogram(const TString& name, TDuration min, TDuration m
     options.HistogramMax = max;
 
     TEventTimer timer;
-    timer.Timer_ = Impl_->RegisterExponentialTimerHistogram(Namespace_ + Prefix_ + name, Tags_, options);;
+    timer.Timer_ = Impl_->RegisterTimerHistogram(Namespace_ + Prefix_ + name, Tags_, options);
+    return timer;
+}
+
+TEventTimer TRegistry::Histogram(const TString& name, std::vector<TDuration> bounds) const
+{
+    if (!Impl_) {
+        return {};
+    }
+
+    TEventTimer timer;
+    auto options = Options_;
+    options.HistogramBounds = std::move(bounds);
+    timer.Timer_ = Impl_->RegisterTimerHistogram(Namespace_ + Prefix_ + name, Tags_, options);
     return timer;
 }
 
