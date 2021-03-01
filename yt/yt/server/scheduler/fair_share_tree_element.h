@@ -384,8 +384,6 @@ public:
 
     virtual bool IsRoot() const;
     virtual bool IsOperation() const;
-    virtual TOperationElement* AsOperation();
-    virtual TPool* AsPool();
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
 
@@ -454,6 +452,9 @@ public:
 
     virtual double GetFairShareStarvationTolerance() const = 0;
     virtual TDuration GetFairSharePreemptionTimeout() const = 0;
+
+    virtual void AdjustStrongGuarantees();
+    virtual void InitIntegralPoolLists(TUpdateFairShareContext* context);
 
     virtual void PrepareFairShareFunctions(TUpdateFairShareContext* context);
     void ResetFairShareFunctions();
@@ -766,8 +767,8 @@ protected:
     static bool ContainsChild(const TChildMap& map, const TSchedulerElementPtr& child);
 
     //! === Fair share update methods.
-    void InitIntegralPoolLists(TUpdateFairShareContext* context);
-    void AdjustStrongGuarantees();
+    virtual void InitIntegralPoolLists(TUpdateFairShareContext* context) override;
+    virtual void AdjustStrongGuarantees() override;
 
 private:
     /// strict_mode = true means that a caller guarantees that the sum predicate is true at least for fit factor = 0.0.
@@ -849,8 +850,6 @@ public:
     void ChangeParent(TCompositeSchedulerElement* newParent);
     void DetachParent();
 
-    virtual TPool* AsPool() override;
-
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const override;
 
     virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const override;
@@ -903,6 +902,8 @@ public:
 
     virtual double GetFairShareStarvationToleranceLimit() const override;
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const override;
+    
+    virtual void InitIntegralPoolLists(TUpdateFairShareContext* context) override;
 
     void UpdateAccumulatedResourceVolume(TDuration periodSinceLastUpdate);
 
@@ -1169,7 +1170,6 @@ public:
     virtual bool AreDetailedLogsEnabled() const override;
 
     virtual bool IsOperation() const override;
-    virtual TOperationElement* AsOperation() override;
 
     virtual ESchedulableStatus GetStatus(bool atUpdate = true) const override;
 

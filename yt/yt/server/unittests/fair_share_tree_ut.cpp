@@ -597,7 +597,7 @@ void ResetFairShareFunctionsRecursively(TCompositeSchedulerElement* compositeEle
 {
     compositeElement->ResetFairShareFunctions();
     for (const auto& child : compositeElement->GetEnabledChildren()) {
-        if (TPool* childPool = child->AsPool()) {
+        if (auto* childPool = dynamic_cast<TCompositeSchedulerElement*>(child.Get())) {
             ResetFairShareFunctionsRecursively(childPool);
         } else {
             child->ResetFairShareFunctions();
