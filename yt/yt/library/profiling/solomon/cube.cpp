@@ -371,10 +371,10 @@ int TCube<T>::ReadSensors(
 
                 writeLabels(tagIds, {}, true);
 
-                auto hist = NMonitoring::TExplicitHistogramSnapshot::New(options.BucketBound.size());
-                for (size_t i = 0; i < options.BucketBound.size(); ++i) {
+                auto hist = NMonitoring::TExplicitHistogramSnapshot::New(value.Times.size());
+                for (size_t i = 0; i < value.Times.size(); ++i) {
                     int bucketValue = i < value.Values.size() ? value.Values[i] : 0;
-                    (*hist)[i] = {options.BucketBound[i], bucketValue};
+                    (*hist)[i] = {value.Times[i].SecondsFloat(), bucketValue};
                 }
 
                 sensorCount = value.Values.size();

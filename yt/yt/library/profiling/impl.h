@@ -45,7 +45,7 @@ public:
         const TTagSet& tags,
         TSensorOptions options) = 0;
 
-    virtual ITimerImplPtr RegisterExponentialTimerHistogram(
+    virtual ITimerImplPtr RegisterTimerHistogram(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) = 0;

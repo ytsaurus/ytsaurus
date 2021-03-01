@@ -91,12 +91,48 @@ static_assert(sizeof(TSimpleSummary<double>) == 64);
 static_assert(sizeof(TSimpleSummary<TDuration>) == 64);
 
 ////////////////////////////////////////////////////////////////////////////////
+constexpr int MaxBinCount = 65;
+static auto GenericBucketBounds() {
+    std::array<ui64, MaxBinCount> result;
+
+    for (int index = 0; index <= 6; ++index) {
+        result[index] = 1ull << index;
+    }
+
+    for (int index = 7; index < 10; ++index) {
+        result[index] = 1000ull >> (10 - index);
+    }
+
+    for (int index = 10; index < MaxBinCount; ++index) {
+        result[index] = 1000 * result[index - 10];
+    }
+
+    return result;
+}
+
+static  std::vector<TDuration> BucketBounds(const TSensorOptions& options)
+{
+    if (options.HistogramMin.Zero() && options.HistogramMax.Zero()) {
+        return {};
+    }
+
+    std::vector<TDuration> bounds;
+    for (auto bound : GenericBucketBounds()) {
+        auto duration = TDuration::FromValue(bound);
+        if (options.HistogramMin <= duration && duration <= options.HistogramMax) {
+            bounds.push_back(duration);
+        }
+    }
+
+    return bounds;
+}
 
 THistogram::THistogram(const TSensorOptions& options)
-    : Bounds_(BucketBounds(options))
+    : Bounds_(!options.HistogramBounds.empty() ? std::vector<TDuration>{options.HistogramBounds} : BucketBounds(options))
     , Buckets_(Bounds_.size())
 {
     YT_VERIFY(!Bounds_.empty());
+    YT_VERIFY(Bounds_.size() < MaxBinCount);
 }
 
 void THistogram::Record(TDuration value)
@@ -126,62 +162,9 @@ THistogramSnapshot THistogram::GetSnapshotAndReset()
     if (empty) {
         return {};
     } else {
+        snapshot.Times = Bounds_;
         return snapshot;
     }
-}
-
-constexpr int MaxBinCount = 65;
-
-auto GenericBucketBounds() {
-    std::array<ui64, MaxBinCount> result;
-
-    for (int index = 0; index <= 6; ++index) {
-        result[index] = 1ull << index;
-    }
-
-    for (int index = 7; index < 10; ++index) {
-        result[index] = 1000ull >> (10 - index);
-    }
-
-    for (int index = 10; index < MaxBinCount; ++index) {
-        result[index] = 1000 * result[index - 10];
-    }
-
-    return result;
-};
-
-std::vector<double> THistogram::BucketBoundsSeconds(const TSensorOptions& options)
-{
-    if (options.HistogramMin.Zero() && options.HistogramMax.Zero()) {
-        return {};
-    }
-
-    std::vector<double> bounds;
-    for (auto bound : GenericBucketBounds()) {
-        auto duration = TDuration::FromValue(bound);
-        if (options.HistogramMin <= duration && duration <= options.HistogramMax) {
-            bounds.push_back(duration.SecondsFloat());
-        }
-    }
-
-    return bounds;
-}
-
-std::vector<TDuration> THistogram::BucketBounds(const TSensorOptions& options)
-{
-    if (options.HistogramMin.Zero() && options.HistogramMax.Zero()) {
-        return {};
-    }
-
-    std::vector<TDuration> bounds;
-    for (auto bound : GenericBucketBounds()) {
-        auto duration = TDuration::FromValue(bound);
-        if (options.HistogramMin <= duration && duration <= options.HistogramMax) {
-            bounds.push_back(duration);
-        }
-    }
-
-    return bounds;
 }
 
 TSummarySnapshot<TDuration> THistogram::GetValue()

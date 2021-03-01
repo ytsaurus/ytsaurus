@@ -1,5 +1,7 @@
 #pragma once
 
+#include <util/datetime/base.h>
+
 #include <vector>
 
 namespace NYT::NProfiling {
@@ -8,6 +10,7 @@ namespace NYT::NProfiling {
 
 struct THistogramSnapshot
 {
+    std::vector<TDuration> Times;
     std::vector<int> Values;
 
     THistogramSnapshot& operator += (const THistogramSnapshot& other);

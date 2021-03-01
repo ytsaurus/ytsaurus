@@ -65,8 +65,15 @@ struct TTestMetricConsumer
         Counters[FormatName()] = value;
     }
 
-    virtual void OnHistogram(TInstant, NMonitoring::IHistogramSnapshotPtr) override
-    { }
+    virtual void OnHistogram(TInstant, NMonitoring::IHistogramSnapshotPtr value) override
+    {
+        Cerr << FormatName() << " historgram{";
+        for (size_t i = 0; i < value->Count(); ++i) {
+            Cerr << value->Value(i) << ",";
+        }
+        Cerr << "}" << Endl;
+        Histograms[FormatName()] = value;
+    }
 
     virtual void OnLogHistogram(TInstant, NMonitoring::TLogHistogramSnapshotPtr) override
     { }
@@ -79,6 +86,7 @@ struct TTestMetricConsumer
 
     THashMap<TString, i64> Counters;
     THashMap<TString, double> Gauges;
+    THashMap<TString, NMonitoring::IHistogramSnapshotPtr> Histograms;
 
     TString FormatName() const
     {
@@ -187,6 +195,79 @@ TEST(TSolomonRegistry, GaugeProjections)
     ASSERT_EQ(result["yt.d.memory{}"], 10.0);
     ASSERT_EQ(result["yt.d.memory{user=u0}"], 10.0);
     ASSERT_EQ(result.find("yt.d.memory{user=u1}"), result.end());
+
+    Collect(impl, 2);
+    Collect(impl, 3);
+}
+
+TEST(TSolomonRegistry, ExponentialHistogramProjections)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+    TRegistry registry(impl, "/d");
+
+    auto c0 = registry.WithTag("user", "u0").Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
+    auto c1 = registry.WithTag("user", "u1").Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
+
+    auto result = Collect(impl).Histograms;
+
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 0u);
+    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 0u);
+
+    c0.Record(TDuration::MilliSeconds(5));
+    c1.Record(TDuration::MilliSeconds(5));
+
+    result = Collect(impl).Histograms;
+
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 15u);
+    ASSERT_EQ(result["yt.d.histogram{}"]->Value(13), 2u);
+    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Value(13), 1u);
+
+    c0.Record(TDuration::MilliSeconds(10));
+    c1 = {};
+
+    result = Collect(impl).Histograms;
+    ASSERT_EQ(result["yt.d.histogram{}"]->Value(14), 1u);
+    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Value(14), 1u);
+    ASSERT_EQ(result.find("yt.d.histogram{user=u1}"), result.end());
+
+    Collect(impl, 2);
+    Collect(impl, 3);
+}
+
+TEST(TSolomonRegistry, CustomHistogramProjections)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+    TRegistry registry(impl, "/d");
+
+    std::vector<TDuration> bounds{
+        TDuration::Zero(), TDuration::MilliSeconds(5), TDuration::MilliSeconds(10), TDuration::MilliSeconds(15)
+    };
+    auto c0 = registry.WithTag("user", "u0").Histogram("/histogram", bounds);
+    auto c1 = registry.WithTag("user", "u1").Histogram("/histogram", bounds);
+
+    auto result = Collect(impl).Histograms;
+
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 0u);
+    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 0u);
+
+    c0.Record(TDuration::MilliSeconds(5));
+    c1.Record(TDuration::MilliSeconds(5));
+
+    result = Collect(impl).Histograms;
+
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 4u);
+    ASSERT_EQ(result["yt.d.histogram{}"]->Value(1), 2u);
+    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Value(1), 1u);
+
+    c0.Record(TDuration::MilliSeconds(10));
+    c1 = {};
+
+    result = Collect(impl).Histograms;
+    ASSERT_EQ(result["yt.d.histogram{}"]->Value(2), 1u);
+    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Value(2), 1u);
+    ASSERT_EQ(result.find("yt.d.histogram{user=u1}"), result.end());
 
     Collect(impl, 2);
     Collect(impl, 3);

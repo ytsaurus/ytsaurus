@@ -9,9 +9,13 @@ namespace NYT::NProfiling {
 THistogramSnapshot& THistogramSnapshot::operator += (const THistogramSnapshot& other)
 {
     if (Values.empty()) {
+        Times = other.Times;
         Values = other.Values;
     } else if (!other.Values.empty()) {
         YT_VERIFY(Values.size() == other.Values.size());
+        YT_VERIFY(Times.size() == other.Times.size());
+        YT_VERIFY(Times.front() == other.Times.front());
+        YT_VERIFY(Times.back() == other.Times.back());
         for (size_t i = 0; i < other.Values.size(); ++i) {
             Values[i] += other.Values[i];
         }

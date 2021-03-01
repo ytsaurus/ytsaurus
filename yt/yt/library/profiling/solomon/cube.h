@@ -34,8 +34,6 @@ struct TReadOptions
 
     std::vector<TTag> InstanceTags;
 
-    std::vector<double> BucketBound;
-
     bool Sparse = false;
     bool Global = false;
     bool DisableSensorsRename = false;
