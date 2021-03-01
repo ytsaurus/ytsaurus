@@ -426,16 +426,6 @@ bool TSchedulerElement::IsOperation() const
     return false;
 }
 
-TOperationElement* TSchedulerElement::AsOperation()
-{
-    return nullptr;
-}
-
-TPool* TSchedulerElement::AsPool()
-{
-    return nullptr;
-}
-
 TString TSchedulerElement::GetLoggingAttributesString() const
 {
     return Format(
@@ -856,6 +846,12 @@ TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
     vectorSuggestion = TResourceVector::Min(vectorSuggestion, Attributes().LimitsShare);
     return vectorSuggestion;
 }
+
+void TSchedulerElement::AdjustStrongGuarantees()
+{ }
+
+void TSchedulerElement::InitIntegralPoolLists(TUpdateFairShareContext* /* context */)
+{ }
 
 void TSchedulerElement::PrepareFairShareFunctions(TUpdateFairShareContext* context)
 {
@@ -1516,21 +1512,7 @@ void TCompositeSchedulerElement::CollectResourceTreeOperationElements(std::vecto
 void TCompositeSchedulerElement::InitIntegralPoolLists(TUpdateFairShareContext* context)
 {
     for (const auto& child : EnabledChildren_) {
-        if (TPool* childPool = child->AsPool()) {
-            switch (childPool->GetIntegralGuaranteeType()) {
-                case EIntegralGuaranteeType::Burst:
-                    context->BurstPools.push_back(childPool);
-                    break;
-                case EIntegralGuaranteeType::Relaxed:
-                    context->RelaxedPools.push_back(childPool);
-                    break;
-                case EIntegralGuaranteeType::None:
-                    childPool->InitIntegralPoolLists(context);
-                    break;
-                default:
-                    YT_ABORT();
-            }
-        }
+        child->InitIntegralPoolLists(context);
     }
 }
 
@@ -1610,9 +1592,7 @@ void TCompositeSchedulerElement::AdjustStrongGuarantees()
     }
 
     for (const auto& child : EnabledChildren_) {
-        if (auto* childPool = child->AsPool()) {
-            childPool->AdjustStrongGuarantees();
-        }
+        child->AdjustStrongGuarantees();
     }
 }
 
@@ -2283,11 +2263,6 @@ bool TPool::IsAggressiveStarvationEnabled() const
     return Config_->EnableAggressiveStarvation;
 }
 
-TPool* TPool::AsPool()
-{
-    return this;
-}
-
 TString TPool::GetId() const
 {
     return Id_;
@@ -2523,6 +2498,21 @@ void TPool::BuildElementMapping(
 {
     poolMap->emplace(GetId(), this);
     TCompositeSchedulerElement::BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
+}
+
+void TPool::InitIntegralPoolLists(TUpdateFairShareContext* context)
+{
+    switch (GetIntegralGuaranteeType()) {
+        case EIntegralGuaranteeType::Burst:
+            context->BurstPools.push_back(this);
+            break;
+        case EIntegralGuaranteeType::Relaxed:
+            context->RelaxedPools.push_back(this);
+            break;
+        default:
+            break;
+    }
+    TCompositeSchedulerElement::InitIntegralPoolLists(context);
 }
 
 double TPool::GetSpecifiedBurstRatio() const
@@ -3736,11 +3726,6 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TScheduleJobsContext*
 TString TOperationElement::GetId() const
 {
     return ToString(OperationId_);
-}
-
-TOperationElement* TOperationElement::AsOperation()
-{
-    return this;
 }
 
 bool TOperationElement::IsAggressiveStarvationPreemptionAllowed() const
