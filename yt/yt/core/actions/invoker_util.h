@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/core/concurrency/public.h>
-#include <yt/core/concurrency/fiber_api.h>
+#include <yt/core/concurrency/scheduler_api.h>
 
 namespace NYT {
 

@@ -65,9 +65,7 @@ inline bool TCallbackBase::operator != (const TCallbackBase& other) const
 inline TCallbackBase::TCallbackBase(TIntrusivePtr<TBindStateBase>&& bindState)
     : BindState(std::move(bindState))
     , UntypedInvoke(nullptr)
-{
-    YT_ASSERT(!BindState || BindState->GetRefCount() == 1);
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

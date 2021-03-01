@@ -7,7 +7,7 @@
 #include <yt/core/misc/raw_formatter.h>
 
 #include <yt/core/concurrency/fls.h>
-#include <yt/core/concurrency/fiber_api.h>
+#include <yt/core/concurrency/scheduler_api.h>
 
 #include <util/system/defaults.h>
 

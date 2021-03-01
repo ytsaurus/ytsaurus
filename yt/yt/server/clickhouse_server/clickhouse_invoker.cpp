@@ -2,7 +2,7 @@
 
 #include <yt/core/misc/finally.h>
 
-#include <yt/core/concurrency/fiber_api.h>
+#include <yt/core/concurrency/scheduler_api.h>
 
 #include <yt/core/actions/invoker_detail.h>
 
