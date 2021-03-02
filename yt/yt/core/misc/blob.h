@@ -169,8 +169,6 @@ private:
     size_t Capacity_ = 0;
     size_t Alignment_ = 1;
 
-    bool Dumpable_ = true;
-
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTypeCookie TagCookie_ = NullRefCountedTypeCookie;
 #endif
