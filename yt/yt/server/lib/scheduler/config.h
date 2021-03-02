@@ -288,6 +288,26 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyTreeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPoolTreesTemplateConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Priority to apply filter.
+    int Priority;
+
+    //! Tree name filter.
+    NRe2::TRe2Ptr Filter;
+
+    //! Fair share strategy config for filter.
+    NYTree::INodePtr Config;
+
+    TPoolTreesTemplateConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TPoolTreesTemplateConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareStrategyConfig
     : public TFairShareStrategyOperationControllerConfig
 {
@@ -331,6 +351,9 @@ public:
     bool EnableScheduleInSingleTree;
 
     TStrategyTestingOptionsPtr StrategyTestingOptions;
+
+    //! Template pool tree configs.
+    THashMap<TString, TPoolTreesTemplateConfigPtr> TemplatePoolTreeConfigMap;
 
     TFairShareStrategyConfig();
 };

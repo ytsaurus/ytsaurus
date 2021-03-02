@@ -511,6 +511,118 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("pogorelov")
+    def test_template_pool_trees_config(self):
+        set(
+            "//sys/scheduler/config/template_pool_tree_config_map",
+            {
+                "custom_": {
+                    "priority": 1,
+                    "filter": "custom_.*",
+                    "config": {
+                        "enable_aggressive_starvation": True,
+                        "max_unpreemptable_running_job_count": 731,
+                        "max_running_operation_count": 21
+                    },
+                },
+                "pool": {
+                    "priority": 70,
+                    "filter": ".*pool.*",
+                    "config": {
+                        "max_running_operation_count": 93,
+                        "max_running_operation_count_per_pool": 70,
+                    },
+                },
+                "not_matching_config": {
+                    "priority": 1000,
+                    "filter": ".*not_matched_regexp.*",
+                    "config": {
+                        "max_running_operation_count": 88888,
+                        "max_running_operation_count_per_pool": 88888,
+                    },
+                },
+            }
+        )
+        create_pool_tree("custom_pool_tree", config={"nodes_filter": "custom_tag", "max_running_operation_count_per_pool": 180})
+
+        def check_dict_is_subdict(dict_, subdict):
+            for key, value in subdict.items():
+                if key not in dict_ or dict_[key] != value:
+                    return False
+            return True
+
+        pool_tree_settings = {}
+        def save_settings_and_check_them():
+            pool_tree_settings["custom_pool_tree"] = get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/custom_pool_tree/config")
+            return check_dict_is_subdict(
+                pool_tree_settings["custom_pool_tree"],
+                {
+                    "max_running_operation_count_per_pool": 180,
+                    "enable_aggressive_starvation": True,
+                    "max_running_operation_count": 93,
+                    "max_unpreemptable_running_job_count": 731,
+                }
+            )
+
+        wait(save_settings_and_check_them)
+        wait(lambda: not get("//sys/scheduler/@alerts"))
+
+        set(
+            "//sys/scheduler/config/template_pool_tree_config_map",
+            {
+                "custom_": {
+                    "priority": 70,
+                    "filter": "custom_.*",
+                    "config": {
+                        "enable_aggressive_starvation": False,
+                        "max_unpreemptable_running_job_count": 1,
+                        "max_running_operation_count": 1
+                    },
+                },
+                "pool": {
+                    "priority": 70,
+                    "filter": ".*pool.*",
+                    "config": {
+                        "max_running_operation_count": 1,
+                        "max_running_operation_count_per_pool": 1,
+                    },
+                },
+            }
+        )
+
+        def check_invalid_pool_trees_template_configs_set_alert():
+            def check_alert_fields(alert):
+                message = "Error parsing updated scheduler configuration"
+                alert_type = "update_config"
+
+                inner_error = alert
+                inner_error_depth = 3
+                for _ in range(inner_error_depth):
+                    inner_errors = inner_error["inner_errors"]
+                    assert len(inner_errors) == 1
+                    inner_error = inner_errors[0]
+
+                return alert["code"] == 217 and (
+                    alert["message"] == message and (
+                    alert["attributes"]["alert_type"] == alert_type and (
+                    inner_error["message"] == "\"template_pool_tree_config_map\" has equal priority for templates" and (
+                    inner_error["attributes"]["template_names"] == ["pool", "custom_"]))))
+
+            alerts = get("//sys/scheduler/@alerts")
+            if not alerts:
+                return False
+            for alert in alerts:
+                if check_alert_fields(alert):
+                    return True
+            return False
+
+        wait(check_invalid_pool_trees_template_configs_set_alert)
+        wait(
+            lambda: get(
+                "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/custom_pool_tree/config"
+            ) == pool_tree_settings["custom_pool_tree"]
+        )
+
 
 @authors("renadeen")
 class TestConfigurablePoolTreeRoot(YTEnvSetup):
