@@ -1784,13 +1784,6 @@ private:
         auto guard = Guard(SpinLock_);
         return AlienTransactions_;
     }
-
-
-    void ValidateActive()
-    {
-        auto guard = Guard(SpinLock_);
-
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransaction)
