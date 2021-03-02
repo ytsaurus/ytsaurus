@@ -533,7 +533,14 @@ Y_UNIT_TEST_SUITE(OperationCommands)
         auto weightPath = "//sys/scheduler/orchid/scheduler/operations/" +
             GetGuidAsString(op->GetId()) +
             "/progress/scheduling_info_per_pool_tree/default/weight";
-        UNIT_ASSERT_DOUBLES_EQUAL(client->Get(weightPath).AsDouble(), 10.0, 1e-9);
+
+        WaitForPredicate([&] {
+            try {
+                return std::abs(client->Get(weightPath).AsDouble() - 10.0) < 1e-9;
+            } catch (const std::exception& ex) {
+                return false;
+            }
+        });
     }
 
     void TestSuspendResume(bool useOperationMethods)
@@ -671,7 +678,11 @@ Y_UNIT_TEST_SUITE(OperationCommands)
             auto weightPath = "//sys/scheduler/orchid/scheduler/operations/" +
                 GetGuidAsString(op3->GetId()) +
                 "/progress/scheduling_info_per_pool_tree/default/weight";
-            return std::abs(client->Get(weightPath).AsDouble() - 10.0) < 1e-9;
+            try {
+                return std::abs(client->Get(weightPath).AsDouble() - 10.0) < 1e-9;
+            } catch (const std::exception& ex) {
+                return false;
+            }
         });
 
         op3->AbortOperation();
