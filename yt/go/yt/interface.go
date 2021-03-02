@@ -911,6 +911,10 @@ type StartTabletTxOptions struct {
 }
 
 type TabletClient interface {
+	// SelectRows executes query.
+	//
+	// Use strconv.Quote or %q format to escape string literals inside query.
+	//
 	// http:verb:"select_rows"
 	// http:params:"query"
 	SelectRows(
