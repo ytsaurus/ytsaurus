@@ -1313,13 +1313,57 @@ private:
         }
     }
 
-    TFairShareStrategyTreeConfigPtr ParsePoolTreeConfig(const INodePtr& poolTreeNode) const
+    TFairShareStrategyTreeConfigPtr ParsePoolTreeConfig(const INodePtr& poolTreeNode, const INodePtr& commonConfig) const
     {
         const auto& attributes = poolTreeNode->Attributes();
         auto ysonConfig = attributes.FindYson(TreeConfigAttributeName);
+
+        if (!commonConfig) {
+            return ysonConfig
+                ? ConvertTo<TFairShareStrategyTreeConfigPtr>(ysonConfig)
+                : ConvertTo<TFairShareStrategyTreeConfigPtr>(attributes.ToMap());
+        }
+
         return ysonConfig
-            ? ConvertTo<TFairShareStrategyTreeConfigPtr>(ysonConfig)
-            : ConvertTo<TFairShareStrategyTreeConfigPtr>(attributes.ToMap());
+            ? ConvertTo<TFairShareStrategyTreeConfigPtr>(PatchNode(commonConfig, ConvertToNode(ysonConfig)))
+            : ConvertTo<TFairShareStrategyTreeConfigPtr>(PatchNode(commonConfig, attributes.ToMap()));
+    }
+
+    TFairShareStrategyTreeConfigPtr BuildConfig(const IMapNodePtr& poolTreesMap, const TString& treeId) const
+    {
+        struct TPoolTreesTemplateConfigInfoView
+        {
+            TStringBuf name;
+            const TPoolTreesTemplateConfig* config;
+        };
+
+        const auto& poolTreeAttributes = poolTreesMap->GetChildOrThrow(treeId);
+
+        std::vector<TPoolTreesTemplateConfigInfoView> matchedTemplateConfigs;
+        
+        for (const auto& [name, value] : Config->TemplatePoolTreeConfigMap) {
+            if (value->Filter && NRe2::TRe2::FullMatch(treeId.data(), *value->Filter)) {
+                matchedTemplateConfigs.push_back({name, value.Get()});
+            }
+        }
+
+        if (matchedTemplateConfigs.empty()) {
+            return ParsePoolTreeConfig(poolTreeAttributes, /* commonConfig */ nullptr);
+        }
+
+        std::sort(
+            std::begin(matchedTemplateConfigs), 
+            std::end(matchedTemplateConfigs), 
+            [] (const TPoolTreesTemplateConfigInfoView first, const TPoolTreesTemplateConfigInfoView second) {
+                return first.config->Priority < second.config->Priority;
+            });
+
+        INodePtr compiledConfig = GetEphemeralNodeFactory()->CreateMap();
+        for (const auto& config : matchedTemplateConfigs) {
+            compiledConfig = PatchNode(compiledConfig, config.config->Config);
+        }
+
+        return ParsePoolTreeConfig(poolTreeAttributes, compiledConfig);
     }
 
     void CollectTreeChanges(
@@ -1333,7 +1377,7 @@ private:
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treesToAdd->insert(key);
                 try {
-                    auto config = ParsePoolTreeConfig(poolsMap->FindChild(key));
+                    auto config = ParsePoolTreeConfig(poolsMap->FindChild(key), /* commonConfig */ nullptr);
                     treeIdToFilter->emplace(key, config->NodesFilter);
                 } catch (const std::exception&) {
                     // Do nothing, alert will be set later.
@@ -1350,7 +1394,7 @@ private:
             }
 
             try {
-                auto config = ParsePoolTreeConfig(child);
+                auto config = ParsePoolTreeConfig(child, /* commonConfig */ nullptr);
                 treeIdToFilter->emplace(treeId, config->NodesFilter);
 
                 if (config->NodesFilter != tree->GetNodesFilter()) {
@@ -1374,7 +1418,7 @@ private:
         for (const auto& treeId : treesToAdd) {
             TFairShareStrategyTreeConfigPtr treeConfig;
             try {
-                treeConfig = ParsePoolTreeConfig(poolTreesMap->GetChildOrThrow(treeId));
+                treeConfig = BuildConfig(poolTreesMap, treeId);
             } catch (const std::exception& ex) {
                 auto error = TError("Error parsing configuration of tree %Qv", treeId)
                     << ex;
@@ -1437,7 +1481,8 @@ private:
             auto child = poolTreesMap->GetChildOrThrow(treeId);
 
             try {
-                tree->UpdateConfig(ParsePoolTreeConfig(child));
+                const auto& config = BuildConfig(poolTreesMap, treeId);
+                tree->UpdateConfig(config);
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to configure tree %Qv, defaults will be used", treeId)
                     << ex;

@@ -2252,6 +2252,8 @@ private:
 
     void HandlePoolTrees(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pool_trees");
         if (!rspOrError.IsOK()) {
             THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error getting pool trees"));
@@ -2441,6 +2443,8 @@ private:
 
     void HandleConfig(const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             // No config in Cypress, just ignore.

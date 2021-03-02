@@ -276,7 +276,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("min_child_heap_size", MinChildHeapSize)
         .Default(16);
-
+    
     RegisterParameter("main_resource", MainResource)
         .Default(EJobResourceType::Cpu);
 
@@ -287,6 +287,17 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
                 << TErrorAttribute("threshold", PreemptionSatisfactionThreshold);
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPoolTreesTemplateConfig::TPoolTreesTemplateConfig()
+{
+    RegisterParameter("priority", Priority);
+    
+    RegisterParameter("filter", Filter);
+    
+    RegisterParameter("config", Config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -350,6 +361,21 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("strategy_testing_options", StrategyTestingOptions)
         .DefaultNew();
+    
+    RegisterParameter("template_pool_tree_config_map", TemplatePoolTreeConfigMap)
+        .Default();
+    
+    RegisterPostprocessor([&] {
+        THashMap<int, TStringBuf> priorityToName;
+        priorityToName.reserve(std::size(TemplatePoolTreeConfigMap));
+
+        for (const auto& [name, value] : TemplatePoolTreeConfigMap) {
+            if (const auto [it, inserted] = priorityToName.try_emplace(value->Priority, name); !inserted) {
+                THROW_ERROR_EXCEPTION("\"template_pool_tree_config_map\" has equal priority for templates")
+                    << TErrorAttribute("template_names", std::array{it->second, TStringBuf{name}});
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

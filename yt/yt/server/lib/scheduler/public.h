@@ -40,6 +40,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((UpdateNodesFailed)                            (8))
     ((NodesWithoutPoolTree)                         (9))
     ((SchedulerCannotConnect)                       (10))
+    ((InvalidPoolTreeTemplateConfigSet)             (11))
 );
 
 DEFINE_ENUM(EOperationAlertType,
@@ -150,6 +151,7 @@ DECLARE_REFCOUNTED_CLASS(TTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TOperationsCleanerConfig)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceMeteringConfig)
+DECLARE_REFCOUNTED_CLASS(TPoolTreesTemplateConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerIntegralGuaranteesConfig)
