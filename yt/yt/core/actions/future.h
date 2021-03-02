@@ -29,6 +29,11 @@ namespace NYT {
  *  the shared state remain, the state automatically becomes failed
  *  with NYT::EErrorCode::Canceled error code.
  *
+ *  Promises support advisory cancellation. Consumer that holds a future might call Cancel() to notify
+ *  producer that value is no longer needed. By default, Cancel() just Set()-s the associated shared state,
+ *  and is equivalent to TrySet(TError(...)). If promise has associated cancelation handlers, Cancel()
+ *  invokes them instead. It is cancelation handler's job to call TrySet() on the corresponding promise.
+ *
  *  Futures and Promises are thread-safe.
  */
 
@@ -455,11 +460,13 @@ public:
      *  \param handler A callback to call when TFuture<T>::Cancel is triggered
      *  by the client.
      *
+     *  Returns true if handler was succesfully registered or was invoked inline.
+     *
      *  \note
      *  If the value is set before the call to #handlered, then
      *  #handler is discarded.
      */
-    void OnCanceled(TCallback<void (const TError&)> handler) const;
+    bool OnCanceled(TCallback<void (const TError&)> handler) const;
 
     //! Converts promise into future.
     operator TFuture<T>() const;
