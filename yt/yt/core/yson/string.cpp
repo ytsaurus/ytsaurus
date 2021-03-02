@@ -39,6 +39,10 @@ TYsonStringBuf::TYsonStringBuf(TStringBuf data, EYsonType type)
     , Null_(false)
 { }
 
+TYsonStringBuf::TYsonStringBuf(const char* data, EYsonType type)
+    : TYsonStringBuf(TStringBuf(data), type)
+{ }
+
 TYsonStringBuf::operator bool() const
 {
     return !Null_;
