@@ -1,9 +1,12 @@
 package yson
 
 import (
+	"encoding/binary"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var testData = []struct {
@@ -51,4 +54,31 @@ func TestEscape(t *testing.T) {
 	assert.Equal(t, []byte("\xEA\x9A\x96"), unescapeC([]byte("\\uA696")))
 
 	assert.Equal(t, []byte("Странный компроматтест"), unescapeC([]byte("\\u0421\\u0442\\u0440\\u0430\\u043d\\u043d\\u044b\\u0439 \\u043a\\u043e\\u043c\\u043f\\u0440\\u043e\\u043c\\u0430\\u0442тест")))
+}
+
+func TestEscapeGoCompat(t *testing.T) {
+	for i := 0; i < 1<<16; i++ {
+		var x [2]byte
+		binary.LittleEndian.PutUint16(x[:], uint16(i))
+
+		q := strconv.Quote(string(x[:]))
+		q = q[1 : len(q)-1]
+
+		u := unescapeC([]byte(q))
+
+		require.Equalf(t, u, x[:], "%s in:%q out:%q", q, x[:], u)
+	}
+
+	for i := 0; i < 1<<20; i++ {
+		r := rune(i)
+
+		x := []byte(string([]rune{r}))
+
+		q := strconv.Quote(string(x[:]))
+		q = q[1 : len(q)-1]
+
+		u := unescapeC([]byte(q))
+
+		require.Equalf(t, u, x, "%s in:%q out:%q", q, x, u)
+	}
 }
