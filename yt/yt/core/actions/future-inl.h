@@ -286,7 +286,7 @@ public:
 
     virtual bool Cancel(const TError& error) noexcept override;
 
-    void OnCanceled(TCancelHandler handler);
+    bool OnCanceled(TCancelHandler handler);
 
     bool IsSet() const
     {
@@ -1422,10 +1422,10 @@ bool TPromiseBase<T>::IsCanceled() const
 }
 
 template <class T>
-void TPromiseBase<T>::OnCanceled(TCallback<void(const TError&)> handler) const
+bool TPromiseBase<T>::OnCanceled(TCallback<void(const TError&)> handler) const
 {
     YT_ASSERT(Impl_);
-    Impl_->OnCanceled(std::move(handler));
+    return Impl_->OnCanceled(std::move(handler));
 }
 
 template <class T>

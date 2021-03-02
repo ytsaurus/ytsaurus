@@ -86,15 +86,15 @@ bool TFutureState<void>::Cancel(const TError& error) noexcept
     return true;
 }
 
-void TFutureState<void>::OnCanceled(TCancelHandler handler)
+bool TFutureState<void>::OnCanceled(TCancelHandler handler)
 {
     // Fast path.
     if (Set_) {
-        return;
+        return false;
     }
     if (Canceled_) {
         RunNoExcept(handler, CancelationError_);
-        return;
+        return true;
     }
 
     // Slow path.
@@ -104,10 +104,14 @@ void TFutureState<void>::OnCanceled(TCancelHandler handler)
         if (Canceled_) {
             guard.Release();
             RunNoExcept(handler, CancelationError_);
+            return true;
         } else if (!Set_) {
             CancelHandlers_.push_back(std::move(handler));
             HasHandlers_ = true;
+            return true;
         }
+
+        return false;
     }
 }
 

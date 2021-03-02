@@ -1438,6 +1438,20 @@ TEST_F(TFutureTest, OnCanceledAbanbon)
     EXPECT_FALSE(called);
 }
 
+TEST_F(TFutureTest, OnCanceledResult)
+{
+    {
+        auto promise = NewPromise<void>();
+        EXPECT_TRUE(promise.OnCanceled(BIND([&] (const TError& /*error*/) {})));
+    }
+
+    {
+        auto promise = NewPromise<void>();
+        promise.Set();
+        EXPECT_FALSE(promise.OnCanceled(BIND([&] (const TError& /*error*/) {})));
+    }
+}
+
 TString OnCallResult(const TErrorOr<int>& callResult)
 {
     THROW_ERROR_EXCEPTION("Call failed");
