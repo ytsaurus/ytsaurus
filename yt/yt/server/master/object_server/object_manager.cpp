@@ -632,7 +632,9 @@ TObjectManager::TImpl::TImpl(TBootstrap* bootstrap)
     , GarbageCollector_(New<TGarbageCollector>(Bootstrap_))
     , MutationIdempotizer_(New<TMutationIdempotizer>(Bootstrap_))
 {
-    ObjectServerProfiler.AddProducer("", BufferedProducer_);
+    ObjectServerProfiler
+        .WithDefaultDisabled()
+        .AddProducer("", BufferedProducer_);
 
     YT_VERIFY(bootstrap);
 

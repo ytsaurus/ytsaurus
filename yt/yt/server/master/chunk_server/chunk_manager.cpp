@@ -423,6 +423,7 @@ public:
 
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfilerRegistry
+            .WithDefaultDisabled()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", BufferedProducer_);
 

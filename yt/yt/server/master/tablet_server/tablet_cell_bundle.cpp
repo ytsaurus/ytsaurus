@@ -149,6 +149,7 @@ TTabletCellBundleProfilingCounters::TTabletCellBundleProfilingCounters(TString b
     : BundleName(std::move(bundleName))
 {
     auto profiler = TabletServerProfiler
+        .WithDefaultDisabled()
         .WithPrefix("/bundle_resources")
         .WithTag("tablet_cell_bundle", BundleName)
         .WithGlobal();

@@ -321,6 +321,22 @@ TEST(TSolomonRegistry, SparseCounters)
     ASSERT_EQ(result["yt.d.sparse_counter{}"], 2u);
 }
 
+TEST(TSolomonRegistry, GaugesNoDefault)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+    TRegistry registry(impl, "/d");
+
+    auto g = registry.WithDefaultDisabled().Gauge("/gauge");
+
+    auto result = Collect(impl).Gauges;
+    ASSERT_TRUE(result.empty());
+
+    g.Update(1);
+    result = Collect(impl).Gauges;
+    ASSERT_EQ(result["yt.d.gauge{}"], 1.0);
+}
+
 TEST(TSolomonRegistry, SparseCountersWithHack)
 {
     auto impl = New<TSolomonRegistry>();

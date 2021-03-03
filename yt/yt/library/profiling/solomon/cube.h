@@ -40,6 +40,7 @@ struct TReadOptions
     bool Sparse = false;
     bool Global = false;
     bool DisableSensorsRename = false;
+    bool DisableDefault = false;
 
     int LingerWindowSize = 0;
 };
@@ -66,6 +67,7 @@ public:
     {
         T Rollup{};
         std::vector<T> Values;
+        std::vector<bool> HasValue;
 
         bool IsZero(int index) const;
         bool IsLingering(i64 iteration) const;

@@ -45,6 +45,7 @@ void TCube<T>::StartIteration()
     for (auto& [tagIds, projection] : Projections_) {
         projection.Rollup += projection.Values[Index_];
         projection.Values[Index_] = {};
+        projection.HasValue[Index_] = false;
     }
 }
 
@@ -61,6 +62,7 @@ void TCube<T>::Add(const TTagIdList& tagIds)
         TProjection projection;
         projection.UsageCount = 1;
         projection.Values.resize(WindowSize_);
+        projection.HasValue.resize(WindowSize_);
         Projections_[tagIds] = std::move(projection);
     }
 }
@@ -103,7 +105,14 @@ void TCube<T>::Update(const TTagIdList& tagIds, T value)
         THROW_ERROR_EXCEPTION("Broken cube");
     }
 
+    if constexpr (std::is_same_v<T, double>) {
+        if (std::isnan(value)) {
+            return;
+        }
+    }
+
     it->second.Values[Index_] += value;
+    it->second.HasValue[Index_] = true;
     if (!it->second.IsZero(Index_)) {
         it->second.LastNonZeroIteration = NextIteration_ - 1;
     }
@@ -341,6 +350,10 @@ int TCube<T>::ReadSensors(
 
                 consumer->OnMetricEnd();
             } else if constexpr (std::is_same_v<T, double>) {
+                if (options.DisableDefault && !window.HasValue[indices.back()]) {
+                    continue;
+                }
+
                 consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
 
                 writeLabels(tagIds, {}, true);

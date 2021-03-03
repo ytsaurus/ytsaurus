@@ -145,6 +145,8 @@ bool TSensorOptions::operator == (const TSensorOptions& other) const
     return Sparse == other.Sparse &&
         Global == other.Global &&
         Hot == other.Hot &&
+        DisableSensorsRename == other.DisableSensorsRename &&
+        DisableDefault == other.DisableDefault &&
         HistogramMin == other.HistogramMin &&
         HistogramMax == other.HistogramMax &&
         HistogramBounds == other.HistogramBounds;
@@ -265,6 +267,17 @@ TRegistry TRegistry::WithGlobal() const
 
     auto opts = Options_;
     opts.Global = true;
+    return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
+}
+
+TRegistry TRegistry::WithDefaultDisabled() const
+{
+    if (!Enabled_) {
+        return {};
+    }
+
+    auto opts = Options_;
+    opts.DisableDefault = true;
     return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
