@@ -133,6 +133,7 @@ struct TSensorOptions
     bool Sparse = false;
     bool Hot = false;
     bool DisableSensorsRename = false;
+    bool DisableDefault = false;
 
     TDuration HistogramMin;
     TDuration HistogramMax;
@@ -205,10 +206,17 @@ public:
      */
     TRegistry WithGlobal() const;
 
+    //! WithDefaultDisabled disables export of default values.
+    /*!
+     *  By default, gauges report zero value after creation. With this setting enabled,
+     *  gauges are not exported before first call to Update().
+     */
+    TRegistry WithDefaultDisabled() const;
+
     //! WithProjectionsDisabled disables local aggregation.
     TRegistry WithProjectionsDisabled() const;
 
-    //! WithRenameDisabled disables sensors name normalization
+    //! WithRenameDisabled disables sensors name normalization.
     TRegistry WithRenameDisabled() const;
 
     //! WithHot sets hot flag on all sensors created using returned registry.

@@ -72,6 +72,10 @@ IGaugeImplPtr TSolomonRegistry::RegisterGauge(
     TSensorOptions options)
 {
     return selectImpl<IGaugeImpl, TSimpleGauge, TPerCpuGauge>(options.Hot, [&, this] (const auto& gauge) {
+        if (options.DisableDefault) {
+            gauge->Update(std::numeric_limits<double>::quiet_NaN());
+        }
+
         DoRegister([this, name, tags, options, gauge] () {
             auto reader = [ptr = gauge.Get()] {
                 return ptr->GetValue();

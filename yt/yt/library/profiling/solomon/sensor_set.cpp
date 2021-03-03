@@ -224,6 +224,7 @@ void TSensorSet::ReadSensors(
     readOptions.Sparse = Options_.Sparse;
     readOptions.Global = Options_.Global;
     readOptions.DisableSensorsRename = Options_.DisableSensorsRename;
+    readOptions.DisableDefault = Options_.DisableDefault;
 
     int sensorsEmitted = 0;
 
