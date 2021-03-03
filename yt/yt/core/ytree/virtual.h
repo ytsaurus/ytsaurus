@@ -77,6 +77,8 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 };
 
+DEFINE_REFCOUNTED_TYPE(TCompositeMapService)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 INodePtr CreateVirtualNode(IYPathServicePtr service);

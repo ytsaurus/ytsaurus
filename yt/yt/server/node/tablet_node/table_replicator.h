@@ -22,7 +22,7 @@ public:
         TTableReplicaInfo* replicaInfo,
         NApi::NNative::IConnectionPtr localConnection,
         TTabletSlotPtr slot,
-        ISlotManagerPtr slotManager,
+        ITabletSnapshotStorePtr tabletSnapshotStore,
         IHintManagerPtr hintManager,
         IInvokerPtr workerInvoker,
         NConcurrency::IThroughputThrottlerPtr nodeInThrottler,

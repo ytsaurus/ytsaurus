@@ -6,6 +6,8 @@
 
 #include <yt/server/lib/hydra/distributed_hydra_manager.h>
 
+#include <yt/server/lib/cellar_agent/occupier.h>
+
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/public.h>
 
@@ -43,29 +45,42 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTabletCellData)
 
 //! An instance of Hydra managing a number of tablets.
 class TTabletSlot
-    : public TRefCounted
+    : public NCellarAgent::ICellarOccupier
 {
+public:
+    static constexpr NCellarAgent::ECellarType CellarType = NCellarAgent::ECellarType::Tablet;
+
 public:
     TTabletSlot(
         int slotIndex,
         TTabletNodeConfigPtr config,
-        const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo,
         NClusterNode::TBootstrap* bootstrap);
-
     ~TTabletSlot();
 
-    int GetIndex() const;
+    virtual void SetOccupant(NCellarAgent::ICellarOccupantPtr occupant) override;
+    virtual NHydra::TCompositeAutomatonPtr CreateAutomaton() override;
+    virtual void Configure(NHydra::IDistributedHydraManagerPtr hydraManager) override;
+    virtual const NHiveServer::ITransactionManagerPtr GetOccupierTransactionManager() override;
+    virtual void Initialize() override;
+    virtual void RegisterRpcServices() override;
+    virtual IInvokerPtr GetOccupierAutomatonInvoker() override;
+    virtual IInvokerPtr GetMutationAutomatonInvoker() override;
+    virtual NYTree::TCompositeMapServicePtr PopulateOrchidService(
+        NYTree::TCompositeMapServicePtr orchidService) override;
+    virtual void Stop() override;
+    virtual void Finalize() override;
+    virtual NCellarAgent::ECellarType GetCellarType() override;
+    virtual NProfiling::TRegistry GetProfiler() override;
+    
     NHydra::TCellId GetCellId() const;
-    NHydra::EPeerState GetControlState() const;
     NHydra::EPeerState GetAutomatonState() const;
-    NHydra::TPeerId GetPeerId() const;
-    const NHiveClient::TCellDescriptor& GetCellDescriptor() const;
+
     const TString& GetTabletCellBundleName() const;
 
     NHydra::IDistributedHydraManagerPtr GetHydraManager() const;
     
-    const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
-    const TTabletAutomatonPtr& GetAutomaton() const;
+    const NHydra::TCompositeAutomatonPtr& GetAutomaton() const;
+    const TTransactionManagerPtr& GetTransactionManager() const;
 
     // These methods are thread-safe.
     // They may return null invoker (see #GetNullInvoker) if the invoker of the requested type is not available.
@@ -76,19 +91,11 @@ public:
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
     NHiveServer::TMailbox* GetMasterMailbox();
 
-    const TTransactionManagerPtr& GetTransactionManager() const;
     const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
 
     const TTabletManagerPtr& GetTabletManager() const;
 
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
-
-    void Initialize();
-    bool CanConfigure() const;
-    void Configure(const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo);
-    TFuture<void> Finalize();
-
-    const NYTree::IYPathServicePtr& GetOrchidService();
 
     const TRuntimeTabletCellDataPtr& GetRuntimeData() const;
 

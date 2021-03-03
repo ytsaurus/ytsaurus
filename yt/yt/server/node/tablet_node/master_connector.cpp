@@ -4,11 +4,15 @@
 #include "slot_manager.h"
 #include "tablet.h"
 #include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
 #include <yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/server/node/cluster_node/master_connector.h>
+
+#include <yt/server/lib/cellar_agent/cellar.h>
+#include <yt/server/lib/cellar_agent/cellar_manager.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
@@ -25,6 +29,7 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NCellarAgent;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NHiveClient;
@@ -85,42 +90,45 @@ public:
 
         heartbeatRequest.set_node_id(*NodeId_);
 
-        const auto& tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& tabletCellar = Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Tablet);
         {
-            auto availableTabletSlotCount = tabletSlotManager->GetAvailableTabletSlotCount();
-            auto usedTabletSlotCount = tabletSlotManager->GetUsedTabletSlotCount();
+            auto availableTabletSlotCount = tabletCellar->GetAvailableSlotCount();
+            auto usedTabletSlotCount = tabletCellar->GetOccupantCount();
             if (Bootstrap_->IsReadOnly()) {
-                availableTabletSlotCount = 0;
-                usedTabletSlotCount = 0;
+	        availableTabletSlotCount = 0;
+	        usedTabletSlotCount = 0;
             }
-
             heartbeatRequest.mutable_statistics()->set_available_tablet_slots(availableTabletSlotCount);
             heartbeatRequest.mutable_statistics()->set_used_tablet_slots(usedTabletSlotCount);
         }
 
-        const auto& slots = tabletSlotManager->Slots();
+        const auto& occupants = tabletCellar->Occupants();
 
         THashMap<TCellId, int> cellIdToSlotIndex;
-        for (int slotIndex = 0; slotIndex < slots.size(); ++slotIndex) {
-            const auto& slot = slots[slotIndex];
-            auto* slotInfo = heartbeatRequest.add_tablet_slots();
+        for (int slotIndex = 0; slotIndex < occupants.size(); ++slotIndex) {
+            const auto& occupant = occupants[slotIndex];
+            auto* protoSlotInfo = heartbeatRequest.add_tablet_slots();
 
-            if (slot) {
-                ToProto(slotInfo->mutable_cell_info(), slot->GetCellDescriptor().ToInfo());
-                slotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
-                slotInfo->set_peer_id(slot->GetPeerId());
-                slotInfo->set_dynamic_config_version(slot->GetDynamicConfigVersion());
-                if (slot->GetResponseKeeper()) {
-                    slotInfo->set_is_response_keeper_warming_up(slot->GetResponseKeeper()->IsWarmingUp());
+            if (occupant) {
+                ToProto(protoSlotInfo->mutable_cell_info(), occupant->GetCellDescriptor().ToInfo());
+                protoSlotInfo->set_peer_state(ToProto<int>(occupant->GetControlState()));
+                protoSlotInfo->set_peer_id(occupant->GetPeerId());
+                auto tabletSlot = occupant->GetTypedOccupier<TTabletSlot>();
+                if (tabletSlot) {
+                    protoSlotInfo->set_dynamic_config_version(tabletSlot->GetDynamicConfigVersion());
+                }
+                if (auto responseKeeper = occupant->GetResponseKeeper()) {
+                    protoSlotInfo->set_is_response_keeper_warming_up(responseKeeper->IsWarmingUp());
                 }
 
-                YT_VERIFY(cellIdToSlotIndex.emplace(slot->GetCellId(), slotIndex).second);
+                YT_VERIFY(cellIdToSlotIndex.emplace(occupant->GetCellId(), slotIndex).second);
             } else {
-                slotInfo->set_peer_state(static_cast<int>(EPeerState::None));
+                protoSlotInfo->set_peer_state(ToProto<int>(NHydra::EPeerState::None));
             }
         }
 
-        auto tabletSnapshots = tabletSlotManager->GetTabletSnapshots();
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshots = snapshotStore->GetTabletSnapshots();
         for (const auto& tabletSnapshot : tabletSnapshots) {
             if (CellTagFromId(tabletSnapshot->TabletId) == cellTag) {
                 auto* protoTabletInfo = heartbeatRequest.add_tablets();
@@ -210,39 +218,42 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-
+        const auto& tabletCellar = Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Tablet);
         for (const auto& info : response.tablet_slots_to_remove()) {
             auto cellId = FromProto<TCellId>(info.cell_id());
             YT_VERIFY(cellId);
-            auto slot = slotManager->FindSlot(cellId);
+            auto slot = tabletCellar->FindOccupant(cellId);
             if (!slot) {
                 YT_LOG_WARNING("Requested to remove a non-existing slot, ignored (CellId: %v)",
                     cellId);
                 continue;
             }
-            slotManager->RemoveSlot(slot);
+	    YT_LOG_WARNING("Requested to remove cell (CellId: %v)",
+	        cellId);
+            tabletCellar->RemoveOccupant(slot);
         }
 
         for (const auto& info : response.tablet_slots_to_create()) {
             auto cellId = FromProto<TCellId>(info.cell_id());
             YT_VERIFY(cellId);
-            if (!slotManager->HasFreeTabletSlots()) {
+            if (tabletCellar->GetAvailableSlotCount() == 0) {
                 YT_LOG_WARNING("Requested to start cell when all slots are used, ignored (CellId: %v)",
                     cellId);
                 continue;
             }
-            if (slotManager->FindSlot(cellId)) {
+            if (tabletCellar->FindOccupant(cellId)) {
                 YT_LOG_WARNING("Requested to start cell when this cell is already being served by the node, ignored (CellId: %v)",
                     cellId);
                 continue;
             }
-            slotManager->CreateSlot(info);
+	    YT_LOG_DEBUG("Requested to start cell (CellId: %v)",
+	        cellId);
+            tabletCellar->CreateOccupant(info);
         }
 
         for (const auto& info : response.tablet_slots_to_configure()) {
             auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
-            auto slot = slotManager->FindSlot(descriptor.CellId);
+            auto slot = tabletCellar->FindOccupant(descriptor.CellId);
             if (!slot) {
                 YT_LOG_WARNING("Requested to configure a non-existing slot, ignored (CellId: %v)",
                     descriptor.CellId);
@@ -254,12 +265,14 @@ public:
                     slot->GetControlState());
                 continue;
             }
-            slotManager->ConfigureSlot(slot, info);
+	    YT_LOG_DEBUG("Requested to configure cell (CellId: %v)",
+	        descriptor.CellId);
+            tabletCellar->ConfigureOccupant(slot, info);
         }
 
         for (const auto& info : response.tablet_slots_to_update()) {
             auto cellId = FromProto<TCellId>(info.cell_id());
-            auto slot = slotManager->FindSlot(cellId);
+            auto slot = tabletCellar->FindOccupant(cellId);
             if (!slot) {
                 YT_LOG_WARNING("Requested to update dynamic options for a non-existing slot, ignored (CellId: %v)",
                     cellId);
@@ -271,7 +284,16 @@ public:
                     slot->GetControlState());
                 continue;
             }
-            slot->UpdateDynamicConfig(info);
+            auto tabletSlot = slot->GetTypedOccupier<TTabletSlot>();
+            if (!tabletSlot) {
+                YT_LOG_WARNING("Cannot update slot when occupier is absent, ignored (CellId: %v, State: %v)",
+                    cellId,
+                    slot->GetControlState());
+                continue;
+            }
+            YT_LOG_DEBUG("Requested to update cell (CellId: %v)",
+	        cellId);
+            tabletSlot->UpdateDynamicConfig(info);
         }
 
         UpdateSolomonTags();
@@ -420,7 +442,13 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         THashSet<TString> seenTags;
-        for (const auto& slot : Bootstrap_->GetTabletSlotManager()->Slots()) {
+        const auto& tabletCellar = Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Tablet);
+        for (const auto& occupant : tabletCellar->Occupants()) {
+            if (!occupant) {
+                continue;
+            }
+
+            auto slot = occupant->GetTypedOccupier<TTabletSlot>();
             if (!slot) {
                 continue;
             }

@@ -9,12 +9,12 @@
 #include <yt/server/node/query_agent/config.h>
 
 #include <yt/server/node/tablet_node/security_manager.h>
-#include <yt/server/node/tablet_node/slot_manager.h>
 #include <yt/server/node/tablet_node/store.h>
 #include <yt/server/node/tablet_node/tablet.h>
 #include <yt/server/node/tablet_node/tablet_reader.h>
 #include <yt/server/node/tablet_node/tablet_slot.h>
 #include <yt/server/node/tablet_node/tablet_manager.h>
+#include <yt/server/node/tablet_node/tablet_snapshot_store.h>
 #include <yt/server/node/tablet_node/lookup.h>
 #include <yt/server/node/tablet_node/transaction_manager.h>
 
@@ -559,7 +559,7 @@ private:
             retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonStringBuf(request->retention_config()));
         }
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
         int subrequestCount = request->tablet_ids_size();
         if (subrequestCount != request->mount_revisions_size()) {
@@ -602,7 +602,7 @@ private:
             auto mountRevision = request->mount_revisions(index);
             auto attachment = request->Attachments()[index];
 
-            if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId, mountRevision)) {
+            if (auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tabletId, mountRevision)) {
                 auto counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(GetCurrentProfilingUser());
                 counters->MultireadRequestCount.Increment();
                 profilerGuard.SetTimer(counters->MultireadCpuTime, counters->MultireadRequestDuration);
@@ -616,8 +616,8 @@ private:
                         [&] {
                             TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
-                            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
-                            slotManager->ValidateTabletAccess(tabletSnapshot, timestamp);
+                            auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
+                            snapshotStore->ValidateTabletAccess(tabletSnapshot, timestamp);
 
                             auto requestData = requestCodec->Decompress(attachment);
 
@@ -638,7 +638,7 @@ private:
                             return responseCodec->Compress(writer.Finish());
                         });
                 } catch (const TErrorException&) {
-                    if (auto tabletSnapshot = slotManager->FindLatestTabletSnapshot(tabletId)) {
+                    if (auto tabletSnapshot = snapshotStore->FindLatestTabletSnapshot(tabletId)) {
                         ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
                     }
 
@@ -678,14 +678,14 @@ private:
                 context->RequestHeader().user());
         }
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
         for (int index = 0; index < request->tablet_ids_size(); ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
             // COMPAT(babenko)
             auto cellId = index < request->cell_ids_size() ? FromProto<TCellId>(request->cell_ids(index)) : TCellId();
 
-            auto tabletSnapshot = slotManager->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
+            auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
@@ -731,8 +731,8 @@ private:
                 context->RequestHeader().user());
         }
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
         if (tabletSnapshot->IsPreallocatedDynamicStoreId(storeId)) {
             YT_LOG_DEBUG("Dynamic store is not created yet, sending nothing (TabletId: %v, StoreId: %v, "
@@ -1071,7 +1071,7 @@ private:
                     subrequest.table_index());
             }));
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
         auto extensionTags = FromProto<THashSet<int>>(request->extension_tags());
 
@@ -1093,9 +1093,9 @@ private:
                 NTabletNode::TTabletSnapshotPtr tabletSnapshot;
                 try {
                     tabletSnapshot = subrequest.has_mount_revision()
-                        ? slotManager->GetTabletSnapshotOrThrow(tabletId, cellId, subrequest.mount_revision())
-                        : slotManager->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
-                    slotManager->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
+                        ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, subrequest.mount_revision())
+                        : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
+                    snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
                 } catch (const std::exception& ex) {
                     subresponse->set_tablet_missing(true);
                     ToProto(subresponse->mutable_error(), TError(ex));

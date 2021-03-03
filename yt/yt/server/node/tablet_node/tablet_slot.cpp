@@ -8,38 +8,22 @@
 #include "tablet_service.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
+#include "tablet_snapshot_store.h"
 
 #include <yt/server/node/data_node/config.h>
 
+#include <yt/server/lib/cellar_agent/automaton_invoker_hood.h>
+#include <yt/server/lib/cellar_agent/occupant.h>
+
 #include <yt/server/lib/election/election_manager.h>
-#include <yt/server/lib/election/distributed_election_manager.h>
 
 #include <yt/server/lib/hive/hive_manager.h>
 #include <yt/server/lib/hive/mailbox.h>
 #include <yt/server/lib/hive/transaction_supervisor.h>
 
-#include <yt/server/lib/hydra/changelog.h>
-#include <yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/server/lib/hydra/hydra_manager.h>
 #include <yt/server/lib/hydra/remote_changelog_store.h>
 #include <yt/server/lib/hydra/remote_snapshot_store.h>
-#include <yt/server/lib/hydra/snapshot.h>
 
-#include <yt/server/lib/election/election_manager.h>
-#include <yt/server/lib/election/election_manager_thunk.h>
-
-#include <yt/server/lib/hydra/changelog.h>
-#include <yt/server/lib/hydra/remote_changelog_store.h>
-#include <yt/server/lib/hydra/snapshot.h>
-#include <yt/server/lib/hydra/remote_snapshot_store.h>
-#include <yt/server/lib/hydra/hydra_manager.h>
-#include <yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/server/lib/hydra/changelog_store_factory_thunk.h>
-#include <yt/server/lib/hydra/snapshot_store_thunk.h>
-
-#include <yt/server/lib/hive/hive_manager.h>
-#include <yt/server/lib/hive/mailbox.h>
-#include <yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/server/lib/hive/transaction_participant_provider.h>
 
 #include <yt/server/lib/tablet_node/config.h>
@@ -54,7 +38,6 @@
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/client/api/connection.h>
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
 
@@ -71,17 +54,12 @@
 #include <yt/ytlib/election/cell_manager.h>
 
 #include <yt/core/concurrency/fair_share_action_queue.h>
-#include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/profiling/profile_manager.h>
-
 #include <yt/core/rpc/response_keeper.h>
-#include <yt/core/rpc/server.h>
 
-#include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/helpers.h>
 
@@ -89,18 +67,19 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NApi;
+using namespace NCellarAgent;
 using namespace NConcurrency;
-using namespace NRpc;
-using namespace NYTree;
-using namespace NYson;
 using namespace NElection;
-using namespace NHydra;
 using namespace NHiveClient;
 using namespace NHiveServer;
-using namespace NTabletClient;
-using namespace NTabletClient::NProto;
+using namespace NHydra;
 using namespace NObjectClient;
-using namespace NApi;
+using namespace NRpc;
+using namespace NTabletClient::NProto;
+using namespace NTabletClient;
+using namespace NYTree;
+using namespace NYson;
 
 using NHydra::EPeerState;
 
@@ -108,28 +87,23 @@ using NHydra::EPeerState;
 
 class TTabletSlot::TImpl
     : public TRefCounted
+    , public TAutomatonInvokerHood<EAutomatonThreadQueue>
 {
+    using THood = TAutomatonInvokerHood<EAutomatonThreadQueue>;
+
 public:
     TImpl(
         TTabletSlot* owner,
         int slotIndex,
         TTabletNodeConfigPtr config,
-        const TCreateTabletSlotInfo& createInfo,
         NClusterNode::TBootstrap* bootstrap)
-        : Owner_(owner)
-        , SlotIndex_(slotIndex)
+        : THood(Format("TabletSlot:%v", slotIndex))
+        , Owner_(owner)
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , AutomatonQueue_(New<TFairShareActionQueue>(
-            Format("TabletSlot%v", SlotIndex_),
-            TEnumTraits<EAutomatonThreadQueue>::GetDomainNames()))
         , SnapshotQueue_(New<TActionQueue>(
-            Format("TabletSnap%v", SlotIndex_)))
-        , PeerId_(createInfo.peer_id())
-        , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
-        , TabletCellBundleName_(createInfo.tablet_cell_bundle())
-        , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
-        , Logger(GetLogger())
+            Format("TabletSnap:%v", slotIndex)))
+        , Logger(TabletNodeLogger)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
@@ -137,42 +111,20 @@ public:
         ResetGuardedInvokers();
     }
 
-    int GetIndex() const
+    void SetOccupant(ICellarOccupantPtr occupant)
     {
-        return SlotIndex_;
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_VERIFY(!Occupant_);
+
+        Occupant_ = std::move(occupant);
+        Logger = GetLogger();
     }
 
     TCellId GetCellId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return CellDescriptor_.CellId;
-    }
-
-    EPeerState GetControlState() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (Finalizing_) {
-            return EPeerState::Stopped;
-        }
-
-        if (auto hydraManager = GetHydraManager()) {
-            return hydraManager->GetControlState();
-        }
-
-        if (Initialized_) {
-            return EPeerState::Stopped;
-        }
-
-        return EPeerState::None;
-    }
-
-    int GetConfigVersion() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return CellDescriptor_.ConfigVersion;
+        return Occupant_->GetCellId();
     }
 
     EPeerState GetAutomatonState() const
@@ -183,79 +135,35 @@ public:
         return hydraManager ? hydraManager->GetAutomatonState() : EPeerState::None;
     }
 
-    TPeerId GetPeerId() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return PeerId_;
-    }
-
-    const TCellDescriptor& GetCellDescriptor() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return CellDescriptor_;
-    }
-
     const TString& GetTabletCellBundleName() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return TabletCellBundleName_;
+        return Occupant_->GetCellBundleName();
     }
 
     IDistributedHydraManagerPtr GetHydraManager() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return HydraManager_.Load();
+        return Occupant_->GetHydraManager();
     }
 
-    const TResponseKeeperPtr& GetResponseKeeper() const
+    const TCompositeAutomatonPtr& GetAutomaton() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return ResponseKeeper_;
-    }
-
-    const TTabletAutomatonPtr& GetAutomaton() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return Automaton_;
-    }
-
-    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
-    }
-
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return EpochAutomatonInvokers_[queue].Load();
-    }
-
-    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return GuardedAutomatonInvokers_[queue].Load();
+        return Occupant_->GetAutomaton();
     }
 
     const THiveManagerPtr& GetHiveManager() const
     {
-        return HiveManager_;
+        return Occupant_->GetHiveManager();
     }
 
     TMailbox* GetMasterMailbox()
     {
-        // Create master mailbox lazily.
-        auto masterCellId = Bootstrap_->GetCellId();
-        return HiveManager_->GetOrCreateMailbox(masterCellId);
+        return Occupant_->GetMasterMailbox();
     }
 
     const TTransactionManagerPtr& GetTransactionManager() const
@@ -265,7 +173,7 @@ public:
 
     const ITransactionSupervisorPtr& GetTransactionSupervisor() const
     {
-        return TransactionSupervisor_;
+        return Occupant_->GetTransactionSupervisor();
     }
 
     const TTabletManagerPtr& GetTabletManager() const
@@ -273,36 +181,9 @@ public:
         return TabletManager_;
     }
 
-
     TObjectId GenerateId(EObjectType type)
     {
-        auto* mutationContext = GetCurrentMutationContext();
-        auto version = mutationContext->GetVersion();
-        auto random = mutationContext->RandomGenerator().Generate<ui64>();
-        auto cellId = GetCellId();
-        return TObjectId(
-            random ^ cellId.Parts32[0],
-            (cellId.Parts32[1] & 0xffff0000) + static_cast<int>(type),
-            version.RecordId,
-            version.SegmentId);
-    }
-
-    void Initialize()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(!Initialized_);
-
-        Initialized_ = true;
-
-        YT_LOG_INFO("Slot initialized");
-    }
-
-
-    bool CanConfigure() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return Initialized_ && !Finalizing_;
+        return Occupant_->GenerateId(type);
     }
 
     int GetDynamicConfigVersion() const
@@ -315,7 +196,6 @@ public:
     void UpdateDynamicConfig(const TUpdateTabletSlotInfo& updateInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(CanConfigure());
 
         auto updateVersion = updateInfo.dynamic_config_version();
 
@@ -351,262 +231,102 @@ public:
             // TODO(savrus): Write this to tablet cell errors once we have them.
             YT_LOG_ERROR(ex, "Error while updating dynamic config");
         }
-
-        Bootstrap_->GetTabletSlotManager()->UpdateTabletCellBundleMemoryPoolWeight(TabletCellBundleName_);
     }
 
-    void Configure(const TConfigureTabletSlotInfo& configureInfo)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(CanConfigure());
-
-        auto client = Bootstrap_->GetMasterClient();
-
-        CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
-
-        if (configureInfo.has_peer_id()) {
-            TPeerId peerId = configureInfo.peer_id();
-            if (PeerId_ != peerId) {
-                YT_LOG_DEBUG("Peer id updated (PeerId: %v -> %v)",
-                    PeerId_,
-                    peerId);
-
-                PeerId_ = peerId;
-
-                // Logger has peer_id tag so should be updated.
-                Logger = GetLogger();
-            }
-        }
-
-        if (configureInfo.has_options()) {
-            YT_LOG_DEBUG("Tablet cell options updated to: %v",
-                ConvertToYsonString(TYsonString(configureInfo.options()), EYsonFormat::Text).AsStringBuf());
-            Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(configureInfo.options()));
-        }
-
-        TDistributedHydraManagerDynamicOptions hydraManagerDynamicOptions;
-        hydraManagerDynamicOptions.AbandonLeaderLeaseDuringRecovery = configureInfo.abandon_leader_lease_during_recovery();
-
-        auto newPrerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
-        if (newPrerequisiteTransactionId != PrerequisiteTransactionId_) {
-            YT_LOG_INFO("Prerequisite transaction updated (TransactionId: %v -> %v)",
-                PrerequisiteTransactionId_,
-                newPrerequisiteTransactionId);
-            PrerequisiteTransactionId_ = newPrerequisiteTransactionId;
-            if (ElectionManager_) {
-                ElectionManager_->Abandon(TError("Tablet slot reconfigured"));
-            }
-        }
-
-        PrerequisiteTransaction_.Reset();
-        // NB: Prerequisite transaction is only attached by leaders.
-        if (PrerequisiteTransactionId_ && CellDescriptor_.Peers[PeerId_].GetVoting()) {
-            TTransactionAttachOptions attachOptions;
-            attachOptions.Ping = false;
-            PrerequisiteTransaction_ = client->AttachTransaction(PrerequisiteTransactionId_, attachOptions);
-            YT_LOG_INFO("Prerequisite transaction attached (TransactionId: %v)",
-                PrerequisiteTransactionId_);
-        }
-
-        auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
-        auto snapshotClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
-        auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
-
-        auto snapshotStore = CreateRemoteSnapshotStore(
-            Config_->Snapshots,
-            Options_,
-            Format("//sys/tablet_cells/%v/snapshots", GetCellId()),
-            snapshotClient,
-            PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
-        SnapshotStoreThunk_->SetUnderlying(snapshotStore);
-
-        auto addTags = [this] (auto profiler) {
-            return profiler
-                .WithRequiredTag("tablet_cell_bundle", TabletCellBundleName_ ? TabletCellBundleName_ : UnknownProfilingTag)
-                .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
-        };
-
-        auto changelogProfiler = addTags(TabletNodeProfiler.WithPrefix("/remote_changelog"));
-        auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
-            Config_->Changelogs,
-            Options_,
-            Format("//sys/tablet_cells/%v/changelogs", GetCellId()),
-            changelogClient,
-            Bootstrap_->GetSecurityManager(),
-            PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
-            TJournalWriterPerformanceCounters{changelogProfiler});
-        ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
-
-        auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
-
-        auto channelFactory = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetChannelFactory();
-
-        CellManager_ = New<TCellManager>(
-            cellConfig,
-            channelFactory,
-            PeerId_);
-
-        if (auto slotHydraManager = GetHydraManager()) {
-            slotHydraManager->SetDynamicOptions(hydraManagerDynamicOptions);
-            ElectionManager_->ReconfigureCell(CellManager_);
-
-            YT_LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
-                CellDescriptor_.ConfigVersion);
-        } else {
-            Automaton_ = New<TTabletAutomaton>(
-                Owner_,
-                SnapshotQueue_->GetInvoker());
-
-            ResponseKeeper_ = New<TResponseKeeper>(
-                Config_->HydraManager->ResponseKeeper,
-                GetAutomatonInvoker(),
-                Logger,
-                addTags(TabletNodeProfiler));
-
-            auto rpcServer = Bootstrap_->GetRpcServer();
-
-            TDistributedHydraManagerOptions hydraManagerOptions{
-                .UseFork = false,
-                .WriteChangelogsAtFollowers = false,
-                .WriteSnapshotsAtFollowers = false,
-                .ResponseKeeper = ResponseKeeper_
-            };
-
-            auto hydraManager = CreateDistributedHydraManager(
-                Config_->HydraManager,
-                Bootstrap_->GetControlInvoker(),
-                GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
-                Automaton_,
-                rpcServer,
-                ElectionManagerThunk_,
-                GetCellId(),
-                ChangelogStoreFactoryThunk_,
-                SnapshotStoreThunk_,
-                hydraManagerOptions,
-                hydraManagerDynamicOptions);
-            HydraManager_.Store(hydraManager);
-
-            hydraManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-            hydraManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-
-            hydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
-            hydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
-
-            hydraManager->SubscribeControlLeaderRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
-            hydraManager->SubscribeControlFollowerRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
-
-            hydraManager->SubscribeLeaderLeaseCheck(
-                BIND(&TImpl::OnLeaderLeaseCheckThunk, MakeWeak(this))
-                    .AsyncVia(Bootstrap_->GetControlInvoker()));
-
-            InitGuardedInvokers();
-
-            ElectionManager_ = CreateDistributedElectionManager(
-                Config_->ElectionManager,
-                CellManager_,
-                Bootstrap_->GetControlInvoker(),
-                hydraManager->GetElectionCallbacks(),
-                rpcServer);
-            ElectionManager_->Initialize();
-
-            ElectionManagerThunk_->SetUnderlying(ElectionManager_);
-
-            auto masterConnection = Bootstrap_->GetMasterClient()->GetNativeConnection();
-            HiveManager_ = New<THiveManager>(
-                Config_->HiveManager,
-                masterConnection->GetCellDirectory(),
-                GetCellId(),
-                GetAutomatonInvoker(),
-                hydraManager,
-                Automaton_);
-
-            // NB: Tablet Manager must register before Transaction Manager since the latter
-            // will be writing and deleting rows during snapshot loading.
-            TabletManager_ = New<TTabletManager>(
-                Config_->TabletManager,
-                Owner_,
-                Bootstrap_);
-
-            TransactionManager_ = New<TTransactionManager>(
-                Config_->TransactionManager,
-                Owner_,
-                Bootstrap_);
-
-            auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
-            std::vector<ITransactionParticipantProviderPtr> providers;
-
-            // NB: Should not start synchronizer and create tx providers while validating snapshot.
-            if (GetCellId()) {
-                connection->GetClusterDirectorySynchronizer()->Start();
-                providers = {
-                    CreateTransactionParticipantProvider(connection),
-                    CreateTransactionParticipantProvider(connection->GetClusterDirectory())};
-            }
-            TransactionSupervisor_ = CreateTransactionSupervisor(
-                Config_->TransactionSupervisor,
-                GetAutomatonInvoker(),
-                Bootstrap_->GetTransactionTrackerInvoker(),
-                hydraManager,
-                Automaton_,
-                ResponseKeeper_,
-                TransactionManager_,
-                GetCellId(),
-                connection->GetTimestampProvider(),
-                std::move(providers));
-
-            TabletService_ = CreateTabletService(
-                Owner_,
-                Bootstrap_);
-
-            TabletManager_->Initialize();
-
-            hydraManager->Initialize();
-
-            for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
-                rpcServer->RegisterService(service);
-            }
-            rpcServer->RegisterService(HiveManager_->GetRpcService());
-            rpcServer->RegisterService(TabletService_);
-
-            OrchidService_ = CreateOrchidService();
-
-            YT_LOG_INFO("Slot configured (ConfigVersion: %v)",
-                CellDescriptor_.ConfigVersion);
-        }
-    }
-
-    TFuture<void> Finalize()
+    TCompositeAutomatonPtr CreateAutomaton()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (Finalizing_) {
-            return FinalizeResult_;
-        }
+        return New<TTabletAutomaton>(
+            Owner_,
+            SnapshotQueue_->GetInvoker());
+    }
 
-        YT_LOG_INFO("Finalizing slot");
+    void Configure(IDistributedHydraManagerPtr hydraManager)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->UnregisterTabletSnapshots(Owner_);
+        hydraManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+
+        hydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+
+        InitGuardedInvokers(hydraManager);
+
+        // NB: Tablet Manager must register before Transaction Manager since the latter
+        // will be writing and deleting rows during snapshot loading.
+        TabletManager_ = New<TTabletManager>(
+            Config_->TabletManager,
+            Owner_,
+            Bootstrap_);
+
+        TransactionManager_ = New<TTransactionManager>(
+            Config_->TransactionManager,
+            Owner_,
+            Bootstrap_);
+
+        Logger = GetLogger();
+    }
+
+    void Initialize()
+    {
+        TabletService_ = CreateTabletService(
+            Owner_,
+            Bootstrap_);
+
+        TabletManager_->Initialize();
+    }
+
+    void RegisterRpcServices()
+    {
+        const auto& rpcServer = Bootstrap_->GetRpcServer();
+        rpcServer->RegisterService(TabletService_);
+    }
+
+    void Stop()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        snapshotStore->UnregisterTabletSnapshots(Owner_);
 
         ResetEpochInvokers();
         ResetGuardedInvokers();
-
-        Finalizing_ = true;
-        FinalizeResult_ = BIND(&TImpl::DoFinalize, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetControlInvoker())
-            .Run();
-
-        return FinalizeResult_;
     }
 
-    const IYPathServicePtr& GetOrchidService()
+    void Finalize()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return OrchidService_;
+        TabletManager_.Reset();
+
+        TransactionManager_.Reset();
+
+        if (TabletService_) {
+            const auto& rpcServer = Bootstrap_->GetRpcServer();
+            rpcServer->UnregisterService(TabletService_);
+        }
+        TabletService_.Reset();
+    }
+
+    TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return orchid
+            ->AddChild("dynamic_options", IYPathService::FromMethod(
+                &TImpl::GetDynamicOptions,
+                MakeWeak(this)))
+            ->AddChild("dynamic_config_version", IYPathService::FromMethod(
+                &TImpl::GetDynamicConfigVersion,
+                MakeWeak(this)))
+            ->AddChild("life_stage", IYPathService::FromMethod(
+                &TTabletManager::GetTabletCellLifeStage,
+                MakeWeak(TabletManager_))
+                ->Via(GetAutomatonInvoker()))
+            ->AddChild("transactions", TransactionManager_->GetOrchidService())
+            ->AddChild("tablets", TabletManager_->GetOrchidService());
     }
 
     const TRuntimeTabletCellDataPtr& GetRuntimeData() const
@@ -634,186 +354,48 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Options_;
+        return Occupant_->GetOptions();
+    }
+
+
+    NProfiling::TRegistry GetProfiler() const
+    {
+        return TabletNodeProfiler;
     }
 
 private:
     TTabletSlot* const Owner_;
-    const int SlotIndex_;
     const TTabletNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
+
+    ICellarOccupantPtr Occupant_;
 
     const TFairShareActionQueuePtr AutomatonQueue_;
     const TActionQueuePtr SnapshotQueue_;
 
-    const TElectionManagerThunkPtr ElectionManagerThunk_ = New<TElectionManagerThunk>();
-    const TSnapshotStoreThunkPtr SnapshotStoreThunk_ = New<TSnapshotStoreThunk>();
-    const TChangelogStoreFactoryThunkPtr ChangelogStoreFactoryThunk_ = New<TChangelogStoreFactoryThunk>();
-
-    TPeerId PeerId_;
     TCellDescriptor CellDescriptor_;
-
-    const TString TabletCellBundleName_;
-
-    TTabletCellOptionsPtr Options_;
 
     NLogging::TLogger Logger;
 
     const TRuntimeTabletCellDataPtr RuntimeData_ = New<TRuntimeTabletCellData>();
 
     TAtomicObject<TDynamicTabletCellOptionsPtr> DynamicOptions_ = New<TDynamicTabletCellOptions>();
-
     int DynamicConfigVersion_ = -1;
-
-    TTransactionId PrerequisiteTransactionId_;
-    ITransactionPtr PrerequisiteTransaction_;  // only created for leaders
-
-    TCellManagerPtr CellManager_;
-
-    IElectionManagerPtr ElectionManager_;
-
-    TAtomicObject<IDistributedHydraManagerPtr> HydraManager_;
-
-    TResponseKeeperPtr ResponseKeeper_;
-
-    THiveManagerPtr HiveManager_;
 
     TTabletManagerPtr TabletManager_;
 
     TTransactionManagerPtr TransactionManager_;
+
     ITransactionSupervisorPtr TransactionSupervisor_;
 
     NRpc::IServicePtr TabletService_;
-
-    TTabletAutomatonPtr Automaton_;
-
-    TEnumIndexedVector<EAutomatonThreadQueue, TAtomicObject<IInvokerPtr>> EpochAutomatonInvokers_;
-    TEnumIndexedVector<EAutomatonThreadQueue, TAtomicObject<IInvokerPtr>> GuardedAutomatonInvokers_;
-
-    bool Initialized_ = false;
-    bool Finalizing_ = false;
-    TFuture<void> FinalizeResult_;
-
-    IYPathServicePtr OrchidService_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-
-    IYPathServicePtr CreateOrchidService()
-    {
-        return New<TCompositeMapService>()
-            ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
-                    BuildYsonFluently(consumer)
-                        .Value(true);
-                }))
-            ->AddChild("hydra", IYPathService::FromMethod(
-                &TImpl::GetHydraMonitoring,
-                MakeWeak(this)))
-            ->AddChild("config_version", IYPathService::FromMethod(
-                &TImpl::GetConfigVersion,
-                MakeWeak(this)))
-            ->AddChild("prerequisite_transaction_id", IYPathService::FromMethod(
-                &TImpl::GetPrerequisiteTransactionId,
-                MakeWeak(this)))
-            ->AddChild("options", IYPathService::FromMethod(
-                &TImpl::GetOptions,
-                MakeWeak(this)))
-            ->AddChild("dynamic_options", IYPathService::FromMethod(
-                &TImpl::GetDynamicOptions,
-                MakeWeak(this)))
-            ->AddChild("dynamic_config_version", IYPathService::FromMethod(
-                &TImpl::GetDynamicConfigVersion,
-                MakeWeak(this)))
-            ->AddChild("life_stage", IYPathService::FromMethod(
-                &TTabletManager::GetTabletCellLifeStage,
-                MakeWeak(TabletManager_))
-                ->Via(GetAutomatonInvoker()))
-            ->AddChild("transactions", TransactionManager_->GetOrchidService())
-            ->AddChild("tablets", TabletManager_->GetOrchidService())
-            ->AddChild("hive", HiveManager_->GetOrchidService())
-            ->Via(Bootstrap_->GetControlInvoker());
-    }
-
-    void GetHydraMonitoring(IYsonConsumer* consumer) const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (auto hydraManager = GetHydraManager()) {
-            hydraManager->GetMonitoringProducer().Run(consumer);
-        } else {
-            BuildYsonFluently(consumer)
-                .Entity();
-        }
-    }
-
-    TTransactionId GetPrerequisiteTransactionId() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return PrerequisiteTransactionId_;
-    }
-
-    NLogging::TLogger GetLogger() const
-    {
-        return TabletNodeLogger.WithTag("CellId: %v, PeerId: %v",
-            CellDescriptor_.CellId,
-            PeerId_);
-    }
-
-    void InitEpochInvokers()
-    {
-        auto hydraManager = GetHydraManager();
-        if (!hydraManager) {
-            return;
-        }
-
-        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
-            EpochAutomatonInvokers_[queue].Store(
-                hydraManager
-                    ->GetAutomatonCancelableContext()
-                    ->CreateInvoker(GetAutomatonInvoker(queue)));
-        }
-    }
-
-    void ResetEpochInvokers()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        for (auto& invoker : EpochAutomatonInvokers_) {
-            invoker.Store(GetNullInvoker());
-        }
-    }
-
-    void InitGuardedInvokers()
-    {
-        auto hydraManager = GetHydraManager();
-        if (!hydraManager) {
-            return;
-        }
-        
-        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
-            auto unguardedInvoker = GetAutomatonInvoker(queue);
-            GuardedAutomatonInvokers_[queue].Store(
-                hydraManager->CreateGuardedAutomatonInvoker(unguardedInvoker));
-        }
-    }
-
-    void ResetGuardedInvokers()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        for (auto& invoker : GuardedAutomatonInvokers_) {
-            invoker.Store(GetNullInvoker());
-        }
-    }
 
 
     void OnStartEpoch()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        InitEpochInvokers();
+        InitEpochInvokers(GetHydraManager());
     }
 
     void OnStopEpoch()
@@ -845,73 +427,17 @@ private:
         }
     }
 
-    static TFuture<void> OnLeaderLeaseCheckThunk(TWeakPtr<TImpl> weakThis)
-    {
-        auto this_ = weakThis.Lock();
-        return this_ ? this_->OnLeaderLeaseCheck() : VoidFuture;
-    }
 
-    TFuture<void> OnLeaderLeaseCheck()
+    NLogging::TLogger GetLogger() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (PrerequisiteTransaction_) {
-            YT_LOG_DEBUG("Checking prerequisite transaction (PrerequisiteTransactionId: %v)",
-                PrerequisiteTransaction_->GetId());
-            return PrerequisiteTransaction_->Ping();
-        } else {
-            return MakeFuture<void>(TError("No prerequisite transaction is attached"));
-        }
+        return TabletNodeLogger.WithTag("CellId: %v, PeerId: %v",
+            Occupant_->GetCellId(),
+            Occupant_->GetPeerId());
     }
 
 
-    void DoFinalize()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        CellManager_.Reset();
-
-        // Stop everything and release the references to break cycles.
-        if (auto hydraManager = GetHydraManager()) {
-            WaitFor(hydraManager->Finalize())
-                .ThrowOnError();
-        }
-        HydraManager_.Store(nullptr);
-
-        if (ElectionManager_) {
-            ElectionManager_->Finalize();
-        }
-        ElectionManager_.Reset();
-
-        Automaton_.Reset();
-
-        ResponseKeeper_.Reset();
-
-        TabletManager_.Reset();
-
-        TransactionManager_.Reset();
-
-        auto rpcServer = Bootstrap_->GetRpcServer();
-
-        if (TransactionSupervisor_) {
-            for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
-                rpcServer->UnregisterService(service);
-            }
-        }
-        TransactionSupervisor_.Reset();
-
-        if (HiveManager_) {
-            rpcServer->UnregisterService(HiveManager_->GetRpcService());
-        }
-        HiveManager_.Reset();
-
-        if (TabletService_) {
-            rpcServer->UnregisterService(TabletService_);
-        }
-        TabletService_.Reset();
-
-        TabletManager_.Reset();
-    }
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -919,46 +445,49 @@ private:
 TTabletSlot::TTabletSlot(
     int slotIndex,
     TTabletNodeConfigPtr config,
-    const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo,
     NClusterNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         this,
         slotIndex,
-        config,
-        createInfo,
+        std::move(config),
         bootstrap))
 { }
 
 TTabletSlot::~TTabletSlot() = default;
 
-int TTabletSlot::GetIndex() const
+void TTabletSlot::SetOccupant(ICellarOccupantPtr occupant)
 {
-    return Impl_->GetIndex();
+    Impl_->SetOccupant(std::move(occupant));
 }
 
-TCellId TTabletSlot::GetCellId() const
+TCompositeAutomatonPtr TTabletSlot::CreateAutomaton()
 {
-    return Impl_->GetCellId();
+    return Impl_->CreateAutomaton();
 }
 
-EPeerState TTabletSlot::GetControlState() const
+void TTabletSlot::Configure(IDistributedHydraManagerPtr hydraManager)
 {
-    return Impl_->GetControlState();
+    Impl_->Configure(std::move(hydraManager));
 }
 
-EPeerState TTabletSlot::GetAutomatonState() const
+const ITransactionManagerPtr TTabletSlot::GetOccupierTransactionManager()
 {
-    return Impl_->GetAutomatonState();
+    return Impl_->GetTransactionManager();
 }
 
-TPeerId TTabletSlot::GetPeerId() const
+void TTabletSlot::Initialize()
 {
-    return Impl_->GetPeerId();
+    Impl_->Initialize();
 }
 
-const TCellDescriptor& TTabletSlot::GetCellDescriptor() const
+void TTabletSlot::RegisterRpcServices()
 {
-    return Impl_->GetCellDescriptor();
+    Impl_->RegisterRpcServices();
+}
+
+IInvokerPtr TTabletSlot::GetOccupierAutomatonInvoker()
+{
+    return Impl_->GetAutomatonInvoker(EAutomatonThreadQueue::Default);
 }
 
 const TString& TTabletSlot::GetTabletCellBundleName() const
@@ -966,17 +495,47 @@ const TString& TTabletSlot::GetTabletCellBundleName() const
     return Impl_->GetTabletCellBundleName();
 }
 
+IInvokerPtr TTabletSlot::GetMutationAutomatonInvoker()
+{
+    return Impl_->GetAutomatonInvoker(EAutomatonThreadQueue::Mutation);
+}
+
+TCompositeMapServicePtr TTabletSlot::PopulateOrchidService(TCompositeMapServicePtr orchid)
+{
+    return Impl_->PopulateOrchidService(orchid);
+}
+
+void TTabletSlot::Stop()
+{
+    return Impl_->Stop();
+}
+
+void TTabletSlot::Finalize()
+{
+    return Impl_->Finalize();
+}
+
+ECellarType TTabletSlot::GetCellarType()
+{
+    return CellarType;
+}
+
+TCellId TTabletSlot::GetCellId() const
+{
+    return Impl_->GetCellId();
+}
+
+EPeerState TTabletSlot::GetAutomatonState() const
+{
+    return Impl_->GetAutomatonState();
+}
+
 IDistributedHydraManagerPtr TTabletSlot::GetHydraManager() const
 {
     return Impl_->GetHydraManager();
 }
 
-const TResponseKeeperPtr& TTabletSlot::GetResponseKeeper() const
-{
-    return Impl_->GetResponseKeeper();
-}
-
-const TTabletAutomatonPtr& TTabletSlot::GetAutomaton() const
+const TCompositeAutomatonPtr& TTabletSlot::GetAutomaton() const
 {
     return Impl_->GetAutomaton();
 }
@@ -1026,31 +585,6 @@ TObjectId TTabletSlot::GenerateId(EObjectType type)
     return Impl_->GenerateId(type);
 }
 
-void TTabletSlot::Initialize()
-{
-    Impl_->Initialize();
-}
-
-bool TTabletSlot::CanConfigure() const
-{
-    return Impl_->CanConfigure();
-}
-
-void TTabletSlot::Configure(const TConfigureTabletSlotInfo& configureInfo)
-{
-    Impl_->Configure(configureInfo);
-}
-
-TFuture<void> TTabletSlot::Finalize()
-{
-    return Impl_->Finalize();
-}
-
-const IYPathServicePtr& TTabletSlot::GetOrchidService()
-{
-    return Impl_->GetOrchidService();
-}
-
 const TRuntimeTabletCellDataPtr& TTabletSlot::GetRuntimeData() const
 {
     return Impl_->GetRuntimeData();
@@ -1079,6 +613,11 @@ int TTabletSlot::GetDynamicConfigVersion() const
 void TTabletSlot::UpdateDynamicConfig(const NTabletClient::NProto::TUpdateTabletSlotInfo& updateInfo)
 {
     Impl_->UpdateDynamicConfig(updateInfo);
+}
+
+NProfiling::TRegistry TTabletSlot::GetProfiler()
+{
+    return Impl_->GetProfiler();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

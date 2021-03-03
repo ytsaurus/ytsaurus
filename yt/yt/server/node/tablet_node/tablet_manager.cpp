@@ -20,6 +20,7 @@
 #include "transaction_manager.h"
 #include "table_replicator.h"
 #include "tablet_profiling.h"
+#include "tablet_snapshot_store.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/master_connector.h>
@@ -3179,8 +3180,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->StartEpoch(Slot_);
 
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->RegisterTabletSnapshot(Slot_, tablet);
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        snapshotStore->RegisterTabletSnapshot(Slot_, tablet);
 
         for (auto& [replicaId, replicaInfo] : tablet->Replicas()) {
             StartTableReplicaEpoch(tablet, &replicaInfo);
@@ -3195,8 +3196,8 @@ private:
             storeManager->StopEpoch();
         }
 
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->UnregisterTabletSnapshot(Slot_, tablet);
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        snapshotStore->UnregisterTabletSnapshot(Slot_, tablet);
 
         for (auto& [replicaId, replicaInfo] : tablet->Replicas()) {
             StopTableReplicaEpoch(&replicaInfo);
@@ -3215,7 +3216,7 @@ private:
                 replicaInfo,
                 Bootstrap_->GetMasterClient()->GetNativeConnection(),
                 Slot_,
-                Bootstrap_->GetTabletSlotManager(),
+                Bootstrap_->GetTabletSnapshotStore(),
                 Bootstrap_->GetTabletNodeHintManager(),
                 CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
                 Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletReplication),
@@ -3513,8 +3514,8 @@ private:
     void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt)
     {
         if (!IsRecovery()) {
-            auto slotManager = Bootstrap_->GetTabletSlotManager();
-            slotManager->RegisterTabletSnapshot(Slot_, tablet, epoch);
+            const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+            snapshotStore->RegisterTabletSnapshot(Slot_, tablet, epoch);
         }
     }
 

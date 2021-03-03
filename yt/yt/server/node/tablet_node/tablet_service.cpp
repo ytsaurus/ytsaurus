@@ -8,6 +8,7 @@
 #include "tablet_slot.h"
 #include "transaction.h"
 #include "transaction_manager.h"
+#include "tablet_snapshot_store.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
@@ -253,8 +254,8 @@ private:
         NHydra::TRevision mountRevision)
     {
         auto cellId = Slot_->GetCellId();
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
         tabletSnapshot->ValidateCellId(cellId);
         return tabletSnapshot;
     }

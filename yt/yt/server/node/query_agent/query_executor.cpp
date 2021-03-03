@@ -17,12 +17,12 @@
 
 #include <yt/server/lib/tablet_node/config.h>
 #include <yt/server/node/tablet_node/security_manager.h>
-#include <yt/server/node/tablet_node/slot_manager.h>
 #include <yt/server/node/tablet_node/tablet.h>
 #include <yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/server/node/tablet_node/tablet_reader.h>
 #include <yt/server/node/tablet_node/tablet_slot.h>
 #include <yt/server/node/tablet_node/tablet_profiling.h>
+#include <yt/server/node/tablet_node/tablet_snapshot_store.h>
 
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
@@ -211,9 +211,9 @@ class TTabletSnapshotCache
 {
 public:
     TTabletSnapshotCache(
-        ISlotManagerPtr slotManager,
-        NLogging::TLogger logger)
-        : SlotManager_(std::move(slotManager))
+        ITabletSnapshotStorePtr snapshotStore,
+        const NLogging::TLogger& logger)
+        : SnapshotStore_(std::move(snapshotStore))
         , Logger(std::move(logger))
     { }
 
@@ -224,9 +224,9 @@ public:
         TTimestamp timestamp,
         bool suppressAccessTracking)
     {
-        auto tabletSnapshot = SlotManager_->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
+        auto tabletSnapshot = SnapshotStore_->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
 
-        SlotManager_->ValidateTabletAccess(tabletSnapshot, timestamp);
+        SnapshotStore_->ValidateTabletAccess(tabletSnapshot, timestamp);
 
         Map_.emplace(tabletId, tabletSnapshot);
 
@@ -262,7 +262,7 @@ public:
     }
 
 private:
-    const ISlotManagerPtr SlotManager_;
+    const ITabletSnapshotStorePtr SnapshotStore_;
     const NLogging::TLogger Logger;
 
     THashMap<TTabletId, TTabletSnapshotPtr> Map_;
@@ -309,7 +309,7 @@ public:
         , QueryOptions_(std::move(queryOptions))
         , BlockReadOptions_(blockReadOptions)
         , Logger(MakeQueryLogger(Query_))
-        , TabletSnapshots_(Bootstrap_->GetTabletSlotManager(), Logger)
+        , TabletSnapshots_(Bootstrap_->GetTabletSnapshotStore(), Logger)
         , Identity_(NRpc::GetCurrentAuthenticationIdentity())
     { }
 

@@ -32,6 +32,7 @@ DEFINE_ENUM(ETabletDynamicMemoryType,
     (Other)
 );
 
+DECLARE_REFCOUNTED_STRUCT(ITabletSnapshotStore)
 DECLARE_REFCOUNTED_STRUCT(ISlotManager)
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 DECLARE_REFCOUNTED_STRUCT(IHintManager)
@@ -130,8 +131,6 @@ struct TWriteContext;
 using TSyncReplicaIdList = SmallVector<TTableReplicaId, 2>;
 
 constexpr int EdenIndex = -1;
-
-extern const TString UnknownProfilingTag;
 
 ////////////////////////////////////////////////////////////////////////////////
 

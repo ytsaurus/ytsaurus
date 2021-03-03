@@ -1,0 +1,13 @@
+#include "public.h"
+
+#include <yt/server/lib/cellar_agent/public.h>
+
+namespace NYT::NClusterNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NCellarAgent::ICellarBootstrapProxyPtr CreateCellarBootstrapProxy(TBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NClusterNode
