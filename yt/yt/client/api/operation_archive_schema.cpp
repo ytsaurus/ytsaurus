@@ -40,6 +40,8 @@ TOrderedByIdTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     , RuntimeParameters(nameTable->RegisterName("runtime_parameters"))
     , SlotIndexPerPoolTree(nameTable->RegisterName("slot_index_per_pool_tree"))
     , TaskNames(nameTable->RegisterName("task_names"))
+    , ExperimentAssignments(nameTable->RegisterName("experiment_assignments"))
+    , ExperimentAssignmentNames(nameTable->RegisterName("experiment_assignment_names"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

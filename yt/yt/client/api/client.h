@@ -1082,6 +1082,8 @@ struct TOperation
 
     NYson::TYsonString BriefSpec;
     NYson::TYsonString Spec;
+    NYson::TYsonString ExperimentAssignments;
+    NYson::TYsonString ExperimentAssignmentNames;
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
 
@@ -1467,7 +1469,7 @@ struct IClient
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TGetInSyncReplicasOptions& options = {}) = 0;
 
-    //! Same as above but returns the list of replicas that are in sync w.r.t. all of the table keys. 
+    //! Same as above but returns the list of replicas that are in sync w.r.t. all of the table keys.
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,
         const TGetInSyncReplicasOptions& options = {}) = 0;

@@ -92,14 +92,18 @@ public:
     TOperationPtr FindOperation(TOperationId id) const;
     TOperationPtr GetOperationOrThrow(const TOperationIdOrAlias& idOrAlias) const;
 
-    TFuture<TParseOperationSpecResult> ParseSpec(NYson::TYsonString specString) const;
+    //! Build preprocessed spec for a newly registered operation.
+    TFuture<TPreprocessedSpec> AssignExperimentsAndParseSpec(
+        EOperationType type,
+        const TString& user,
+        NYson::TYsonString specString) const;
 
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         NTransactionClient::TTransactionId transactionId,
         NRpc::TMutationId mutationId,
         const TString& user,
-        TParseOperationSpecResult parseSpecResult);
+        TPreprocessedSpec preprocessedSpec);
 
     TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const TString& user);
     TFuture<void> SuspendOperation(TOperationPtr operation, const TString& user, bool abortRunningJobs);

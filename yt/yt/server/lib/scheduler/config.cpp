@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include "experiments.h"
+
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 
 namespace NYT::NScheduler {
@@ -234,7 +236,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("preemption_check_satisfaction", PreemptionCheckSatisfaction)
         .Default(true);
-    
+
     RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
         .Default(TDuration::Seconds(10));
 
@@ -701,9 +703,12 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("scheduling_segments_initialization_timeout", SchedulingSegmentsInitializationTimeout)
         .Default(TDuration::Minutes(5));
-    
+
     RegisterParameter("parse_operation_attributes_batch_size", ParseOperationAttributesBatchSize)
         .Default(100);
+
+    RegisterParameter("experiments", Experiments)
+        .Default();
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
@@ -718,6 +723,8 @@ TSchedulerConfig::TSchedulerConfig()
                 << TErrorAttribute("soft_limit", SoftConcurrentHeartbeatLimit)
                 << TErrorAttribute("hard_limit", HardConcurrentHeartbeatLimit);
         }
+
+        ValidateExperiments(Experiments);
     });
 }
 

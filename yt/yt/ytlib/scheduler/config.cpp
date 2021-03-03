@@ -579,6 +579,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("job_splitter", JobSplitter)
         .DefaultNew();
 
+    RegisterParameter("experiment_overrides", ExperimentOverrides)
+        .Default();
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)

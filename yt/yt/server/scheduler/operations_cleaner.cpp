@@ -5,6 +5,7 @@
 #include "helpers.h"
 
 #include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/experiments.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -82,6 +83,8 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     Alias = operation->Alias();
     SlotIndexPerPoolTree = ConvertToYsonString(operation->GetSlotIndices(), EYsonFormat::Binary);
     TaskNames = ConvertToYsonString(operation->GetTaskNames(), EYsonFormat::Binary);
+    ExperimentAssignments = ConvertToYsonString(operation->ExperimentAssignments(), EYsonFormat::Binary);
+    ExperimentAssignmentNames = ConvertToYsonString(operation->GetExperimentAssignmentNames(), EYsonFormat::Binary);
 
     const auto& attributes = operation->ControllerAttributes();
     const auto& initializationAttributes = attributes.InitializeAttributes;
@@ -114,6 +117,7 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "alias",
         "slot_index_per_pool_tree",
         "task_names",
+        "experiment_assignments",
     };
 
     return attributeKeys;
@@ -140,6 +144,21 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
     Progress = attributes.FindYson("progress");
     BriefProgress = attributes.FindYson("brief_progress");
     Spec = attributes.GetYson("spec");
+    // In order to recover experiment assignment names, we must either
+    // dig into assignment YSON representation or reconstruct assignment objects.
+    // The latter seems more convenient. Also, do not forget that older operations
+    // may miss assignment attribute at all.
+    if (auto experimentAssignmentsYson = attributes.FindYson("experiment_assignments")) {
+        ExperimentAssignments = experimentAssignmentsYson;
+        auto experimentAssignments = ConvertTo<std::vector<TExperimentAssignmentPtr>>(experimentAssignmentsYson);
+        std::vector<TString> experimentAssignmentNames;
+        experimentAssignmentNames.reserve(experimentAssignments.size());
+        for (const auto& experimentAssignment : experimentAssignments) {
+            experimentAssignmentNames.emplace_back(experimentAssignment->GetName());
+        }
+        ExperimentAssignmentNames = ConvertToYsonString(experimentAssignmentNames, EYsonFormat::Binary);
+    }
+
     BriefSpec = attributes.FindYson("brief_spec");
     Result = attributes.GetYson("result");
     Events = attributes.GetYson("events");
@@ -313,6 +332,11 @@ TUnversionedRow BuildOrderedByIdTableRow(
 
     if (version >= 35 && request.TaskNames) {
         builder.AddValue(MakeUnversionedAnyValue(request.TaskNames.AsStringBuf(), index.TaskNames));
+    }
+
+    if (version >= 40 && request.ExperimentAssignments) {
+        builder.AddValue(MakeUnversionedAnyValue(request.ExperimentAssignments.AsStringBuf(), index.ExperimentAssignments));
+        builder.AddValue(MakeUnversionedAnyValue(request.ExperimentAssignmentNames.AsStringBuf(), index.ExperimentAssignmentNames));
     }
 
     return rowBuffer->Capture(builder.GetRow());

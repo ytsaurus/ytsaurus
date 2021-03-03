@@ -72,7 +72,11 @@ private:
             return;
         }
 
-        auto parseSpecResult = WaitFor(scheduler->ParseSpec(TYsonString(request->spec())))
+        // Heavy evaluation is offloaded to RPC heavy invoker.
+        auto preprocessedSpec = WaitFor(scheduler->AssignExperimentsAndParseSpec(
+            type,
+            context->GetAuthenticationIdentity().User,
+            TYsonString(request->spec())))
             .ValueOrThrow();
 
         auto asyncResult = scheduler->StartOperation(
@@ -80,7 +84,7 @@ private:
             transactionId,
             mutationId,
             context->GetAuthenticationIdentity().User,
-            std::move(parseSpecResult));
+            std::move(preprocessedSpec));
 
         auto operation = WaitFor(asyncResult)
             .ValueOrThrow();

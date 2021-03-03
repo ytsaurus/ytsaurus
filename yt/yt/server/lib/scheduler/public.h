@@ -157,6 +157,11 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerIntegralGuaranteesConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategySchedulingSegmentsConfig)
 
+DECLARE_REFCOUNTED_STRUCT(TExperimentEffectConfig)
+DECLARE_REFCOUNTED_STRUCT(TExperimentGroupConfig)
+DECLARE_REFCOUNTED_STRUCT(TExperimentConfig)
+DECLARE_REFCOUNTED_STRUCT(TExperimentAssignment)
+
 struct TExecNodeDescriptor;
 using TExecNodeDescriptorMap = THashMap<NNodeTrackerClient::TNodeId, TExecNodeDescriptor>;
 DECLARE_REFCOUNTED_STRUCT(TRefCountedExecNodeDescriptorMap);

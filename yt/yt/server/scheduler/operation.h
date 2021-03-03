@@ -133,7 +133,7 @@ struct IOperationStrategyHost
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 
     virtual TStrategyOperationSpecPtr GetStrategySpec() const = 0;
-    
+
     virtual TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const = 0;
 
     virtual const NYson::TYsonString& GetSpecString() const = 0;
@@ -143,7 +143,7 @@ struct IOperationStrategyHost
     virtual bool IsTreeErased(const TString& treeId) const = 0;
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) = 0;
-    
+
     virtual std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const = 0;
 
 protected:
@@ -260,6 +260,9 @@ public:
     //! Aggregated minimum needed resources at the start of the operation.
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::optional<TJobResources>, InitialAggregatedMinNeededResources);
 
+    //! List of assigned experiments.
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TExperimentAssignmentPtr>, ExperimentAssignments);
+
 public:
     //! Returns operation id.
     TOperationId GetId() const override;
@@ -274,7 +277,7 @@ public:
 
     //! Returns strategy operation spec.
     TStrategyOperationSpecPtr GetStrategySpec() const override;
-    
+
     //! Returns strategy operation spec patched for given tere.
     TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const override;
 
@@ -353,6 +356,10 @@ public:
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) override;
 
+    //! Returns vector of experiment assignment names with each
+    //! name being of form "<experiment name>.<group name>".
+    std::vector<TString> GetExperimentAssignmentNames() const;
+
     TOperation(
         TOperationId operationId,
         EOperationType type,
@@ -368,6 +375,7 @@ public:
         TInstant startTime,
         IInvokerPtr controlInvoker,
         const std::optional<TString>& alias,
+        std::vector<TExperimentAssignmentPtr> experimentAssignments,
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
         bool suspended = false,
@@ -409,18 +417,25 @@ DEFINE_REFCOUNTED_TYPE(TOperation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TParseOperationSpecResult
+struct TPreprocessedSpec
 {
     TOperationSpecBasePtr Spec;
     NYTree::IMapNodePtr SpecNode;
     NYson::TYsonString SpecString;
     THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree;
+    std::vector<TExperimentAssignmentPtr> ExperimentAssignments;
 };
 
-TParseOperationSpecResult ParseSpec(
-    NYson::TYsonString specString,
+//! Fill various spec parts of preprocessed spec.
+void ParseSpec(
+    NYTree::IMapNodePtr specNode,
     NYTree::INodePtr specTemplate,
-    std::optional<TOperationId> operationId);
+    std::optional<TOperationId> operationId,
+    TPreprocessedSpec* preprocessedSpec);
+
+//! A helper that wraps YSON parsing error or invalid node type error into
+//! convenient "Error parsing operation spec string" error.
+NYTree::IMapNodePtr ConvertSpecStringToNode(const NYson::TYsonString& specString);
 
 ////////////////////////////////////////////////////////////////////////////////
 

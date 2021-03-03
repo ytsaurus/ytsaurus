@@ -15,6 +15,7 @@
 #include "persistent_scheduler_state.h"
 
 #include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/experiments.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/server/lib/scheduler/event_log.h>
 #include <yt/server/lib/scheduler/helpers.h>
@@ -586,9 +587,23 @@ public:
             .Run(user, jobShell);
     }
 
-    TFuture<TParseOperationSpecResult> ParseSpec(TYsonString specString) const
+    TFuture<TPreprocessedSpec> AssignExperimentsAndParseSpec(
+        EOperationType type,
+        const TString& user,
+        TYsonString specString) const
     {
-        return BIND(&NScheduler::ParseSpec, Passed(std::move(specString)), SpecTemplate_, /* operationId */ std::nullopt)
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // NB: we cannot use Config_ and SpecTemplate_ fields in threads other than control,
+        // so we make a copy of intrusive pointers here and pass them as arguments.
+        return BIND(
+            &TImpl::DoAssignExperimentsAndParseSpec,
+            MakeStrong(this),
+            type,
+            user,
+            Passed(std::move(specString)),
+            Config_,
+            SpecTemplate_)
             .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
             .Run();
     }
@@ -598,7 +613,7 @@ public:
         TTransactionId transactionId,
         TMutationId mutationId,
         const TString& user,
-        TParseOperationSpecResult parseSpecResult)
+        TPreprocessedSpec preprocessedSpec)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -609,7 +624,7 @@ public:
                 Config_->MaxOperationCount);
         }
 
-        auto spec = parseSpecResult.Spec;
+        auto spec = preprocessedSpec.Spec;
         auto secureVault = std::move(spec->SecureVault);
 
         auto baseAcl = GetOperationBaseAcl();
@@ -633,15 +648,16 @@ public:
             mutationId,
             transactionId,
             spec,
-            std::move(parseSpecResult.CustomSpecPerTree),
-            std::move(parseSpecResult.SpecString),
+            std::move(preprocessedSpec.CustomSpecPerTree),
+            std::move(preprocessedSpec.SpecString),
             secureVault,
             runtimeParameters,
             std::move(baseAcl),
             user,
             TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
-            spec->Alias);
+            spec->Alias,
+            std::move(preprocessedSpec.ExperimentAssignments));
 
         IdToStartingOperation_.emplace(operationId, operation);
 
@@ -655,11 +671,12 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        YT_LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
+        YT_LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v, ExperimentAssignments: %v)",
             type,
             operationId,
             transactionId,
-            user);
+            user,
+            operation->GetExperimentAssignmentNames());
 
         YT_LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: %v)",
             operationId,
@@ -1132,7 +1149,7 @@ public:
 
         return resourceLimits;
     }
-    
+
     virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -4035,6 +4052,38 @@ private:
             .Run()));
     }
 
+    TPreprocessedSpec DoAssignExperimentsAndParseSpec(
+        EOperationType type,
+        const TString& user,
+        TYsonString specString,
+        TSchedulerConfigPtr config,
+        NYTree::INodePtr specTemplate) const
+    {
+        VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetHeavyInvoker());
+
+        auto specNode = ConvertSpecStringToNode(specString);
+
+        auto experimentAssignments = AssignExperiments(type, user, specNode, config->Experiments);
+
+        for (const auto& assignment : experimentAssignments) {
+            if (const auto& patch = assignment->Effect->SchedulerSpecTemplatePatch) {
+                specTemplate = specTemplate ? PatchNode(specTemplate, patch) : patch;
+            }
+            if (const auto& patch = assignment->Effect->SchedulerSpecPatch) {
+                specNode = PatchNode(specNode, patch)->AsMap();
+            }
+            if (const auto& controllerAgentTag = assignment->Effect->ControllerAgentTag) {
+                specNode->AddChild("controller_agent_tag", ConvertToNode(*controllerAgentTag));
+            }
+        }
+
+        TPreprocessedSpec result;
+        ParseSpec(std::move(specNode), specTemplate, /* operationId */ std::nullopt, &result);
+        result.ExperimentAssignments = std::move(experimentAssignments);
+
+        return result;
+    }
+
     void TryDestroyOperations(std::vector<TOperationPtr>&& operations)
     {
         for (auto& operation : operations) {
@@ -4382,9 +4431,15 @@ TOperationPtr TScheduler::GetOperationOrThrow(const TOperationIdOrAlias& idOrAli
     return Impl_->GetOperationOrThrow(idOrAlias);
 }
 
-TFuture<TParseOperationSpecResult> TScheduler::ParseSpec(TYsonString specString) const
+TFuture<TPreprocessedSpec> TScheduler::AssignExperimentsAndParseSpec(
+    EOperationType type,
+    const TString& user,
+    TYsonString specString) const
 {
-    return Impl_->ParseSpec(std::move(specString));
+    return Impl_->AssignExperimentsAndParseSpec(
+        type,
+        user,
+        std::move(specString));
 }
 
 TFuture<TOperationPtr> TScheduler::StartOperation(
@@ -4392,14 +4447,14 @@ TFuture<TOperationPtr> TScheduler::StartOperation(
     TTransactionId transactionId,
     TMutationId mutationId,
     const TString& user,
-    TParseOperationSpecResult parseSpecResult)
+    TPreprocessedSpec preprocessedSpec)
 {
     return Impl_->StartOperation(
         type,
         transactionId,
         mutationId,
         user,
-        std::move(parseSpecResult));
+        std::move(preprocessedSpec));
 }
 
 TFuture<void> TScheduler::AbortOperation(

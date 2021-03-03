@@ -6,6 +6,7 @@
 #include "scheduler.h"
 
 #include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/experiments.h>
 #include <yt/server/lib/scheduler/helpers.h>
 #include <yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 
@@ -360,7 +361,7 @@ TFuture<void> TOperationControllerImpl::Complete()
     req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
     return InvokeAgent<TControllerAgentServiceProxy::TRspCompleteOperation>(req).As<void>();
 }
-    
+
 TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -381,6 +382,7 @@ TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
     ToProto(descriptor->mutable_operation_id(), operation->GetId());
     descriptor->set_operation_type(static_cast<int>(operation->GetType()));
     descriptor->set_spec(operation->GetSpecString().ToString());
+    descriptor->set_experiment_assignments(ConvertToYsonString(operation->ExperimentAssignments()).ToString());
     descriptor->set_start_time(ToProto<ui64>(operation->GetStartTime()));
     descriptor->set_authenticated_user(operation->GetAuthenticatedUser());
     if (operation->GetSecureVault()) {
@@ -770,7 +772,7 @@ void TOperationControllerImpl::ProcessControllerAgentError(const TError& error)
         agentTracker->HandleAgentFailure(agent, error);
     }
 }
-    
+
 template <class TResponse, class TRequest>
 TFuture<TIntrusivePtr<TResponse>> TOperationControllerImpl::InvokeAgent(
     const TIntrusivePtr<TRequest>& request)

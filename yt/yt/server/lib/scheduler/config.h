@@ -256,7 +256,7 @@ public:
 
     bool PreemptionCheckStarvation;
     bool PreemptionCheckSatisfaction;
-    
+
     // Timeout for job interruption before we abort it.
     TDuration JobInterruptTimeout;
 
@@ -402,7 +402,7 @@ public:
 
     //! Number of operations to remove in one batch.
     int RemoveBatchSize;
-    
+
     //! Number of operations to remove in one subbatch request.
     int RemoveSubbatchSize;
 
@@ -703,6 +703,9 @@ public:
 
     TDuration SchedulingSegmentsManagePeriod;
     TDuration SchedulingSegmentsInitializationTimeout;
+
+    //! All registered scheduler experiments keyed by experiment names.
+    THashMap<TString, TExperimentConfigPtr> Experiments;
 
     TSchedulerConfig();
 };
