@@ -132,12 +132,20 @@ TNodeShard::TNodeShard(
     
     SoftConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
         .WithTag("limit_type", "soft")
-        .Counter("/concurrent_heartbeat_limit_reached");
+        .Counter("/node_heartbeat/concurrent_limit_reached");
     HardConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
         .WithTag("limit_type", "hard")
-        .Counter("/concurrent_heartbeat_limit_reached");
+        .Counter("/node_heartbeat/concurrent_limit_reached");
     HeartbeatWithScheduleJobsCounter_ = SchedulerProfiler
-        .Counter("/heartbeat_with_schedule_jobs");
+        .Counter("/node_heartbeat/with_schedule_jobs_count");
+    HeartbeatJobCount_ = SchedulerProfiler
+        .Counter("/node_heartbeat/job_count");
+    HeartbeatStatisticBytes_ = SchedulerProfiler
+        .Counter("/node_heartbit/statistics_bytes");
+    HeartbeatProtoMessageBytes_ = SchedulerProfiler
+        .Counter("/node_heartbeat/proto_message_bytes");
+    HeartbeatCount_ = SchedulerProfiler
+        .Counter("/node_heartbeat/count");
 }
 
 int TNodeShard::GetId() const
@@ -421,7 +429,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     if (request->has_job_reporter_write_failures_count()) {
         jobReporterWriteFailuresCount = request->job_reporter_write_failures_count();
     }
-    JobReporterWriteFailuresCount_.fetch_add(jobReporterWriteFailuresCount, std::memory_order_relaxed);
+    if (jobReporterWriteFailuresCount) {
+        JobReporterWriteFailuresCount_.fetch_add(jobReporterWriteFailuresCount, std::memory_order_relaxed);
+    }
 
     auto nodeId = request->node_id();
     auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
@@ -1636,7 +1646,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         auto now = GetCpuInstant();
         for (const auto& [jobId, jobInfo] : node->RecentlyFinishedJobs()) {
-            if (jobInfo.ReleaseFlags){
+            if (jobInfo.ReleaseFlags) {
                 YT_LOG_DEBUG("Requesting node to remove released job "
                     "(JobId: %v, NodeId: %v, NodeAddress: %v, %v)",
                     jobId,
@@ -1663,6 +1673,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     // Used for debug logging.
     THashMap<EJobState, std::vector<TJobId>> jobStateToOngoingJobIds;
     std::vector<TJobId> recentlyFinishedJobIdsToLog;
+    size_t totalJobStatisticsSize{};
     TRunningJobStatistics runningJobStatistics;
     for (auto& jobStatus : *request->mutable_jobs()) {
         YT_VERIFY(jobStatus.has_job_type());
@@ -1670,6 +1681,9 @@ void TNodeShard::ProcessHeartbeatJobs(
         // Skip jobs that are not issued by the scheduler.
         if (jobType < FirstSchedulerJobType || jobType > LastSchedulerJobType) {
             continue;
+        }
+        if (jobStatus.has_statistics()) {
+            totalJobStatisticsSize += std::size(jobStatus.statistics());
         }
 
         auto job = ProcessJobHeartbeat(
@@ -1709,6 +1723,11 @@ void TNodeShard::ProcessHeartbeatJobs(
             }
         }
     }
+    HeartbeatProtoMessageBytes_.Increment(request->ByteSizeLong());
+    HeartbeatJobCount_.Increment(request->jobs_size());
+    HeartbeatStatisticBytes_.Increment(totalJobStatisticsSize);
+    HeartbeatCount_.Increment();
+    
     node->SetRunningJobStatistics(runningJobStatistics);
 
     YT_LOG_DEBUG_UNLESS(
