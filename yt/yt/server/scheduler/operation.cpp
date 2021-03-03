@@ -5,6 +5,8 @@
 #include "job.h"
 #include "controller_agent.h"
 
+#include <yt/server/lib/scheduler/experiments.h>
+
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/config.h>
 
@@ -136,6 +138,7 @@ TOperation::TOperation(
     TInstant startTime,
     IInvokerPtr controlInvoker,
     const std::optional<TString>& alias,
+    std::vector<TExperimentAssignmentPtr> experimentAssignments,
     EOperationState state,
     const std::vector<TOperationEvent>& events,
     bool suspended,
@@ -150,6 +153,7 @@ TOperation::TOperation(
     , Alias_(alias)
     , BaseAcl_(std::move(baseAcl))
     , InitialAggregatedMinNeededResources_(initialAggregatedMinNeededResources)
+    , ExperimentAssignments_(std::move(experimentAssignments))
     , Id_(id)
     , Type_(type)
     , StartTime_(startTime)
@@ -203,7 +207,7 @@ TStrategyOperationSpecPtr TOperation::GetStrategySpec() const
 {
     return Spec_;
 }
-    
+
 TStrategyOperationSpecPtr TOperation::GetStrategySpecForTree(const TString& treeId) const
 {
     auto it = CustomSpecPerTree_.find(treeId);
@@ -495,19 +499,21 @@ void TOperation::EraseTrees(const std::vector<TString>& treeIds)
     }
 }
 
+std::vector<TString> TOperation::GetExperimentAssignmentNames() const
+{
+    std::vector<TString> result;
+    result.reserve(ExperimentAssignments_.size());
+    for (const auto& experimentAssignment : ExperimentAssignments_) {
+        result.emplace_back(experimentAssignment->GetName());
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TParseOperationSpecResult ParseSpec(TYsonString specString, INodePtr specTemplate, std::optional<TOperationId> operationId)
+void ParseSpec(IMapNodePtr specNode, INodePtr specTemplate, std::optional<TOperationId> operationId, TPreprocessedSpec* preprocessedSpec)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    IMapNodePtr specNode;
-    try {
-        specNode = ConvertToNode(specString)->AsMap();
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing operation spec string")
-            << ex;
-    }
 
     if (specTemplate) {
         specNode = PatchNode(specTemplate, specNode)->AsMap();
@@ -525,26 +531,38 @@ TParseOperationSpecResult ParseSpec(TYsonString specString, INodePtr specTemplat
         }
     }
 
-    TParseOperationSpecResult result;
     try {
-        result.Spec = ConvertTo<TOperationSpecBasePtr>(specNode);
+        preprocessedSpec->Spec = ConvertTo<TOperationSpecBasePtr>(specNode);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing operation spec")
             << ex;
     }
 
     specNode->RemoveChild("secure_vault");
-    result.SpecNode = specNode;
-    result.SpecString = ConvertToYsonString(specNode);
-    
-    auto strategySpec = static_cast<TStrategyOperationSpecPtr>(result.Spec);
+    preprocessedSpec->SpecNode = specNode;
+    preprocessedSpec->SpecString = ConvertToYsonString(specNode);
+
+    auto strategySpec = static_cast<TStrategyOperationSpecPtr>(preprocessedSpec->Spec);
     for (const auto& [treeId, optionPerPoolTree] : strategySpec->SchedulingOptionsPerPoolTree) {
-        result.CustomSpecPerTree.emplace(
+        preprocessedSpec->CustomSpecPerTree.emplace(
             treeId,
             UpdateYsonSerializable(strategySpec, ConvertToNode(optionPerPoolTree)));
     }
+}
 
-    return result;
+IMapNodePtr ConvertSpecStringToNode(const TYsonString& specString)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    IMapNodePtr specNode;
+    try {
+        specNode = ConvertToNode(specString)->AsMap();
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing operation spec string")
+            << ex;
+    }
+
+    return specNode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

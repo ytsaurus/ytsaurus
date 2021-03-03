@@ -110,6 +110,7 @@ DECLARE_REFCOUNTED_CLASS(TOperationRuntimeParametersUpdate)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TTentativeTreeEligibilityConfig)
 DECLARE_REFCOUNTED_CLASS(TJobCpuMonitorConfig)
+DECLARE_REFCOUNTED_CLASS(TExperimentOperationSpec)
 
 struct TDiskQuota;
 class TJobResources;

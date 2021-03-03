@@ -809,6 +809,9 @@ public:
 
     TJobSplitterConfigPtr JobSplitter;
 
+    //! Explicitly specified names of experiments.
+    std::optional<std::vector<TString>> ExperimentOverrides;
+
     TOperationSpecBase();
 
 private:

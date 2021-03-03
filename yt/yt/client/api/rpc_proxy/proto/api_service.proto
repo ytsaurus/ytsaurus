@@ -2036,6 +2036,9 @@ message TOperation
     optional bytes slot_index_per_pool_tree = 20; // YSON
 
     optional bytes task_names = 21; // YSON
+
+    optional bytes experiment_assignments = 22; // YSON
+    optional bytes experiment_assignment_names = 23; // YSON
 }
 
 message TListOperationsResult

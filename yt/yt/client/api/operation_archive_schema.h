@@ -38,6 +38,8 @@ struct TOrderedByIdTableDescriptor
         const int RuntimeParameters;
         const int SlotIndexPerPoolTree;
         const int TaskNames;
+        const int ExperimentAssignments;
+        const int ExperimentAssignmentNames;
     };
 
     const NTableClient::TNameTablePtr NameTable;

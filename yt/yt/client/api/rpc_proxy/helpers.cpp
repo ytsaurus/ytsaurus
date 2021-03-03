@@ -572,6 +572,12 @@ void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operati
     if (operation.Spec) {
         protoOperation->set_spec(operation.Spec.ToString());
     }
+    if (operation.ExperimentAssignments) {
+        protoOperation->set_experiment_assignments(operation.ExperimentAssignments.ToString());
+    }
+    if (operation.ExperimentAssignmentNames) {
+        protoOperation->set_experiment_assignment_names(operation.ExperimentAssignmentNames.ToString());
+    }
     if (operation.FullSpec) {
         protoOperation->set_full_spec(operation.FullSpec.ToString());
     }
@@ -664,6 +670,17 @@ void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOpera
         operation->UnrecognizedSpec = NYson::TYsonString(protoOperation.unrecognized_spec());
     } else {
         operation->UnrecognizedSpec = NYson::TYsonString();
+    }
+
+    if (protoOperation.has_experiment_assignments()) {
+        operation->ExperimentAssignments = NYson::TYsonString(protoOperation.experiment_assignments());
+    } else {
+        operation->ExperimentAssignments = NYson::TYsonString();
+    }
+    if (protoOperation.has_experiment_assignment_names()) {
+        operation->ExperimentAssignmentNames = NYson::TYsonString(protoOperation.experiment_assignment_names());
+    } else {
+        operation->ExperimentAssignmentNames = NYson::TYsonString();
     }
 
     if (protoOperation.has_brief_progress()) {

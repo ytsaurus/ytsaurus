@@ -53,6 +53,8 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "operation_type",
     "progress",
     "spec",
+    "experiment_assignments",
+    "experiment_assignment_names",
     // COMPAT(gritukan): Drop it.
     "annotations",
     "full_spec",
@@ -386,6 +388,8 @@ TYsonString TClient::DoGetOperationFromArchive(
             SET_ITEM_STRING_VALUE("operation_type")
             SET_ITEM_YSON_STRING_VALUE("progress")
             SET_ITEM_YSON_STRING_VALUE("spec")
+            SET_ITEM_YSON_STRING_VALUE("experiment_assignments")
+            SET_ITEM_YSON_STRING_VALUE("experiment_assignment_names")
             SET_ITEM_YSON_STRING_VALUE("full_spec")
             SET_ITEM_YSON_STRING_VALUE("unrecognized_spec")
             SET_ITEM_YSON_STRING_VALUE("brief_progress")
@@ -720,6 +724,7 @@ void TClient::DoListOperationsFromCypress(
         "authenticated_user",
         "brief_progress",
         "brief_spec",
+        "experiment_assignment_names",
         "events",
         "finish_time",
         "id",
@@ -737,6 +742,7 @@ void TClient::DoListOperationsFromCypress(
         "authenticated_user",
         "brief_progress",
         "brief_spec",
+        "experiment_assignment_names",
         "finish_time",
         "id",
         "type",
@@ -889,6 +895,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
         "brief_progress",
         "brief_spec",
         "finish_time",
+        "experiment_assignment_names",
         "id",
         "runtime_parameters",
         "start_time",
@@ -937,6 +944,8 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     auto briefSpecIndex = columnFilter.FindPosition(tableIndex.BriefSpec);
     auto fullSpecIndex = columnFilter.FindPosition(tableIndex.FullSpec);
     auto specIndex = columnFilter.FindPosition(tableIndex.Spec);
+    auto experimentAssignmentNames = columnFilter.FindPosition(tableIndex.ExperimentAssignmentNames);
+    auto experimentAssignments = columnFilter.FindPosition(tableIndex.ExperimentAssignments);
     auto unrecognizedSpecIndex = columnFilter.FindPosition(tableIndex.UnrecognizedSpec);
     auto briefProgressIndex = columnFilter.FindPosition(tableIndex.BriefProgress);
     auto progressIndex = columnFilter.FindPosition(tableIndex.Progress);
@@ -1025,6 +1034,13 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
 
         if (taskNamesIndex) {
             operation.TaskNames = getYson(row[*taskNamesIndex]);
+        }
+
+        if (experimentAssignments) {
+            operation.ExperimentAssignments = getYson(row[*experimentAssignments]);
+        }
+        if (experimentAssignmentNames) {
+            operation.ExperimentAssignmentNames = getYson(row[*experimentAssignmentNames]);
         }
 
         idToOperation.emplace(*operation.Id, std::move(operation));

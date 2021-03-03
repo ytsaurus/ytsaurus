@@ -191,6 +191,8 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
             .OptionalItem("brief_spec", operation.BriefSpec)
             .OptionalItem("full_spec", operation.FullSpec)
             .OptionalItem("spec", operation.Spec)
+            .OptionalItem("experiment_assignments", operation.ExperimentAssignments)
+            .OptionalItem("experiment_assignment_names", operation.ExperimentAssignmentNames)
             .OptionalItem("unrecognized_spec", operation.UnrecognizedSpec)
             .OptionalItem("runtime_parameters", operation.RuntimeParameters)
             .OptionalItem("suspended", operation.Suspended)

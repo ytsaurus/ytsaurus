@@ -8,6 +8,7 @@
 #include "persistent_scheduler_state.h"
 
 #include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/experiments.h>
 #include <yt/server/lib/scheduler/helpers.h>
 
 #include <yt/server/lib/misc/update_executor.h>
@@ -930,6 +931,7 @@ private:
                 "mutation_id",
                 "user_transaction_id",
                 "spec",
+                "experiment_assignments",
                 "authenticated_user",
                 "start_time",
                 "state",
@@ -1070,8 +1072,12 @@ private:
             const IMapNodePtr& secureVault)
         {
             auto specString = attributes.GetYson("spec");
-            auto parseSpecResult = ParseSpec(specString, /* specTemplate */ nullptr, /* operationId */ operationId);
-            const auto& spec = parseSpecResult.Spec;
+            auto specNode = ConvertSpecStringToNode(specString);
+            TPreprocessedSpec preprocessedSpec;
+            ParseSpec(std::move(specNode), /* specTemplate */ nullptr, operationId, &preprocessedSpec);
+            preprocessedSpec.ExperimentAssignments =
+                attributes.Get<std::vector<TExperimentAssignmentPtr>>("experiment_assignments", {});
+            const auto& spec = preprocessedSpec.Spec;
 
             // NB: Keep stuff below in sync with #RequestOperationAttributes.
             auto user = attributes.Get<TString>("authenticated_user");
@@ -1102,8 +1108,8 @@ private:
                 attributes.Get<TMutationId>("mutation_id"),
                 attributes.Get<TTransactionId>("user_transaction_id"),
                 spec,
-                parseSpecResult.CustomSpecPerTree,
-                parseSpecResult.SpecString,
+                std::move(preprocessedSpec.CustomSpecPerTree),
+                std::move(preprocessedSpec.SpecString),
                 secureVault,
                 runtimeParameters,
                 scheduler->GetOperationBaseAcl(),
@@ -1111,9 +1117,10 @@ private:
                 attributes.Get<TInstant>("start_time"),
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
                 spec->Alias,
+                std::move(preprocessedSpec.ExperimentAssignments),
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
-                /* suspended */ attributes.Get<bool>("suspended", false),
+                attributes.Get<bool>("suspended", false),
                 attributes.Find<TJobResources>("initial_aggregated_min_needed_resources"));
 
             operation->SetShouldFlushAcl(true);

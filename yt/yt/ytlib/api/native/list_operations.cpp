@@ -213,6 +213,16 @@ public:
         TransferAndGetYson("annotations", Annotations_, cursor);
     }
 
+    void OnExperimentAssignments(TYsonPullParserCursor* cursor)
+    {
+        TransferAndGetYson("experiment_assignments", Operation_.ExperimentAssignments, cursor);
+    }
+
+    void OnExperimentAssignmentNames(TYsonPullParserCursor* cursor)
+    {
+        TransferAndGetYson("experiment_assignment_names", Operation_.ExperimentAssignmentNames, cursor);
+    }
+
 private:
     TOperation& Operation_;
     const THashSet<TString>& Attributes_;
@@ -271,6 +281,12 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
         } else if (key == TStringBuf("spec")) {
             cursor->Next();
             consumer->OnSpec(cursor);
+        } else if (key == TStringBuf("experiment_assignments")) {
+            cursor->Next();
+            consumer->OnExperimentAssignments(cursor);
+        } else if (key == TStringBuf("experiment_assignment_names")) {
+            cursor->Next();
+            consumer->OnExperimentAssignmentNames(cursor);
         } else if (key == TStringBuf("full_spec")) {
             cursor->Next();
             consumer->OnFullSpec(cursor);
@@ -576,6 +592,17 @@ public:
             cursor->TransferComplexValue(&writer);
         }
         SearchSubstring(Annotations_);
+    }
+
+    void OnExperimentAssignments(TYsonPullParserCursor* cursor)
+    {
+        cursor->SkipComplexValue();
+    }
+
+    void OnExperimentAssignmentNames(TYsonPullParserCursor* cursor)
+    {
+        // TODO(max42): maybe support filtering on experiment assignment names?
+        cursor->SkipComplexValue();
     }
 
 private:
