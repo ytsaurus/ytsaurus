@@ -283,7 +283,7 @@ b"""
     };
 
     dynamic_config_manager = {
-        update_period = 1000;
+        update_period = 50;
     };
 
     cluster_connection = {
@@ -449,10 +449,6 @@ b"""
             expire_after_failed_update_time = 0;
             refresh_time = 0;
         };
-    };
-
-    dynamic_config_manager = {
-        update_period = 50;
     };
 
     master_connector = {
