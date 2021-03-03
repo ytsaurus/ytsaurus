@@ -119,6 +119,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static std::vector<TSharedRef> GetRandomTextBlocks(int blockCount, int minBlockSize, int maxBlockSize)
+{
+    std::vector<TSharedRef> result;
+    for (int i = 0; i < blockCount; ++i) {
+        int size = minBlockSize + (maxBlockSize > minBlockSize ? std::rand() % (maxBlockSize - minBlockSize) : 0);
+        auto data = NYT::TBlob(NYT::TDefaultBlobTag(), size);
+        for (int i = 0; i < size; ++i) {
+            data[i] = static_cast<char>('a' + (std::abs(std::rand()) % 26));
+        }
+        result.push_back(TSharedRef::FromBlob(std::move(data)));
+    }
+    return result;
+}
+
 std::vector<TString> GetRandomData(std::mt19937& gen, int blocksCount, int blockSize)
 {
     std::vector<TString> result;
@@ -216,10 +230,16 @@ public:
         return refs;
     }
 
-    static void WriteErasureChunk(ECodec codecId, ICodec* codec, std::vector<TSharedRef> data, int erasureWindowSize = 64)
+    static void WriteErasureChunk(
+        ECodec codecId,
+        ICodec* codec,
+        std::vector<TSharedRef> data,
+        int erasureWindowSize = 64,
+        bool storeBlockChecksums = false)
     {
         auto config = NYT::New<TErasureWriterConfig>();
         config->ErasureWindowSize = erasureWindowSize;
+        config->ErasureStoreOriginalBlockChecksums = storeBlockChecksums;
 
         std::vector<IChunkWriterPtr> writers;
         auto ioEngine = CreateIOEngine(NChunkClient::EIOEngineType::ThreadPool, NYTree::INodePtr());
@@ -595,14 +615,8 @@ TEST_P(TErasureMixture, RepairTest3)
     auto codec = GetCodec(codecId);
 
     // Prepare data (in this test we have multiple erasure windows).
-    std::vector<TSharedRef> dataRefs;
-    for (int i = 0; i < 20; ++i) {
-        auto data = NYT::TBlob(NYT::TDefaultBlobTag(), 100);
-        for (int i = 0; i < 100; ++i) {
-            data[i] = static_cast<char>('a' + (std::abs(std::rand()) % 26));
-        }
-        dataRefs.push_back(TSharedRef::FromBlob(std::move(data)));
-    }
+    auto dataRefs = GetRandomTextBlocks(20, 100, 100);
+
     WriteErasureChunk(codecId, codec, dataRefs);
 
     {
@@ -640,16 +654,7 @@ TEST_P(TErasureMixture, RepairTest4)
     auto codecId = GetParam();
     auto codec = GetCodec(codecId);
 
-    // Prepare data
-    std::vector<TSharedRef> dataRefs;
-    for (int i = 0; i < 20; ++i) {
-        int size = 100 + (std::rand() % 100);
-        auto data = NYT::TBlob(NYT::TDefaultBlobTag(), size);
-        for (int i = 0; i < size; ++i) {
-            data[i] = static_cast<char>('a' + (std::abs(std::rand()) % 26));
-        }
-        dataRefs.push_back(TSharedRef::FromBlob(std::move(data)));
-    }
+    auto dataRefs = GetRandomTextBlocks(20, 100, 200);
     WriteErasureChunk(codecId, codec, dataRefs);
 
     {
@@ -686,14 +691,7 @@ TEST_P(TErasureMixture, RepairTest5)
     auto codec = GetCodec(codecId);
 
     // Prepare data (in this test we have multiple erasure windows).
-    std::vector<TSharedRef> dataRefs;
-    for (int i = 0; i < 2000; ++i) {
-        auto data = NYT::TBlob(NYT::TDefaultBlobTag(), 100);
-        for (int i = 0; i < 100; ++i) {
-            data[i] = static_cast<char>('a' + (std::abs(std::rand()) % 26));
-        }
-        dataRefs.push_back(TSharedRef::FromBlob(std::move(data)));
-    }
+    auto dataRefs = GetRandomTextBlocks(2000, 100, 100);
     WriteErasureChunk(codecId, codec, dataRefs, 256);
 
     {
@@ -732,14 +730,7 @@ TEST_P(TErasureMixture, RepairTest6)
     auto codec = GetCodec(codecId);
 
     // Prepare data (in this test we have multiple erasure windows).
-    std::vector<TSharedRef> dataRefs;
-    for (int i = 0; i < 2000; ++i) {
-        auto data = NYT::TBlob(NYT::TDefaultBlobTag(), 20 + (std::rand() % 100));
-        for (int i = 0; i < data.Size(); ++i) {
-            data[i] = static_cast<char>('a' + (std::abs(std::rand()) % 26));
-        }
-        dataRefs.push_back(TSharedRef::FromBlob(std::move(data)));
-    }
+    auto dataRefs = GetRandomTextBlocks(2000, 20, 120);
     WriteErasureChunk(codecId, codec, dataRefs, 256);
 
     {
@@ -768,6 +759,39 @@ TEST_P(TErasureMixture, RepairTest6)
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
     }
+
+    Cleanup(codec);
+}
+
+TEST_P(TErasureMixture, RepairingReaderChecksums)
+{
+    auto codecId = GetParam();
+    auto codec = GetCodec(codecId);
+
+    auto dataRefs = GetRandomTextBlocks(2000, 20, 120);
+
+    WriteErasureChunk(codecId, codec, dataRefs, 64, true);
+
+    {
+        auto erasureReader = CreateErasureReader(codec);
+        CheckRepairResult(erasureReader, dataRefs);
+    }
+
+    TPartIndexList erasedIndices;
+    erasedIndices.push_back(1);
+    erasedIndices.push_back(8);
+    erasedIndices.push_back(13);
+    erasedIndices.push_back(15);
+
+    RemoveErasedParts(erasedIndices);
+
+    std::vector<IChunkReaderAllowingRepairPtr> allReaders;
+    std::vector<IChunkReaderAllowingRepairPtr> readers;
+    std::vector<IChunkWriterPtr> writers;
+    PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
+
+    auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
+    CheckRepairReader(reparingReader, dataRefs, 20);
 
     Cleanup(codec);
 }

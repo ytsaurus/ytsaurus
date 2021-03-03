@@ -535,6 +535,7 @@ public:
     i64 ErasureWindowSize;
 
     bool EnableErasureTargetNodeReallocation;
+    bool ErasureStoreOriginalBlockChecksums;
 
     TErasureWriterConfig()
     {
@@ -544,6 +545,9 @@ public:
         RegisterParameter("erasure_window_size", ErasureWindowSize)
             .Default(8_MB)
             .GreaterThan(0);
+
+        RegisterParameter("erasure_store_original_block_checksums", ErasureStoreOriginalBlockChecksums)
+            .Default(false);
     }
 };
 

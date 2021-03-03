@@ -8,6 +8,8 @@
 
 #include <yt/core/actions/callback.h>
 
+#include <yt/core/logging/log.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +33,8 @@ IChunkReaderPtr CreateRepairingErasureReader(
     NErasure::ICodec* codec,
     const NErasure::TPartIndexList& erasedIndices,
     // This list must consist of readers for all data parts and repair parts sorted by part index.
-    const std::vector<IChunkReaderAllowingRepairPtr>& readers);
+    const std::vector<IChunkReaderAllowingRepairPtr>& readers,
+    const NLogging::TLogger& logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

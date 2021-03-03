@@ -9,9 +9,12 @@
 #include "erasure_helpers.h"
 #include "private.h"
 #include "chunk_reader_statistics.h"
+#include "yt/core/misc/error.h"
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/action_queue.h>
+
+#include <yt/core/misc/checksum.h>
 
 #include <yt/library/erasure/impl/codec.h>
 
@@ -23,6 +26,7 @@ using namespace NErasure;
 using namespace NConcurrency;
 using namespace NChunkClient::NProto;
 using namespace NErasureHelpers;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -391,19 +395,23 @@ class TRepairingErasureReaderSession
 {
 public:
     TRepairingErasureReaderSession(
+        TChunkId chunkId,
         ICodec* codec,
         const TPartIndexList& erasedIndices,
         const std::vector<IChunkReaderAllowingRepairPtr>& readers,
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
         const TClientBlockReadOptions& options,
-        const IInvokerPtr& readerInvoker)
-        : Codec_(codec)
+        const IInvokerPtr& readerInvoker,
+        const TLogger& logger)
+        : ChunkId_(chunkId)
+        , Codec_(codec)
         , ErasedIndices_(erasedIndices)
         , Readers_(readers)
         , PlacementExt_(placementExt)
         , BlockIndexes_(blockIndexes)
         , BlockReadOptions_(options)
+        , Logger(logger)
         , ParityPartSplitInfo_(GetParityPartSplitInfo(PlacementExt_))
         , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_))
         , ReaderInvoker_(readerInvoker)
@@ -485,12 +493,14 @@ public:
     }
 
 private:
+    const TChunkId ChunkId_;
     const ICodec* const Codec_;
     const TPartIndexList ErasedIndices_;
     const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
     const TClientBlockReadOptions BlockReadOptions_;
+    const TLogger Logger;
 
     TParityPartSplitInfo ParityPartSplitInfo_;
     TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
@@ -539,14 +549,36 @@ private:
             auto blocksPlacementInPart = DataBlocksPlacementInParts_[partIndex];
 
             std::vector<TBlock> blocks;
-            if (std::binary_search(ErasedIndices_.begin(), ErasedIndices_.end(), partIndex)) {
+            bool isRepairedPart = std::binary_search(ErasedIndices_.begin(), ErasedIndices_.end(), partIndex);
+            if (isRepairedPart) {
                 blocks = PartBlockSavers_[partBlockSaverIndex++]->GetSavedBlocks();
             } else {
                 blocks = AllPartReaders_[partReaderIndex++]->GetSavedBlocks();
             }
 
             for (int index = 0; index < blocksPlacementInPart.IndexesInRequest.size(); ++index) {
-                result[blocksPlacementInPart.IndexesInRequest[index]] = blocks[index];
+                int indexInRequest = blocksPlacementInPart.IndexesInRequest[index];
+
+                if (isRepairedPart && PlacementExt_.block_checksums_size() != 0) {
+                    int blockIndex = BlockIndexes_[indexInRequest];
+                    YT_VERIFY(blockIndex < PlacementExt_.block_checksums_size());
+
+                    TChecksum actualChecksum = GetChecksum(blocks[index].Data);
+                    TChecksum expectedChecksum = PlacementExt_.block_checksums(blockIndex);
+
+                    if (actualChecksum != expectedChecksum) {
+                        auto error = TError("Invalid block checksum in repaired part")
+                            << TErrorAttribute("chunk_id", ChunkId_)
+                            << TErrorAttribute("block_index", blockIndex)
+                            << TErrorAttribute("expected_checksum", expectedChecksum)
+                            << TErrorAttribute("actual_checksum", actualChecksum)
+                            << TErrorAttribute("recalculated_checksum", GetChecksum(blocks[index].Data));
+
+                        YT_LOG_ALERT(error);
+                        THROW_ERROR error;
+                    }
+                }
+                result[indexInRequest] = blocks[index];
             }
         }
         return result;
@@ -562,10 +594,12 @@ public:
         TChunkId chunkId,
         ICodec* codec,
         const TPartIndexList& erasedIndices,
-        const std::vector<IChunkReaderAllowingRepairPtr>& readers)
+        const std::vector<IChunkReaderAllowingRepairPtr>& readers,
+        const TLogger& logger)
         : TErasureChunkReaderBase(chunkId, codec, readers)
         , ErasedIndices_(erasedIndices)
         , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
+        , Logger(logger)
     { }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
@@ -578,13 +612,15 @@ public:
         return PreparePlacementMeta(options).Apply(
             BIND([=, this_ = MakeStrong(this)] {
                 auto session = New<TRepairingErasureReaderSession>(
+                    GetChunkId(),
                     Codec_,
                     ErasedIndices_,
                     Readers_,
                     PlacementExt_,
                     blockIndexes,
                     options,
-                    ReaderInvoker_);
+                    ReaderInvoker_,
+                    Logger);
                 return session->Run();
             }).AsyncVia(ReaderInvoker_));
     }
@@ -611,19 +647,22 @@ public:
 private:
     const TPartIndexList ErasedIndices_;
     IInvokerPtr ReaderInvoker_;
+    const TLogger Logger;
 };
 
 IChunkReaderPtr CreateRepairingErasureReader(
     TChunkId chunkId,
     ICodec* codec,
     const TPartIndexList& erasedIndices,
-    const std::vector<IChunkReaderAllowingRepairPtr>& readers)
+    const std::vector<IChunkReaderAllowingRepairPtr>& readers,
+    const NLogging::TLogger& logger)
 {
     return New<TRepairReader>(
         chunkId,
         codec,
         erasedIndices,
-        readers);
+        readers,
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
