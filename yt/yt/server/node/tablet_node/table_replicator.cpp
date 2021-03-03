@@ -1,12 +1,11 @@
-#include "table_replicator.h"
-
 #include "hint_manager.h"
 #include "private.h"
-#include "slot_manager.h"
+#include "table_replicator.h"
 #include "tablet.h"
-#include "tablet_slot.h"
-#include "tablet_reader.h"
 #include "tablet_manager.h"
+#include "tablet_reader.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
@@ -78,7 +77,7 @@ public:
         TTableReplicaInfo* replicaInfo,
         NNative::IConnectionPtr localConnection,
         TTabletSlotPtr slot,
-        ISlotManagerPtr slotManager,
+        ITabletSnapshotStorePtr tabletSnapshotStore,
         IHintManagerPtr hintManager,
         IInvokerPtr workerInvoker,
         IThroughputThrottlerPtr nodeInThrottler,
@@ -86,7 +85,7 @@ public:
         : Config_(std::move(config))
         , LocalConnection_(std::move(localConnection))
         , Slot_(std::move(slot))
-        , SlotManager_(std::move(slotManager))
+        , TabletSnapshotStore_(std::move(tabletSnapshotStore))
         , HintManager_(std::move(hintManager))
         , WorkerInvoker_(std::move(workerInvoker))
         , TabletId_(tablet->GetId())
@@ -132,7 +131,7 @@ private:
     const TTabletManagerConfigPtr Config_;
     const NNative::IConnectionPtr LocalConnection_;
     const TTabletSlotPtr Slot_;
-    const ISlotManagerPtr SlotManager_;
+    const ITabletSnapshotStorePtr TabletSnapshotStore_;
     const IHintManagerPtr HintManager_;
     const IInvokerPtr WorkerInvoker_;
 
@@ -167,7 +166,7 @@ private:
     {
         TTableReplicaSnapshotPtr replicaSnapshot;
         try {
-            auto tabletSnapshot = SlotManager_->FindTabletSnapshot(TabletId_, MountRevision_);
+            auto tabletSnapshot = TabletSnapshotStore_->FindTabletSnapshot(TabletId_, MountRevision_);
             if (!tabletSnapshot) {
                 THROW_ERROR_EXCEPTION("No tablet snapshot is available")
                     << HardErrorAttribute;
@@ -925,7 +924,7 @@ TTableReplicator::TTableReplicator(
     TTableReplicaInfo* replicaInfo,
     NNative::IConnectionPtr localConnection,
     TTabletSlotPtr slot,
-    ISlotManagerPtr slotManager,
+    ITabletSnapshotStorePtr tabletSnapshotStore,
     IHintManagerPtr hintManager,
     IInvokerPtr workerInvoker,
     IThroughputThrottlerPtr nodeInThrottler,
@@ -936,7 +935,7 @@ TTableReplicator::TTableReplicator(
         replicaInfo,
         std::move(localConnection),
         std::move(slot),
-        std::move(slotManager),
+        std::move(tabletSnapshotStore),
         std::move(hintManager),
         std::move(workerInvoker),
         std::move(nodeInThrottler),

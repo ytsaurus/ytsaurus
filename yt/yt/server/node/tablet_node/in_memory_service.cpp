@@ -2,6 +2,7 @@
 #include "private.h"
 #include "in_memory_service.h"
 #include "in_memory_service_proxy.h"
+#include "tablet_snapshot_store.h"
 
 #include <yt/server/node/tablet_node/in_memory_manager.h>
 #include <yt/server/node/tablet_node/slot_manager.h>
@@ -123,15 +124,15 @@ private:
                 FormatValue(builder, FromProto<TChunkId>(chunkId), TStringBuf());
             }));
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
         for (int index = 0; index < request->chunk_id_size(); ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_id(index));
 
             // COMPAT(ifsmirnov)
             auto tabletSnapshot = request->mount_revision_size() > 0
-                ? slotManager->FindTabletSnapshot(tabletId, request->mount_revision(index))
-                : slotManager->FindLatestTabletSnapshot(tabletId);
+                ? snapshotStore->FindTabletSnapshot(tabletId, request->mount_revision(index))
+                : snapshotStore->FindLatestTabletSnapshot(tabletId);
 
             if (!tabletSnapshot) {
                 YT_LOG_DEBUG("Tablet snapshot not found (TabletId: %v)", tabletId);

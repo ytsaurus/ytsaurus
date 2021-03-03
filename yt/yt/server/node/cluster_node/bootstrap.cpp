@@ -5,6 +5,8 @@
 #include "node_resource_manager.h"
 #include "master_connector.h"
 #include "private.h"
+#include "cellar_bootstrap_proxy.h"
+#include "tablet_cell_snapshot_validator.h"
 
 #include <yt/server/lib/exec_agent/config.h>
 
@@ -63,6 +65,7 @@
 #include <yt/server/node/tablet_node/store_trimmer.h>
 #include <yt/server/node/tablet_node/structured_logger.h>
 #include <yt/server/node/tablet_node/tablet_cell_service.h>
+#include <yt/server/node/tablet_node/tablet_snapshot_store.h>
 #include <yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
 #include <yt/server/lib/transaction_server/timestamp_proxy_service.h>
@@ -79,6 +82,11 @@
 
 #include <yt/server/lib/hydra/snapshot.h>
 #include <yt/server/lib/hydra/file_snapshot_store.h>
+
+#include <yt/server/lib/cellar_agent/bootstrap_proxy.h>
+#include <yt/server/lib/cellar_agent/cellar.h>
+#include <yt/server/lib/cellar_agent/cellar_manager.h>
+#include <yt/server/lib/cellar_agent/config.h>
 
 #include <yt/ytlib/program/build_attributes.h>
 
@@ -159,33 +167,39 @@
 namespace NYT::NClusterNode {
 
 using namespace NAdmin;
+using namespace NApi;
 using namespace NBus;
-using namespace NObjectClient;
+using namespace NCellarAgent;
 using namespace NChunkClient;
 using namespace NContainers;
 using namespace NNodeTrackerClient;
+using namespace NConcurrency;
+using namespace NDataNode;
 using namespace NElection;
+using namespace NExecAgent;
+using namespace NHiveClient;
+using namespace NHiveServer;
 using namespace NHydra;
+using namespace NJobAgent;
+using namespace NJobProxy;
 using namespace NMonitoring;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NObjectClient;
 using namespace NOrchid;
 using namespace NProfiling;
-using namespace NRpc;
-using namespace NYTree;
-using namespace NConcurrency;
-using namespace NScheduler;
-using namespace NJobAgent;
-using namespace NExecAgent;
-using namespace NJobProxy;
-using namespace NDataNode;
-using namespace NTabletNode;
 using namespace NQueryAgent;
-using namespace NApi;
+using namespace NRpc;
+using namespace NScheduler;
+using namespace NTableClient;
+using namespace NTabletNode;
 using namespace NTransactionServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NNet;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -385,11 +399,26 @@ void TBootstrap::DoInitialize()
 
     NodeResourceManager_ = New<TNodeResourceManager>(this);
 
-    TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
-    TabletSlotManager_ = NTabletNode::CreateSlotManager(this);
-    TabletNodeStructuredLogger_ = NTabletNode::CreateStructuredLogger(this);
+    // COMPAT(savrus)
+    auto cellarConfig = New<TCellarConfig>();
+    cellarConfig->Type = ECellarType::Tablet;
+    cellarConfig->Size = Config_->TabletNode->ResourceLimits->Slots;
+    cellarConfig->Occupant = New<TCellarOccupantConfig>();
+    cellarConfig->Occupant->Snapshots = Config_->TabletNode->Snapshots;
+    cellarConfig->Occupant->Changelogs = Config_->TabletNode->Changelogs;
+    cellarConfig->Occupant->HydraManager = Config_->TabletNode->HydraManager;
+    cellarConfig->Occupant->ElectionManager = Config_->TabletNode->ElectionManager;
+    cellarConfig->Occupant->HiveManager = Config_->TabletNode->HiveManager;
+    cellarConfig->Occupant->TransactionSupervisor = Config_->TabletNode->TransactionSupervisor;
+    cellarConfig->Occupant->ResponseKeeper = Config_->TabletNode->HydraManager->ResponseKeeper;
+    auto cellarManagerConfig = New<TCellarManagerConfig>();
+    cellarManagerConfig->Cellars.push_back(std::move(cellarConfig));
 
-    ClusterNodeMasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::ISlotManager::PopulateAlerts, TabletSlotManager_));
+    CellarManager_ = CreateCellarManager(cellarManagerConfig, CreateCellarBootstrapProxy(this));
+
+    TabletSlotManager_ = NTabletNode::CreateSlotManager(this);
+    TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
+    TabletNodeStructuredLogger_ = NTabletNode::CreateStructuredLogger(this);
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
@@ -604,6 +633,8 @@ void TBootstrap::DoInitialize()
 
     VersionedChunkMetaManager_ = New<TVersionedChunkMetaManager>(Config_->TabletNode, this);
 
+    TabletSnapshotStore_ = CreateTabletSnapshotStore(Config_->TabletNode, this);
+
     RpcServer_->RegisterService(CreateQueryService(Config_->QueryAgent, this));
 
     auto timestampProviderConfig = Config_->TimestampProvider;
@@ -649,6 +680,7 @@ void TBootstrap::DoInitialize()
 
     RpcServer_->Configure(Config_->RpcServer);
 
+    CellarManager_->Initialize();
     TabletSlotManager_->Initialize();
     ChunkStore_->Initialize();
     ChunkCache_->Initialize();
@@ -749,7 +781,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         OrchidRoot_,
         "/tablet_cells",
-        CreateVirtualNode(TabletSlotManager_->GetOrchidService()));
+        CreateVirtualNode(CellarManager_->GetCellar(ECellarType::Tablet)->GetOrchidService()));
     SetNodeByYPath(
         OrchidRoot_,
         "/job_controller",
@@ -853,7 +885,7 @@ void TBootstrap::DoValidateSnapshot(const TString& fileName)
     WaitFor(reader->Open())
         .ThrowOnError();
 
-    GetTabletSlotManager()->ValidateCellSnapshot(reader);
+    ValidateTabletCellSnapshot(this, reader);
 }
 
 const TClusterNodeConfigPtr& TBootstrap::GetConfig() const
@@ -945,9 +977,19 @@ const NTabletNode::IHintManagerPtr& TBootstrap::GetTabletNodeHintManager() const
     return TabletNodeHintManager_;
 }
 
+const ICellarManagerPtr& TBootstrap::GetCellarManager() const
+{
+    return CellarManager_;
+}
+
 const NTabletNode::ISlotManagerPtr& TBootstrap::GetTabletSlotManager() const
 {
     return TabletSlotManager_;
+}
+
+const NTabletNode::ITabletSnapshotStorePtr& TBootstrap::GetTabletSnapshotStore() const
+{
+    return TabletSnapshotStore_;
 }
 
 const TSecurityManagerPtr& TBootstrap::GetSecurityManager() const
@@ -1357,6 +1399,15 @@ void TBootstrap::OnDynamicConfigChanged(
     for (const auto& service : CachingObjectServices_) {
         service->Reconfigure(newConfig->CachingObjectService);
     }
+
+    // Reconfigure cellars
+    // COMPAT(savrus)
+    auto cellarConfig = New<TDynamicCellarConfig>();
+    cellarConfig->Type = ECellarType::Tablet;
+    cellarConfig->Size = newConfig->TabletNode->Slots;
+    auto cellarManagerConfig = New<TDynamicCellarManagerConfig>();
+    cellarManagerConfig->Cellars.push_back(std::move(cellarConfig)); 
+    CellarManager_->Reconfigure(std::move(cellarManagerConfig));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

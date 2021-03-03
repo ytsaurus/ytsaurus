@@ -12,6 +12,7 @@
 #include "tablet_profiling.h"
 #include "tablet_reader.h"
 #include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
@@ -1129,8 +1130,8 @@ private:
             return;
         }
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->TabletId, task->MountRevision);
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshot = snapshotStore->FindTabletSnapshot(task->TabletId, task->MountRevision);
         if (!tabletSnapshot) {
             YT_LOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
             return;
@@ -1676,8 +1677,8 @@ private:
             return;
         }
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->TabletId, task->MountRevision);
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshot = snapshotStore->FindTabletSnapshot(task->TabletId, task->MountRevision);
         if (!tabletSnapshot) {
             YT_LOG_DEBUG("Tablet snapshot is missing, aborting compaction");
             return;

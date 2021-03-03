@@ -1,16 +1,16 @@
-#include "store_flusher.h"
+#include "in_memory_manager.h"
 #include "private.h"
+#include "public.h"
+#include "slot_manager.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
-#include "in_memory_manager.h"
-#include "slot_manager.h"
+#include "store_flusher.h"
 #include "store_manager.h"
 #include "tablet.h"
 #include "tablet_manager.h"
-#include "tablet_slot.h"
-#include "tablet_manager.h"
-#include "public.h"
 #include "tablet_profiling.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
@@ -225,7 +225,7 @@ private:
                     return lhs.MemoryUsage < rhs.MemoryUsage;
                 });
 
-            const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+            const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
             auto bundleMemoryUsed = tracker->GetUsed(EMemoryCategory::TabletDynamic, bundleName);
             auto bundleMemoryLimit = tracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName);
@@ -259,7 +259,7 @@ private:
 
                 auto tabletId = candidate.TabletId;
                 auto mountRevision = candidate.MountRevision;
-                auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId, mountRevision);
+                auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tabletId, mountRevision);
                 if (!tabletSnapshot) {
                     continue;
                 }
@@ -410,8 +410,8 @@ private:
             return;
         }
 
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
         if (!tabletSnapshot) {
             return;
         }
@@ -453,8 +453,8 @@ private:
             tablet->GetLoggingTag(),
             store->GetId());
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
         if (!tabletSnapshot) {
             YT_LOG_DEBUG("Tablet snapshot is missing, aborting flush");
             storeManager->BackoffStoreFlush(store);

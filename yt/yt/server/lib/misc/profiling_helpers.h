@@ -14,6 +14,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const TString UnknownProfilingTag;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Adds user tag to #tags and returns the resultant tag list.
 NProfiling::TTagIdList AddUserTag(NProfiling::TTagIdList tags, const NRpc::TAuthenticationIdentity& identity);
 

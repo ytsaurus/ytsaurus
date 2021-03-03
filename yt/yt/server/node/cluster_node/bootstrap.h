@@ -12,6 +12,8 @@
 
 #include <yt/server/node/tablet_node/public.h>
 
+#include <yt/server/lib/cellar_agent/public.h>
+
 #include <yt/server/lib/containers/public.h>
 
 #include <yt/server/lib/job_proxy/public.h>
@@ -75,11 +77,13 @@ public:
     const NJobAgent::TJobControllerPtr& GetJobController() const;
     const NJobAgent::TJobReporterPtr& GetJobReporter() const;
     const NTabletNode::IHintManagerPtr& GetTabletNodeHintManager() const;
+    const NCellarAgent::ICellarManagerPtr& GetCellarManager() const;
     const NTabletNode::ISlotManagerPtr& GetTabletSlotManager() const;
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::IInMemoryManagerPtr& GetInMemoryManager() const;
     const NTabletNode::TVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
     const NTabletNode::IStructuredLoggerPtr& GetTabletNodeStructuredLogger() const;
+    const NTabletNode::ITabletSnapshotStorePtr& GetTabletSnapshotStore() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
     const NJobAgent::TGpuManagerPtr& GetGpuManager() const;
     const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const;
@@ -116,6 +120,7 @@ public:
 
     NObjectClient::TCellId GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
+
     std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     std::optional<TString> GetDefaultNetworkName() const;
@@ -201,12 +206,15 @@ private:
     TEnumIndexedVector<NTabletNode::ETabletNodeThrottlerKind, NConcurrency::IThroughputThrottlerPtr> TabletNodeThrottlers_;
     NConcurrency::IThroughputThrottlerPtr TabletNodePreloadInThrottler_;
 
+    NCellarAgent::ICellarManagerPtr CellarManager_;
+
     NTabletNode::IHintManagerPtr TabletNodeHintManager_;
     NTabletNode::ISlotManagerPtr TabletSlotManager_;
     NTabletNode::TSecurityManagerPtr SecurityManager_;
     NTabletNode::IInMemoryManagerPtr InMemoryManager_;
     NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
     NTabletNode::IStructuredLoggerPtr TabletNodeStructuredLogger_;
+    NTabletNode::ITabletSnapshotStorePtr TabletSnapshotStore_;
 
     NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 

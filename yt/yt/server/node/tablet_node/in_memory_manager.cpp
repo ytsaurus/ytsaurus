@@ -4,11 +4,12 @@
 #include "slot_manager.h"
 #include "sorted_chunk_store.h"
 #include "store_manager.h"
+#include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
-#include "structured_logger.h"
+#include "tablet_snapshot_store.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 
@@ -296,10 +297,8 @@ private:
             return;
         }
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(
-            tablet->GetId(),
-            tablet->GetMountRevision());
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
         if (!tabletSnapshot) {
             YT_LOG_INFO("Tablet snapshot is missing");
 
@@ -358,7 +357,7 @@ private:
             throw;
         }
 
-        slotManager->RegisterTabletSnapshot(slot, tablet);
+        snapshotStore->RegisterTabletSnapshot(slot, tablet);
     }
 
     class TInterceptingBlockCache
