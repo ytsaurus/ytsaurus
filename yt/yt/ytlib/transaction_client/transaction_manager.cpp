@@ -383,6 +383,12 @@ public:
         {
             auto guard = Guard(SpinLock_);
 
+            if (State_ == ETransactionState::Aborted) {
+                guard.Release();
+                SendAbort(cellId);
+                return;
+            }
+
             if (State_ != ETransactionState::Active) {
                 return;
             }
@@ -1136,7 +1142,7 @@ private:
     }
 
 
-    TFuture<void> SendAbort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
+    TFuture<void> SendAbort(const TTransactionAbortOptions& options = {})
     {
         YT_LOG_DEBUG("Aborting transaction (TransactionId: %v)",
             Id_);
@@ -1144,51 +1150,54 @@ private:
         std::vector<TFuture<void>> asyncResults;
         auto participantIds = GetRegisteredParticipantIds();
         for (auto cellId : participantIds) {
-            auto channel = Owner_->CellDirectory_->FindChannel(cellId);
-            if (!channel) {
-                continue;
-            }
-
-            YT_LOG_DEBUG("Sending abort to participant (TransactionId: %v, ParticipantCellId: %v)",
-                Id_,
-                cellId);
-
-            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), Owner_->GetAbortRetryChecker());
-            auto req = proxy.AbortTransaction();
-            req->SetHeavy(true);
-            req->SetUser(Owner_->User_);
-            ToProto(req->mutable_transaction_id(), Id_);
-            req->set_force(options.Force);
-            SetMutationId(req, options.MutationId, options.Retry);
-
-            auto asyncRspOrError = req->Invoke();
-            // NB: "this" could be dying; can't capture it.
-            auto transactionId = Id_;
-            asyncResults.push_back(asyncRspOrError.Apply(
-                BIND([=, Logger = Logger] (const TTransactionSupervisorServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
-                    if (rspOrError.IsOK()) {
-                        YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, CellId: %v)",
-                            transactionId,
-                            cellId);
-                        return TError();
-                    } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                        YT_LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v, CellId: %v)",
-                            transactionId,
-                            cellId);
-                        return TError();
-                    } else {
-                        YT_LOG_WARNING(rspOrError, "Error aborting transaction (TransactionId: %v, CellId: %v)",
-                            transactionId,
-                            cellId);
-                        return TError("Error aborting transaction %v at cell %v",
-                            transactionId,
-                            cellId)
-                            << rspOrError;
-                    }
-                })));
+            asyncResults.push_back(SendAbort(cellId, options));
         }
 
         return AllSucceeded(asyncResults);
+    }
+
+    TFuture<void> SendAbort(TCellId cellId, const TTransactionAbortOptions& options = {})
+    {
+        auto channel = Owner_->CellDirectory_->FindChannel(cellId);
+        if (!channel) {
+            return VoidFuture;
+        }
+
+        YT_LOG_DEBUG("Sending abort to participant (TransactionId: %v, ParticipantCellId: %v)",
+            Id_,
+            cellId);
+
+        auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), Owner_->GetAbortRetryChecker());
+        auto req = proxy.AbortTransaction();
+        req->SetHeavy(true);
+        req->SetUser(Owner_->User_);
+        ToProto(req->mutable_transaction_id(), Id_);
+        req->set_force(options.Force);
+        SetMutationId(req, options.MutationId, options.Retry);
+
+        return req->Invoke().Apply(
+            // NB: "this" could be dying; can't capture it.
+            BIND([=, transactionId = Id_, Logger = Logger] (const TTransactionSupervisorServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
+                if (rspOrError.IsOK()) {
+                    YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, CellId: %v)",
+                        transactionId,
+                        cellId);
+                    return TError();
+                } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
+                    YT_LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v, CellId: %v)",
+                        transactionId,
+                        cellId);
+                    return TError();
+                } else {
+                    YT_LOG_WARNING(rspOrError, "Error aborting transaction (TransactionId: %v, CellId: %v)",
+                        transactionId,
+                        cellId);
+                    return TError("Error aborting transaction %v at cell %v",
+                        transactionId,
+                        cellId)
+                        << rspOrError;
+                }
+            }));
     }
 
 

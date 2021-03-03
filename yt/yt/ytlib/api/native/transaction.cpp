@@ -1007,7 +1007,7 @@ private:
 
         IChannelPtr InvokeChannel_;
         int InvokeBatchIndex_ = 0;
-        TPromise<void> InvokePromise_ = NewPromise<void>();
+        const TPromise<void> InvokePromise_ = NewPromise<void>();
 
         void PrepareSortedBatches()
         {
