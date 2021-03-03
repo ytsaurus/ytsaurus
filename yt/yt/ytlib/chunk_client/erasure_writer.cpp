@@ -11,6 +11,7 @@
 #include "erasure_helpers.h"
 #include "block.h"
 #include "private.h"
+#include "yt/core/misc/public.h"
 
 #include <yt/client/api/client.h>
 
@@ -229,6 +230,8 @@ private:
     std::vector<std::vector<TBlock>> Groups_;
     TParityPartSplitInfo ParityPartSplitInfo_;
 
+    std::vector<TChecksum> BlockChecksums_;
+
     // Chunk meta with information about block placement
     TDeferredChunkMetaPtr ChunkMeta_ = New<TDeferredChunkMeta>();
     NProto::TErasurePlacementExt PlacementExt_;
@@ -257,6 +260,13 @@ private:
 
 void TErasureWriter::PrepareBlocks()
 {
+    if (Config_->ErasureStoreOriginalBlockChecksums) {
+        for (auto& block : Blocks_) {
+            block.Checksum = block.GetOrComputeChecksum();
+            BlockChecksums_.push_back(block.Checksum);
+        }
+    }
+
     BlockReorderer_.ReorderBlocks(Blocks_);
 
     Groups_ = SplitBlocks(Blocks_, Codec_->GetDataPartCount());
@@ -292,6 +302,10 @@ void TErasureWriter::PrepareChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
     PlacementExt_.set_parity_block_size(Config_->ErasureWindowSize);
     PlacementExt_.set_parity_last_block_size(ParityPartSplitInfo_.LastBlockSize);
     PlacementExt_.mutable_part_checksums()->Resize(Codec_->GetTotalPartCount(), NullChecksum);
+
+    if (Config_->ErasureStoreOriginalBlockChecksums) {
+        NYT::ToProto(PlacementExt_.mutable_block_checksums(), BlockChecksums_);
+    }
 
     ChunkMeta_ = chunkMeta;
 

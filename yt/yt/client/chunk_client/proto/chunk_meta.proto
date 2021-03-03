@@ -103,6 +103,8 @@ message TErasurePlacementExt
     // We cannot store checksums in TPartInfo,
     // since part infos are present only for non-empty data parts.
     repeated fixed64 part_checksums = 6;
+
+    repeated fixed64 block_checksums = 7;
 }
 
 message THunkRefsExt

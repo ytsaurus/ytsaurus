@@ -152,7 +152,8 @@ private:
                 reader->GetChunkId(),
                 Codec_,
                 /* erasedIndices */ TPartIndexList(),
-                Readers_);
+                Readers_,
+                Logger);
             return WaitFor(repairingReader->ReadBlocks(BlockReadOptions_, BlockIndexes_))
                 .ValueOrThrow();
         }
@@ -207,7 +208,12 @@ private:
                     bannedPartIndicesList);
             }
 
-            auto repairingReader = CreateRepairingErasureReader(reader->GetChunkId(), Codec_, bannedPartIndicesList, readers);
+            auto repairingReader = CreateRepairingErasureReader(
+                reader->GetChunkId(),
+                Codec_,
+                bannedPartIndicesList,
+                readers,
+                Logger);
             auto result = WaitFor(repairingReader->ReadBlocks(BlockReadOptions_, BlockIndexes_, EstimatedSize_));
 
             if (result.IsOK()) {
