@@ -58,6 +58,27 @@ static const NLogging::TLogger Logger("Proc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsSystemErrorCode(TErrorCode errorCode)
+{
+    return errorCode >= LinuxErrorCodeBase && errorCode < LinuxErrorCodeBase + LinuxErrorCodeCount;
+}
+
+bool IsSystemError(const TError& error)
+{
+    if (IsSystemErrorCode(error.GetCode())) {
+        return true;
+    }
+    for (const auto& innerError : error.InnerErrors()) {
+        if (IsSystemError(innerError)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::optional<int> GetParentPid(int pid)
 {
     TFileInput in(Format("/proc/%v/status", pid));
