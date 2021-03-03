@@ -1225,14 +1225,14 @@ TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TS
     return statistics;
 }
 
-TJobResources TNodeShard::GetResourceLimits(const TSchedulingTagFilter& filter)
+TJobResources TNodeShard::GetResourceLimits(const TSchedulingTagFilter& filter) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return CachedResourceStatisticsByTags_->Get(filter).Limits;
 }
 
-TJobResources TNodeShard::GetResourceUsage(const TSchedulingTagFilter& filter)
+TJobResources TNodeShard::GetResourceUsage(const TSchedulingTagFilter& filter) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

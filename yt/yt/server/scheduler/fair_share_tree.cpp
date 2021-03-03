@@ -830,7 +830,7 @@ public:
     {
         return ResourceTree_.Get();
     }
-    
+
     TFairShareTreeProfiler* GetProfiler()
     {
         return TreeProfiler_.Get();
@@ -879,7 +879,7 @@ private:
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, RegisteredSchedulingTagFiltersLock_);
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters_;
     std::vector<int> FreeSchedulingTagFilterIndexes_;
-    
+
     struct TSchedulingTagFilterEntry
     {
         int Index;
@@ -965,7 +965,7 @@ private:
                 operationElement->OnJobFinished(jobId);
             }
         }
-        
+
         virtual bool HasOperation(TOperationId operationId) const override
         {
             return HasEnabledOperation(operationId) || HasDisabledOperation(operationId);
@@ -975,7 +975,7 @@ private:
         {
             return TreeSnapshotImpl_->EnabledOperationMap().contains(operationId);
         }
-        
+
         virtual bool HasDisabledOperation(TOperationId operationId) const override
         {
             return TreeSnapshotImpl_->DisabledOperationMap().contains(operationId);
@@ -1071,16 +1071,25 @@ private:
         ResourceTree_->PerformPostponedActions();
 
         TUpdateFairShareContext updateContext;
-
         updateContext.Now = now;
         updateContext.PreviousUpdateTime = LastFairShareUpdateTime_;
+        updateContext.TotalResourceLimits = StrategyHost_->GetResourceLimits(Config_->NodesFilter);
 
+        THashMap<TDataCenter, TJobResources> resourceLimitsPerDataCenter;
         if (Config_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
             for (const auto& dataCenter : Config_->SchedulingSegments->DataCenters) {
                 auto tagFilter = GetNodesFilter() & TSchedulingTagFilter(MakeBooleanFormula(dataCenter));
-                updateContext.ResourceLimitsPerDataCenter[dataCenter] = StrategyHost_->GetResourceLimits(tagFilter);
+                resourceLimitsPerDataCenter[dataCenter] = StrategyHost_->GetResourceLimits(tagFilter);
             }
         }
+
+        TManageTreeSchedulingSegmentsContext manageSegmentsContext{
+            .TreeConfig = Config_,
+            .TotalResourceLimits = updateContext.TotalResourceLimits,
+            .ResourceLimitsPerDataCenter = std::move(resourceLimitsPerDataCenter),
+        };
+
+        TFairSharePostUpdateContext fairSharePostUpdateContext;
 
         auto rootElement = RootElement_->Clone();
         {
@@ -1088,22 +1097,14 @@ private:
             rootElement->PreUpdate(&updateContext);
         }
 
-        TTreeSchedulingSegmentsState schedulingSegmentsState;
-        TNonOwningOperationElementMap enabledOperationIdToElement;
-        TNonOwningOperationElementMap disabledOperationIdToElement;
-        TNonOwningPoolMap poolNameToElement;
         auto asyncUpdate = BIND([&]
             {
+                TForbidContextSwitchGuard contextSwitchGuard;
                 {
                     TEventTimer timer(FairShareUpdateTimer_);
                     rootElement->Update(&updateContext);
+                    rootElement->PostUpdate(&fairSharePostUpdateContext, &manageSegmentsContext);
                 }
-
-                rootElement->BuildElementMapping(
-                    &enabledOperationIdToElement,
-                    &disabledOperationIdToElement,
-                    &poolNameToElement);
-                std::swap(schedulingSegmentsState, updateContext.SchedulingSegmentsState);
             })
             .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
             .Run();
@@ -1111,7 +1112,7 @@ private:
             .ThrowOnError();
 
         YT_LOG_DEBUG("Fair share tree update finished (UnschedulableReasons: %v)",
-            updateContext.UnschedulableReasons);
+            fairSharePostUpdateContext.UnschedulableReasons);
 
         TError error;
         if (!updateContext.Errors.empty()) {
@@ -1121,22 +1122,22 @@ private:
         }
 
         // Update starvation flags for operations and pools.
-        for (const auto& [operationId, element] : enabledOperationIdToElement) {
+        for (const auto& [operationId, element] : fairSharePostUpdateContext.EnabledOperationIdToElement) {
             element->CheckForStarvation(now);
         }
         if (Config_->EnablePoolStarvation) {
-            for (const auto& [poolName, element] : poolNameToElement) {
+            for (const auto& [poolName, element] : fairSharePostUpdateContext.PoolNameToElement) {
                 element->CheckForStarvation(now);
             }
         }
 
         // Copy persistent attributes back to the original tree.
-        for (const auto& [operationId, element] : enabledOperationIdToElement) {
+        for (const auto& [operationId, element] : fairSharePostUpdateContext.EnabledOperationIdToElement) {
             if (auto originalElement = FindOperationElement(operationId)) {
                 originalElement->PersistentAttributes() = element->PersistentAttributes();
             }
         }
-        for (const auto& [poolName, element] : poolNameToElement) {
+        for (const auto& [poolName, element] : fairSharePostUpdateContext.PoolNameToElement) {
             if (auto originalElement = FindPool(poolName)) {
                 originalElement->PersistentAttributes() = element->PersistentAttributes();
             }
@@ -1147,13 +1148,13 @@ private:
 
         auto treeSnapshotImpl = New<TFairShareTreeSnapshotImpl>(
             std::move(rootElement),
-            std::move(enabledOperationIdToElement),
-            std::move(disabledOperationIdToElement),
-            std::move(poolNameToElement),
+            std::move(fairSharePostUpdateContext.EnabledOperationIdToElement),
+            std::move(fairSharePostUpdateContext.DisabledOperationIdToElement),
+            std::move(fairSharePostUpdateContext.PoolNameToElement),
             Config_,
             ControllerConfig_,
             StrategyHost_->IsCoreProfilingCompatibilityEnabled(),
-            std::move(schedulingSegmentsState));
+            std::move(manageSegmentsContext.SchedulingSegmentsState));
 
         TreeSnapshotImplPrecommit_ = treeSnapshotImpl;
         LastFairShareUpdateTime_ = now;
@@ -1421,7 +1422,7 @@ private:
         auto& rootElement = treeSnapshotImpl->RootElement();
         const auto& treeConfig = treeSnapshotImpl->TreeConfig();
         const auto& controllerConfig = treeSnapshotImpl->ControllerConfig();
-                    
+
         // NB: this method aims 2 goals relevant for scheduling with preemption
         // 1. Resets 'Active' attribute after scheduling without preemption (that is necessary for PrescheduleJob correctness).
         // 2. Initialize dynamic attributes and calculate local resource usages if scheduling without preemption was skipped.
@@ -1515,7 +1516,7 @@ private:
                             ? EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly
                             : EPrescheduleJobOperationCriterion::StarvingOnly,
                         /* aggressiveStarvationEnabled */ false);
-                    
+
                     context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                     context->StageState()->PrescheduleExecuted = true;
                 }
@@ -2435,8 +2436,8 @@ private:
             .Item("starving").Value(element->GetStarving())
             .Item("fair_share_starvation_tolerance").Value(element->GetFairShareStarvationTolerance())
             .Item("fair_share_preemption_timeout").Value(element->GetFairSharePreemptionTimeout())
-            .Item("adjusted_fair_share_starvation_tolerance").Value(attributes.AdjustedFairShareStarvationTolerance)
-            .Item("adjusted_fair_share_preemption_timeout").Value(attributes.AdjustedFairSharePreemptionTimeout)
+            .Item("adjusted_fair_share_starvation_tolerance").Value(element->GetAdjustedFairShareStarvationTolerance())
+            .Item("adjusted_fair_share_preemption_timeout").Value(element->GetAdjustedFairSharePreemptionTimeout())
             .Item("weight").Value(element->GetWeight())
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
             .Item("dominant_resource").Value(attributes.DominantResource)

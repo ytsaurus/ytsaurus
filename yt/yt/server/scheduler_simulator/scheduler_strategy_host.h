@@ -40,8 +40,8 @@ public:
 
     virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) override;
 
-    virtual NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) override;
-    virtual NScheduler::TJobResources GetResourceUsage(const NScheduler::TSchedulingTagFilter& filter) override;
+    virtual NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) const override;
+    virtual NScheduler::TJobResources GetResourceUsage(const NScheduler::TSchedulingTagFilter& filter) const override;
 
     virtual void Disconnect(const TError& error) override;
     virtual TInstant GetConnectionTime() const override;
@@ -107,7 +107,7 @@ public:
 private:
     const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
     NScheduler::TJobResources TotalResourceLimits_;
-    THashMap<NScheduler::TSchedulingTagFilter, NScheduler::TJobResources> FilterToJobResources_;
+    mutable THashMap<NScheduler::TSchedulingTagFilter, NScheduler::TJobResources> FilterToJobResources_;
     mutable THashMap<NScheduler::TSchedulingTagFilter, NScheduler::TMemoryDistribution> FilterToMemoryDistribution_;
     std::optional<NYson::TYsonWriter> LocalEventLogWriter_;
 

@@ -65,7 +65,7 @@ TFluentLogEvent TSchedulerStrategyHost::LogFairShareEventFluently(TInstant now)
     return LogEventFluently(ELogEventType::FairShareInfo, now);
 }
 
-TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilter& filter)
+TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilter& filter) const
 {
     auto it = FilterToJobResources_.find(filter);
     if (it != FilterToJobResources_.end()) {
@@ -84,7 +84,7 @@ TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilt
     return result;
 }
 
-TJobResources TSchedulerStrategyHost::GetResourceUsage(const TSchedulingTagFilter& filter)
+TJobResources TSchedulerStrategyHost::GetResourceUsage(const TSchedulingTagFilter& filter) const
 {
     YT_VERIFY(false);
 }

@@ -1128,7 +1128,7 @@ public:
     }
 
     // ISchedulerStrategyHost implementation
-    virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override
+    virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1149,8 +1149,8 @@ public:
 
         return resourceLimits;
     }
-
-    virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) override
+    
+    virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1161,7 +1161,6 @@ public:
 
         return resourceUsage;
     }
-
 
     virtual void MarkOperationAsRunningInStrategy(TOperationId operationId) override
     {
@@ -1870,7 +1869,7 @@ private:
     YT_DECLARE_SPINLOCK(TAdaptiveLock, NodeAddressToNodeShardIdLock_);
     THashMap<TString, int> NodeAddressToNodeShardId_;
 
-    THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
+    mutable THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
     IEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> ControlEventLogWriterConsumer_;
