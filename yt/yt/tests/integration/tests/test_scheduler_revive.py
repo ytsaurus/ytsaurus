@@ -26,6 +26,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -37,6 +38,15 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
                 "finish_operation_transition_delay": 1000,
             },
             "finished_job_storing_timeout": 15000,
+            "controller_agent_tracker": {
+                "tag_to_alive_controller_agent_thresholds": {
+                    "default": {
+                        "absolute": 0,
+                        "relative": 1.0,
+                    }
+                },
+                "min_agent_count": 0,
+            },
         }
     }
 

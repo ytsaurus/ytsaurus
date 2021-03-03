@@ -2066,14 +2066,23 @@ class TestConnectToMaster(YTEnvSetup):
 
     @authors("renadeen")
     def test_scheduler_doesnt_start_with_invalid_pools(self):
-        assert get("//sys/scheduler/@alerts") == []
+        alerts = get("//sys/scheduler/@alerts")
+        assert [element for element in alerts if element["attributes"]["alert_type"] == "scheduler_cannot_connect"] == []
         with Restarter(self.Env, SCHEDULERS_SERVICE, sync=False):
             move("//sys/pool_trees", "//sys/pool_trees_bak")
             set("//sys/pool_trees", {"default": {"invalid_pool": 1}})
             set("//sys/pool_trees/default/@config", {})
 
-        wait(lambda: get("//sys/scheduler/@alerts"))
-        alerts = get("//sys/scheduler/@alerts")
+        wait(
+            lambda: [
+                element for element in get("//sys/scheduler/@alerts")
+                if element["attributes"]["alert_type"] == "scheduler_cannot_connect"
+            ] != []
+        )
+        alerts = [
+            element for element in get("//sys/scheduler/@alerts")
+            if element["attributes"]["alert_type"] == "scheduler_cannot_connect"
+        ]
         assert len(alerts) == 1
         assert alerts[0]["attributes"]["alert_type"] == "scheduler_cannot_connect"
 
