@@ -150,6 +150,7 @@ THistogramSnapshot THistogram::GetSnapshotAndReset()
     bool empty = true;
 
     THistogramSnapshot snapshot;
+    snapshot.Times = Bounds_;
     snapshot.Values.resize(Buckets_.size());
 
     for (size_t i = 0; i < Buckets_.size(); ++i) {
@@ -160,11 +161,9 @@ THistogramSnapshot THistogram::GetSnapshotAndReset()
     }
 
     if (empty) {
-        return {};
-    } else {
-        snapshot.Times = Bounds_;
-        return snapshot;
+        snapshot.Values.clear();
     }
+    return snapshot;
 }
 
 TSummarySnapshot<TDuration> THistogram::GetValue()

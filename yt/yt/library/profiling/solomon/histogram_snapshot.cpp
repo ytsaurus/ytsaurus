@@ -26,12 +26,15 @@ THistogramSnapshot& THistogramSnapshot::operator += (const THistogramSnapshot& o
 
 bool THistogramSnapshot::operator == (const THistogramSnapshot& other) const
 {
-    return Values == other.Values;
+    if (Values.empty() && other.Values.empty()) {
+        return true;
+    }
+    return Values == other.Values && Times == other.Times;
 }
 
 bool THistogramSnapshot::operator != (const THistogramSnapshot& other) const
 {
-    return Values != other.Values;
+    return !(*this == other);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

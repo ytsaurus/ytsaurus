@@ -211,8 +211,8 @@ TEST(TSolomonRegistry, ExponentialHistogramProjections)
 
     auto result = Collect(impl).Histograms;
 
-    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 0u);
-    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 0u);
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 15u);
+    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 15u);
 
     c0.Record(TDuration::MilliSeconds(5));
     c1.Record(TDuration::MilliSeconds(5));
@@ -249,8 +249,8 @@ TEST(TSolomonRegistry, CustomHistogramProjections)
 
     auto result = Collect(impl).Histograms;
 
-    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 0u);
-    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 0u);
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 4u);
+    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 4u);
 
     c0.Record(TDuration::MilliSeconds(5));
     c1.Record(TDuration::MilliSeconds(5));
@@ -268,6 +268,28 @@ TEST(TSolomonRegistry, CustomHistogramProjections)
     ASSERT_EQ(result["yt.d.histogram{}"]->Value(2), 1u);
     ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Value(2), 1u);
     ASSERT_EQ(result.find("yt.d.histogram{user=u1}"), result.end());
+
+    Collect(impl, 2);
+    Collect(impl, 3);
+}
+
+TEST(TSolomonRegistry, SparseHistogram)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+    TRegistry registry(impl, "/d");
+
+    auto h0 = registry.WithSparse().Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
+
+    auto result = Collect(impl).Histograms;
+    ASSERT_TRUE(result.empty());
+
+    h0.Record(TDuration::MilliSeconds(5));
+    result = Collect(impl).Histograms;
+
+    ASSERT_FALSE(result.empty());
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 15u);
+    ASSERT_EQ(result["yt.d.histogram{}"]->Value(13), 1u);
 
     Collect(impl, 2);
     Collect(impl, 3);
