@@ -104,9 +104,13 @@ public:
         masterConnector->SubscribeMasterDisconnected(BIND(
             &TImpl::OnMasterDisconnected,
             Unretained(this)));
+        
+        masterConnector->AddCommonWatcher(
+            BIND(&TImpl::RequestControllerAgentInstances, Unretained(this)), 
+            BIND(&TImpl::HandleControllerAgentInstances, Unretained(this)));
     }
 
-    std::vector<TControllerAgentPtr> GetAgents()
+    std::vector<TControllerAgentPtr> GetAgents() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -131,9 +135,18 @@ public:
 
         auto controllerAgentTag = operation->Spec()->ControllerAgentTag;
 
+        if (!AgentTagsFetched_ || TagsWithTooFewAgents_.contains(controllerAgentTag)) {            
+            YT_LOG_DEBUG(
+                "Failed to pick agent for operation (OperationId: %v, ControllerAgentTag: %v",
+                operation->GetId(),
+                controllerAgentTag);
+
+            return nullptr;
+        }
+
         int excludedByTagCount = 0;
 
-        std::vector<TControllerAgentPtr> registeredAgents;
+        std::vector<TControllerAgentPtr> aliveAgents;
         for (const auto& [agentId, agent] : IdToAgent_) {
             if (agent->GetState() != EControllerAgentState::Registered) {
                 continue;
@@ -142,26 +155,13 @@ public:
                 ++excludedByTagCount;
                 continue;
             }
-            registeredAgents.push_back(agent);
-        }
-
-        if (registeredAgents.size() < Config_->MinAgentCount) {
-            YT_LOG_DEBUG(
-                "Not enough agents to pick (AgentCount: %v, SuitableAgentCount: %v, ExcludedByTagAgentCount: %v, "
-                "MinAgentCount: %v, OperationId: %v, ControllerAgentTag: %v)",
-                IdToAgent_.size(),
-                registeredAgents.size(),
-                excludedByTagCount,
-                Config_->MinAgentCount,
-                operation->GetId(),
-                controllerAgentTag);
-            return nullptr;
+            aliveAgents.push_back(agent);
         }
 
         switch (Config_->AgentPickStrategy) {
             case EControllerAgentPickStrategy::Random: {
                 std::vector<TControllerAgentPtr> agents;
-                for (const auto& agent : registeredAgents) {
+                for (const auto& agent : aliveAgents) {
                     auto memoryStatistics = agent->GetMemoryStatistics();
                     if (memoryStatistics) {
                         auto minAgentAvailableMemory = std::max(
@@ -179,7 +179,7 @@ public:
             case EControllerAgentPickStrategy::MemoryUsageBalanced: {
                 TControllerAgentPtr pickedAgent;
                 double scoreSum = 0.0;
-                for (const auto& agent : registeredAgents) {
+                for (const auto& agent : aliveAgents) {
                     auto memoryStatistics = agent->GetMemoryStatistics();
                     if (!memoryStatistics) {
                         YT_LOG_WARNING("Controller agent skipped since it did not report memory information "
@@ -220,8 +220,9 @@ public:
         YT_VERIFY(agent->Operations().insert(operation).second);
         operation->SetAgent(agent.Get());
 
-        YT_LOG_INFO("Operation assigned to agent (AgentId: %v, OperationId: %v)",
+        YT_LOG_INFO("Operation assigned to agent (AgentId: %v, Tags: %v, OperationId: %v)",
             agent->GetId(),
+            agent->GetTags(),
             operation->GetId());
     }
 
@@ -309,29 +310,33 @@ public:
             return;
         }
 
-        auto addresses =  FromProto<NNodeTrackerClient::TAddressMap>(request->agent_addresses());
-        auto tags = FromProto<THashSet<TString>>(request->tags());
-        // COMPAT(gritukan): Remove it when controller agents will be fresh enough.
-        if (tags.empty()) {
-            tags.insert("default");
-        }
+        auto agent = [&] {
+            auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(request->agent_addresses());
+            auto tags = FromProto<THashSet<TString>>(request->tags());
+            // COMPAT(gritukan): Remove it when controller agents will be fresh enough.
+            if (tags.empty()) {
+                tags.insert(DefaultOperationTag);
+            }
 
-        auto address = NNodeTrackerClient::GetAddressOrThrow(addresses, Bootstrap_->GetLocalNetworks());
-        auto channel = Bootstrap_->GetMasterClient()->GetChannelFactory()->CreateChannel(address);
+            auto address = NNodeTrackerClient::GetAddressOrThrow(addresses, Bootstrap_->GetLocalNetworks());
+            auto channel = Bootstrap_->GetMasterClient()->GetChannelFactory()->CreateChannel(address);
 
-        YT_LOG_INFO("Registering agent (AgentId: %v, Addresses: %v, Tags: %v)",
-            agentId,
-            addresses,
-            tags);
+            YT_LOG_INFO("Registering agent (AgentId: %v, Addresses: %v, Tags: %v)",
+                agentId,
+                addresses,
+                tags);
 
-        auto agent = New<TControllerAgent>(
-            agentId,
-            addresses,
-            std::move(tags),
-            std::move(channel),
-            Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker));
-        agent->SetState(EControllerAgentState::Registering);
-        RegisterAgent(agent);
+            auto agent = New<TControllerAgent>(
+                agentId,
+                std::move(addresses),
+                std::move(tags),
+                std::move(channel),
+                Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker));
+            agent->SetState(EControllerAgentState::Registering);
+            RegisterAgent(agent);
+
+            return agent;
+        }();
 
         YT_LOG_INFO("Starting agent incarnation transaction (AgentId: %v)",
             agentId);
@@ -728,6 +733,9 @@ private:
 
     THashMap<TAgentId, TControllerAgentPtr> IdToAgent_;
 
+    THashSet<TString> TagsWithTooFewAgents_;
+    bool AgentTagsFetched_{};
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
@@ -832,6 +840,98 @@ private:
         UnregisterAgent(agent);
     }
 
+    void RequestControllerAgentInstances(const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& batchReq) const
+    {
+        YT_LOG_INFO("Requesting controller agents list");
+
+        auto req = TYPathProxy::Get("//sys/controller_agents/instances");
+        req->mutable_attributes()->add_keys("tags");
+        batchReq->AddRequest(req, "get_agent_list");
+    }
+
+    void HandleControllerAgentInstances(const NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) 
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_agent_list");
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error getting controller agent list"));
+        }
+
+        const auto& rsp = rspOrError.Value();
+
+        auto tagToAgentIds = [&] {
+            THashMap<TString, std::vector<TString>> tagToAgentIds;
+
+            auto children = ConvertToNode(TYsonString(rsp->value()))->AsMap()->GetChildren();
+            for (auto& [agentId, node] : children) {
+                const auto tags = [&node{node}, &agentId{agentId}] () -> THashSet<TString> {
+                    try {
+                        const auto children = node->Attributes().ToMap()->GetChildOrThrow("tags")->AsList()->GetChildren();
+                        THashSet<TString> tags;
+                        tags.reserve(std::size(children));
+
+                        for (const auto& tagNode : children) {
+                            tags.insert(tagNode->AsString()->GetValue());
+                        }
+                        return tags;
+                    } catch (const std::exception& ex) {
+                        YT_LOG_WARNING(ex, "Cannot parse tags of agent %v", agentId);
+                        return {};
+                    }
+                }();
+
+                tagToAgentIds.reserve(std::size(tags));
+                for (auto& tag : tags) {
+                    tagToAgentIds[std::move(tag)].push_back(std::move(agentId));
+                }
+            }
+
+            return tagToAgentIds;
+        }();
+
+        std::vector<TError> errors;
+        THashSet<TString> tagsWithTooFewAgents;
+        for (const auto& [tag, thresholds] : Config_->TagToAliveControllerAgentThresholds) {
+            std::vector<TStringBuf> aliveAgentWithCurrentTag;
+            aliveAgentWithCurrentTag.reserve(32);
+            
+            for (const auto& [agentId, agent] : IdToAgent_) {
+                if (agent->GetTags().contains(tag)) {
+                    aliveAgentWithCurrentTag.push_back(agentId);
+                }
+            }
+
+            const auto agentsWithTag = std::move(tagToAgentIds[tag]);
+            const auto agentWithTagCount = std::size(agentsWithTag);
+            const auto aliveAgentWithTagCount = std::size(aliveAgentWithCurrentTag);
+            if (aliveAgentWithTagCount < thresholds.Absolute ||
+                (agentWithTagCount && 
+                    1.0 * aliveAgentWithTagCount / agentWithTagCount < thresholds.Relative)) {
+                
+                tagsWithTooFewAgents.insert(tag);
+                errors.push_back(
+                    TError{"Too few agents matching tag"}
+                        << TErrorAttribute{"controller_agent_tag", tag}
+                        << TErrorAttribute{"alive_agents", aliveAgentWithCurrentTag}
+                        << TErrorAttribute{"agents", agentsWithTag}
+                        << TErrorAttribute{"min_alived_agent_count", thresholds.Absolute}
+                        << TErrorAttribute{"min_alive_agent_ratio", thresholds.Relative});
+            }
+        }
+
+        TagsWithTooFewAgents_ = std::move(tagsWithTooFewAgents);
+        AgentTagsFetched_ = true;
+
+        TError error;
+        if (!errors.empty()) {
+            error = TError{EErrorCode::WatcherHandlerFailed, "Too few matching agents"} << std::move(errors);
+            YT_LOG_WARNING(error);
+        }
+        Bootstrap_->GetScheduler()->GetMasterConnector()->SetSchedulerAlert(
+            ESchedulerAlertType::TooFewControllerAgentsAlive, error);
+    }
+
 
     void DoCleanup()
     {
@@ -880,7 +980,7 @@ void TControllerAgentTracker::Initialize()
     Impl_->Initialize();
 }
 
-std::vector<TControllerAgentPtr> TControllerAgentTracker::GetAgents()
+std::vector<TControllerAgentPtr> TControllerAgentTracker::GetAgents() const
 {
     return Impl_->GetAgents();
 }

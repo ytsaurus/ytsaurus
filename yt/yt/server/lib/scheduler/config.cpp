@@ -3,6 +3,7 @@
 #include "experiments.h"
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
+#include <yt/yt/server/scheduler/private.h>
 
 namespace NYT::NScheduler {
 
@@ -467,6 +468,23 @@ TSchedulerIntegralGuaranteesConfig::TSchedulerIntegralGuaranteesConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Deserialize(TAliveControllerAgentThresholds& thresholds, const NYTree::INodePtr& node)
+{
+    const auto& mapNode = node->AsMap();
+
+    thresholds.Absolute = mapNode->GetChildOrThrow("absolute")->AsInt64()->GetValue();
+    thresholds.Relative = mapNode->GetChildOrThrow("relative")->AsDouble()->GetValue();
+}
+
+void Serialize(const TAliveControllerAgentThresholds& thresholds, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("absolute").Value(thresholds.Absolute)
+            .Item("relative").Value(thresholds.Relative)
+        .EndMap();
+}
+
 TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
 {
     RegisterParameter("light_rpc_timeout", LightRpcTimeout)
@@ -487,9 +505,6 @@ TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
     RegisterParameter("agent_pick_strategy", AgentPickStrategy)
         .Default(EControllerAgentPickStrategy::Random);
 
-    RegisterParameter("min_agent_count", MinAgentCount)
-        .Default(1);
-
     RegisterParameter("min_agent_available_memory", MinAgentAvailableMemory)
         .Default(1_GB);
 
@@ -499,6 +514,18 @@ TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
 
     RegisterParameter("memory_balanced_pick_strategy_score_power", MemoryBalancedPickStrategyScorePower)
         .Default(1.0);
+    
+    RegisterParameter("min_agent_count", MinAgentCount)	
+        .Default(1);
+    
+    RegisterParameter("tag_to_alive_controller_agent_thresholds", TagToAliveControllerAgentThresholds)
+        .Default();
+    
+    RegisterPostprocessor([&] {
+        if (!TagToAliveControllerAgentThresholds.contains(DefaultOperationTag)) {
+            TagToAliveControllerAgentThresholds[DefaultOperationTag] = {static_cast<i64>(MinAgentCount), 0.0};
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

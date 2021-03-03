@@ -24,7 +24,7 @@ public:
 
     void Initialize();
 
-    std::vector<TControllerAgentPtr> GetAgents();
+    std::vector<TControllerAgentPtr> GetAgents() const;
 
     IOperationControllerPtr CreateController(const TOperationPtr& operation);
 

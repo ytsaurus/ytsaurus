@@ -41,6 +41,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((NodesWithoutPoolTree)                         (9))
     ((SchedulerCannotConnect)                       (10))
     ((InvalidPoolTreeTemplateConfigSet)             (11))
+    ((TooFewControllerAgentsAlive)                  (12))
 );
 
 DEFINE_ENUM(EOperationAlertType,

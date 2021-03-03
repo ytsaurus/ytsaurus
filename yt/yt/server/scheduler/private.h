@@ -70,18 +70,20 @@ DEFINE_ENUM(EResourceTreeElementKind,
     (Root)
 );
 
-extern const NLogging::TLogger SchedulerEventLogger;
-extern const NLogging::TLogger SchedulerResourceMeteringLogger;
+inline const NLogging::TLogger SchedulerEventLogger{"SchedulerEventLog", /* essentital */ true};
+inline const NLogging::TLogger SchedulerResourceMeteringLogger{"SchedulerResourceMetering", /* essentital */ true};
 
-extern const NProfiling::TRegistry SchedulerProfiler;
+inline const NProfiling::TRegistry SchedulerProfiler{"/scheduler"};
 
 static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;
 
-extern const TString EventLogPoolTreeKey;
-extern const TString ProfilingPoolTreeKey;
+inline const TString EventLogPoolTreeKey{"tree_id"};
+inline const TString ProfilingPoolTreeKey{"tree"};
 
-extern const NLogging::TLogger StrategyLogger;
-extern const NLogging::TLogger NodeShardLogger;
+inline const NLogging::TLogger StrategyLogger{"NodeShard"};
+inline const NLogging::TLogger NodeShardLogger{"Strategy"};
+
+inline constexpr char DefaultOperationTag[] = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
 

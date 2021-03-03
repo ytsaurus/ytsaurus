@@ -461,6 +461,15 @@ DEFINE_REFCOUNTED_TYPE(TOperationsCleanerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAliveControllerAgentThresholds final
+{
+    i64 Absolute;
+    double Relative;
+
+    friend void Deserialize(TAliveControllerAgentThresholds& thresholds, const NYTree::INodePtr& node);
+    friend void Serialize(const TAliveControllerAgentThresholds& thresholds, NYson::IYsonConsumer* consumer);
+};
+
 class TControllerAgentTrackerConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -497,6 +506,9 @@ public:
 
     // Must be at least #MinAgentCount controller agent for successful assignment agent to waiting operation.
     int MinAgentCount;
+
+    // Tag to threshols for alive agents with the tag
+    THashMap<TString, TAliveControllerAgentThresholds> TagToAliveControllerAgentThresholds;
 
     TControllerAgentTrackerConfig();
 };
