@@ -3,7 +3,7 @@ from __future__ import print_function
 from .configs_provider import _init_logging, build_configs
 from .default_config import get_dynamic_master_config
 from .helpers import (
-    read_config, write_config, is_dead, is_zombie, OpenPortIterator,
+    read_config, write_config, is_dead, OpenPortIterator,
     wait_for_removing_file_lock, get_value_from_config, WaitFailed,
     is_port_opened, is_file_locked)
 from .porto_helpers import PortoSubprocess, porto_avaliable
@@ -13,7 +13,7 @@ from .local_cypress import _synchronize_cypress_with_local_dir
 from .local_cluster_configuration import modify_cluster_configuration
 
 from yt.common import YtError, remove_file, makedirp, update, get_value, which
-from yt.wrapper.common import generate_uuid, flatten
+from yt.wrapper.common import flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
 
@@ -35,7 +35,6 @@ import signal
 import socket
 import shutil
 import sys
-import random
 import traceback
 from collections import defaultdict, namedtuple, OrderedDict
 from threading import RLock
@@ -687,7 +686,7 @@ class YTInstance(object):
                                name, proc.pid, os.path.join(self.path, name), proc.returncode))
             return
 
-        logger.info("Sending SIGKILL (pid: {})".format(proc.pid))
+        logger.info("Sending SIGKILL (pid: {}, current_process_pid: {})".format(proc.pid, os.getpid()))
         os.kill(proc.pid, signal.SIGKILL)
         try:
             os.killpg(proc.pid, signal.SIGKILL)
@@ -698,12 +697,12 @@ class YTInstance(object):
         try:
             wait(lambda: is_dead(proc.pid))
         except WaitFailed:
-            if is_zombie(proc.pid):
-                os.waitpid(proc.pid, os.P_NOWAIT)
             if not is_dead(proc.pid):
                 try:
                     with open("/proc/{0}/status".format(proc.pid), "r") as fin:
                         logger.error("Process status: %s", fin.read().replace("\n", "\\n"))
+                    with open("/proc/{0}/stack".format(proc.pid), "r") as fin:
+                        logger.error("Process stack: %s", fin.read().replace("\n", "\\n"))
                 except IOError:
                     pass
                 raise
@@ -776,12 +775,14 @@ class YTInstance(object):
             self._pid_to_process[p.pid] = (p, args)
             self._append_pid(p.pid)
 
-            name_tag = None
+            tags = []
             if self.yt_config.use_porto_for_servers:
-                name_tag = "name: " + p._portoName
-            pid_tag = "pid: {}".format(p.pid)
+                tags.append("name: {}".format(p._portoName))
 
-            logger.debug("Process %s started (%s)", name, ", ".join([pid_tag] + ([name_tag] if name_tag else [])))
+            tags.append("pid: {}".format(p.pid))
+            tags.append("current_process_pid: {}".format(os.getpid()))
+
+            logger.debug("Process %s started (%s)", name, tags)
 
             return p
 
