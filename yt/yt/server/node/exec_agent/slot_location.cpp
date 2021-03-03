@@ -308,7 +308,7 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
                 << ex;
         }
 
-        auto processError = [&] (const std::exception& ex, bool noSpace) {
+        auto processError = [&] (const std::exception& ex, bool systemError, bool noSpace) {
             bool slotWithQuota = false;
             {
                 auto guard = ReaderGuard(SlotsLock_);
@@ -329,14 +329,17 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
                     sandboxPath)
                     << ex;
             } else {
-                // Probably location error, job will be aborted.
                 auto error = TError(
                     EErrorCode::ArtifactCopyingFailed,
                     "Failed to build file %Qv in sandbox %v",
                     destinationName,
                     sandboxPath)
                     << ex;
-                Disable(error);
+
+                if (systemError) {
+                    Disable(error);
+                }
+                // Job will be aborted.
                 THROW_ERROR error;
             }
         };
@@ -345,14 +348,16 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
             callback(destinationPath);
             EnsureNotInUse(destinationPath);
         } catch (const TErrorException& ex) {
-            bool noSpace = static_cast<bool>(ex.Error().FindMatching(ELinuxErrorCode::NOSPC));
-            processError(ex, noSpace);
+            const auto& error = ex.Error();
+            bool noSpace = static_cast<bool>(error.FindMatching(ELinuxErrorCode::NOSPC));
+            processError(ex, IsSystemError(error), noSpace);
         } catch (const TSystemError& ex) {
             // For util functions.
             bool noSpace = (ex.Status() == ENOSPC);
-            processError(ex, noSpace);
+            processError(ex, /* systemError */ true, noSpace);
         } catch (const std::exception& ex) {
-            processError(ex, /* noSpace */false);
+            // Unclassified error. We consider it system to disable location.
+            processError(ex, /* systemError */ true, /* noSpace */ false);
         }
 
         YT_LOG_DEBUG("Sandbox file created (DestinationName: %v, SlotIndex: %v)",

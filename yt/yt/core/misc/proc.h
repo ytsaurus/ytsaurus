@@ -14,12 +14,18 @@ namespace NYT {
 
 //! NYT::TError::FromSystem adds this value to a system errno. The enum
 //! below lists several errno's that are used in our code.
-const int LinuxErrorCodeBase = 4200;
+constexpr int LinuxErrorCodeBase = 4200;
+constexpr int LinuxErrorCodeCount = 2000;
 
 DEFINE_ENUM(ELinuxErrorCode,
     ((NOSPC)((LinuxErrorCodeBase + ENOSPC)))
     ((NOENT)((LinuxErrorCodeBase + ENOENT)))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsSystemErrorCode(TErrorCode errorCode);
+bool IsSystemError(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

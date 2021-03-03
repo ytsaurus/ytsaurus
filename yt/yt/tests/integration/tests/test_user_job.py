@@ -863,6 +863,15 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
     USE_PORTO = True
 
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "artifact_cache_reader": {
+                "retry_count": 1,
+                "min_backoff_time": 100,
+            },
+        },
+    }
+
     @authors("babenko")
     def test_bypass_artifact_cache_for_file(self):
         create("table", "//tmp/t_input")
@@ -933,6 +942,51 @@ class TestArtifactCacheBypass(YTEnvSetup):
             )
         # In tests we crash if slot location is disabled.
         # Thus, if this test passed successfully, location was not disabled.
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("bypass_artifact_cache", [False, True])
+    def test_lost_artifact(self, bypass_artifact_cache):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        create("file", "//tmp/file", attributes={"replication_factor": 1})
+        write_file("//tmp/file", "A" * 100)
+
+        chunk_id = get_singular_chunk_id("//tmp/file")
+        replica = str(get("#{}/@stored_replicas/0".format(chunk_id)))
+        set_node_banned(replica, True)
+
+        if bypass_artifact_cache:
+            file_path = "<bypass_artifact_cache=%true>//tmp/file"
+        else:
+            file_path = "//tmp/file"
+
+        op = map(
+            track=False,
+            command="cat table",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": ".",
+                    "file_paths": [file_path],
+                    "output_format": "json",
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+
+        # Job should be aborted and location should not be disabled
+        def check():
+            try:
+                return get("{0}/@progress/jobs/aborted/total".format(op.get_path())) > 0
+            except:
+                return False
+        wait(check)
+
+        op.abort()
 
 
 ##################################################################
