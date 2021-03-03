@@ -88,9 +88,6 @@ struct TSchedulableAttributes
 
     int FifoIndex = -1;
 
-    double AdjustedFairShareStarvationTolerance = 1.0;
-    TDuration AdjustedFairSharePreemptionTimeout;
-
     // These values are computed at FairShareUpdate and used for diagnostics purposes.
     bool Alive = false;
     double SatisfactionRatio = 0.0;
@@ -167,15 +164,20 @@ struct TUpdateFairShareContext
     NProfiling::TCpuDuration CompressFunctionTotalTime = {};
 
     TJobResources TotalResourceLimits;
-    TEnumIndexedVector<EUnschedulableReason, int> UnschedulableReasons;
 
     std::vector<TPoolPtr> RelaxedPools;
     std::vector<TPoolPtr> BurstPools;
 
-    THashMap<TDataCenter, TJobResources> ResourceLimitsPerDataCenter;
-    TTreeSchedulingSegmentsState SchedulingSegmentsState;
-
     std::optional<TInstant> PreviousUpdateTime;
+};
+
+struct TFairSharePostUpdateContext
+{
+    TEnumIndexedVector<EUnschedulableReason, int> UnschedulableReasons;
+        
+    TNonOwningOperationElementMap EnabledOperationIdToElement;
+    TNonOwningOperationElementMap DisabledOperationIdToElement;
+    TNonOwningPoolMap PoolNameToElement;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,7 +324,11 @@ public:
     // These fields are used only during fair share update.
     DEFINE_BYREF_RO_PROPERTY(std::optional<TVectorPiecewiseLinearFunction>, FairShareByFitFactor);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TVectorPiecewiseLinearFunction>, FairShareBySuggestion);
-    DEFINE_BYREF_RO_PROPERTY( std::optional<TScalarPiecewiseLinearFunction>, MaxFitFactorBySuggestion);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TScalarPiecewiseLinearFunction>, MaxFitFactorBySuggestion);
+    
+    // These fields are set in post update and used in schedule jobs.
+    DEFINE_BYVAL_RO_PROPERTY(double, AdjustedFairShareStarvationTolerance, 1.0);
+    DEFINE_BYVAL_RO_PROPERTY(TDuration, AdjustedFairSharePreemptionTimeout);
 
 protected:
     TSchedulerElementFixedState(
@@ -470,7 +476,7 @@ public:
     // Used to compute starvation status.
     bool IsStrictlyDominatesNonBlocked(const TResourceVector& lhs, const TResourceVector& rhs) const;
 
-    virtual void BuildSchedulableChildrenLists(TUpdateFairShareContext* context) = 0;
+    virtual void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) = 0;
 
     // Publishes fair share and updates preemptable job lists of operations.
     virtual void PublishFairShareAndUpdatePreemption() = 0;
@@ -488,20 +494,14 @@ public:
         const TChildHeapMap& childHeapMap);
 
     // Enumerates elements of the tree using inorder traversal. Returns first unused index.
-    virtual int EnumerateElements(
-        int startIndex,
-        TUpdateFairShareContext* context,
-        bool isSchedulableValueFilter);
+    virtual int EnumerateElements(int startIndex, bool isSchedulableValueFilter);
 
     int GetTreeIndex() const;
     void SetTreeIndex(int treeIndex);
 
     virtual void MarkImmutable();
 
-    virtual void BuildElementMapping(
-        TNonOwningOperationElementMap* enabledOperationMap,
-        TNonOwningOperationElementMap* disabledOperationMap,
-        TNonOwningPoolMap* poolMap) = 0;
+    virtual void BuildElementMapping(TFairSharePostUpdateContext* context) = 0;
     // =======================================
 
     //! === Schedule jobs related methods.
@@ -692,7 +692,7 @@ public:
     // =======================================
 
     //! === Post fair share update methods.
-    virtual void BuildSchedulableChildrenLists(TUpdateFairShareContext* context) override;
+    virtual void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
     virtual void PublishFairShareAndUpdatePreemption() override;
     virtual void UpdatePreemptionAttributes() override;
@@ -706,17 +706,11 @@ public:
     virtual void ApplyOperationSchedulingSegmentChanges(
         const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) override;
 
-    virtual int EnumerateElements(
-        int startIndex,
-        TUpdateFairShareContext* context,
-        bool isSchedulableValueFilter) override;
+    virtual int EnumerateElements(int startIndex, bool isSchedulableValueFilter) override;
 
     virtual void MarkImmutable() override;
 
-    virtual void BuildElementMapping(
-        TNonOwningOperationElementMap* enabledOperationMap,
-        TNonOwningOperationElementMap* disabledOperationMap,
-        TNonOwningPoolMap* poolMap) override;
+    virtual void BuildElementMapping(TFairSharePostUpdateContext* context) override;
     // =======================================
 
     //! === Schedule jobs related methods.
@@ -914,10 +908,7 @@ public:
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
 
-    virtual void BuildElementMapping(
-        TNonOwningOperationElementMap* enabledOperationMap,
-        TNonOwningOperationElementMap* disabledOperationMap,
-        TNonOwningPoolMap* poolMap) override;
+    virtual void BuildElementMapping(TFairSharePostUpdateContext* context) override;
     // =======================================
 
     //! === Schedule jobs related methods.
@@ -1253,7 +1244,7 @@ public:
 
     TInstant GetLastNonStarvingTime() const;
     
-    virtual void BuildSchedulableChildrenLists(TUpdateFairShareContext* context) override;
+    virtual void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
     virtual void PublishFairShareAndUpdatePreemption() override;
     virtual void UpdatePreemptionAttributes() override;
@@ -1263,10 +1254,7 @@ public:
     virtual void ApplyOperationSchedulingSegmentChanges(
         const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) override;
 
-    virtual void BuildElementMapping(
-        TNonOwningOperationElementMap* enabledOperationMap,
-        TNonOwningOperationElementMap* disabledOperationMap,
-        TNonOwningPoolMap* poolMap) override;
+    virtual void BuildElementMapping(TFairSharePostUpdateContext* context) override;
     // =======================================
 
     //! === Schedule jobs related methods.
@@ -1449,6 +1437,10 @@ public:
     // =======================================
     
     //! === Post share update methods.
+    void PostUpdate(
+        TFairSharePostUpdateContext* postUpdateContext,
+        TManageTreeSchedulingSegmentsContext* manageSegmentsContext);
+
     virtual void CheckForStarvation(TInstant now) override;
     // =======================================
 
@@ -1471,7 +1463,7 @@ private:
     void UpdateRelaxedPoolIntegralShares(TUpdateFairShareContext* context, const TResourceVector& availableShare);
     TResourceVector EstimateAvailableShare();
     void ConsumeAndRefillIntegralPools(TUpdateFairShareContext* context);
-    void ManageSchedulingSegments(TUpdateFairShareContext* context);
+    void ManageSchedulingSegments(TManageTreeSchedulingSegmentsContext* manageSegmentsContext);
 
     virtual double GetSpecifiedBurstRatio() const override;
     virtual double GetSpecifiedResourceFlowRatio() const override;

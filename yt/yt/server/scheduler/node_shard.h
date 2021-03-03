@@ -177,8 +177,8 @@ public:
 
     TOperationId FindOperationIdByJobId(TJobId job);
 
-    TJobResources GetResourceLimits(const TSchedulingTagFilter& filter);
-    TJobResources GetResourceUsage(const TSchedulingTagFilter& filter);
+    TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const;
+    TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const;
 
     int GetActiveJobCount();
     int GetExecNodeCount();

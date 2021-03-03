@@ -306,10 +306,7 @@ void TSchedulerElement::MarkImmutable()
     Mutable_ = false;
 }
 
-int TSchedulerElement::EnumerateElements(
-    int startIndex,
-    TUpdateFairShareContext* context,
-    bool isSchedulableValueFilter)
+int TSchedulerElement::EnumerateElements(int startIndex, bool isSchedulableValueFilter)
 {
     YT_VERIFY(Mutable_);
 
@@ -360,11 +357,11 @@ void TSchedulerElement::UpdatePreemptionAttributes()
     YT_VERIFY(Mutable_);
 
     if (Parent_) {
-        Attributes_.AdjustedFairShareStarvationTolerance = std::min(
+        AdjustedFairShareStarvationTolerance_ = std::min(
             GetFairShareStarvationTolerance(),
             Parent_->AdjustedFairShareStarvationToleranceLimit());
 
-        Attributes_.AdjustedFairSharePreemptionTimeout = std::max(
+        AdjustedFairSharePreemptionTimeout_ = std::max(
             GetFairSharePreemptionTimeout(),
             Parent_->AdjustedFairSharePreemptionTimeoutLimit());
     }
@@ -1019,16 +1016,13 @@ void TCompositeSchedulerElement::MarkImmutable()
     }
 }
 
-int TCompositeSchedulerElement::EnumerateElements(
-    int startIndex,
-    TUpdateFairShareContext* context,
-    bool isSchedulableValueFilter)
+int TCompositeSchedulerElement::EnumerateElements(int startIndex, bool isSchedulableValueFilter)
 {
     YT_VERIFY(Mutable_);
 
-    startIndex = TSchedulerElement::EnumerateElements(startIndex, context, isSchedulableValueFilter);
+    startIndex = TSchedulerElement::EnumerateElements(startIndex, isSchedulableValueFilter);
     for (const auto& child : EnabledChildren_) {
-        startIndex = child->EnumerateElements(startIndex, context, isSchedulableValueFilter);
+        startIndex = child->EnumerateElements(startIndex, isSchedulableValueFilter);
     }
     return startIndex;
 }
@@ -1131,7 +1125,7 @@ void TCompositeSchedulerElement::PublishFairShareAndUpdatePreemption()
     }
 }
 
-void TCompositeSchedulerElement::BuildSchedulableChildrenLists(TUpdateFairShareContext* context)
+void TCompositeSchedulerElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
 {
     Attributes_.UnschedulableOperationsResourceUsage = TJobResources();
     SchedulableChildren_.clear();
@@ -1225,17 +1219,14 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(
     }
 }
 
-void TCompositeSchedulerElement::BuildElementMapping(
-    TNonOwningOperationElementMap* enabledOperationMap,
-    TNonOwningOperationElementMap* disabledOperationMap,
-    TNonOwningPoolMap* poolMap)
+void TCompositeSchedulerElement::BuildElementMapping(TFairSharePostUpdateContext* context)
 {
     for (const auto& child : EnabledChildren_) {
-        child->BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
+        child->BuildElementMapping(context);
     }
     for (const auto& child : DisabledChildren_) {
         if (child->IsOperation()) {
-            child->BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
+            child->BuildElementMapping(context);
         }
     }
 }
@@ -2290,17 +2281,17 @@ EIntegralGuaranteeType TPool::GetIntegralGuaranteeType() const
 
 ESchedulableStatus TPool::GetStatus(bool atUpdate) const
 {
-    return TSchedulerElement::GetStatusImpl(Attributes_.AdjustedFairShareStarvationTolerance, atUpdate);
+    return TSchedulerElement::GetStatusImpl(AdjustedFairShareStarvationTolerance_, atUpdate);
 }
 
 double TPool::GetFairShareStarvationTolerance() const
 {
-    return Config_->FairShareStarvationTolerance.value_or(Parent_->Attributes().AdjustedFairShareStarvationTolerance);
+    return Config_->FairShareStarvationTolerance.value_or(Parent_->GetAdjustedFairShareStarvationTolerance());
 }
 
 TDuration TPool::GetFairSharePreemptionTimeout() const
 {
-    return Config_->FairSharePreemptionTimeout.value_or(Parent_->Attributes().AdjustedFairSharePreemptionTimeout);
+    return Config_->FairSharePreemptionTimeout.value_or(Parent_->GetAdjustedFairSharePreemptionTimeout());
 }
 
 double TPool::GetFairShareStarvationToleranceLimit() const
@@ -2330,7 +2321,7 @@ void TPool::CheckForStarvation(TInstant now)
 {
     YT_VERIFY(Mutable_);
 
-    TSchedulerElement::CheckForStarvationImpl(Attributes_.AdjustedFairSharePreemptionTimeout, now);
+    TSchedulerElement::CheckForStarvationImpl(AdjustedFairSharePreemptionTimeout_, now);
 }
 
 const TSchedulingTagFilter& TPool::GetSchedulingTagFilter() const
@@ -2491,13 +2482,10 @@ TJobResources TPool::GetSpecifiedResourceLimits() const
     return ToJobResources(Config_->ResourceLimits, TJobResources::Infinite());
 }
 
-void TPool::BuildElementMapping(
-    TNonOwningOperationElementMap* enabledOperationMap,
-    TNonOwningOperationElementMap* disabledOperationMap,
-    TNonOwningPoolMap* poolMap)
+void TPool::BuildElementMapping(TFairSharePostUpdateContext* context)
 {
-    poolMap->emplace(GetId(), this);
-    TCompositeSchedulerElement::BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
+    context->PoolNameToElement.emplace(GetId(), this);
+    TCompositeSchedulerElement::BuildElementMapping(context);
 }
 
 void TPool::InitIntegralPoolLists(TUpdateFairShareContext* context)
@@ -3184,12 +3172,12 @@ TOperationElement::TOperationElement(
 
 double TOperationElement::GetFairShareStarvationTolerance() const
 {
-    return Spec_->FairShareStarvationTolerance.value_or(Parent_->Attributes().AdjustedFairShareStarvationTolerance);
+    return Spec_->FairShareStarvationTolerance.value_or(Parent_->GetAdjustedFairShareStarvationTolerance());
 }
 
 TDuration TOperationElement::GetFairSharePreemptionTimeout() const
 {
-    return Spec_->FairSharePreemptionTimeout.value_or(Parent_->Attributes().AdjustedFairSharePreemptionTimeout);
+    return Spec_->FairSharePreemptionTimeout.value_or(Parent_->GetAdjustedFairSharePreemptionTimeout());
 }
 
 void TOperationElement::DisableNonAliveElements()
@@ -3233,7 +3221,7 @@ void TOperationElement::PublishFairShareAndUpdatePreemption()
     UpdatePreemptionAttributes();
 }
     
-void TOperationElement::BuildSchedulableChildrenLists(TUpdateFairShareContext* context)
+void TOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
 {
     if (!IsSchedulable()) {
         ++context->UnschedulableReasons[*UnschedulableReason_];
@@ -3759,7 +3747,7 @@ ESchedulableStatus TOperationElement::GetStatus(bool atUpdate) const
         return ESchedulableStatus::Normal;
     }
 
-    return TSchedulerElement::GetStatusImpl(Attributes_.AdjustedFairShareStarvationTolerance, atUpdate);
+    return TSchedulerElement::GetStatusImpl(AdjustedFairShareStarvationTolerance_, atUpdate);
 }
 
 void TOperationElement::SetStarving(bool starving)
@@ -3784,7 +3772,7 @@ void TOperationElement::CheckForStarvation(TInstant now)
 {
     YT_VERIFY(Mutable_);
 
-    auto fairSharePreemptionTimeout = Attributes_.AdjustedFairSharePreemptionTimeout;
+    auto fairSharePreemptionTimeout = AdjustedFairSharePreemptionTimeout_;
 
     double jobCountRatio = GetPendingJobCount() / TreeConfig_->JobCountPreemptionTimeoutCoefficient;
     if (jobCountRatio < 1.0) {
@@ -3939,15 +3927,12 @@ void TOperationElement::OnJobFinished(TJobId jobId)
     }
 }
 
-void TOperationElement::BuildElementMapping(
-    TNonOwningOperationElementMap* enabledOperationMap,
-    TNonOwningOperationElementMap* disabledOperationMap,
-    TNonOwningPoolMap* poolMap)
+void TOperationElement::BuildElementMapping(TFairSharePostUpdateContext* context)
 {
     if (OperationElementSharedState_->Enabled()) {
-        enabledOperationMap->emplace(OperationId_, this);
+        context->EnabledOperationIdToElement.emplace(OperationId_, this);
     } else {
-        disabledOperationMap->emplace(OperationId_, this);
+        context->DisabledOperationIdToElement.emplace(OperationId_, this);
     }
 }
 
@@ -4342,8 +4327,8 @@ TRootElement::TRootElement(
 {
 
     Mode_ = ESchedulingMode::FairShare;
-    Attributes_.AdjustedFairShareStarvationTolerance = GetFairShareStarvationTolerance();
-    Attributes_.AdjustedFairSharePreemptionTimeout = GetFairSharePreemptionTimeout();
+    AdjustedFairShareStarvationTolerance_ = GetFairShareStarvationTolerance();
+    AdjustedFairSharePreemptionTimeout_ = GetFairSharePreemptionTimeout();
     AdjustedFairShareStarvationToleranceLimit_ = GetFairShareStarvationToleranceLimit();
     AdjustedFairSharePreemptionTimeoutLimit_ = GetFairSharePreemptionTimeoutLimit();
 }
@@ -4357,8 +4342,8 @@ void TRootElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& confi
 {
     TCompositeSchedulerElement::UpdateTreeConfig(config);
 
-    Attributes_.AdjustedFairShareStarvationTolerance = GetFairShareStarvationTolerance();
-    Attributes_.AdjustedFairSharePreemptionTimeout = GetFairSharePreemptionTimeout();
+    AdjustedFairShareStarvationTolerance_ = GetFairShareStarvationTolerance();
+    AdjustedFairSharePreemptionTimeout_ = GetFairSharePreemptionTimeout();
 }
 
 void TRootElement::PreUpdate(TUpdateFairShareContext* context)
@@ -4425,21 +4410,32 @@ void TRootElement::Update(TUpdateFairShareContext* context)
     UpdateRelaxedPoolIntegralShares(context, availableShare);
 
     UpdateFairShare(context);
+}
+
+void TRootElement::PostUpdate(
+    TFairSharePostUpdateContext* postUpdateContext,
+	TManageTreeSchedulingSegmentsContext* manageSegmentsContext)
+{
+    VERIFY_INVOKER_AFFINITY(Host_->GetFairShareUpdateInvoker());
+
+    YT_VERIFY(Mutable_);
 
     PublishFairShareAndUpdatePreemption();
 
-    BuildSchedulableChildrenLists(context);
+    BuildSchedulableChildrenLists(postUpdateContext);
 
     // Calculate tree sizes.
-    SchedulableElementCount_ = TCompositeSchedulerElement::EnumerateElements(0, context, /* isSchedulableValueFilter*/ true);
-    TreeSize_ = TCompositeSchedulerElement::EnumerateElements(SchedulableElementCount_, context, /* isSchedulableValueFilter*/ false);
+    SchedulableElementCount_ = EnumerateElements(/* startIndex */ 0, /* isSchedulableValueFilter*/ true);
+    TreeSize_ = EnumerateElements(/* startIndex */ SchedulableElementCount_, /* isSchedulableValueFilter*/ false);
 
     // We calculate SatisfactionRatio by computing dynamic attributes using the same algorithm as during the scheduling phase.
     TDynamicAttributesList dynamicAttributesList{static_cast<size_t>(TreeSize_)};
     TChildHeapMap emptyChildHeapMap;
     UpdateSchedulableAttributesFromDynamicAttributes(&dynamicAttributesList, emptyChildHeapMap);
 
-    ManageSchedulingSegments(context);
+    ManageSchedulingSegments(manageSegmentsContext);
+                
+    BuildElementMapping(postUpdateContext);
 }
 
 void TRootElement::UpdateFairShare(TUpdateFairShareContext* context)
@@ -4802,23 +4798,17 @@ void TRootElement::UpdateRelaxedPoolIntegralShares(TUpdateFairShareContext* cont
     }
 }
 
-void TRootElement::ManageSchedulingSegments(TUpdateFairShareContext* context)
+void TRootElement::ManageSchedulingSegments(TManageTreeSchedulingSegmentsContext* manageSegmentsContext)
 {
-    TManageTreeSchedulingSegmentsContext manageSegmentsContext{
-        .TreeConfig = TreeConfig_,
-        .TotalResourceLimits = TotalResourceLimits_,
-        .ResourceLimitsPerDataCenter = std::move(context->ResourceLimitsPerDataCenter),
-    };
-
-    if (TreeConfig_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
-        CollectOperationSchedulingSegmentContexts(&manageSegmentsContext.Operations);
+    auto mode = manageSegmentsContext->TreeConfig->SchedulingSegments->Mode;
+    if (mode != ESegmentedSchedulingMode::Disabled) {
+        CollectOperationSchedulingSegmentContexts(&(manageSegmentsContext->Operations));
     }
 
-    TStrategySchedulingSegmentManager::ManageSegmentsInTree(&manageSegmentsContext, TreeId_);
+    TStrategySchedulingSegmentManager::ManageSegmentsInTree(manageSegmentsContext, TreeId_);
 
-    context->SchedulingSegmentsState = std::move(manageSegmentsContext.SchedulingSegmentsState);
-    if (TreeConfig_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
-        ApplyOperationSchedulingSegmentChanges(manageSegmentsContext.Operations);
+    if (mode != ESegmentedSchedulingMode::Disabled) {
+        ApplyOperationSchedulingSegmentChanges(manageSegmentsContext->Operations);
     }
 }
 
