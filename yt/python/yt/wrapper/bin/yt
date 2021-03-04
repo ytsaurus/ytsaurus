@@ -1554,7 +1554,7 @@ def add_idm_parser(root_subparsers):
     object_group.add_argument("--path", help="Cypress node path")
     object_group.add_argument("--account", help="Account name")
     object_group.add_argument("--pool", help="Pool name")
-    object_group.add_argument("--bundle", help="Tablet cell bundle name")
+    object_group.add_argument("--bundle", dest="tablet_cell_bundle", help="Tablet cell bundle name")
     object_group.add_argument("--group", help="YT group name")
 
     parser.add_argument("--address", help="IDM integration service address")

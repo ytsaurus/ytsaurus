@@ -315,7 +315,7 @@ def modify_idm_snapshot(snapshot, dry_run):
         snapshot.commit()
 
 def extract_object_id(**kwargs):
-    object_types = ["path", "account", "pool", "bundle", "group"]
+    object_types = ["path", "account", "pool", "tablet_cell_bundle", "group"]
     given_types = [type_ for type_ in object_types if kwargs[type_] is not None]
     assert len(given_types) == 1
 
