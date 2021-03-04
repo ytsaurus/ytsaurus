@@ -41,8 +41,8 @@ public:
     //! If null, #SyncPeriod is used instead.
     std::optional<TDuration> RetryPeriod;
 
-    TDuration SuccessExpirationTime;
-    TDuration FailureExpirationTime;
+    TDuration ExpireAfterSuccessfulUpdateTime;
+    TDuration ExpireAfterFailedUpdateTime;
 
     TCellDirectorySynchronizerConfig();
 };

@@ -156,8 +156,8 @@ TObjectServiceCache::TObjectServiceCache(
 TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
     TRequestId requestId,
     const TObjectServiceCacheKey& key,
-    TDuration successExpirationTime,
-    TDuration failureExpirationTime,
+    TDuration expireAfterSuccessfulUpdateTime,
+    TDuration expireAfterFailedUpdateTime,
     NHydra::TRevision refreshRevision)
 {
     auto entry = Find(key);
@@ -180,7 +180,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
                 entry->GetSuccess());
 
             tryRemove();
-        } else if (IsExpired(entry, successExpirationTime, failureExpirationTime)) {
+        } else if (IsExpired(entry, expireAfterSuccessfulUpdateTime, expireAfterFailedUpdateTime)) {
             YT_LOG_DEBUG("Cache entry expired (RequestId: %v, Key: %v, Revision: %llx, Success: %v)",
                 requestId,
                 key,
@@ -344,12 +344,12 @@ i64 TObjectServiceCache::GetWeight(const TObjectServiceCacheEntryPtr& entry) con
 
 bool TObjectServiceCache::IsExpired(
     const TObjectServiceCacheEntryPtr& entry,
-    TDuration successExpirationTime,
-    TDuration failureExpirationTime)
+    TDuration expireAfterSuccessfulUpdateTime,
+    TDuration expireAfterFailedUpdateTime)
 {
     return
         TInstant::Now() > entry->GetTimestamp() +
-        (entry->GetSuccess() ? successExpirationTime : failureExpirationTime);
+        (entry->GetSuccess() ? expireAfterSuccessfulUpdateTime : expireAfterFailedUpdateTime);
 }
 
 void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry)

@@ -64,8 +64,8 @@ void ToProto(
     const NApi::TMasterReadOptions& options)
 {
     proto->set_read_from(static_cast<NProto::EMasterReadKind>(options.ReadFrom));
-    proto->set_success_expiration_time(NYT::ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
-    proto->set_failure_expiration_time(NYT::ToProto<i64>(options.ExpireAfterFailedUpdateTime));
+    proto->set_expire_after_successful_update_time(NYT::ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
+    proto->set_expire_after_failed_update_time(NYT::ToProto<i64>(options.ExpireAfterFailedUpdateTime));
     if (options.CacheStickyGroupSize) {
         proto->set_cache_sticky_group_size(*options.CacheStickyGroupSize);
     }

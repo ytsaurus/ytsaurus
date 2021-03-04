@@ -103,8 +103,8 @@ public:
     TCookie BeginLookup(
         NRpc::TRequestId requestId,
         const TObjectServiceCacheKey& key,
-        TDuration successExpirationTime,
-        TDuration failureExpirationTime,
+        TDuration expireAfterSuccessfulUpdateTime,
+        TDuration expireAfterFailedUpdateTime,
         NHydra::TRevision refreshRevision);
 
     void EndLookup(
@@ -146,8 +146,8 @@ private:
 
     static bool IsExpired(
         const TObjectServiceCacheEntryPtr& entry,
-        TDuration successExpirationTime,
-        TDuration failureExpirationTime);
+        TDuration expireAfterSuccessfulUpdateTime,
+        TDuration expireAfterFailedUpdateTime);
 
     void TouchEntry(const TObjectServiceCacheEntryPtr& entry);
     void DoBuildOrchid(NYson::IYsonConsumer* consumer);

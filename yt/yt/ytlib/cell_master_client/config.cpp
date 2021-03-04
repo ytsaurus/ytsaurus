@@ -53,9 +53,11 @@ TCellDirectorySynchronizerConfig::TCellDirectorySynchronizerConfig()
         .Default(TDuration::Minutes(60));
     RegisterParameter("retry_period", RetryPeriod)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("success_expiration_time", SuccessExpirationTime)
+    RegisterParameter("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime)
+        .Alias("success_expiraton_time")
         .Default(TDuration::Minutes(20));
-    RegisterParameter("failure_expiration_time", FailureExpirationTime)
+    RegisterParameter("expire_after_failed_update_time", ExpireAfterFailedUpdateTime)
+        .Alias("failure_expiration_time")
         .Default(TDuration::Seconds(15));
 }
 

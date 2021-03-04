@@ -24,7 +24,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             },
             "permission_cache": {
                 "refresh_time": 100,
-                "failure_expiration_time": 100,
+                "expire_after_failed_update_time": 100,
             },
             "force_enqueue_profiling": True,
         },

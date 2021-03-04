@@ -5,8 +5,8 @@ import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 
 public class MasterReadOptions {
     private EMasterReadKind readFrom = EMasterReadKind.MRK_FOLLOWER;
-    private Long successExpirationTime;
-    private Long failureExpirationTime;
+    private Long expireAfterSuccessfulUpdateTime;
+    private Long expireAfterFailedUpdateTime;
     private Integer cacheStickyGroupSize;
 
     public MasterReadOptions setReadFrom(EMasterReadKind f) {
@@ -14,13 +14,13 @@ public class MasterReadOptions {
         return this;
     }
 
-    public MasterReadOptions setSuccessExpirationTime(long successExpirationTime) {
-        this.successExpirationTime = successExpirationTime;
+    public MasterReadOptions setExpireAfterSuccessfulUpdateTime(long expireAfterSuccessfulUpdateTime) {
+        this.expireAfterSuccessfulUpdateTime = expireAfterSuccessfulUpdateTime;
         return this;
     }
 
-    public MasterReadOptions setFailureExpirationTime(long failureExpirationTime) {
-        this.failureExpirationTime = failureExpirationTime;
+    public MasterReadOptions setExpireAfterFailedUpdateTime(long expireAfterFailedUpdateTime) {
+        this.expireAfterFailedUpdateTime = expireAfterFailedUpdateTime;
         return this;
     }
 
@@ -31,11 +31,11 @@ public class MasterReadOptions {
 
     public TMasterReadOptions.Builder writeTo(TMasterReadOptions.Builder builder) {
         builder.setReadFrom(readFrom);
-        if (successExpirationTime != null) {
-            builder.setSuccessExpirationTime(successExpirationTime);
+        if (expireAfterSuccessfulUpdateTime != null) {
+            builder.setExpireAfterSuccessfulUpdateTime(expireAfterSuccessfulUpdateTime);
         }
-        if (failureExpirationTime != null) {
-            builder.setFailureExpirationTime(failureExpirationTime);
+        if (expireAfterFailedUpdateTime != null) {
+            builder.setExpireAfterFailedUpdateTime(expireAfterFailedUpdateTime);
         }
         if (cacheStickyGroupSize != null) {
             builder.setCacheStickyGroupSize(cacheStickyGroupSize);
