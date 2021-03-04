@@ -248,6 +248,12 @@ public:
     //! Summary is used to measure distribution of values.
     TSummary Summary(const TString& name) const;
 
+    //! GaugeSummary is used to aggregate multiple values locally.
+    /*!
+     *  Each TGauge tracks single value. Values are aggregated using Summary rules.
+     */
+    TGauge GaugeSummary(const TString& name) const;
+
     //! Timer is used to measure distribution of event durations.
     /*!
      *  Currently, max value during 5 second interval is exported to solomon.

@@ -183,7 +183,7 @@ int TSensorSet::Collect()
             return {{}, false};
         }
 
-        auto value = owner->GetValueAndReset();
+        auto value = owner->GetSummaryAndReset();
         return {value, true};
     });
 
@@ -193,7 +193,7 @@ int TSensorSet::Collect()
             return {{}, false};
         }
 
-        auto value = owner->GetValueAndReset();
+        auto value = owner->GetSummaryAndReset();
         return {value, true};
     });
 
@@ -332,7 +332,7 @@ void TSensorSet::LegacyReadSensors(const TString& name, TTagRegistry* tagRegistr
             return true;
         }
 
-        auto value = owner->GetValue();
+        auto value = owner->GetSummary();
         if (value.Count() == 0) {
             return true;
         }
@@ -350,7 +350,7 @@ void TSensorSet::LegacyReadSensors(const TString& name, TTagRegistry* tagRegistr
             return true;
         }
 
-        auto value = owner->GetValue();
+        auto value = owner->GetSummary();
         if (value.Count() == 0) {
             return true;
         }

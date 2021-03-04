@@ -99,8 +99,8 @@ class TPerCpuSummary
 public:
     virtual void Record(T value) override;
 
-    virtual TSummarySnapshot<T> GetValue() override;
-    virtual TSummarySnapshot<T> GetValueAndReset() override;
+    virtual TSummarySnapshot<T> GetSummary() override;
+    virtual TSummarySnapshot<T> GetSummaryAndReset() override;
 
 private:
     struct alignas(CacheLineSize) TShard

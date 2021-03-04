@@ -103,7 +103,7 @@ void TPerCpuSummary<T>::Record(T value)
 }
 
 template <class T>
-TSummarySnapshot<T> TPerCpuSummary<T>::GetValue()
+TSummarySnapshot<T> TPerCpuSummary<T>::GetSummary()
 {
     TSummarySnapshot<T> value;
     for (const auto& shard : Shards_) {
@@ -114,7 +114,7 @@ TSummarySnapshot<T> TPerCpuSummary<T>::GetValue()
 }
 
 template <class T>
-TSummarySnapshot<T> TPerCpuSummary<T>::GetValueAndReset()
+TSummarySnapshot<T> TPerCpuSummary<T>::GetSummaryAndReset()
 {
     TSummarySnapshot<T> value;
     for (auto& shard : Shards_) {
@@ -127,9 +127,6 @@ TSummarySnapshot<T> TPerCpuSummary<T>::GetValueAndReset()
 
 template class TPerCpuSummary<double>;
 template class TPerCpuSummary<TDuration>;
-
-static_assert(sizeof(TPerCpuSummary<double>) == 64 + 64 * 64);
-static_assert(sizeof(TPerCpuSummary<TDuration>) == 64 + 64 * 64);
 
 ////////////////////////////////////////////////////////////////////////////////
 

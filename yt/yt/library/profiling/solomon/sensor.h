@@ -13,17 +13,21 @@ namespace NYT::NProfiling {
 
 class TSimpleGauge
     : public IGaugeImpl
+    , public ISummaryImpl
 {
 public:
     virtual void Update(double value) override;
 
     virtual double GetValue() override;
 
+    virtual void Record(double value) override;
+
+    virtual TSummarySnapshot<double> GetSummary() override;
+    virtual TSummarySnapshot<double> GetSummaryAndReset() override;
+
 private:
     std::atomic<double> Value_ = 0.0;
 };
-
-static_assert(sizeof(TSimpleGauge) == 24);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,8 +84,8 @@ class TSimpleSummary
 public:
     virtual void Record(T value) override;
 
-    virtual TSummarySnapshot<T> GetValue() override;
-    virtual TSummarySnapshot<T> GetValueAndReset() override;
+    virtual TSummarySnapshot<T> GetSummary() override;
+    virtual TSummarySnapshot<T> GetSummaryAndReset() override;
 
 private:
     TSpinLock Lock_;
@@ -107,8 +111,8 @@ private:
     std::vector<std::atomic<int>> Buckets_;
 
     // These to methods are not used.
-    virtual TSummarySnapshot<TDuration> GetValue() override;
-    virtual TSummarySnapshot<TDuration> GetValueAndReset() override;
+    virtual TSummarySnapshot<TDuration> GetSummary() override;
+    virtual TSummarySnapshot<TDuration> GetSummaryAndReset() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(THistogram)
