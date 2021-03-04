@@ -187,9 +187,6 @@ TAutoMergeTask::TAutoMergeTask(
 
     ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this)));
 
-    TaskHost_->GetDataFlowGraph()
-        ->RegisterCounter(GetVertexDescriptor(), ChunkPool_->GetJobCounter(), GetJobType());
-
     ChunkPoolInput_ = New<TAutoMergeInputChunkPoolAdapter>(ChunkPool_, this);
 
     ChunkPoolOutput_ = New<TAutoMergeOutputChunkPoolAdapter>(ChunkPool_);
