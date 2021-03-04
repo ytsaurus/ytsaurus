@@ -13,17 +13,20 @@ class TTimestampManagerConfig
 {
 public:
     TDuration CalibrationPeriod;
-    TDuration CommitAdvance;
+    TDuration TimestampPreallocationInterval;
+    TDuration TimestampReserveInterval;
     int MaxTimestampsPerRequest;
     TDuration RequestBackoffTime;
 
     TTimestampManagerConfig()
     {
         RegisterParameter("calibration_period", CalibrationPeriod)
-            .Default(TDuration::MilliSeconds(1000));
-        RegisterParameter("commit_advance", CommitAdvance)
-            .GreaterThan(TDuration::MilliSeconds(1000))
-            .Default(TDuration::MilliSeconds(30000));
+            .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("timestamp_preallocation_interval", TimestampPreallocationInterval)
+            .Alias("commit_advance")
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("timestamp_reserve_interval", TimestampReserveInterval)
+            .Default(TDuration::Seconds(1));
         RegisterParameter("max_timestamps_per_request", MaxTimestampsPerRequest)
             .GreaterThan(0)
             .Default(1000000);

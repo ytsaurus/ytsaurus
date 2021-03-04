@@ -42,16 +42,20 @@ void ValidateMasterTransactionId(TTransactionId id)
 
 std::pair<TInstant, TInstant> TimestampToInstant(TTimestamp timestamp)
 {
-    auto lo = TInstant::Seconds(timestamp >> TimestampCounterWidth);
-    auto hi = lo + TDuration::Seconds(1);
-    return std::make_pair(lo, hi);
+    auto instant = TInstant::Seconds(UnixTimeFromTimestamp(timestamp));
+    return {
+        instant,
+        instant + TDuration::Seconds(1)
+    };
 }
 
 std::pair<TTimestamp, TTimestamp> InstantToTimestamp(TInstant instant)
 {
-    auto lo = instant.Seconds() << TimestampCounterWidth;
-    auto hi = lo + (1 << TimestampCounterWidth);
-    return std::make_pair(lo, hi);
+    auto time = instant.Seconds();
+    return {
+        TimestampFromUnixTime(time),
+        TimestampFromUnixTime(time + 1)
+    };
 }
 
 std::pair<TDuration, TDuration> TimestampDiffToDuration(TTimestamp loTimestamp, TTimestamp hiTimestamp)
@@ -62,6 +66,16 @@ std::pair<TDuration, TDuration> TimestampDiffToDuration(TTimestamp loTimestamp, 
     return std::make_pair(
         hiInstant.first >= loInstant.second ? hiInstant.first - loInstant.second : TDuration::Zero(),
         hiInstant.second - loInstant.first);
+}
+
+ui64 UnixTimeFromTimestamp(TTimestamp timestamp)
+{
+    return timestamp >> TimestampCounterWidth;
+}
+
+TTimestamp TimestampFromUnixTime(ui64 time)
+{
+    return time << TimestampCounterWidth;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
