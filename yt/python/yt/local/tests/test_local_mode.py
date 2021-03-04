@@ -5,10 +5,9 @@ import yt.local as yt_local
 from yt.common import remove_file, is_process_alive, which
 from yt.wrapper import YtClient
 from yt.wrapper.common import generate_uuid
-from yt.environment.helpers import is_dead, OpenPortIterator
+from yt.environment.helpers import is_dead
 from yt.test_helpers import get_tests_sandbox, wait
 import yt.subprocess_wrapper as subprocess
-import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.packages.six.moves import map as imap, xrange
 from yt.packages.six import iteritems
@@ -22,7 +21,6 @@ import yatest.common
 import yatest.common.network
 
 import os
-import sys
 import logging
 import pytest
 import tempfile
