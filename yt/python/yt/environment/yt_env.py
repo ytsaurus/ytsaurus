@@ -647,10 +647,13 @@ class YTInstance(object):
         return self._binaries[component]
 
     def _configure_driver_logging(self):
-        import yt_driver_bindings
-        yt_driver_bindings.configure_logging(
-            _environment_driver_logging_config or self.configs["driver_logging"]
-        )
+        try:
+            import yt_driver_bindings
+            yt_driver_bindings.configure_logging(
+                _environment_driver_logging_config or self.configs["driver_logging"]
+            )
+        except ImportError:
+            pass
 
         import yt.wrapper.native_driver as native_driver
         native_driver.logging_configured = True
