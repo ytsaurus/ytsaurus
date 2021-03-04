@@ -123,8 +123,8 @@ private:
             req->set_populate_cell_directory(true);
 
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-            cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->SuccessExpirationTime));
-            cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->FailureExpirationTime));
+            cachingHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(Config_->ExpireAfterSuccessfulUpdateTime));
+            cachingHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(Config_->ExpireAfterFailedUpdateTime));
 
             batchReq->AddRequest(req);
 

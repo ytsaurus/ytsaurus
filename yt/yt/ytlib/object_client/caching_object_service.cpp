@@ -247,19 +247,19 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                 subrequestIndex,
                 key);
 
-            auto successExpirationTime = FromProto<TDuration>(cachingRequestHeaderExt.success_expiration_time());
-            auto failureExpirationTime = FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time());
+            auto expireAfterSuccessfulUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt.expire_after_successful_update_time());
+            auto expireAfterFailedUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt.expire_after_failed_update_time());
 
             auto cacheTtlRatio = CacheTtlRatio_.load();
-            auto nodeSuccessExpirationTime = successExpirationTime * cacheTtlRatio;
-            auto nodeFailureExpirationTime = failureExpirationTime * cacheTtlRatio;
+            auto nodeExpireAfterSuccessfulUpdateTime = expireAfterSuccessfulUpdateTime * cacheTtlRatio;
+            auto nodeExpireAfterFailedUpdateTime = expireAfterFailedUpdateTime * cacheTtlRatio;
 
             bool cachingEnabled = CachingEnabled_.load(std::memory_order_relaxed) && !cachingRequestHeaderExt.disable_second_level_cache();
             auto cookie = Cache_->BeginLookup(
                 requestId,
                 key,
-                cachingEnabled ? nodeSuccessExpirationTime : successExpirationTime,
-                cachingEnabled ? nodeFailureExpirationTime : failureExpirationTime,
+                cachingEnabled ? nodeExpireAfterSuccessfulUpdateTime : expireAfterSuccessfulUpdateTime,
+                cachingEnabled ? nodeExpireAfterFailedUpdateTime : expireAfterFailedUpdateTime,
                 refreshRevision);
 
             asyncMasterResponseMessages.push_back(
@@ -288,8 +288,8 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     balancingHeaderExt->set_sticky_group_size(1);
 
                     auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-                    cachingHeaderExt->set_success_expiration_time(ToProto<i64>(successExpirationTime - nodeSuccessExpirationTime));
-                    cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(failureExpirationTime - nodeFailureExpirationTime));
+                    cachingHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(expireAfterSuccessfulUpdateTime - nodeExpireAfterSuccessfulUpdateTime));
+                    cachingHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(expireAfterFailedUpdateTime - nodeExpireAfterFailedUpdateTime));
                     cachingHeaderExt->set_refresh_revision(refreshRevision);
                 } else {
                     req->Header().ClearExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);

@@ -155,11 +155,11 @@ void FromProto(
     if (proto.has_read_from()) {
         options->ReadFrom = CheckedEnumCast<EMasterChannelKind>(proto.read_from());
     }
-    if (proto.has_success_expiration_time()) {
-        FromProto(&options->ExpireAfterSuccessfulUpdateTime, proto.success_expiration_time());
+    if (proto.has_expire_after_successful_update_time()) {
+        FromProto(&options->ExpireAfterSuccessfulUpdateTime, proto.expire_after_successful_update_time());
     }
-    if (proto.has_failure_expiration_time()) {
-        FromProto(&options->ExpireAfterFailedUpdateTime, proto.failure_expiration_time());
+    if (proto.has_expire_after_failed_update_time()) {
+        FromProto(&options->ExpireAfterFailedUpdateTime, proto.expire_after_failed_update_time());
     }
     if (proto.has_cache_sticky_group_size()) {
         options->CacheStickyGroupSize = proto.cache_sticky_group_size();
@@ -2828,7 +2828,7 @@ private:
             path,
             options.Timestamp,
             keyCount);
-            
+
         auto future = rowset
             ? client->GetInSyncReplicas(
                 path,

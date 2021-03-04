@@ -43,10 +43,10 @@ void SetCachingHeader(
     if (!IsCachingEnabled(config, options)) {
         return;
     }
-    
+
     auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-    cachingHeaderExt->set_success_expiration_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
-    cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
+    cachingHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
+    cachingHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
     if (refreshRevision != NHydra::NullRevision) {
         cachingHeaderExt->set_refresh_revision(refreshRevision);
     }

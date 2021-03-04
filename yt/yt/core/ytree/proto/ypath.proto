@@ -40,8 +40,8 @@ message TCachingHeaderExt
         optional TCachingHeaderExt caching_header_ext = 105;
     }
 
-    required int32 success_expiration_time = 1;
-    required int32 failure_expiration_time = 2;
+    required int32 expire_after_successful_update_time = 1;
+    required int32 expire_after_failed_update_time = 2;
     optional int64 refresh_revision = 3;
     optional bool disable_second_level_cache = 4;
 }

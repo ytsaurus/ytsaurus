@@ -687,8 +687,8 @@ message TPrerequisiteOptions
 message TMasterReadOptions
 {
     optional EMasterReadKind read_from = 1 [default = MRK_FOLLOWER];
-    optional uint64 success_expiration_time = 2; // TDuration
-    optional uint64 failure_expiration_time = 3; // TDuration
+    optional uint64 expire_after_successful_update_time = 2; // TDuration
+    optional uint64 expire_after_failed_update_time = 3; // TDuration
     optional int32 cache_sticky_group_size = 4;
 }
 

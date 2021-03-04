@@ -27,9 +27,9 @@ class TestQuery(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "client_cache": {"capacity": 10, "shard_count": 1},
         "function_registry_cache": {
-            "success_expiration_time": 3000,
-            "success_probation_time": 2000,
-            "failure_expiration_time": 3000,
+            "expire_after_successful_update_time": 3000,
+            "expire_after_failed_update_time": 3000,
+            "refresh_time": 2000
         },
     }
 

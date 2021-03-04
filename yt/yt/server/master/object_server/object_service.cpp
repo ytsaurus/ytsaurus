@@ -643,8 +643,8 @@ private:
                 auto cookie = Owner_->Cache_->BeginLookup(
                     RequestId_,
                     key,
-                    FromProto<TDuration>(cachingRequestHeaderExt.success_expiration_time()),
-                    FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time()),
+                    FromProto<TDuration>(cachingRequestHeaderExt.expire_after_successful_update_time()),
+                    FromProto<TDuration>(cachingRequestHeaderExt.expire_after_failed_update_time()),
                     refreshRevision);
 
                 if (cookie.IsActive()) {

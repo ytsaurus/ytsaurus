@@ -211,8 +211,8 @@ b"""
         };
         node_directory_synchronizer = {
             sync_period = 100;
-            success_expiration_time = 100;
-            failure_expiration_time = 100;
+            expire_after_successful_update_time = 100;
+            expire_after_failed_update_time = 100;
         };
     };
 
@@ -299,8 +299,8 @@ b"""
 
         node_directory_synchronizer = {
             sync_period = 100;
-            success_expiration_time = 100;
-            failure_expiration_time = 100;
+            expire_after_successful_update_time = 100;
+            expire_after_failed_update_time = 100;
         };
 
         enable_udf = %true;
@@ -471,8 +471,8 @@ b"""
         };
         node_directory_synchronizer = {
             sync_period = 100;
-            success_expiration_time = 100;
-            failure_expiration_time = 100;
+            expire_after_successful_update_time = 100;
+            expire_after_failed_update_time = 100;
         };
     };
 }
