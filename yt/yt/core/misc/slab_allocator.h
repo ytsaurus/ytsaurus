@@ -46,7 +46,7 @@ private:
     TSimpleFreeList Segments_;
     std::atomic<size_t> RefCount_ = {1};
 
-    void AllocateMore();
+    bool AllocateMore();
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -71,6 +71,7 @@ private:
     using TArenaPoolPtr = std::unique_ptr<TArenaPool, TArenaDeleter>;
 
     TArenaPoolPtr SmallArenas_[NYTAlloc::SmallRankCount];
+    const IMemoryUsageTrackerPtr MemoryTracker_;
     static constexpr size_t SegmentSize = 128_KB;
 };
 
