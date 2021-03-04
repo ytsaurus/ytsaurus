@@ -133,6 +133,26 @@ class TestClient(object):
             with pytest.raises(yt.YtError):
                 client.commit_transaction(tx)
 
+            with client.Transaction(timeout=60 * 1000, acquire=False) as tx:
+                transaction_id = tx.transaction_id
+                transaction_filepath = TEST_DIR + '/transaction_file'
+                client.write_file(transaction_filepath, b'smth')
+
+            assert not client.exists(transaction_filepath)
+
+            last_ping_time = client.get_attribute(
+                '//sys/transactions/{}'.format(transaction_id),
+                'last_ping_time',
+            )
+            with client.Transaction(transaction_id=transaction_id, timeout=60 * 1000, acquire=True):
+                while last_ping_time == client.get_attribute(
+                    '//sys/transactions/{}'.format(transaction_id),
+                    'last_ping_time',
+                ):
+                    time.sleep(1)
+
+            assert client.exists(transaction_filepath)
+
             op = client.run_map("sleep 10; cat", temp_table, table, sync=False, format=yt.DsvFormat())
             assert not client.get_operation_state(op.id).is_unsuccessfully_finished()
             assert op.get_attributes()["state"] != "failed"
