@@ -23,7 +23,9 @@ void* TArenaPool::Allocate()
             ++RefCount_;
             return obj;
         }
-        AllocateMore();
+        if (!AllocateMore()) {
+            return nullptr;
+        }
     }
 }
 
@@ -67,15 +69,14 @@ size_t TArenaPool::Unref()
     return 0;
 }
 
-void TArenaPool::AllocateMore()
+bool TArenaPool::AllocateMore()
 {
     // For large chunks it is better to allocate SegmentSize + sizeof(TFreeListItem) space
     // than aloocate SegmentSize and use BatchSize_ - 1.
     auto totalSize = sizeof(TFreeListItem) + ChunkSize_ * BatchSize_;
 
-    if (MemoryTracker_) {
-        MemoryTracker_->TryAcquire(totalSize)
-            .ThrowOnError();
+    if (MemoryTracker_ && !MemoryTracker_->TryAcquire(totalSize).IsOK()) {
+        return false;
     }
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -102,11 +103,14 @@ void TArenaPool::AllocateMore()
     current->Next.store(nullptr, std::memory_order_release);
 
     FreeList_.Put(head, current);
+
+    return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////
 
 TSlabAllocator::TSlabAllocator(IMemoryUsageTrackerPtr memoryTracker)
+    : MemoryTracker_(std::move(memoryTracker))
 {
     for (size_t rank = 2; rank < NYTAlloc::SmallRankCount; ++rank) {
         // Rank is not used.
@@ -114,7 +118,7 @@ TSlabAllocator::TSlabAllocator(IMemoryUsageTrackerPtr memoryTracker)
             continue;
         }
         // There is no std::make_unique overload with custom deleter.
-        SmallArenas_[rank].reset(new TArenaPool(rank, SegmentSize, memoryTracker));
+        SmallArenas_[rank].reset(new TArenaPool(rank, SegmentSize, MemoryTracker_));
     }
 }
 
@@ -132,6 +136,10 @@ void* TSlabAllocator::Allocate(size_t size)
         ptr = NYTAlloc::Allocate(size);
     }
 
+    if (!ptr) {
+        return nullptr;
+    }
+
     // Mutes TSAN data race with write Next in TFreeList::Push.
     auto* header = static_cast<std::atomic<void*>*>(ptr);
     header->store(arena, std::memory_order_release);
@@ -141,6 +149,7 @@ void* TSlabAllocator::Allocate(size_t size)
 
 void TSlabAllocator::Free(void* ptr)
 {
+    YT_VERIFY(ptr);
     auto* header = static_cast<TArenaPool**>(ptr) - 1;
     auto* arena = *header;
     if (arena) {

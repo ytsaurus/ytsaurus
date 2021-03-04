@@ -846,6 +846,13 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                             mergedRow,
                             retainedTimestamp);
 
+                        if (!updatedItem) {
+                            // Not enough memory to allocate new item.
+                            // Make current item outdated.
+                            foundItem->Revision.store(std::numeric_limits<ui32>::min(), std::memory_order_release);
+                            continue;
+                        }
+
                         YT_LOG_TRACE("Updating cache (Row: %v, Revision: %v, StoreFlushIndex: %v)",
                             updatedItem->GetVersionedRow(),
                             foundItem->Revision.load(),

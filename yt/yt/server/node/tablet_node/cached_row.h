@@ -118,6 +118,9 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
 
     auto totalSize = rowSize + blobDataSize;
     auto cachedRow = NewWithExtraSpace<TCachedRow>(allocator, totalSize, totalSize);
+    if (!cachedRow) {
+        return nullptr;
+    }
     auto versionedRow = cachedRow->GetVersionedRow();
 
     auto header = versionedRow.GetHeader();

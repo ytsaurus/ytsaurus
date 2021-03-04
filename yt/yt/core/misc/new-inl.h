@@ -184,6 +184,9 @@ Y_FORCE_INLINE TIntrusivePtr<T> New(
     As&&... args)
 {
     auto* ptr = allocator->Allocate(NDetail::TConstructHelper<T>::Size);
+    if (!ptr) {
+        return nullptr;
+    }
     return NDetail::SafeConstruct<T>(ptr, std::forward<As>(args)...);
 }
 
@@ -214,6 +217,9 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewWithExtraSpace(
 {
     auto totalSize = NDetail::TConstructHelper<T>::Size + extraSpaceSize;
     auto* ptr = allocator->Allocate(totalSize);
+    if (!ptr) {
+        return nullptr;
+    }
     return NDetail::SafeConstruct<T>(ptr, std::forward<As>(args)...);
 }
 
