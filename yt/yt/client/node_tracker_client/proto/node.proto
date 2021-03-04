@@ -1,5 +1,7 @@
 package NYT.NNodeTrackerClient.NProto;
 
+import "yt/core/misc/proto/guid.proto";
+
 option python_package = "yt_proto.yt.client.node_tracker_client.proto";
 
 import "yt/core/misc/proto/error.proto";
@@ -16,6 +18,8 @@ message TMediumChunkStatistics
 // Describes the current state of a storage location.
 message TStorageLocationStatistics
 {
+    optional NYT.NProto.TGuid location_uuid = 12;
+    optional string disk_family = 13 [default = "UNKNOWN"];
     required int32 medium_index = 7;
     required int64 available_space = 1;
     required int64 used_space = 2;

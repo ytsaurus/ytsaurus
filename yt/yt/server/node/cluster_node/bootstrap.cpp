@@ -23,6 +23,7 @@
 #include <yt/server/node/data_node/location.h>
 #include <yt/server/node/data_node/legacy_master_connector.h>
 #include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/medium_updater.h>
 #include <yt/server/node/data_node/network_statistics.h>
 #include <yt/server/node/data_node/p2p_block_distributor.h>
 #include <yt/server/node/data_node/block_peer_table.h>
@@ -355,7 +356,7 @@ void TBootstrap::DoInitialize()
     for (const auto& config : Config_->ClusterConnection->SecondaryMasters) {
         createBatchingChunkService(config);
     }
-
+    
     LegacyMasterConnector_ = New<NDataNode::TLegacyMasterConnector>(Config_->DataNode, Config_->Tags, this);
 
     TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
@@ -420,11 +421,13 @@ void TBootstrap::DoInitialize()
     TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
     TabletNodeStructuredLogger_ = NTabletNode::CreateStructuredLogger(this);
 
+    MediumUpdater_ = New<TMediumUpdater>(this);
+
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    ChunkStore_ = New<NDataNode::TChunkStore>(Config_->DataNode, this);
+    ChunkStore_ = New<TChunkStore>(Config_->DataNode, this);
 
     ChunkCache_ = New<TChunkCache>(Config_->DataNode, this);
 
@@ -600,7 +603,7 @@ void TBootstrap::DoInitialize()
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr
         {
-            return NDataNode::CreateChunkJob(
+            return CreateChunkJob(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,
@@ -824,6 +827,7 @@ void TBootstrap::DoRun()
     // Do not start subsystems until everything is initialized.
     BlockPeerUpdater_->Start();
     P2PBlockDistributor_->Start();
+    MediumUpdater_->Start();
 
     ClusterNodeMasterConnector_->Initialize();
     if (IsDataNode()) {
@@ -1132,6 +1136,11 @@ const TClusterNodeDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager()
     return DynamicConfigManager_;
 }
 
+const TMediumUpdaterPtr& TBootstrap::GetMediumUpdater() const
+{
+    return MediumUpdater_;
+}
+
 const TNodeResourceManagerPtr& TBootstrap::GetNodeResourceManager() const
 {
     return NodeResourceManager_;
@@ -1374,7 +1383,7 @@ void TBootstrap::OnDynamicConfigChanged(
         newConfig->DataNode->StorageLookupThreadCount.value_or(Config_->DataNode->StorageLookupThreadCount));
 
     // Reconfigure Data Node throttlers.
-    for (auto kind : TEnumTraits<NDataNode::EDataNodeThrottlerKind>::GetDomainValues()) {
+    for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
         auto throttlerConfig = newConfig->DataNode->Throttlers[kind]
             ? newConfig->DataNode->Throttlers[kind]
             : Config_->DataNode->Throttlers[kind];

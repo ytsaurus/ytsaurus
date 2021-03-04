@@ -110,6 +110,7 @@ public:
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const;
+    const NDataNode::TMediumUpdaterPtr& GetMediumUpdater() const;
 
     const NConcurrency::IThroughputThrottlerPtr& GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind kind) const;
     const NConcurrency::IThroughputThrottlerPtr& GetTabletNodeThrottler(NTabletNode::ETabletNodeThrottlerKind kind) const;
@@ -199,6 +200,7 @@ private:
     ICoreDumperPtr CoreDumper_;
     TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     NObjectClient::TObjectServiceCachePtr ObjectServiceCache_;
+    NDataNode::TMediumUpdaterPtr MediumUpdater_;
 
     TEnumIndexedVector<NDataNode::EDataNodeThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> RawDataNodeThrottlers_;
     TEnumIndexedVector<NDataNode::EDataNodeThrottlerKind, NConcurrency::IThroughputThrottlerPtr> DataNodeThrottlers_;

@@ -1,10 +1,11 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
 
 import copy
 import __builtin__
+
 
 ################################################################################
 
@@ -92,23 +93,23 @@ class TestMedia(YTEnvSetup):
         for medium in media:
             if ok:
                 if (
-                    not available
-                    or medium not in replication_status
-                    or replication_status[medium]["underreplicated"]
-                    or replication_status[medium]["lost"]
-                    or replication_status[medium]["data_missing"]
-                    or replication_status[medium]["parity_missing"]
-                    or len(lvc) != 0
+                        not available
+                        or medium not in replication_status
+                        or replication_status[medium]["underreplicated"]
+                        or replication_status[medium]["lost"]
+                        or replication_status[medium]["data_missing"]
+                        or replication_status[medium]["parity_missing"]
+                        or len(lvc) != 0
                 ):
                     return False
             else:
                 if (
-                    available
-                    or medium not in replication_status
-                    or not replication_status[medium]["lost"]
-                    or not replication_status[medium]["data_missing"]
-                    or not replication_status[medium]["parity_missing"]
-                    or len(lvc) == 0
+                        available
+                        or medium not in replication_status
+                        or not replication_status[medium]["lost"]
+                        or not replication_status[medium]["data_missing"]
+                        or not replication_status[medium]["parity_missing"]
+                        or len(lvc) == 0
                 ):
                     return False
         return True
@@ -226,8 +227,8 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda: self._count_chunks_on_medium("t2", "default") == 3
-            and self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 7
-            and self._check_account_and_table_usage_equal("t2")
+                    and self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 7
+                    and self._check_account_and_table_usage_equal("t2")
         )
 
     @authors("babenko")
@@ -257,7 +258,7 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda: self._check_all_chunks_on_medium("t3", TestMedia.NON_DEFAULT_MEDIUM)
-            and self._check_account_and_table_usage_equal("t3")
+                    and self._check_account_and_table_usage_equal("t3")
         )
 
     @authors("babenko")
@@ -278,7 +279,7 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda: self._check_all_chunks_on_medium("t4", TestMedia.NON_DEFAULT_MEDIUM)
-            and self._check_account_and_table_usage_equal("t4")
+                    and self._check_account_and_table_usage_equal("t4")
         )
 
     @authors("shakurov")
@@ -307,7 +308,7 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda: self._check_all_chunks_on_medium("t6", TestMedia.NON_DEFAULT_MEDIUM)
-            and self._check_account_and_table_usage_equal("t6")
+                    and self._check_account_and_table_usage_equal("t6")
         )
 
     @authors("shakurov", "babenko")
@@ -342,7 +343,7 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda: chunk_media_2 == get("#" + chunk_id + "/@media")
-            and chunk_vital_2 == get("#" + chunk_id + "/@vital")
+                    and chunk_vital_2 == get("#" + chunk_id + "/@vital")
         )
 
     @authors("babenko")
@@ -372,7 +373,7 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda: self._count_chunks_on_medium("t8", "default") == TestMedia.NUM_NODES
-            and self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM) == TestMedia.NUM_NODES
+                    and self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM) == TestMedia.NUM_NODES
         )
 
     @authors("shakurov")
@@ -445,8 +446,8 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda: self._check_chunk_ok(True, chunk_id, {"default"})
-            and len(get("#{0}/@stored_replicas".format(chunk_id))) == codec_replica_count
-            and self._get_chunk_replica_media(chunk_id) == {"default"}
+                    and len(get("#{0}/@stored_replicas".format(chunk_id))) == codec_replica_count
+                    and self._get_chunk_replica_media(chunk_id) == {"default"}
         )
 
         self._ban_nodes(self._get_chunk_replica_nodes(chunk_id))
@@ -476,8 +477,8 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda: self._check_chunk_ok(True, chunk_id, relevant_media)
-            and len(get("#{0}/@stored_replicas".format(chunk_id))) == len(relevant_media) * codec_replica_count
-            and self._get_chunk_replica_media(chunk_id) == relevant_media
+                    and len(get("#{0}/@stored_replicas".format(chunk_id))) == len(relevant_media) * codec_replica_count
+                    and self._get_chunk_replica_media(chunk_id) == relevant_media
         )
 
         self._ban_nodes(self._get_chunk_replica_nodes(chunk_id))
@@ -526,7 +527,7 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda: len(get("#{0}/@stored_replicas".format(chunk1))) == 2
-            and len(get("#{0}/@stored_replicas".format(chunk2))) == 2
+                    and len(get("#{0}/@stored_replicas".format(chunk2))) == 2
         )
 
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
@@ -559,3 +560,71 @@ class TestMedia(YTEnvSetup):
 
 class TestMediaMulticell(TestMedia):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+################################################################################
+
+
+class TestDynamicMedia(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+
+    DELTA_NODE_CONFIG = {
+        "dynamic_config_manager": {
+            "enable_unrecognized_options_alert": True,
+        },
+        "cluster_connection": {
+            "medium_directory_synchronizer": {
+                "sync_period": 1
+            }
+        }
+    }
+
+    def setup(self):
+        update_nodes_dynamic_config(
+            {
+                "data_node": {
+                    "medium_updater":
+                        {
+                            "enabled": True,
+                            "period": 1
+                        }
+                }
+            }
+        )
+
+    @authors("s-v-m")
+    def test_medium_change_simple(self):
+        for i in range(10):
+            table = "//tmp/t{}".format(i)
+            create("table", table, attributes={"replication_factor": 1})
+            write_table(table, {"foo": "bar"})
+        node = ls("//sys/cluster_nodes")[0]
+        location_uuid = get("//sys/cluster_nodes/{0}/@statistics/locations/0/location_uuid".format(node))
+        print_debug(get("//sys/cluster_nodes/{0}/@statistics/locations".format(node)))
+        assert get("//sys/cluster_nodes/{0}/@statistics/locations/0/chunk_count".format(node)) > 0
+
+        medium_name = "testmedium"
+        create_medium(medium_name)
+        set("//sys/cluster_nodes/{0}/@config".format(node), {
+            "medium_overrides": {
+                location_uuid: medium_name
+            }
+        })
+        wait(lambda: get("//sys/cluster_nodes/{0}/@statistics/locations/0/medium_name".format(node)) == medium_name,
+             ignore_exceptions=True)
+        wait(lambda: get("//sys/cluster_nodes/{0}/@statistics/locations/0/chunk_count".format(node)) == 0, iter=100)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        assert get("//sys/cluster_nodes/{0}/@statistics/locations/0/medium_name".format(node)) == medium_name
+
+        set("//sys/cluster_nodes/{0}/@config".format(node), {})
+        wait(lambda: get("//sys/cluster_nodes/{0}/@statistics/locations/0/medium_name".format(node)) == "default",
+             ignore_exceptions=True)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        assert get("//sys/cluster_nodes/{0}/@statistics/locations/0/medium_name".format(node)) == "default"

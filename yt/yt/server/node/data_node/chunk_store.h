@@ -96,6 +96,9 @@ public:
      */
     TFuture<void> RemoveChunk(const IChunkPtr& chunk);
 
+    //! Triggers medium change for all chunks in location.
+    void ChangeLocationMedium(const TLocationPtr& location, int oldMediumIndex);
+
     //! Finds a suitable storage location for a new chunk.
     /*!
      *  The initial set of candidates consists of locations that are not full,
@@ -125,6 +128,9 @@ public:
 
     //! Raised when a chunk is removed from the store.
     DEFINE_SIGNAL(void(const IChunkPtr&), ChunkRemoved);
+
+    //! Raised when an underlying medium for a chunk changed.
+    DEFINE_SIGNAL(void(const IChunkPtr& chunk, int oldMediumIndex), ChunkMediumChanged);
 
 private:
     const TDataNodeConfigPtr Config_;

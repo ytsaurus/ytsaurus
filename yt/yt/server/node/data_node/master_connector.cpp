@@ -94,6 +94,9 @@ public:
         chunkStore->SubscribeChunkRemoved(
             BIND(&TMasterConnector::OnChunkRemoved, MakeWeak(this))
                 .Via(controlInvoker));
+        chunkStore->SubscribeChunkMediumChanged(
+            BIND(&TMasterConnector::OnChunkMediumChanged, MakeWeak(this))
+                .Via(controlInvoker));
 
         const auto& chunkCache = Bootstrap_->GetChunkCache();
         chunkCache->SubscribeChunkAdded(
@@ -181,17 +184,39 @@ public:
 
         auto* delta = GetChunksDelta(cellTag);
 
+        int chunkEventCount = 0;
         delta->ReportedAdded.clear();
         for (const auto& chunk : delta->AddedSinceLastSuccess) {
             YT_VERIFY(delta->ReportedAdded.emplace(chunk, chunk->GetVersion()).second);
             *heartbeat.add_added_chunks() = BuildAddChunkInfo(chunk);
+            ++chunkEventCount;
         }
 
         delta->ReportedRemoved.clear();
         for (const auto& chunk : delta->RemovedSinceLastSuccess) {
             YT_VERIFY(delta->ReportedRemoved.insert(chunk).second);
             *heartbeat.add_removed_chunks() = BuildRemoveChunkInfo(chunk);
+            ++chunkEventCount;
         }
+
+        delta->ReportedChangedMedium.clear();
+        for (const auto& [chunk, oldMediumIndex] : delta->ChangedMediumSinceLastSuccess) {
+            if (chunkEventCount >= MaxChunkEventsPerIncrementalHeartbeat_) {
+                auto mediumChangedBacklogCount = delta->ChangedMediumSinceLastSuccess.size() - delta->ReportedChangedMedium.size();
+                YT_LOG_INFO("Chunk event limit per heartbeat is reached, will report %v chunks with medium changed in next heartbeats",
+                    mediumChangedBacklogCount);
+                break;
+            }
+            YT_VERIFY(delta->ReportedChangedMedium.insert({chunk, oldMediumIndex}).second);
+            auto removeChunkInfo = BuildRemoveChunkInfo(chunk);
+            removeChunkInfo.set_medium_index(oldMediumIndex);
+            *heartbeat.add_removed_chunks() = removeChunkInfo;
+            ++chunkEventCount;
+            *heartbeat.add_added_chunks() = BuildAddChunkInfo(chunk);
+            ++chunkEventCount;
+
+        }
+
 
         delta->CurrentHeartbeatBarrier = delta->NextHeartbeatBarrier.Exchange(NewPromise<void>());
 
@@ -206,6 +231,7 @@ public:
         delta->State = EMasterConnectorState::Online;
         YT_VERIFY(delta->AddedSinceLastSuccess.empty());
         YT_VERIFY(delta->RemovedSinceLastSuccess.empty());
+        YT_VERIFY(delta->ChangedMediumSinceLastSuccess.empty());
     }
 
     virtual void OnIncrementalHeartbeatFailed(TCellTag cellTag) override
@@ -254,6 +280,20 @@ public:
             }
             delta->ReportedRemoved.clear();
         }
+
+        {
+            auto it = delta->ChangedMediumSinceLastSuccess.begin();
+            while (it != delta->ChangedMediumSinceLastSuccess.end()) {
+                auto jt = it++;
+                auto chunkAndOldMediumIndex = *jt;
+                auto kt = delta->ReportedChangedMedium.find(chunkAndOldMediumIndex);
+                if (kt != delta->ReportedChangedMedium.end()) {
+                    delta->ReportedChangedMedium.erase(chunkAndOldMediumIndex);
+                }
+            }
+            delta->ReportedChangedMedium.clear();
+        }
+
 
         if (cellTag == PrimaryMasterCellTag) {
             const auto& sessionManager = Bootstrap_->GetSessionManager();
@@ -305,11 +345,17 @@ private:
         //! Chunks that were removed since the last successful heartbeat.
         THashSet<IChunkPtr> RemovedSinceLastSuccess;
 
+        //! Chunks that changed medium since the last successful heartbeat and their old medium.
+        THashSet<std::pair<IChunkPtr, int>> ChangedMediumSinceLastSuccess;
+
         //! Maps chunks that were reported added at the last heartbeat (for which no reply is received yet) to their versions.
         THashMap<IChunkPtr, int> ReportedAdded;
 
         //! Chunks that were reported removed at the last heartbeat (for which no reply is received yet).
         THashSet<IChunkPtr> ReportedRemoved;
+
+        //! Chunks that were reported changed medium at the last heartbeat (for which no reply is received yet) and their old medium.
+        THashSet<std::pair<IChunkPtr, int>> ReportedChangedMedium;
 
         //! Set when another incremental heartbeat is successfully reported to the corresponding master.
         TAtomicObject<TPromise<void>> NextHeartbeatBarrier = NewPromise<void>();
@@ -335,6 +381,8 @@ private:
 
     TDuration JobHeartbeatPeriod_;
     TDuration JobHeartbeatPeriodSplay_;
+    i64 MaxChunkEventsPerIncrementalHeartbeat_;
+
 
     void OnMasterDisconnected()
     {
@@ -389,6 +437,7 @@ private:
         IncrementalHeartbeatPeriodSplay_ = dynamicConfig->IncrementalHeartbeatPeriodSplay.value_or(Config_->IncrementalHeartbeatPeriodSplay);
         JobHeartbeatPeriod_ = dynamicConfig->JobHeartbeatPeriod.value_or(*Config_->JobHeartbeatPeriod);
         JobHeartbeatPeriodSplay_ = dynamicConfig->JobHeartbeatPeriodSplay.value_or(Config_->JobHeartbeatPeriodSplay);
+        MaxChunkEventsPerIncrementalHeartbeat_ = dynamicConfig->MaxChunkEventsPerIncrementalHeartbeat;
     }
 
     void StartHeartbeats()
@@ -613,6 +662,8 @@ private:
             locationStatistics->set_throttling_reads(location->IsReadThrottling());
             locationStatistics->set_throttling_writes(location->IsWriteThrottling());
             locationStatistics->set_sick(location->IsSick());
+            ToProto(locationStatistics->mutable_location_uuid(), location->GetUuid());
+            locationStatistics->set_disk_family(location->GetDiskFamily());
 
             if (IsLocationWriteable(location)) {
                 ++mediumIndexToIOWeight[mediumIndex];
@@ -752,6 +803,15 @@ private:
         YT_LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v)",
             chunk->GetId(),
             chunk->GetLocation()->GetId());
+    }
+
+    void OnChunkMediumChanged(const IChunkPtr& chunk, int mediumIndex)
+    {
+        auto* delta = GetChunksDelta(chunk->GetId());
+        if (delta->State != EMasterConnectorState::Online) {
+            return;
+        }
+        delta->ChangedMediumSinceLastSuccess.emplace(chunk, mediumIndex);
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

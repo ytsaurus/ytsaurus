@@ -27,9 +27,13 @@ public:
     //! Stops periodic syncs.
     void Stop();
 
-    //! Returns a future that gets set with the next sync.
+    //! Returns a future that will be set after the next sync.
     //! Starts the synchronizer if not started yet.
-    TFuture<void> Sync(bool force = false);
+    TFuture<void> NextSync(bool force = false);
+
+    //! Returns a future that was set by the most recent sync.
+    //! Starts the synchronizer if not started yet.
+    TFuture<void> RecentSync();
 
     //! Raised with each synchronization (either successful or not).
     DECLARE_SIGNAL(void(const TError&), Synchronized);

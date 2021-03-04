@@ -831,7 +831,7 @@ private:
                 ->GetMasterClient()
                 ->GetNativeConnection()
                 ->GetMediumDirectorySynchronizer()
-                ->Sync(/* force */ true))
+                ->NextSync(/* force */ true))
                 .ThrowOnError();
             YT_LOG_INFO("Sync medium directory finished");
         }

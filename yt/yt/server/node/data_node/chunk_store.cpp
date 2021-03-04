@@ -306,6 +306,18 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
     }
 }
 
+void TChunkStore::ChangeLocationMedium(const TLocationPtr& location, int oldMediumIndex) {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(ChunkMapLock_);
+    for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
+        const auto& chunk = chunkEntry.Chunk;
+        if (chunk->GetLocation() == location) {
+            ChunkMediumChanged_.Fire(chunk, oldMediumIndex);
+        }
+    }
+}
+
 void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
 {
     VERIFY_THREAD_AFFINITY_ANY();

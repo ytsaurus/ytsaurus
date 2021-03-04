@@ -1882,8 +1882,8 @@ private:
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request)
     {
-        for (const auto& mediumReplicas : node->Replicas()) {
-            YT_VERIFY(mediumReplicas.second.empty());
+        for (const auto& [mediumIndex, mediumReplicas] : node->Replicas()) {
+            YT_VERIFY(mediumReplicas.empty());
         }
 
         for (const auto& stats : request->chunk_statistics()) {

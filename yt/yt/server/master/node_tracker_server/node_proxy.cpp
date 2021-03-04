@@ -28,6 +28,7 @@ using namespace NYTree;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectServer;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,12 +241,14 @@ private:
 
                 auto serializeStorageLocationStatistics = [&] (TFluentList fluent, const TStorageLocationStatistics& storageLocationStatistics) {
                     auto mediumIndex = storageLocationStatistics.medium_index();
+                    auto locationUuid = NYT::FromProto<TLocationUuid>(storageLocationStatistics.location_uuid());
                     const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
                     if (!IsObjectAlive(medium)) {
                         return;
                     }
                     fluent
                         .Item().BeginMap()
+                            .Item("location_uuid").Value(locationUuid)
                             .Item("medium_name").Value(medium->GetName())
                             .Item("available_space").Value(storageLocationStatistics.available_space())
                             .Item("used_space").Value(storageLocationStatistics.used_space())
@@ -257,6 +260,7 @@ private:
                             .Item("throttling_reads").Value(storageLocationStatistics.throttling_reads())
                             .Item("throttling_writes").Value(storageLocationStatistics.throttling_writes())
                             .Item("sick").Value(storageLocationStatistics.sick())
+                            .Item("disk_family").Value(storageLocationStatistics.disk_family())
                         .EndMap();
                 };
 
@@ -402,8 +406,8 @@ private:
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
                     .DoMapFor(node->IOWeights().begin(), node->IOWeights().end(), [&] (
-                        TFluentMap fluent,
-                        NChunkClient::TMediumMap<double>::const_iterator item)
+                        auto fluent,
+                        auto item)
                     {
                         auto* medium = chunkManager->FindMediumByIndex(item->first);
                         if (IsObjectAlive(medium)) {

@@ -138,6 +138,9 @@ public:
     // is subclass-specific).
     TString MediumName;
 
+    //! Disk family in this location (HDD, SDD, etc.)
+    TString DiskFamily;
+
     //! Controls outcoming location bandwidth used by replication jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
 
@@ -186,6 +189,8 @@ public:
         RegisterParameter("coalesced_read_max_gap_size", CoalescedReadMaxGapSize)
             .GreaterThanOrEqual(0)
             .Default(0);
+        RegisterParameter("disk_family", DiskFamily)
+            .Default("UNKNOWN");
     }
 };
 
@@ -539,6 +544,28 @@ DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMediumUpdaterDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Whether media updater is enabled.
+    bool Enabled;
+    //! Period of media config fetching from Cypress.
+    TDuration Period;
+
+    TMediumUpdaterDynamicConfig()
+    {
+        RegisterParameter("enabled", Enabled)
+            .Default(false);
+        RegisterParameter("period", Period)
+            .Default(TDuration::Minutes(5));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumUpdaterDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 // COMPAT(gritukan): Drop all the optionals in this class after configs migration.
 class TMasterConnectorConfig
     : public NYTree::TYsonSerializable
@@ -604,6 +631,9 @@ public:
     //! Splay for job heartbeats.
     std::optional<TDuration> JobHeartbeatPeriodSplay;
 
+    //! Maximum number of chunk events per incremental heartbeat.
+    i64 MaxChunkEventsPerIncrementalHeartbeat;
+
     TMasterConnectorDynamicConfig()
     {
         RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
@@ -614,6 +644,8 @@ public:
             .Default();
         RegisterParameter("job_heartbeat_period_splay", JobHeartbeatPeriodSplay)
             .Default();
+        RegisterParameter("max_chunk_events_per_incremental_heartbeat", MaxChunkEventsPerIncrementalHeartbeat)
+            .Default(1000000);
     }
 };
 
@@ -1093,6 +1125,7 @@ public:
     TTableSchemaCacheDynamicConfigPtr TableSchemaCache;
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
+    TMediumUpdaterDynamicConfigPtr MediumUpdater;
 
     TDataNodeDynamicConfig()
     {
@@ -1125,6 +1158,8 @@ public:
             .DefaultNew();
 
         RegisterParameter("master_connector", MasterConnector)
+            .DefaultNew();
+        RegisterParameter("medium_updater", MediumUpdater)
             .DefaultNew();
     }
 };
