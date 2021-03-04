@@ -197,8 +197,8 @@ struct TTabletCounters
     TTabletCounters() = default;
 
     explicit TTabletCounters(const NProfiling::TRegistry& profiler)
-        : OverlappingStoreCount(profiler.Summary("/tablet/overlapping_store_count"))
-        , EdenStoreCount(profiler.Summary("/tablet/eden_store_count"))
+        : OverlappingStoreCount(profiler.GaugeSummary("/tablet/overlapping_store_count"))
+        , EdenStoreCount(profiler.GaugeSummary("/tablet/eden_store_count"))
     {
         for (auto kind : TEnumTraits<ETabletDistributedThrottlerKind>::GetDomainValues()) {
             ThrottlerWaitTimers[kind] = profiler.Timer(
@@ -206,9 +206,8 @@ struct TTabletCounters
         }
     }
 
-    // TODO(prime@): add AggregatedGauge() method to profiling registry.
-    NProfiling::TSummary OverlappingStoreCount;
-    NProfiling::TSummary EdenStoreCount;
+    NProfiling::TGauge OverlappingStoreCount;
+    NProfiling::TGauge EdenStoreCount;
 
     TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers;
 };

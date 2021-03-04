@@ -368,6 +368,17 @@ TSummary TRegistry::Summary(const TString& name) const
     return summary;
 }
 
+TGauge TRegistry::GaugeSummary(const TString& name) const
+{
+    if (!Impl_) {
+        return {};
+    }
+
+    TGauge gauge;
+    gauge.Gauge_ = Impl_->RegisterGaugeSummary(Namespace_ + Prefix_ + name, Tags_, Options_);
+    return gauge;
+}
+
 TEventTimer TRegistry::Timer(const TString& name) const
 {
     if (!Impl_) {

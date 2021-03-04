@@ -1535,8 +1535,8 @@ void TTablet::UpdateOverlappingStoreCount()
     CriticalPartitionCount_ = criticalPartitionCount;
 
     auto counters = TableProfiler_->GetTabletCounters();
-    counters->OverlappingStoreCount.Record(OverlappingStoreCount_);
-    counters->EdenStoreCount.Record(GetEdenStoreCount());
+    counters->OverlappingStoreCount.Update(OverlappingStoreCount_);
+    counters->EdenStoreCount.Update(GetEdenStoreCount());
 }
 
 void TTablet::UpdateUnflushedTimestamp() const

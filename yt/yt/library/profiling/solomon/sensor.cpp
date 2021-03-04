@@ -21,6 +21,23 @@ double TSimpleGauge::GetValue()
     return Value_.load(std::memory_order_relaxed);
 }
 
+void TSimpleGauge::Record(double /* value */)
+{
+    YT_UNIMPLEMENTED();
+}
+
+TSummarySnapshot<double> TSimpleGauge::GetSummary()
+{
+    TSummarySnapshot<double> summary;
+    summary.Record(GetValue());
+    return summary;
+}
+
+TSummarySnapshot<double> TSimpleGauge::GetSummaryAndReset()
+{
+    return GetSummary();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSimpleTimeGauge::Update(TDuration value)
@@ -68,14 +85,14 @@ void TSimpleSummary<T>::Record(T value)
 }
 
 template <class T>
-TSummarySnapshot<T> TSimpleSummary<T>::GetValue()
+TSummarySnapshot<T> TSimpleSummary<T>::GetSummary()
 {
     auto guard = Guard(Lock_);
     return Value_;
 }
 
 template <class T>
-TSummarySnapshot<T> TSimpleSummary<T>::GetValueAndReset()
+TSummarySnapshot<T> TSimpleSummary<T>::GetSummaryAndReset()
 {
     auto guard = Guard(Lock_);
 
@@ -86,9 +103,6 @@ TSummarySnapshot<T> TSimpleSummary<T>::GetValueAndReset()
 
 template class TSimpleSummary<double>;
 template class TSimpleSummary<TDuration>;
-
-static_assert(sizeof(TSimpleSummary<double>) == 64);
-static_assert(sizeof(TSimpleSummary<TDuration>) == 64);
 
 ////////////////////////////////////////////////////////////////////////////////
 constexpr int MaxBinCount = 65;
@@ -166,12 +180,12 @@ THistogramSnapshot THistogram::GetSnapshotAndReset()
     return snapshot;
 }
 
-TSummarySnapshot<TDuration> THistogram::GetValue()
+TSummarySnapshot<TDuration> THistogram::GetSummary()
 {
     YT_UNIMPLEMENTED();
 }
 
-TSummarySnapshot<TDuration> THistogram::GetValueAndReset()
+TSummarySnapshot<TDuration> THistogram::GetSummaryAndReset()
 {
     YT_UNIMPLEMENTED();
 }
