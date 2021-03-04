@@ -78,15 +78,19 @@ class Transaction(object):
 
     Caution: if you use this class then do not use directly methods \\*_transaction.
 
+    :param bool acquire: commit/abort transaction in exit from with. By default True if new transaction is started else False.
+    :param bool ping: ping transaction in separate thread. By default True if acquire is also True else False.
+
     .. seealso:: `transactions in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions.html>`_
     """
 
     def __init__(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True,
-                 transaction_id=None, ping_ancestor_transactions=None, type="master",
+                 transaction_id=None, ping_ancestor_transactions=None, type="master", acquire=None,
                  client=None):
         timeout = get_value(timeout, get_total_request_timeout(client))
         if transaction_id == null_transaction_id:
             ping = False
+            acquire = False
 
         self.transaction_id = transaction_id
         self.sticky = (type == "tablet" and get_backend_type(client) == "http")
@@ -94,6 +98,7 @@ class Transaction(object):
         self._ping_ancestor_transactions = \
             get_value(ping_ancestor_transactions, get_command_param("ping_ancestor_transactions", self._client))
         self._ping = ping
+        self._acquire = acquire
         self._finished = False
         self._used_with_statement = False
 
@@ -109,11 +114,12 @@ class Transaction(object):
                                                     type=type,
                                                     sticky=self.sticky,
                                                     client=self._client)
-            self._started = True
-            if self._ping is None:
-                self._ping = True
-        else:
-            self._started = False
+
+            if self._acquire is None:
+                self._acquire = True
+
+        if self._acquire and self._ping is None:
+            self._ping = True
 
         if _get_ping_failed_mode(self._client) == "send_signal":
             _set_sigusr_received(False)
@@ -206,7 +212,7 @@ class Transaction(object):
         # Allow abort() and commit() temorary
         self._used_with_statement = False
         try:
-            if not self._started or self.transaction_id == null_transaction_id:
+            if not self._acquire:
                 return
 
             action = "commit" if type is None else "abort"

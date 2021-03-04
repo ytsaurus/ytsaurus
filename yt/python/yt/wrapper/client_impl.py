@@ -523,7 +523,7 @@ class YtClient(ClientState):
         """
         return client_api.concatenate(source_paths, destination_path, client=self)
 
-    def Transaction(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None, ping_ancestor_transactions=None, type='master'):
+    def Transaction(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None, ping_ancestor_transactions=None, type='master', acquire=None):
         """
         
     It is designed to be used by with_statement::
@@ -541,7 +541,7 @@ class YtClient(ClientState):
     .. seealso:: `transactions in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions.html>`_
     
         """
-        return client_api.Transaction(client=self, timeout=timeout, deadline=deadline, attributes=attributes, ping=ping, interrupt_on_failed=interrupt_on_failed, transaction_id=transaction_id, ping_ancestor_transactions=ping_ancestor_transactions, type=type)
+        return client_api.Transaction(client=self, timeout=timeout, deadline=deadline, attributes=attributes, ping=ping, interrupt_on_failed=interrupt_on_failed, transaction_id=transaction_id, ping_ancestor_transactions=ping_ancestor_transactions, type=type, acquire=acquire)
 
     def commit_transaction(self, transaction):
         """
