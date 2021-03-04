@@ -27,6 +27,12 @@ std::pair<TTimestamp, TTimestamp> InstantToTimestamp(TInstant instant);
 //! Returns a range of durations between given timestamps.
 std::pair<TDuration, TDuration> TimestampDiffToDuration(TTimestamp loTimestamp, TTimestamp hiTimestamp);
 
+//! Extracts the "unix time" part of the timestamp.
+ui64 UnixTimeFromTimestamp(TTimestamp timestamp);
+
+//! Constructs the timestamp from a given unix time (assuming zero counter part).
+TTimestamp TimestampFromUnixTime(ui64 time);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionClient

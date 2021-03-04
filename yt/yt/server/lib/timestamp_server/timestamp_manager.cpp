@@ -11,6 +11,7 @@
 #include <yt/server/lib/timestamp_server/proto/timestamp_manager.pb.h>
 
 #include <yt/client/transaction_client/timestamp_service_proxy.h>
+#include <yt/client/transaction_client/helpers.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
@@ -55,21 +56,20 @@ public:
             hydraManager,
             automaton,
             automatonInvoker)
-        , Config_(config)
+        , Config_(std::move(config))
+        , TimestampQueue_(New<TActionQueue>("Timestamp"))
+        , TimestampInvoker_(TimestampQueue_->GetInvoker())
+        , CalibrationExecutor_(New<TPeriodicExecutor>(
+            TimestampInvoker_,
+            BIND(&TImpl::Calibrate, Unretained(this)),
+            Config_->CalibrationPeriod))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(AutomatonInvoker_);
 
-        TimestampQueue_ = New<TActionQueue>("Timestamp");
-        TimestampInvoker_ = TimestampQueue_->GetInvoker();
-
         VERIFY_INVOKER_THREAD_AFFINITY(TimestampInvoker_, TimestampThread);
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
 
-        CalibrationExecutor_ = New<TPeriodicExecutor>(
-            TimestampInvoker_,
-            BIND(&TImpl::Calibrate, Unretained(this)),
-            Config_->CalibrationPeriod);
         CalibrationExecutor_->Start();
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps)
@@ -95,15 +95,15 @@ public:
 private:
     const TTimestampManagerConfigPtr Config_;
 
-    TActionQueuePtr TimestampQueue_;
-    IInvokerPtr TimestampInvoker_;
+    const TActionQueuePtr TimestampQueue_;
+    const IInvokerPtr TimestampInvoker_;
 
-    TPeriodicExecutorPtr CalibrationExecutor_;
+    const TPeriodicExecutorPtr CalibrationExecutor_;
 
     // Timestamp thread affinity:
 
     //! Can we generate timestamps?
-    volatile bool Active_ = false;
+    std::atomic<bool> Active_ = false;
 
     //! Are we backing off because no committed timestamps are available?
     //! Used to avoid repeating same logging message.
@@ -142,7 +142,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(TimestampThread);
 
-        if (!Active_) {
+        if (!Active_.load()) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Timestamp provider is not active"));
@@ -174,9 +174,6 @@ private:
             BackingOff_ = false;
         }
 
-        // Make sure there's no overflow in the counter part.
-        YT_VERIFY(((CurrentTimestamp_ + count) >> TimestampCounterWidth) == (CurrentTimestamp_ >> TimestampCounterWidth));
-
         auto result = CurrentTimestamp_;
         CurrentTimestamp_ += count;
 
@@ -186,45 +183,57 @@ private:
         context->Reply();
     }
 
+    static ui64 GetCurrentTime()
+    {
+        return ::time(nullptr);
+    }
 
     void Calibrate()
     {
         VERIFY_THREAD_AFFINITY(TimestampThread);
 
-        if (!Active_)
-            return;
-
-        ui64 nowSeconds = ::time(nullptr);
-        ui64 prevSeconds = (CurrentTimestamp_ >> TimestampCounterWidth);
-
-        if (nowSeconds == prevSeconds)
-            return;
-
-        if (nowSeconds < prevSeconds) {
-            YT_LOG_WARNING("Clock went back, keeping current timestamp (PrevSeconds: %v, NowSeconds: %v)",
-                prevSeconds,
-                nowSeconds);
+        if (!Active_.load()) {
             return;
         }
 
-        CurrentTimestamp_ = (nowSeconds << TimestampCounterWidth);
-        YT_LOG_DEBUG("Timestamp advanced (Timestamp: %llx)",
-            CurrentTimestamp_);
+        ui64 currentTime = GetCurrentTime();
+        ui64 prevTime = UnixTimeFromTimestamp(CurrentTimestamp_);
+        if (currentTime == prevTime) {
+            return;
+        }
+        if (currentTime < prevTime) {
+            YT_LOG_WARNING("Clock went back, keeping current timestamp (PrevTime: %v, NowTime: %v)",
+                prevTime,
+                currentTime);
+            return;
+        }
 
-        auto commitTimestamp =
-            CurrentTimestamp_ +
-            (Config_->CommitAdvance.Seconds() << TimestampCounterWidth);
+        ui64 committedTime = UnixTimeFromTimestamp(CommittedTimestamp_);
+        ui64 timestampReserve = Config_->TimestampReserveInterval.Seconds();
+        if (committedTime >= timestampReserve) {
+            ui64 reserveLimitTime = committedTime - timestampReserve;
+            ui64 newCurrentTimestamp = TimestampFromUnixTime(std::min(currentTime, reserveLimitTime));
+            if (newCurrentTimestamp > CurrentTimestamp_) {
+                CurrentTimestamp_ = newCurrentTimestamp;
+            }
+        }
+
+        auto proposedTimestamp = TimestampFromUnixTime(currentTime + Config_->TimestampPreallocationInterval.Seconds());
+
+        YT_LOG_DEBUG("Timestamp calibrated (CurrentTimestamp: %llx, ProposedTimestamp: %llx)",
+            CurrentTimestamp_,
+            proposedTimestamp);
 
         TReqCommitTimestamp request;
-        request.set_timestamp(commitTimestamp);
+        request.set_timestamp(proposedTimestamp);
 
         auto mutation = CreateMutation(HydraManager_, request);
-        BIND([=, mutation = std::move(mutation)] {
+        BIND([mutation = std::move(mutation)] {
             return mutation->Commit();
         })
             .AsyncVia(AutomatonInvoker_)
             .Run()
-            .Subscribe(BIND(&TImpl::OnTimestampCommitted, MakeStrong(this), commitTimestamp)
+            .Subscribe(BIND(&TImpl::OnTimestampCommitted, MakeStrong(this), proposedTimestamp)
                 .Via(TimestampInvoker_));
     }
 
@@ -237,9 +246,9 @@ private:
             return;
         }
 
-        CommittedTimestamp_ = timestamp;
+        CommittedTimestamp_ = std::max(CommittedTimestamp_, timestamp);
 
-        YT_LOG_DEBUG("Timestamp committed (Timestamp: %llx)",
+        YT_LOG_DEBUG("Timestamp committed (CommittedTimestamp: %llx)",
             CommittedTimestamp_);
     }
 
@@ -257,7 +266,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        PersistentTimestamp_ = NYT::Load<TTimestamp>(context);
+        NYT::Load(context, PersistentTimestamp_);
     }
 
     void Save(TSaveContext& context) const
@@ -272,7 +281,7 @@ private:
 
         TCompositeAutomatonPart::OnLeaderActive();
 
-        YT_LOG_INFO("Persistent timestamp is %v",
+        YT_LOG_INFO("Activating timestamp generator (PersistentTimestamp: %llx)",
             PersistentTimestamp_);
 
         auto persistentTimestamp = PersistentTimestamp_;
@@ -283,21 +292,21 @@ private:
         auto callback = BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 
-            Active_ = true;
+            Active_.store(true);
             CurrentTimestamp_ = persistentTimestamp;
             CommittedTimestamp_ = persistentTimestamp;
 
-            YT_LOG_INFO("Timestamp generator is now active (Timestamp: %llx)",
+            YT_LOG_INFO("Timestamp generator is now active (PersistentTimestamp: %llx)",
                 persistentTimestamp);
         }).Via(invoker);
 
-        ui64 deadlineSeconds = PersistentTimestamp_ >> TimestampCounterWidth;
-        ui64 nowSeconds = ::time(nullptr);
-        if (nowSeconds > deadlineSeconds) {
+        ui64 deadlineTime = UnixTimeFromTimestamp(PersistentTimestamp_);
+        ui64 currentTime = GetCurrentTime();
+        if (currentTime > deadlineTime) {
             callback.Run();
         } else {
-            auto delay = TDuration::Seconds(deadlineSeconds - nowSeconds + 1); // +1 to be sure
-            YT_LOG_INFO("Timestamp generation postponed for %v ms to ensure monotonicity",
+            auto delay = TDuration::Seconds(deadlineTime - currentTime + 1); // +1 to be sure
+            YT_LOG_INFO("Timestamp generator postponed to ensure monotonicity (Delay: %v)",
                 delay);
             TDelayedExecutor::Submit(callback, delay);
         }
@@ -312,10 +321,11 @@ private:
         TimestampInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 
-            if (!Active_)
+            if (!Active_.load()) {
                 return;
+            }
 
-            Active_ = false;
+            Active_.store(false);
             CurrentTimestamp_ = NullTimestamp;
             CommittedTimestamp_ = NullTimestamp;
 
