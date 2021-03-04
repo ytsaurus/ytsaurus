@@ -5,6 +5,7 @@ from helpers import get_async_expiring_cache_config
 from yt_commands import (authors, write_table, create, remove)
 
 import time
+from flaky import flaky
 
 
 class TestYtDictionaries(ClickHouseTestBase):
@@ -132,6 +133,7 @@ class TestYtDictionaries(ClickHouseTestBase):
         assert result == [{"value": "a1"}, {"value": "a2"}, {"value": "b1"}, {"value": "n/a"}]
 
     @authors("max42")
+    @flaky(max_runs=3)
     def test_lifetime(self):
         create(
             "table",
