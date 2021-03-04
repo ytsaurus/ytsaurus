@@ -56,14 +56,24 @@ public:
         DoStop();
     }
 
-    TFuture<void> Sync(bool force)
+    TFuture<void> NextSync(bool force)
     {
         auto guard = Guard(SpinLock_);
         if (Stopped_) {
             return MakeFuture(TError("Cluster directory synchronizer is stopped"));
         }
         DoStart(force);
-        return SyncPromise_.ToFuture();
+        return NextSyncPromise_.ToFuture();
+    }
+
+    TFuture<void> RecentSync()
+    {
+        auto guard = Guard(SpinLock_);
+        if (Stopped_) {
+            return MakeFuture(TError("Cluster directory synchronizer is stopped"));
+        }
+        DoStart(false);
+        return RecentSyncPromise_.ToFuture();
     }
 
     DEFINE_SIGNAL(void(const TError&), Synchronized);
@@ -78,7 +88,8 @@ private:
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     bool Started_ = false;
     bool Stopped_= false;
-    TPromise<void> SyncPromise_ = NewPromise<void>();
+    TPromise<void> NextSyncPromise_ = NewPromise<void>();
+    TPromise<void> RecentSyncPromise_ = NewPromise<void>();
 
 
     void DoStart(bool force = false)
@@ -147,11 +158,24 @@ private:
             YT_LOG_DEBUG(error);
         }
 
+        auto nextSyncPromise = NextSyncPromise_;
+        // Don't drop the very first recent sync promise.
+        if (!RecentSyncPromise_.IsSet()) {
+            RecentSyncPromise_.Set(error);
+        }
+        RenewSyncPromises();
+        nextSyncPromise.Set(error);
+        RecentSyncPromise_.Set(error);
+    }
+
+    void RenewSyncPromises()
+    {
+        auto recentSyncPromise = NewPromise<void>();
+        auto nextSyncPromise = NewPromise<void>();
+
         auto guard = Guard(SpinLock_);
-        auto syncPromise = NewPromise<void>();
-        std::swap(syncPromise, SyncPromise_);
-        guard.Release();
-        syncPromise.Set(error);
+        std::swap(nextSyncPromise, NextSyncPromise_);
+        std::swap(recentSyncPromise, RecentSyncPromise_);
     }
 };
 
@@ -179,9 +203,14 @@ void TMediumDirectorySynchronizer::Stop()
     Impl_->Stop();
 }
 
-TFuture<void> TMediumDirectorySynchronizer::Sync(bool force)
+TFuture<void> TMediumDirectorySynchronizer::NextSync(bool force)
 {
-    return Impl_->Sync(force);
+    return Impl_->NextSync(force);
+}
+
+TFuture<void> TMediumDirectorySynchronizer::RecentSync()
+{
+    return Impl_->RecentSync();
 }
 
 DELEGATE_SIGNAL(TMediumDirectorySynchronizer, void(const TError&), Synchronized, *Impl_);

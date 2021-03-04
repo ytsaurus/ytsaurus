@@ -111,6 +111,21 @@ struct TMapKeyHelper<T, false>
     }
 };
 
+template <>
+struct TMapKeyHelper<TGuid, false>
+{
+    static void Serialize(const TGuid& value, NYson::IYsonConsumer* consumer)
+    {
+        consumer->OnKeyedItem(ToString(value));
+    }
+
+    static void Deserialize(TGuid& value, const TString& key)
+    {
+        value = TGuid::FromString(key);
+    }
+};
+
+
 template <class T>
 void SerializeMap(const T& items, NYson::IYsonConsumer* consumer)
 {

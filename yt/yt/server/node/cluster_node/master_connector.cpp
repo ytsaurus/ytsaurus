@@ -399,45 +399,20 @@ private:
             ->GetMasterClient()
             ->GetNativeConnection()
             ->GetMediumDirectorySynchronizer()
-            ->Sync(/* force */ true))
+            ->RecentSync())
             .ThrowOnError();
+
+        for (const auto& location : Bootstrap_->GetChunkStore()->Locations()) {
+            location->UpdateMediumName(location->GetMediumName());
+        }
+        for (const auto& location : Bootstrap_->GetChunkCache()->Locations()) {
+            location->UpdateMediumName(location->GetMediumName());
+        }
 
         auto mediumDirectory = Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()
             ->GetMediumDirectory();
-
-        YT_LOG_INFO("Medium directory received");
-
-        auto updateLocation = [&] (const TLocationPtr& location) {
-            const auto& oldDescriptor = location->GetMediumDescriptor();
-            const auto* newDescriptor = mediumDirectory->FindByName(location->GetMediumName());
-            if (!newDescriptor) {
-                THROW_ERROR_EXCEPTION("Location %Qv refers to unknown medium %Qv",
-                    location->GetId(),
-                    location->GetMediumName());
-            }
-            if (oldDescriptor.Index != GenericMediumIndex &&
-                oldDescriptor.Index != newDescriptor->Index)
-            {
-                THROW_ERROR_EXCEPTION("Medium %Qv has changed its index from %v to %v",
-                    location->GetMediumName(),
-                    oldDescriptor.Index,
-                    newDescriptor->Index);
-            }
-            location->SetMediumDescriptor(*newDescriptor);
-            YT_LOG_INFO("Location medium descriptor initialized (Location: %v, MediumName: %v, MediumIndex: %v)",
-                location->GetId(),
-                newDescriptor->Name,
-                newDescriptor->Index);
-        };
-
-        for (const auto& location : Bootstrap_->GetChunkStore()->Locations()) {
-            updateLocation(location);
-        }
-        for (const auto& location : Bootstrap_->GetChunkCache()->Locations()) {
-            updateLocation(location);
-        }
 
         Bootstrap_->GetExecSlotManager()->InitMedia(mediumDirectory);
     }

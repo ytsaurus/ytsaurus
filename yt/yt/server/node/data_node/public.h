@@ -75,6 +75,7 @@ DECLARE_REFCOUNTED_CLASS(TCacheLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiplexedChangelogConfig)
 DECLARE_REFCOUNTED_CLASS(TArtifactCacheReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TRepairReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TMediumUpdaterDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TSealReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
@@ -96,6 +97,8 @@ DECLARE_REFCOUNTED_STRUCT(TCachedTableSchema)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)
 DECLARE_REFCOUNTED_CLASS(TCachedTableSchemaWrapper)
 DECLARE_REFCOUNTED_CLASS(TLookupSession)
+
+DECLARE_REFCOUNTED_CLASS(TMediumUpdater)
 
 ////////////////////////////////////////////////////////////////////////////////
 

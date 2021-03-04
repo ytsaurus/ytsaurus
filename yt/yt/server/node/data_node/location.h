@@ -14,6 +14,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/atomic_object.h>
+
 #include <yt/core/profiling/profiler.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -117,17 +119,21 @@ public:
     //! Returns the universally unique id.
     TLocationUuid GetUuid() const;
 
+    //! Returns the disk family
+    const TString& GetDiskFamily() const;
+
     //! Returns the IO Engine.
     const NChunkClient::IIOEnginePtr& GetIOEngine() const;
 
     //! Returns the medium name.
-    const TString& GetMediumName() const;
+    TString GetMediumName() const;
+
+    //! Sets medium name and reconfigures medium descriptors.
+    //! Returns |true| if location medium was changed.
+    bool UpdateMediumName(const TString& newMediumName);
 
     //! Returns the medium descriptor.
     const NChunkClient::TMediumDescriptor& GetMediumDescriptor() const;
-
-    //! Initializes the medium descriptor.
-    void SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor);
 
     const NProfiling::TRegistry& GetProfiler() const;
 
@@ -260,9 +266,11 @@ private:
     const ELocationType Type_;
     const TStoreLocationConfigBasePtr Config_;
 
+
     TLocationUuid Uuid_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, MediumDescriptorLock_);
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, MediumLock_);
+    TAtomicObject<TString> MediumName_;
     std::atomic<NChunkClient::TMediumDescriptor*> CurrentMediumDescriptor_ = nullptr;
     std::vector<std::unique_ptr<NChunkClient::TMediumDescriptor>> MediumDescriptors_;
 

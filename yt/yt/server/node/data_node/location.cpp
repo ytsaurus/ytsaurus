@@ -7,6 +7,8 @@
 #include "journal_dispatcher.h"
 #include "journal_manager.h"
 #include "legacy_master_connector.h"
+#include "medium_updater.h"
+#include "chunk_store.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
@@ -20,6 +22,10 @@
 
 #include <yt/ytlib/chunk_client/format.h>
 #include <yt/ytlib/chunk_client/io_engine.h>
+#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -134,6 +140,7 @@ TLocation::TLocation(
     , Bootstrap_(bootstrap)
     , Type_(type)
     , Config_(config)
+    , MediumName_(Config_->MediumName)
 {
     Profiler_ = LocationProfiler
         .WithTag("location_type", ToString(Type_))
@@ -191,11 +198,17 @@ TLocationUuid TLocation::GetUuid() const
     return Uuid_;
 }
 
-const TString& TLocation::GetMediumName() const
+const TString& TLocation::GetDiskFamily() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Config_->MediumName;
+    return Config_->DiskFamily;
+}
+
+TString TLocation::GetMediumName() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    return MediumName_.Load();
 }
 
 const TMediumDescriptor& TLocation::GetMediumDescriptor() const
@@ -205,18 +218,6 @@ const TMediumDescriptor& TLocation::GetMediumDescriptor() const
     auto* descriptor = CurrentMediumDescriptor_.load();
     static const TMediumDescriptor Empty;
     return descriptor ? *descriptor : Empty;
-}
-
-void TLocation::SetMediumDescriptor(const TMediumDescriptor& descriptor)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto guard = Guard(MediumDescriptorLock_);
-    if (!MediumDescriptors_.empty() && descriptor == *MediumDescriptors_.back()) {
-        return;
-    }
-    MediumDescriptors_.push_back(std::make_unique<TMediumDescriptor>(descriptor));
-    CurrentMediumDescriptor_ = MediumDescriptors_.back().get();
 }
 
 const NProfiling::TRegistry& TLocation::GetProfiler() const
@@ -786,9 +787,66 @@ void TLocation::DoStart()
     InitializeCellId();
     InitializeUuid();
 
+    auto mediumOverride = Bootstrap_->GetMediumUpdater()->GetMediumOverride(GetUuid());
+    if (mediumOverride) {
+        MediumName_.Store(*mediumOverride);
+    }
+
     HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker_->Start();
 }
+
+bool TLocation::UpdateMediumName(const TString& newMediumName)
+{
+
+    const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+    const auto& mediumDirectorySynchronizer = connection->GetMediumDirectorySynchronizer();
+
+    YT_LOG_DEBUG("Waiting for at least one Medium Directory synchronization since startup");
+    WaitFor(mediumDirectorySynchronizer
+        ->RecentSync())
+        .ThrowOnError();
+    YT_LOG_DEBUG("Medium Directory synchronization finished");
+
+    const auto& mediumDirectory = connection->GetMediumDirectory();
+
+    auto guard = Guard(MediumLock_);
+    auto oldMediumName = MediumName_.Load();
+
+    const auto& oldDescriptor = GetMediumDescriptor();
+    const auto* newDescriptor = mediumDirectory->FindByName(newMediumName);
+    if (!newDescriptor) {
+        YT_LOG_WARNING("Location %Qv refers to unknown medium %Qv",
+            GetId(),
+            newMediumName);
+        return false;
+    }
+    if (newMediumName == oldMediumName &&
+        oldDescriptor.Index != GenericMediumIndex &&
+        oldDescriptor.Index != newDescriptor->Index)
+    {
+        THROW_ERROR_EXCEPTION("Medium %Qv has changed its index from %v to %v",
+            GetMediumName(),
+            oldDescriptor.Index,
+            newDescriptor->Index);
+    }
+    MediumName_.Store(newMediumName);
+
+    if (!MediumDescriptors_.empty() && *newDescriptor == *MediumDescriptors_.back()) {
+        return true;
+    }
+    MediumDescriptors_.push_back(std::make_unique<TMediumDescriptor>(*newDescriptor));
+    CurrentMediumDescriptor_ = MediumDescriptors_.back().get();
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
+    chunkStore->ChangeLocationMedium(this, oldDescriptor.Index);
+
+    YT_LOG_INFO("Location medium descriptor updated (Location: %v, MediumName: %v, MediumIndex: %v)",
+        GetId(),
+        newDescriptor->Name,
+        newDescriptor->Index);
+    return true;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
