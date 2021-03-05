@@ -82,6 +82,7 @@ DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TP2PBlockDistributorConfig)
+DECLARE_REFCOUNTED_CLASS(TP2PBlockDistributorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TLayerLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TTmpfsLayerCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TVolumeManagerConfig)
@@ -154,6 +155,8 @@ DEFINE_ENUM(EDataNodeThrottlerKind,
     (JobIn)
     //! Controls outcoming bandwidth consumed by local jobs.
     (JobOut)
+    //! Controls outcoming bandwidth consumed by P2P block distribution.
+    (P2POut)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

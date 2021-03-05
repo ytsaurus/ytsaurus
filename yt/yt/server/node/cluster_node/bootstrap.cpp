@@ -462,6 +462,7 @@ void TBootstrap::DoInitialize()
         EDataNodeThrottlerKind::TabletRecoveryOut,
         EDataNodeThrottlerKind::TabletReplicationOut,
         EDataNodeThrottlerKind::JobOut,
+        EDataNodeThrottlerKind::P2POut,
     };
     for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
         auto throttler = IThroughputThrottlerPtr(RawDataNodeThrottlers_[kind]);

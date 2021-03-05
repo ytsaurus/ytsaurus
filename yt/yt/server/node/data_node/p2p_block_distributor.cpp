@@ -324,8 +324,13 @@ TP2PBlockDistributor::TChosenBlocks TP2PBlockDistributor::ChooseBlocks()
     TP2PBlockDistributor::TChosenBlocks chosenBlocks;
 
     const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+    const auto& distributionThrottler = Bootstrap_->GetDataNodeThrottler(EDataNodeThrottlerKind::P2POut);
 
     for (const auto& candidate : candidates) {
+        if (distributionThrottler->IsOverdraft()) {
+            break;
+        }
+
         auto blockId = candidate.BlockId;
         auto cachedBlock = chunkBlockManager->FindCachedBlock(blockId);
         if (!cachedBlock) {
@@ -375,6 +380,8 @@ TP2PBlockDistributor::TChosenBlocks TP2PBlockDistributor::ChooseBlocks()
             chosenBlocks.Blocks.emplace_back(std::move(block));
             chosenBlocks.BlockIds.emplace_back(blockId);
             chosenBlocks.TotalSize += blockSize;
+
+            distributionThrottler->Acquire(blockSize);
         }
     }
 
