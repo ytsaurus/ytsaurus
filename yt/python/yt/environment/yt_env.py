@@ -704,9 +704,9 @@ class YTInstance(object):
                 try:
                     with open("/proc/{0}/status".format(proc.pid), "r") as fin:
                         logger.error("Process status: %s", fin.read().replace("\n", "\\n"))
-                    with open("/proc/{0}/stack".format(proc.pid), "r") as fin:
-                        logger.error("Process stack: %s", fin.read().replace("\n", "\\n"))
-                except IOError:
+                    stack = subprocess.check_output(["sudo", "cat", "/proc/{0}/stack".format(proc.pid)])
+                    logger.error("Process stack: %s", stack.replace("\n", "\\n"))
+                except (IOError, subprocess.CalledProcessError):
                     pass
                 raise
 
