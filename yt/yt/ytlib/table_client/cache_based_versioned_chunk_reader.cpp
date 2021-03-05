@@ -64,43 +64,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleBlockCache
-    : public IBlockCache
-{
-public:
-    explicit TSimpleBlockCache(const std::vector<TBlock>& blocks)
-        : Blocks_(blocks)
-    { }
-
-    virtual void Put(
-        const TBlockId& /*id*/,
-        EBlockType /*type*/,
-        const TBlock& /*block*/,
-        const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
-    {
-        YT_ABORT();
-    }
-
-    virtual TBlock Find(
-        const TBlockId& id,
-        EBlockType type) override
-    {
-        YT_ASSERT(type == EBlockType::UncompressedData);
-        YT_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
-        return Blocks_[id.BlockIndex];
-    }
-
-    virtual EBlockType GetSupportedBlockTypes() const override
-    {
-        return EBlockType::UncompressedData;
-    }
-
-private:
-    const std::vector<TBlock>& Blocks_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TCacheBasedVersionedChunkReaderPoolTag
 { };
 
