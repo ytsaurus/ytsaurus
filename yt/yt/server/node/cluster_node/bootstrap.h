@@ -81,7 +81,7 @@ public:
     const NTabletNode::ISlotManagerPtr& GetTabletSlotManager() const;
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::IInMemoryManagerPtr& GetInMemoryManager() const;
-    const NTabletNode::IVersionedChunkMetaManagerPtr& GeIVersionedChunkMetaManager() const;
+    const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
     const NTabletNode::IStructuredLoggerPtr& GetTabletNodeStructuredLogger() const;
     const NTabletNode::ITabletSnapshotStorePtr& GetTabletSnapshotStore() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
