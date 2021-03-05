@@ -2,13 +2,13 @@
 
 #include "job_info.h"
 
-#include <yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/config.h>
 
-#include <yt/server/lib/scheduler/exec_node_descriptor.h>
+#include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

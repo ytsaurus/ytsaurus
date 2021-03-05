@@ -3,15 +3,15 @@
 #include "private.h"
 #include "request_session.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/ytree/attributes.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
 
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NDiscoveryClient {
 

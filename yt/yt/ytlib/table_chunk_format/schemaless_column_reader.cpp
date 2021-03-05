@@ -2,8 +2,8 @@
 
 #include "column_reader_detail.h"
 
-#include <yt/ytlib/table_client/helpers.h>
-#include <yt/core/yson/lexer.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/core/yson/lexer.h>
 
 namespace NYT::NTableChunkFormat {
 

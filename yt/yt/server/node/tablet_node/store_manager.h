@@ -3,17 +3,17 @@
 #include "dynamic_store_bits.h"
 #include "tablet_profiling.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
 namespace NYT::NTabletNode {
 

@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
 #include <util/generic/yexception.h>
 

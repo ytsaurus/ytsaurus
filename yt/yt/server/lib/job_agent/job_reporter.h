@@ -1,16 +1,16 @@
 #pragma once
 
-#include <yt/server/lib/job_agent/public.h>
+#include <yt/yt/server/lib/job_agent/public.h>
 
-#include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/client/api/public.h>
-#include <yt/client/api/operation_archive_schema.h>
+#include <yt/yt/client/api/public.h>
+#include <yt/yt/client/api/operation_archive_schema.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
 namespace NYT::NJobAgent {
 

@@ -1,8 +1,8 @@
 #include "progress_counter.h"
 
-#include <yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NControllerAgent {
 

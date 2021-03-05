@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
 namespace NYT::NCypressServer {
 

@@ -5,7 +5,7 @@
 #include "entity_map.h"
 #endif
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
 namespace NYT::NHydra {
 

@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/client/chunk_client/public.h>
+#include <yt/yt/client/chunk_client/public.h>
 
-#include <yt/core/misc/fixed_point_number.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/fixed_point_number.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/core/profiling/metrics_accumulator.h>
+#include <yt/yt/core/profiling/metrics_accumulator.h>
 
 #include <yt/yt/library/profiling/producer.h>
 

@@ -1,6 +1,6 @@
 #include "pattern_formatter.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <util/stream/str.h>
 

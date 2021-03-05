@@ -2,7 +2,7 @@
 
 #include "chunk_reader_memory_manager.h"
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
 namespace NYT::NChunkClient {
 

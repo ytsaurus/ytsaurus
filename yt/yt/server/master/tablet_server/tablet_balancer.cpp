@@ -5,22 +5,22 @@
 #include "tablet_balancer.h"
 #include "tablet_manager.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/world_initializer.h>
-#include <yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/world_initializer.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
-#include <yt/server/master/cell_server/tamed_cell_manager.h>
+#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
-#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
-#include <yt/core/misc/arithmetic_formula.h>
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <util/random/shuffle.h>
 

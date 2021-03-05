@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/table_server/public.h>
 
 namespace NYT::NTabletServer {
 

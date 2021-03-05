@@ -4,64 +4,64 @@
 #include "config.h"
 #include "hydra_facade.h"
 
-#include <yt/server/lib/hydra/changelog.h>
-#include <yt/server/lib/hydra/file_snapshot_store.h>
-#include <yt/server/lib/hydra/local_changelog_store.h>
-#include <yt/server/lib/hydra/local_snapshot_service.h>
-#include <yt/server/lib/hydra/local_snapshot_store.h>
-#include <yt/server/lib/hydra/snapshot.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/file_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/local_changelog_store.h>
+#include <yt/yt/server/lib/hydra/local_snapshot_service.h>
+#include <yt/yt/server/lib/hydra/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/snapshot.h>
 
-#include <yt/server/lib/timestamp_server/timestamp_manager.h>
+#include <yt/yt/server/lib/timestamp_server/timestamp_manager.h>
 
-#include <yt/server/lib/election/election_manager.h>
+#include <yt/yt/server/lib/election/election_manager.h>
 
-#include <yt/server/lib/admin/admin_service.h>
+#include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/server/lib/core_dump/core_dumper.h>
 
-#include <yt/ytlib/program/build_attributes.h>
+#include <yt/yt/ytlib/program/build_attributes.h>
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/yt/ytlib/monitoring/http_integration.h>
+#include <yt/yt/ytlib/monitoring/monitoring_manager.h>
 
-#include <yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/core/bus/server.h>
+#include <yt/yt/core/bus/server.h>
 
-#include <yt/core/bus/tcp/config.h>
-#include <yt/core/bus/tcp/server.h>
+#include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/server.h>
 
-#include <yt/core/net/local_address.h>
+#include <yt/yt/core/net/local_address.h>
 
-#include <yt/core/http/server.h>
+#include <yt/yt/core/http/server.h>
 
-#include <yt/core/misc/core_dumper.h>
-#include <yt/core/misc/ref_counted_tracker.h>
-#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
+#include <yt/yt/core/misc/core_dumper.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
-#include <yt/core/ytalloc/statistics_producer.h>
+#include <yt/yt/core/ytalloc/statistics_producer.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/rpc/caching_channel_factory.h>
-#include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/local_channel.h>
-#include <yt/core/rpc/bus/server.h>
-#include <yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/local_channel.h>
+#include <yt/yt/core/rpc/bus/server.h>
+#include <yt/yt/core/rpc/server.h>
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/tree_builder.h>
-#include <yt/core/ytree/virtual.h>
-#include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_service.h>
 
 namespace NYT::NClusterClock {
 

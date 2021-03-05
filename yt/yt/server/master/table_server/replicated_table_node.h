@@ -2,7 +2,7 @@
 
 #include "table_node.h"
 
-#include <yt/server/master/tablet_server/public.h>
+#include <yt/yt/server/master/tablet_server/public.h>
 
 namespace NYT::NTableServer {
 

@@ -5,13 +5,13 @@
 #include "service.h"
 
 #include <atomic>
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
-#include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NRpc {
 

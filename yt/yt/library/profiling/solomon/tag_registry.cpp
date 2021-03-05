@@ -1,8 +1,8 @@
 #include "tag_registry.h"
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 namespace NYT::NProfiling {
 

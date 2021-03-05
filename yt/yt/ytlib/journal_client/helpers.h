@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/library/erasure/impl/public.h>
+#include <yt/yt/library/erasure/impl/public.h>
 
 namespace NYT::NJournalClient {
 

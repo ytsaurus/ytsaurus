@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/client/hydra/version.h>
+#include <yt/yt/client/hydra/version.h>
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/misc/random.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/random.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/tracing/public.h>
+#include <yt/yt/core/tracing/public.h>
 
 namespace NYT::NHydra {
 

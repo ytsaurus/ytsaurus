@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
 namespace NYT::NApi::NRpcProxy {
 

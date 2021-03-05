@@ -5,33 +5,33 @@
 #include "node.h"
 #include "private.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/chunk_server/chunk_requisition.h>
+#include <yt/yt/server/master/chunk_server/chunk_requisition.h>
 
-#include <yt/server/master/object_server/attribute_set.h>
-#include <yt/server/master/object_server/object_detail.h>
-#include <yt/server/master/object_server/object_part_cow_ptr.h>
-#include <yt/server/master/object_server/type_handler_detail.h>
+#include <yt/yt/server/master/object_server/attribute_set.h>
+#include <yt/yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/object_part_cow_ptr.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
-#include <yt/server/master/security_server/account.h>
-#include <yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/server/master/tablet_server/tablet_cell_bundle.h>
+#include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
-#include <yt/server/lib/tablet_node/public.h>
+#include <yt/yt/server/lib/tablet_node/public.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/node_detail.h>
-#include <yt/core/ytree/overlaid_attribute_dictionaries.h>
-#include <yt/core/ytree/tree_builder.h>
-#include <yt/core/ytree/proto/ypath.pb.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node_detail.h>
+#include <yt/yt/core/ytree/overlaid_attribute_dictionaries.h>
+#include <yt/yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT::NCypressServer {
 

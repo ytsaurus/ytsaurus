@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
-#include <yt/server/lib/discovery_server/proto/discovery_server_service.pb.h>
+#include <yt/yt/server/lib/discovery_server/proto/discovery_server_service.pb.h>
 
 namespace NYT::NDiscoveryServer {
 

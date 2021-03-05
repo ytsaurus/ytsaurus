@@ -1,16 +1,16 @@
 #include "parser_detail.h"
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/misc/parser_helpers.h>
+#include <yt/yt/core/misc/parser_helpers.h>
 
-#include <yt/core/yson/token.h>
-#include <yt/core/yson/tokenizer.h>
+#include <yt/yt/core/yson/token.h>
+#include <yt/yt/core/yson/tokenizer.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NYPath {
 

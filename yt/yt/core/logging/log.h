@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/format.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
 #include <util/system/thread.h>
 #include <util/system/src_location.h>

@@ -2,21 +2,21 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/formats/public.h>
+#include <yt/yt/client/formats/public.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/table_client/schemaful_reader_adapter.h>
+#include <yt/yt/client/table_client/schemaful_reader_adapter.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/misc/blob.h>
+#include <yt/yt/core/misc/blob.h>
 
 namespace NYT::NJobProxy {
 

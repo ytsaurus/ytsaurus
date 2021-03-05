@@ -1,16 +1,16 @@
 #pragma once
 
-#include <yt/server/http_proxy/public.h>
+#include <yt/yt/server/http_proxy/public.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/client/scheduler/public.h>
+#include <yt/yt/client/scheduler/public.h>
 
-#include <yt/core/http/server.h>
+#include <yt/yt/core/http/server.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/library/syncmap/map.h>
 

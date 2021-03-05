@@ -1,6 +1,6 @@
 #include "convert.h"
 
-#include <yt/core/yson/tokenizer.h>
+#include <yt/yt/core/yson/tokenizer.h>
 
 namespace NYT::NYTree {
 

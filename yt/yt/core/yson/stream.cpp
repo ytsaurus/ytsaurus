@@ -1,10 +1,10 @@
 #include "stream.h"
 #include "parser.h"
 
-#include <yt/core/concurrency/async_stream.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/yson/parser.h>
+#include <yt/yt/core/yson/parser.h>
 
 namespace NYT::NYson {
 

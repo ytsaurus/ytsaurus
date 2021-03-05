@@ -1,6 +1,6 @@
 #include "job_size_constraints.h"
 
-#include <yt/server/lib/controller_agent/job_size_constraints.h>
+#include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include "config.h"
 

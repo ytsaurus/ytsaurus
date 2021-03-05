@@ -1,21 +1,21 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/shutdown.h>
 
-#include <yt/core/logging/config.h>
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/crash_handler.h>
-#include <yt/core/misc/format.h>
-#include <yt/core/misc/signal_registry.h>
+#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/signal_registry.h>
 
-#include <yt/core/ytalloc/bindings.h>
+#include <yt/yt/core/ytalloc/bindings.h>
 
 #include <yt/yt/library/profiling/solomon/registry.h>
 

@@ -12,53 +12,53 @@
 #include "chunk_replica.h"
 #include "medium.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/world_initializer.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/proto/multicell_manager.pb.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/world_initializer.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
 
-#include <yt/server/master/cypress_server/node.h>
-#include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/node.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/server/master/node_tracker_server/data_center.h>
-#include <yt/server/master/node_tracker_server/node.h>
-#include <yt/server/master/node_tracker_server/node_directory_builder.h>
-#include <yt/server/master/node_tracker_server/node_tracker.h>
-#include <yt/server/master/node_tracker_server/rack.h>
+#include <yt/yt/server/master/node_tracker_server/data_center.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/server/master/node_tracker_server/rack.h>
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/account.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <array>
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NChunkServer {
 

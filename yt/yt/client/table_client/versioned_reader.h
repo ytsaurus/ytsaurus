@@ -4,9 +4,9 @@
 #include "versioned_row.h"
 #include "row_batch.h"
 
-#include <yt/client/chunk_client/reader_base.h>
+#include <yt/yt/client/chunk_client/reader_base.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NTableClient {
 

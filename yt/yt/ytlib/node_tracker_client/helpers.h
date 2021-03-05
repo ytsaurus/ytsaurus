@@ -2,19 +2,19 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NNodeTrackerClient {
 

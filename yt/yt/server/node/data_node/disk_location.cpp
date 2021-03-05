@@ -2,15 +2,15 @@
 
 #include "config.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
-#include <yt/server/lib/misc/private.h>
+#include <yt/yt/server/lib/misc/private.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
 namespace NYT::NDataNode {
 

@@ -2,21 +2,21 @@
 
 #include "private.h"
 
-#include <yt/server/http_proxy/clickhouse/public.h>
+#include <yt/yt/server/http_proxy/clickhouse/public.h>
 
-#include <yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/ytlib/auth/public.h>
+#include <yt/yt/ytlib/auth/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/client/driver/public.h>
+#include <yt/yt/client/driver/public.h>
 
-#include <yt/client/formats/public.h>
+#include <yt/yt/client/formats/public.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/https/public.h>
+#include <yt/yt/core/https/public.h>
 
 namespace NYT::NHttpProxy {
 

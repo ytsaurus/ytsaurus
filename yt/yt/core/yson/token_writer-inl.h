@@ -11,7 +11,7 @@
 #include <util/generic/typetraits.h>
 #include <util/string/escape.h>
 
-#include <yt/core/misc/varint.h>
+#include <yt/yt/core/misc/varint.h>
 
 #include <cctype>
 

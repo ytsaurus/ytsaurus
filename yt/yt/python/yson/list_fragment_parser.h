@@ -1,15 +1,15 @@
 #pragma once
 
-#include <yt/python/common/stream.h>
+#include <yt/yt/python/common/stream.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/lexer_detail.h>
-#include <yt/core/yson/parser.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/lexer_detail.h>
+#include <yt/yt/core/yson/parser.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 #include <queue>
 #include <stack>

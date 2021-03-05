@@ -22,42 +22,42 @@
 #include "helpers.h"
 
 // COMPAT(babenko)
-#include <yt/server/master/journal_server/journal_node.h>
-#include <yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/journal_server/journal_node.h>
+#include <yt/yt/server/master/chunk_server/chunk_list.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
-#include <yt/server/master/object_server/object_detail.h>
-#include <yt/server/master/object_server/type_handler_detail.h>
+#include <yt/yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
-#include <yt/server/master/security_server/account.h>
-#include <yt/server/master/security_server/group.h>
-#include <yt/server/master/security_server/security_manager.h>
-#include <yt/server/master/security_server/user.h>
+#include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/group.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/server/master/table_server/shared_table_schema.h>
+#include <yt/yt/server/master/table_server/shared_table_schema.h>
 
-#include <yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/client/object_client/helpers.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/small_set.h>
-#include <yt/core/misc/sync_expiring_cache.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/small_set.h>
+#include <yt/yt/core/misc/sync_expiring_cache.h>
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
 namespace NYT::NCypressServer {
 

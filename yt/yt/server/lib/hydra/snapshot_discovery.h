@@ -3,9 +3,9 @@
 #include "public.h"
 #include "snapshot.h"
 
-#include <yt/ytlib/election/public.h>
+#include <yt/yt/ytlib/election/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NHydra {
 

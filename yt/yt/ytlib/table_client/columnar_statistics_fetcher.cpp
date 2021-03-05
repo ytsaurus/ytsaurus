@@ -1,15 +1,15 @@
 #include "columnar_statistics_fetcher.h"
 
-#include <yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NTableClient {
 

@@ -2,11 +2,11 @@
 
 #include "private.h"
 
-#include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NChunkServer {
 

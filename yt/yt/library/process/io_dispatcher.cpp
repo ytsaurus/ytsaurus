@@ -1,10 +1,10 @@
 #include "io_dispatcher.h"
 
-#include <yt/core/concurrency/thread_pool_poller.h>
-#include <yt/core/concurrency/poller.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/concurrency/poller.h>
 
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 namespace NYT::NPipes {
 

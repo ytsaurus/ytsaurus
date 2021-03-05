@@ -3,30 +3,30 @@
 #include "config.h"
 #include "file_chunk_writer.h"
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/ytlib/chunk_client/confirming_writer.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/confirming_writer.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 namespace NYT::NFileClient {
 

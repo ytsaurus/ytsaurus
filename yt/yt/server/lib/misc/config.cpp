@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
 namespace NYT {
 

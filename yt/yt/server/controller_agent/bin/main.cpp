@@ -1,4 +1,4 @@
-#include <yt/server/controller_agent/program.h>
+#include <yt/yt/server/controller_agent/program.h>
 
 int main(int argc, const char** argv)
 {

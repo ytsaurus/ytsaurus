@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
+#include <yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NExecNodeTrackerClient {
 

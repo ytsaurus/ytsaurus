@@ -3,11 +3,11 @@
 #include "object.h"
 #include "public.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/acl.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
 namespace NYT::NObjectServer {
 

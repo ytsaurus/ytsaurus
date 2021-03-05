@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 namespace NYT::NSchedulerPoolServer {
 

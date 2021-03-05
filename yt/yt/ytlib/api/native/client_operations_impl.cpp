@@ -1,6 +1,6 @@
 #include "client_impl.h"
 
-#include <yt/client/scheduler/operation_id_or_alias.h>
+#include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
 namespace NYT::NApi::NNative {
 

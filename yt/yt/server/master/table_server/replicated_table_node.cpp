@@ -1,7 +1,7 @@
 #include "replicated_table_node.h"
 #include "table_node_type_handler_detail.h"
 
-#include <yt/server/master/tablet_server/table_replica.h>
+#include <yt/yt/server/master/tablet_server/table_replica.h>
 
 namespace NYT::NTableServer {
 

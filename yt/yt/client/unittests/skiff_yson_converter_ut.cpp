@@ -1,12 +1,12 @@
 #include "logical_type_shortcuts.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/client/table_client/logical_type.h>
-#include <yt/client/formats/skiff_yson_converter.h>
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/formats/skiff_yson_converter.h>
 
-#include <yt/core/yson/pull_parser.h>
-#include <yt/core/yson/token_writer.h>
+#include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/token_writer.h>
 
 #include <library/cpp/skiff/skiff.h>
 #include <library/cpp/skiff/skiff_schema.h>

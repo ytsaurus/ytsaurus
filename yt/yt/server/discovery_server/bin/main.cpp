@@ -1,4 +1,4 @@
-#include <yt/server/discovery_server/program.h>
+#include <yt/yt/server/discovery_server/program.h>
 
 int main(int argc, const char** argv)
 {

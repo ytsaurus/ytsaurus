@@ -1,10 +1,10 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
-#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
+#include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <random>
 

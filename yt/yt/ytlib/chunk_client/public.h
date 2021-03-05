@@ -1,17 +1,17 @@
 #pragma once
 
-#include <yt/ytlib/misc/public.h>
+#include <yt/yt/ytlib/misc/public.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/client/chunk_client/public.h>
+#include <yt/yt/client/chunk_client/public.h>
 
-#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
 
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NChunkClient {
 

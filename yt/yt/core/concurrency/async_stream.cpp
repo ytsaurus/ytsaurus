@@ -3,9 +3,9 @@
 
 #include <util/stream/buffered.h>
 
-#include <yt/core/misc/checkpointable_stream.h>
-#include <yt/core/misc/checkpointable_stream_block_header.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/checkpointable_stream.h>
+#include <yt/yt/core/misc/checkpointable_stream_block_header.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <queue>
 

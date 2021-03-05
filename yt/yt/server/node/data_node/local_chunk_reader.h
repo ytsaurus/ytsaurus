@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
 namespace NYT::NDataNode {
 

@@ -3,15 +3,15 @@
 #include "name_table.h"
 #include "key_bound.h"
 
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/protobuf_interop.h>
-#include <yt/core/yson/token_writer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/token_writer.h>
 
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 

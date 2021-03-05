@@ -1,11 +1,11 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/json/json_writer.h>
-#include <yt/core/json/config.h>
+#include <yt/yt/core/json/json_writer.h>
+#include <yt/yt/core/json/config.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <util/string/strip.h>
 

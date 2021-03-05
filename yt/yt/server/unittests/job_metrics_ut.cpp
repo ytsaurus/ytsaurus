@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/yt/server/lib/scheduler/job_metrics.h>
 
 namespace NYT::NScheduler {
 namespace {

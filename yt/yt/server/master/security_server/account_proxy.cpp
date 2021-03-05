@@ -2,23 +2,23 @@
 #include "account.h"
 #include "security_manager.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/object_server/map_object_proxy.h>
-#include <yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/map_object_proxy.h>
+#include <yt/yt/server/master/object_server/object_detail.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/medium.h>
 
-#include <yt/ytlib/security_client/proto/account_ypath.pb.h>
+#include <yt/yt/ytlib/security_client/proto/account_ypath.pb.h>
 
-#include <yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/async_writer.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/node_detail.h>
-#include <yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node_detail.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NSecurityServer {
 

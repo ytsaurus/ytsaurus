@@ -4,8 +4,8 @@
 #include "columnar_conversion.h"
 #include "data_type_boolean.h"
 
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
 #include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/writer.h>

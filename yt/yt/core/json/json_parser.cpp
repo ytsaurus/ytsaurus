@@ -1,8 +1,8 @@
 #include "json_parser.h"
 #include "json_callbacks.h"
 
-#include <yt/core/misc/utf8_decoder.h>
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/utf8_decoder.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <array>
 

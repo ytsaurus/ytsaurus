@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/client/election/public.h>
+#include <yt/yt/client/election/public.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NHydra {
 

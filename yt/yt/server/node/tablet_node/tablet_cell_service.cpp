@@ -2,18 +2,18 @@
 
 #include "private.h"
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
-#include <yt/server/node/tablet_node/master_connector.h>
+#include <yt/yt/server/node/tablet_node/master_connector.h>
 
-#include <yt/server/lib/hydra/hydra_service.h>
+#include <yt/yt/server/lib/hydra/hydra_service.h>
 
-#include <yt/ytlib/tablet_cell_client/tablet_cell_service_proxy.h>
+#include <yt/yt/ytlib/tablet_cell_client/tablet_cell_service_proxy.h>
 
 namespace NYT::NTabletNode {
 

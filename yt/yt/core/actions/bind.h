@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT {
 

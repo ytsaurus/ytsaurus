@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/table_client/blob_table_writer.h>
+#include <yt/yt/ytlib/table_client/blob_table_writer.h>
 
 namespace NYT {
 

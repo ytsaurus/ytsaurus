@@ -1,9 +1,9 @@
 #include "zlib.h"
 
-#include <yt/core/misc/assert.h>
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/assert.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <contrib/libs/zlib/zlib.h>
 

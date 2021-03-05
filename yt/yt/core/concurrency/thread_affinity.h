@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
 #include <library/cpp/ytalloc/core/misc/preprocessor.h>
 

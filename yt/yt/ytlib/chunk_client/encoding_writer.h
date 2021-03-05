@@ -2,14 +2,14 @@
 
 #include "block.h"
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/concurrency/async_semaphore.h>
-#include <yt/core/concurrency/nonblocking_queue.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/nonblocking_queue.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NChunkClient {
 

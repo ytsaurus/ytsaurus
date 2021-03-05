@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <Interpreters/PreparedSets.h>
 

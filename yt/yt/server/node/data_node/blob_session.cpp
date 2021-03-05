@@ -7,24 +7,24 @@
 #include "location.h"
 #include "session_manager.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/ytlib/chunk_client/file_writer.h>
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/file_writer.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/misc/checksum.h>
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NDataNode {
 

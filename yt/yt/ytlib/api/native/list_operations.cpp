@@ -1,13 +1,13 @@
 #include "list_operations.h"
 
-#include <yt/client/security_client/acl.h>
-#include <yt/client/security_client/helpers.h>
+#include <yt/yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/core/yson/pull_parser.h>
-#include <yt/core/yson/pull_parser_deserialize.h>
-#include <yt/core/yson/token_writer.h>
+#include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/pull_parser_deserialize.h>
+#include <yt/yt/core/yson/token_writer.h>
 
 namespace NYT::NApi::NNative {
 

@@ -1,12 +1,12 @@
 #include "program.h"
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
-#include <yt/core/misc/crash_handler.h>
-#include <yt/core/misc/signal_registry.h>
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/signal_registry.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
 #include <util/system/thread.h>
 #include <util/system/sigset.h>

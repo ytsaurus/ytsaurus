@@ -1,9 +1,9 @@
 #include "security_tags.h"
 
-#include <yt/client/security_client/helpers.h>
+#include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/core/misc/hash.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/hash.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <util/generic/algorithm.h>
 

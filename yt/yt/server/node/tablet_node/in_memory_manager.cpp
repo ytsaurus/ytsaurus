@@ -11,47 +11,47 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/chunk_client/block_cache.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/ytlib/table_client/chunk_lookup_hash_table.h>
+#include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/concurrency/async_semaphore.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/periodic_yielder.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_yielder.h>
 
-#include <yt/core/misc/algorithm_helpers.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/ytalloc/memory_zone.h>
+#include <yt/yt/core/ytalloc/memory_zone.h>
 
-#include <yt/core/rpc/local_channel.h>
+#include <yt/yt/core/rpc/local_channel.h>
 
 namespace NYT::NTabletNode {
 

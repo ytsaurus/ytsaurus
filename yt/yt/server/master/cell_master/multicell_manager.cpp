@@ -9,34 +9,34 @@
 #include "world_initializer.h"
 #include "helpers.h"
 
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/async_batcher.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/async_batcher.h>
 
-#include <yt/core/rpc/retrying_channel.h>
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/server/lib/hive/hive_manager.h>
-#include <yt/server/lib/hive/mailbox.h>
-#include <yt/server/lib/hive/helpers.h>
-#include <yt/server/lib/hive/proto/hive_manager.pb.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/mailbox.h>
+#include <yt/yt/server/lib/hive/helpers.h>
+#include <yt/yt/server/lib/hive/proto/hive_manager.pb.h>
 
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/master/security_server/security_manager.h>
-#include <yt/server/master/security_server/user.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
 
-#include <yt/server/master/cell_master/proto/multicell_manager.pb.h>
+#include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
 #include <util/generic/algorithm.h>
 

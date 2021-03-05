@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 
 namespace NYT::NTableClient {
 

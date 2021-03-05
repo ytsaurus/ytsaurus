@@ -5,9 +5,9 @@
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_meta_extensions.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
 namespace NYT::NChunkClient::NErasureHelpers {
 

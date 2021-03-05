@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <util/generic/map.h>
 

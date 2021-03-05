@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/yson/writer.h>
-#include <yt/core/yson/forwarding_consumer.h>
-#include <yt/core/yson/stream.h>
+#include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/forwarding_consumer.h>
+#include <yt/yt/core/yson/stream.h>
 
 namespace NYT::NYTree {
 

@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/server/lib/containers/public.h>
+#include <yt/yt/server/lib/containers/public.h>
 
-#include <yt/ytlib/cgroup/cgroup.h>
+#include <yt/yt/ytlib/cgroup/cgroup.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
-#include <yt/library/process/process.h>
+#include <yt/yt/library/process/process.h>
 
 namespace NYT::NJobProxy {
 

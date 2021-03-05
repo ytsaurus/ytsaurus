@@ -3,19 +3,19 @@
 #include "tablet_cell.h"
 #include "tablet_manager.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/cell_server/tamed_cell_manager.h>
+#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
-#include <yt/server/master/cypress_server/node_detail.h>
-#include <yt/server/master/cypress_server/node_proxy_detail.h>
-#include <yt/server/master/cypress_server/virtual.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
+#include <yt/yt/server/master/cypress_server/virtual.h>
 
-#include <yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
-#include <yt/server/lib/misc/object_helpers.h>
+#include <yt/yt/server/lib/misc/object_helpers.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NTabletServer {
 

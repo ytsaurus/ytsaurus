@@ -6,19 +6,19 @@
 #include "snapshot.h"
 #include "changelog_discovery.h"
 
-#include <yt/ytlib/election/cell_manager.h>
-#include <yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/config.h>
 
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
-#include <yt/ytlib/hydra/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/response_keeper.h>
 
-#include <yt/core/misc/variant.h>
+#include <yt/yt/core/misc/variant.h>
 
 namespace NYT::NHydra {
 

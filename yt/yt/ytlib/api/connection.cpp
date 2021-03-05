@@ -1,12 +1,12 @@
 #include "connection.h"
 
-#include <yt/ytlib/api/native/config.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/client/api/rpc_proxy/config.h>
-#include <yt/client/api/rpc_proxy/connection.h>
+#include <yt/yt/client/api/rpc_proxy/config.h>
+#include <yt/yt/client/api/rpc_proxy/connection.h>
 
 namespace NYT::NApi {
 

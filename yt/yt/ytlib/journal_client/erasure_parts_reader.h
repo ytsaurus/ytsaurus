@@ -2,21 +2,21 @@
 
 #include "private.h"
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/library/erasure/impl/public.h>
+#include <yt/yt/library/erasure/impl/public.h>
 
 namespace NYT::NJournalClient {
 

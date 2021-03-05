@@ -3,42 +3,42 @@
 #include "node_detail.h"
 #include "node_proxy_detail.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/security_server/user.h>
+#include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/core/ypath/tokenizer.h>
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/token.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/ypath_proxy.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_service.h>
 
-#include <yt/core/yson/writer.h>
-#include <yt/core/yson/async_writer.h>
-#include <yt/core/yson/attribute_consumer.h>
+#include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/attribute_consumer.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NCypressServer {
 

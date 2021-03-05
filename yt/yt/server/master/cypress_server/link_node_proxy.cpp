@@ -2,11 +2,11 @@
 #include "link_node.h"
 #include "node_proxy_detail.h"
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
 namespace NYT::NCypressServer {
 

@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/fenwick_tree.h>
+#include <yt/yt/core/misc/fenwick_tree.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/random.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/random.h>
 
 #include <algorithm>
 #include <vector>

@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/library/numeric/binary_search.h>
-#include <yt/library/numeric/double_array.h>
-#include <yt/library/numeric/piecewise_linear_function.h>
+#include <yt/yt/library/numeric/binary_search.h>
+#include <yt/yt/library/numeric/double_array.h>
+#include <yt/yt/library/numeric/piecewise_linear_function.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/profiling/metrics_accumulator.h>
+#include <yt/yt/core/profiling/metrics_accumulator.h>
 
 #include <util/generic/cast.h>
 

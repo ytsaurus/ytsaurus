@@ -3,9 +3,9 @@
 #include "private.h"
 #include "scheduling_context.h"
 
-#include <yt/server/lib/scheduler/exec_node_descriptor.h>
+#include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
 #include <deque>
 

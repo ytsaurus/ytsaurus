@@ -3,39 +3,39 @@
 #include "client.h"
 #include "private.h"
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/ytlib/query_client/query_builder.h>
-#include <yt/ytlib/query_client/ast.h>
+#include <yt/yt/ytlib/query_client/query_service_proxy.h>
+#include <yt/yt/ytlib/query_client/query_builder.h>
+#include <yt/yt/ytlib/query_client/ast.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <yt/ytlib/scheduler/job_prober_service_proxy.h>
-#include <yt/ytlib/scheduler/scheduler_service_proxy.h>
+#include <yt/yt/ytlib/scheduler/job_prober_service_proxy.h>
+#include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
 
-#include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
-#include <yt/ytlib/tablet_client/table_replica_ypath.h>
-#include <yt/ytlib/tablet_client/master_tablet_service.h>
+#include <yt/yt/ytlib/tablet_client/table_replica_ypath.h>
+#include <yt/yt/ytlib/tablet_client/master_tablet_service.h>
 
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
-#include <yt/ytlib/object_client/object_service_cache.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_cache.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NApi::NNative {
 

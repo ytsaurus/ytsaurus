@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/node/tablet_node/in_memory_service.pb.h>
+#include <yt/yt/server/node/tablet_node/in_memory_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NTabletNode {
 

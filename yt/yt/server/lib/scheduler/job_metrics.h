@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/ytlib/controller_agent/public.h>
+#include <yt/yt/ytlib/controller_agent/public.h>
 
-#include <yt/core/profiling/metrics_accumulator.h>
+#include <yt/yt/core/profiling/metrics_accumulator.h>
 
-#include <yt/core/misc/phoenix.h>
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/library/profiling/producer.h>
 

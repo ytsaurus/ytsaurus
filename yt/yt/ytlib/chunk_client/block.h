@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/public.h>
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/property.h>
 
 #include <vector>
 

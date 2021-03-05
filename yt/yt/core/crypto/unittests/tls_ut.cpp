@@ -1,19 +1,19 @@
-#include <yt/core/test_framework/framework.h>
-#include <yt/core/test_framework/test_key.h>
+#include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/test_key.h>
 
-#include <yt/core/net/address.h>
-#include <yt/core/net/dialer.h>
-#include <yt/core/net/connection.h>
-#include <yt/core/net/listener.h>
-#include <yt/core/net/config.h>
-#include <yt/core/net/private.h>
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/dialer.h>
+#include <yt/yt/core/net/connection.h>
+#include <yt/yt/core/net/listener.h>
+#include <yt/yt/core/net/config.h>
+#include <yt/yt/core/net/private.h>
 
-#include <yt/core/concurrency/poller.h>
-#include <yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/concurrency/poller.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
 
-#include <yt/core/rpc/grpc/dispatcher.h>
+#include <yt/yt/core/rpc/grpc/dispatcher.h>
 
-#include <yt/core/crypto/tls.h>
+#include <yt/yt/core/crypto/tls.h>
 
 namespace NYT {
 namespace {

@@ -1,10 +1,10 @@
 #include "job_report.h"
 
-#include <yt/server/lib/core_dump/helpers.h>
+#include <yt/yt/server/lib/core_dump/helpers.h>
 
-#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
+#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NJobAgent {
 

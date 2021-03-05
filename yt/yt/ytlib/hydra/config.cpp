@@ -1,8 +1,8 @@
 #include "config.h"
 
-#include <yt/ytlib/journal_client/helpers.h>
+#include <yt/yt/ytlib/journal_client/helpers.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NHydra {
 

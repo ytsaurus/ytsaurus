@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 namespace NYT::NObjectServer {
 

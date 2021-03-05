@@ -3,19 +3,19 @@
 #include "public.h"
 #include "node.h"
 
-#include <yt/server/master/object_server/object_proxy.h>
+#include <yt/yt/server/master/object_server/object_proxy.h>
 
-#include <yt/server/master/security_server/cluster_resources.h>
-#include <yt/server/master/security_server/public.h>
+#include <yt/yt/server/master/security_server/cluster_resources.h>
+#include <yt/yt/server/master/security_server/public.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
+#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/system_attribute_provider.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/system_attribute_provider.h>
 
 namespace NYT::NCypressServer {
 

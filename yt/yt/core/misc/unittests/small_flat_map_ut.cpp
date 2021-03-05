@@ -1,5 +1,5 @@
-#include <yt/core/misc/small_flat_map.h>
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/misc/small_flat_map.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <string>
 #include <vector>

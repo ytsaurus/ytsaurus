@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
 #include <util/random/random.h>
 

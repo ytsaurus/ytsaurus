@@ -10,60 +10,60 @@
 #include "transaction_manager.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/server/node/data_node/config.h>
+#include <yt/yt/server/node/data_node/config.h>
 
-#include <yt/server/lib/cellar_agent/automaton_invoker_hood.h>
-#include <yt/server/lib/cellar_agent/occupant.h>
+#include <yt/yt/server/lib/cellar_agent/automaton_invoker_hood.h>
+#include <yt/yt/server/lib/cellar_agent/occupant.h>
 
-#include <yt/server/lib/election/election_manager.h>
+#include <yt/yt/server/lib/election/election_manager.h>
 
-#include <yt/server/lib/hive/hive_manager.h>
-#include <yt/server/lib/hive/mailbox.h>
-#include <yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/mailbox.h>
+#include <yt/yt/server/lib/hive/transaction_supervisor.h>
 
-#include <yt/server/lib/hydra/remote_changelog_store.h>
-#include <yt/server/lib/hydra/remote_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/remote_changelog_store.h>
+#include <yt/yt/server/lib/hydra/remote_snapshot_store.h>
 
-#include <yt/server/lib/hive/transaction_participant_provider.h>
+#include <yt/yt/server/lib/hive/transaction_participant_provider.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/client/api/client.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
-#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/core/concurrency/fair_share_action_queue.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/fair_share_action_queue.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/response_keeper.h>
 
-#include <yt/core/ytree/virtual.h>
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/helpers.h>
 
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 namespace NYT::NTabletNode {
 

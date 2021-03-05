@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/attributes.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/ytlib/discovery_client/public.h>
+#include <yt/yt/ytlib/discovery_client/public.h>
 
 namespace NYT::NDistributedThrottler {
 

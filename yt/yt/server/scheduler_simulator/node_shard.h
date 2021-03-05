@@ -5,11 +5,11 @@
 #include "scheduling_context.h"
 #include "control_thread.h"
 
-#include <yt/server/scheduler/public.h>
+#include <yt/yt/server/scheduler/public.h>
 
-#include <yt/core/logging/public.h>
+#include <yt/yt/core/logging/public.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 
 namespace NYT::NSchedulerSimulator {

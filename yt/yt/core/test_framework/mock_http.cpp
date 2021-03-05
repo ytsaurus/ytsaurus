@@ -1,7 +1,7 @@
 #include "mock_http.h"
 
-#include <yt/core/http/config.h>
-#include <yt/core/http/server.h>
+#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/http/server.h>
 
 #include <util/string/join.h>
 

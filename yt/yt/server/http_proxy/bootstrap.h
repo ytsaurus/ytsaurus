@@ -2,34 +2,34 @@
 
 #include "public.h"
 
-#include <yt/server/http_proxy/clickhouse/public.h>
+#include <yt/yt/server/http_proxy/clickhouse/public.h>
 
-#include <yt/ytlib/auth/public.h>
+#include <yt/yt/ytlib/auth/public.h>
 
-#include <yt/ytlib/api/public.h>
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/monitoring/public.h>
+#include <yt/yt/ytlib/monitoring/public.h>
 
-#include <yt/client/driver/public.h>
+#include <yt/yt/client/driver/public.h>
 
-#include <yt/core/bus/public.h>
+#include <yt/yt/core/bus/public.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/http/public.h>
+#include <yt/yt/core/http/public.h>
 
-#include <yt/core/http/http.h>
+#include <yt/yt/core/http/http.h>
 
-#include <yt/core/https/public.h>
+#include <yt/yt/core/https/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NHttpProxy {
 

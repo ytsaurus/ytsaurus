@@ -4,16 +4,16 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 namespace NYT::NApi {
 

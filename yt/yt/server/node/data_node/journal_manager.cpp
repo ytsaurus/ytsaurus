@@ -6,24 +6,24 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/lib/hydra/changelog.h>
-#include <yt/server/lib/hydra/file_changelog_dispatcher.h>
-#include <yt/server/lib/hydra/file_helpers.h>
-#include <yt/server/lib/hydra/lazy_changelog.h>
-#include <yt/server/lib/hydra/private.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/file_changelog_dispatcher.h>
+#include <yt/yt/server/lib/hydra/file_helpers.h>
+#include <yt/yt/server/lib/hydra/lazy_changelog.h>
+#include <yt/yt/server/lib/hydra/private.h>
 
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
-#include <yt/client/hydra/version.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/client/hydra/version.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NDataNode {
 

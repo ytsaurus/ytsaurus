@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/service_discovery/service_discovery.h>
+#include <yt/yt/core/service_discovery/service_discovery.h>
 
 namespace NYT::NServiceDiscovery::NYP {
 

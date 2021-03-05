@@ -1,13 +1,13 @@
 #include "message_format.h"
 
-#include <yt/core/yson/writer.h>
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
 
-#include <yt/core/json/json_parser.h>
-#include <yt/core/json/json_writer.h>
+#include <yt/yt/core/json/json_parser.h>
+#include <yt/yt/core/json/json_writer.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 

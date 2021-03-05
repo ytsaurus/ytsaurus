@@ -1,11 +1,11 @@
 #include "json_callbacks.h"
 #include "helpers.h"
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/tree_builder.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NJson {
 

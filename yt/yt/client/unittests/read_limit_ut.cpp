@@ -1,11 +1,11 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/table_client/key_bound.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NChunkClient {
 namespace {

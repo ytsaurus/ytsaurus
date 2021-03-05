@@ -4,7 +4,7 @@
 
 #include "escape.h"
 
-#include <yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/attributes.h>
 
 namespace NYT::NFormats {
 

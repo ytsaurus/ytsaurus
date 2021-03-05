@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/histogram.h>
+#include <yt/yt/core/misc/histogram.h>
 
 #include <numeric>
 

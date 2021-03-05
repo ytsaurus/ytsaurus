@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
-#include <yt/client/tablet_client/public.h>
+#include <yt/yt/client/tablet_client/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/shared_range.h>
+#include <yt/yt/core/misc/shared_range.h>
 
 namespace NYT::NApi {
 

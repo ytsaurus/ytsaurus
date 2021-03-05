@@ -10,11 +10,11 @@
 // COMPAT(gritukan)
 #include "serialize.h"
 
-#include <yt/server/master/tablet_server/config.h>
+#include <yt/yt/server/master/tablet_server/config.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NCellMaster {
 

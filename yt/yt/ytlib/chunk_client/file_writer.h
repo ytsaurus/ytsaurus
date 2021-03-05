@@ -2,11 +2,11 @@
 
 #include "chunk_writer.h"
 
-#include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <util/system/file.h>
 

@@ -2,22 +2,22 @@
 
 #include "chunk.h"
 
-#include <yt/server/master/cypress_server/node.h>
+#include <yt/yt/server/master/cypress_server/node.h>
 
-#include <yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/table_server/public.h>
 
-#include <yt/server/master/security_server/security_tags.h>
+#include <yt/yt/server/master/security_server/security_tags.h>
 
-#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/core/crypto/crypto.h>
+#include <yt/yt/core/crypto/crypto.h>
 
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/intern_registry.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/intern_registry.h>
 
 namespace NYT::NChunkServer {
 

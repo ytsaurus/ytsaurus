@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

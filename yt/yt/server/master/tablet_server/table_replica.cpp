@@ -1,9 +1,9 @@
 #include "table_replica.h"
 #include "tablet.h"
 
-#include <yt/server/master/table_server/replicated_table_node.h>
+#include <yt/yt/server/master/table_server/replicated_table_node.h>
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 namespace NYT::NTabletServer {
 

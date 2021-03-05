@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NObjectServer {
 

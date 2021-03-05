@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/net/public.h>
+#include <yt/yt/core/net/public.h>
 
 namespace NYT::NPipes {
 

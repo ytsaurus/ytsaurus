@@ -3,9 +3,9 @@
 #include "public.h"
 #include "execution_stack.h"
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
 #include <util/system/context.h>
 

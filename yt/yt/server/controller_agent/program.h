@@ -2,21 +2,21 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/server/lib/misc/cluster_connection.h>
+#include <yt/yt/server/lib/misc/cluster_connection.h>
 
-#include <yt/ytlib/program/program.h>
-#include <yt/ytlib/program/program_config_mixin.h>
-#include <yt/ytlib/program/program_pdeathsig_mixin.h>
-#include <yt/ytlib/program/program_setsid_mixin.h>
-#include <yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/program.h>
+#include <yt/yt/ytlib/program/program_config_mixin.h>
+#include <yt/yt/ytlib/program/program_pdeathsig_mixin.h>
+#include <yt/yt/ytlib/program/program_setsid_mixin.h>
+#include <yt/yt/ytlib/program/helpers.h>
 
-#include <yt/library/phdr_cache/phdr_cache.h>
+#include <yt/yt/library/phdr_cache/phdr_cache.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
-#include <yt/core/ytalloc/bindings.h>
+#include <yt/yt/core/ytalloc/bindings.h>
 
-#include <yt/core/misc/ref_counted_tracker_profiler.h>
+#include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
 namespace NYT::NControllerAgent {
 

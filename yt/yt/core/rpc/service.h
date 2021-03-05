@@ -4,21 +4,21 @@
 
 #include "protocol_version.h"
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/bus/public.h>
+#include <yt/yt/core/bus/public.h>
 
-#include <yt/core/net/public.h>
+#include <yt/yt/core/net/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
 namespace NYT::NRpc {
 

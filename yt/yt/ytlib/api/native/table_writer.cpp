@@ -1,11 +1,11 @@
 #include "table_writer.h"
 #include "client.h"
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
 namespace NYT::NApi::NNative {
 

@@ -2,18 +2,18 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/cypress_server/proto/cypress_manager.pb.h>
+#include <yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/cypress_client/proto/cypress_service.pb.h>
+#include <yt/yt/ytlib/cypress_client/proto/cypress_service.pb.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NCypressServer {
 

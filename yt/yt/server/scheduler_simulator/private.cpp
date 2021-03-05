@@ -1,8 +1,8 @@
 #include "private.h"
 
-#include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/ytlib/chunk_client/proto/medium_directory.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
 namespace NYT::NSchedulerSimulator {
 

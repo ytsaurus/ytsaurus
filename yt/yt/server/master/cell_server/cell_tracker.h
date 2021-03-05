@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/node_tracker_server/public.h>
+#include <yt/yt/server/master/node_tracker_server/public.h>
 
-#include <yt/core/concurrency/public.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/small_set.h>
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/small_set.h>
+#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NCellServer {
 

@@ -2,12 +2,12 @@
 #include "profile_manager.h"
 #include "profiler.h"
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
 #include <util/folder/filelist.h>
 

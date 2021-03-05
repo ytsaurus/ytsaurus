@@ -2,7 +2,7 @@
 #include "document_node.h"
 #include "node_proxy_detail.h"
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 namespace NYT::NCypressServer {
 

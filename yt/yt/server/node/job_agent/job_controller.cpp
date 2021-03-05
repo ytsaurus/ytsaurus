@@ -2,51 +2,51 @@
 #include "library/cpp/ytalloc/core/misc/enum.h"
 #include "private.h"
 #include "gpu_manager.h"
-#include "yt/server/lib/job_agent/gpu_helpers.h"
+#include "yt/yt/server/lib/job_agent/gpu_helpers.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/master_connector.h>
-#include <yt/server/node/cluster_node/node_resource_manager.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
-#include <yt/server/node/data_node/legacy_master_connector.h>
-#include <yt/server/node/data_node/chunk_cache.h>
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/chunk_cache.h>
 
-#include <yt/server/node/exec_agent/slot_manager.h>
+#include <yt/yt/server/node/exec_agent/slot_manager.h>
 
-#include <yt/server/node/tablet_node/slot_manager.h>
+#include <yt/yt/server/node/tablet_node/slot_manager.h>
 
-#include <yt/server/lib/controller_agent/helpers.h>
+#include <yt/yt/server/lib/controller_agent/helpers.h>
 
-#include <yt/server/lib/job_agent/job_reporter.h>
+#include <yt/yt/server/lib/job_agent/job_reporter.h>
 
-#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
-#include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
+#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
+#include <yt/yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/ytlib/scheduler/public.h>
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/core/net/helpers.h>
+#include <yt/yt/core/net/helpers.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <util/generic/algorithm.h>
 

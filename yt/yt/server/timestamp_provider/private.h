@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/library/profiling/sensor.h>
+#include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NTimestampProvider {
 

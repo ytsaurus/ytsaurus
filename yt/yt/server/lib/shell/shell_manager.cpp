@@ -3,21 +3,21 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/lib/containers/instance.h>
+#include <yt/yt/server/lib/containers/instance.h>
 
 #ifdef __linux__
-#include <yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/server/lib/containers/porto_executor.h>
 #endif
 
-#include <yt/server/lib/misc/public.h>
+#include <yt/yt/server/lib/misc/public.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/library/process/public.h>
+#include <yt/yt/library/process/public.h>
 
-#include <yt/core/net/public.h>
+#include <yt/yt/core/net/public.h>
 
 #include <util/string/hex.h>
 

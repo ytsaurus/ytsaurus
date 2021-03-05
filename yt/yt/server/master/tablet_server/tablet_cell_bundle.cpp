@@ -3,9 +3,9 @@
 #include "tablet_cell_bundle.h"
 #include "tablet_cell.h"
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 namespace NYT::NTabletServer {
 

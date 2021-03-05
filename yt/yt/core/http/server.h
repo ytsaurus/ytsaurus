@@ -3,13 +3,13 @@
 #include "public.h"
 #include "http.h"
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT::NHttp {
 

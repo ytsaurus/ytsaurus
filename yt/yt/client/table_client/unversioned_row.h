@@ -4,19 +4,19 @@
 #include "row_base.h"
 #include "unversioned_value.h"
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/chunked_memory_pool.h>
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/varint.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/varint.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
-#include <yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/fls.h>
 
 namespace NYT::NTableClient {
 

@@ -2,19 +2,19 @@
 
 #include "public.h"
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/core/ytree/public.h>
-#include <yt/core/ytree/permission.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NScheduler {
 

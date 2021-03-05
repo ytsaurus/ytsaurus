@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/core/tracing/public.h>
+#include <yt/yt/core/tracing/public.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/library/profiling/sensor.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT {
 

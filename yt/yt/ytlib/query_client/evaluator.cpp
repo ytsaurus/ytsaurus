@@ -6,15 +6,15 @@
 #include "helpers.h"
 #include "query.h"
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/misc/async_slru_cache.h>
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/memory_usage_tracker.h>
+#include <yt/yt/core/misc/async_slru_cache.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <llvm/ADT/FoldingSet.h>
 

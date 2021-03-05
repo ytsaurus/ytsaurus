@@ -2,14 +2,14 @@
 #include "fls.h"
 #include "private.h"
 
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/common.h>
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/source_location.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/common.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/source_location.h>
 
-#include <yt/core/actions/callback.h>
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/callback.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
 namespace NYT::NConcurrency {
 

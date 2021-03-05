@@ -1,10 +1,10 @@
 #include "fs.h"
 #include "finally.h"
 
-#include <yt/core/logging/log.h>
-#include <yt/core/misc/ref_counted.h>
+#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/misc/ref_counted.h>
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <util/folder/dirut.h>
 #include <util/folder/iterator.h>

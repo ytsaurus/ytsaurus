@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
 namespace NYT::NHydra {
 

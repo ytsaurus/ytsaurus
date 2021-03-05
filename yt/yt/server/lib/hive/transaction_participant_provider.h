@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hive/public.h>
+#include <yt/yt/ytlib/hive/public.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
 namespace NYT::NHiveServer {
 

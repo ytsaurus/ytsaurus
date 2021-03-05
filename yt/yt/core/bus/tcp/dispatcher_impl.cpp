@@ -2,12 +2,12 @@
 #include "config.h"
 #include "connection.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
 
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
-#include <yt/library/profiling/producer.h>
+#include <yt/yt/library/profiling/producer.h>
 
 namespace NYT::NBus {
 

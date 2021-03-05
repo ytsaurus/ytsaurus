@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/master/object_server/object.h>
-#include <yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/security_server/acl.h>
 
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref_tracked.h>
 
 namespace NYT::NChunkServer {
 

@@ -1,8 +1,8 @@
 #include "shared_table_schema.h"
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTableServer {
 

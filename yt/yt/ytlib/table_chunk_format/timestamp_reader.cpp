@@ -1,6 +1,6 @@
 #include "timestamp_reader.h"
 
-#include <yt/core/misc/zigzag.h>
+#include <yt/yt/core/misc/zigzag.h>
 
 namespace NYT::NTableChunkFormat {
 

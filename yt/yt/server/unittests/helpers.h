@@ -1,6 +1,6 @@
 #pragma once 
 
-#include <yt/core/misc/guid.h>
+#include <yt/yt/core/misc/guid.h>
 
 namespace NYT {
 

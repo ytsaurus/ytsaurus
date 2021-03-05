@@ -2,23 +2,23 @@
 
 #include "gpu_manager.h"
 
-#include <yt/server/lib/job_agent/job_report.h>
+#include <yt/yt/server/lib/job_agent/job_report.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
+#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
-#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
+#include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NJobAgent {
 

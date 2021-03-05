@@ -1,6 +1,6 @@
 #include "pull_parser_deserialize.h"
 
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/string.h>
 
 namespace NYT::NYson {
 

@@ -2,7 +2,7 @@
 
 #include "column_writer_detail.h"
 
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
 namespace NYT::NTableChunkFormat {
 

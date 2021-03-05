@@ -9,10 +9,10 @@
 #include <yt/yt/python/yson/helpers.h>
 #include <yt/yt/python/yson/serialize.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
 
 #include <library/cpp/skiff/skiff.h>
 

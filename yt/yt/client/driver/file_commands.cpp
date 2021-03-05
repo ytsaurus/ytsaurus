@@ -2,10 +2,10 @@
 #include "config.h"
 #include "helpers.h"
 
-#include <yt/client/api/file_reader.h>
-#include <yt/client/api/file_writer.h>
+#include <yt/yt/client/api/file_reader.h>
+#include <yt/yt/client/api/file_writer.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NDriver {
 

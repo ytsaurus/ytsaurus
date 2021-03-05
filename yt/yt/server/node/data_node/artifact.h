@@ -1,12 +1,12 @@
 #pragma once
 
-#include <yt/server/node/data_node/artifact.pb.h>
+#include <yt/yt/server/node/data_node/artifact.pb.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 namespace NYT::NDataNode {
 

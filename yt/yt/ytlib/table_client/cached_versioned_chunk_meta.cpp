@@ -1,19 +1,19 @@
 #include "cached_versioned_chunk_meta.h"
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/bloom_filter.h>
+#include <yt/yt/core/misc/bloom_filter.h>
 
 namespace NYT::NTableClient {
 

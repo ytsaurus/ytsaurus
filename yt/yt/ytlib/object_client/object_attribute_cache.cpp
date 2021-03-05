@@ -1,7 +1,7 @@
 #include "object_attribute_cache.h"
 #include "private.h"
 
-#include <yt/ytlib/cypress_client/batch_attribute_fetcher.h>
+#include <yt/yt/ytlib/cypress_client/batch_attribute_fetcher.h>
 
 namespace NYT::NObjectClient {
 

@@ -18,22 +18,22 @@
 #include "yamr_writer.h"
 #include "yson_parser.h"
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/table_consumer.h>
 
-#include <yt/library/skiff_ext/schema_match.h>
+#include <yt/yt/library/skiff_ext/schema_match.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/writer.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/yson/forwarding_consumer.h>
+#include <yt/yt/core/yson/forwarding_consumer.h>
 
-#include <yt/core/json/json_parser.h>
-#include <yt/core/json/json_writer.h>
+#include <yt/yt/core/json/json_parser.h>
+#include <yt/yt/core/json/json_writer.h>
 
 namespace NYT::NFormats {
 

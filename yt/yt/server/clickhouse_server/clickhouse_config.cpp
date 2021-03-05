@@ -1,6 +1,6 @@
 #include "clickhouse_config.h"
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NClickHouseServer {
 

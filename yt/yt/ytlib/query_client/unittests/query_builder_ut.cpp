@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/query_client/query_builder.h>
+#include <yt/yt/ytlib/query_client/query_builder.h>
 
 namespace NYT::NQueryClient {
 namespace {

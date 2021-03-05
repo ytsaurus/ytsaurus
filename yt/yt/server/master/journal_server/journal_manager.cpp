@@ -3,23 +3,23 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/server/master/chunk_server/chunk.h>
-#include <yt/server/master/chunk_server/chunk_tree_statistics.h>
-#include <yt/server/master/chunk_server/helpers.h>
-#include <yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk.h>
+#include <yt/yt/server/master/chunk_server/chunk_tree_statistics.h>
+#include <yt/yt/server/master/chunk_server/helpers.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
 
-#include <yt/server/master/journal_server/journal_node.h>
+#include <yt/yt/server/master/journal_server/journal_node.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/automaton.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/automaton.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/ytlib/journal_client/helpers.h>
-#include <yt/ytlib/journal_client/journal_ypath_proxy.h>
+#include <yt/yt/ytlib/journal_client/helpers.h>
+#include <yt/yt/ytlib/journal_client/journal_ypath_proxy.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NJournalServer {
 

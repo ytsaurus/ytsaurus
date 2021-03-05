@@ -6,8 +6,8 @@
 
 #include "public.h"
 
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

@@ -2,24 +2,24 @@
 
 #include "type_handler.h"
 
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/server/master/cypress_server/public.h>
+#include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/ytree/ypath_detail.h>
-#include <yt/core/ytree/system_attribute_provider.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/system_attribute_provider.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
 namespace NYT::NCypressServer {
 

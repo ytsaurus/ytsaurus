@@ -1,32 +1,32 @@
 #include "helpers.h"
 #include "config.h"
-#include "yt/core/tracing/trace_context.h"
+#include "yt/yt/core/tracing/trace_context.h"
 
-#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/core/ytalloc/bindings.h>
+#include <yt/yt/core/ytalloc/bindings.h>
 
-#include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
 
-#include <yt/core/ytalloc/bindings.h>
+#include <yt/yt/core/ytalloc/bindings.h>
 
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/concurrency/execution_stack.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/private.h>
+#include <yt/yt/core/concurrency/execution_stack.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/private.h>
 
-#include <yt/core/net/address.h>
-#include <yt/core/net/local_address.h>
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/service_discovery/yp/service_discovery.h>
+#include <yt/yt/core/service_discovery/yp/service_discovery.h>
 
 namespace NYT {
 

@@ -6,9 +6,9 @@
 
 #include "query_preparer.h"
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
 namespace NYT::NQueryClient {
 

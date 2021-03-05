@@ -7,7 +7,7 @@
 
 #include "stack_trace.h"
 
-#include <yt/core/libunwind/libunwind.h>
+#include <yt/yt/core/libunwind/libunwind.h>
 
 namespace NYT {
 

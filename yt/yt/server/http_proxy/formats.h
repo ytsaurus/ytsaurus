@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/formats/format.h>
+#include <yt/yt/client/formats/format.h>
 
 namespace NYT::NHttpProxy {
 

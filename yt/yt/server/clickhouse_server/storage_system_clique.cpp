@@ -1,7 +1,7 @@
 #include "cluster_nodes.h"
 #include "storage_system_clique.h"
 
-#include <yt/client/misc/discovery.h>
+#include <yt/yt/client/misc/discovery.h>
 
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnsNumber.h>

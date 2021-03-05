@@ -1,13 +1,13 @@
-#include <yt/core/test_framework/framework.h>
-#include <yt/core/test_framework/yson_consumer_mock.h>
+#include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/yson_consumer_mock.h>
 
-#include <yt/core/yson/null_consumer.h>
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/detail.h>
+#include <yt/yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/detail.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <util/stream/mem.h>
 

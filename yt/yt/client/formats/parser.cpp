@@ -1,6 +1,6 @@
 #include "parser.h"
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
 #include <array>
 

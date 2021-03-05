@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/fixed_growth_string_output.h>
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/fixed_growth_string_output.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/zerocopy_output_writer.h>
+#include <yt/yt/core/misc/zerocopy_output_writer.h>
 
 #include <util/random/fast.h>
 

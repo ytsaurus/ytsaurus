@@ -5,13 +5,13 @@
 #include "helpers.h"
 #include "unversioned_value_yson_writer.h"
 
-#include <yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/blob_output.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
 #include <memory>
 #include <limits>

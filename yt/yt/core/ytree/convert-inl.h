@@ -10,14 +10,14 @@
 #include "tree_builder.h"
 #include "helpers.h"
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
-#include <yt/core/yson/tokenizer.h>
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/stream.h>
-#include <yt/core/yson/producer.h>
+#include <yt/yt/core/yson/tokenizer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/stream.h>
+#include <yt/yt/core/yson/producer.h>
 
-#include <yt/core/misc/cast.h>
+#include <yt/yt/core/misc/cast.h>
 
 #include <type_traits>
 #include <limits>

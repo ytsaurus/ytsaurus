@@ -3,23 +3,23 @@
 #include "public.h"
 #include "channel.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/bus/client.h>
+#include <yt/yt/core/bus/client.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/rpc/helpers.h>
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <atomic>
 

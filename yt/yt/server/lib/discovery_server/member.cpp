@@ -1,8 +1,8 @@
 #include "member.h"
 
-#include <yt/core/concurrency/lease_manager.h>
+#include <yt/yt/core/concurrency/lease_manager.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NDiscoveryServer {
 

@@ -4,9 +4,9 @@
 #include "helpers.h"
 #include "config.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/rpc/request_session.h>
+#include <yt/yt/core/rpc/request_session.h>
 
 namespace NYT::NDiscoveryClient {
 

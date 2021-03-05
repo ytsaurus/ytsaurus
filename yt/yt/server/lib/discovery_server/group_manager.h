@@ -5,12 +5,12 @@
 #include "public.h"
 #include "group_tree.h"
 
-#include <yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/server.h>
 
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/ytlib/discovery_client/helpers.h>
 
 namespace NYT::NDiscoveryServer {
 

@@ -2,10 +2,10 @@
 #include "private.h"
 #include "io_dispatcher.h"
 
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/connection.h>
 
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>

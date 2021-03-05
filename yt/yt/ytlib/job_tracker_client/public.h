@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/job_tracker_client/public.h>
+#include <yt/yt/client/job_tracker_client/public.h>
 
 namespace NYT::NJobTrackerClient {
 

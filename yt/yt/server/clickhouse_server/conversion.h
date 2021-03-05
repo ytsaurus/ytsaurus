@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
 #include <Storages/MergeTree/KeyCondition.h>
 #include <Core/NamesAndTypes.h>

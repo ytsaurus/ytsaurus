@@ -3,18 +3,18 @@
 #include "chunk_meta_extensions.h"
 #include "key_set.h"
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/client/table_client/comparator.h>
-#include <yt/client/table_client/key_bound.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/numeric_helpers.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <cmath>
 

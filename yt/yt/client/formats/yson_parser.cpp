@@ -1,9 +1,9 @@
 #include "yson_parser.h"
 #include "parser.h"
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
-#include <yt/core/yson/parser.h>
+#include <yt/yt/core/yson/parser.h>
 
 namespace NYT::NFormats {
 

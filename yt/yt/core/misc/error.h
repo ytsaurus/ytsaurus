@@ -4,13 +4,13 @@
 #include "property.h"
 #include "optional.h"
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/attributes.h>
 
-#include <yt/core/tracing/public.h>
+#include <yt/yt/core/tracing/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
 #include <util/system/getpid.h>
 

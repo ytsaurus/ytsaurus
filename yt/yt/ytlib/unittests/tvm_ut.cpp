@@ -1,12 +1,12 @@
 #include "mock_http_server.h"
 
-#include <yt/ytlib/auth/config.h>
-#include <yt/ytlib/auth/default_tvm_service.h>
-#include <yt/ytlib/auth/helpers.h>
-#include <yt/ytlib/auth/tvm_service.h>
+#include <yt/yt/ytlib/auth/config.h>
+#include <yt/yt/ytlib/auth/default_tvm_service.h>
+#include <yt/yt/ytlib/auth/helpers.h>
+#include <yt/yt/ytlib/auth/tvm_service.h>
 
-#include <yt/core/concurrency/thread_pool_poller.h>
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <library/cpp/testing/common/env.h>
 

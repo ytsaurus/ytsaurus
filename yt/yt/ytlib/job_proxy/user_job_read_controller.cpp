@@ -5,16 +5,16 @@
 #include "job_spec_helper.h"
 #include "user_job_io_factory.h"
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <algorithm>
 

@@ -6,21 +6,21 @@
 #include "object_proxy.h"
 #include "permission_validator.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/server/master/security_server/security_tags.h>
+#include <yt/yt/server/master/security_server/security_tags.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/property.h>
 
-#include <yt/core/ytree/system_attribute_provider.h>
-#include <yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/system_attribute_provider.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
 
 namespace NYT::NObjectServer {
 

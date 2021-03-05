@@ -2,9 +2,9 @@
 
 #include "client_base.h"
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NApi::NRpcProxy {
 

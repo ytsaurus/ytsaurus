@@ -1,8 +1,8 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/yson/lexer.h>
+#include <yt/yt/core/yson/lexer.h>
 
 namespace NYT::NYson {
 namespace {

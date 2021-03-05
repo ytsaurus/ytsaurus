@@ -3,9 +3,9 @@
 #include "acl.h"
 #include "public.h"
 
-#include <yt/client/ypath/public.h>
+#include <yt/yt/client/ypath/public.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NSecurityClient {
 

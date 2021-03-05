@@ -1,20 +1,20 @@
 #include "transaction.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/chunk_server/chunk_owner_base.h>
+#include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 
-#include <yt/server/master/security_server/account.h>
-#include <yt/server/master/security_server/subject.h>
+#include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/subject.h>
 
-#include <yt/server/master/table_server/table_node.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTransactionServer {
 

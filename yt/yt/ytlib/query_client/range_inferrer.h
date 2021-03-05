@@ -5,7 +5,7 @@
 #include "column_evaluator.h"
 #include "query.h"
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
 #include <functional>
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
 namespace NYT::NApi::NRpcProxy {
 

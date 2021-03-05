@@ -4,11 +4,11 @@
 #include "changelog_discovery.h"
 #include "config.h"
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/hydra/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NHydra {
 

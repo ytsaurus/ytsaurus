@@ -1,23 +1,23 @@
 #include "samples_fetcher.h"
 
-#include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/ytlib/chunk_client/key_set.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/key_set.h>
 
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/rpc/channel.h>
+#include <yt/yt/core/rpc/channel.h>
 
 namespace NYT::NTableClient {
 

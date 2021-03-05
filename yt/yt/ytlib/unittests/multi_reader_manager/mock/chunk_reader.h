@@ -1,11 +1,11 @@
 #pragma once
 
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
-#include <yt/ytlib/table_client/chunk_reader_base.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/chunk_reader_base.h>
 
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 namespace NYT::NChunkClient {
 

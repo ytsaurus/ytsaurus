@@ -10,7 +10,7 @@
 #include <vector>
 #include <cstddef>
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
 namespace NYT::NPhdrCache {
 

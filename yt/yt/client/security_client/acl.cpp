@@ -1,9 +1,9 @@
 #include "acl.h"
 
-#include <yt/core/yson/pull_parser_deserialize.h>
+#include <yt/yt/core/yson/pull_parser_deserialize.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 namespace NYT::NSecurityClient {
 

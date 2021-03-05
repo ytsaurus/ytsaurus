@@ -4,22 +4,22 @@
 #include "location.h"
 #include "session.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/server/lib/hydra/changelog.h>
-#include <yt/server/lib/hydra/sync_file_changelog.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/sync_file_changelog.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/ref_counted_proto.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/ref_counted_proto.h>
 
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NDataNode {
 

@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hive/proto/transaction_supervisor_service.pb.h>
+#include <yt/yt/ytlib/hive/proto/transaction_supervisor_service.pb.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NHiveServer {
 

@@ -3,52 +3,52 @@
 #include "automaton.h"
 #include "config.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.h>
-#include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
 
-#include <yt/server/lib/election/election_manager.h>
-#include <yt/server/lib/election/distributed_election_manager.h>
-#include <yt/server/lib/election/election_manager_thunk.h>
+#include <yt/yt/server/lib/election/election_manager.h>
+#include <yt/yt/server/lib/election/distributed_election_manager.h>
+#include <yt/yt/server/lib/election/election_manager_thunk.h>
 
-#include <yt/server/lib/hive/transaction_supervisor.h>
-#include <yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
-#include <yt/server/lib/hydra/changelog.h>
-#include <yt/server/lib/hydra/composite_automaton.h>
-#include <yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/server/lib/hydra/local_hydra_janitor.h>
-#include <yt/server/lib/hydra/private.h>
-#include <yt/server/lib/hydra/snapshot.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/local_hydra_janitor.h>
+#include <yt/yt/server/lib/hydra/private.h>
+#include <yt/yt/server/lib/hydra/snapshot.h>
 
-#include <yt/server/master/object_server/private.h>
+#include <yt/yt/server/master/object_server/private.h>
 
-#include <yt/server/master/security_server/acl.h>
-#include <yt/server/master/security_server/group.h>
-#include <yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/group.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/fair_share_action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/fair_share_action_queue.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/response_keeper.h>
-#include <yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/server.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
-#include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NCellMaster {
 

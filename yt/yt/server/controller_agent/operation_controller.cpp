@@ -5,21 +5,21 @@
 #include "operation.h"
 #include "memory_tag_queue.h"
 
-#include <yt/server/controller_agent/controllers/ordered_controller.h>
-#include <yt/server/controller_agent/controllers/sort_controller.h>
-#include <yt/server/controller_agent/controllers/sorted_controller.h>
-#include <yt/server/controller_agent/controllers/unordered_controller.h>
-#include <yt/server/controller_agent/controllers/vanilla_controller.h>
+#include <yt/yt/server/controller_agent/controllers/ordered_controller.h>
+#include <yt/yt/server/controller_agent/controllers/sort_controller.h>
+#include <yt/yt/server/controller_agent/controllers/sorted_controller.h>
+#include <yt/yt/server/controller_agent/controllers/unordered_controller.h>
+#include <yt/yt/server/controller_agent/controllers/vanilla_controller.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/scheduler/config.h>
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/string.h>
 
 namespace NYT::NControllerAgent {
 

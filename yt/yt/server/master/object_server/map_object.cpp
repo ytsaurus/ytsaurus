@@ -1,8 +1,8 @@
 #include "map_object.h"
 
-#include <yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/account.h>
 
-#include <yt/server/master/scheduler_pool_server/scheduler_pool.h>
+#include <yt/yt/server/master/scheduler_pool_server/scheduler_pool.h>
 
 namespace NYT::NObjectServer {
 

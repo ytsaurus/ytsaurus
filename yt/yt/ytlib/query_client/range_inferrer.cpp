@@ -5,12 +5,12 @@
 #include "query_helpers.h"
 #include "coordination_helpers.h"
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/misc/ref_counted.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/ref_counted.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 #include <cstdlib>
 

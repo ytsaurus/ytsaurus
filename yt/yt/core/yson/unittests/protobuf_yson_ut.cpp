@@ -1,17 +1,17 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/yson/unittests/proto/protobuf_yson_ut.pb.h>
-#include <yt/core/yson/unittests/proto/protobuf_yson_casing_ut.pb.h>
+#include <yt/yt/core/yson/unittests/proto/protobuf_yson_ut.pb.h>
+#include <yt/yt/core/yson/unittests/proto/protobuf_yson_casing_ut.pb.h>
 
-#include <yt/core/yson/protobuf_interop.h>
-#include <yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/null_consumer.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>

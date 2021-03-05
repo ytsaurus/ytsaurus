@@ -1,15 +1,15 @@
 #include "read_limit.h"
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/misc/format.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
 
 namespace NYT::NChunkClient {
 

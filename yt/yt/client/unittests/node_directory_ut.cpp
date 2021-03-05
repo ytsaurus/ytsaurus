@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
 namespace NYT::NNodeTrackerClient {
 namespace {

@@ -2,13 +2,13 @@
 
 #include "helpers.h"
 
-#include <yt/server/lib/controller_agent/serialize.h>
+#include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/server/lib/scheduler/scheduling_tag.h>
+#include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/statistics.h>
 
 namespace NYT::NControllerAgent {
 

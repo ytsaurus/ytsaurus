@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 

@@ -2,7 +2,7 @@
 
 #include "profiler.h"
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
 namespace NYT::NProfiling {
 

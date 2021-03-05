@@ -5,13 +5,13 @@
 #include "query_helpers.h"
 #include "query_preparer.h"
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/client/api/rowset.h>
+#include <yt/yt/client/api/rowset.h>
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NQueryClient {
 

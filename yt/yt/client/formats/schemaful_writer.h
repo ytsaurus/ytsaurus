@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/blob_output.h>
 
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/writer.h>
 
 namespace NYT::NFormats {
 

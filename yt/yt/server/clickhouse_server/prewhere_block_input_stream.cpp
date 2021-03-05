@@ -5,7 +5,7 @@
 #include "block_input_stream.h"
 #include "query_context.h"
 
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 #include <DataStreams/IBlockInputStream.h>
 #include <Interpreters/ExpressionActions.h>

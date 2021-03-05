@@ -1,12 +1,12 @@
 #include "helpers.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/acl.h>
 
-#include <yt/library/re2/re2.h>
+#include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NScheduler {
 

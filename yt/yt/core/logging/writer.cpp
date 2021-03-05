@@ -4,8 +4,8 @@
 #include "random_access_gzip.h"
 #include "appendable_zstd.h"
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
 
 namespace NYT::NLogging {
 

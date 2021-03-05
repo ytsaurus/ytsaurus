@@ -4,9 +4,9 @@
 #include "private.h"
 #include "hydra_janitor_helpers.h"
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NHydra {
 

@@ -2,18 +2,18 @@
 
 #include "public.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/ytlib/chunk_client/block_id.h>
-#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/block_id.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/lock_free.h>
 
 namespace NYT::NDataNode {
 

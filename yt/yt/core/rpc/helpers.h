@@ -2,21 +2,21 @@
 
 #include "public.h"
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/rpc/public.h>
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/core/actions/bind.h>
+#include <yt/yt/core/actions/bind.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/core/service_discovery/public.h>
+#include <yt/yt/core/service_discovery/public.h>
 
 namespace NYT::NRpc {
 

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/job_tracker_client/proto/job_spec_service.pb.h>
+#include <yt/yt/ytlib/job_tracker_client/proto/job_spec_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NJobTrackerClient {
 

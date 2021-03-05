@@ -5,24 +5,24 @@
 #include "chunk_replica.h"
 #include "chunk_tree.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/security_server/cluster_resources.h>
+#include <yt/yt/server/master/security_server/cluster_resources.h>
 
-#include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
-#include <yt/ytlib/chunk_client/proto/chunk_service.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/format.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
-#include <yt/core/misc/small_flat_map.h>
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/intrusive_linked_list.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/small_flat_map.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/intrusive_linked_list.h>
 
 namespace NYT::NChunkServer {
 

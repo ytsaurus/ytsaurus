@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NRpc {
 

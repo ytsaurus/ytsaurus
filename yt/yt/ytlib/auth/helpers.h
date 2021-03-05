@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
-#include <yt/core/net/public.h>
+#include <yt/yt/core/net/public.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
 namespace NYT::NAuth {
 

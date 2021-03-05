@@ -12,10 +12,10 @@ $$ See bind.h for an extended commentary.
 $$==============================================================================
 */
 
-#include <yt/core/misc/common.h>
+#include <yt/yt/core/misc/common.h>
 
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-#include <yt/core/misc/source_location.h>
+#include <yt/yt/core/misc/source_location.h>
 #endif
 
 namespace NYT::NDetail {

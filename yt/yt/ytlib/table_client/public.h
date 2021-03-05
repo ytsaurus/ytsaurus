@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
 namespace NYT::NTableClient {
 

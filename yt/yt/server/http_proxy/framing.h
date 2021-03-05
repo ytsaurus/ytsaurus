@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
 namespace NYT::NHttpProxy {
 

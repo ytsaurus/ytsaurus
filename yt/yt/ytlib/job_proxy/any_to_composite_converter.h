@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/client/formats/format.h>
+#include <yt/yt/client/formats/format.h>
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
 #include <util/generic/buffer.h>
 

@@ -1,19 +1,19 @@
 #include "virtual.h"
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory_builder.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/async_writer.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NControllerAgent {
 

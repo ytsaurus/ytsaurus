@@ -4,26 +4,26 @@
 #include "tablet_cell.h"
 #include "tablet_manager.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
 
-#include <yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/server/master/cell_server/cell_proxy_base.h>
-#include <yt/server/master/cell_server/tamed_cell_manager.h>
+#include <yt/yt/server/master/cell_server/cell_proxy_base.h>
+#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/object_detail.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/proto/ypath.pb.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/proto/ypath.pb.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <util/string/cast.h>
 

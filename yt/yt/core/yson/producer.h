@@ -3,9 +3,9 @@
 #include "public.h"
 #include "string.h"
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT::NYson {
 

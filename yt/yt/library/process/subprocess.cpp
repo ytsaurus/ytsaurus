@@ -1,11 +1,11 @@
 #include "subprocess.h"
 
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/connection.h>
 
 #include <util/system/execpath.h>
 

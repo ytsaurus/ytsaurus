@@ -1,12 +1,12 @@
-#include <yt/core/rpc/bus/server.h>
-#include <yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/bus/server.h>
+#include <yt/yt/core/rpc/server.h>
 
-#include <yt/core/bus/tcp/server.h>
-#include <yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/server.h>
+#include <yt/yt/core/bus/tcp/config.h>
 
-#include <yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/rpc/unittests/lib/my_service.h>
+#include <yt/yt/core/rpc/unittests/lib/my_service.h>
 
 using namespace NYT;
 using namespace NYT::NBus;

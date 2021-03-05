@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/enum.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/enum.h>
 
 namespace NYT::NProfiling {
 

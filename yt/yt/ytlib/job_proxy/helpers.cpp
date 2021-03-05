@@ -2,26 +2,26 @@
 
 #include "private.h"
 
-#include <yt/ytlib/chunk_client/key_set.h>
+#include <yt/yt/ytlib/chunk_client/key_set.h>
 
-#include <yt/ytlib/query_client/evaluator.h>
-#include <yt/ytlib/query_client/functions_cache.h>
-#include <yt/ytlib/query_client/config.h>
-#include <yt/ytlib/query_client/query.h>
+#include <yt/yt/ytlib/query_client/evaluator.h>
+#include <yt/yt/ytlib/query_client/functions_cache.h>
+#include <yt/yt/ytlib/query_client/config.h>
+#include <yt/yt/ytlib/query_client/query.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/table_client/partitioner.h>
+#include <yt/yt/ytlib/table_client/partitioner.h>
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/client/table_client/key_bound.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NJobProxy {
 

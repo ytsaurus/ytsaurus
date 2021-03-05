@@ -2,33 +2,33 @@
 
 #include "public.h"
 
-#include <yt/server/lib/hive/config.h>
+#include <yt/yt/server/lib/hive/config.h>
 
-#include <yt/server/lib/hydra/config.h>
+#include <yt/yt/server/lib/hydra/config.h>
 
-#include <yt/server/lib/dynamic_config/config.h>
+#include <yt/yt/server/lib/dynamic_config/config.h>
 
-#include <yt/server/lib/election/config.h>
+#include <yt/yt/server/lib/election/config.h>
 
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/ytlib/security_client/config.h>
+#include <yt/yt/ytlib/security_client/config.h>
 
-#include <yt/ytlib/query_client/config.h>
+#include <yt/yt/ytlib/query_client/config.h>
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/misc/config.h>
+#include <yt/yt/core/misc/config.h>
 
-#include <yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/config.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/config.h>
 
 namespace NYT::NTabletNode {
 

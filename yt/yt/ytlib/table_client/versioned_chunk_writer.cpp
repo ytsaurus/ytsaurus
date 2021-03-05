@@ -6,32 +6,32 @@
 #include "row_merger.h"
 #include "versioned_block_writer.h"
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/ytlib/table_chunk_format/column_writer.h>
-#include <yt/ytlib/table_chunk_format/data_block_writer.h>
-#include <yt/ytlib/table_chunk_format/timestamp_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/column_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/data_block_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/timestamp_writer.h>
 
-#include <yt/ytlib/chunk_client/block_cache.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/chunk_writer.h>
-#include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/ytlib/chunk_client/encoding_chunk_writer.h>
-#include <yt/ytlib/chunk_client/encoding_writer.h>
-#include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/encoding_chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/encoding_writer.h>
+#include <yt/yt/ytlib/chunk_client/multi_chunk_writer_base.h>
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/versioned_writer.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_writer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/misc/range.h>
-#include <yt/core/misc/random.h>
+#include <yt/yt/core/misc/range.h>
+#include <yt/yt/core/misc/random.h>
 
 #include <util/generic/ylimits.h>
 

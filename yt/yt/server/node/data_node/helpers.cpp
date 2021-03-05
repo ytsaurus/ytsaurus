@@ -1,27 +1,27 @@
 #include "helpers.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/file_client/file_ypath_proxy.h>
+#include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/permission.h>
 
 namespace NYT::NDataNode {
 

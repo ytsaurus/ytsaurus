@@ -1,10 +1,10 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/test_framework/yson_consumer_mock.h>
+#include <yt/yt/core/test_framework/yson_consumer_mock.h>
 
-#include <yt/core/yson/writer.h>
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/stream.h>
+#include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/stream.h>
 
 #include <util/string/escape.h>
 

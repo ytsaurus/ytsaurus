@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
 namespace NYT::NNodeTrackerClient {
 

@@ -2,40 +2,40 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/lib/discovery_server/discovery_server.h>
+#include <yt/yt/server/lib/discovery_server/discovery_server.h>
 
-#include <yt/server/lib/admin/admin_service.h>
+#include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/server/lib/core_dump/core_dumper.h>
 
-#include <yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/ytlib/program/build_attributes.h>
+#include <yt/yt/ytlib/program/build_attributes.h>
 
-#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/yt/ytlib/monitoring/http_integration.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/http/server.h>
+#include <yt/yt/core/http/server.h>
 
-#include <yt/core/bus/server.h>
-#include <yt/core/http/config.h>
+#include <yt/yt/core/bus/server.h>
+#include <yt/yt/core/http/config.h>
 
-#include <yt/core/bus/tcp/config.h>
-#include <yt/core/bus/tcp/server.h>
+#include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/server.h>
 
-#include <yt/core/net/local_address.h>
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/rpc/bus/server.h>
-#include <yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/bus/server.h>
+#include <yt/yt/core/rpc/bus/channel.h>
 
-#include <yt/core/rpc/server.h>
-#include <yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
 
-#include <yt/core/ytree/virtual.h>
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 #include <cstdlib>
 #include <ctime>

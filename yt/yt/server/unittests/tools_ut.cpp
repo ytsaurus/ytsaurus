@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/tools/registry.h>
-#include <yt/ytlib/tools/tools.h>
+#include <yt/yt/ytlib/tools/registry.h>
+#include <yt/yt/ytlib/tools/tools.h>
 
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 namespace NYT::NTools {
 namespace {

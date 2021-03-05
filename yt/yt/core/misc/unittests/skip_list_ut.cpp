@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/skip_list.h>
+#include <yt/yt/core/misc/skip_list.h>
 
 namespace NYT {
 namespace {

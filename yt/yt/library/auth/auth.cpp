@@ -1,6 +1,6 @@
 #include "auth.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <util/folder/dirut.h>
 #include <util/folder/path.h>

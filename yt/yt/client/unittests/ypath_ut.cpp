@@ -1,24 +1,24 @@
 #include "key_helpers.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/client/chunk_client/helpers.h>
+#include <yt/yt/client/chunk_client/helpers.h>
 
-#include <yt/client/table_client/comparator.h>
-#include <yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/key_bound.h>
 
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/writer.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/tree_builder.h>
-#include <yt/core/ytree/tree_visitor.h>
-#include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/tree_visitor.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_service.h>
 
 #include <util/string/vector.h>
 

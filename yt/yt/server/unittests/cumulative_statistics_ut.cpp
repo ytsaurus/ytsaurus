@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/master/chunk_server/cumulative_statistics.h>
+#include <yt/yt/server/master/chunk_server/cumulative_statistics.h>
 
 namespace NYT::NChunkServer {
 namespace {

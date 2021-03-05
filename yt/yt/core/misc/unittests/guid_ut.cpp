@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/guid.h>
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/format.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/guid.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/string.h>
 
 namespace NYT {
 namespace {

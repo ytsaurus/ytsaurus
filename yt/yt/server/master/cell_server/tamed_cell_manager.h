@@ -5,16 +5,16 @@
 #include "cell_base.h"
 #include "cell_bundle.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/cypress_server/public.h>
+#include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/server/lib/hydra/entity_map.h>
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 namespace NYT::NCellServer {
 

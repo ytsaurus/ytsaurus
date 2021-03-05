@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
 namespace NYT::NChunkServer {
 

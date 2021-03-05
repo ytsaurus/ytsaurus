@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/client/table_chunk_format/proto/column_meta.pb.h>
+#include <yt/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT::NTableChunkFormat {
 

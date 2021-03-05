@@ -3,9 +3,9 @@
 #include "escape.h"
 #include "format.h"
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/misc/format.h>
+#include <yt/yt/core/misc/format.h>
 
 namespace NYT::NFormats {
 

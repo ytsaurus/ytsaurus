@@ -6,19 +6,19 @@
 #include "chunk_store.h"
 #include "location.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/chunk_client/medium_directory.h>
-#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/guid.h>
+#include <yt/yt/core/misc/guid.h>
 
 namespace NYT::NDataNode {
 

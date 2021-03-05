@@ -1,13 +1,13 @@
 #include "virtual_value_directory.h"
 
-#include <yt/ytlib/table_client/proto/virtual_value_directory.pb.h>
+#include <yt/yt/ytlib/table_client/proto/virtual_value_directory.pb.h>
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NTableClient {
 

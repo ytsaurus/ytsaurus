@@ -8,11 +8,11 @@
 #include "host.h"
 #include "table_traverser.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <Common/Exception.h>
 #include <Common/LRUCache.h>

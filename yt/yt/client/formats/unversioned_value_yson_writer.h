@@ -3,7 +3,7 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/client/complex_types/named_structures_yson.h>
+#include <yt/yt/client/complex_types/named_structures_yson.h>
 
 namespace NYT::NFormats {
 

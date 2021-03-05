@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include <yt/ytlib/journal_client/helpers.h>
+#include <yt/yt/ytlib/journal_client/helpers.h>
 
 namespace NYT::NCypressServer {
 

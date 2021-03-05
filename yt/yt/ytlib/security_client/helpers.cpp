@@ -1,12 +1,12 @@
 #include "helpers.h"
 
-#include <yt/ytlib/api/native/rpc_helpers.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/client/security_client/helpers.h>
+#include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NSecurityClient {
 

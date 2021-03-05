@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/core/misc/shutdownable.h>
+#include <yt/yt/core/misc/shutdownable.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

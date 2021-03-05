@@ -2,10 +2,10 @@
 #include "profile_manager.h"
 #include "timing.h"
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/farm_hash.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/farm_hash.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
 #include <util/system/sanitizers.h>
 

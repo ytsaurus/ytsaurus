@@ -3,15 +3,15 @@
 #include "table_replica.h"
 #include "tablet_manager.h"
 
-#include <yt/server/master/object_server/type_handler_detail.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/server/master/table_server/replicated_table_node.h>
+#include <yt/yt/server/master/table_server/replicated_table_node.h>
 
-#include <yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NTabletServer {
 

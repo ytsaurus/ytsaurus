@@ -1,18 +1,18 @@
 #include "helpers.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/master/chunk_server/chunk.h>
-#include <yt/server/master/chunk_server/chunk_list.h>
-#include <yt/server/master/chunk_server/chunk_tree_balancer.h>
-#include <yt/server/master/chunk_server/helpers.h>
+#include <yt/yt/server/master/chunk_server/chunk.h>
+#include <yt/yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/chunk_server/chunk_tree_balancer.h>
+#include <yt/yt/server/master/chunk_server/helpers.h>
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NChunkServer {
 namespace {

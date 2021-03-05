@@ -2,7 +2,7 @@
 
 #include "yson_parser_adapter.h"
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <Functions/FunctionsJSON.h>
 #include <Functions/FunctionFactory.h>

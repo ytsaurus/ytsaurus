@@ -1,6 +1,6 @@
 #include "action.h"
 
-#include <yt/ytlib/transaction_client/proto/action.pb.h>
+#include <yt/yt/ytlib/transaction_client/proto/action.pb.h>
 
 namespace NYT::NTransactionClient {
 

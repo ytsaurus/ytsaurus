@@ -1,32 +1,32 @@
 #include "user_job_write_controller.h"
 #include "job.h"
 
-#include <yt/server/lib/misc/job_table_schema.h>
+#include <yt/yt/server/lib/misc/job_table_schema.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/ytlib/job_proxy/user_job_io_factory.h>
+#include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
 
-#include <yt/ytlib/table_client/blob_table_writer.h>
-#include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/blob_table_writer.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/value_consumer.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/value_consumer.h>
 
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
 namespace NYT::NJobProxy {
 

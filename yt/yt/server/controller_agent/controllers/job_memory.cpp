@@ -1,6 +1,6 @@
 #include "job_memory.h"
 
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

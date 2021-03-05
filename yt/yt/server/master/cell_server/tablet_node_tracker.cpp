@@ -2,18 +2,18 @@
 
 #include "private.h"
 
-#include <yt/server/master/cell_master/automaton.h>
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/automaton.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/server/master/node_tracker_server/node.h>
-#include <yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
-#include <yt/server/master/tablet_server/config.h>
+#include <yt/yt/server/master/tablet_server/config.h>
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 namespace NYT::NCellServer {
 

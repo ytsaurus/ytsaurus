@@ -1,8 +1,8 @@
 #include "journal_writer.h"
 
-#include <yt/client/api/journal_writer.h>
+#include <yt/yt/client/api/journal_writer.h>
 
-#include <yt/core/rpc/stream.h>
+#include <yt/yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
 

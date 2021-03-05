@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref_tracked.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NHiveServer {
 

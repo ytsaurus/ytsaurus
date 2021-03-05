@@ -2,14 +2,14 @@
 #include "row_stream.h"
 #include "helpers.h"
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/wire_protocol.h>
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/core/misc/range.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/range.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NApi::NRpcProxy {
 

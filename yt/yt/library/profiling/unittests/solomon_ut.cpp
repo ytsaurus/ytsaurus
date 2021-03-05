@@ -1,4 +1,4 @@
-#include "yt/core/misc/ref_counted.h"
+#include "yt/yt/core/misc/ref_counted.h"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 

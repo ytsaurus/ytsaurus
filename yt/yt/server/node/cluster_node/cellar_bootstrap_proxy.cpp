@@ -1,8 +1,8 @@
 #include "bootstrap.h"
 
-#include <yt/server/lib/cellar_agent/bootstrap_proxy.h>
+#include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
 
-#include <yt/server/node/tablet_node/security_manager.h>
+#include <yt/yt/server/node/tablet_node/security_manager.h>
 
 namespace NYT::NClusterNode {
 

@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/library/numeric/piecewise_linear_function.h>
-#include <yt/library/numeric/piecewise_linear_function-test.h>
+#include <yt/yt/library/numeric/piecewise_linear_function.h>
+#include <yt/yt/library/numeric/piecewise_linear_function-test.h>
 
 namespace NYT {
 

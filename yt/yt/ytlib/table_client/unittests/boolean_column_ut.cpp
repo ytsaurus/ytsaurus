@@ -1,10 +1,10 @@
 #include "column_format_ut.h"
 #include "helpers.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/table_chunk_format/boolean_column_writer.h>
-#include <yt/ytlib/table_chunk_format/boolean_column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/boolean_column_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/boolean_column_reader.h>
 
 namespace NYT::NTableClient {
 namespace {

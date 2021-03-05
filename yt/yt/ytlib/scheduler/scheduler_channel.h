@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/core/rpc/public.h>
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
 namespace NYT::NScheduler {
 

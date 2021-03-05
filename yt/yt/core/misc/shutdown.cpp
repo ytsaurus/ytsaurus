@@ -1,6 +1,6 @@
 #include "shutdown.h"
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
 #include <algorithm>
 #include <vector>

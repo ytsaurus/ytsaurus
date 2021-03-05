@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/master/object_server/staged_object.h>
+#include <yt/yt/server/master/object_server/staged_object.h>
 
 
 namespace NYT::NChunkServer {

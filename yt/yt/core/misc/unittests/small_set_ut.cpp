@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <yt/core/misc/small_set.h>
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/misc/small_set.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <string>
 

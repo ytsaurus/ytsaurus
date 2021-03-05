@@ -2,14 +2,14 @@
 
 #include "private.h"
 
-#include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <DataStreams/IBlockInputStream.h>
 #include <DataStreams/IBlockStream_fwd.h>

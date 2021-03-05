@@ -8,7 +8,7 @@
 #include "query_registry.h"
 #include "storage_base.h"
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <Processors/Sources/SourceFromInputStream.h>
 #include <Processors/Pipe.h>

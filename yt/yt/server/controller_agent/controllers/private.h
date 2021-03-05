@@ -1,4 +1,4 @@
-#include <yt/server/controller_agent/private.h>
+#include <yt/yt/server/controller_agent/private.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

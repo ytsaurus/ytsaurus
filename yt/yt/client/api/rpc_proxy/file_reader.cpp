@@ -1,10 +1,10 @@
 #include "file_reader.h"
 
-#include <yt/client/api/file_reader.h>
+#include <yt/yt/client/api/file_reader.h>
 
-#include <yt/client/hydra/public.h>
+#include <yt/yt/client/hydra/public.h>
 
-#include <yt/core/rpc/stream.h>
+#include <yt/yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
 

@@ -2,15 +2,15 @@
 
 #include "private.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/server/node/data_node/config.h>
+#include <yt/yt/server/node/data_node/config.h>
 
-#include <yt/server/node/tablet_node/sorted_dynamic_comparer.h>
+#include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/misc/sync_cache.h>
+#include <yt/yt/core/misc/sync_cache.h>
 
 namespace NYT::NDataNode {
 

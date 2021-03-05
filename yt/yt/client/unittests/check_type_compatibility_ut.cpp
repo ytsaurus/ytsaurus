@@ -1,8 +1,8 @@
 #include "logical_type_shortcuts.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/client/complex_types/check_type_compatibility.h>
+#include <yt/yt/client/complex_types/check_type_compatibility.h>
 
 using namespace NYT::NComplexTypes;
 using namespace NYT::NTableClient::NLogicalTypeShortcuts;

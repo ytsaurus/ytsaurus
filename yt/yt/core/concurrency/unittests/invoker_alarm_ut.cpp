@@ -1,11 +1,11 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/invoker_alarm.h>
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/invoker_alarm.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/actions/invoker.h>
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/invoker.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NConcurrency {
 namespace {

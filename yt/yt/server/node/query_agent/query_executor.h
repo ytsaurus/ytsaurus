@@ -2,20 +2,20 @@
 
 #include "public.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/server/lib/misc/public.h>
+#include <yt/yt/server/lib/misc/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/query_client/public.h>
-#include <yt/ytlib/query_client/query_common.h>
+#include <yt/yt/ytlib/query_client/public.h>
+#include <yt/yt/ytlib/query_client/query_common.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NQueryAgent {
 

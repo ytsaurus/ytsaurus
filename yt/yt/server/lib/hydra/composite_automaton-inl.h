@@ -7,9 +7,9 @@
 
 #include "mutation.h"
 
-#include <yt/core/misc/object_pool.h>
+#include <yt/yt/core/misc/object_pool.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NHydra {
 

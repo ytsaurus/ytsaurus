@@ -1,8 +1,8 @@
 #include "thread_affinity.h"
 
-#include <yt/core/actions/invoker_util.h>
-#include <yt/core/actions/invoker_pool.h>
-#include <yt/core/actions/invoker.h>
+#include <yt/yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_pool.h>
+#include <yt/yt/core/actions/invoker.h>
 
 #include <util/system/thread.h>
 

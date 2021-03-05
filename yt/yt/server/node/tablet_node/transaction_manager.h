@@ -2,18 +2,18 @@
 
 #include "public.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/server/lib/hive/transaction_manager.h>
+#include <yt/yt/server/lib/hive/transaction_manager.h>
 
-#include <yt/server/lib/hydra/composite_automaton.h>
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NTabletNode {
 

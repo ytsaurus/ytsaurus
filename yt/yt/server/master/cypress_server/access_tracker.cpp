@@ -4,20 +4,20 @@
 #include "cypress_manager.h"
 #include "node.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/ytlib/cypress_client/cypress_service_proxy.h>
+#include <yt/yt/ytlib/cypress_client/cypress_service_proxy.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NCypressServer {
 

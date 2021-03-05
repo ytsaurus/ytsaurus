@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/client/tablet_client/public.h>
+#include <yt/yt/client/tablet_client/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NApi::NRpcProxy {
 

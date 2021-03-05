@@ -2,9 +2,9 @@
 #include "delayed_executor.h"
 #include "thread_affinity.h"
 
-#include <yt/core/actions/bind.h>
+#include <yt/yt/core/actions/bind.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 namespace NYT::NConcurrency {
 

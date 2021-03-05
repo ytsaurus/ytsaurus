@@ -8,8 +8,8 @@
 #include "reader_factory.h"
 #include "data_slice_descriptor.h"
 
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 namespace NYT::NChunkClient {
 

@@ -1,19 +1,19 @@
 #include "server.h"
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/http/http.h>
-#include <yt/core/http/private.h>
-#include <yt/core/http/helpers.h>
-#include <yt/core/http/server.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/private.h>
+#include <yt/yt/core/http/helpers.h>
+#include <yt/yt/core/http/server.h>
 
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/service.h>
-#include <yt/core/rpc/server_detail.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/service.h>
+#include <yt/yt/core/rpc/server_detail.h>
 
-#include <yt/core/bus/bus.h>
+#include <yt/yt/core/bus/bus.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NRpc::NHttp {
 

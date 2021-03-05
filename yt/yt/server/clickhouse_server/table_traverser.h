@@ -2,13 +2,13 @@
 
 #include "private.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NClickHouseServer {
 

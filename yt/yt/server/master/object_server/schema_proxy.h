@@ -2,7 +2,7 @@
 
 #include "object.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
 namespace NYT::NObjectServer {
 

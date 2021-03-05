@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <yt/server/lib/election/config.h>
+#include <yt/yt/server/lib/election/config.h>
 
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/misc/config.h>
+#include <yt/yt/core/misc/config.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NHydra {
 

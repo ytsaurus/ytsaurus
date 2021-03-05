@@ -2,13 +2,13 @@
 #include "tablet_cell_bundle.h"
 #include "tablet.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
 namespace NYT::NTabletServer {
 

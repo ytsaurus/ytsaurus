@@ -2,29 +2,29 @@
 #include "tablet.h"
 #include "versioned_chunk_meta_manager.h"
 
-#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/ytlib/chunk_client/client_block_cache.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/cache_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/cache_reader.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
-#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/chunk_state.h>
 
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NTabletNode {
 

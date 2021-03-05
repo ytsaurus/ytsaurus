@@ -2,7 +2,7 @@
 #include "channel_detail.h"
 #include "client.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NRpc {
 

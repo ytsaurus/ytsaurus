@@ -3,8 +3,8 @@
 #include "column_writer.h"
 #include "private.h"
 
-#include <yt/core/misc/bitmap.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/bitmap.h>
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT::NTableChunkFormat {
 

@@ -1,15 +1,15 @@
 #include "lock_manager.h"
 #include "serialize.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/client/transaction_client/public.h>
+#include <yt/yt/client/transaction_client/public.h>
 
 #include <util/generic/cast.h>
 

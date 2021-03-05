@@ -4,13 +4,13 @@
 
 #include "conversion.h"
 
-#include <yt/server/clickhouse_server/protos/subquery_spec.pb.h>
+#include <yt/yt/server/clickhouse_server/protos/subquery_spec.pb.h>
 
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
-#include <yt/core/yson/public.h>
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/yson/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 #include <vector>
 

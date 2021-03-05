@@ -1,7 +1,7 @@
 #include "digest.h"
 #include "config.h"
 
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 namespace NYT {
 

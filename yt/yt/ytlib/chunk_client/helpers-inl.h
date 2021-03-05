@@ -5,7 +5,7 @@
 #include "helpers.h"
 #endif
 
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/checksum.h>
 
 namespace NYT::NChunkClient {
 

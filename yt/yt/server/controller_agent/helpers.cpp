@@ -1,28 +1,28 @@
 #include "helpers.h"
 #include "config.h"
 
-#include <yt/server/lib/controller_agent/serialize.h>
+#include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/ytlib/chunk_client/data_source.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/job_spec_extensions.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
-#include <yt/ytlib/scheduler/proto/output_result.pb.h>
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/output_result.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/acl.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/client/transaction_client/public.h>
+#include <yt/yt/client/transaction_client/public.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 #include <algorithm>
 

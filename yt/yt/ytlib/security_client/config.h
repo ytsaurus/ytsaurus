@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/misc/cache_config.h>
+#include <yt/yt/core/misc/cache_config.h>
 
 namespace NYT::NSecurityClient {
 

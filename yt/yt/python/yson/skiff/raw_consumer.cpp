@@ -1,6 +1,6 @@
 #include "raw_consumer.h"
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NPython {
 

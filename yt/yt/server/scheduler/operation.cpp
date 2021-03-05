@@ -5,19 +5,19 @@
 #include "job.h"
 #include "controller_agent.h"
 
-#include <yt/server/lib/scheduler/experiments.h>
+#include <yt/yt/server/lib/scheduler/experiments.h>
 
-#include <yt/ytlib/scheduler/helpers.h>
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
 namespace NYT::NScheduler {
 

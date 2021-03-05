@@ -2,9 +2,9 @@
 
 #include "serialize.h"
 
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/serialize.h>
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NSkiffExt {
 

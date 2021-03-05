@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/client/chunk_client/config.h>
+#include <yt/yt/client/chunk_client/config.h>
 
-#include <yt/client/tablet_client/config.h>
+#include <yt/yt/client/tablet_client/config.h>
 
 namespace NYT::NTableClient {
 

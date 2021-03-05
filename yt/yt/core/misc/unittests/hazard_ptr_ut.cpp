@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/format.h>
-#include <yt/core/misc/new.h>
-#include <yt/core/misc/public.h>
-#include <yt/core/misc/atomic_ptr.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/new.h>
+#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/atomic_ptr.h>
 
 namespace NYT {
 namespace {

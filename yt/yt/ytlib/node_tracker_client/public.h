@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/client/node_tracker_client/public.h>
+#include <yt/yt/client/node_tracker_client/public.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/misc/public.h>
+#include <yt/yt/ytlib/misc/public.h>
 
 namespace NYT::NNodeTrackerClient {
 

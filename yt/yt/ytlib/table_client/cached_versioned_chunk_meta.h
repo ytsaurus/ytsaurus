@@ -4,19 +4,19 @@
 #include "chunk_meta_extensions.h"
 #include "columnar_chunk_meta.h"
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/column_rename_descriptor.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/column_rename_descriptor.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/memory_usage_tracker.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 #include <memory>
 

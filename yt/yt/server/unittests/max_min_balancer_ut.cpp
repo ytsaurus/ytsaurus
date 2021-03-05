@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/lib/misc/max_min_balancer.h>
+#include <yt/yt/server/lib/misc/max_min_balancer.h>
 
 #include <iostream>
 

@@ -1,10 +1,10 @@
 #include "skynet_column_evaluator.h"
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/crypto/crypto.h>
+#include <yt/yt/core/crypto/crypto.h>
 
 #include <array>
 

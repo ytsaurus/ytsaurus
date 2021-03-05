@@ -2,7 +2,7 @@
 #include "detail.h"
 #include "format.h"
 
-#include <yt/core/misc/varint.h>
+#include <yt/yt/core/misc/varint.h>
 
 #include <util/stream/buffer.h>
 #include <util/system/unaligned_mem.h>

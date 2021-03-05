@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NYTree {
 namespace {

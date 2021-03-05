@@ -1,22 +1,22 @@
 
-#include "yt/core/misc/string_builder.h"
-#include <yt/core/test_framework/framework.h>
+#include "yt/yt/core/misc/string_builder.h"
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/logging/appendable_zstd.h>
-#include <yt/core/logging/log.h>
-#include <yt/core/logging/log_manager.h>
-#include <yt/core/logging/writer.h>
-#include <yt/core/logging/random_access_gzip.h>
+#include <yt/yt/core/logging/appendable_zstd.h>
+#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/writer.h>
+#include <yt/yt/core/logging/random_access_gzip.h>
 
-#include <yt/core/json/json_parser.h>
+#include <yt/yt/core/json/json_parser.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/misc/range_formatters.h>
+#include <yt/yt/core/misc/range_formatters.h>
 
 #include <library/cpp/streams/zstd/zstd.h>
 

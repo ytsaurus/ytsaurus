@@ -1,9 +1,9 @@
 #include "build_attributes.h"
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 namespace NYT {
 

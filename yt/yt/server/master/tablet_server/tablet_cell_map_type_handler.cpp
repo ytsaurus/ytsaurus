@@ -1,7 +1,7 @@
 #include "tablet_cell_map_type_handler.h"
 #include "tablet_cell_map_proxy.h"
 
-#include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
 
 namespace NYT::NTabletServer {
 

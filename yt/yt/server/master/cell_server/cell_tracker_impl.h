@@ -5,16 +5,16 @@
 #include "cell_balancer.h"
 #include "config.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/node_tracker_server/public.h>
+#include <yt/yt/server/master/node_tracker_server/public.h>
 
-#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/public.h>
 
 namespace NYT::NCellServer {
 

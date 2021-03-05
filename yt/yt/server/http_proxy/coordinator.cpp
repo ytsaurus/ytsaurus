@@ -5,28 +5,28 @@
 #include "private.h"
 #include "api.h"
 
-#include <yt/server/lib/misc/address_helpers.h>
+#include <yt/yt/server/lib/misc/address_helpers.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/http/helpers.h>
+#include <yt/yt/core/http/helpers.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/net/local_address.h>
+#include <yt/yt/core/net/local_address.h>
 
-#include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/resource_tracker.h>
+#include <yt/yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/resource_tracker.h>
 
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>
 #include <util/string/split.h>

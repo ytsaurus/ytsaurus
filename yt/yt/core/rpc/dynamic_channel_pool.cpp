@@ -3,16 +3,16 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/misc/variant.h>
-#include <yt/core/misc/small_set.h>
-#include <yt/core/misc/random.h>
+#include <yt/yt/core/misc/variant.h>
+#include <yt/yt/core/misc/small_set.h>
+#include <yt/yt/core/misc/random.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
 #include <util/random/shuffle.h>
 

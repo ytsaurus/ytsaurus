@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/core/actions/future.h>
-#include <yt/core/misc/ring_queue.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
 namespace NYT::NConcurrency {
 

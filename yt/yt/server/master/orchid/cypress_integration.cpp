@@ -1,26 +1,26 @@
 #include "cypress_integration.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/server/master/cypress_server/node.h>
-#include <yt/server/master/cypress_server/virtual.h>
+#include <yt/yt/server/master/cypress_server/node.h>
+#include <yt/yt/server/master/cypress_server/virtual.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/ytlib/orchid/orchid_service_proxy.h>
-#include <yt/ytlib/orchid/private.h>
+#include <yt/yt/ytlib/orchid/orchid_service_proxy.h>
+#include <yt/yt/ytlib/orchid/private.h>
 
-#include <yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/caching_channel_factory.h>
-#include <yt/core/rpc/retrying_channel.h>
-#include <yt/core/rpc/balancing_channel.h>
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/balancing_channel.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NOrchid {
 

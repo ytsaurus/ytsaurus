@@ -2,7 +2,7 @@
 
 #include "detail.h"
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <util/string/escape.h>
 

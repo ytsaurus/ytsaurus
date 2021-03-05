@@ -1,11 +1,11 @@
 #pragma once
 
-#include <yt/server/scheduler/job.h>
+#include <yt/yt/server/scheduler/job.h>
 
-#include <yt/core/misc/intrusive_ptr.h>
+#include <yt/yt/core/misc/intrusive_ptr.h>
 
-#include <yt/core/logging/config.h>
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/log_manager.h>
 
 namespace NYT::NSchedulerSimulator {
 

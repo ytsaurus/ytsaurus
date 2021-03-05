@@ -2,12 +2,12 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/ytlib/election/cell_manager.h>
-#include <yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/config.h>
 
-#include <yt/ytlib/hydra/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NHydra {
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/api/private.h>
+#include <yt/yt/client/api/private.h>
 
 namespace NYT::NApi::NNative {
 

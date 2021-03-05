@@ -4,7 +4,7 @@
 #include "client.h"
 #include "config.h"
 
-#include <yt/core/bus/client.h>
+#include <yt/yt/core/bus/client.h>
 
 #include <util/system/guard.h>
 #include <util/system/spinlock.h>

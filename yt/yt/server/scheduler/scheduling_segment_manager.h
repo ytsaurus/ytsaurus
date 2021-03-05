@@ -6,7 +6,7 @@
 #include "resource_vector.h"
 #include "scheduler_strategy.h"
 
-#include <yt/server/lib/scheduler/scheduling_segment_map.h>
+#include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
 
 #include <yt/yt/library/profiling/producer.h>
 

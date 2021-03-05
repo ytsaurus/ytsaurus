@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/controller_agent/controllers/auto_merge_director.h>
+#include <yt/yt/server/controller_agent/controllers/auto_merge_director.h>
 
 namespace NYT::NControllerAgent::NControllers {
 namespace {

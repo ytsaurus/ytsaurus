@@ -2,15 +2,15 @@
 
 #include "coordinator.h"
 
-#include <yt/ytlib/auth/config.h>
-#include <yt/ytlib/auth/token_authenticator.h>
-#include <yt/ytlib/auth/cookie_authenticator.h>
-#include <yt/ytlib/auth/helpers.h>
+#include <yt/yt/ytlib/auth/config.h>
+#include <yt/yt/ytlib/auth/token_authenticator.h>
+#include <yt/yt/ytlib/auth/cookie_authenticator.h>
+#include <yt/yt/ytlib/auth/helpers.h>
 
-#include <yt/core/http/http.h>
-#include <yt/core/http/helpers.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/helpers.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <util/string/strip.h>
 

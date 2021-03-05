@@ -5,12 +5,12 @@
 #include "safe_assert.h"
 #include "proc.h"
 
-#include <yt/core/misc/core_dumper.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/core_dumper.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
 #ifdef _win_
     #include <io.h>

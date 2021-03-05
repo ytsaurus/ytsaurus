@@ -3,9 +3,9 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
 namespace NYT {
 

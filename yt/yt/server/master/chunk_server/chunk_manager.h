@@ -4,29 +4,29 @@
 #include "chunk_replica.h"
 #include "chunk_requisition.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/chunk_server/proto/chunk_manager.pb.h>
+#include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
-#include <yt/server/lib/hydra/composite_automaton.h>
-#include <yt/server/lib/hydra/entity_map.h>
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/ytlib/journal_client/helpers.h>
+#include <yt/yt/ytlib/journal_client/helpers.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NChunkServer {
 

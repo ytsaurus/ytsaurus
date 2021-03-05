@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 

@@ -2,25 +2,25 @@
 
 #include "public.h"
 
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/client/formats/public.h>
+#include <yt/yt/client/formats/public.h>
 
-#include <yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/ytlib/auth/config.h>
+#include <yt/yt/ytlib/auth/config.h>
 
-#include <yt/server/rpc_proxy/config.h>
+#include <yt/yt/server/rpc_proxy/config.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/core/misc/config.h>
+#include <yt/yt/core/misc/config.h>
 
-#include <yt/core/rpc/grpc/config.h>
+#include <yt/yt/core/rpc/grpc/config.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NRpcProxy {
 

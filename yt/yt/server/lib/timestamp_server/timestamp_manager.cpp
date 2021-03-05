@@ -2,28 +2,28 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/lib/election/election_manager.h>
+#include <yt/yt/server/lib/election/election_manager.h>
 
-#include <yt/server/lib/hydra/composite_automaton.h>
-#include <yt/server/lib/hydra/hydra_manager.h>
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/lib/timestamp_server/proto/timestamp_manager.pb.h>
+#include <yt/yt/server/lib/timestamp_server/proto/timestamp_manager.pb.h>
 
-#include <yt/client/transaction_client/timestamp_service_proxy.h>
-#include <yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_service_proxy.h>
+#include <yt/yt/client/transaction_client/helpers.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/core/rpc/server.h>
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
 #include <time.h>
 

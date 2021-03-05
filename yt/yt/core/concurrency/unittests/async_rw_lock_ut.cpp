@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/async_rw_lock.h>
 
 namespace NYT {
 namespace {

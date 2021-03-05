@@ -5,10 +5,10 @@
 #include "node.h"
 #include "node_tracker.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/master_hydra_service.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/master_hydra_service.h>
 
-#include <yt/ytlib/exec_node_tracker_client/exec_node_tracker_service_proxy.h>
+#include <yt/yt/ytlib/exec_node_tracker_client/exec_node_tracker_service_proxy.h>
 
 namespace NYT::NNodeTrackerServer {
 

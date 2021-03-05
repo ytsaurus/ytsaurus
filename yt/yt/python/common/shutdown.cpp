@@ -1,9 +1,9 @@
 #include "shutdown.h"
 #include "helpers.h"
 
-#include <yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/shutdown.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 #include <Objects.hxx> // pycxx
 #include <Extensions.hxx> // pycxx

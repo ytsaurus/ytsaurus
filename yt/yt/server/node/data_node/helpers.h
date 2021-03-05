@@ -3,15 +3,15 @@
 #include "public.h"
 #include "artifact.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/client/hydra/public.h>
+#include <yt/yt/client/hydra/public.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/core/logging/public.h>
+#include <yt/yt/core/logging/public.h>
 
 namespace NYT::NDataNode {
 

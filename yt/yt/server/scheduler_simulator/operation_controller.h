@@ -4,12 +4,12 @@
 #include "operation_description.h"
 #include "scheduling_context.h"
 
-#include <yt/server/scheduler/operation.h>
-#include <yt/server/scheduler/operation_controller.h>
+#include <yt/yt/server/scheduler/operation.h>
+#include <yt/yt/server/scheduler/operation_controller.h>
 
-#include <yt/server/lib/controller_agent/structs.h>
+#include <yt/yt/server/lib/controller_agent/structs.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
 #include <deque>
 #include <map>

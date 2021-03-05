@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/server/lib/hive/config.h>
+#include <yt/yt/server/lib/hive/config.h>
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
 namespace NYT::NTabletServer {
 

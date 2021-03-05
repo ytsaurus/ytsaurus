@@ -1,8 +1,8 @@
 #include "chunk_helpers.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/node/tablet_node/sorted_chunk_store.h>
+#include <yt/yt/server/node/tablet_node/sorted_chunk_store.h>
 
 namespace NYT::NChunkServer {
 namespace {

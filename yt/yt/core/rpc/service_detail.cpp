@@ -12,26 +12,26 @@
 
 #include <atomic>
 
-#include <yt/core/bus/bus.h>
+#include <yt/yt/core/bus/bus.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/lease_manager.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/throughput_throttler.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/lease_manager.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/net/address.h>
-#include <yt/core/net/local_address.h>
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
 
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/ytalloc/memory_zone.h>
+#include <yt/yt/core/ytalloc/memory_zone.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NRpc {
 

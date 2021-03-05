@@ -11,27 +11,27 @@
 #include "job.h"
 #include "job_tracker.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/ytlib/journal_client/helpers.h>
+#include <yt/yt/ytlib/journal_client/helpers.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/ytlib/chunk_client/session_id.h>
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/core/concurrency/async_semaphore.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <deque>
 

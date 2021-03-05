@@ -1,10 +1,10 @@
 #include "timestamp_provider_base.h"
 #include "private.h"
 
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NTransactionClient {
 

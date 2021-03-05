@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT {
 

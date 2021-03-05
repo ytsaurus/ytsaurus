@@ -1,28 +1,28 @@
 #include "caching_object_service.h"
 #include "private.h"
 
-#include <yt/ytlib/object_client/config.h>
-#include <yt/ytlib/object_client/object_service_cache.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/config.h>
+#include <yt/yt/ytlib/object_client/object_service_cache.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/async_slru_cache.h>
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/async_slru_cache.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/checksum.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/rpc/helpers.h>
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/service_detail.h>
-#include <yt/core/rpc/throttling_channel.h>
+#include <yt/yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/throttling_channel.h>
 
-#include <yt/core/ytree/proto/ypath.pb.h>
+#include <yt/yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT::NObjectClient {
 

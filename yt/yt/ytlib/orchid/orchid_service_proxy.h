@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/ytlib/orchid/proto/orchid_service.pb.h>
+#include <yt/yt/ytlib/orchid/proto/orchid_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NOrchid {
 

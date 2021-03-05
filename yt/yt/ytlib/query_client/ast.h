@@ -4,9 +4,9 @@
 #include "query_common.h"
 #include "objects_holder.h"
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/core/misc/hash.h>
+#include <yt/yt/core/misc/hash.h>
 
 #include <variant>
 

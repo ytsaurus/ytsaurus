@@ -2,13 +2,13 @@
 #include "api_service_proxy.h"
 #include "helpers.h"
 
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/client/tablet_client/config.h>
+#include <yt/yt/client/tablet_client/config.h>
 
-#include <yt/client/tablet_client/table_mount_cache_detail.h>
+#include <yt/yt/client/tablet_client/table_mount_cache_detail.h>
 
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 namespace NYT::NApi::NRpcProxy {
 

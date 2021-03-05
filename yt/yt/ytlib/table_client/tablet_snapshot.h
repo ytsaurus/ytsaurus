@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/client/hydra/public.h>
+#include <yt/yt/client/hydra/public.h>
 
 namespace NYT::NTableClient {
 

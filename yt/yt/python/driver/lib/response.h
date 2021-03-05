@@ -1,16 +1,16 @@
 #pragma once
 
-#include <yt/python/common/shutdown.h>
-#include <yt/python/common/stream.h>
+#include <yt/yt/python/common/shutdown.h>
+#include <yt/yt/python/common/stream.h>
 
-#include <yt/python/yson/object_builder.h>
-#include <yt/python/yson/serialize.h>
+#include <yt/yt/python/yson/object_builder.h>
+#include <yt/yt/python/yson/serialize.h>
 
-#include <yt/client/driver/driver.h>
+#include <yt/yt/client/driver/driver.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/blob_output.h>
 
 #include <Extensions.hxx> // pycxx
 

@@ -5,8 +5,8 @@
 #include "chunk_visitor.h"
 #endif
 
-#include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NChunkServer {
 

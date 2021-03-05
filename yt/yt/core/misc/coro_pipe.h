@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/concurrency/coroutine.h>
+#include <yt/yt/core/concurrency/coroutine.h>
 
 #include <util/generic/strbuf.h>
 

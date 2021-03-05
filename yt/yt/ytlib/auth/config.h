@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
-#include <yt/core/misc/cache_config.h>
+#include <yt/yt/core/misc/cache_config.h>
 
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/config.h>
 
-#include <yt/core/https/config.h>
+#include <yt/yt/core/https/config.h>
 
 namespace NYT::NAuth {
 

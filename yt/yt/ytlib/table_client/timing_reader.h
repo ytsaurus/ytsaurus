@@ -2,9 +2,9 @@
 
 #include "timing_statistics.h"
 
-#include <yt/client/chunk_client/ready_event_reader_base.h>
+#include <yt/yt/client/chunk_client/ready_event_reader_base.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NTableClient {
 

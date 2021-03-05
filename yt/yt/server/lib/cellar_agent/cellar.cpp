@@ -6,17 +6,17 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/ytree/ypath_service.h>
-#include <yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NCellarAgent {
 

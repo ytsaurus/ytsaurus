@@ -1,25 +1,25 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/ytlib/distributed_throttler/public.h>
-#include <yt/ytlib/distributed_throttler/distributed_throttler.h>
-#include <yt/ytlib/distributed_throttler/config.h>
+#include <yt/yt/ytlib/distributed_throttler/public.h>
+#include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
+#include <yt/yt/ytlib/distributed_throttler/config.h>
 
-#include <yt/ytlib/discovery_client/config.h>
-#include <yt/ytlib/discovery_client/discovery_client.h>
+#include <yt/yt/ytlib/discovery_client/config.h>
+#include <yt/yt/ytlib/discovery_client/discovery_client.h>
 
-#include <yt/server/lib/discovery_server/public.h>
-#include <yt/server/lib/discovery_server/config.h>
-#include <yt/server/lib/discovery_server/discovery_server.h>
+#include <yt/yt/server/lib/discovery_server/public.h>
+#include <yt/yt/server/lib/discovery_server/config.h>
+#include <yt/yt/server/lib/discovery_server/discovery_server.h>
 
-#include <yt/core/rpc/local_channel.h>
-#include <yt/core/rpc/local_server.h>
-#include <yt/core/rpc/server.h>
-#include <yt/core/rpc/static_channel_factory.h>
+#include <yt/yt/core/rpc/local_channel.h>
+#include <yt/yt/core/rpc/local_server.h>
+#include <yt/yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/static_channel_factory.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <thread>
 #include <vector>

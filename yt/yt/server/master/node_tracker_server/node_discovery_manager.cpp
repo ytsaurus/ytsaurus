@@ -5,16 +5,16 @@
 #include "rack.h"
 #include "node_discovery_manager.h"
 
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/public.h>
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/ytlib/cypress_client/public.h>
+#include <yt/yt/ytlib/cypress_client/public.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NNodeTrackerServer {
 

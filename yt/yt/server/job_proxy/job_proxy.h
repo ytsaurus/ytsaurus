@@ -5,23 +5,23 @@
 #include "job.h"
 #include "environment.h"
 
-#include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
+#include <yt/yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/job_prober_client/job_probe.h>
-#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
+#include <yt/yt/ytlib/job_prober_client/job_probe.h>
+#include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/statistics.h>
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 namespace NYT::NJobProxy {
 

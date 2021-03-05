@@ -1,12 +1,12 @@
 #include "fork_executor.h"
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/lazy_ptr.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 #ifdef _unix_
     // for wait*()

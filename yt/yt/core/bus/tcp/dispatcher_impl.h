@@ -7,12 +7,12 @@
 
 #include <yt/yt/library/syncmap/map.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/lock_free.h>
 
 #include <atomic>
 

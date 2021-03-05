@@ -1,18 +1,18 @@
 #include "schemaless_writer_adapter.h"
 #include "config.h"
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NFormats {
 

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/proto/guid.pb.h>
+#include <yt/yt/core/misc/proto/guid.pb.h>
 
-#include <yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
 
 #include <util/generic/typetraits.h>
 

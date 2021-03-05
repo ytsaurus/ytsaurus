@@ -5,9 +5,9 @@
 #include "format.h"
 #include "config.h"
 
-#include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/folding_profiler.h>
-#include <yt/ytlib/query_client/evaluation_helpers.h>
+#include <yt/yt/ytlib/query_client/query_preparer.h>
+#include <yt/yt/ytlib/query_client/folding_profiler.h>
+#include <yt/yt/ytlib/query_client/evaluation_helpers.h>
 
 #include <Parsers/IAST.h>
 #include <Parsers/ASTSubquery.h>

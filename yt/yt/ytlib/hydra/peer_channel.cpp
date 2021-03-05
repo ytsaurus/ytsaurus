@@ -2,13 +2,13 @@
 #include "config.h"
 #include "hydra_service_proxy.h"
 
-#include <yt/ytlib/hydra/proto/hydra_service.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_service.pb.h>
 
-#include <yt/core/rpc/balancing_channel.h>
-#include <yt/core/rpc/helpers.h>
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/balancing_channel.h>
+#include <yt/yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NHydra {
 

@@ -1,11 +1,11 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/http_proxy/helpers.h>
-#include <yt/server/http_proxy/compression.h>
+#include <yt/yt/server/http_proxy/helpers.h>
+#include <yt/yt/server/http_proxy/compression.h>
 
-#include <yt/ytlib/auth/cookie_authenticator.h>
+#include <yt/yt/ytlib/auth/cookie_authenticator.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NHttpProxy {
 namespace {

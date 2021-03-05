@@ -1,12 +1,12 @@
 #include "schema.h"
 
 // TODO(sandello,lukyan): Refine these dependencies.
-#include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/functions.h>
+#include <yt/yt/ytlib/query_client/query_preparer.h>
+#include <yt/yt/ytlib/query_client/functions.h>
 
-#include <yt/client/complex_types/check_type_compatibility.h>
+#include <yt/yt/client/complex_types/check_type_compatibility.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NTableClient {
 

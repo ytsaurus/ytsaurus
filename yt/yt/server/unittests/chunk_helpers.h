@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/master/chunk_server/chunk.h>
-#include <yt/server/master/chunk_server/chunk_list.h>
-#include <yt/server/master/chunk_server/chunk_view.h>
+#include <yt/yt/server/master/chunk_server/chunk.h>
+#include <yt/yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/chunk_server/chunk_view.h>
 
-#include <yt/client/table_client/public.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/comparator.h>
 
 namespace NYT::NChunkServer::NTesting {
 

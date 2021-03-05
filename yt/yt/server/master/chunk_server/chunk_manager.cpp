@@ -23,69 +23,69 @@
 #include "medium.h"
 #include "medium_proxy.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/serialize.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
-#include <yt/server/master/chunk_server/proto/chunk_manager.pb.h>
+#include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/server/lib/hydra/composite_automaton.h>
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/server/master/node_tracker_server/config.h>
-#include <yt/server/master/node_tracker_server/node_directory_builder.h>
-#include <yt/server/master/node_tracker_server/node_tracker.h>
-#include <yt/server/master/node_tracker_server/rack.h>
+#include <yt/yt/server/master/node_tracker_server/config.h>
+#include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/server/master/node_tracker_server/rack.h>
 
-#include <yt/server/master/object_server/object_manager.h>
-#include <yt/server/master/object_server/type_handler_detail.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
-#include <yt/server/master/security_server/account.h>
-#include <yt/server/master/security_server/group.h>
-#include <yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/group.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/tablet_server/tablet.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
-#include <yt/server/master/transaction_server/transaction_manager.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
-#include <yt/server/master/journal_server/journal_node.h>
-#include <yt/server/master/journal_server/journal_manager.h>
+#include <yt/yt/server/master/journal_server/journal_node.h>
+#include <yt/yt/server/master/journal_server/journal_manager.h>
 
-#include <yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
+#include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
-#include <yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/session_id.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/proto/chunk_service.pb.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
-#include <yt/ytlib/journal_client/helpers.h>
+#include <yt/yt/ytlib/journal_client/helpers.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/client/tablet_client/public.h>
+#include <yt/yt/client/tablet_client/public.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 #include <util/generic/cast.h>
 

@@ -2,7 +2,7 @@
 
 #include <infra/yp_service_discovery/api/api.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NServiceDiscovery::NYP {
 

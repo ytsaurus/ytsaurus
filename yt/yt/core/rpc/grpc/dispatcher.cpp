@@ -1,9 +1,9 @@
 #include "dispatcher.h"
 #include "helpers.h"
 
-#include <yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/shutdown.h>
 
-#include <yt/core/concurrency/count_down_latch.h>
+#include <yt/yt/core/concurrency/count_down_latch.h>
 
 #include <util/system/thread.h>
 

@@ -2,19 +2,19 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/ytlib/chunk_client/throttler_manager.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 #include <util/random/shuffle.h>
 

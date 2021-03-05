@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/client/table_client/key.h>
-#include <yt/client/table_client/key_bound.h>
-#include <yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/key.h>
+#include <yt/yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/comparator.h>
 
 namespace NYT::NTableClient {
 

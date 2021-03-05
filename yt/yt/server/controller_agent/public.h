@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/lib/controller_agent/public.h>
+#include <yt/yt/server/lib/controller_agent/public.h>
 
 namespace NYT::NControllerAgent {
 

@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/misc/defines.h>
+#include <yt/yt/core/misc/defines.h>
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 #include <variant>
 

@@ -1,6 +1,6 @@
 #include "channel.h"
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
 namespace NYT::NNodeTrackerClient {
 

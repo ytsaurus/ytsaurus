@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/election/public.h>
+#include <yt/yt/client/election/public.h>
 
 namespace NYT::NElection {
 

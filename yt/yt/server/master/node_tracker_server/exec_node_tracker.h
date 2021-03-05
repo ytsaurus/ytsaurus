@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
+#include <yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NNodeTrackerServer {
 

@@ -3,19 +3,19 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/server/node/data_node/disk_location.h>
+#include <yt/yt/server/node/data_node/disk_location.h>
 
-#include <yt/server/node/job_agent/job.h>
+#include <yt/yt/server/node/job_agent/job.h>
 
-#include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/core/misc/public.h>
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NExecAgent {
 

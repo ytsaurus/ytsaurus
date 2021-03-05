@@ -4,34 +4,34 @@
 #include "log.h"
 #include "writer.h"
 
-#include <yt/core/concurrency/profiling_helpers.h>
-#include <yt/core/concurrency/fork_aware_spinlock.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/scheduler_thread.h>
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/invoker_queue.h>
+#include <yt/yt/core/concurrency/profiling_helpers.h>
+#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler_thread.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/invoker_queue.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/hash.h>
-#include <yt/core/misc/lock_free.h>
-#include <yt/core/misc/pattern_formatter.h>
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/raw_formatter.h>
-#include <yt/core/misc/shutdown.h>
-#include <yt/core/misc/variant.h>
-#include <yt/core/misc/ref_counted_tracker.h>
-#include <yt/core/misc/heap.h>
-#include <yt/core/misc/signal_registry.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/hash.h>
+#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/pattern_formatter.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/raw_formatter.h>
+#include <yt/yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/variant.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/heap.h>
+#include <yt/yt/core/misc/signal_registry.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/ypath_service.h>
-#include <yt/core/ytree/yson_serializable.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/library/profiling/producer.h>
+#include <yt/yt/library/profiling/producer.h>
 
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>

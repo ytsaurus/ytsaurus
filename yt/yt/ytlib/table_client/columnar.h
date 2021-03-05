@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/core/misc/range.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/range.h>
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT::NTableClient {
 

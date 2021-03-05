@@ -4,30 +4,30 @@
 #include "type_handler_detail.h"
 #include "object.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
-#include <yt/server/master/security_server/security_manager.h>
-#include <yt/server/master/security_server/subject.h>
-#include <yt/server/master/security_server/acl.h>
-#include <yt/server/master/security_server/user.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/subject.h>
+#include <yt/yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/server/master/node_tracker_server/node_tracker.h>
-#include <yt/server/master/node_tracker_server/node.h>
-#include <yt/server/master/node_tracker_server/node_directory_builder.h>
-#include <yt/server/master/node_tracker_server/node_discovery_manager.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
+#include <yt/yt/server/master/node_tracker_server/node_discovery_manager.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/medium.h>
 
-#include <yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/config.h>
 
-#include <yt/ytlib/object_client/proto/master_ypath.pb.h>
+#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
 
-#include <yt/ytlib/tablet_client/helpers.h>
+#include <yt/yt/ytlib/tablet_client/helpers.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NObjectServer {
 

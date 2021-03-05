@@ -3,17 +3,17 @@
 #include "row_stream.h"
 #include "wire_row_stream.h"
 
-#include <yt/client/api/rowset.h>
-#include <yt/client/api/table_reader.h>
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/table_reader.h>
 
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/core/rpc/stream.h>
+#include <yt/yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
 

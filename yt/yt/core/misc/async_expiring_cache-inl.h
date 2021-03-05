@@ -7,9 +7,9 @@
 
 #include "config.h"
 
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT {
 

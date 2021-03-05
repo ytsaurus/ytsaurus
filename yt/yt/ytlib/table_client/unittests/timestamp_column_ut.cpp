@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include "column_format_ut.h"
 
-#include <yt/ytlib/table_chunk_format/timestamp_writer.h>
-#include <yt/ytlib/table_chunk_format/timestamp_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/timestamp_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/timestamp_reader.h>
 
 namespace NYT::NTableClient {
 namespace {

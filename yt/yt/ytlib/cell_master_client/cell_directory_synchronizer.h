@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/ref_counted.h>
+#include <yt/yt/core/misc/ref_counted.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/yt/ytlib/api/public.h>
 
 namespace NYT::NCellMasterClient {
 

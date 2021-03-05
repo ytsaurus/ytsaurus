@@ -5,27 +5,27 @@
 #include "job.h"
 #include "config.h"
 
-#include <yt/server/lib/controller_agent/helpers.h>
+#include <yt/yt/server/lib/controller_agent/helpers.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/master_hydra_service.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/master_hydra_service.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
-#include <yt/server/master/node_tracker_server/node.h>
-#include <yt/server/master/node_tracker_server/node_directory_builder.h>
-#include <yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
-#include <yt/server/lib/chunk_server/proto/job.pb.h>
+#include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
-#include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
+#include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 namespace NYT::NChunkServer {
 

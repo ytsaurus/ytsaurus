@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/server/master/object_server/map_object_proxy.h>
+#include <yt/yt/server/master/object_server/map_object_proxy.h>
 
 namespace NYT::NSecurityServer {
 

@@ -1,8 +1,8 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/blob.h>
+#include <yt/yt/core/misc/blob.h>
 
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/checksum.h>
 
 #include <util/random/random.h>
 #include <util/stream/mem.h>

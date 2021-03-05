@@ -7,18 +7,18 @@
 #include "subquery_spec.h"
 #include "conversion.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
-#include <yt/ytlib/table_client/virtual_value_directory.h>
+#include <yt/yt/ytlib/table_client/virtual_value_directory.h>
 
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnVector.h>

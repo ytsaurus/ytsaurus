@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
 namespace NYT::NCellMaster {
 

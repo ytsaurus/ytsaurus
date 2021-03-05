@@ -1,7 +1,7 @@
 #include "client_impl.h"
 #include "transaction.h"
 
-#include <yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 
 namespace NYT::NApi::NNative {
 

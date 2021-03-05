@@ -1,10 +1,10 @@
-#include <yt/core/test_framework/framework.h>
-#include <yt/core/test_framework/yson_consumer_mock.h>
+#include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/yson_consumer_mock.h>
 
-#include <yt/core/yson/pull_parser.h>
-#include <yt/core/yson/token_writer.h>
+#include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/token_writer.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <util/stream/format.h>
 #include <util/stream/mem.h>

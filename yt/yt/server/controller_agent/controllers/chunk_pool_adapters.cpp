@@ -2,8 +2,8 @@
 
 #include "task.h"
 
-#include <yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

@@ -2,29 +2,29 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/table_server/public.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/server/master/chunk_server/public.h>
+#include <yt/yt/server/master/chunk_server/public.h>
 
-#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/ytlib/tablet_client/proto/heartbeat.pb.h>
+#include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/misc/aggregate_property.h>
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/aggregate_property.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref_tracked.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NTabletServer {
 

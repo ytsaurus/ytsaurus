@@ -3,16 +3,16 @@
 #include "log_reader.h"
 #include "log_tailer.h"
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/yt/ytlib/monitoring/http_integration.h>
+#include <yt/yt/ytlib/monitoring/monitoring_manager.h>
 
-#include <yt/ytlib/program/build_attributes.h>
+#include <yt/yt/ytlib/program/build_attributes.h>
 
-#include <yt/core/http/server.h>
+#include <yt/yt/core/http/server.h>
 
-#include <yt/core/misc/signal_registry.h>
+#include <yt/yt/core/misc/signal_registry.h>
 
 namespace NYT::NLogTailer {
 

@@ -5,17 +5,17 @@
 #include "private.h"
 #include "helpers.h"
 
-#include <yt/core/net/listener.h>
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/listener.h>
+#include <yt/yt/core/net/connection.h>
 
-#include <yt/core/concurrency/poller.h>
-#include <yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/concurrency/poller.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
 namespace NYT::NHttp {
 

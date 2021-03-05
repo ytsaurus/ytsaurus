@@ -1,13 +1,13 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/ytree/public.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/ytlib/chunk_client/io_engine.h>
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
 // TODO(babenko): remove this dependency
-#include <yt/server/node/data_node/public.h>
+#include <yt/yt/server/node/data_node/public.h>
 
 #include <util/system/fs.h>
 

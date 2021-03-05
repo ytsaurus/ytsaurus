@@ -5,28 +5,28 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/ytlib/table_client/overlapping_reader.h>
-#include <yt/ytlib/table_client/row_merger.h>
-#include <yt/ytlib/table_client/schemaful_concatencaing_reader.h>
+#include <yt/yt/ytlib/table_client/overlapping_reader.h>
+#include <yt/yt/ytlib/table_client/row_merger.h>
+#include <yt/yt/ytlib/table_client/schemaful_concatencaing_reader.h>
 
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/versioned_row.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/unordered_schemaful_reader.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unordered_schemaful_reader.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/chunked_memory_pool.h>
-#include <yt/core/misc/heap.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/heap.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/range.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/range.h>
 
 namespace NYT::NTabletNode {
 

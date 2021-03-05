@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/tracing/public.h>
+#include <yt/yt/core/tracing/public.h>
 
 namespace NYT::NHttp {
 

@@ -5,16 +5,16 @@
 #include "private.h"
 #include "tvm_service.h"
 
-#include <yt/core/json/json_parser.h>
+#include <yt/yt/core/json/json_parser.h>
 
-#include <yt/core/https/client.h>
+#include <yt/yt/core/https/client.h>
 
-#include <yt/core/http/client.h>
-#include <yt/core/http/http.h>
+#include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/http.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 namespace NYT::NAuth {
 

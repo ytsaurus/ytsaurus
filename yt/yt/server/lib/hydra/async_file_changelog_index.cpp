@@ -2,9 +2,9 @@
 #include "format.h"
 #include "private.h"
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/ytlib/chunk_client/io_engine.h>
 
 namespace NYT::NHydra {
 

@@ -3,7 +3,7 @@
 #include "public.h"
 #include "callbacks.h"
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
 namespace NYT::NQueryClient {
 

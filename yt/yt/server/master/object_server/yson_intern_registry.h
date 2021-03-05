@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
 namespace NYT::NObjectServer {
 

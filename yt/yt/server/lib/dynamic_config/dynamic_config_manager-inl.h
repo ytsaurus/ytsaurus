@@ -9,15 +9,15 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_service.h>
 
 namespace NYT::NDynamicConfig {
 

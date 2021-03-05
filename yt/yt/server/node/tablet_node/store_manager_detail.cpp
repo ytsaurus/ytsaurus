@@ -7,15 +7,15 @@
 #include "in_memory_manager.h"
 #include "transaction.h"
 
-#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
 namespace NYT::NTabletNode {
 

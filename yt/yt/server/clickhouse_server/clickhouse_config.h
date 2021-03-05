@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NClickHouseServer {
 

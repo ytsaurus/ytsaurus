@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/http_proxy/compression.h>
-#include <yt/server/http_proxy/framing.h>
+#include <yt/yt/server/http_proxy/compression.h>
+#include <yt/yt/server/http_proxy/framing.h>
 
-#include <yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <util/string/builder.h>
 

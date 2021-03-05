@@ -3,17 +3,17 @@
 #include "journal_node.h"
 #include "journal_manager.h"
 
-#include <yt/server/master/chunk_server/chunk.h>
-#include <yt/server/master/chunk_server/chunk_list.h>
-#include <yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/server/master/chunk_server/chunk_owner_node_proxy.h>
+#include <yt/yt/server/master/chunk_server/chunk.h>
+#include <yt/yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk_owner_node_proxy.h>
 
-#include <yt/server/master/chunk_server/helpers.h>
+#include <yt/yt/server/master/chunk_server/helpers.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/ytlib/journal_client/helpers.h>
-#include <yt/ytlib/journal_client/proto/journal_ypath.pb.h>
+#include <yt/yt/ytlib/journal_client/helpers.h>
+#include <yt/yt/ytlib/journal_client/proto/journal_ypath.pb.h>
 
 namespace NYT::NJournalServer {
 

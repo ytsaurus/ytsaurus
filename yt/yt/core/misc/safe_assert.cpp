@@ -1,6 +1,6 @@
 #include "safe_assert.h"
 
-#include <yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/fls.h>
 
 namespace NYT {
 

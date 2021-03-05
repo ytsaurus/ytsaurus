@@ -4,8 +4,8 @@
 #include "host.h"
 #include "clickhouse_service_proxy.h"
 
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NClickHouseServer {
 

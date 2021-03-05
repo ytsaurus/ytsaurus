@@ -2,11 +2,11 @@
 
 #include "private.h"
 
-#include <yt/server/lib/chunk_pools/public.h>
+#include <yt/yt/server/lib/chunk_pools/public.h>
 
-#include <yt/server/lib/controller_agent/persistence.h>
+#include <yt/yt/server/lib/controller_agent/persistence.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

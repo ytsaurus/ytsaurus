@@ -3,21 +3,21 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/core_dumper.h>
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/core_dumper.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/ytree/ypath_service.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <util/system/mutex.h>
 
 #ifdef _linux_
-    #include <yt/contrib/coredumper/coredumper.h>
+    #include <yt/yt/contrib/coredumper/coredumper.h>
     #include <sys/prctl.h>
 #endif
 

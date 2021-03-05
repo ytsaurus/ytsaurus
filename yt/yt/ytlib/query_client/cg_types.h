@@ -4,7 +4,7 @@
 #include "evaluation_helpers.h"
 #include "function_context.h"
 
-#include <yt/client/table_client/llvm_types.h>
+#include <yt/yt/client/table_client/llvm_types.h>
 
 namespace NYT::NCodegen {
 

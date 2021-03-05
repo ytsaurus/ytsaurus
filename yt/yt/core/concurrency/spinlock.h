@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/port.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/port.h>
 
 #include <library/cpp/ytalloc/core/concurrency/rw_spinlock.h>
 

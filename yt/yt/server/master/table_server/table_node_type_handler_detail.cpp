@@ -6,23 +6,23 @@
 #include "shared_table_schema.h"
 #include "private.h"
 
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/yt/ytlib/table_client/schema.h>
 
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
-#include <yt/server/master/chunk_server/chunk.h>
-#include <yt/server/master/chunk_server/chunk_list.h>
-#include <yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/server/master/chunk_server/chunk_owner_type_handler.h>
+#include <yt/yt/server/master/chunk_server/chunk.h>
+#include <yt/yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk_owner_type_handler.h>
 
-#include <yt/server/master/tablet_server/tablet.h>
-#include <yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
-#include <yt/server/master/table_server/shared_table_schema.h>
+#include <yt/yt/server/master/table_server/shared_table_schema.h>
 
 namespace NYT::NTableServer {
 

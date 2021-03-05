@@ -2,30 +2,30 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory_builder.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/ytlib/hydra/peer_channel.h>
+#include <yt/yt/ytlib/hydra/peer_channel.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/core/rpc/service_detail.h>
-#include <yt/core/rpc/helpers.h>
-#include <yt/core/rpc/dispatcher.h>
-#include <yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NClusterNode {
 

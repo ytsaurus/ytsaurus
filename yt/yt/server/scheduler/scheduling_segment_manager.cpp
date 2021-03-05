@@ -2,7 +2,7 @@
 #include "private.h"
 #include "persistent_scheduler_state.h"
 
-#include <yt/server/lib/scheduler/config.h>
+#include <yt/yt/server/lib/scheduler/config.h>
 
 #include <util/generic/algorithm.h>
 

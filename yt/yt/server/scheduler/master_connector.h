@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/server/lib/controller_agent/public.h>
+#include <yt/yt/server/lib/controller_agent/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
 namespace NYT::NScheduler {
 

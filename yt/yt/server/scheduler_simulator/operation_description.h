@@ -1,12 +1,12 @@
 #pragma once
 
-#include <yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/phoenix.h>
 
-#include <yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/node.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT::NSchedulerSimulator {
 

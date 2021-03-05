@@ -1,12 +1,12 @@
 #pragma once
 
-#include <yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 #include <bitset>
 

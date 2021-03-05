@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
 namespace NYT::NAuth {
 

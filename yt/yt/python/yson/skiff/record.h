@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/intrusive_ptr.h>
+#include <yt/yt/core/misc/intrusive_ptr.h>
 
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx

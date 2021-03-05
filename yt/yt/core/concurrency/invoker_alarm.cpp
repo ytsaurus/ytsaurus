@@ -1,9 +1,9 @@
 #include "invoker_alarm.h"
 #include "delayed_executor.h"
 
-#include <yt/core/actions/invoker.h>
+#include <yt/yt/core/actions/invoker.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NConcurrency {
 

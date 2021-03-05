@@ -1,18 +1,18 @@
 #include "query.h"
 #include "folding_profiler.h"
 
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/ytlib/query_client/proto/query.pb.h>
+#include <yt/yt/ytlib/query_client/proto/query.pb.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/core/ytree/serialize.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <limits>
 

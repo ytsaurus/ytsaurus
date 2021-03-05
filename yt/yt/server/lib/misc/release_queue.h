@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
 namespace NYT {
 

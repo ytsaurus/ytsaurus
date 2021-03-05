@@ -2,20 +2,20 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/ytlib/election/cell_manager.h>
-#include <yt/ytlib/election/config.h>
-#include <yt/ytlib/election/election_service_proxy.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/election_service_proxy.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/lease_manager.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/lease_manager.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
 namespace NYT::NElection {
 

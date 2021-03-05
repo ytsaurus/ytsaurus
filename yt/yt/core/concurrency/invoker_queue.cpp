@@ -1,7 +1,7 @@
 #include "invoker_queue.h"
 #include "private.h"
 
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
 namespace NYT::NConcurrency {
 

@@ -8,43 +8,43 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "structured_logger.h"
-#include "yt/library/profiling/sensor.h"
+#include "yt/yt/library/profiling/sensor.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/server/lib/hydra/hydra_manager.h>
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/ytlib/chunk_client/fetcher.h>
-#include <yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/ytlib/chunk_client/throttler_manager.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/fetcher.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/table_client/samples_fetcher.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/ytlib/table_client/samples_fetcher.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/ytlib/tablet_client/config.h>
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/async_semaphore.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
 namespace NYT::NTabletNode {
 

@@ -2,30 +2,30 @@
 
 #include "public.h"
 
-#include <yt/server/lib/job_agent/job_report.h>
+#include <yt/yt/server/lib/job_agent/job_report.h>
 
-#include <yt/server/job_proxy/environment.h>
+#include <yt/yt/server/job_proxy/environment.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <yt/ytlib/job_proxy/job_spec_helper.h>
+#include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/ytlib/job_prober_client/job_probe.h>
+#include <yt/yt/ytlib/job_prober_client/job_probe.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/statistics.h>
 
 namespace NYT::NJobProxy {
 

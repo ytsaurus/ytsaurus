@@ -7,21 +7,21 @@
 #include "transaction.h"
 #include "store_manager.h"
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/misc/chunked_vector.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/chunked_vector.h>
+#include <yt/yt/core/misc/property.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 namespace NYT::NTabletNode {
 

@@ -9,67 +9,67 @@
 #include "tamed_cell_manager.h"
 #include "cell_tracker.h"
 
-#include <yt/server/master/tablet_server/tablet_cell_decommissioner.h>
-#include <yt/server/master/tablet_server/cypress_integration.h>
-#include <yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/yt/server/master/tablet_server/tablet_cell_decommissioner.h>
+#include <yt/yt/server/master/tablet_server/cypress_integration.h>
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/chunk_server/chunk_list.h>
-#include <yt/server/master/chunk_server/chunk_view.h>
-#include <yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/server/master/chunk_server/chunk_tree_traverser.h>
-#include <yt/server/master/chunk_server/helpers.h>
-#include <yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/chunk_server/chunk_view.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk_tree_traverser.h>
+#include <yt/yt/server/master/chunk_server/helpers.h>
+#include <yt/yt/server/master/chunk_server/medium.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/server/master/table_server/table_node.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/server/lib/hive/hive_manager.h>
-#include <yt/server/lib/hive/helpers.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/helpers.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/node_tracker_server/node.h>
-#include <yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/server/master/security_server/security_manager.h>
-#include <yt/server/master/security_server/group.h>
-#include <yt/server/master/security_server/subject.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/group.h>
+#include <yt/yt/server/master/security_server/subject.h>
 
-#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
-#include <yt/server/lib/cell_server/proto/cell_manager.pb.h>
+#include <yt/yt/server/lib/cell_server/proto/cell_manager.pb.h>
 
-#include <yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
-#include <yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/config.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/misc/collection_helpers.h>
-#include <yt/core/misc/random_access_queue.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/random_access_queue.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
 #include <algorithm>
 

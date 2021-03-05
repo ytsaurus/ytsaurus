@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
 #include <optional>
 #include <variant>

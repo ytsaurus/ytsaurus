@@ -2,7 +2,7 @@
 #include "chunk_pool.h"
 #include "chunk_stripe.h"
 
-#include <yt/server/lib/controller_agent/progress_counter.h>
+#include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
 #include <util/generic/noncopyable.h>
 

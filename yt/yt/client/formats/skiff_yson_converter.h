@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/client/table_client/public.h>
-#include <yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/row_base.h>
 
-#include <yt/library/decimal/decimal.h>
-#include <yt/core/yson/public.h>
+#include <yt/yt/library/decimal/decimal.h>
+#include <yt/yt/core/yson/public.h>
 
 #include <library/cpp/skiff/skiff.h>
 

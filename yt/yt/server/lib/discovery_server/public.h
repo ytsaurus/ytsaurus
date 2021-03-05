@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/ytlib/discovery_client/public.h>
+#include <yt/yt/ytlib/discovery_client/public.h>
 
 namespace NYT::NDiscoveryServer {
 

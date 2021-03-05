@@ -1,20 +1,20 @@
 #include "cell_directory_synchronizer.h"
 #include "private.h"
 
-#include <yt/server/lib/hive/config.h>
+#include <yt/yt/server/lib/hive/config.h>
 
-#include <yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
-#include <yt/server/master/cell_server/tamed_cell_manager.h>
-#include <yt/server/master/cell_server/cell_base.h>
+#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
+#include <yt/yt/server/master/cell_server/cell_base.h>
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NHiveServer {
 

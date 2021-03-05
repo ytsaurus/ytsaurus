@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/parser.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/parser.h>
 
 namespace NYT::NFormats {
 

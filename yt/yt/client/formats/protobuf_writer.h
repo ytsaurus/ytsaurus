@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NFormats {
 

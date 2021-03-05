@@ -3,20 +3,20 @@
 #include "chunk_meta_extensions.h"
 #include "timing_reader.h"
 
-#include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/chunk_client/block_fetcher.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/block.h>
 
-#include <yt/ytlib/table_chunk_format/column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
-#include <yt/client/chunk_client/reader_base.h>
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/client/chunk_client/reader_base.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/table_client/column_sort_schema.h>
+#include <yt/yt/client/table_client/column_sort_schema.h>
 
-#include <yt/library/random/bernoulli_sampler.h>
+#include <yt/yt/library/random/bernoulli_sampler.h>
 
 namespace NYT::NTableClient {
 

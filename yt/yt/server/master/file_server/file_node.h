@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/master/chunk_server/chunk_owner_base.h>
+#include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 
-#include <yt/server/master/cypress_server/public.h>
+#include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/core/crypto/crypto.h>
+#include <yt/yt/core/crypto/crypto.h>
 
 namespace NYT::NFileServer {
 

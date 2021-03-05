@@ -2,16 +2,16 @@
 
 #include "parser_detail.h"
 
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/column_rename_descriptor.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/column_rename_descriptor.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NYPath {
 

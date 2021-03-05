@@ -2,32 +2,32 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/lib/admin/admin_service.h>
+#include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/server/lib/core_dump/core_dumper.h>
 
-#include <yt/server/lib/transaction_server/timestamp_proxy_service.h>
+#include <yt/yt/server/lib/transaction_server/timestamp_proxy_service.h>
 
-#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/yt/ytlib/monitoring/http_integration.h>
 
-#include <yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/ytlib/program/build_attributes.h>
-#include <yt/ytlib/program/config.h>
+#include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/ytlib/program/config.h>
 
-#include <yt/client/transaction_client/remote_timestamp_provider.h>
+#include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
 
-#include <yt/core/bus/tcp/server.h>
+#include <yt/yt/core/bus/tcp/server.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/http/server.h>
+#include <yt/yt/core/http/server.h>
 
-#include <yt/core/rpc/caching_channel_factory.h>
-#include <yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/server.h>
 
-#include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/bus/server.h>
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/bus/server.h>
 
 namespace NYT::NTimestampProvider {
 

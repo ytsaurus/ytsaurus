@@ -2,13 +2,13 @@
 
 #include "object_builder.h"
 
-#include <yt/python/common/helpers.h>
-#include <yt/python/common/public.h>
-#include <yt/python/common/stream.h>
+#include <yt/yt/python/common/helpers.h>
+#include <yt/yt/python/common/public.h>
+#include <yt/yt/python/common/stream.h>
 
-#include <yt/core/yson/lexer_detail.h>
+#include <yt/yt/core/yson/lexer_detail.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx

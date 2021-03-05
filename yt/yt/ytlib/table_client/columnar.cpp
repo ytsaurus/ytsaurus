@@ -1,8 +1,8 @@
 #include "columnar.h"
 
-#include <yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/row_base.h>
 
-#include <yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/algorithm_helpers.h>
 
 #include <util/system/cpu_id.h>
 

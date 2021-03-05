@@ -1,9 +1,9 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/ytlib/program/helpers.h>
-#include <yt/ytlib/program/program.h>
-#include <yt/ytlib/program/program_config_mixin.h>
+#include <yt/yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/program.h>
+#include <yt/yt/ytlib/program/program_config_mixin.h>
 
 namespace NYT::NLogTailer {
 

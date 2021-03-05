@@ -1,8 +1,8 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/guid.h>
+#include <yt/yt/core/misc/guid.h>
 
-#include <yt/server/master/chunk_server/chunk_requisition.h>
+#include <yt/yt/server/master/chunk_server/chunk_requisition.h>
 
 namespace NYT::NChunkServer {
 namespace {

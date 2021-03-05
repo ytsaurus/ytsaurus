@@ -1,13 +1,13 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/yson/string.h>
-#include <yt/core/yson/stream.h>
+#include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/yson/stream.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
 namespace NYT::NYson {
 namespace {

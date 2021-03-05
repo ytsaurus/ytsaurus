@@ -1,10 +1,10 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/acl.h>
 
-#include <yt/core/yson/pull_parser_deserialize.h>
+#include <yt/yt/core/yson/pull_parser_deserialize.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace {

@@ -2,7 +2,7 @@
 
 #include "node_detail.h"
 
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT::NCypressServer {
 

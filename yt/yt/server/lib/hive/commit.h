@@ -2,22 +2,22 @@
 
 #include "public.h"
 
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/client/hive/timestamp_map.h>
+#include <yt/yt/client/hive/timestamp_map.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref_tracked.h>
 
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <yt/core/tracing/public.h>
+#include <yt/yt/core/tracing/public.h>
 
 namespace NYT::NHiveServer {
 

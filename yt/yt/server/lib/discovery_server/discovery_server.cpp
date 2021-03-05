@@ -5,15 +5,15 @@
 #include "helpers.h"
 #include "member.h"
 
-#include <yt/ytlib/discovery_client/discovery_client_service_proxy.h>
-#include <yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/ytlib/discovery_client/discovery_client_service_proxy.h>
+#include <yt/yt/ytlib/discovery_client/helpers.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/rpc/caching_channel_factory.h>
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NDiscoveryServer {
 

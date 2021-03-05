@@ -1,6 +1,6 @@
 #include "schemaful_concatencaing_reader.h"
 
-#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
 
 namespace NYT::NTableClient {
 

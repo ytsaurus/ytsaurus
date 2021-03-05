@@ -1,11 +1,11 @@
 #include "io_engine.h"
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
 #include <util/generic/size_literals.h>
 

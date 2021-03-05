@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/string.h>
 
 #include <util/generic/typetraits.h>
 

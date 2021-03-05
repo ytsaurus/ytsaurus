@@ -1,13 +1,13 @@
 #include "tools.h"
 #include "registry.h"
 
-#include <yt/core/logging/config.h>
-#include <yt/core/logging/log.h>
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/library/process/subprocess.h>
+#include <yt/yt/library/process/subprocess.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTools {
 

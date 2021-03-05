@@ -2,9 +2,9 @@
 
 #include "fetcher.h"
 
-#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
 namespace NYT::NChunkClient {
 

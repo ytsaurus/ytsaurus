@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/server/lib/discovery_server/public.h>
+#include <yt/yt/server/lib/discovery_server/public.h>
 
 namespace NYT::NClusterDiscoveryServer {
 

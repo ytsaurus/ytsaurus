@@ -2,11 +2,11 @@
 
 #include "private.h"
 
-#include <yt/core/misc/shutdownable.h>
+#include <yt/yt/core/misc/shutdownable.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/core/concurrency/moody_camel_concurrent_queue.h>
+#include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
 
 #include <util/thread/lfqueue.h>
 

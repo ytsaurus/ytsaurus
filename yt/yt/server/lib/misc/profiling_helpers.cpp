@@ -1,15 +1,15 @@
 #include "profiling_helpers.h"
-#include "yt/core/profiling/timing.h"
-#include "yt/core/tracing/trace_context.h"
+#include "yt/yt/core/profiling/timing.h"
+#include "yt/yt/core/tracing/trace_context.h"
 
-#include <yt/core/misc/tls_cache.h>
+#include <yt/yt/core/misc/tls_cache.h>
 
-#include <yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/fls.h>
 
-#include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
 namespace NYT {
 

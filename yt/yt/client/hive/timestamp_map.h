@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 namespace NYT::NHiveClient {
 

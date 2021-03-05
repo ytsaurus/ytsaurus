@@ -2,9 +2,9 @@
 
 #include "table_node.h"
 
-#include <yt/server/master/chunk_server/chunk_owner_type_handler.h>
+#include <yt/yt/server/master/chunk_server/chunk_owner_type_handler.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NTableServer {
 

@@ -6,7 +6,7 @@
 #include "scheduling_segment_map.h"
 #endif
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NScheduler {
 

@@ -1,14 +1,14 @@
 #include "legacy_data_slice.h"
 #include "chunk_spec.h"
 
-#include <yt/ytlib/table_client/virtual_value_directory.h>
+#include <yt/yt/ytlib/table_client/virtual_value_directory.h>
 
-#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/serialize.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/serialize.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NChunkClient {
 

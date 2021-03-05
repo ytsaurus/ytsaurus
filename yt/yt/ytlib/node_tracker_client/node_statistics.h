@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <array>
 

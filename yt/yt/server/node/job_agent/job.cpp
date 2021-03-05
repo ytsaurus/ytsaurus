@@ -1,6 +1,6 @@
 #include "job.h"
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NJobAgent {
 

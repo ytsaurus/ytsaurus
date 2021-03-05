@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/misc/common.h>
+#include <yt/yt/core/misc/common.h>
 
 #include <util/generic/yexception.h>
 #include <util/system/types.h>

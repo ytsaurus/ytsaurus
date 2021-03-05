@@ -3,23 +3,23 @@
 #include "rack.h"
 #include "node_tracker.h"
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/medium.h>
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/object_detail.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/server/master/cell_server/cell_base.h>
-#include <yt/server/master/cell_server/cell_bundle.h>
+#include <yt/yt/server/master/cell_server/cell_base.h>
+#include <yt/yt/server/master/cell_server/cell_bundle.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
 namespace NYT::NNodeTrackerServer {
 

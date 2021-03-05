@@ -1,10 +1,10 @@
 #include "unversioned_value_yson_writer.h"
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_value.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_value.h>
 
-#include <yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/pull_parser.h>
 
 namespace NYT::NFormats {
 

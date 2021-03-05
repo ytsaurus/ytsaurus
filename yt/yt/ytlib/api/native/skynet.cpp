@@ -4,28 +4,28 @@
 #include "connection.h"
 #include "rpc_helpers.h"
 
-#include <yt/client/api/skynet.h>
+#include <yt/yt/client/api/skynet.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/private.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/private.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/object_client/object_ypath_proxy.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
 namespace NYT::NApi::NNative {
 

@@ -4,27 +4,27 @@
 #include "in_memory_service_proxy.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/server/node/tablet_node/in_memory_manager.h>
-#include <yt/server/node/tablet_node/slot_manager.h>
+#include <yt/yt/server/node/tablet_node/in_memory_manager.h>
+#include <yt/yt/server/node/tablet_node/slot_manager.h>
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/ytlib/chunk_client/block_cache.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/concurrency/lease_manager.h>
+#include <yt/yt/core/concurrency/lease_manager.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/ytalloc/memory_zone.h>
+#include <yt/yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NTabletNode {
 

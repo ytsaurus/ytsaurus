@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/ytlib/distributed_throttler/config.h>
+#include <yt/yt/ytlib/distributed_throttler/config.h>
 
 namespace NYT::NTabletNode {
 

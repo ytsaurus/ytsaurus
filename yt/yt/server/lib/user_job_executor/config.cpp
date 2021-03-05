@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
+#include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
 namespace NYT::NUserJobExecutor {
 

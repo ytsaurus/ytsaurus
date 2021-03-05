@@ -1,7 +1,7 @@
 #include "discovery.h"
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT {
 

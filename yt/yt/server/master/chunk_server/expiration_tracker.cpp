@@ -3,11 +3,11 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/server/master/chunk_server/chunk.h>
+#include <yt/yt/server/master/chunk_server/chunk.h>
 
 namespace NYT::NChunkServer {
 

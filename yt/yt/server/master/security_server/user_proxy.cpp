@@ -5,11 +5,11 @@
 #include "subject_proxy_detail.h"
 #include "user.h"
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/security_client/proto/user_ypath.pb.h>
+#include <yt/yt/ytlib/security_client/proto/user_ypath.pb.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NSecurityServer {
 

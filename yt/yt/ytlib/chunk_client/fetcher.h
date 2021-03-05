@@ -2,18 +2,18 @@
 
 #include "public.h"
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/guid.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/guid.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
 namespace NYT::NChunkClient {
 

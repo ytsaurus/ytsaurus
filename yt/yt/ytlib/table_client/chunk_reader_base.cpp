@@ -2,12 +2,12 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/algorithm_helpers.h>
 
 #include <algorithm>
 

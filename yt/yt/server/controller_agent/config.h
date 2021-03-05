@@ -2,36 +2,36 @@
 
 #include "public.h"
 
-#include <yt/server/lib/chunk_pools/config.h>
+#include <yt/yt/server/lib/chunk_pools/config.h>
 
-#include <yt/server/lib/job_agent/config.h>
+#include <yt/yt/server/lib/job_agent/config.h>
 
-#include <yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/yt/server/lib/scheduler/job_metrics.h>
 
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/ytlib/event_log/config.h>
+#include <yt/yt/ytlib/event_log/config.h>
 
-#include <yt/ytlib/node_tracker_client/config.h>
+#include <yt/yt/ytlib/node_tracker_client/config.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/config.h>
 
-#include <yt/core/ytree/yson_serializable.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/library/re2/public.h>
+#include <yt/yt/library/re2/public.h>
 
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 namespace NYT::NControllerAgent {
 

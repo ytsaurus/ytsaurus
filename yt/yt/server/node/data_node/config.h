@@ -2,24 +2,24 @@
 
 #include "public.h"
 
-#include <yt/server/lib/hydra/config.h>
+#include <yt/yt/server/lib/hydra/config.h>
 
-#include <yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/server/lib/containers/config.h>
+#include <yt/yt/server/lib/containers/config.h>
 
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/journal_client/config.h>
+#include <yt/yt/ytlib/journal_client/config.h>
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/config.h>
 
-#include <yt/core/misc/config.h>
-#include <yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/config.h>
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
-#include <yt/library/re2/re2.h>
+#include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NDataNode {
 

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT::NScheduler {
 

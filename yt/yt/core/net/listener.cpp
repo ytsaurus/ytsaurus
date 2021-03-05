@@ -1,11 +1,11 @@
 #include "listener.h"
 #include "connection.h"
 
-#include <yt/core/concurrency/pollable_detail.h>
+#include <yt/yt/core/concurrency/pollable_detail.h>
 
-#include <yt/core/net/socket.h>
+#include <yt/yt/core/net/socket.h>
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
 namespace NYT::NNet {
 

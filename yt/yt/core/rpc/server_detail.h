@@ -4,13 +4,13 @@
 #include "service.h"
 #include "authentication_identity.h"
 
-#include <yt/core/ytalloc/memory_zone.h>
+#include <yt/yt/core/ytalloc/memory_zone.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
 #include <atomic>
 

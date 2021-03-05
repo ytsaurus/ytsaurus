@@ -6,23 +6,23 @@
 #include "cell_bundle_proxy.h"
 #include "tamed_cell_manager.h"
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/object_detail.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/table_server/public.h>
 
-#include <yt/server/master/tablet_server/config.h>
+#include <yt/yt/server/master/tablet_server/config.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
 namespace NYT::NCellServer {
 

@@ -5,14 +5,14 @@
 #include "chunk_detail.h"
 #include "chunk_meta_manager.h"
 
-#include <yt/ytlib/chunk_client/block.h>
-#include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
+#include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/misc/async_slru_cache.h>
+#include <yt/yt/core/misc/async_slru_cache.h>
 
 namespace NYT::NDataNode {
 

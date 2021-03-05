@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/helpers.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT::NNodeTrackerClient {
 

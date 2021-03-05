@@ -2,11 +2,11 @@
 #include "tablet_slot.h"
 #include "slot_provider.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/lib/cellar_agent/occupier.h>
+#include <yt/yt/server/lib/cellar_agent/occupier.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
 namespace NYT::NTabletNode {
 

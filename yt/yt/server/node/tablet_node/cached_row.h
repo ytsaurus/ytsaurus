@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/core/misc/slab_allocator.h>
-#include <yt/core/misc/atomic_ptr.h>
+#include <yt/yt/core/misc/slab_allocator.h>
+#include <yt/yt/core/misc/atomic_ptr.h>
 
 namespace NYT::NTabletNode {
 

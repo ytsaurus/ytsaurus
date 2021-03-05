@@ -5,14 +5,14 @@
 #include "chunk_tree_statistics.h"
 #include "cumulative_statistics.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/key_bound.h>
 
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
-#include <yt/core/misc/indexed_vector.h>
-#include <yt/core/misc/range.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/indexed_vector.h>
+#include <yt/yt/core/misc/range.h>
 
 namespace NYT::NChunkServer {
 

@@ -3,9 +3,9 @@
 #include "config.h"
 #include "formatter.h"
 
-#include <yt/core/misc/ref_counted.h>
+#include <yt/yt/core/misc/ref_counted.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

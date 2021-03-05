@@ -4,11 +4,11 @@
 #include "config.h"
 #include "file_changelog_dispatcher.h"
 
-#include <yt/ytlib/chunk_client/io_engine.h>
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
-#include <yt/core/misc/async_slru_cache.h>
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/async_slru_cache.h>
+#include <yt/yt/core/misc/fs.h>
 
 namespace NYT::NHydra {
 

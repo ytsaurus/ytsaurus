@@ -2,7 +2,7 @@
 
 #include <build/scripts/c_templates/svnversion.h>
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
 namespace NYT::NClickHouseServer {
 

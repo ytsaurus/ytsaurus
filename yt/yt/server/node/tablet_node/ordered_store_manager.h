@@ -3,11 +3,11 @@
 #include "store_manager_detail.h"
 #include "dynamic_store_bits.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
 namespace NYT::NTabletNode {
 

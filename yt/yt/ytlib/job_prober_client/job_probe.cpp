@@ -1,13 +1,13 @@
 #include "job_probe.h"
 #include "job_prober_service_proxy.h"
 
-#include <yt/core/bus/tcp/client.h>
+#include <yt/yt/core/bus/tcp/client.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/bus/channel.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NJobProberClient {
 

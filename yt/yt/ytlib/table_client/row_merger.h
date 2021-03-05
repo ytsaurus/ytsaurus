@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/versioned_row.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/ytlib/query_client/public.h>
+#include <yt/yt/ytlib/query_client/public.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
 namespace NYT::NTableClient {
 

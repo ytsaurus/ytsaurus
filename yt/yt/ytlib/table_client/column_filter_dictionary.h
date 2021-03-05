@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
 
 #include <util/digest/sequence.h>
 

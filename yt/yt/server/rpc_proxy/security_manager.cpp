@@ -2,14 +2,14 @@
 #include "private.h"
 #include "bootstrap.h"
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/core/concurrency/fls.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/async_expiring_cache.h>
+#include <yt/yt/core/misc/async_expiring_cache.h>
 
 namespace NYT::NRpcProxy {
 

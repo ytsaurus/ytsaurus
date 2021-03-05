@@ -1,7 +1,7 @@
 #include "routine_registry.h"
 #include "private.h"
 
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
 namespace NYT::NCodegen {
 

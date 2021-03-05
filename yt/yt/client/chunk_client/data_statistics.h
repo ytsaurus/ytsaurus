@@ -1,15 +1,15 @@
 #pragma once
 
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
-#include <yt/core/misc/dense_map.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/dense_map.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT::NChunkClient {
 

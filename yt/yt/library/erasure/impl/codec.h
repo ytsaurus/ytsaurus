@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/core/misc/blob.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/blob.h>
+#include <yt/yt/core/misc/ref.h>
 
 #include <library/cpp/erasure/codec.h>
 

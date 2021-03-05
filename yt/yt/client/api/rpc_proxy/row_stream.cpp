@@ -1,8 +1,8 @@
 #include "row_stream.h"
 
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NApi::NRpcProxy {
 

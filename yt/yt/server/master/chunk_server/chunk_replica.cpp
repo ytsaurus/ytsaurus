@@ -1,13 +1,13 @@
 #include "chunk_replica.h"
 #include "chunk.h"
 
-#include <yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/string.h>
 
 namespace NYT::NChunkServer {
 

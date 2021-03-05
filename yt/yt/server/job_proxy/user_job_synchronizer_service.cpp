@@ -1,13 +1,13 @@
 #include "job_proxy.h"
 
-#include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
-#include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer_proxy.h>
+#include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
+#include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer_proxy.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/core/bus/tcp/client.h>
+#include <yt/yt/core/bus/tcp/client.h>
 
-#include <yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/bus/channel.h>
 
 namespace NYT::NJobProxy {
 

@@ -5,11 +5,11 @@
 #include "block_writer.h"
 #include "chunk_meta_extensions.h"
 
-#include <yt/client/table_client/public.h>
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/core/misc/bitmap.h>
-#include <yt/core/misc/chunked_output_stream.h>
+#include <yt/yt/core/misc/bitmap.h>
+#include <yt/yt/core/misc/chunked_output_stream.h>
 
 namespace NYT::NTableClient {
 

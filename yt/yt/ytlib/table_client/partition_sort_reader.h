@@ -3,15 +3,15 @@
 #include "public.h"
 #include "schemaless_multi_chunk_reader.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/comparator.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NTableClient {
 

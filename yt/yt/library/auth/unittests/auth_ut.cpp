@@ -1,8 +1,8 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/library/auth/auth.h>
+#include <yt/yt/library/auth/auth.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <util/folder/tempdir.h>
 

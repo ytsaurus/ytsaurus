@@ -1,6 +1,6 @@
 #include "syntax_checker.h"
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NYson::NDetail {
 

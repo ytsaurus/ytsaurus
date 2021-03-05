@@ -2,15 +2,15 @@
 #include "shard.h"
 #include "node.h"
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/object_detail.h>
 
-#include <yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/account.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
 namespace NYT::NCypressServer {
 

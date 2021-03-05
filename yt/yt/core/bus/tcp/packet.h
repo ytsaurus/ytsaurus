@@ -2,8 +2,8 @@
 
 #include "private.h"
 
-#include <yt/core/misc/chunked_memory_allocator.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/chunked_memory_allocator.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 namespace NYT::NBus {
 

@@ -3,20 +3,20 @@
 #include "config.h"
 #include "schemaless_chunk_writer.h"
 
-#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/chunked_memory_pool.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/property.h>
 
 #include <queue>
 #include <array>

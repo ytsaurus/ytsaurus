@@ -5,7 +5,7 @@
 #include "tools.h"
 #endif
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include "registry.h"
 

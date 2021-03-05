@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/client/complex_types/named_structures_yson.h>
-#include <yt/client/formats/public.h>
+#include <yt/yt/client/complex_types/named_structures_yson.h>
+#include <yt/yt/client/formats/public.h>
 
-#include <yt/client/table_client/value_consumer.h>
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/value_consumer.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/writer.h>
 
 namespace NYT::NTableClient {
 

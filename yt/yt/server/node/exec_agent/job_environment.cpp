@@ -2,33 +2,33 @@
 #include "job_directory_manager.h"
 #include "private.h"
 
-#include <yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/config.h>
-#include <yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/config.h>
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
-#include <yt/server/lib/misc/public.h>
+#include <yt/yt/server/lib/misc/public.h>
 
 #ifdef _linux_
-#include <yt/server/lib/containers/porto_executor.h>
-#include <yt/server/lib/containers/instance.h>
+#include <yt/yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/server/lib/containers/instance.h>
 
-#include <yt/server/lib/misc/process.h>
+#include <yt/yt/server/lib/misc/process.h>
 #endif
 
-#include <yt/ytlib/job_proxy/private.h>
+#include <yt/yt/ytlib/job_proxy/private.h>
 
-#include <yt/ytlib/tools/tools.h>
-#include <yt/ytlib/tools/proc.h>
+#include <yt/yt/ytlib/tools/tools.h>
+#include <yt/yt/ytlib/tools/proc.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/library/process/process.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/library/process/process.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <util/generic/guid.h>
 

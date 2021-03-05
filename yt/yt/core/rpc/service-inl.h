@@ -7,7 +7,7 @@
 
 #include "helpers.h"
 
-#include <yt/core/misc/format.h>
+#include <yt/yt/core/misc/format.h>
 
 namespace NYT::NRpc {
 

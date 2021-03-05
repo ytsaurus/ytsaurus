@@ -1,6 +1,6 @@
 #include "request_profiling_manager.h"
 
-#include <yt/server/master/object_server/private.h>
+#include <yt/yt/server/master/object_server/private.h>
 
 #include <yt/yt/library/syncmap/map.h>
 

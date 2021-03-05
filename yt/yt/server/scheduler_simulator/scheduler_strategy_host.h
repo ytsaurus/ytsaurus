@@ -3,18 +3,18 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/scheduler/helpers.h>
-#include <yt/server/scheduler/job.h>
-#include <yt/server/scheduler/exec_node.h>
-#include <yt/server/scheduler/operation.h>
-#include <yt/server/scheduler/persistent_scheduler_state.h>
-#include <yt/server/scheduler/scheduler_strategy.h>
+#include <yt/yt/server/scheduler/helpers.h>
+#include <yt/yt/server/scheduler/job.h>
+#include <yt/yt/server/scheduler/exec_node.h>
+#include <yt/yt/server/scheduler/operation.h>
+#include <yt/yt/server/scheduler/persistent_scheduler_state.h>
+#include <yt/yt/server/scheduler/scheduler_strategy.h>
 
-#include <yt/server/lib/scheduler/event_log.h>
+#include <yt/yt/server/lib/scheduler/event_log.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
 #include <util/generic/size_literals.h>
 

@@ -5,15 +5,15 @@
 #include "tree_builder.h"
 #include "convert.h"
 
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/producer.h>
-#include <yt/core/yson/parser.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/producer.h>
+#include <yt/yt/core/yson/parser.h>
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NYTree {
 

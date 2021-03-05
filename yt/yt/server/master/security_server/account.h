@@ -5,14 +5,14 @@
 #include "cluster_resources.h"
 #include "cluster_resource_limits.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/object_server/map_object.h>
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/map_object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT::NSecurityServer {
 

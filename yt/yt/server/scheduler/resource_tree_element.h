@@ -3,13 +3,13 @@
 #include "helpers.h"
 #include "resource_vector.h"
 
-#include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/yt/server/lib/scheduler/job_metrics.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 namespace NYT::NScheduler {
 

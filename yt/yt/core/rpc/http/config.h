@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/http/config.h>
+#include <yt/yt/core/http/config.h>
 
 namespace NYT::NRpc::NHttp {
 

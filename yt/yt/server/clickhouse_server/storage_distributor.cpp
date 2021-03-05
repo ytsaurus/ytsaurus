@@ -16,17 +16,17 @@
 #include "subquery.h"
 #include "table.h"
 
-#include <yt/server/lib/chunk_pools/chunk_stripe.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <yt/ytlib/table_client/table_columnar_statistics_cache.h>
+#include <yt/yt/ytlib/table_client/table_columnar_statistics_cache.h>
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
 #include <DataStreams/materializeBlock.h>
 #include <DataStreams/MaterializingBlockInputStream.h>

@@ -3,8 +3,8 @@
 #include "private.h"
 #include "operation_description.h"
 
-#include <yt/server/scheduler/public.h>
-#include <yt/server/scheduler/operation.h>
+#include <yt/yt/server/scheduler/public.h>
+#include <yt/yt/server/scheduler/operation.h>
 
 namespace NYT::NSchedulerSimulator {
 

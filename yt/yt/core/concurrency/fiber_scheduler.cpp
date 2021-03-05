@@ -5,13 +5,13 @@
 #include "atomic_flag_spinlock.h"
 #include "private.h"
 
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/shutdown.h>
-#include <yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/singleton.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
 #include <util/thread/lfstack.h>
 

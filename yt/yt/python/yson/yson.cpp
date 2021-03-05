@@ -17,16 +17,16 @@
 #include "skiff/switch.h"
 #include "skiff/raw_iterator.h"
 
-#include <yt/python/common/shutdown.h>
-#include <yt/python/common/helpers.h>
+#include <yt/yt/python/common/shutdown.h>
+#include <yt/yt/python/common/helpers.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/yson/protobuf_interop.h>
-#include <yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/null_consumer.h>
 
-#include <yt/core/misc/crash_handler.h>
-#include <yt/core/misc/signal_registry.h>
+#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/signal_registry.h>
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>

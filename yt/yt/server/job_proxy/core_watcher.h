@@ -2,22 +2,22 @@
 
 #include "public.h"
 
-#include <yt/server/lib/core_dump/helpers.h>
+#include <yt/yt/server/lib/core_dump/helpers.h>
 
-#include <yt/server/lib/job_proxy/public.h>
+#include <yt/yt/server/lib/job_proxy/public.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/core/concurrency/async_rw_lock.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/net/public.h>
+#include <yt/yt/core/net/public.h>
 
 namespace NYT::NJobProxy {
 

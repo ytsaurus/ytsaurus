@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/table_client/column_sort_schema.h>
+#include <yt/yt/client/table_client/column_sort_schema.h>
 
 namespace NYT::NTableClient {
 

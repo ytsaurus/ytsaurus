@@ -2,9 +2,9 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
 #include <util/random/random.h>
 

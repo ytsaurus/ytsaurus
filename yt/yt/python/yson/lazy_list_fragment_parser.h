@@ -1,9 +1,9 @@
 #pragma once
 
-#include <yt/python/common/helpers.h>
-#include <yt/python/common/cache.h>
+#include <yt/yt/python/common/helpers.h>
+#include <yt/yt/python/common/cache.h>
 
-#include <yt/core/yson/lexer_detail.h>
+#include <yt/yt/core/yson/lexer_detail.h>
 
 #include <Python.h>
 

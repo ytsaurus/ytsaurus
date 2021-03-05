@@ -9,7 +9,7 @@
 #include "delayed_executor.h"
 #include "thread_affinity.h"
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
 namespace NYT::NConcurrency {
 

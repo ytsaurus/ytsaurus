@@ -1,8 +1,8 @@
 #include "connection.h"
 
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NApi {
 

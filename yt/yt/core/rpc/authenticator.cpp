@@ -1,6 +1,6 @@
 #include "authenticator.h"
 
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
 namespace NYT::NRpc {
 

@@ -1,13 +1,13 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/config.h>
 
-#include <yt/server/controller_agent/controllers/job_splitter.h>
+#include <yt/yt/server/controller_agent/controllers/job_splitter.h>
 
-#include <yt/server/lib/chunk_pools/public.h>
-#include <yt/server/lib/chunk_pools/chunk_stripe.h>
+#include <yt/yt/server/lib/chunk_pools/public.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
 
-#include <yt/server/lib/controller_agent/structs.h>
+#include <yt/yt/server/lib/controller_agent/structs.h>
 
 namespace NYT::NControllerAgent::NControllers {
 namespace {

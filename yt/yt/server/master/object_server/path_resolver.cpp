@@ -1,18 +1,18 @@
 #include "path_resolver.h"
 #include "object_manager.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.h>
-#include <yt/server/master/cypress_server/node_detail.h>
-#include <yt/server/master/cypress_server/link_node.h>
-#include <yt/server/master/cypress_server/portal_entrance_node.h>
-#include <yt/server/master/cypress_server/helpers.h>
-#include <yt/server/master/cypress_server/resolve_cache.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/link_node.h>
+#include <yt/yt/server/master/cypress_server/portal_entrance_node.h>
+#include <yt/yt/server/master/cypress_server/helpers.h>
+#include <yt/yt/server/master/cypress_server/resolve_cache.h>
 
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NObjectServer {
 

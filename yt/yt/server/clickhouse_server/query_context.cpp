@@ -4,14 +4,14 @@
 #include "helpers.h"
 #include "query_registry.h"
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 #include <Interpreters/Context.h>
 #include <Interpreters/ProcessList.h>

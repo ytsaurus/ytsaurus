@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/server/lib/misc/public.h>
+#include <yt/yt/server/lib/misc/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NClusterNode {
 

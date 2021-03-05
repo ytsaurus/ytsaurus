@@ -6,8 +6,8 @@
 #include <util/system/file.h>
 #include <util/system/types.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <contrib/libs/zstd/zstd.h>
 

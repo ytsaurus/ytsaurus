@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/server/lib/job_agent/public.h>
+#include <yt/yt/server/lib/job_agent/public.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NJobAgent {
 

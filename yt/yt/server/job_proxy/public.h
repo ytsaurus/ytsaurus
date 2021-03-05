@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/lib/job_proxy/public.h>
+#include <yt/yt/server/lib/job_proxy/public.h>
 
 namespace NYT::NJobProxy {
 

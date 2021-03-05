@@ -3,11 +3,11 @@
 #include "public.h"
 #include "query_common.h"
 
-#include <yt/client/ypath/public.h>
+#include <yt/yt/client/ypath/public.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NQueryClient {
 

@@ -1,14 +1,14 @@
 #include "batch_attribute_fetcher.h"
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/rpc_helpers.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/core/ypath/helpers.h>
+#include <yt/yt/core/ypath/helpers.h>
 
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <library/cpp/iterator/functools.h>
 

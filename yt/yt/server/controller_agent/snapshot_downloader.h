@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT::NControllerAgent {
 

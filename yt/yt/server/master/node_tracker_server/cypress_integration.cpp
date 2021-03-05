@@ -5,31 +5,31 @@
 #include "rack.h"
 #include "data_center.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/medium.h>
 
-#include <yt/server/master/cypress_server/node_proxy_detail.h>
-#include <yt/server/master/cypress_server/virtual.h>
+#include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
+#include <yt/yt/server/master/cypress_server/virtual.h>
 
-#include <yt/server/master/node_tracker_server/node_discovery_manager.h>
+#include <yt/yt/server/master/node_tracker_server/node_discovery_manager.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/server/master/tablet_server/tablet_cell.h>
+#include <yt/yt/server/master/tablet_server/tablet_cell.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
-#include <yt/core/ytree/exception_helpers.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/exception_helpers.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/virtual.h>
 
-#include <yt/server/lib/misc/object_helpers.h>
+#include <yt/yt/server/lib/misc/object_helpers.h>
 
 namespace NYT::NNodeTrackerServer {
 

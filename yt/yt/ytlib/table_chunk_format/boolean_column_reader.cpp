@@ -3,10 +3,10 @@
 #include "column_reader_detail.h"
 #include "helpers.h"
 
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
-#include <yt/core/misc/bitmap.h>
+#include <yt/yt/core/misc/bitmap.h>
 
 namespace NYT::NTableChunkFormat {
 

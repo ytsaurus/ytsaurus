@@ -1,8 +1,8 @@
 #include "throttler_manager.h"
 
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 namespace NYT::NChunkClient {
 

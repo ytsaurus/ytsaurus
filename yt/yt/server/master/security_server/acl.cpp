@@ -2,16 +2,16 @@
 #include "security_manager.h"
 #include "subject.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/cypress_server/serialize.h>
+#include <yt/yt/server/master/cypress_server/serialize.h>
 
-#include <yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/acl.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/permission.h>
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NSecurityServer {
 

@@ -1,8 +1,8 @@
 #include "table_consumer.h"
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <cmath>
 #include <util/string/cast.h>

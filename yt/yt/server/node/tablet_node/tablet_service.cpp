@@ -10,26 +10,26 @@
 #include "transaction_manager.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/server/lib/hydra/hydra_manager.h>
-#include <yt/server/lib/hydra/hydra_service.h>
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_service.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/lib/misc/profiling_helpers.h>
+#include <yt/yt/server/lib/misc/profiling_helpers.h>
 
-#include <yt/ytlib/tablet_client/config.h>
-#include <yt/ytlib/tablet_client/tablet_service_proxy.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
 namespace NYT::NTabletNode {
 

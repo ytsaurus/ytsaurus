@@ -4,14 +4,14 @@
 #include "cg_routines.h"
 #include "llvm_folding_set.h"
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/library/codegen/module.h>
-#include <yt/library/codegen/public.h>
+#include <yt/yt/library/codegen/module.h>
+#include <yt/yt/library/codegen/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <llvm/IR/Module.h>
 

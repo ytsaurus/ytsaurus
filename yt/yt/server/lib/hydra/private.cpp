@@ -1,9 +1,9 @@
 #include "private.h"
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/misc/lazy_ptr.h>
-#include <yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 namespace NYT::NHydra {
 

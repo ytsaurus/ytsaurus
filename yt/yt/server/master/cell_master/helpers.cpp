@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-#include <yt/server/master/cell_master/proto/multicell_manager.pb.h>
+#include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
 namespace NYT::NCellMaster {
 

@@ -4,7 +4,7 @@
 #include "log_reader.h"
 #include "log_tailer.h"
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
 namespace NYT::NLogTailer {
 

@@ -25,45 +25,45 @@ IVolumeManagerPtr CreatePortoVolumeManager(
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/server/node/data_node/volume.pb.h>
+#include <yt/yt/server/node/data_node/volume.pb.h>
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/lib/containers/instance.h>
-#include <yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/server/lib/containers/instance.h>
+#include <yt/yt/server/lib/containers/porto_executor.h>
 
-#include <yt/server/lib/misc/disk_health_checker.h>
-#include <yt/server/lib/misc/private.h>
+#include <yt/yt/server/lib/misc/disk_health_checker.h>
+#include <yt/yt/server/lib/misc/private.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/tools/tools.h>
-#include <yt/ytlib/tools/proc.h>
+#include <yt/yt/ytlib/tools/tools.h>
+#include <yt/yt/ytlib/tools/proc.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/async_slru_cache.h>
-#include <yt/core/misc/checksum.h>
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/async_slru_cache.h>
+#include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 #include <util/system/fs.h>
 

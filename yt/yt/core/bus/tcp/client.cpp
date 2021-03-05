@@ -4,14 +4,14 @@
 #include "config.h"
 #include "connection.h"
 
-#include <yt/core/bus/bus.h>
+#include <yt/yt/core/bus/bus.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <errno.h>
 

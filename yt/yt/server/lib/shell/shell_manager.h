@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/server/lib/containers/public.h>
+#include <yt/yt/server/lib/containers/public.h>
 
-#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
+#include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/intrusive_ptr.h>
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/intrusive_ptr.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
 namespace NYT::NShell {
 

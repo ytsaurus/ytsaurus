@@ -6,16 +6,16 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/ytlib/api/public.h>
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/http/http.h>
+#include <yt/yt/core/http/http.h>
 
-#include <yt/core/tracing/sampler.h>
+#include <yt/yt/core/tracing/sampler.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NHttpProxy {
 

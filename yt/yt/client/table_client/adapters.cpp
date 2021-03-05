@@ -1,11 +1,11 @@
 #include "adapters.h"
 #include "row_batch.h"
 
-#include <yt/client/api/table_writer.h>
+#include <yt/yt/client/api/table_writer.h>
 
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/throughput_throttler.h>
-#include <yt/core/concurrency/periodic_yielder.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/periodic_yielder.h>
 
 namespace NYT::NTableClient {
 

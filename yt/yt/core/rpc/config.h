@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/config.h>
 
-#include <yt/core/misc/enum.h>
+#include <yt/yt/core/misc/enum.h>
 
 namespace NYT::NRpc {
 

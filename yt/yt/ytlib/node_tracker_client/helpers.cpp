@@ -1,13 +1,13 @@
 #include "helpers.h"
 
-#include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <limits>
 

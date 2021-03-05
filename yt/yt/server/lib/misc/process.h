@@ -4,9 +4,9 @@
 #error Platform must be linux to include this
 #endif
 
-#include <yt/server/lib/containers/public.h>
+#include <yt/yt/server/lib/containers/public.h>
 
-#include <yt/library/process/process.h>
+#include <yt/yt/library/process/process.h>
 
 #include <infra/porto/api/libporto.hpp>
 

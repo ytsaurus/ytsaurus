@@ -1,12 +1,12 @@
 #include "serialize.h"
 
-#include <yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
 
-#include <yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
 namespace NYT::NCypressServer {
 

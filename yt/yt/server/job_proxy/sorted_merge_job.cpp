@@ -1,19 +1,19 @@
 #include "sorted_merge_job.h"
 #include "job_detail.h"
 
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/data_source.h>
-#include <yt/ytlib/chunk_client/job_spec_extensions.h>
-#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
+#include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
-#include <yt/ytlib/job_proxy/helpers.h>
+#include <yt/yt/ytlib/job_proxy/helpers.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/sorted_merging_reader.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/sorted_merging_reader.h>
 
 namespace NYT::NJobProxy {
 

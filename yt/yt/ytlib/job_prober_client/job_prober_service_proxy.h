@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/job_prober_client/proto/job_prober_service.pb.h>
+#include <yt/yt/ytlib/job_prober_client/proto/job_prober_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NJobProberClient {
 

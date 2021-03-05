@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/pattern_formatter.h>
+#include <yt/yt/core/misc/pattern_formatter.h>
 
 namespace NYT {
 namespace {

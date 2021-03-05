@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/ytlib/auth/public.h>
+#include <yt/yt/ytlib/auth/public.h>
 
-#include <yt/ytlib/api/public.h>
+#include <yt/yt/ytlib/api/public.h>
 
-#include <yt/core/http/http.h>
+#include <yt/yt/core/http/http.h>
 
-#include <yt/core/rpc/authenticator.h>
+#include <yt/yt/core/rpc/authenticator.h>
 
 namespace NYT::NHttpProxy {
 

@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 namespace NYT::NTableClient {
 

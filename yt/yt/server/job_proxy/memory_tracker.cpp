@@ -2,14 +2,14 @@
 #include "tmpfs_manager.h"
 
 #ifdef _linux_
-#include <yt/server/lib/containers/instance.h>
+#include <yt/yt/server/lib/containers/instance.h>
 #endif
 
-#include <yt/ytlib/tools/proc.h>
-#include <yt/ytlib/tools/tools.h>
+#include <yt/yt/ytlib/tools/proc.h>
+#include <yt/yt/ytlib/tools/tools.h>
 
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/statistics.h>
 
 #include <util/stream/file.h>
 

@@ -5,58 +5,58 @@
 #include "controller_agent.h"
 #include "private.h"
 
-#include <yt/server/lib/admin/admin_service.h>
+#include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/server/lib/core_dump/core_dumper.h>
 
-#include <yt/server/lib/misc/address_helpers.h>
+#include <yt/yt/server/lib/misc/address_helpers.h>
 
-#include <yt/ytlib/program/build_attributes.h>
-#include <yt/ytlib/program/config.h>
+#include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/ytlib/program/config.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/yt/ytlib/monitoring/http_integration.h>
+#include <yt/yt/ytlib/monitoring/monitoring_manager.h>
 
-#include <yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/bus/server.h>
+#include <yt/yt/core/bus/server.h>
 
-#include <yt/core/bus/tcp/config.h>
-#include <yt/core/bus/tcp/server.h>
+#include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/server.h>
 
-#include <yt/core/http/server.h>
+#include <yt/yt/core/http/server.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/net/address.h>
-#include <yt/core/net/local_address.h>
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
 
-#include <yt/core/misc/core_dumper.h>
-#include <yt/core/misc/ref_counted_tracker.h>
-#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/core_dumper.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/ytalloc/statistics_producer.h>
+#include <yt/yt/core/ytalloc/statistics_producer.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/bus/server.h>
-#include <yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/bus/server.h>
+#include <yt/yt/core/rpc/server.h>
 
-#include <yt/core/ytree/virtual.h>
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 namespace NYT::NControllerAgent {
 

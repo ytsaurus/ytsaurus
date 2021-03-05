@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/gossip_value.h>
+#include <yt/yt/server/master/cell_master/gossip_value.h>
 
-#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NTabletServer {
 

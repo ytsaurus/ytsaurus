@@ -1,16 +1,16 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/controller_agent/helpers.h>
+#include <yt/yt/server/controller_agent/helpers.h>
 
-#include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
+#include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 
-#include <yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/blob_output.h>
 
 #include <random>
 

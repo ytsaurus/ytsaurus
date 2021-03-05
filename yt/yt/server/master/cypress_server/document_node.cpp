@@ -1,8 +1,8 @@
 #include "document_node.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
 namespace NYT::NCypressServer {
 

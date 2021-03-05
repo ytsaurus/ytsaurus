@@ -2,12 +2,12 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/controller_agent/controller_agent.h>
+#include <yt/yt/server/controller_agent/controller_agent.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 namespace NYT::NControllerAgent {
 

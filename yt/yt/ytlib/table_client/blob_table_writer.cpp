@@ -3,17 +3,17 @@
 #include "private.h"
 #include "schemaless_chunk_writer.h"
 
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/core/yson/lexer.h>
+#include <yt/yt/core/yson/lexer.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
 

@@ -1,8 +1,8 @@
 #include "helpers.h"
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/net/socket.h>
+#include <yt/yt/core/net/socket.h>
 
 namespace NYT::NNet {
 

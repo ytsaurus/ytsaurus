@@ -4,20 +4,20 @@
 #include "object_detail.h"
 #include "dynamic_store_bits.h"
 
-#include <yt/server/lib/hive/transaction_detail.h>
+#include <yt/yt/server/lib/hive/transaction_detail.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <yt/core/misc/persistent_queue.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
-#include <yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/persistent_queue.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
 namespace NYT::NTabletNode {
 

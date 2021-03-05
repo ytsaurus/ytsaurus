@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <library/cpp/http/server/http.h>
 

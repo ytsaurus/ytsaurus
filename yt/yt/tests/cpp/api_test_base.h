@@ -1,12 +1,12 @@
 #pragma once
 
-#include <yt/ytlib/api/connection.h>
+#include <yt/yt/ytlib/api/connection.h>
 
-#include <yt/core/misc/shared_range.h>
+#include <yt/yt/core/misc/shared_range.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT {
 namespace NCppTests {

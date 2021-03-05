@@ -1,6 +1,6 @@
 #include "timing.h"
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
 #include <util/system/hp_timer.h>
 

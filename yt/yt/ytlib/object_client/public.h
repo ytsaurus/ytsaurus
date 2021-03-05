@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
 namespace NYT::NObjectClient {
 

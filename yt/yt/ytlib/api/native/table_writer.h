@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/client/ypath/public.h>
+#include <yt/yt/client/ypath/public.h>
 
 namespace NYT::NApi::NNative {
 

@@ -3,21 +3,21 @@
 #include "public.h"
 #include "chunk_tree_statistics.h"
 
-#include <yt/server/master/cypress_server/public.h>
+#include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/server/master/security_server/cluster_resources.h>
+#include <yt/yt/server/master/security_server/cluster_resources.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/journal_client/public.h>
+#include <yt/yt/ytlib/journal_client/public.h>
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/comparator.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NChunkServer {
 

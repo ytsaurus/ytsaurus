@@ -2,12 +2,12 @@
 
 #include "private.h"
 
-#include <yt/core/misc/async_slru_cache.h>
-#include <yt/core/misc/historic_usage_aggregator.h>
+#include <yt/yt/core/misc/async_slru_cache.h>
+#include <yt/yt/core/misc/historic_usage_aggregator.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/client/hydra/public.h>
+#include <yt/yt/client/hydra/public.h>
 
 #include <util/generic/ymath.h>
 

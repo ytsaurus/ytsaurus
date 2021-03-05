@@ -1,16 +1,16 @@
 #include "job_prober_service.h"
 #include "private.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_controller.h>
 
-#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
-#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
+#include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NExecAgent {
 

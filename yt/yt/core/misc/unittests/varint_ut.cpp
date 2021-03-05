@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/varint.h>
+#include <yt/yt/core/misc/varint.h>
 
 #include <util/random/random.h>
 

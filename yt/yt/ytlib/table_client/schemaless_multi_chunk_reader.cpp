@@ -15,44 +15,44 @@
 #include "versioned_chunk_reader.h"
 #include "remote_dynamic_store_reader.h"
 
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/table_chunk_format/public.h>
-#include <yt/ytlib/table_chunk_format/column_reader.h>
-#include <yt/ytlib/table_chunk_format/null_column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/public.h>
+#include <yt/yt/ytlib/table_chunk_format/column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/null_column_reader.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/data_source.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/multi_reader_manager.h>
-#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
-#include <yt/ytlib/chunk_client/reader_factory.h>
-#include <yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/multi_reader_manager.h>
+#include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
+#include <yt/yt/ytlib/chunk_client/reader_factory.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
-#include <yt/ytlib/tablet_client/helpers.h>
+#include <yt/yt/ytlib/tablet_client/helpers.h>
 
-#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/yt/ytlib/query_client/column_evaluator.h>
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_base.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
 namespace NYT::NTableClient {
 

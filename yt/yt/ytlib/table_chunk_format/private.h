@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/misc/common.h>
+#include <yt/yt/core/misc/common.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 namespace NYT::NTableChunkFormat {
 

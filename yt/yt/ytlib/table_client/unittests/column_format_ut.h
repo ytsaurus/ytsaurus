@@ -2,18 +2,18 @@
 
 #include "helpers.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/table_chunk_format/column_writer.h>
-#include <yt/ytlib/table_chunk_format/column_reader.h>
-#include <yt/ytlib/table_chunk_format/data_block_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/column_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/data_block_writer.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/versioned_row.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
 namespace NYT::NTableClient {
 

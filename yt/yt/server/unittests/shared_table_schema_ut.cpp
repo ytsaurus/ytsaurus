@@ -1,8 +1,8 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/master/table_server/shared_table_schema.h>
+#include <yt/yt/server/master/table_server/shared_table_schema.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
 
 namespace NYT::NTableServer {

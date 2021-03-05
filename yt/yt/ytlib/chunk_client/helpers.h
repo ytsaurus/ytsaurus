@@ -6,33 +6,33 @@
 #include "block.h"
 #include "session_id.h"
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/client/hydra/public.h>
+#include <yt/yt/client/hydra/public.h>
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/logging/public.h>
+#include <yt/yt/core/logging/public.h>
 
-#include <yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/permission.h>
 
 namespace NYT::NChunkClient {
 

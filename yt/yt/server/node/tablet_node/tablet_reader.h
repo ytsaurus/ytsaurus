@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/concurrency/public.h>
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/misc/range.h>
+#include <yt/yt/core/misc/range.h>
 
 namespace NYT::NTabletNode {
 

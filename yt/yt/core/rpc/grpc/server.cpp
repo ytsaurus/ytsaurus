@@ -3,19 +3,19 @@
 #include "config.h"
 #include "helpers.h"
 
-#include <yt/core/rpc/grpc/proto/grpc.pb.h>
+#include <yt/yt/core/rpc/grpc/proto/grpc.pb.h>
 
-#include <yt/core/rpc/server_detail.h>
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/server_detail.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/core/bus/bus.h>
+#include <yt/yt/core/bus/bus.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/grpc_security.h>

@@ -2,17 +2,17 @@
 
 #include "private.h"
 
-#include <yt/server/node/data_node/config.h>
+#include <yt/yt/server/node/data_node/config.h>
 
 #ifdef _linux_
-#include <yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/server/lib/containers/porto_executor.h>
 #endif
 
-#include <yt/ytlib/tools/tools.h>
-#include <yt/ytlib/tools/proc.h>
+#include <yt/yt/ytlib/tools/tools.h>
+#include <yt/yt/ytlib/tools/proc.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <util/string/vector.h>
 

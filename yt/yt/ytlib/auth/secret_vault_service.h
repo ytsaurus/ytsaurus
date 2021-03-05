@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/hash.h>
+#include <yt/yt/core/misc/hash.h>
 
 namespace NYT::NAuth {
 

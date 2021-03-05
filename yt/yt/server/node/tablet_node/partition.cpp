@@ -4,17 +4,17 @@
 #include "tablet.h"
 #include "structured_logger.h"
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/client/table_client/serialize.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/serialize.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
 namespace NYT::NTabletNode {
 

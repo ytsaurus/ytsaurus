@@ -7,7 +7,7 @@
 
 #include <library/cpp/skiff/skiff.h>
 
-#include <yt/core/concurrency/coroutine.h>
+#include <yt/yt/core/concurrency/coroutine.h>
 
 namespace NYT::NSkiffExt {
 

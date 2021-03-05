@@ -3,63 +3,63 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/query_agent/config.h>
+#include <yt/yt/server/node/query_agent/config.h>
 
-#include <yt/server/node/tablet_node/security_manager.h>
-#include <yt/server/node/tablet_node/store.h>
-#include <yt/server/node/tablet_node/tablet.h>
-#include <yt/server/node/tablet_node/tablet_reader.h>
-#include <yt/server/node/tablet_node/tablet_slot.h>
-#include <yt/server/node/tablet_node/tablet_manager.h>
-#include <yt/server/node/tablet_node/tablet_snapshot_store.h>
-#include <yt/server/node/tablet_node/lookup.h>
-#include <yt/server/node/tablet_node/transaction_manager.h>
+#include <yt/yt/server/node/tablet_node/security_manager.h>
+#include <yt/yt/server/node/tablet_node/store.h>
+#include <yt/yt/server/node/tablet_node/tablet.h>
+#include <yt/yt/server/node/tablet_node/tablet_reader.h>
+#include <yt/yt/server/node/tablet_node/tablet_slot.h>
+#include <yt/yt/server/node/tablet_node/tablet_manager.h>
+#include <yt/yt/server/node/tablet_node/tablet_snapshot_store.h>
+#include <yt/yt/server/node/tablet_node/lookup.h>
+#include <yt/yt/server/node/tablet_node/transaction_manager.h>
 
-#include <yt/server/lib/misc/profiling_helpers.h>
+#include <yt/yt/server/lib/misc/profiling_helpers.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/query_client/query.h>
-#include <yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/ytlib/query_client/functions_cache.h>
-#include <yt/ytlib/query_client/evaluator.h>
+#include <yt/yt/ytlib/query_client/query.h>
+#include <yt/yt/ytlib/query_client/query_service_proxy.h>
+#include <yt/yt/ytlib/query_client/functions_cache.h>
+#include <yt/yt/ytlib/query_client/evaluator.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/tls_cache.h>
-#include <yt/core/misc/async_expiring_cache.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/tls_cache.h>
+#include <yt/yt/core/misc/async_expiring_cache.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/rpc/service_detail.h>
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NQueryAgent {
 

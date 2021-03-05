@@ -2,11 +2,11 @@
 
 #include "table_mount_cache.h"
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/misc/async_expiring_cache.h>
+#include <yt/yt/core/misc/async_expiring_cache.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NTabletClient {
 

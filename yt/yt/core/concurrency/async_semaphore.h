@@ -4,7 +4,7 @@
 
 #include "spinlock.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

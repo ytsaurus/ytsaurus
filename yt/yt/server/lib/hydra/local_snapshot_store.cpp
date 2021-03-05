@@ -6,9 +6,9 @@
 #include "snapshot_discovery.h"
 #include "snapshot_download.h"
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NHydra {
 

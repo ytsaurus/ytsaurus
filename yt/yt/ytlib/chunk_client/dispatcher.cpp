@@ -1,13 +1,13 @@
 #include "dispatcher.h"
 #include "config.h"
 
-#include <yt/core/concurrency/thread_pool.h>
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/shutdown.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NChunkClient {
 

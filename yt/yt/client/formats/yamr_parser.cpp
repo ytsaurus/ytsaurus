@@ -1,7 +1,7 @@
 #include "yamr_parser.h"
 #include "yamr_parser_base.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NFormats {
 

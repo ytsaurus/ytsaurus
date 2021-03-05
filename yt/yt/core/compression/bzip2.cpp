@@ -1,6 +1,6 @@
 #include "bzip2.h"
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <contrib/libs/libbz2/bzlib.h>
 

@@ -2,10 +2,10 @@
 
 #include "private.h"
 
-#include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT::NHydra {
 

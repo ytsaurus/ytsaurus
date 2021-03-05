@@ -1,12 +1,12 @@
 #include "chunk_replica_locator.h"
 #include "dispatcher.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NChunkClient {
 

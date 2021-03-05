@@ -9,51 +9,51 @@
 #include "medium.h"
 #include "private.h"
 
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
-#include <yt/server/master/cypress_server/helpers.h>
+#include <yt/yt/server/master/cypress_server/helpers.h>
 
-#include <yt/server/master/node_tracker_server/node_directory_builder.h>
+#include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/server/master/table_server/shared_table_schema.h>
+#include <yt/yt/server/master/table_server/shared_table_schema.h>
 
-#include <yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
-#include <yt/server/master/security_server/security_manager.h>
-#include <yt/server/master/security_server/security_tags.h>
-#include <yt/server/master/security_server/access_log.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/security_tags.h>
+#include <yt/yt/server/master/security_server/access_log.h>
 
-#include <yt/server/master/transaction_server/proto/transaction_manager.pb.h>
+#include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/file_client/file_chunk_writer.h>
+#include <yt/yt/ytlib/file_client/file_chunk_writer.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
-#include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/system_attribute_provider.h>
+#include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/system_attribute_provider.h>
 
 #include <type_traits>
 

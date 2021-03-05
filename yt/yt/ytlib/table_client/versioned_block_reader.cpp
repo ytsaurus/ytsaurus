@@ -3,12 +3,12 @@
 #include "versioned_block_writer.h"
 #include "schemaless_block_reader.h"
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/algorithm_helpers.h>
 
 namespace NYT::NTableClient {
 

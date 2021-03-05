@@ -2,9 +2,9 @@
 
 #include "object.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/acl.h>
 
 namespace NYT::NObjectServer {
 

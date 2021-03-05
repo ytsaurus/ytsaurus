@@ -1,17 +1,17 @@
 #include "overlapping_reader.h"
 #include "row_merger.h"
 
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/misc/heap.h>
+#include <yt/yt/core/misc/heap.h>
 
 #include <tuple>
 

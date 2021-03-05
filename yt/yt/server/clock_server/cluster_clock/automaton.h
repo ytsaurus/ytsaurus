@@ -3,12 +3,12 @@
 #include "public.h"
 #include "serialize.h"
 
-#include <yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
 
-#include <yt/ytlib/object_client/public.h>
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/public.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT::NClusterClock {
 

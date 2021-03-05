@@ -6,7 +6,7 @@
 #include "private.h"
 #include "tvm_service.h"
 
-#include <yt/core/rpc/authenticator.h>
+#include <yt/yt/core/rpc/authenticator.h>
 
 namespace NYT::NAuth {
 

@@ -3,10 +3,10 @@
 #include "public.h"
 #include "automaton.h"
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/checkpointable_stream.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/checkpointable_stream.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

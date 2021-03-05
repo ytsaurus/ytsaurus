@@ -1,11 +1,11 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include "control_thread.h"
 
-#include <yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/null_consumer.h>
 
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/convert-inl.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/convert-inl.h>
 
 #include <util/stream/null.h>
 

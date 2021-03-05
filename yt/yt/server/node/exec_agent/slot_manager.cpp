@@ -4,25 +4,25 @@
 #include "job_environment.h"
 #include "slot_location.h"
 
-#include <yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/node_resource_manager.h>
-#include <yt/server/node/cluster_node/master_connector.h>
-#include <yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/server/node/data_node/chunk_cache.h>
-#include <yt/server/node/data_node/volume_manager.h>
+#include <yt/yt/server/node/data_node/chunk_cache.h>
+#include <yt/yt/server/node/data_node/volume_manager.h>
 
-#include <yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_controller.h>
 
-#include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
 namespace NYT::NExecAgent {
 

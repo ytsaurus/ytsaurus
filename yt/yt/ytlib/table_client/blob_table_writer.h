@@ -2,21 +2,21 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/blob_reader.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/blob_reader.h>
 
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/misc/blob_output.h>
-#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
 #include <util/stream/output.h>
 

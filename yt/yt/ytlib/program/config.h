@@ -2,23 +2,23 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/ytalloc/config.h>
+#include <yt/yt/core/ytalloc/config.h>
 
-#include <yt/core/net/config.h>
+#include <yt/yt/core/net/config.h>
 
-#include <yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/config.h>
 
-#include <yt/core/logging/config.h>
+#include <yt/yt/core/logging/config.h>
 
-#include <yt/core/tracing/config.h>
+#include <yt/yt/core/tracing/config.h>
 
-#include <yt/core/profiling/config.h>
+#include <yt/yt/core/profiling/config.h>
 
-#include <yt/core/service_discovery/yp/config.h>
+#include <yt/yt/core/service_discovery/yp/config.h>
 
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 

@@ -4,8 +4,8 @@
 #include "parser.h"
 #include "consumer.h"
 
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/variant.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/variant.h>
 
 namespace NYT::NYson {
 

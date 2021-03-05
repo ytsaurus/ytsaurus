@@ -2,7 +2,7 @@
 #include "raw_formatter.h"
 #include "string_builder.h"
 
-#include <yt/build/config.h>
+#include <yt/yt/build/config.h>
 
 #ifdef HAVE_DLFCN_H
 #   include <dlfcn.h>

@@ -4,16 +4,16 @@
 #include "conversion.h"
 #include "config.h"
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
-#include <yt/client/api/transaction.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <Columns/ColumnNullable.h>
 #include <DataTypes/DataTypeFactory.h>

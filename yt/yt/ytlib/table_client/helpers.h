@@ -2,31 +2,31 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/versioned_row.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/adapters.h>
-#include <yt/client/table_client/columnar_statistics.h>
-#include <yt/client/table_client/column_sort_schema.h>
-#include <yt/client/table_client/table_output.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/adapters.h>
+#include <yt/yt/client/table_client/columnar_statistics.h>
+#include <yt/yt/client/table_client/column_sort_schema.h>
+#include <yt/yt/client/table_client/table_output.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/client/chunk_client/public.h>
+#include <yt/yt/client/chunk_client/public.h>
 
-#include <yt/client/formats/public.h>
+#include <yt/yt/client/formats/public.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 
-#include <yt/ytlib/cypress_client/public.h>
+#include <yt/yt/ytlib/cypress_client/public.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/core/yson/lexer.h>
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/lexer.h>
+#include <yt/yt/core/yson/public.h>
 
 
 namespace NYT::NTableClient {

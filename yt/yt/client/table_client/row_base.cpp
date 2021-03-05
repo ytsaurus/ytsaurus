@@ -1,8 +1,8 @@
 #include "row_base.h"
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/format.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/format.h>
 
 namespace NYT::NTableClient {
 

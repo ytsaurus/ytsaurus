@@ -1,8 +1,8 @@
 #include "request_session.h"
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 namespace NYT::NRpc {
 

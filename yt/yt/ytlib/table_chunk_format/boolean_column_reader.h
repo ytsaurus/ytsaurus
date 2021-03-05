@@ -2,7 +2,7 @@
 
 #include "column_reader.h"
 
-#include <yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/comparator.h>
 
 namespace NYT::NTableChunkFormat {
 

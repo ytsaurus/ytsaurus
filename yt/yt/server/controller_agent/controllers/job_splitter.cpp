@@ -1,11 +1,11 @@
 #include "job_splitter.h"
 
-#include <yt/server/controller_agent/operation_controller.h>
-#include <yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/operation_controller.h>
+#include <yt/yt/server/controller_agent/config.h>
 
-#include <yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
-#include <yt/server/lib/controller_agent/serialize.h>
+#include <yt/yt/server/lib/controller_agent/serialize.h>
 
 #include <util/generic/cast.h>
 

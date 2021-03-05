@@ -2,19 +2,19 @@
 
 #include "table_node.h"
 
-#include <yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/server/master/cypress_server/node_proxy_detail.h>
+#include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
 
-#include <yt/server/master/chunk_server/chunk_owner_node_proxy.h>
+#include <yt/yt/server/master/chunk_server/chunk_owner_node_proxy.h>
 
-#include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
 namespace NYT::NTableServer {
 

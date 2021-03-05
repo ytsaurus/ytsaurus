@@ -1,10 +1,10 @@
 #include "config.h"
 
-#include <yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/ytlib/object_client/config.h>
+#include <yt/yt/ytlib/object_client/config.h>
 
-#include <yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/config.h>
 
 namespace NYT::NMasterCache {
 

@@ -1,16 +1,16 @@
 #include "private.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
+#include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NControllerAgent {
 

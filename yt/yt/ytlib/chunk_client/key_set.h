@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
 namespace NYT::NChunkClient {
 

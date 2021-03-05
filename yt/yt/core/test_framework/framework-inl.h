@@ -5,7 +5,7 @@
 #include "framework.h"
 #endif
 
-#include <yt/core/misc/common.h>
+#include <yt/yt/core/misc/common.h>
 
 #include <util/system/demangle.h>
 

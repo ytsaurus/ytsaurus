@@ -6,9 +6,9 @@
 #include "functions.h"
 #include "functions_cg.h"
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/core/misc/sync_cache.h>
+#include <yt/yt/core/misc/sync_cache.h>
 
 namespace NYT::NQueryClient {
 

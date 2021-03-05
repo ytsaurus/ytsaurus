@@ -2,8 +2,8 @@
 
 #include "chunk_meta_extensions.h"
 
-#include <yt/client/chunk_client/writer_base.h>
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/writer_base.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
 namespace NYT::NChunkClient {
 

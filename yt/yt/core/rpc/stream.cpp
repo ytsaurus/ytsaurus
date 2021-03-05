@@ -2,7 +2,7 @@
 #include "client.h"
 #include "service_detail.h"
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
 namespace NYT::NRpc {
 

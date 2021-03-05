@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/node/tablet_node/sorted_dynamic_comparer.h>
+#include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/core/misc/sync_cache.h>
+#include <yt/yt/core/misc/sync_cache.h>
 
 #include <util/datetime/base.h>
 

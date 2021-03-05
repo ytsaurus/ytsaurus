@@ -3,24 +3,24 @@
 #include "helpers.h"
 #include "config.h"
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/ytlib/chunk_client/chunk_replica_locator.h>
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_locator.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/chunk_client/erasure_helpers.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/erasure_helpers.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <util/generic/algorithm.h>
 

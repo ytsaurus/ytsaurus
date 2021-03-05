@@ -2,20 +2,20 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_writer_base.h>
-#include <yt/ytlib/chunk_client/client_block_cache.h>
-#include <yt/ytlib/chunk_client/multi_chunk_writer.h>
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer_base.h>
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/yt/ytlib/chunk_client/multi_chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
 
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NTableClient {
 

@@ -3,16 +3,16 @@
 #include "private.h"
 #include "query_analyzer.h"
 
-#include <yt/server/lib/chunk_pools/chunk_stripe.h>
-#include <yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/core/logging/public.h>
+#include <yt/yt/core/logging/public.h>
 
 namespace NYT::NClickHouseServer {
 

@@ -1,10 +1,10 @@
 #include "zstd_legacy.h"
 #include "details.h"
 
-#include <yt/core/misc/blob.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/blob.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/contrib/zstd-legacy/lib/zstd_static.h>
+#include <yt/yt/contrib/zstd-legacy/lib/zstd_static.h>
 
 #include <util/generic/size_literals.h>
 

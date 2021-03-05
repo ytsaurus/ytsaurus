@@ -5,15 +5,15 @@
 #include "schemaless_writer_adapter.h"
 #include "unversioned_value_yson_writer.h"
 
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/misc/varint.h>
-#include <yt/core/misc/zerocopy_output_writer.h>
+#include <yt/yt/core/misc/varint.h>
+#include <yt/yt/core/misc/zerocopy_output_writer.h>
 
-#include <yt/core/yson/pull_parser.h>
-#include <yt/core/yson/token_writer.h>
+#include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/token_writer.h>
 
 #include <util/generic/buffer.h>
 

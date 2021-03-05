@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
 namespace NYT::NTabletNode {
 

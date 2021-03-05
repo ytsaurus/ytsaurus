@@ -7,31 +7,31 @@
 #include "operation_controller_detail.h"
 #include "task.h"
 
-#include <yt/server/controller_agent/chunk_list_pool.h>
-#include <yt/server/controller_agent/helpers.h>
-#include <yt/server/controller_agent/job_size_constraints.h>
-#include <yt/server/controller_agent/operation.h>
-#include <yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/chunk_list_pool.h>
+#include <yt/yt/server/controller_agent/helpers.h>
+#include <yt/yt/server/controller_agent/job_size_constraints.h>
+#include <yt/yt/server/controller_agent/operation.h>
+#include <yt/yt/server/controller_agent/config.h>
 
-#include <yt/server/lib/chunk_pools/unordered_chunk_pool.h>
-#include <yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <yt/ytlib/job_tracker_client/statistics.h>
+#include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
-#include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/schema.h>
 
-#include <yt/ytlib/query_client/query.h>
+#include <yt/yt/ytlib/query_client/query.h>
 
-#include <yt/core/concurrency/periodic_yielder.h>
+#include <yt/yt/core/concurrency/periodic_yielder.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
 #include <util/generic/cast.h>
 

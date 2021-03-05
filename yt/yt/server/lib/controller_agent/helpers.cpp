@@ -1,9 +1,9 @@
 #include "helpers.h"
 
-#include <yt/server/lib/controller_agent/serialize.h>
+#include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/core/misc/format.h>
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 #include <util/generic/cast.h>
 

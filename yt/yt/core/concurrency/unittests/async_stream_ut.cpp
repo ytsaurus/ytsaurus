@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/async_stream.h>
-#include <yt/core/concurrency/async_stream_pipe.h>
+#include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream_pipe.h>
 
 namespace NYT {
 namespace {

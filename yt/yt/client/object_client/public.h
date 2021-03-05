@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/core/misc/guid.h>
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/guid.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/client/election/public.h>
+#include <yt/yt/client/election/public.h>
 
 namespace NYT::NObjectClient {
 

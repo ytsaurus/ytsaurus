@@ -1,11 +1,11 @@
 #include "command.h"
 #include "config.h"
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
 namespace NYT::NDriver {
 

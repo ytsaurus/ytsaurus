@@ -1,6 +1,6 @@
 #include "query_builder.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <util/string/join.h>
 #include <util/stream/str.h>

@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
+#include <yt/yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
 namespace NYT::NJobProxy {
 

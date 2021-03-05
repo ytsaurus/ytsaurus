@@ -1,9 +1,9 @@
 #include "throughput_throttler.h"
 #include "config.h"
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/singleton.h>
 
 #include <queue>
 

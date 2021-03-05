@@ -1,9 +1,9 @@
 #include "name_table.h"
 #include "schema.h"
 
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NTableClient {
 

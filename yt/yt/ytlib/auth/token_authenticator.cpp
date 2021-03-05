@@ -5,11 +5,11 @@
 #include "private.h"
 #include "auth_cache.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/core/misc/async_expiring_cache.h>
+#include <yt/yt/core/misc/async_expiring_cache.h>
 
-#include <yt/core/rpc/authenticator.h>
+#include <yt/yt/core/rpc/authenticator.h>
 
 namespace NYT::NAuth {
 

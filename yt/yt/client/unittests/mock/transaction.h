@@ -1,9 +1,9 @@
 #pragma once
 
-#include <yt/client/api/file_writer.h>
-#include <yt/client/api/journal_reader.h>
-#include <yt/client/api/journal_writer.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/file_writer.h>
+#include <yt/yt/client/api/journal_reader.h>
+#include <yt/yt/client/api/journal_writer.h>
+#include <yt/yt/client/api/transaction.h>
 
 #include <library/cpp/testing/gtest_extensions/gtest_extensions.h>
 

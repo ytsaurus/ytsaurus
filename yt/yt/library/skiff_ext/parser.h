@@ -2,8 +2,8 @@
 
 #include <library/cpp/skiff/skiff_schema.h>
 
-#include <yt/core/concurrency/coroutine.h>
-#include <yt/core/misc/coro_pipe.h>
+#include <yt/yt/core/concurrency/coroutine.h>
+#include <yt/yt/core/misc/coro_pipe.h>
 
 #include <util/generic/buffer.h>
 

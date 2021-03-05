@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
 namespace NYT::NTabletNode {
 

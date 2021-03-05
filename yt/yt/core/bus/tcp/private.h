@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/bus/private.h>
+#include <yt/yt/core/bus/private.h>
 
 namespace NYT::NBus {
 

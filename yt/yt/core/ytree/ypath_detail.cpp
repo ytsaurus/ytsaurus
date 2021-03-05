@@ -2,23 +2,23 @@
 #include "node_detail.h"
 #include "ypath_client.h"
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/system_attribute_provider.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/system_attribute_provider.h>
 
-#include <yt/core/yson/async_writer.h>
-#include <yt/core/yson/attribute_consumer.h>
+#include <yt/yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/attribute_consumer.h>
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/rpc/proto/rpc.pb.h>
-#include <yt/core/rpc/server_detail.h>
-#include <yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/server_detail.h>
+#include <yt/yt/core/rpc/message.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NYTree {
 

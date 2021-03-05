@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/column_rename_descriptor.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/column_rename_descriptor.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/enum.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/enum.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NChunkClient {
 

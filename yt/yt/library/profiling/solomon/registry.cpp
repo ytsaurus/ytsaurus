@@ -4,8 +4,8 @@
 #include "percpu.h"
 
 #include <type_traits>
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/assert.h>
 
 #include <yt/yt/library/profiling/impl.h>
 #include <yt/yt/library/profiling/sensor.h>

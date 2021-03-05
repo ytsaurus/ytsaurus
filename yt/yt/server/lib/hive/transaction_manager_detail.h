@@ -3,7 +3,7 @@
 #include "public.h"
 #include "helpers.h"
 
-#include <yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
 
 namespace NYT::NHiveServer {
 

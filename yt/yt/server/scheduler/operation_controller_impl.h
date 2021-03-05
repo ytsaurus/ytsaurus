@@ -3,7 +3,7 @@
 #include "operation_controller.h"
 #include "controller_agent.h"
 
-#include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>
+#include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
 namespace NYT::NScheduler {
 

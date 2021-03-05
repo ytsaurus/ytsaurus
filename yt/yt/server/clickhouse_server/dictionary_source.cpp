@@ -7,16 +7,16 @@
 #include "revision_tracker.h"
 #include "block_input_stream.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/ytlib/table_client/table_read_spec.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/table_read_spec.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/name_table.h>
 
 #include <Common/Exception.h>
 #include <Dictionaries/DictionarySourceFactory.h>

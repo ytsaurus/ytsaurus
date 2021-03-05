@@ -8,35 +8,35 @@
 #include "snapshot_discovery.h"
 #include "state_hash_checker.h"
 
-#include <yt/server/lib/misc/fork_executor.h>
+#include <yt/yt/server/lib/misc/fork_executor.h>
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
-#include <yt/ytlib/hydra/proto/hydra_service.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_service.pb.h>
 
-#include <yt/core/actions/invoker_detail.h>
+#include <yt/yt/core/actions/invoker_detail.h>
 
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/misc/blob.h>
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/blob.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/connection.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
-#include <yt/library/process/pipe.h>
+#include <yt/yt/library/process/pipe.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/response_keeper.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
 #include <util/random/random.h>
 

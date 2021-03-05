@@ -1,8 +1,8 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/mpsc_queue.h>
+#include <yt/yt/core/misc/mpsc_queue.h>
 
 #include <thread>
 #include <array>

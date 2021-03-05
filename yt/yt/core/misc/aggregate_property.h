@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <functional>
 #include <map>

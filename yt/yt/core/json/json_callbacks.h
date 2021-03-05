@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/public.h>
-#include <yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/tree_builder.h>
 
-#include <yt/core/json/config.h>
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/utf8_decoder.h>
+#include <yt/yt/core/json/config.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/utf8_decoder.h>
 
 #include <queue>
 

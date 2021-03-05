@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/lib/exec_agent/proto/supervisor_service.pb.h>
+#include <yt/yt/server/lib/exec_agent/proto/supervisor_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NExecAgent {
 

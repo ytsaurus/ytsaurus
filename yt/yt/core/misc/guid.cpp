@@ -1,10 +1,10 @@
 #include "guid.h"
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/format.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 #include <util/random/random.h>
 

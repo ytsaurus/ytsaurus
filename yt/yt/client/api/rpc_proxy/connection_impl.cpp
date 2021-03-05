@@ -6,27 +6,27 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/core/net/local_address.h>
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/bus/tcp/dispatcher.h>
+#include <yt/yt/core/bus/tcp/dispatcher.h>
 
-#include <yt/core/http/client.h>
-#include <yt/core/http/http.h>
-#include <yt/core/http/helpers.h>
+#include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/helpers.h>
 
-#include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/roaming_channel.h>
-#include <yt/core/rpc/caching_channel_factory.h>
-#include <yt/core/rpc/dynamic_channel_pool.h>
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/roaming_channel.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/dynamic_channel_pool.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/service_discovery/service_discovery.h>
+#include <yt/yt/core/service_discovery/service_discovery.h>
 
 namespace NYT::NApi::NRpcProxy {
 

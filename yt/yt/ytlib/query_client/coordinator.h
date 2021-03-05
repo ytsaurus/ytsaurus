@@ -4,9 +4,9 @@
 #include "callbacks.h"
 #include "query.h"
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NQueryClient {
 

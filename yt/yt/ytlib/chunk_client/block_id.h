@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/proto/block_id.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/block_id.pb.h>
 
 namespace NYT::NChunkClient {
 

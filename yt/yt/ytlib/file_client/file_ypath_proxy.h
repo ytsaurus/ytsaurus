@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 namespace NYT::NFileClient {
 

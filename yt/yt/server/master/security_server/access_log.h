@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
 #define YT_LOG_ACCESS(...) \
     do { \

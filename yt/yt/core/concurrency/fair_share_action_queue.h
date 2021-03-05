@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/misc/shutdownable.h>
-#include <yt/core/misc/range.h>
+#include <yt/yt/core/misc/shutdownable.h>
+#include <yt/yt/core/misc/range.h>
 
 namespace NYT::NConcurrency {
 

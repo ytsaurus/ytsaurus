@@ -4,7 +4,7 @@
 #include <util/system/env.h>
 #include <util/system/shellcommand.h>
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
 #ifdef _unix_
     #include <netinet/ip.h>

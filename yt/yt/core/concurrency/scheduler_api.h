@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/misc/common.h>
+#include <yt/yt/core/misc/common.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT {
 // Forward declaration

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/lib/tablet_node/public.h>
+#include <yt/yt/server/lib/tablet_node/public.h>
 
 namespace NYT::NTabletNode {
 

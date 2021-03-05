@@ -3,21 +3,21 @@
 #include "chunk_reader.h"
 #include "chunk_reader_memory_manager.h"
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/lazy_ptr.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
 namespace NYT::NChunkClient {
 

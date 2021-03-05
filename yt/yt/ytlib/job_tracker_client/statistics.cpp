@@ -1,10 +1,10 @@
 #include "statistics.h"
 
-#include <yt/ytlib/chunk_client/traffic_meter.h>
+#include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/statistics.h>
 
 #include <util/string/util.h>
 

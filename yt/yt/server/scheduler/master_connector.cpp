@@ -7,45 +7,45 @@
 #include "bootstrap.h"
 #include "persistent_scheduler_state.h"
 
-#include <yt/server/lib/scheduler/config.h>
-#include <yt/server/lib/scheduler/experiments.h>
-#include <yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/config.h>
+#include <yt/yt/server/lib/scheduler/experiments.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
 
-#include <yt/server/lib/misc/update_executor.h>
+#include <yt/yt/server/lib/misc/update_executor.h>
 
-#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/file_client/file_ypath_proxy.h>
+#include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
-#include <yt/ytlib/hive/cluster_directory.h>
-#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/acl.h>
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
 namespace NYT::NScheduler {
 

@@ -1,27 +1,27 @@
 #include "cluster_directory_synchronizer.h"
 #include "private.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
-#include <yt/server/lib/hive/config.h>
+#include <yt/yt/server/lib/hive/config.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
-#include <yt/ytlib/api/native/config.h>
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/rpc_helpers.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
-#include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/server/master/object_server/object_manager.h>
-#include <yt/server/master/object_server/object_proxy.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_proxy.h>
 
 namespace NYT::NHiveServer {
 

@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/block.h>
-#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
 
-#include <yt/core/misc/linear_probe.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/linear_probe.h>
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT::NTableClient {
 

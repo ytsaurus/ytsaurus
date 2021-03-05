@@ -3,19 +3,19 @@
 #include "public.h"
 #include "job.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/ytlib/job_tracker_client/proto/job_spec_service.pb.h>
-#include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
+#include <yt/yt/ytlib/job_tracker_client/proto/job_spec_service.pb.h>
+#include <yt/yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/concurrency/throughput_throttler.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 namespace NYT::NJobAgent {
 

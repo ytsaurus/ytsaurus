@@ -2,8 +2,8 @@
 
 #include "transaction.h"
 
-#include <yt/core/concurrency/lease_manager.h>
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/lease_manager.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 namespace NYT::NApi {
 

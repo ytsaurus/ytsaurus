@@ -1,10 +1,10 @@
 #include "operation.h"
 
-#include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
+#include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NControllerAgent {
 

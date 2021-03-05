@@ -7,61 +7,61 @@
 #include "path_resolver.h"
 #include "yson_intern_registry.h"
 
-#include <yt/server/master/table_server/table_node.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/epoch_history_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/epoch_history_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/cypress_server/virtual.h>
+#include <yt/yt/server/master/cypress_server/virtual.h>
 
-#include <yt/server/lib/election/election_manager.h>
+#include <yt/yt/server/lib/election/election_manager.h>
 
-#include <yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/object_server/object_manager.h>
-#include <yt/server/master/object_server/type_handler.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/type_handler.h>
 
-#include <yt/server/master/security_server/account.h>
-#include <yt/server/master/security_server/acl.h>
-#include <yt/server/master/security_server/security_manager.h>
-#include <yt/server/master/security_server/user.h>
-#include <yt/server/master/security_server/group.h>
-#include <yt/server/lib/security_server/proto/security_manager.pb.h>
+#include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/user.h>
+#include <yt/yt/server/master/security_server/group.h>
+#include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/client/hydra/version.h>
+#include <yt/yt/client/hydra/version.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/rpc/helpers.h>
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/ytree/exception_helpers.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/exception_helpers.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/yson/string.h>
-#include <yt/core/yson/async_consumer.h>
-#include <yt/core/yson/async_writer.h>
-#include <yt/core/yson/attribute_consumer.h>
+#include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/yson/async_consumer.h>
+#include <yt/yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/attribute_consumer.h>
 
 #include <util/string/ascii.h>
 

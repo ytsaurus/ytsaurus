@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/yson/public.h>
 
 #include <Objects.hxx> // pycxx
 

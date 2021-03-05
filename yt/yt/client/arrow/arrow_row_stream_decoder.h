@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/client/api/rpc_proxy/public.h>
+#include <yt/yt/client/api/rpc_proxy/public.h>
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
 namespace NYT::NArrow {
 

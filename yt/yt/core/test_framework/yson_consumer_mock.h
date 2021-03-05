@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 

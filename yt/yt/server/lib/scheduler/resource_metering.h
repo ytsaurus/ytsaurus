@@ -2,7 +2,7 @@
 
 #include "job_metrics.h"
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT::NScheduler {
 

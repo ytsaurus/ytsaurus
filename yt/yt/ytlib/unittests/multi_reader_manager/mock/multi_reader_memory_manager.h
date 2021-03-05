@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
+#include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 namespace NYT::NChunkClient {
 

@@ -10,30 +10,30 @@
 #include "medium_updater.h"
 #include "chunk_store.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/lib/hydra/changelog.h>
-#include <yt/server/lib/hydra/private.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/private.h>
 
-#include <yt/server/lib/misc/disk_health_checker.h>
-#include <yt/server/lib/misc/private.h>
+#include <yt/yt/server/lib/misc/disk_health_checker.h>
+#include <yt/yt/server/lib/misc/private.h>
 
-#include <yt/ytlib/chunk_client/format.h>
-#include <yt/ytlib/chunk_client/io_engine.h>
-#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/format.h>
+#include <yt/yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 namespace NYT::NDataNode {
 

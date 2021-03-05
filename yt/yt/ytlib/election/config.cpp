@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NElection {
 

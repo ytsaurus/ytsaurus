@@ -1,11 +1,11 @@
 #include "logical_type_shortcuts.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NTableClient {
 

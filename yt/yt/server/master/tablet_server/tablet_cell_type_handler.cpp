@@ -3,11 +3,11 @@
 #include "tablet_cell_proxy.h"
 #include "tablet_manager.h"
 
-#include <yt/server/master/cell_server/cell_type_handler_base.h>
+#include <yt/yt/server/master/cell_server/cell_type_handler_base.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NTabletServer {
 

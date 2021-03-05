@@ -1,11 +1,11 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include "yt/client/unittests/mock/table_value_consumer.h"
+#include "yt/yt/client/unittests/mock/table_value_consumer.h"
 
-#include <yt/ytlib/table_client/helpers.h>
-#include <yt/client/table_client/value_consumer.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/client/table_client/value_consumer.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTableClient {
 namespace {

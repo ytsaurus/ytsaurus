@@ -2,37 +2,37 @@
 
 #include "public.h"
 
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/ytlib/cell_master_client/config.h>
+#include <yt/yt/ytlib/cell_master_client/config.h>
 
-#include <yt/ytlib/hive/config.h>
+#include <yt/yt/ytlib/hive/config.h>
 
-#include <yt/ytlib/hydra/config.h>
+#include <yt/yt/ytlib/hydra/config.h>
 
-#include <yt/ytlib/object_client/config.h>
+#include <yt/yt/ytlib/object_client/config.h>
 
-#include <yt/ytlib/query_client/config.h>
+#include <yt/yt/ytlib/query_client/config.h>
 
-#include <yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/security_client/config.h>
+#include <yt/yt/ytlib/security_client/config.h>
 
-#include <yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/config.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/misc/config.h>
+#include <yt/yt/core/misc/config.h>
 
-#include <yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/config.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NApi::NNative {
 

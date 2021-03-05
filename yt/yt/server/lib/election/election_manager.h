@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/ytlib/election/public.h>
+#include <yt/yt/ytlib/election/public.h>
 
 namespace NYT::NElection {
 

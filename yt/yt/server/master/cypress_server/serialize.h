@@ -2,25 +2,25 @@
 
 #include "public.h"
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/server/master/chunk_server/public.h>
+#include <yt/yt/server/master/chunk_server/public.h>
 
-#include <yt/server/master/tablet_server/public.h>
+#include <yt/yt/server/master/tablet_server/public.h>
 
-#include <yt/server/master/security_server/public.h>
+#include <yt/yt/server/master/security_server/public.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/table_server/public.h>
 
-#include <yt/core/misc/chunked_output_stream.h>
+#include <yt/yt/core/misc/chunked_output_stream.h>
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
 namespace NYT::NCypressServer {
 

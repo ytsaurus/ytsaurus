@@ -2,14 +2,14 @@
 #include "chunk_list.h"
 #include "helpers.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/security_server/cluster_resources.h>
-#include <yt/server/master/security_server/security_tags.h>
+#include <yt/yt/server/master/security_server/cluster_resources.h>
+#include <yt/yt/server/master/security_server/security_tags.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 namespace NYT::NChunkServer {
 

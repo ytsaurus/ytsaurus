@@ -2,13 +2,13 @@
 
 #include "private.h"
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/http/config.h>
+#include <yt/yt/core/http/config.h>
 
-#include <yt/core/misc/cache_config.h>
+#include <yt/yt/core/misc/cache_config.h>
 
 namespace NYT::NHttpProxy::NClickHouse {
 

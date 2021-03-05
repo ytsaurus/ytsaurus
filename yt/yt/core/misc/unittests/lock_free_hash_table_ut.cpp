@@ -1,8 +1,8 @@
 #include "lock_free_hash_table_and_concurrent_cache_helpers.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/lock_free_hash_table.h>
+#include <yt/yt/core/misc/lock_free_hash_table.h>
 
 namespace NYT {
 namespace {

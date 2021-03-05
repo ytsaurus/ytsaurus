@@ -2,12 +2,12 @@
 
 #include <gtest/gtest.h>
 
-#include <yt/core/rpc/service_detail.h>
-#include <yt/core/rpc/stream.h>
+#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/stream.h>
 
-#include <yt/core/rpc/grpc/proto/grpc.pb.h>
+#include <yt/yt/core/rpc/grpc/proto/grpc.pb.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <random>
 

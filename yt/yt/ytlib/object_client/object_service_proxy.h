@@ -4,19 +4,19 @@
 #include "public.h"
 #include "helpers.h"
 
-#include <yt/ytlib/object_client/proto/object_service.pb.h>
+#include <yt/yt/ytlib/object_client/proto/object_service.pb.h>
 
-#include <yt/ytlib/api/native/public.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/client/hydra/public.h>
+#include <yt/yt/client/hydra/public.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NObjectClient {
 

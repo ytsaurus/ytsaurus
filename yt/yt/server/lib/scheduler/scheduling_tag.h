@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/controller_agent/public.h>
+#include <yt/yt/ytlib/controller_agent/public.h>
 
-#include <yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
 namespace NYT::NScheduler {
 

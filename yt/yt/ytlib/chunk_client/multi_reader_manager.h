@@ -2,24 +2,24 @@
 
 #include "public.h"
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/table_client/timing_statistics.h>
+#include <yt/yt/ytlib/table_client/timing_statistics.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
-#include <yt/client/chunk_client/reader_base.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/reader_base.h>
 
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/concurrency/nonblocking_queue.h>
+#include <yt/yt/core/concurrency/nonblocking_queue.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NChunkClient {
 

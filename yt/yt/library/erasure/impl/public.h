@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
 #include <library/cpp/erasure/codec.h>
 

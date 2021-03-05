@@ -1,45 +1,45 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/bus/bus.h>
-#include <yt/core/bus/server.h>
+#include <yt/yt/core/bus/bus.h>
+#include <yt/yt/core/bus/server.h>
 
-#include <yt/core/bus/tcp/config.h>
-#include <yt/core/bus/tcp/client.h>
-#include <yt/core/bus/tcp/server.h>
+#include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/client.h>
+#include <yt/yt/core/bus/tcp/server.h>
 
-#include <yt/core/crypto/config.h>
+#include <yt/yt/core/crypto/config.h>
 
-#include <yt/core/concurrency/thread_pool.h>
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/bus/public.h>
+#include <yt/yt/core/bus/public.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/bus/server.h>
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/bus/server.h>
 
-#include <yt/core/rpc/client.h>
-#include <yt/core/rpc/retrying_channel.h>
-#include <yt/core/rpc/caching_channel_factory.h>
-#include <yt/core/rpc/static_channel_factory.h>
-#include <yt/core/rpc/server.h>
-#include <yt/core/rpc/local_server.h>
-#include <yt/core/rpc/local_channel.h>
-#include <yt/core/rpc/service_detail.h>
-#include <yt/core/rpc/stream.h>
+#include <yt/yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/static_channel_factory.h>
+#include <yt/yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/local_server.h>
+#include <yt/yt/core/rpc/local_channel.h>
+#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/stream.h>
 
-#include <yt/core/rpc/unittests/lib/my_service.pb.h>
-#include <yt/core/rpc/unittests/lib/my_service.h>
+#include <yt/yt/core/rpc/unittests/lib/my_service.pb.h>
+#include <yt/yt/core/rpc/unittests/lib/my_service.h>
 
-#include <yt/core/rpc/grpc/config.h>
-#include <yt/core/rpc/grpc/channel.h>
-#include <yt/core/rpc/grpc/server.h>
-#include <yt/core/rpc/grpc/proto/grpc.pb.h>
+#include <yt/yt/core/rpc/grpc/config.h>
+#include <yt/yt/core/rpc/grpc/channel.h>
+#include <yt/yt/core/rpc/grpc/server.h>
+#include <yt/yt/core/rpc/grpc/proto/grpc.pb.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/yson/string.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/testing/unittest/tests_data.h>
 

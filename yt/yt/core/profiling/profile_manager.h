@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/misc/shutdownable.h>
+#include <yt/yt/core/misc/shutdownable.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/profiling/proto/profiling.pb.h>
+#include <yt/yt/core/profiling/proto/profiling.pb.h>
 
 namespace NYT::NProfiling {
 

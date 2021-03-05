@@ -4,13 +4,13 @@
 #include "private.h"
 #include "helpers.h"
 
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/core/yson/lexer.h>
+#include <yt/yt/core/yson/lexer.h>
 
-#include <yt/core/misc/bitmap.h>
-#include <yt/core/misc/zigzag.h>
-#include <yt/core/misc/bit_packed_unsigned_vector.h>
+#include <yt/yt/core/misc/bitmap.h>
+#include <yt/yt/core/misc/zigzag.h>
+#include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 

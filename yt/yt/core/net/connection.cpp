@@ -2,12 +2,12 @@
 #include "packet_connection.h"
 #include "private.h"
 
-#include <yt/core/concurrency/pollable_detail.h>
+#include <yt/yt/core/concurrency/pollable_detail.h>
 
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/net/socket.h>
+#include <yt/yt/core/net/socket.h>
 
 #include <errno.h>
 

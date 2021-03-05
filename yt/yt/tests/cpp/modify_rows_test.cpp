@@ -1,11 +1,11 @@
 #include "modify_rows_test.h"
 
-#include <yt/client/api/rowset.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
 namespace NYT {
 namespace NCppTests {

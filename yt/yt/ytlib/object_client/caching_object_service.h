@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/rpc/service.h>
+#include <yt/yt/core/rpc/service.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/logging/public.h>
+#include <yt/yt/core/logging/public.h>
 
 namespace NYT::NObjectClient {
 

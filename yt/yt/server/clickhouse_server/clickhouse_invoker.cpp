@@ -1,10 +1,10 @@
 #include "clickhouse_invoker.h"
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <yt/core/actions/invoker_detail.h>
+#include <yt/yt/core/actions/invoker_detail.h>
 
 #include <Common/ThreadStatus.h>
 #include <Common/CurrentThread.h>

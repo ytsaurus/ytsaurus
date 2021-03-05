@@ -2,30 +2,30 @@
 
 #include "public.h"
 
-#include <yt/server/lib/scheduler/structs.h>
+#include <yt/yt/server/lib/scheduler/structs.h>
 
-#include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
+#include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/ytlib/scheduler/config.h>
-#include <yt/ytlib/scheduler/job_resources.h>
-#include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
+#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/crash_handler.h>
-#include <yt/core/misc/dense_map.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/dense_map.h>
 
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/node.h>
 
 namespace NYT::NScheduler {
 

@@ -2,19 +2,19 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/server/master/cypress_server/public.h>
+#include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/ytree/permission.h>
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NSecurityServer {
 

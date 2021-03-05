@@ -1,21 +1,21 @@
 #include "journal_commands.h"
 #include "config.h"
 
-#include <yt/client/api/journal_reader.h>
-#include <yt/client/api/journal_writer.h>
+#include <yt/yt/client/api/journal_reader.h>
+#include <yt/yt/client/api/journal_writer.h>
 
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/formats/format.h>
-#include <yt/client/formats/parser.h>
+#include <yt/yt/client/formats/format.h>
+#include <yt/yt/client/formats/parser.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/blob_output.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NDriver {
 

@@ -3,9 +3,9 @@
 
 #include <library/cpp/monlib/metrics/summary_snapshot.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
 namespace NYT::NProfiling {
 

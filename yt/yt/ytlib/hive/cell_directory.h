@@ -2,22 +2,22 @@
 
 #include "public.h"
 
-#include <yt/ytlib/election/public.h>
+#include <yt/yt/ytlib/election/public.h>
 
-#include <yt/ytlib/hive/proto/cell_directory.pb.h>
+#include <yt/yt/ytlib/hive/proto/cell_directory.pb.h>
 
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
-#include <yt/ytlib/hydra/public.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/public.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/logging/public.h>
+#include <yt/yt/core/logging/public.h>
 
 namespace NYT::NHiveClient {
 

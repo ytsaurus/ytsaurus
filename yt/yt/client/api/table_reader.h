@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
 
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NApi {
 

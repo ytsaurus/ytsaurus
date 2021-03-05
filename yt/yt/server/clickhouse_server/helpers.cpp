@@ -4,18 +4,18 @@
 #include "table.h"
 #include "config.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/ytree/permission.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <Common/FieldVisitors.h>
 

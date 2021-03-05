@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/misc/public.h>
+#include <yt/yt/client/misc/public.h>
 
 namespace NYT {
 

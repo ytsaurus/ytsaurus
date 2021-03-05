@@ -2,7 +2,7 @@
 
 #include "dynamic_store_bits.h"
 
-#include <yt/library/codegen/type_builder.h>
+#include <yt/yt/library/codegen/type_builder.h>
 
 #include <type_traits>
 

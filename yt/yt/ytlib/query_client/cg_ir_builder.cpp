@@ -3,10 +3,10 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Module.h>
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
-#include <yt/library/codegen/llvm_migrate_helpers.h>
-#include <yt/library/codegen/type_builder.h>
+#include <yt/yt/library/codegen/llvm_migrate_helpers.h>
+#include <yt/yt/library/codegen/type_builder.h>
 
 namespace NYT::NQueryClient {
 

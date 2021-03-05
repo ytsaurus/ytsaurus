@@ -2,7 +2,7 @@
 
 #include "objects_holder.h"
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
 #include <vector>
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/client/scheduler/public.h>
+#include <yt/yt/client/scheduler/public.h>
 
-#include <yt/client/chunk_client/public.h>
+#include <yt/yt/client/chunk_client/public.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NScheduler {
 

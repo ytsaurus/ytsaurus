@@ -1,18 +1,18 @@
 #include "lookup_reader.h"
 #include "tablet_snapshot.h"
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/public.h>
-#include <yt/client/chunk_client/reader_base.h>
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/client/chunk_client/reader_base.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/core/compression/codec.h>
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/compression/codec.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NTableClient {
 

@@ -4,12 +4,12 @@
 #include "query.h"
 #include "range_inferrer.h"
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/writer.h>
-#include <yt/client/table_client/unordered_schemaful_reader.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/writer.h>
+#include <yt/yt/client/table_client/unordered_schemaful_reader.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <numeric>
 

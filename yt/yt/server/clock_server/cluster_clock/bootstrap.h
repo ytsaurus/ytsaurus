@@ -2,25 +2,25 @@
 
 #include "public.h"
 
-#include <yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
-#include <yt/server/lib/timestamp_server/public.h>
+#include <yt/yt/server/lib/timestamp_server/public.h>
 
-#include <yt/ytlib/election/public.h>
+#include <yt/yt/ytlib/election/public.h>
 
-#include <yt/ytlib/monitoring/public.h>
+#include <yt/yt/ytlib/monitoring/public.h>
 
-#include <yt/client/transaction_client/public.h>
+#include <yt/yt/client/transaction_client/public.h>
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/http/public.h>
+#include <yt/yt/core/http/public.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NClusterClock {
 

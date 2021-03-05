@@ -5,16 +5,16 @@
 #include "table.h"
 #include "task.h"
 
-#include <yt/server/controller_agent/operation.h>
-#include <yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/operation.h>
+#include <yt/yt/server/controller_agent/config.h>
 
-#include <yt/server/lib/chunk_pools/vanilla_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/vanilla_chunk_pool.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

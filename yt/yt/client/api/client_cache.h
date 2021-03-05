@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <yt/core/misc/sync_cache.h>
+#include <yt/yt/core/misc/sync_cache.h>
 
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
 namespace NYT::NApi {
 

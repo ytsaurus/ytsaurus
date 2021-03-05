@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
 namespace NYT::NNodeTrackerServer {
 

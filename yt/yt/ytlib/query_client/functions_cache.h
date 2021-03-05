@@ -3,14 +3,14 @@
 #include "public.h"
 #include "functions.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
 
-#include <yt/ytlib/query_client/proto/functions_cache.pb.h>
+#include <yt/yt/ytlib/query_client/proto/functions_cache.pb.h>
 
 namespace NYT::NQueryClient {
 

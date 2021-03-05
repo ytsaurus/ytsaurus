@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
+#include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NControllerAgent {
 

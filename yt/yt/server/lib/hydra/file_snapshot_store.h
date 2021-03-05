@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NHydra {
 

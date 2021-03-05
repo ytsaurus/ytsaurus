@@ -3,33 +3,33 @@
 #include "transaction.h"
 #include "automaton.h"
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
-#include <yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_state.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/memory_reader.h>
-#include <yt/ytlib/chunk_client/memory_writer.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/memory_reader.h>
+#include <yt/yt/ytlib/chunk_client/memory_writer.h>
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/name_table.h>
 
 namespace NYT::NTabletNode {
 

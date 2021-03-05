@@ -1,9 +1,9 @@
 #include "job.h"
 #include "chunk.h"
 
-#include <yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/string.h>
 
 namespace NYT::NChunkServer {
 

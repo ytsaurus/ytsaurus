@@ -4,20 +4,20 @@
 
 #include "conversion.h"
 
-#include <yt/ytlib/api/native/client_cache.h>
+#include <yt/yt/ytlib/api/native/client_cache.h>
 
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/core/concurrency/public.h>
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <Interpreters/Context.h>
 

@@ -1,20 +1,20 @@
-#include <yt/python/driver/lib/descriptor.h>
-#include <yt/python/driver/lib/response.h>
-#include <yt/python/driver/lib/error.h>
-#include <yt/python/driver/lib/driver.h>
+#include <yt/yt/python/driver/lib/descriptor.h>
+#include <yt/yt/python/driver/lib/response.h>
+#include <yt/yt/python/driver/lib/error.h>
+#include <yt/yt/python/driver/lib/driver.h>
 
-#include <yt/python/common/helpers.h>
-#include <yt/python/common/buffered_stream.h>
+#include <yt/yt/python/common/helpers.h>
+#include <yt/yt/python/common/buffered_stream.h>
 
-#include <yt/ytlib/api/connection.h>
+#include <yt/yt/ytlib/api/connection.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/driver/config.h>
+#include <yt/yt/client/driver/config.h>
 
 namespace NYT::NPython {
 

@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/throughput_throttler.h>
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/config.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <thread>
 #include <vector>

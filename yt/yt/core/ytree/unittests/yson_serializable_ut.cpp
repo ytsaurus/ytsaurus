@@ -1,13 +1,13 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/writer.h>
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/tree_builder.h>
-#include <yt/core/ytree/tree_visitor.h>
-#include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/tree_visitor.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <array>
 

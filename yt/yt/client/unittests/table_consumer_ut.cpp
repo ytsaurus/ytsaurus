@@ -1,12 +1,12 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/client/unittests/mock/table_value_consumer.h>
+#include <yt/yt/client/unittests/mock/table_value_consumer.h>
 
-#include <yt/client/table_client/table_consumer.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/yson/parser.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/yson/parser.h>
 
 namespace NYT::NTableClient {
 namespace {

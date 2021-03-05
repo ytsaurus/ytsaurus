@@ -5,13 +5,13 @@
 #include "job.h"
 #include "operation.h"
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/client/scheduler/private.h>
+#include <yt/yt/client/scheduler/private.h>
 
 namespace NYT::NScheduler {
 

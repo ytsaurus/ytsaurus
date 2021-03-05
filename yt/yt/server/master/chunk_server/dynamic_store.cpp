@@ -4,9 +4,9 @@
 #include "chunk_list.h"
 #include "private.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/tablet_server/tablet.h>
 
 namespace NYT::NChunkServer {
 

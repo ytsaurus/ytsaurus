@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/client/table_chunk_format/proto/column_meta.pb.h>
+#include <yt/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
-#include <yt/client/table_client/comparator.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/core/misc/range.h>
+#include <yt/yt/core/misc/range.h>
 
 namespace NYT::NTableChunkFormat {
 

@@ -1,18 +1,18 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/lib/hydra/changelog.h>
-#include <yt/server/lib/hydra/config.h>
-#include <yt/server/lib/hydra/format.h>
-#include <yt/server/lib/hydra/file_helpers.h>
-#include <yt/server/lib/hydra/sync_file_changelog.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/config.h>
+#include <yt/yt/server/lib/hydra/format.h>
+#include <yt/yt/server/lib/hydra/file_helpers.h>
+#include <yt/yt/server/lib/hydra/sync_file_changelog.h>
 
-#include <yt/ytlib/chunk_client/io_engine.h>
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
-#include <yt/core/misc/checksum.h>
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <util/random/random.h>
 

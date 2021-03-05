@@ -2,14 +2,14 @@
 #include "query.h"
 #include "private.h"
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NQueryClient {
 

@@ -1,6 +1,6 @@
 #include "transaction.h"
 
-#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 namespace NYT::NApi {
 

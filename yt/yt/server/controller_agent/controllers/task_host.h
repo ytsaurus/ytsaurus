@@ -5,20 +5,20 @@
 #include "data_flow_graph.h"
 #include "table.h"
 
-#include <yt/server/controller_agent/operation_controller.h>
+#include <yt/yt/server/controller_agent/operation_controller.h>
 
-#include <yt/server/lib/chunk_pools/public.h>
-#include <yt/server/lib/chunk_pools/chunk_stripe.h>
+#include <yt/yt/server/lib/chunk_pools/public.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
 
-#include <yt/server/lib/controller_agent/serialize.h>
+#include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

@@ -3,14 +3,14 @@
 #include "public.h"
 #include "registry.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/http/public.h>
+#include <yt/yt/core/http/public.h>
 
-#include <yt/core/ytree/yson_serializable.h>
-#include <yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/producer.h>

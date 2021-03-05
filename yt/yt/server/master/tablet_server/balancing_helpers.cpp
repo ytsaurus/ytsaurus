@@ -6,9 +6,9 @@
 #include "tablet_cell_bundle.h"
 #include "tablet_manager.h"
 
-#include <yt/server/master/table_server/table_node.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
 namespace NYT::NTabletServer {
 

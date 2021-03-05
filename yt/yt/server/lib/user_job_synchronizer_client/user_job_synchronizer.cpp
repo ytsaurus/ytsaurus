@@ -1,12 +1,12 @@
 #include "user_job_synchronizer.h"
 #include "user_job_synchronizer_proxy.h"
 
-#include <yt/core/bus/tcp/client.h>
-#include <yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/client.h>
+#include <yt/yt/core/bus/tcp/config.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/bus/channel.h>
 
 namespace NYT::NUserJobSynchronizerClient {
 

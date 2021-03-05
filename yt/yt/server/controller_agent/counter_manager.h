@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

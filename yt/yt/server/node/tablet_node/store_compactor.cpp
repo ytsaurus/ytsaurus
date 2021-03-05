@@ -14,62 +14,62 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
-#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/transaction.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/transaction.h>
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/ytlib/transaction_client/action.h>
+#include <yt/yt/ytlib/transaction_client/action.h>
 
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/client/transaction_client/timestamp_provider.h>
-#include <yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/transaction_client/helpers.h>
 
-#include <yt/core/concurrency/thread_pool.h>
-#include <yt/core/concurrency/async_semaphore.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/virtual.h>
 
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/heap.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/heap.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/ytalloc/memory_zone.h>
+#include <yt/yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NTabletNode {
 

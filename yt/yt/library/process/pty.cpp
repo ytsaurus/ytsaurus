@@ -2,10 +2,10 @@
 
 #include "io_dispatcher.h"
 
-#include <yt/core/misc/common.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/common.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/connection.h>
 
 namespace NYT::NPipes {
 

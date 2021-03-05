@@ -3,13 +3,13 @@
 #include "chunk_meta_extensions.h"
 #include "timing_reader.h"
 
-#include <yt/client/chunk_client/reader_base.h>
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/reader_base.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/comparator.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/block_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 
 namespace NYT::NTableClient {
 

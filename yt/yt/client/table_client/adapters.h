@@ -3,9 +3,9 @@
 #include "public.h"
 #include "unversioned_writer.h"
 
-#include <yt/client/api/table_reader.h>
+#include <yt/yt/client/api/table_reader.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
 namespace NYT::NTableClient {
 

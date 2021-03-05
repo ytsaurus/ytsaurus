@@ -1,6 +1,6 @@
 #include "operation_description.h"
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NSchedulerSimulator {
 

@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/session_id.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <atomic>
 

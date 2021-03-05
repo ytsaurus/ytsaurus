@@ -9,25 +9,25 @@
 #include "scheduling_segment_manager.h"
 #include "fair_share_strategy_operation_controller.h"
 
-#include <yt/server/lib/scheduler/config.h>
-#include <yt/server/lib/scheduler/helpers.h>
-#include <yt/server/lib/scheduler/resource_metering.h>
+#include <yt/yt/server/lib/scheduler/config.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/resource_metering.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/acl.h>
 
-#include <yt/core/concurrency/async_rw_lock.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/misc/algorithm_helpers.h>
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/timing.h>
-#include <yt/core/profiling/metrics_accumulator.h>
+#include <yt/yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/metrics_accumulator.h>
 
 
 namespace NYT::NScheduler {

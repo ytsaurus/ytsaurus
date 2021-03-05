@@ -1,22 +1,22 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 #include "election_manager_mock.h"
 #include "election_service_mock.h"
 
-#include <yt/server/lib/election/config.h>
-#include <yt/server/lib/election/election_manager.h>
-#include <yt/server/lib/election/distributed_election_manager.h>
+#include <yt/yt/server/lib/election/config.h>
+#include <yt/yt/server/lib/election/election_manager.h>
+#include <yt/yt/server/lib/election/distributed_election_manager.h>
 
-#include <yt/ytlib/election/cell_manager.h>
-#include <yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/config.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/rpc/channel.h>
-#include <yt/core/rpc/local_channel.h>
-#include <yt/core/rpc/local_server.h>
-#include <yt/core/rpc/server.h>
-#include <yt/core/rpc/static_channel_factory.h>
+#include <yt/yt/core/rpc/channel.h>
+#include <yt/yt/core/rpc/local_channel.h>
+#include <yt/yt/core/rpc/local_server.h>
+#include <yt/yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/static_channel_factory.h>
 
 namespace NYT::NElection {
 namespace {

@@ -5,11 +5,11 @@
 #include "operation.h"
 #include "operation_controller.h"
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>
+#include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
 namespace NYT::NControllerAgent {
 

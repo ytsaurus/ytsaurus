@@ -1,8 +1,8 @@
 #include "journal_node.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/chunk_server/chunk_list.h>
 
 namespace NYT::NJournalServer {
 

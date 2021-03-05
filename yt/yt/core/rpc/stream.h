@@ -2,21 +2,21 @@
 
 #include "channel.h"
 
-#include <yt/core/concurrency/async_stream.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/range.h>
-#include <yt/core/misc/ring_queue.h>
-#include <yt/core/misc/sliding_window.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/range.h>
+#include <yt/yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/sliding_window.h>
 
-#include <yt/core/ytalloc/memory_zone.h>
+#include <yt/yt/core/ytalloc/memory_zone.h>
 
-#include <yt/core/actions/signal.h>
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/signal.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
 namespace NYT::NRpc {
 

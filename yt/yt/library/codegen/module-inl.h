@@ -6,7 +6,7 @@
 #endif
 #undef CODEGEN_MODULE_INL_H_
 
-#include <yt/core/actions/bind.h>
+#include <yt/yt/core/actions/bind.h>
 
 namespace NYT::NCodegen {
 

@@ -1,13 +1,13 @@
 #include "job_helpers.h"
 
-#include <yt/server/controller_agent/controller_agent.h>
-#include <yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/controller_agent.h>
+#include <yt/yt/server/controller_agent/config.h>
 
-#include <yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
-#include <yt/ytlib/job_tracker_client/statistics.h>
+#include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

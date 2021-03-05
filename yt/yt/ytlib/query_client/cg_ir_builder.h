@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include <yt/library/codegen/llvm_migrate_helpers.h>
+#include <yt/yt/library/codegen/llvm_migrate_helpers.h>
 
 namespace NYT::NQueryClient {
 

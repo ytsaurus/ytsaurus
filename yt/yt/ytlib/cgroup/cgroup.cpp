@@ -1,13 +1,13 @@
 #include "cgroup.h"
 #include "private.h"
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/ytlib/tools/registry.h>
-#include <yt/ytlib/tools/tools.h>
+#include <yt/yt/ytlib/tools/registry.h>
+#include <yt/yt/ytlib/tools/tools.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <util/string/split.h>
 #include <util/system/filemap.h>

@@ -1,15 +1,15 @@
 #include "dispatcher.h"
 #include "config.h"
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/thread_pool.h>
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
-#include <yt/core/misc/lazy_ptr.h>
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/shutdown.h>
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 namespace NYT::NRpc {
 

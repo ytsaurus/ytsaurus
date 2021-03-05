@@ -3,31 +3,31 @@
 #include "config.h"
 #include "job_report.h"
 
-#include <yt/server/lib/misc/archive_reporter.h>
+#include <yt/yt/server/lib/misc/archive_reporter.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/controller_agent/helpers.h>
+#include <yt/yt/ytlib/controller_agent/helpers.h>
 
-#include <yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/client/api/connection.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/connection.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/nonblocking_batch.h>
-#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/nonblocking_batch.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
 namespace NYT::NJobAgent {
 

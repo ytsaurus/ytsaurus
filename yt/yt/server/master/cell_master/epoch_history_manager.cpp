@@ -7,13 +7,13 @@
 #include "private.h"
 #include "serialize.h"
 
-#include <yt/server/master/cell_master/epoch_history_manager.pb.h>
+#include <yt/yt/server/master/cell_master/epoch_history_manager.pb.h>
 
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NCellMaster {
 

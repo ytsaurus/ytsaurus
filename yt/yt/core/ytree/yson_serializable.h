@@ -3,12 +3,12 @@
 #include "public.h"
 #include "node.h"
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/mpl.h>
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/mpl.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/property.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
 #include <functional>
 

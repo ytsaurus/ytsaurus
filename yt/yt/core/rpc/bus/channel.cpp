@@ -1,30 +1,30 @@
 #include "channel.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/rpc/client.h>
-#include <yt/core/rpc/dispatcher.h>
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/stream.h>
-#include <yt/core/rpc/private.h>
+#include <yt/yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/stream.h>
+#include <yt/yt/core/rpc/private.h>
 
-#include <yt/core/bus/bus.h>
+#include <yt/yt/core/bus/bus.h>
 
-#include <yt/core/bus/tcp/config.h>
-#include <yt/core/bus/tcp/client.h>
+#include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/client.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/tls_cache.h>
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/tls_cache.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

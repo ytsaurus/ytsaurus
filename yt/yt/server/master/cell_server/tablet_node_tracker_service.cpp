@@ -3,13 +3,13 @@
 #include "private.h"
 #include "tablet_node_tracker.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/master_hydra_service.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/master_hydra_service.h>
 
-#include <yt/server/master/node_tracker_server/node.h>
-#include <yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
-#include <yt/ytlib/tablet_node_tracker_client/tablet_node_tracker_service_proxy.h>
+#include <yt/yt/ytlib/tablet_node_tracker_client/tablet_node_tracker_service_proxy.h>
 
 namespace NYT::NCellServer {
 

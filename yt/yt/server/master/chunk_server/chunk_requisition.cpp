@@ -4,17 +4,17 @@
 #include "medium.h"
 #include "private.h"
 
-#include <yt/server/master/cell_master/automaton.h>
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/automaton.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
 namespace NYT::NChunkServer {
 

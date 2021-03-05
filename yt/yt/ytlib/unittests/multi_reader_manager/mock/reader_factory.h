@@ -2,7 +2,7 @@
 
 #include "chunk_reader.h"
 
-#include <yt/ytlib/chunk_client/reader_factory.h>
+#include <yt/yt/ytlib/chunk_client/reader_factory.h>
 
 namespace NYT::NChunkClient {
 

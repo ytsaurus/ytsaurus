@@ -1,12 +1,12 @@
 #include "row_merger.h"
 #include "config.h"
 
-#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/yt/ytlib/query_client/column_evaluator.h>
 
-#include <yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/helpers.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
 

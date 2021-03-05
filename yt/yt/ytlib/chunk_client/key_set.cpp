@@ -1,6 +1,6 @@
 #include "key_set.h"
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
 namespace NYT::NChunkClient {
 

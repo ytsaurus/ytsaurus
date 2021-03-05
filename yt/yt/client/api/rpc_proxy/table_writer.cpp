@@ -3,13 +3,13 @@
 #include "row_stream.h"
 #include "wire_row_stream.h"
 
-#include <yt/client/api/table_writer.h>
+#include <yt/yt/client/api/table_writer.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/core/rpc/stream.h>
+#include <yt/yt/core/rpc/stream.h>
 
 namespace NYT::NApi::NRpcProxy {
 

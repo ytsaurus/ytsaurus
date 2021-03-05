@@ -4,20 +4,20 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/json/json_writer.h>
-#include <yt/core/json/json_parser.h>
+#include <yt/yt/core/json/json_writer.h>
+#include <yt/yt/core/json/json_parser.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/tree_builder.h>
-#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
-#include <yt/core/https/client.h>
+#include <yt/yt/core/https/client.h>
 
-#include <yt/core/http/client.h>
-#include <yt/core/http/http.h>
-#include <yt/core/http/helpers.h>
+#include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/helpers.h>
 
 namespace NYT::NAuth {
 

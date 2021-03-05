@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hydra/private.h>
+#include <yt/yt/ytlib/hydra/private.h>
 
-#include <yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

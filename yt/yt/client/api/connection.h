@@ -2,19 +2,19 @@
 
 #include "public.h"
 
-#include <yt/client/chunk_client/public.h>
+#include <yt/yt/client/chunk_client/public.h>
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
-#include <yt/client/tablet_client/public.h>
+#include <yt/yt/client/tablet_client/public.h>
 
-#include <yt/client/hive/public.h>
+#include <yt/yt/client/hive/public.h>
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
 namespace NYT::NApi {
 

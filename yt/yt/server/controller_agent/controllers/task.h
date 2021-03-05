@@ -6,28 +6,28 @@
 #include "data_flow_graph.h"
 #include "job_splitter.h"
 
-#include <yt/server/controller_agent/tentative_tree_eligibility.h>
+#include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
 
-#include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
-#include <yt/server/lib/chunk_pools/chunk_pool.h>
-#include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_stripe_key.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
-#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/server/lib/controller_agent/progress_counter.h>
-#include <yt/server/lib/controller_agent/serialize.h>
-#include <yt/server/lib/controller_agent/read_range_registry.h>
+#include <yt/yt/server/lib/controller_agent/progress_counter.h>
+#include <yt/yt/server/lib/controller_agent/serialize.h>
+#include <yt/yt/server/lib/controller_agent/read_range_registry.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
-#include <yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/key_bound.h>
 
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/misc/digest.h>
-#include <yt/core/misc/histogram.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/misc/digest.h>
+#include <yt/yt/core/misc/histogram.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

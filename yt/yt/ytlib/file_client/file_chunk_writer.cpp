@@ -3,15 +3,15 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/chunk_writer.h>
-#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/encoding_chunk_writer.h>
-#include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/encoding_chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/multi_chunk_writer_base.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
 namespace NYT::NFileClient {
 

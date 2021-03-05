@@ -3,13 +3,13 @@
 #include "public.h"
 #include "token.h"
 
-#include <yt/core/concurrency/coroutine.h>
+#include <yt/yt/core/concurrency/coroutine.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/parser_helpers.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/varint.h>
-#include <yt/core/misc/zigzag.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/parser_helpers.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/varint.h>
+#include <yt/yt/core/misc/zigzag.h>
 
 #include <util/generic/string.h>
 

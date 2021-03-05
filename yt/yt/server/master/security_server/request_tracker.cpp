@@ -4,26 +4,26 @@
 #include "security_manager.h"
 #include "user.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/concurrency/throughput_throttler.h>
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/config.h>
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/distributed_throttler/distributed_throttler.h>
+#include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
 namespace NYT::NSecurityServer {
 

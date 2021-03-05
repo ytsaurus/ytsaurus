@@ -3,38 +3,38 @@
 #include "transaction.h"
 #include "automaton.h"
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_writer.h>
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/ytlib/chunk_client/memory_reader.h>
-#include <yt/ytlib/chunk_client/memory_writer.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/memory_reader.h>
+#include <yt/yt/ytlib/chunk_client/memory_writer.h>
 
-#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
-#include <yt/ytlib/table_client/chunk_state.h>
-#include <yt/ytlib/table_client/versioned_chunk_reader.h>
-#include <yt/ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/versioned_row.h>
-#include <yt/client/table_client/versioned_writer.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/versioned_writer.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/skip_list.h>
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/linear_probe.h>
+#include <yt/yt/core/misc/skip_list.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/linear_probe.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTabletNode {
 

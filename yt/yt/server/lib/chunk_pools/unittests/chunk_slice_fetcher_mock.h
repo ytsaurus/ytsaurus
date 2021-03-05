@@ -1,12 +1,12 @@
 #pragma once
 
-#include <yt/server/lib/chunk_pools/sorted_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/sorted_chunk_pool.h>
 
-#include <yt/ytlib/table_client/chunk_slice_fetcher.h>
+#include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/phoenix.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 

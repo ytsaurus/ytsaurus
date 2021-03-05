@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
 namespace NYT::NContainers {
 

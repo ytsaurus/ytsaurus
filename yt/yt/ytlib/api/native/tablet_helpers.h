@@ -1,20 +1,20 @@
 #pragma once
 #include "public.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/ytlib/hive/public.h>
+#include <yt/yt/ytlib/hive/public.h>
 
-#include <yt/ytlib/hydra/public.h>
+#include <yt/yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NApi::NNative {
 

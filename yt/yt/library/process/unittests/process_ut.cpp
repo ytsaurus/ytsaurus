@@ -1,15 +1,15 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/actions/bind.h>
+#include <yt/yt/core/actions/bind.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/library/process/process.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/library/process/process.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/connection.h>
 
 namespace NYT {
 namespace {

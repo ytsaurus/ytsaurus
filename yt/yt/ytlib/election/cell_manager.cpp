@@ -2,14 +2,14 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/core/bus/client.h>
+#include <yt/yt/core/bus/client.h>
 
-#include <yt/core/bus/tcp/config.h>
-#include <yt/core/bus/tcp/client.h>
+#include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/client.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 namespace NYT::NElection {
 

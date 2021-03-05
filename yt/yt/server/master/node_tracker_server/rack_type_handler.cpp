@@ -3,13 +3,13 @@
 #include "rack.h"
 #include "rack_proxy.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
-#include <yt/server/master/object_server/type_handler_detail.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 namespace NYT::NNodeTrackerServer {
 

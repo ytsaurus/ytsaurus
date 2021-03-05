@@ -2,21 +2,21 @@
 #include "helpers.h"
 #include "config.h"
 
-#include <yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/small_set.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_set.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <util/generic/algorithm.h>
 

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <yt/ytlib/journal_client/proto/journal_ypath.pb.h>
+#include <yt/yt/ytlib/journal_client/proto/journal_ypath.pb.h>
 
 namespace NYT::NJournalClient {
 

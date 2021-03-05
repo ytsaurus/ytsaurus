@@ -2,22 +2,22 @@
 
 #include "public.h"
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/client/formats/format.h>
+#include <yt/yt/client/formats/format.h>
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/writer.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NDriver {
 

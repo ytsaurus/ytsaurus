@@ -4,11 +4,11 @@
 #include "stream.h"
 #include "private.h"
 
-#include <yt/core/net/dialer.h>
-#include <yt/core/net/config.h>
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/dialer.h>
+#include <yt/yt/core/net/config.h>
+#include <yt/yt/core/net/connection.h>
 
-#include <yt/core/concurrency/poller.h>
+#include <yt/yt/core/concurrency/poller.h>
 #include <util/string/cast.h>
 
 namespace NYT::NHttp {

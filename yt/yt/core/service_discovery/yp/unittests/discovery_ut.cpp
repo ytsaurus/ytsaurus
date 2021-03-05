@@ -1,16 +1,16 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/service_discovery/yp/config.h>
-#include <yt/core/service_discovery/yp/service_discovery.h>
-#include <yt/core/service_discovery/yp/service_discovery_service_proxy.h>
+#include <yt/yt/core/service_discovery/yp/config.h>
+#include <yt/yt/core/service_discovery/yp/service_discovery.h>
+#include <yt/yt/core/service_discovery/yp/service_discovery_service_proxy.h>
 
 #include <infra/yp_service_discovery/api/api.pb.h>
 
-#include <yt/core/concurrency/thread_pool.h>
-#include <yt/core/misc/finally.h>
-#include <yt/core/rpc/grpc/config.h>
-#include <yt/core/rpc/grpc/server.h>
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/rpc/grpc/config.h>
+#include <yt/yt/core/rpc/grpc/server.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
 #include <library/cpp/testing/unittest/tests_data.h>
 

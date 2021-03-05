@@ -5,14 +5,14 @@
 #include "chunk_store.h"
 #include "location.h"
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NDataNode {
 

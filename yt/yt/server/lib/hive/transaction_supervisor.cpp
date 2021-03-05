@@ -7,42 +7,42 @@
 #include "hive_manager.h"
 #include "private.h"
 
-#include <yt/server/lib/hive/proto/transaction_supervisor.pb.h>
+#include <yt/yt/server/lib/hive/proto/transaction_supervisor.pb.h>
 
-#include <yt/server/lib/hydra/composite_automaton.h>
-#include <yt/server/lib/hydra/entity_map.h>
-#include <yt/server/lib/hydra/hydra_manager.h>
-#include <yt/server/lib/hydra/hydra_service.h>
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_service.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/lib/security_server/resource_limits_manager.h>
+#include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
-#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
+#include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
-#include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
-#include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/transaction_participant_service_proxy.h>
+#include <yt/yt/ytlib/hive/transaction_supervisor_service_proxy.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/transaction_participant_service_proxy.h>
 
-#include <yt/client/transaction_client/timestamp_provider.h>
-#include <yt/ytlib/transaction_client/action.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/ytlib/transaction_client/action.h>
 
-#include <yt/client/hive/transaction_participant.h>
+#include <yt/yt/client/hive/transaction_participant.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/api/connection.h>
+#include <yt/yt/client/api/connection.h>
 
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/response_keeper.h>
-#include <yt/core/rpc/proto/rpc.pb.h>
-#include <yt/core/rpc/server.h>
-#include <yt/core/rpc/service_detail.h>
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NHiveServer {
 

@@ -1,29 +1,29 @@
 #include "table_commands.h"
 #include "config.h"
 
-#include <yt/client/api/rowset.h>
-#include <yt/client/api/transaction.h>
-#include <yt/client/api/skynet.h>
-#include <yt/client/api/table_reader.h>
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/skynet.h>
+#include <yt/yt/client/api/table_reader.h>
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/client/table_client/adapters.h>
-#include <yt/client/table_client/table_output.h>
-#include <yt/client/table_client/blob_reader.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/versioned_writer.h>
-#include <yt/client/table_client/columnar_statistics.h>
-#include <yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/adapters.h>
+#include <yt/yt/client/table_client/table_output.h>
+#include <yt/yt/client/table_client/blob_reader.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/versioned_writer.h>
+#include <yt/yt/client/table_client/columnar_statistics.h>
+#include <yt/yt/client/table_client/table_consumer.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/formats/config.h>
-#include <yt/client/formats/parser.h>
+#include <yt/yt/client/formats/config.h>
+#include <yt/yt/client/formats/parser.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/misc/finally.h>
 
 namespace NYT::NDriver {
 

@@ -1,18 +1,18 @@
 #include "public.h"
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <yt/ytlib/query_client/query_service_proxy.h>
+#include <yt/yt/ytlib/query_client/query_service_proxy.h>
 
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/comparator.h>
 
-#include <yt/core/misc/common.h>
+#include <yt/yt/core/misc/common.h>
 
 #pragma once
 

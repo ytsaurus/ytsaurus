@@ -7,14 +7,14 @@
 
 #include "node.h"
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
-#include <yt/core/yson/stream.h>
-#include <yt/core/yson/string.h>
-#include <yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/stream.h>
+#include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
 
 #include <numeric>
 

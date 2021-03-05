@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/http/public.h>
+#include <yt/yt/core/http/public.h>
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 namespace NYT::NDataNode {
 

@@ -2,11 +2,11 @@
 #include "mock/multi_chunk_reader.h"
 #include "mock/reader_factory.h"
 
-#include <yt/ytlib/chunk_client/multi_reader_manager.h>
+#include <yt/yt/ytlib/chunk_client/multi_reader_manager.h>
 
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <util/random/shuffle.h>
 

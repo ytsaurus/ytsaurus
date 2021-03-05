@@ -2,9 +2,9 @@
 
 #include "chunk_tree_statistics.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/core/misc/fenwick_tree.h>
+#include <yt/yt/core/misc/fenwick_tree.h>
 
 #include <variant>
 

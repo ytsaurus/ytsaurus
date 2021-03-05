@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/dense_map.h>
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/dense_map.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NTableClient {
 

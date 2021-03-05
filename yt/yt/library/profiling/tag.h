@@ -4,12 +4,12 @@
 
 #include <util/generic/string.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 // TODO(prime@): remove this
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
 namespace NYT::NProfiling {
 

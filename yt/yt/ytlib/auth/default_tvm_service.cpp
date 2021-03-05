@@ -4,16 +4,16 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/core/json/json_parser.h>
+#include <yt/yt/core/json/json_parser.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
-#include <yt/core/http/client.h>
-#include <yt/core/http/http.h>
+#include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/http.h>
 
 #include <library/cpp/tvmauth/client/facade.h>
 #include <library/cpp/tvmauth/client/logger.h>

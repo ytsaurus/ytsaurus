@@ -2,29 +2,29 @@
 
 #include "private.h"
 
-#include <yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/ytlib/object_client/config.h>
+#include <yt/yt/ytlib/object_client/config.h>
 
-#include <yt/ytlib/security_client/config.h>
+#include <yt/yt/ytlib/security_client/config.h>
 
-#include <yt/client/misc/config.h>
+#include <yt/yt/client/misc/config.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/client/table_client/config.h>
+#include <yt/yt/client/table_client/config.h>
 
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/config.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
 namespace NYT::NClickHouseServer {
 

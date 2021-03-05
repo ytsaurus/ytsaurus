@@ -1,22 +1,22 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/clickhouse_server/config.h>
-#include <yt/server/clickhouse_server/conversion.h>
-#include <yt/server/clickhouse_server/data_type_boolean.h>
-#include <yt/server/clickhouse_server/helpers.h>
-#include <yt/server/clickhouse_server/yt_ch_converter.h>
+#include <yt/yt/server/clickhouse_server/config.h>
+#include <yt/yt/server/clickhouse_server/conversion.h>
+#include <yt/yt/server/clickhouse_server/data_type_boolean.h>
+#include <yt/yt/server/clickhouse_server/helpers.h>
+#include <yt/yt/server/clickhouse_server/yt_ch_converter.h>
 
-#include <yt/ytlib/table_chunk_format/column_reader.h>
-#include <yt/ytlib/table_chunk_format/column_writer.h>
-#include <yt/ytlib/table_chunk_format/data_block_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/column_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/data_block_writer.h>
 
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/client/table_client/logical_type.h>
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/core/yson/string.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <library/cpp/iterator/functools.h>
 

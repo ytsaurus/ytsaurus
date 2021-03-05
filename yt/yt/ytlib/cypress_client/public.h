@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/cypress_client/public.h>
+#include <yt/yt/client/cypress_client/public.h>
 
 namespace NYT::NCypressClient {
 

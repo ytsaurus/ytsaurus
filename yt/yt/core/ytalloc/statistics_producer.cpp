@@ -2,9 +2,9 @@
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/stack_trace.h>
+#include <yt/yt/core/misc/stack_trace.h>
 
 namespace NYT::NYTAlloc {
 

@@ -6,9 +6,9 @@
 #include "public.h"
 #include "schemaless_writer_adapter.h"
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
-#include <yt/core/misc/enum.h>
+#include <yt/yt/core/misc/enum.h>
 
 namespace NYT::NFormats {
 

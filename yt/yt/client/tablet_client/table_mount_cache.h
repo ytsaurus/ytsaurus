@@ -2,23 +2,23 @@
 
 #include "public.h"
 
-#include <yt/client/hive/public.h>
+#include <yt/yt/client/hive/public.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
-#include <yt/client/table_client/public.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/client/ypath/public.h>
+#include <yt/yt/client/ypath/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 #include <util/datetime/base.h>
 

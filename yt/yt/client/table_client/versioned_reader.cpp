@@ -1,6 +1,6 @@
 #include "versioned_reader.h"
 
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 namespace NYT::NTableClient {
 

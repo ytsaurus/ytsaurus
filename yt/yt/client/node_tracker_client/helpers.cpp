@@ -1,8 +1,8 @@
 #include "helpers.h"
 
-#include <yt/core/misc/format.h>
+#include <yt/yt/core/misc/format.h>
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
 
 namespace NYT::NNodeTrackerClient {
 

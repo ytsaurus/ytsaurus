@@ -2,9 +2,9 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/connection.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <util/generic/buffer.h>
 

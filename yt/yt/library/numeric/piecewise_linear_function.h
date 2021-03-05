@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/algorithm_helpers.h>
 
-#include <yt/library/numeric/binary_search.h>
+#include <yt/yt/library/numeric/binary_search.h>
 
 #include <library/cpp/testing/gtest/friend.h>
 

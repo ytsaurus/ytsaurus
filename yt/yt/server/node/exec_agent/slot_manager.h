@@ -2,21 +2,21 @@
 
 #include "public.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/server/node/data_node/public.h>
+#include <yt/yt/server/node/data_node/public.h>
 
-#include <yt/server/node/job_agent/job.h>
+#include <yt/yt/server/node/job_agent/job.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/concurrency/public.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NExecAgent {
 

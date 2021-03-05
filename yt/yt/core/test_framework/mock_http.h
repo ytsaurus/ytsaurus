@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/http/client.h>
-#include <yt/core/http/http.h>
-#include <yt/core/http/public.h>
+#include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/public.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 

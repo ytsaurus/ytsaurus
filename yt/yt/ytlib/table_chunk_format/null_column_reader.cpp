@@ -3,11 +3,11 @@
 #include "column_reader_detail.h"
 #include "helpers.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/table_client/comparator.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
 namespace NYT::NTableChunkFormat {
 

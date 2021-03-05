@@ -5,34 +5,34 @@
 #include "schemaful_chunk_reader.h"
 #include "schemaless_multi_chunk_reader.h"
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/block_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schemaful_reader_adapter.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schemaful_reader_adapter.h>
 
-#include <yt/ytlib/table_client/columnar_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/chunked_memory_pool.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/rpc/channel.h>
+#include <yt/yt/core/rpc/channel.h>
 
 namespace NYT::NTableClient {
 

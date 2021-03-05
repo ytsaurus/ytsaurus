@@ -1,12 +1,12 @@
 #include "functions_cg.h"
 #include "cg_fragment_compiler.h"
 
-#include <yt/client/table_client/llvm_types.h>
+#include <yt/yt/client/table_client/llvm_types.h>
 
-#include <yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/row_base.h>
 
-#include <yt/library/codegen/llvm_migrate_helpers.h>
-#include <yt/library/codegen/routine_registry.h>
+#include <yt/yt/library/codegen/llvm_migrate_helpers.h>
+#include <yt/yt/library/codegen/routine_registry.h>
 
 #include <llvm/IR/DiagnosticPrinter.h>
 #include <llvm/IR/DiagnosticInfo.h>

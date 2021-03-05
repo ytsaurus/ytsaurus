@@ -1,8 +1,8 @@
-#include <yt/core/test_framework/fixed_growth_string_output.h>
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/fixed_growth_string_output.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/yson/token_writer.h>
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/token_writer.h>
+#include <yt/yt/core/yson/writer.h>
 
 namespace NYT::NYson {
 namespace {

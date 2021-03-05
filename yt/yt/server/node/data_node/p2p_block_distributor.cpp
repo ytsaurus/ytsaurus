@@ -3,32 +3,32 @@
 #include "block_peer_table.h"
 #include "private.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/chunk_block_manager.h>
-#include <yt/server/node/data_node/config.h>
-#include <yt/server/node/data_node/master_connector.h>
+#include <yt/yt/server/node/data_node/chunk_block_manager.h>
+#include <yt/yt/server/node/data_node/config.h>
+#include <yt/yt/server/node/data_node/master_connector.h>
 
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/rpc/retrying_channel.h>
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/bus/tcp/dispatcher.h>
+#include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <util/random/random.h>
 

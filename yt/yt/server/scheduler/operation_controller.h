@@ -3,9 +3,9 @@
 #include "job.h"
 #include "operation.h"
 
-#include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/yt/server/lib/scheduler/job_metrics.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NScheduler {
 

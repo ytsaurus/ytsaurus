@@ -1,8 +1,8 @@
 #include "channel_detail.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NRpc {
 

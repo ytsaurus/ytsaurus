@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/comparator.h>
 
 namespace NYT::NTableClient {
 

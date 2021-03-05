@@ -1,15 +1,15 @@
 #include "dns_resolver.h"
 
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/invoker.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/invoker.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/mpsc_queue.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/mpsc_queue.h>
 
-#include <yt/core/concurrency/notification_handle.h>
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/notification_handle.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <contrib/libs/c-ares/ares.h>
 

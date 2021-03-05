@@ -1,8 +1,8 @@
 #include "config.h"
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
-#include <yt/library/re2/re2.h>
+#include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NControllerAgent {
 

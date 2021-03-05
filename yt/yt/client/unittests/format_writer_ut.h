@@ -1,9 +1,9 @@
 #pragma once
 
-#include <yt/client/formats/format.h>
+#include <yt/yt/client/formats/format.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 namespace NYT::NFormats {
 namespace {

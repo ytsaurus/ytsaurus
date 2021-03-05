@@ -13,53 +13,53 @@
 #include "user_proxy.h"
 #include "security_tags.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/serialize.h>
-#include <yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/server/master/chunk_server/chunk_requisition.h>
-#include <yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk_requisition.h>
+#include <yt/yt/server/master/chunk_server/medium.h>
 
-#include <yt/server/master/cypress_server/node.h>
-#include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/node.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/tablet_server/tablet.h>
 
-#include <yt/server/lib/hydra/composite_automaton.h>
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/server/master/object_server/map_object_type_handler.h>
-#include <yt/server/master/object_server/type_handler_detail.h>
+#include <yt/yt/server/master/object_server/map_object_type_handler.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
-#include <yt/server/master/table_server/table_node.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
-#include <yt/server/master/transaction_server/boomerang_tracker.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/boomerang_tracker.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/security_client/group_ypath_proxy.h>
+#include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
 
-#include <yt/client/security_client/helpers.h>
+#include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/fls.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/intern_registry.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/intern_registry.h>
 
-#include <yt/core/logging/fluent_log.h>
+#include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
 namespace NYT::NSecurityServer {
 

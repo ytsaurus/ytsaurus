@@ -2,9 +2,9 @@
 
 #include "command.h"
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/permission.h>
 
 namespace NYT::NDriver {
 

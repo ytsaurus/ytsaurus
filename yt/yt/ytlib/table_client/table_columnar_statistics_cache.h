@@ -1,14 +1,14 @@
 #include "public.h"
 
-#include <yt/client/table_client/columnar_statistics.h>
+#include <yt/yt/client/table_client/columnar_statistics.h>
 
-#include <yt/client/hydra/public.h>
+#include <yt/yt/client/hydra/public.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/library/profiling/sensor.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NTableClient {
 

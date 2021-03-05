@@ -2,23 +2,23 @@
 
 #include "public.h"
 
-#include <yt/server/node/data_node/artifact.h>
-#include <yt/server/node/data_node/public.h>
+#include <yt/yt/server/node/data_node/artifact.h>
+#include <yt/yt/server/node/data_node/public.h>
 
-#include <yt/server/lib/containers/public.h>
-#include <yt/server/lib/job_proxy/config.h>
+#include <yt/yt/server/lib/containers/public.h>
+#include <yt/yt/server/lib/job_proxy/config.h>
 
-#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <yt/client/formats/format.h>
+#include <yt/yt/client/formats/format.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/bus/public.h>
+#include <yt/yt/core/bus/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
 #include <util/stream/file.h>
 

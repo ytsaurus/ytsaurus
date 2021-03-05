@@ -3,7 +3,7 @@
 #include "scheduler_thread.h"
 #include "spinlock.h"
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
 namespace NYT::NConcurrency {
 

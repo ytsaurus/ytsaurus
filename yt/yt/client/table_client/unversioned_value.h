@@ -2,7 +2,7 @@
 
 #include "row_base.h"
 
-#include <yt/core/misc/farm_hash.h>
+#include <yt/yt/core/misc/farm_hash.h>
 
 #include <util/system/defaults.h>
 

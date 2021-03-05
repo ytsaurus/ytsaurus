@@ -1,4 +1,4 @@
-#include <yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
 /**
  * This file contains a bunch of shortcut functions for creating logical types.

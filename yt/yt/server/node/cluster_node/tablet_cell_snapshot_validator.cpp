@@ -1,19 +1,19 @@
 #include "bootstrap.h"
 
-#include <yt/server/lib/cellar_agent/cellar_manager.h>
-#include <yt/server/lib/cellar_agent/cellar.h>
-#include <yt/server/lib/cellar_agent/occupant.h>
-#include <yt/server/lib/cellar_agent/occupier.h>
+#include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
+#include <yt/yt/server/lib/cellar_agent/cellar.h>
+#include <yt/yt/server/lib/cellar_agent/occupant.h>
+#include <yt/yt/server/lib/cellar_agent/occupier.h>
 
-#include <yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
 namespace NYT::NClusterNode {
 

@@ -2,10 +2,10 @@
 #include "private.h"
 #include "helpers.h"
 
-#include <yt/client/table_client/key_bound.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/algorithm_helpers.h>
 
 namespace NYT::NTableClient {
 

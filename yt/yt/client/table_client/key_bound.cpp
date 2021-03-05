@@ -4,7 +4,7 @@
 #include "row_buffer.h"
 #include "serialize.h"
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTableClient {
 

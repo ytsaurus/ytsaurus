@@ -1,4 +1,4 @@
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref.h>
 #include "abort.h"
 
 namespace NYT::NHiveServer {

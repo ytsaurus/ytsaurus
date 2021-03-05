@@ -1,6 +1,6 @@
 #include "output_order.h"
 
-#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 namespace NYT::NChunkPools {
 

@@ -2,7 +2,7 @@
 
 #include "transaction_manager.h"
 
-#include <yt/ytlib/transaction_client/action.h>
+#include <yt/yt/ytlib/transaction_client/action.h>
 
 namespace NYT::NHiveServer {
 

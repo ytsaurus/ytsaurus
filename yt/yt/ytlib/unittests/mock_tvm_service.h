@@ -1,6 +1,6 @@
-#include <yt/ytlib/auth/tvm_service.h>
+#include <yt/yt/ytlib/auth/tvm_service.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NAuth {
 

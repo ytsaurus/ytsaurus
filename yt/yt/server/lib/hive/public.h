@@ -1,18 +1,18 @@
 #pragma once
 
-#include <yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
-#include <yt/ytlib/election/public.h>
+#include <yt/yt/ytlib/election/public.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/hive/public.h>
+#include <yt/yt/ytlib/hive/public.h>
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
 namespace NYT::NHiveServer {
 

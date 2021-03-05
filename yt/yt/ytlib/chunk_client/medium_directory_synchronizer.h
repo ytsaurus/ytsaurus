@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/signal.h>
 
 namespace NYT::NChunkClient {
 

@@ -5,8 +5,8 @@
 #include "object_service_proxy.h"
 #endif
 
-#include <yt/core/rpc/service.h>
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/service.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NObjectClient {
 

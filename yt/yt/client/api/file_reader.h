@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/client/hydra/public.h>
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/hydra/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
 namespace NYT::NApi {
 

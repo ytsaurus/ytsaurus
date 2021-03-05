@@ -5,9 +5,9 @@
 #include "bootstrap.h"
 #include "multicell_manager.h"
 
-#include <yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NCellMaster {
 

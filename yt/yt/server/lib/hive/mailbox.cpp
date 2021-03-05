@@ -1,12 +1,12 @@
 #include "mailbox.h"
 #include "hive_manager.h"
 
-//#include <yt/server/lib/hydra/composite_automaton.h>
+//#include <yt/yt/server/lib/hydra/composite_automaton.h>
 
-#include <yt/ytlib/hive/proto/hive_service.pb.h>
+#include <yt/yt/ytlib/hive/proto/hive_service.pb.h>
 
-//#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/serialize.h>
+//#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/serialize.h>
 
 namespace NYT::NHiveServer {
 

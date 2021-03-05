@@ -2,9 +2,9 @@
 
 #include "http.h"
 
-#include <yt/core/net/public.h>
-#include <yt/core/net/connection.h>
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/public.h>
+#include <yt/yt/core/net/connection.h>
+#include <yt/yt/core/net/address.h>
 
 #include <contrib/restricted/http-parser/http_parser.h>
 

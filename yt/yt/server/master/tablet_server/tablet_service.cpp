@@ -2,21 +2,21 @@
 #include "tablet_manager.h"
 #include "tablet_service.h"
 
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/server/lib/hive/helpers.h>
+#include <yt/yt/server/lib/hive/helpers.h>
 
-#include <yt/server/master/table_server/shared_table_schema.h>
+#include <yt/yt/server/master/table_server/shared_table_schema.h>
 
-#include <yt/server/master/security_server/security_manager.h>
-#include <yt/server/master/security_server/access_log.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/access_log.h>
 
-#include <yt/ytlib/tablet_client/master_tablet_service.h>
+#include <yt/yt/ytlib/tablet_client/master_tablet_service.h>
 
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
 namespace NYT::NTabletServer {
 

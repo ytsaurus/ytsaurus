@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/lib/transaction_server/public.h>
+#include <yt/yt/server/lib/transaction_server/public.h>
 
 namespace NYT::NTransactionServer {
 

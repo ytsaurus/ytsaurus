@@ -5,7 +5,7 @@
 #include "columnar.h"
 #endif
 
-#include <yt/core/misc/zigzag.h>
+#include <yt/yt/core/misc/zigzag.h>
 
 namespace NYT::NTableClient {
 

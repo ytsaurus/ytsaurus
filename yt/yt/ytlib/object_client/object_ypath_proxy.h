@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
+#include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NObjectClient {
 
