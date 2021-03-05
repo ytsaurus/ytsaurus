@@ -31,7 +31,7 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
         NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
-        TVersionedChunkMetaManagerPtr chunkMetaManager = nullptr,
+        IVersionedChunkMetaManagerPtr chunkMetaManager = nullptr,
         NApi::NNative::IClientPtr client = nullptr,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor = NNodeTrackerClient::TNodeDescriptor());
     ~TSortedChunkStore();

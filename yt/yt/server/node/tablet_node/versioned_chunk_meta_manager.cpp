@@ -21,10 +21,30 @@ using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TVersionedChunkMetaCacheKey = std::pair<TChunkId, TTableSchema>;
-DECLARE_REFCOUNTED_CLASS(TVersionedChunkMetaCacheEntry)
+struct TVersionedChunkMetaCacheKey
+{
+    TChunkId ChunkId;
+    TTableSchemaPtr Schema;
+
+    bool operator ==(const TVersionedChunkMetaCacheKey& other) const
+    {
+        return
+            ChunkId == other.ChunkId &&
+            *Schema == *other.Schema;
+    }
+
+    operator size_t() const
+    {
+        size_t hash = 0;
+        HashCombine(hash, ChunkId);
+        HashCombine(hash, *Schema);
+        return hash;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TVersionedChunkMetaCacheEntry)
 
 class TVersionedChunkMetaCacheEntry
     : public TAsyncCacheValueBase<TVersionedChunkMetaCacheKey, TVersionedChunkMetaCacheEntry>
@@ -45,11 +65,12 @@ DEFINE_REFCOUNTED_TYPE(TVersionedChunkMetaCacheEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedChunkMetaManager::TImpl
+class TVersionedChunkMetaManager
     : public TAsyncSlruCacheBase<TVersionedChunkMetaCacheKey, TVersionedChunkMetaCacheEntry>
+    , public IVersionedChunkMetaManager
 {
 public:
-    TImpl(
+    TVersionedChunkMetaManager(
         TTabletNodeConfigPtr config,
         NClusterNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
@@ -58,22 +79,21 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    TFuture<TCachedVersionedChunkMetaPtr> GetMeta(
-        IChunkReaderPtr chunkReader,
-        // TODO(babenko): refcounted schema
-        const TTableSchema& schema,
-        const TClientBlockReadOptions& blockReadOptions)
+    virtual TFuture<TCachedVersionedChunkMetaPtr> GetMeta(
+        const IChunkReaderPtr& chunkReader,
+        const TTableSchemaPtr& schema,
+        const TClientBlockReadOptions& blockReadOptions) override
     {
         auto chunkId = chunkReader->GetChunkId();
-        auto key = std::make_pair(chunkId, schema);
+        auto key = TVersionedChunkMetaCacheKey{chunkId, schema};
         auto cookie = BeginInsert(key);
         if (cookie.IsActive()) {
             // TODO(savrus,psushin) Move call to dispatcher?
             auto asyncMeta = TCachedVersionedChunkMeta::Load(
                 std::move(chunkReader),
                 blockReadOptions,
-                New<TTableSchema>(schema),
-                {} /* columnRenameDesctiptors */,
+                schema,
+                {} /* columnRenameDescriptors */,
                 Bootstrap_
                     ->GetMemoryUsageTracker()
                     ->WithCategory(EMemoryCategory::VersionedChunkMeta));
@@ -105,20 +125,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedChunkMetaManager::TVersionedChunkMetaManager(
+IVersionedChunkMetaManagerPtr CreateVersionedChunkMetaManager(
     TTabletNodeConfigPtr config,
     NClusterNode::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
-{ }
-
-TVersionedChunkMetaManager::~TVersionedChunkMetaManager() = default;
-
-TFuture<TCachedVersionedChunkMetaPtr> TVersionedChunkMetaManager::GetMeta(
-    IChunkReaderPtr chunkReader,
-    const TTableSchema& schema,
-    const TClientBlockReadOptions& blockReadOptions)
 {
-    return Impl_->GetMeta(std::move(chunkReader), schema, blockReadOptions);
+    return New<TVersionedChunkMetaManager>(
+        std::move(config),
+        bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -81,7 +81,7 @@ public:
     const NTabletNode::ISlotManagerPtr& GetTabletSlotManager() const;
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::IInMemoryManagerPtr& GetInMemoryManager() const;
-    const NTabletNode::TVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
+    const NTabletNode::IVersionedChunkMetaManagerPtr& GeIVersionedChunkMetaManager() const;
     const NTabletNode::IStructuredLoggerPtr& GetTabletNodeStructuredLogger() const;
     const NTabletNode::ITabletSnapshotStorePtr& GetTabletSnapshotStore() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
@@ -214,7 +214,7 @@ private:
     NTabletNode::ISlotManagerPtr TabletSlotManager_;
     NTabletNode::TSecurityManagerPtr SecurityManager_;
     NTabletNode::IInMemoryManagerPtr InMemoryManager_;
-    NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
+    NTabletNode::IVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
     NTabletNode::IStructuredLoggerPtr TabletNodeStructuredLogger_;
     NTabletNode::ITabletSnapshotStorePtr TabletSnapshotStore_;
 

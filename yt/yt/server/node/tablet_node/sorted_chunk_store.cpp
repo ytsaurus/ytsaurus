@@ -166,7 +166,7 @@ TSortedChunkStore::TSortedChunkStore(
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
-    TVersionedChunkMetaManagerPtr chunkMetaManager,
+    IVersionedChunkMetaManagerPtr chunkMetaManager,
     NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TChunkStoreBase(
@@ -517,7 +517,7 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
     if (ChunkMetaManager_) {
         asyncChunkMeta = ChunkMetaManager_->GetMeta(
             chunkReader,
-            *Schema_,
+            Schema_,
             blockReadOptions);
     } else {
         asyncChunkMeta = TCachedVersionedChunkMeta::Load(
@@ -553,7 +553,7 @@ void TSortedChunkStore::ValidateBlockSize(
         (chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal ||
         chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar))
     {
-        // For unversioned chunks verify that block size is correct
+        // For unversioned chunks verify that block size is correct.
         if (auto blockSizeLimit = tabletSnapshot->Config->MaxUnversionedBlockSize) {
             auto miscExt = FindProtoExtension<TMiscExt>(chunkState->ChunkSpec.chunk_meta().extensions());
             if (miscExt && miscExt->max_block_size() > *blockSizeLimit) {

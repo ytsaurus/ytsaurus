@@ -634,7 +634,7 @@ void TBootstrap::DoInitialize()
 
     InMemoryManager_ = CreateInMemoryManager(Config_->TabletNode->InMemoryManager, this);
 
-    VersionedChunkMetaManager_ = New<TVersionedChunkMetaManager>(Config_->TabletNode, this);
+    VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(Config_->TabletNode, this);
 
     TabletSnapshotStore_ = CreateTabletSnapshotStore(Config_->TabletNode, this);
 
@@ -1006,7 +1006,7 @@ const IInMemoryManagerPtr& TBootstrap::GetInMemoryManager() const
     return InMemoryManager_;
 }
 
-const TVersionedChunkMetaManagerPtr& TBootstrap::GetVersionedChunkMetaManager() const
+const IVersionedChunkMetaManagerPtr& TBootstrap::GeIVersionedChunkMetaManager() const
 {
     return VersionedChunkMetaManager_;
 }
@@ -1415,7 +1415,7 @@ void TBootstrap::OnDynamicConfigChanged(
     cellarConfig->Type = ECellarType::Tablet;
     cellarConfig->Size = newConfig->TabletNode->Slots;
     auto cellarManagerConfig = New<TDynamicCellarManagerConfig>();
-    cellarManagerConfig->Cellars.push_back(std::move(cellarConfig)); 
+    cellarManagerConfig->Cellars.push_back(std::move(cellarConfig));
     CellarManager_->Reconfigure(std::move(cellarManagerConfig));
 }
 

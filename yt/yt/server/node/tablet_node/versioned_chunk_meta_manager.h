@@ -8,28 +8,20 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedChunkMetaManager
-    : public TRefCounted
+struct IVersionedChunkMetaManager
+    : public virtual TRefCounted
 {
-public:
-    TVersionedChunkMetaManager(
-        TTabletNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
-
-    ~TVersionedChunkMetaManager();
-
-    TFuture<NTableClient::TCachedVersionedChunkMetaPtr> GetMeta(
-        NChunkClient::IChunkReaderPtr chunkReader,
-        const NTableClient::TTableSchema& schema,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual TFuture<NTableClient::TCachedVersionedChunkMetaPtr> GetMeta(
+        const NChunkClient::IChunkReaderPtr& chunkReader,
+        const NTableClient::TTableSchemaPtr& schema,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions) = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IVersionedChunkMetaManager)
 
-DEFINE_REFCOUNTED_TYPE(TVersionedChunkMetaManager)
+IVersionedChunkMetaManagerPtr CreateVersionedChunkMetaManager(
+    TTabletNodeConfigPtr config,
+    NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
