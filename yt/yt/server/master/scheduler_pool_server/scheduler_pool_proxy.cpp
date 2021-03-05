@@ -95,6 +95,7 @@ void TSchedulerPoolProxy::ListSystemAttributes(std::vector<ISystemAttributeProvi
 bool TSchedulerPoolProxy::GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer)
 {
     auto* schedulerPool = GetThisImpl();
+    key = TSchedulerPool::RemapDeprecatedKey(key);
 
     if (schedulerPool->IsRoot()) {
         if (key == EInternedAttributeKey::Config) {
@@ -116,6 +117,7 @@ bool TSchedulerPoolProxy::GetBuiltinAttribute(NYTree::TInternedAttributeKey key,
 bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value)
 {
     auto* schedulerPool = GetThisImpl();
+    key = TSchedulerPool::RemapDeprecatedKey(key);
 
     if (schedulerPool->IsRoot()) {
         if (key == EInternedAttributeKey::Config) {

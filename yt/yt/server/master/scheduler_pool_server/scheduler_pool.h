@@ -58,6 +58,8 @@ public:
         NYTree::TInternedAttributeKey key,
         const std::function<void(const NScheduler::TPoolConfigPtr&, const TString&)>& update);
 
+    static NYTree::TInternedAttributeKey RemapDeprecatedKey(NYTree::TInternedAttributeKey key);
+
 private:
     using TBase = NObjectServer::TNonversionedMapObjectBase<TSchedulerPool>;
 
