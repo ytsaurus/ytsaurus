@@ -947,6 +947,50 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         assert get("//sys/pool_trees/my_tree/nirvana/@max_operation_count") == 10
         assert get("//sys/pool_trees/my_tree/nirvana/@some_unknown_attribute") == "xxx"
 
+    @authors("eshcherbin")
+    def test_strong_guarantee_children_compatibility_validation(self):
+        create_pool_tree("default", wait_for_orchid=False)
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}}, wait_for_orchid=False)
+        create_pool("subpool", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10}}, wait_for_orchid=False)
+
+        with pytest.raises(YtError):
+            create_pool("pubsubpool", parent_name="subpool", attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 5}}, wait_for_orchid=False)
+
+    @authors("eshcherbin")
+    def test_strong_guarantee_children_compatibility_validation_with_zeros(self):
+        create_pool_tree("default", wait_for_orchid=False)
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}}, wait_for_orchid=False)
+        create_pool("subpool", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10}}, wait_for_orchid=False)
+
+        with pytest.raises(YtError):
+            create_pool("pubsubpool", parent_name="subpool", attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 0}}, wait_for_orchid=False)
+
+    @authors("eshcherbin")
+    def test_main_resource_validation_on_pool_config_update(self):
+        create_pool_tree("default", wait_for_orchid=False)
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}}, wait_for_orchid=False)
+        create_pool("subpool1", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10, "user_slots": 25}}, wait_for_orchid=False)
+
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/default/pool/subpool1/@strong_guarantee_resources", {"user_slots": 5})
+
+        set("//sys/pool_trees/default/pool/subpool1/@strong_guarantee_resources", {"cpu": 0, "user_slots": 5})
+
+        with pytest.raises(YtError):
+            create_pool("subpool2", parent_name="pool", attributes={"strong_guarantee_resources": {"user_slots": 5}}, wait_for_orchid=False)
+
+    @authors("eshcherbin")
+    def test_main_resource_validation_on_tree_config_update(self):
+        create_pool_tree("default", wait_for_orchid=False)
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 30, "user_slots": 30}}, wait_for_orchid=False)
+        create_pool("subpool1", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 1}}, wait_for_orchid=False)
+
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/default/@config/main_resource", "user_slots")
+
+        remove("//sys/pool_trees/default/pool/subpool1")
+        set("//sys/pool_trees/default/@config/main_resource", "user_slots")
+
 
 @authors("renadeen")
 class TestSchedulerPoolAcls(YTEnvSetup):
