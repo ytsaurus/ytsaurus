@@ -111,7 +111,7 @@ TLookupSession::TLookupSession(
 TFuture<TSharedRef> TLookupSession::Run()
 {
     NProfiling::TWallTimer metaWaitTimer;
-    const auto& chunkMetaManager = Bootstrap_->GeIVersionedChunkMetaManager();
+    const auto& chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager();
 
     return
         chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_->TableSchema, Options_)

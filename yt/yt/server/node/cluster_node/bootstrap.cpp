@@ -356,7 +356,7 @@ void TBootstrap::DoInitialize()
     for (const auto& config : Config_->ClusterConnection->SecondaryMasters) {
         createBatchingChunkService(config);
     }
-    
+
     LegacyMasterConnector_ = New<NDataNode::TLegacyMasterConnector>(Config_->DataNode, Config_->Tags, this);
 
     TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
@@ -1006,7 +1006,7 @@ const IInMemoryManagerPtr& TBootstrap::GetInMemoryManager() const
     return InMemoryManager_;
 }
 
-const IVersionedChunkMetaManagerPtr& TBootstrap::GeIVersionedChunkMetaManager() const
+const IVersionedChunkMetaManagerPtr& TBootstrap::GetVersionedChunkMetaManager() const
 {
     return VersionedChunkMetaManager_;
 }
