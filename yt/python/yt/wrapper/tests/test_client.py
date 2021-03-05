@@ -133,8 +133,8 @@ class TestClient(object):
             with pytest.raises(yt.YtError):
                 client.commit_transaction(tx)
 
-            with client.Transaction(timeout=60 * 1000, acquire=False) as tx:
-                transaction_id = tx.transaction_id
+            transaction_id = client.start_transaction(timeout=60 * 1000)
+            with client.Transaction(transaction_id=transaction_id):
                 transaction_filepath = TEST_DIR + '/transaction_file'
                 client.write_file(transaction_filepath, b'smth')
 

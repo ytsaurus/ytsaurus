@@ -78,7 +78,7 @@ class Transaction(object):
 
     Caution: if you use this class then do not use directly methods \\*_transaction.
 
-    :param bool acquire: commit/abort transaction in exit from with. By default True if new transaction is started else False.
+    :param bool acquire: commit/abort transaction in exit from with. By default False if new transaction is not started else True and false values are not allowed.
     :param bool ping: ping transaction in separate thread. By default True if acquire is also True else False.
 
     .. seealso:: `transactions in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions.html>`_
@@ -117,9 +117,18 @@ class Transaction(object):
 
             if self._acquire is None:
                 self._acquire = True
+            elif not self._acquire:
+                raise RuntimeError(
+                    'acquire={!r} (false value) is not allowed when '
+                    'transaction_id is not specified'
+                    .format(self._acquire)
+                )
 
-        if self._acquire and self._ping is None:
-            self._ping = True
+        if self._acquire is None:
+            self._acquire = False
+
+        if self._ping is None:
+            self._ping = self._acquire
 
         if _get_ping_failed_mode(self._client) == "send_signal":
             _set_sigusr_received(False)
