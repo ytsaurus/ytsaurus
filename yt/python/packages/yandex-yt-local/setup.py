@@ -22,6 +22,7 @@ def main():
     requires = []
     if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")
+    requires.append("yandex-yt>=0.10.11")
 
     scripts, data_files = prepare_files([
         "yt/local/bin/yt_local",
