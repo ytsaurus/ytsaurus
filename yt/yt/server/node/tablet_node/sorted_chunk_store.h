@@ -30,7 +30,7 @@ public:
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
-        NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
+        NDataNode::IChunkBlockManagerPtr chunkBlockManager = nullptr,
         IVersionedChunkMetaManagerPtr chunkMetaManager = nullptr,
         NApi::NNative::IClientPtr client = nullptr,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor = {});

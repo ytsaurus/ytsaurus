@@ -92,7 +92,7 @@ public:
     const NDataNode::TChunkRegistryPtr& GetChunkRegistry() const;
     const NDataNode::TSessionManagerPtr& GetSessionManager() const;
     const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const;
-    const NDataNode::TChunkBlockManagerPtr& GetChunkBlockManager() const;
+    const NDataNode::IChunkBlockManagerPtr& GetChunkBlockManager() const;
     NDataNode::TNetworkStatistics& GetNetworkStatistics() const;
     const NChunkClient::IBlockCachePtr& GetBlockCache() const;
     const NDataNode::TP2PBlockDistributorPtr& GetP2PBlockDistributor() const;
@@ -182,7 +182,7 @@ private:
     NDataNode::TChunkRegistryPtr ChunkRegistry_;
     NDataNode::TSessionManagerPtr SessionManager_;
     NDataNode::IChunkMetaManagerPtr ChunkMetaManager_;
-    NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
+    NDataNode::IChunkBlockManagerPtr ChunkBlockManager_;
     std::unique_ptr<NDataNode::TNetworkStatistics> NetworkStatistics_;
     NChunkClient::IClientBlockCachePtr ClientBlockCache_;
     NChunkClient::IBlockCachePtr BlockCache_;

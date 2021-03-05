@@ -1,4 +1,5 @@
 #include "chunk_block_manager.h"
+
 #include "private.h"
 #include "blob_reader_cache.h"
 #include "chunk.h"
@@ -7,12 +8,14 @@
 #include "location.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/file_reader.h>
+
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -46,21 +49,19 @@ TCachedBlock::TCachedBlock(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkBlockManager::TImpl
-    : public TAsyncSlruCacheBase<TBlockId, TCachedBlock>
+class TChunkBlockManager
+    : public IChunkBlockManager
+    , public TAsyncSlruCacheBase<TBlockId, TCachedBlock>
 {
 public:
-    TImpl(
-        TDataNodeConfigPtr config,
-        TBootstrap* bootstrap)
+    explicit TChunkBlockManager(TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
-            config->BlockCache->CompressedData,
+            bootstrap->GetConfig()->DataNode->BlockCache->CompressedData,
             DataNodeProfiler.WithPrefix("/block_cache/" + FormatEnum(EBlockType::CompressedData)))
-        , Config_(config)
         , Bootstrap_(bootstrap)
     { }
 
-    TCachedBlockPtr FindCachedBlock(const TBlockId& blockId)
+    virtual TCachedBlockPtr FindCachedBlock(const TBlockId& blockId) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -75,10 +76,10 @@ public:
         return cachedBlock;
     }
 
-    void PutCachedBlock(
+    virtual void PutCachedBlock(
         const TBlockId& blockId,
         const TBlock& data,
-        const std::optional<TNodeDescriptor>& source)
+        const std::optional<TNodeDescriptor>& source) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -96,16 +97,16 @@ public:
         }
     }
 
-    TCachedBlockCookie BeginInsertCachedBlock(const TBlockId& blockId)
+    virtual TCachedBlockCookie BeginInsertCachedBlock(const TBlockId& blockId) override
     {
         return BeginInsert(blockId);
     }
 
-    TFuture<std::vector<TBlock>> ReadBlockRange(
+    virtual TFuture<std::vector<TBlock>> ReadBlockRange(
         TChunkId chunkId,
         int firstBlockIndex,
         int blockCount,
-        const TBlockReadOptions& options)
+        const TBlockReadOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -122,10 +123,10 @@ public:
         }
     }
 
-    TFuture<std::vector<TBlock>> ReadBlockSet(
+    virtual TFuture<std::vector<TBlock>> ReadBlockSet(
         TChunkId chunkId,
         const std::vector<int>& blockIndexes,
-        const TBlockReadOptions& options)
+        const TBlockReadOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -157,7 +158,7 @@ public:
         }
     }
 
-    std::vector<TCachedBlockPtr> GetAllBlocksWithSource()
+    virtual std::vector<TCachedBlockPtr> GetAllBlocksWithSource() override
     {
         std::vector<TCachedBlockPtr> result;
         auto guard = Guard(BlocksWithSourceLock_);
@@ -195,59 +196,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkBlockManager::TChunkBlockManager(
-    TDataNodeConfigPtr config,
-    TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
-{ }
-
-TChunkBlockManager::~TChunkBlockManager() = default;
-
-TCachedBlockPtr TChunkBlockManager::FindCachedBlock(const TBlockId& blockId)
+IChunkBlockManagerPtr CreateChunkBlockManager(TBootstrap* bootstrap)
 {
-    return Impl_->FindCachedBlock(blockId);
-}
-
-void TChunkBlockManager::PutCachedBlock(
-    const TBlockId& blockId,
-    const TBlock& data,
-    const std::optional<TNodeDescriptor>& source)
-{
-    Impl_->PutCachedBlock(blockId, data, source);
-}
-
-TCachedBlockCookie TChunkBlockManager::BeginInsertCachedBlock(const TBlockId& blockId)
-{
-    return Impl_->BeginInsertCachedBlock(blockId);
-}
-
-TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockRange(
-    TChunkId chunkId,
-    int firstBlockIndex,
-    int blockCount,
-    const TBlockReadOptions& options)
-{
-    return Impl_->ReadBlockRange(
-        chunkId,
-        firstBlockIndex,
-        blockCount,
-        options);
-}
-
-TFuture<std::vector<TBlock>> TChunkBlockManager::ReadBlockSet(
-    TChunkId chunkId,
-    const std::vector<int>& blockIndexes,
-    const TBlockReadOptions& options)
-{
-    return Impl_->ReadBlockSet(
-        chunkId,
-        blockIndexes,
-        options);
-}
-
-std::vector<TCachedBlockPtr> TChunkBlockManager::GetAllBlocksWithSource() const
-{
-    return Impl_->GetAllBlocksWithSource();
+    return New<TChunkBlockManager>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
