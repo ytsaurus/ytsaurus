@@ -554,10 +554,10 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/nirvana/@min_share_resources", {"cpu": 10})
-        remove("//sys/pool_trees/my_tree/nirvana/@min_share_resources")
+        set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 10})
+        remove("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources")
         with pytest.raises(YtError):
-            get("//sys/pool_trees/my_tree/nirvana/@min_share_resources")
+            get("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources")
 
     def test_remove_nested_pool_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -748,20 +748,11 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
         with pytest.raises(YtError):
-            set(
-                "//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count",
-                10,
-            )
-        set(
-            "//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config",
-            {"max_operation_count": 10},
-        )
+            set("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count", 10)
+        set("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config", {"max_operation_count": 10})
         assert get("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count") == 10
 
-        set(
-            "//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count",
-            5,
-        )
+        set("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count", 5)
         assert get("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count") == 5
 
     def test_exist_pool_attribute(self):
@@ -990,6 +981,16 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
         remove("//sys/pool_trees/default/pool/subpool1")
         set("//sys/pool_trees/default/@config/main_resource", "user_slots")
+
+    def test_min_share_and_strong_guarantee_resources_aliasing(self):
+        create_pool_tree("my_tree", wait_for_orchid=False, allow_patching=False)
+        create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
+
+        set("//sys/pool_trees/my_tree/nirvana/@min_share_resources", {"cpu": 1})
+        assert get("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources/cpu", 1)
+
+        set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 2})
+        assert get("//sys/pool_trees/my_tree/nirvana/@min_share_resources/cpu", 2)
 
 
 @authors("renadeen")

@@ -174,7 +174,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     Load(context, SpecifiedAttributes_);
     Load(context, MaybePoolTree_);
 
-    if (context.GetVersion() < EMasterReign::MigrateMinShareResourcesToStrongGuaranteeResources) {
+    if (context.GetVersion() < EMasterReign::MigrateMinShareResourcesToStrongGuaranteeResources2) {
         auto minShareIt = SpecifiedAttributes_.find(EInternedAttributeKey::MinShareResources);
         if (minShareIt != SpecifiedAttributes_.end()) {
             auto strongGuaranteeIt = SpecifiedAttributes_.find(EInternedAttributeKey::StrongGuaranteeResources);
@@ -277,6 +277,13 @@ void TSchedulerPool::GuardedUpdatePoolAttribute(
         }
         throw;
     }
+}
+
+TInternedAttributeKey TSchedulerPool::RemapDeprecatedKey(TInternedAttributeKey key)
+{
+    return key == EInternedAttributeKey::MinShareResources
+        ? EInternedAttributeKey::StrongGuaranteeResources
+        : key;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
