@@ -899,14 +899,16 @@ bool TChunkStoreBase::IsLocalChunkValid(const IChunkPtr& chunk) const
         return false;
     }
     return true;
-};
+}
 
-bool TChunkStoreBase::ValidateBlockCachePreloaded()
+TChunkStatePtr TChunkStoreBase::FindPreloadedChunkState()
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(SpinLock_);
 
     if (InMemoryMode_ == EInMemoryMode::None) {
-        return false;
+        return nullptr;
     }
 
     if (!ChunkState_) {
@@ -917,7 +919,10 @@ bool TChunkStoreBase::ValidateBlockCachePreloaded()
             << TErrorAttribute("chunk_id", ChunkId_);
     }
 
-    return true;
+    YT_VERIFY(ChunkState_);
+    YT_VERIFY(ChunkState_->ChunkMeta);
+
+    return ChunkState_;
 }
 
 TInstant TChunkStoreBase::GetCreationTime() const

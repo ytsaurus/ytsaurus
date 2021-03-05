@@ -11,8 +11,9 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/cache_reader.h>
 
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/ytlib/table_client/chunk_state.h>
@@ -42,8 +43,6 @@ using NChunkClient::NProto::TDataStatistics;
 
 struct TOrderedChunkStoreReaderTag
 { };
-
-using TIdMapping = SmallVector<int, TypicalColumnCount>;
 
 class TOrderedChunkStore::TReader
     : public ISchemafulUnversionedReader
@@ -199,16 +198,6 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     const TClientBlockReadOptions& blockReadOptions,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
-    auto chunkReader = GetReaders(
-        bandwidthThrottler,
-        /* rpsThrottler */ GetUnlimitedThrottler()).ChunkReader;
-    auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
-        chunkReader,
-        Schema_,
-        blockReadOptions);
-    auto chunkMeta = WaitFor(asyncChunkMeta)
-        .ValueOrThrow();
-
     TReadLimit lowerLimit;
     lowerRowIndex = std::min(std::max(lowerRowIndex, StartingRowIndex_), StartingRowIndex_ + GetRowCount());
     lowerLimit.SetRowIndex(lowerRowIndex - StartingRowIndex_);
@@ -242,15 +231,32 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         idMapping.push_back(querySchema->GetColumnIndex(readColumn.Name()));
     }
 
-    auto chunkState = New<TChunkState>(
-        GetBlockCache(),
-        NChunkClient::NProto::TChunkSpec(),
-        nullptr,
-        NullTimestamp,
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr);
+    // Fast lane: check for in-memory reads.
+    if (auto reader = TryCreateCacheBasedReader(
+        columnFilter,
+        blockReadOptions,
+        readRange,
+        readSchema,
+        enableTabletIndex,
+        enableRowIndex,
+        tabletIndex,
+        lowerRowIndex,
+        idMapping))
+    {
+        return reader;
+    }
+
+    auto chunkReader = GetReaders(
+        bandwidthThrottler,
+        /* rpsThrottler */ GetUnlimitedThrottler()).ChunkReader;
+    auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
+        chunkReader,
+        Schema_,
+        blockReadOptions);
+    auto chunkMeta = WaitFor(asyncChunkMeta)
+        .ValueOrThrow();
+
+    auto chunkState = New<TChunkState>(GetBlockCache());
 
     auto underlyingReader = CreateSchemafulChunkReader(
         chunkState,
@@ -259,7 +265,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         std::move(chunkReader),
         blockReadOptions,
         readSchema,
-        TSortColumns(),
+        /* sortColumns */ {},
         {readRange});
 
     return New<TReader>(
@@ -270,7 +276,6 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         tabletIndex,
         lowerRowIndex);
 }
-
 
 void TOrderedChunkStore::Save(TSaveContext& context) const
 {
@@ -287,6 +292,45 @@ void TOrderedChunkStore::Load(TLoadContext& context)
 TKeyComparer TOrderedChunkStore::GetKeyComparer()
 {
     return TKeyComparer();
+}
+
+ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(
+    const TColumnFilter& columnFilter,
+    const TClientBlockReadOptions& blockReadOptions,
+    const TReadRange& readRange,
+    const TTableSchemaPtr& readSchema,
+    bool enableTabletIndex,
+    bool enableRowIndex,
+    int tabletIndex,
+    i64 lowerRowIndex,
+    const TIdMapping& idMapping)
+{
+    auto chunkState = FindPreloadedChunkState();
+    if (!chunkState) {
+        return nullptr;
+    }
+
+    auto chunkReader = CreateCacheReader(
+        chunkState->ChunkMeta->GetChunkId(),
+        chunkState->BlockCache);
+
+    auto underlyingReader = CreateSchemafulChunkReader(
+        chunkState,
+        chunkState->ChunkMeta,
+        ReaderConfig_,
+        std::move(chunkReader),
+        blockReadOptions,
+        readSchema,
+        /* sortColumns */ {},
+        {readRange});
+
+    return New<TReader>(
+        std::move(underlyingReader),
+        enableTabletIndex,
+        enableRowIndex,
+        idMapping,
+        tabletIndex,
+        lowerRowIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

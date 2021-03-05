@@ -33,7 +33,7 @@ public:
         NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
         IVersionedChunkMetaManagerPtr chunkMetaManager = nullptr,
         NApi::NNative::IClientPtr client = nullptr,
-        const NNodeTrackerClient::TNodeDescriptor& localDescriptor = NNodeTrackerClient::TNodeDescriptor());
+        const NNodeTrackerClient::TNodeDescriptor& localDescriptor = {});
     ~TSortedChunkStore();
 
     // IStore implementation.
@@ -91,13 +91,13 @@ private:
     TSharedRange<NTableClient::TRowRange> FilterRowRangesByReadRange(
         const TSharedRange<NTableClient::TRowRange>& ranges) const;
 
-    NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
+    NTableClient::IVersionedReaderPtr TryCreateCacheBasedReader(
         const TSharedRange<TLegacyKey>& keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions);
-    NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
+    NTableClient::IVersionedReaderPtr TryCreateCacheBasedReader(
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
         bool produceAllVersions,

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_lookup_hash_table.h"
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
@@ -13,28 +12,15 @@ namespace NYT::NTableClient {
 struct TChunkState
     : public TRefCounted
 {
-    TChunkState() = default;
     TChunkState(
-        NChunkClient::IBlockCachePtr preloadedBlockCache,
-        const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        TCachedVersionedChunkMetaPtr chunkMeta,
-        NTransactionClient::TTimestamp chunkTimestamp,
-        IChunkLookupHashTablePtr lookupHashTable,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
-        TKeyComparer keyComparer,
-        TVirtualValueDirectoryPtr virtualValueDirectory)
-        : BlockCache(std::move(preloadedBlockCache))
-        , ChunkSpec(chunkSpec)
-        , ChunkMeta(std::move(chunkMeta))
-        , ChunkTimestamp(chunkTimestamp)
-        , LookupHashTable(std::move(lookupHashTable))
-        , PerformanceCounters(std::move(performanceCounters))
-        , KeyComparer(std::move(keyComparer))
-        , VirtualValueDirectory(std::move(virtualValueDirectory))
-    { }
-
-    TChunkState(const TChunkState& other) = default;
-    TChunkState(TChunkState&& other) = default;
+        NChunkClient::IBlockCachePtr preloadedBlockCache = nullptr,
+        NChunkClient::NProto::TChunkSpec chunkSpec = {},
+        TCachedVersionedChunkMetaPtr chunkMeta = nullptr,
+        NTransactionClient::TTimestamp chunkTimestamp = NTransactionClient::NullTimestamp,
+        IChunkLookupHashTablePtr lookupHashTable = nullptr,
+        TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
+        TKeyComparer keyComparer = {},
+        TVirtualValueDirectoryPtr virtualValueDirectory = nullptr);
 
     NChunkClient::IBlockCachePtr BlockCache;
     NChunkClient::NProto::TChunkSpec ChunkSpec;

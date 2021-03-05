@@ -396,15 +396,7 @@ protected:
             blockReadOptions,
             readSchema).Get().ValueOrThrow();
 
-        auto chunkState = New<TChunkState>(
-            GetNullBlockCache(),
-            TChunkSpec(),
-            nullptr,
-            NullTimestamp,
-            nullptr,
-            New<TChunkReaderPerformanceCounters>(),
-            nullptr,
-            nullptr);
+        auto chunkState = New<TChunkState>(GetNullBlockCache());
         auto chunkReader = CreateVersionedChunkReader(
             New<TChunkReaderConfig>(),
             memoryReader,
