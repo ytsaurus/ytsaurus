@@ -111,15 +111,15 @@ TLookupSession::TLookupSession(
 TFuture<TSharedRef> TLookupSession::Run()
 {
     NProfiling::TWallTimer metaWaitTimer;
-    const auto& chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager();
+    const auto& chunkMetaManager = Bootstrap_->GeIVersionedChunkMetaManager();
 
     return
-        chunkMetaManager->GetMeta(UnderlyingChunkReader_, *TableSchema_->TableSchema, Options_)
-        .Apply(BIND([=, this_ = MakeStrong(this), metaWaitTimer = std::move(metaWaitTimer)] (TCachedVersionedChunkMetaPtr chunkMeta) {
-            Options_.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
-            return DoRun(std::move(chunkMeta));
-        })
-        .AsyncVia(Bootstrap_->GetStorageLookupInvoker()));
+        chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_->TableSchema, Options_)
+            .Apply(BIND([=, this_ = MakeStrong(this), metaWaitTimer = std::move(metaWaitTimer)] (const TCachedVersionedChunkMetaPtr& chunkMeta) {
+                Options_.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
+                return DoRun(std::move(chunkMeta));
+            })
+            .AsyncVia(Bootstrap_->GetStorageLookupInvoker()));
 }
 
 const TChunkReaderStatisticsPtr& TLookupSession::GetChunkReaderStatistics()

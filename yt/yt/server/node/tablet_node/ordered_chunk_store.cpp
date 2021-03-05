@@ -154,7 +154,7 @@ TOrderedChunkStore::TOrderedChunkStore(
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
     TChunkBlockManagerPtr chunkBlockManager,
-    TVersionedChunkMetaManagerPtr chunkMetaManager,
+    IVersionedChunkMetaManagerPtr chunkMetaManager,
     NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TChunkStoreBase(
@@ -204,7 +204,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         /* rpsThrottler */ GetUnlimitedThrottler()).ChunkReader;
     auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
         chunkReader,
-        *Schema_,
+        Schema_,
         blockReadOptions);
     auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();

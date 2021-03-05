@@ -3664,7 +3664,7 @@ private:
                     Bootstrap_->GetBlockCache(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
-                    Bootstrap_->GetVersionedChunkMetaManager(),
+                    Bootstrap_->GeIVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor());
                 store->Initialize(descriptor);
@@ -3689,7 +3689,7 @@ private:
                     Bootstrap_->GetBlockCache(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
-                    Bootstrap_->GetVersionedChunkMetaManager(),
+                    Bootstrap_->GeIVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor());
                 store->Initialize(descriptor);
