@@ -312,13 +312,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
 
     auto chunkState = New<TChunkState>(
         GetNullBlockCache(),
-        ChunkSpec_,
-        nullptr,
-        NullTimestamp,
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr);
+        ChunkSpec_);
 
     TClientBlockReadOptions blockReadOptions;
     blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
@@ -462,13 +456,7 @@ protected:
 
         ChunkState_ = New<TChunkState>(
             GetNullBlockCache(),
-            ChunkSpec_,
-            nullptr,
-            NullTimestamp,
-            nullptr,
-            nullptr,
-            nullptr,
-            nullptr);
+            ChunkSpec_);
     }
 
     virtual ISchemalessUnversionedReaderPtr CreateReader(const TColumnFilter& columnFilter)
@@ -716,13 +704,7 @@ protected:
 
         auto chunkState = New<TChunkState>(
             GetNullBlockCache(),
-            ChunkSpec_,
-            nullptr,
-            NullTimestamp,
-            nullptr,
-            nullptr,
-            nullptr,
-            nullptr);
+            ChunkSpec_);
 
         return CreateSchemalessLookupChunkReader(
             std::move(chunkState),

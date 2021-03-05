@@ -367,16 +367,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
         auto chunkMeta = New<TRefCountedChunkMeta>(Load<TChunkMeta>(context));
         auto blocks = Load<std::vector<TSharedRef>>(context);
 
-        auto chunkState = New<TChunkState>(
-            GetNullBlockCache(),
-            NChunkClient::NProto::TChunkSpec(),
-            nullptr,
-            NullTimestamp,
-            nullptr,
-            nullptr,
-            nullptr,
-            nullptr);
-
+        auto chunkState = New<TChunkState>(GetNullBlockCache());
         auto chunkReader = CreateMemoryReader(
             chunkMeta,
             TBlock::Wrap(blocks));

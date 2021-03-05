@@ -262,20 +262,19 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     // Fast lane: check for in-memory reads.
-    auto reader = CreateCacheBasedReader(
+    if (auto reader = TryCreateCacheBasedReader(
         ranges,
         timestamp,
         produceAllVersions,
         columnFilter,
         blockReadOptions,
-        ReadRange_);
-    if (reader) {
+        ReadRange_))
+    {
         return reader;
     }
 
     // Another fast lane: check for backing store.
-    auto backingStore = GetSortedBackingStore();
-    if (backingStore) {
+    if (auto backingStore = GetSortedBackingStore()) {
         YT_VERIFY(!HasNontrivialReadRange());
         return backingStore->CreateReader(
             tabletSnapshot,
@@ -306,7 +305,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         ReadRange_);
 }
 
-IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
+IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
     TSharedRange<TRowRange> ranges,
     TTimestamp timestamp,
     bool produceAllVersions,
@@ -316,17 +315,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(SpinLock_);
-
-    if (!ValidateBlockCachePreloaded()) {
+    auto chunkState = FindPreloadedChunkState();
+    if (!chunkState) {
         return nullptr;
     }
 
-    YT_VERIFY(ChunkState_);
-    YT_VERIFY(ChunkState_->ChunkMeta);
-
     return CreateCacheBasedVersionedChunkReader(
-        ChunkState_,
+        std::move(chunkState),
         blockReadOptions,
         std::move(ranges),
         columnFilter,
@@ -362,19 +357,18 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     };
 
     // Fast lane: check for in-memory reads.
-    auto reader = CreateCacheBasedReader(
+    if (auto reader = TryCreateCacheBasedReader(
         filteredKeys,
         timestamp,
         produceAllVersions,
         columnFilter,
-        blockReadOptions);
-    if (reader) {
-        return createFilteringReader(reader);
+        blockReadOptions))
+    {
+        return createFilteringReader(std::move(reader));
     }
 
     // Another fast lane: check for backing store.
-    auto backingStore = GetSortedBackingStore();
-    if (backingStore) {
+    if (auto backingStore = GetSortedBackingStore()) {
         YT_VERIFY(!HasNontrivialReadRange());
         return backingStore->CreateReader(
             std::move(tabletSnapshot),
@@ -431,26 +425,20 @@ TSharedRange<TRowRange> TSortedChunkStore::FilterRowRangesByReadRange(
     return NTabletNode::FilterRowRangesByReadRange(ReadRange_.Front(), ranges);
 }
 
-IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
+IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
     const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TClientBlockReadOptions& blockReadOptions)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto guard = ReaderGuard(SpinLock_);
-
-    if (!ValidateBlockCachePreloaded()) {
+    auto chunkState = FindPreloadedChunkState();
+    if (!chunkState) {
         return nullptr;
     }
 
-    YT_VERIFY(ChunkState_);
-    YT_VERIFY(ChunkState_->ChunkMeta);
-
     return CreateCacheBasedVersionedChunkReader(
-        ChunkState_,
+        std::move(chunkState),
         blockReadOptions,
         keys,
         columnFilter,
@@ -463,8 +451,7 @@ bool TSortedChunkStore::CheckRowLocks(
     TLockMask lockMask,
     TWriteContext* context)
 {
-    auto backingStore = GetSortedBackingStore();
-    if (backingStore) {
+    if (auto backingStore = GetSortedBackingStore()) {
         return backingStore->CheckRowLocks(row, lockMask, context);
     }
 

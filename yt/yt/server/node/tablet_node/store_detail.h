@@ -260,7 +260,7 @@ protected:
     TInstant AllowedCompactionTimestamp_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
-    std::atomic<NProfiling::TCpuInstant> LocalChunkCheckDeadline_ = {0};
+    std::atomic<NProfiling::TCpuInstant> LocalChunkCheckDeadline_ = 0;
     NChunkClient::IChunkReaderPtr CachedChunkReader_;
     NTableClient::ILookupReaderPtr CachedLookupReader_;
     bool CachedReadersLocal_ = false;
@@ -281,7 +281,7 @@ protected:
     virtual void PrecacheProperties();
     virtual NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
 
-    bool ValidateBlockCachePreloaded();
+    NTableClient::TChunkStatePtr FindPreloadedChunkState();
 
     virtual NTableClient::TKeyComparer GetKeyComparer() = 0;
 

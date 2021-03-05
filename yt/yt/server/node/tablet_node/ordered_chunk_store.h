@@ -21,7 +21,7 @@ public:
         NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
         IVersionedChunkMetaManagerPtr chunkMetaManager = nullptr,
         NApi::NNative::IClientPtr client = nullptr,
-        const NNodeTrackerClient::TNodeDescriptor& localDescriptor = NNodeTrackerClient::TNodeDescriptor());
+        const NNodeTrackerClient::TNodeDescriptor& localDescriptor = {});
 
     virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor) override;
 
@@ -47,7 +47,20 @@ public:
 private:
     class TReader;
 
+    using TIdMapping = SmallVector<int, NTableClient::TypicalColumnCount>;
+
     virtual NTableClient::TKeyComparer GetKeyComparer() override;
+
+    NTableClient::ISchemafulUnversionedReaderPtr TryCreateCacheBasedReader(
+        const TColumnFilter& columnFilter,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TReadRange& readRange,
+        const NTableClient::TTableSchemaPtr& readSchema,
+        bool enableTabletIndex,
+        bool enableRowIndex,
+        int tabletIndex,
+        i64 lowerRowIndex,
+        const TIdMapping& idMapping);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedChunkStore)

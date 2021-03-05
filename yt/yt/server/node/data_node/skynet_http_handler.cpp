@@ -134,15 +134,7 @@ public:
             Bootstrap_->GetBlockCache(),
             Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache());
 
-        auto chunkState = New<TChunkState>(
-            Bootstrap_->GetBlockCache(),
-            NChunkClient::NProto::TChunkSpec(),
-            nullptr,
-            NullTimestamp,
-            nullptr,
-            nullptr,
-            nullptr,
-            nullptr);
+        auto chunkState = New<TChunkState>(Bootstrap_->GetBlockCache());
 
         auto schemalessReader = CreateSchemalessRangeChunkReader(
             chunkState,
