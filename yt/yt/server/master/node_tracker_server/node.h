@@ -119,6 +119,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
 
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NChunkClient::TLocationUuid>, LocationUuids);
+
     DEFINE_BYVAL_RO_PROPERTY(TRack*, Rack);
 
     // Lease tracking.

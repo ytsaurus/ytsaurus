@@ -140,6 +140,7 @@ DEFINE_ENUM(EMasterReign,
     ((BatchedReplicateTransactionMethod)                            (1456))  // shakurov
     ((PhysicalRowCount)                                             (1457))  // gritukan
     ((DropSealedFromChunkTreeStatistics)                            (1458))  // gritukan
+    ((RegisteredLocationUuids)                                      (1459))  // aleksandra-zh
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42

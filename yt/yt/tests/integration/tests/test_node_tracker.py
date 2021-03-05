@@ -3,6 +3,9 @@ import pytest
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 from yt_commands import *
 
+from copy import deepcopy
+from time import sleep
+
 ##################################################################
 
 
@@ -330,3 +333,52 @@ class TestNodeUnrecognizedOptionsAlert(YTEnvSetup):
         nodes = ls("//sys/cluster_nodes")
         alerts = get("//sys/cluster_nodes/{}/@alerts".format(nodes[0]))
         assert alerts[0]["code"] == UnrecognizedConfigOption
+
+
+################################################################################
+
+
+class TestReregisterNode(YTEnvSetup):
+    NUM_NODES = 2
+    FIRST_CONFIG = None
+    SECOND_CONFIG = None
+    SECOND_CONFIG_PTR = None
+
+    @classmethod
+    def _change_node_address(cls):
+        cls.SECOND_CONFIG_PTR["data_node"] = cls.FIRST_CONFIG["data_node"]
+
+        with Restarter(cls.Env, NODES_SERVICE, sync=False):
+            cls.Env.rewrite_node_configs()
+
+    @classmethod
+    def _change_node_address_back(cls):
+        cls.SECOND_CONFIG_PTR["data_node"] = cls.SECOND_CONFIG["data_node"]
+
+        with Restarter(cls.Env, [NODES_SERVICE]):
+            cls.Env.rewrite_node_configs()
+
+    @classmethod
+    def modify_node_config(cls, config):
+        if (cls.FIRST_CONFIG is None):
+            cls.FIRST_CONFIG = deepcopy(config)
+        else:
+            cls.SECOND_CONFIG = deepcopy(config)
+            cls.SECOND_CONFIG_PTR = config
+
+    @authors("aleksandra-zh")
+    def test_reregister_node_with_different_address(self):
+        TestReregisterNode._change_node_address()
+
+        def get_online_node_count():
+            online_count = 0
+            for node in ls("//sys/cluster_nodes", attributes=["state"]):
+                if node.attributes["state"] == "online":
+                    online_count += 1
+            return online_count
+
+        wait(lambda: get_online_node_count() == 1)
+        sleep(5)
+        assert get_online_node_count() == 1
+
+        TestReregisterNode._change_node_address_back()
