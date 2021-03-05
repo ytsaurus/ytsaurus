@@ -3,7 +3,7 @@
 #include "public.h"
 #include "syntax_checker.h"
 
-#include <yt/core/misc/zerocopy_output_writer.h>
+#include <yt/yt/core/misc/zerocopy_output_writer.h>
 
 #include <util/stream/zerocopy_output.h>
 

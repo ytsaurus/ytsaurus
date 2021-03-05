@@ -1,14 +1,14 @@
 #include "rowset.h"
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NApi {
 

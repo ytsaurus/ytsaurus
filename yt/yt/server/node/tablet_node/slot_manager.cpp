@@ -4,27 +4,27 @@
 #include "tablet_slot.h"
 #include "structured_logger.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/server/lib/cellar_agent/cellar_manager.h>
-#include <yt/server/lib/cellar_agent/cellar.h>
-#include <yt/server/lib/cellar_agent/occupant.h>
+#include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
+#include <yt/yt/server/lib/cellar_agent/cellar.h>
+#include <yt/yt/server/lib/cellar_agent/occupant.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NTabletNode {
 

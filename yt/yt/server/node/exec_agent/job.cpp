@@ -3,59 +3,59 @@
 #include "slot.h"
 #include "slot_manager.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/artifact.h>
-#include <yt/server/node/data_node/chunk.h>
-#include <yt/server/node/data_node/chunk_cache.h>
-#include <yt/server/node/data_node/location.h>
-#include <yt/server/node/data_node/legacy_master_connector.h>
-#include <yt/server/node/data_node/volume_manager.h>
+#include <yt/yt/server/node/data_node/artifact.h>
+#include <yt/yt/server/node/data_node/chunk.h>
+#include <yt/yt/server/node/data_node/chunk_cache.h>
+#include <yt/yt/server/node/data_node/location.h>
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/volume_manager.h>
 
-#include <yt/server/node/job_agent/job.h>
-#include <yt/server/node/job_agent/gpu_manager.h>
+#include <yt/yt/server/node/job_agent/job.h>
+#include <yt/yt/server/node/job_agent/gpu_manager.h>
 
-#include <yt/server/lib/containers/public.h>
+#include <yt/yt/server/lib/containers/public.h>
 
-#include <yt/server/lib/job_agent/job_reporter.h>
+#include <yt/yt/server/lib/job_agent/job_reporter.h>
 
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/ytlib/chunk_client/data_source.h>
-#include <yt/ytlib/chunk_client/traffic_meter.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 
-#include <yt/ytlib/job_prober_client/public.h>
-#include <yt/ytlib/job_prober_client/job_probe.h>
+#include <yt/yt/ytlib/job_prober_client/public.h>
+#include <yt/yt/ytlib/job_prober_client/job_probe.h>
 
-#include <yt/ytlib/job_proxy/public.h>
+#include <yt/yt/ytlib/job_proxy/public.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/job_tracker_client/statistics.h>
+#include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory_builder.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/library/profiling/sensor.h>
-#include <yt/library/profiling/producer.h>
+#include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/library/profiling/producer.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/statistics.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <util/system/env.h>
 

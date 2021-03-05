@@ -3,16 +3,16 @@
 #include "chunk.h"
 #include "private.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/node/tablet_node/sorted_dynamic_comparer.h>
+#include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/proto/data_node_service.pb.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
 namespace NYT::NDataNode {
 

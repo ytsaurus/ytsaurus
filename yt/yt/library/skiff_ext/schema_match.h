@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/property.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 #include <library/cpp/skiff/skiff_schema.h>
 

@@ -1,7 +1,7 @@
 #include "interned_attributes.h"
 
-#include <yt/core/misc/collection_helpers.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/serialize.h>
 
 namespace NYT::NYTree {
 

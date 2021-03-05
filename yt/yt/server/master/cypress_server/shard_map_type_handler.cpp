@@ -3,9 +3,9 @@
 #include "shard.h"
 #include "virtual.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NCypressServer {
 

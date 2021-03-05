@@ -1,12 +1,12 @@
 #include "lock_free_hash_table_and_concurrent_cache_helpers.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/slab_allocator.h>
-#include <yt/core/misc/concurrent_cache.h>
-#include <yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/slab_allocator.h>
+#include <yt/yt/core/misc/concurrent_cache.h>
+#include <yt/yt/core/misc/shutdown.h>
 
-#include <yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 namespace NYT {
 namespace {

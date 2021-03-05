@@ -1,28 +1,28 @@
 #include "environment.h"
 
-#include <yt/server/lib/core_dump/public.h>
+#include <yt/yt/server/lib/core_dump/public.h>
 
-#include <yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/lib/job_agent/gpu_helpers.h>
+#include <yt/yt/server/lib/job_agent/gpu_helpers.h>
 
-#include <yt/ytlib/job_proxy/private.h>
+#include <yt/yt/ytlib/job_proxy/private.h>
 
 #include <util/system/fs.h>
 
 #ifdef _linux_
-#include <yt/server/lib/containers/porto_executor.h>
-#include <yt/server/lib/containers/instance.h>
+#include <yt/yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/server/lib/containers/instance.h>
 
-#include <yt/server/lib/misc/process.h>
+#include <yt/yt/server/lib/misc/process.h>
 #endif
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <sys/stat.h>
 

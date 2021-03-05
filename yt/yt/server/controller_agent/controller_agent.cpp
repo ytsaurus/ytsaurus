@@ -11,46 +11,46 @@
 #include "helpers.h"
 #include "job_monitoring_index_manager.h"
 
-#include <yt/server/lib/job_agent/job_reporter.h>
+#include <yt/yt/server/lib/job_agent/job_reporter.h>
 
-#include <yt/server/lib/scheduler/message_queue.h>
-#include <yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
-#include <yt/server/lib/scheduler/exec_node_descriptor.h>
-#include <yt/server/lib/scheduler/helpers.h>
-#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/yt/server/lib/scheduler/message_queue.h>
+#include <yt/yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
+#include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/ytlib/chunk_client/throttler_manager.h>
-#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/throttler_manager.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
-#include <yt/ytlib/event_log/event_log.h>
+#include <yt/yt/ytlib/event_log/event_log.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
-#include <yt/ytlib/scheduler/config.h>
-#include <yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/async_semaphore.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/thread_pool.h>
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/misc/sync_expiring_cache.h>
+#include <yt/yt/core/misc/sync_expiring_cache.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/virtual.h>
-#include <yt/core/ytree/service_combiner.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/service_combiner.h>
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
 namespace NYT::NControllerAgent {
 

@@ -3,35 +3,35 @@
 #include "evaluation_helpers.h"
 #include "helpers.h"
 
-#include <yt/client/security_client/acl.h>
-#include <yt/client/security_client/helpers.h>
+#include <yt/yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/core/yson/lexer.h>
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/pull_parser.h>
-#include <yt/core/yson/token.h>
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/lexer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/token.h>
+#include <yt/yt/core/yson/writer.h>
 
-#include <yt/core/ytree/ypath_resolver.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/chunked_memory_pool_output.h>
-#include <yt/core/misc/farm_hash.h>
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/hyperloglog.h>
+#include <yt/yt/core/misc/chunked_memory_pool_output.h>
+#include <yt/yt/core/misc/farm_hash.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/hyperloglog.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <contrib/libs/re2/re2/re2.h>
 

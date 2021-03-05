@@ -3,17 +3,17 @@
 #include "changelog.h"
 #include "config.h"
 #include "sync_file_changelog.h"
-#include "yt/library/profiling/sensor.h"
+#include "yt/yt/library/profiling/sensor.h"
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/collection_helpers.h>
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <atomic>
 

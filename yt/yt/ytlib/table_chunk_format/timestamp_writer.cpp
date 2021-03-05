@@ -1,10 +1,10 @@
 #include "timestamp_writer.h"
 #include "data_block_writer.h"
 
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/core/misc/zigzag.h>
-#include <yt/core/misc/bit_packed_unsigned_vector.h>
+#include <yt/yt/core/misc/zigzag.h>
+#include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 

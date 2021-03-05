@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NClickHouseServer {
 

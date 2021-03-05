@@ -4,26 +4,26 @@
 #include "distributed_hydra_manager.h"
 #include "mutation_context.h"
 
-#include <yt/server/lib/election/public.h>
+#include <yt/yt/server/lib/election/public.h>
 
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
-#include <yt/client/hydra/version.h>
+#include <yt/yt/client/hydra/version.h>
 
-#include <yt/core/actions/cancelable_context.h>
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/async_batcher.h>
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/async_batcher.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/ring_queue.h>
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

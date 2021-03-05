@@ -5,24 +5,24 @@
 #include "confirming_writer.h"
 #include "dispatcher.h"
 
-#include <yt/client/api/client.h>
-#include <yt/client/api/config.h>
-#include <yt/client/api/connection.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/config.h>
+#include <yt/yt/client/api/connection.h>
 
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/chunk_client/chunk_writer_base.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer_base.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/rpc/channel.h>
-#include <yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/channel.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 namespace NYT::NChunkClient {
 

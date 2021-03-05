@@ -5,18 +5,18 @@
 #include "parser.h"
 #include "yson_map_to_unversioned_value.h"
 
-#include <yt/library/decimal/decimal.h>
-#include <yt/library/skiff_ext/schema_match.h>
-#include <yt/library/skiff_ext/parser.h>
+#include <yt/yt/library/decimal/decimal.h>
+#include <yt/yt/library/skiff_ext/schema_match.h>
+#include <yt/yt/library/skiff_ext/parser.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/table_consumer.h>
-#include <yt/client/table_client/value_consumer.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/value_consumer.h>
 
-#include <yt/core/concurrency/coroutine.h>
+#include <yt/yt/core/concurrency/coroutine.h>
 
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/token_writer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/token_writer.h>
 
 #include <util/generic/strbuf.h>
 #include <util/stream/zerocopy.h>

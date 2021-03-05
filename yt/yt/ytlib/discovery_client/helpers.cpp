@@ -2,11 +2,11 @@
 #include "discovery_client_service_proxy.h"
 #include "private.h"
 
-#include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/algorithm_helpers.h>
 
 namespace NYT::NDiscoveryClient {
 

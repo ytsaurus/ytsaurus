@@ -1,7 +1,7 @@
 #include "config.h"
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NExecAgent {
 

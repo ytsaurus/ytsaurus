@@ -1,4 +1,4 @@
-#include <yt/server/clickhouse_server/program.h>
+#include <yt/yt/server/clickhouse_server/program.h>
 
 int main(int argc, const char** argv)
 {

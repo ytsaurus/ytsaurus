@@ -1,20 +1,20 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include "row_helpers.h"
 
-#include <yt/client/formats/config.h>
-#include <yt/client/formats/parser.h>
-#include <yt/client/formats/skiff_parser.h>
-#include <yt/client/formats/skiff_writer.h>
-#include <yt/client/formats/format.h>
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/formats/config.h>
+#include <yt/yt/client/formats/parser.h>
+#include <yt/yt/client/formats/skiff_parser.h>
+#include <yt/yt/client/formats/skiff_writer.h>
+#include <yt/yt/client/formats/format.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/library/skiff_ext/schema_match.h>
+#include <yt/yt/library/skiff_ext/schema_match.h>
 
-#include <yt/core/yson/string.h>
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/tree_visitor.h>
+#include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/tree_visitor.h>
 
 #include <library/cpp/skiff/skiff.h>
 #include <library/cpp/skiff/skiff_schema.h>

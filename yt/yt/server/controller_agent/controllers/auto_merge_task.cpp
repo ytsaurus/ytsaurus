@@ -5,12 +5,12 @@
 #include "job_info.h"
 #include "task_host.h"
 
-#include <yt/server/controller_agent/config.h>
-#include <yt/server/controller_agent/job_size_constraints.h>
+#include <yt/yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/job_size_constraints.h>
 
-#include <yt/server/lib/chunk_pools/multi_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

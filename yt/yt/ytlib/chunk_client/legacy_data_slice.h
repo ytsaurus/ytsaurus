@@ -4,10 +4,10 @@
 #include "data_source.h"
 #include "input_chunk_slice.h"
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/phoenix.h>
 
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 namespace NYT::NChunkClient {
 

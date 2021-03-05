@@ -1,11 +1,11 @@
 #pragma once
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 #include <util/generic/noncopyable.h>
 #include <util/generic/strbuf.h>

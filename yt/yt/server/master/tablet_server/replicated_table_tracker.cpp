@@ -1,55 +1,55 @@
 #include "private.h"
 #include "replicated_table_tracker.h"
 
-#include <yt/core/concurrency/thread_pool.h>
-#include <yt/core/concurrency/scheduler_thread.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/scheduler_thread.h>
 
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
-#include <yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/helpers.h>
 
-#include <yt/core/misc/async_expiring_cache.h>
+#include <yt/yt/core/misc/async_expiring_cache.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/world_initializer.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/world_initializer.h>
 
-#include <yt/server/master/table_server/replicated_table_node.h>
+#include <yt/yt/server/master/table_server/replicated_table_node.h>
 
-#include <yt/server/master/tablet_server/config.h>
-#include <yt/server/master/tablet_server/table_replica.h>
+#include <yt/yt/server/master/tablet_server/config.h>
+#include <yt/yt/server/master/tablet_server/table_replica.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
 
-#include <yt/server/master/hive/cluster_directory_synchronizer.h>
-#include <yt/server/lib/hive/config.h>
+#include <yt/yt/server/master/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/server/lib/hive/config.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/config.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/tablet_client/table_replica_ypath.h>
+#include <yt/yt/ytlib/tablet_client/table_replica_ypath.h>
 
-#include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/client/api/public.h>
-#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/api/public.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 namespace NYT::NTabletServer {
 

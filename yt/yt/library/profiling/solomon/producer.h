@@ -2,7 +2,7 @@
 
 #include "cube.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/library/profiling/impl.h>
 

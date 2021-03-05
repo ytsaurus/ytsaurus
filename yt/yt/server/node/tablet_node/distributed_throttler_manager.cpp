@@ -1,13 +1,13 @@
 #include "distributed_throttler_manager.h"
 #include "private.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/discovery_client/config.h>
+#include <yt/yt/ytlib/discovery_client/config.h>
 
-#include <yt/ytlib/distributed_throttler/distributed_throttler.h>
+#include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
 namespace NYT::NTabletNode {
 

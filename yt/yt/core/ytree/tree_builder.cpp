@@ -5,11 +5,11 @@
 #include "attribute_consumer.h"
 #include "node.h"
 
-#include <yt/core/actions/bind.h>
+#include <yt/yt/core/actions/bind.h>
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
-#include <yt/core/yson/forwarding_consumer.h>
+#include <yt/yt/core/yson/forwarding_consumer.h>
 
 #include <stack>
 

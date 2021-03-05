@@ -6,30 +6,30 @@
 #include "node_proxy.h"
 #include "type_handler.h"
 
-#include <yt/server/master/cell_master/automaton.h>
+#include <yt/yt/server/master/cell_master/automaton.h>
 
-#include <yt/server/master/cypress_server/proto/cypress_manager.pb.h>
+#include <yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
-#include <yt/server/lib/hydra/composite_automaton.h>
-#include <yt/server/lib/hydra/entity_map.h>
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/server/master/security_server/public.h>
+#include <yt/yt/server/master/security_server/public.h>
 
-#include <yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/table_server/public.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
-#include <yt/server/master/transaction_server/transaction_manager.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/id_generator.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/id_generator.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/core/ytree/tree_builder.h>
-#include <yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/ypath_service.h>
 
 namespace NYT::NCypressServer {
 

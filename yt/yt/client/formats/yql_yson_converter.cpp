@@ -1,15 +1,15 @@
 #include "yql_yson_converter.h"
 
-#include <yt/client/table_client/logical_type.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/library/decimal/decimal.h>
+#include <yt/yt/library/decimal/decimal.h>
 
-#include <yt/core/json/json_writer.h>
+#include <yt/yt/core/json/json_writer.h>
 
-#include <yt/core/yson/pull_parser.h>
-#include <yt/core/yson/token_writer.h>
+#include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/token_writer.h>
 
 #include <library/cpp/string_utils/base64/base64.h>
 

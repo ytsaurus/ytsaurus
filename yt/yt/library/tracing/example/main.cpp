@@ -1,8 +1,8 @@
 #include <random>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 #include <util/generic/yexception.h>
 

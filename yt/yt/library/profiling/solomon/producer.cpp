@@ -1,11 +1,11 @@
 #include "producer.h"
 #include "private.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 #include <yt/yt/library/profiling/producer.h>
 

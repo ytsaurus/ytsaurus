@@ -1,7 +1,7 @@
 #include "versioned_writer.h"
 #include "config.h"
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
 namespace NYT::NFormats {
 

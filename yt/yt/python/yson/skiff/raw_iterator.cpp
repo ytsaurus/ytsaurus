@@ -1,7 +1,7 @@
 #include "raw_iterator.h"
 #include "parser_helpers.h"
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NPython {
 

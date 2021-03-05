@@ -2,16 +2,16 @@
 
 #include "private.h"
 
-#include <yt/server/lib/controller_agent/serialize.h>
+#include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/samples_fetcher.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/samples_fetcher.h>
 
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
 namespace NYT::NControllerAgent {
 

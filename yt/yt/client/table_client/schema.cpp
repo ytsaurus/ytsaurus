@@ -1,15 +1,15 @@
 #include "schema.h"
 #include "unversioned_row.h"
 
-#include <yt/core/ytree/serialize.h>
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
-#include <yt/client/table_client/proto/wire_protocol.pb.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/proto/wire_protocol.pb.h>
 
-#include <yt/client/tablet_client/public.h>
+#include <yt/yt/client/tablet_client/public.h>
 
 namespace NYT::NTableClient {
 

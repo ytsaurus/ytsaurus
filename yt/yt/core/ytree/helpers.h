@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/ytree/proto/attributes.pb.h>
+#include <yt/yt/core/ytree/proto/attributes.pb.h>
 
 namespace NYT::NYTree {
 

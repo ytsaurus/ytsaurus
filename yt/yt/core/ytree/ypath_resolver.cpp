@@ -1,13 +1,13 @@
 #include "ypath_resolver.h"
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/yson/forwarding_consumer.h>
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/forwarding_consumer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/writer.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/variant.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/variant.h>
 
 namespace NYT::NYTree {
 

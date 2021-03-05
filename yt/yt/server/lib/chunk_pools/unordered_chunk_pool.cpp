@@ -5,19 +5,19 @@
 #include "new_job_manager.h"
 #include "config.h"
 
-#include <yt/server/lib/controller_agent/job_size_constraints.h>
+#include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
-#include <yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/library/random/bernoulli_sampler.h>
+#include <yt/yt/library/random/bernoulli_sampler.h>
 
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/core/misc/numeric_helpers.h>
-#include <yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/ref_tracked.h>
 
 #include <random>
 

@@ -15,28 +15,28 @@
 #include "snapshot_discovery.h"
 #include "state_hash_checker.h"
 
-#include <yt/server/lib/election/election_manager.h>
-#include <yt/server/lib/election/config.h>
+#include <yt/yt/server/lib/election/election_manager.h>
+#include <yt/yt/server/lib/election/config.h>
 
-#include <yt/ytlib/election/cell_manager.h>
-#include <yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/config.h>
 
-#include <yt/ytlib/hydra/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/rpc/response_keeper.h>
-#include <yt/core/rpc/server.h>
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 #include <atomic>
 

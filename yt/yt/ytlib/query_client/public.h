@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/client/query_client/public.h>
+#include <yt/yt/client/query_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
 // TODO(babenko): kill this when refactoring TDataSplit
 namespace NYT { namespace NChunkClient { namespace NProto {

@@ -3,12 +3,12 @@
 #include "table_writer.h"
 #include "skynet.h"
 
-#include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 namespace NYT::NApi::NNative {
 

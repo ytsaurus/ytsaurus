@@ -2,14 +2,14 @@
 #include "cluster_resource_limits.h"
 #include "helpers.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/medium.h>
 
-#include <yt/server/lib/security_server/proto/security_manager.pb.h>
+#include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NSecurityServer {
 

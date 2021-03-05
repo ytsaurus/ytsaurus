@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/client/chunk_client/config.h>
+#include <yt/yt/client/chunk_client/config.h>
 
-#include <yt/client/table_client/config.h>
+#include <yt/yt/client/table_client/config.h>
 
-#include <yt/client/transaction_client/config.h>
+#include <yt/yt/client/transaction_client/config.h>
 
-#include <yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NDriver {
 

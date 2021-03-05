@@ -2,11 +2,11 @@
 #include "helpers.h"
 #include "column_writer_detail.h"
 
-#include <yt/client/table_chunk_format/proto/column_meta.pb.h>
+#include <yt/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
-#include <yt/core/misc/zigzag.h>
-#include <yt/core/misc/bitmap.h>
-#include <yt/core/misc/bit_packed_unsigned_vector.h>
+#include <yt/yt/core/misc/zigzag.h>
+#include <yt/yt/core/misc/bitmap.h>
+#include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 

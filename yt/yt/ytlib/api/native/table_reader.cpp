@@ -2,41 +2,41 @@
 #include "transaction.h"
 #include "connection.h"
 
-#include <yt/ytlib/table_client/table_read_spec.h>
+#include <yt/yt/ytlib/table_client/table_read_spec.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/data_source.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
-#include <yt/ytlib/transaction_client/transaction_listener.h>
+#include <yt/yt/ytlib/transaction_client/transaction_listener.h>
 
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/helpers.h>
 
-#include <yt/client/api/table_reader.h>
+#include <yt/yt/client/api/table_reader.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/range.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/range.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NApi::NNative {
 

@@ -2,11 +2,11 @@
 
 #include "operation_controller.h"
 
-#include <yt/server/lib/scheduler/message_queue.h>
+#include <yt/yt/server/lib/scheduler/message_queue.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NControllerAgent {
 

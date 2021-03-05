@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/permission.h>
 
 #include <vector>
 

@@ -3,7 +3,7 @@
 #include "public.h"
 #include "job.h"
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 namespace NYT::NJobProxy {
 

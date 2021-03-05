@@ -6,36 +6,36 @@
 #include "tablet.h"
 #include "tablet_profiling.h"
 
-#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/server/node/data_node/chunk_registry.h>
-#include <yt/server/node/data_node/chunk.h>
-#include <yt/server/node/data_node/chunk_block_manager.h>
-#include <yt/server/node/data_node/chunk_registry.h>
-#include <yt/server/node/data_node/local_chunk_reader.h>
+#include <yt/yt/server/node/data_node/chunk_registry.h>
+#include <yt/yt/server/node/data_node/chunk.h>
+#include <yt/yt/server/node/data_node/chunk_block_manager.h>
+#include <yt/yt/server/node/data_node/chunk_registry.h>
+#include <yt/yt/server/node/data_node/local_chunk_reader.h>
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/block_cache.h>
-#include <yt/ytlib/chunk_client/remote_chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/remote_chunk_reader.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/table_client/chunk_state.h>
-#include <yt/ytlib/table_client/lookup_reader.h>
+#include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/lookup_reader.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTabletNode {
 

@@ -4,9 +4,9 @@
 #include "chunk_pool.h"
 #include "input_stream.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NChunkPools {
 

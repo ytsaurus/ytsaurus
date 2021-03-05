@@ -3,12 +3,12 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
+#include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/checksum.h>
 
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 #include <utility>
 

@@ -1,11 +1,11 @@
 #include "client.h"
 #include "transaction.h"
 
-#include <yt/client/job_tracker_client/helpers.h>
+#include <yt/yt/client/job_tracker_client/helpers.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/string.h>
 
 namespace NYT::NApi {
 

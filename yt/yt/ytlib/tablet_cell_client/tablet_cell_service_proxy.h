@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/ytlib/tablet_cell_client/proto/tablet_cell_service.pb.h>
+#include <yt/yt/ytlib/tablet_cell_client/proto/tablet_cell_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NTabletCellClient {
 

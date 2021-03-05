@@ -2,7 +2,7 @@
 #include "instance.h"
 #include "private.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NContainers {
 

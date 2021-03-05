@@ -3,8 +3,8 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NControllerAgent {
 

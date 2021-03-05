@@ -2,7 +2,7 @@
 #include "public.h"
 #include "cellar.h"
 
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
 namespace NYT::NCellarAgent {
 

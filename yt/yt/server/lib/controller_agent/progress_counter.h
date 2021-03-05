@@ -2,9 +2,9 @@
 
 #include "persistence.h"
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
 namespace NYT::NControllerAgent {
 

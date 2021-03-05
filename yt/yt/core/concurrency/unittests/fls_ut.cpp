@@ -1,11 +1,11 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/fls.h>
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/actions/callback.h>
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/callback.h>
+#include <yt/yt/core/actions/future.h>
 
 
 namespace NYT::NConcurrency {

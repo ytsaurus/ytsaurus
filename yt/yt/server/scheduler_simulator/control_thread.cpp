@@ -2,17 +2,17 @@
 #include "operation_controller.h"
 #include "node_shard.h"
 
-#include <yt/server/scheduler/fair_share_strategy.h>
-#include <yt/server/scheduler/fair_share_tree.h>
+#include <yt/yt/server/scheduler/fair_share_strategy.h>
+#include <yt/yt/server/scheduler/fair_share_tree.h>
 
-#include <yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/acl.h>
 
-#include <yt/core/concurrency/public.h>
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
 
 namespace NYT::NSchedulerSimulator {

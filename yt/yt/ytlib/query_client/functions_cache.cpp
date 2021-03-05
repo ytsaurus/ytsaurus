@@ -2,45 +2,45 @@
 #include "functions_cg.h"
 #include "private.h"
 
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/client/api/file_reader.h>
+#include <yt/yt/client/api/file_reader.h>
 
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/ytlib/chunk_client/block.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/ytlib/file_client/file_ypath_proxy.h>
+#include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/object_ypath_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/helpers.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/file_client/file_chunk_reader.h>
+#include <yt/yt/ytlib/file_client/file_chunk_reader.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/guid.h>
-#include <yt/core/misc/async_slru_cache.h>
-#include <yt/core/misc/async_expiring_cache.h>
+#include <yt/yt/core/misc/guid.h>
+#include <yt/yt/core/misc/async_slru_cache.h>
+#include <yt/yt/core/misc/async_expiring_cache.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NQueryClient {
 

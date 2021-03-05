@@ -2,10 +2,10 @@
 
 #include "private.h"
 
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/crypto/public.h>
+#include <yt/yt/core/crypto/public.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/grpc_security.h>

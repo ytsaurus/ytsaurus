@@ -2,26 +2,26 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
+#include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
 
-#include <yt/server/master/node_tracker_server/public.h>
+#include <yt/yt/server/master/node_tracker_server/public.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/hydra/public.h>
+#include <yt/yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/node_tracker_client/node_statistics.h>
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NNodeTrackerServer {
 

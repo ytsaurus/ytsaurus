@@ -7,7 +7,7 @@
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/summary.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/monlib/metrics/metric_consumer.h>
 

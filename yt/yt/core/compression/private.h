@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
 namespace NYT::NCompression {
 

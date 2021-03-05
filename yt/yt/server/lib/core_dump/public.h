@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/ytlib/core_dump/public.h>
+#include <yt/yt/ytlib/core_dump/public.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NCoreDump {
 

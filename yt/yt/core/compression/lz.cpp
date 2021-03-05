@@ -2,7 +2,7 @@
 #include "public.h"
 #include "lz.h"
 
-#include <yt/contrib/quicklz/quicklz.h>
+#include <yt/yt/contrib/quicklz/quicklz.h>
 
 #define LZ4_DISABLE_DEPRECATE_WARNINGS
 

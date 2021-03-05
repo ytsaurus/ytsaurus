@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref.h>
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>

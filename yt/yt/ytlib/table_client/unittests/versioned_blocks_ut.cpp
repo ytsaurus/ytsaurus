@@ -1,15 +1,15 @@
 #include "helpers.h"
 
-#include <yt/ytlib/table_client/versioned_block_reader.h>
-#include <yt/ytlib/table_client/versioned_block_writer.h>
+#include <yt/yt/ytlib/table_client/versioned_block_reader.h>
+#include <yt/yt/ytlib/table_client/versioned_block_writer.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
 namespace NYT::NTableClient {
 namespace {

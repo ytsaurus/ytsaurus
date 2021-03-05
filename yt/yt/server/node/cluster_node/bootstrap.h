@@ -2,49 +2,49 @@
 
 #include "public.h"
 
-#include <yt/server/node/exec_agent/public.h>
+#include <yt/yt/server/node/exec_agent/public.h>
 
-#include <yt/server/node/data_node/public.h>
+#include <yt/yt/server/node/data_node/public.h>
 
-#include <yt/server/node/job_agent/public.h>
+#include <yt/yt/server/node/job_agent/public.h>
 
-#include <yt/server/node/query_agent/public.h>
+#include <yt/yt/server/node/query_agent/public.h>
 
-#include <yt/server/node/tablet_node/public.h>
+#include <yt/yt/server/node/tablet_node/public.h>
 
-#include <yt/server/lib/cellar_agent/public.h>
+#include <yt/yt/server/lib/cellar_agent/public.h>
 
-#include <yt/server/lib/containers/public.h>
+#include <yt/yt/server/lib/containers/public.h>
 
-#include <yt/server/lib/job_proxy/public.h>
+#include <yt/yt/server/lib/job_proxy/public.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/misc/public.h>
+#include <yt/yt/ytlib/misc/public.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/query_client/public.h>
+#include <yt/yt/ytlib/query_client/public.h>
 
-#include <yt/ytlib/monitoring/public.h>
+#include <yt/yt/ytlib/monitoring/public.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/core/bus/public.h>
+#include <yt/yt/core/bus/public.h>
 
-#include <yt/core/http/public.h>
+#include <yt/yt/core/http/public.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/throughput_throttler.h>
-#include <yt/core/concurrency/two_level_fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NClusterNode {
 

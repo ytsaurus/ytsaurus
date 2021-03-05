@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/core/misc/ring_queue.h>
-#include <yt/core/misc/lock_free.h>
-#include <yt/core/misc/variant.h>
+#include <yt/yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/variant.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NScheduler {
 

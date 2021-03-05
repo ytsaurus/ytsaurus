@@ -5,17 +5,17 @@
 #include "virtual.h"
 #endif
 
-#include <yt/server/master/cypress_server/lock.h>
+#include <yt/yt/server/master/cypress_server/lock.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/object_server/object.h>
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
-#include <yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NCypressServer {
 

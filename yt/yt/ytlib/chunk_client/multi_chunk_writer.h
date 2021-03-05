@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
-#include <yt/client/chunk_client/writer_base.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/writer_base.h>
 
 namespace NYT::NChunkClient {
 

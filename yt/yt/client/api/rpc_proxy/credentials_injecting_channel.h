@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NApi::NRpcProxy {
 

@@ -2,9 +2,9 @@
 #include "shard_proxy.h"
 #include "shard.h"
 
-#include <yt/server/master/object_server/type_handler_detail.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NCypressServer {
 

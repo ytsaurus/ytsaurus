@@ -1,4 +1,4 @@
-#include <yt/server/master_cache/program.h>
+#include <yt/yt/server/master_cache/program.h>
 
 int main(int argc, const char** argv)
 {

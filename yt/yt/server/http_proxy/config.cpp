@@ -1,17 +1,17 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/server/http_proxy/clickhouse/config.h>
+#include <yt/yt/server/http_proxy/clickhouse/config.h>
 
-#include <yt/ytlib/auth/config.h>
+#include <yt/yt/ytlib/auth/config.h>
 
-#include <yt/client/driver/config.h>
+#include <yt/yt/client/driver/config.h>
 
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/core/https/config.h>
+#include <yt/yt/core/https/config.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NHttpProxy {
 

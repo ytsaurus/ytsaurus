@@ -1,6 +1,6 @@
 #include "public.h"
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
 namespace NYT::NTabletClient {
 

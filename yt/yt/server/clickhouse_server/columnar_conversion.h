@@ -2,8 +2,8 @@
 
 #include "private.h"
 
-#include <yt/client/table_client/public.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
 #include <Core/Block.h>
 

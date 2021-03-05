@@ -2,23 +2,23 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/chunk_server/proto/chunk_manager.pb.h>
+#include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
-#include <yt/server/master/security_server/public.h>
-#include <yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/public.h>
+#include <yt/yt/server/master/security_server/account.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/property.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <array>
 

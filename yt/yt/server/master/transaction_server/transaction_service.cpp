@@ -2,17 +2,17 @@
 #include "transaction_manager.h"
 #include "private.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/master_hydra_service.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/master_hydra_service.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
-#include <yt/server/master/transaction_server/proto/transaction_manager.pb.h>
+#include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
-#include <yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
-#include <yt/ytlib/transaction_client/transaction_service_proxy.h>
+#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NTransactionServer {
 

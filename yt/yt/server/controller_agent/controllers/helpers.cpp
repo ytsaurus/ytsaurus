@@ -2,9 +2,9 @@
 #include "config.h"
 #include "table.h"
 
-#include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

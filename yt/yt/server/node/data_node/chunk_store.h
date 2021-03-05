@@ -2,19 +2,19 @@
 
 #include "public.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/ytlib/chunk_client/file_reader.h>
-#include <yt/client/chunk_client/chunk_replica.h>
-#include <yt/ytlib/chunk_client/session_id.h>
+#include <yt/yt/ytlib/chunk_client/file_reader.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT::NDataNode {
 

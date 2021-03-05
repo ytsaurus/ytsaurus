@@ -5,9 +5,9 @@
 #include "chunk_tree.h"
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
 namespace NYT::NChunkServer {
 

@@ -2,7 +2,7 @@
 #include "parallel_reader_memory_manager.h"
 #include "private.h"
 
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
 namespace NYT::NChunkClient {
 

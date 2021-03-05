@@ -3,7 +3,7 @@
 #include "config.h"
 #include "pattern.h"
 
-#include <yt/core/misc/ref_counted.h>
+#include <yt/yt/core/misc/ref_counted.h>
 
 namespace NYT::NLogging {
 

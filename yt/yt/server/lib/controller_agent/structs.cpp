@@ -1,10 +1,10 @@
 #include "structs.h"
 
-#include <yt/server/lib/controller_agent/serialize.h>
+#include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <util/generic/cast.h>
 

@@ -4,12 +4,12 @@
 #include "automaton_invoker_hood.h"
 #endif
 
-#include <yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
-#include <yt/core/concurrency/fair_share_action_queue.h>
+#include <yt/yt/core/concurrency/fair_share_action_queue.h>
 
-#include <yt/core/actions/invoker_util.h>
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
 #include <util/system/guard.h>
 

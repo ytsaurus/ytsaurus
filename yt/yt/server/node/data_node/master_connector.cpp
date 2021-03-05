@@ -10,30 +10,30 @@
 #include "network_statistics.h"
 #include "session_manager.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/server/node/cluster_node/master_connector.h>
-#include <yt/server/node/cluster_node/node_resource_manager.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
-#include <yt/server/node/data_node/journal_dispatcher.h>
-#include <yt/server/node/data_node/chunk_meta_manager.h>
+#include <yt/yt/server/node/data_node/journal_dispatcher.h>
+#include <yt/yt/server/node/data_node/chunk_meta_manager.h>
 
-#include <yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_controller.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/data_node_tracker_client/data_node_tracker_service_proxy.h>
+#include <yt/yt/ytlib/data_node_tracker_client/data_node_tracker_service_proxy.h>
 
-#include <yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
+#include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
-#include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
+#include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
 namespace NYT::NDataNode {
 

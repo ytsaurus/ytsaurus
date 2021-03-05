@@ -2,24 +2,24 @@
 #include "job_detail.h"
 #include "private.h"
 
-#include <yt/server/lib/exec_agent/public.h>
+#include <yt/yt/server/lib/exec_agent/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/job_proxy/helpers.h>
+#include <yt/yt/ytlib/job_proxy/helpers.h>
 
-#include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
-#include <yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
 
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
 namespace NYT::NJobProxy {
 

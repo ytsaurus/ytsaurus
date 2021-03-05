@@ -2,18 +2,18 @@
 
 #include "public.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/server/node/data_node/artifact.h>
-#include <yt/server/node/data_node/public.h>
+#include <yt/yt/server/node/data_node/artifact.h>
+#include <yt/yt/server/node/data_node/public.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/server/lib/containers/public.h>
+#include <yt/yt/server/lib/containers/public.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/node.h>
 
 namespace NYT::NExecAgent {
 

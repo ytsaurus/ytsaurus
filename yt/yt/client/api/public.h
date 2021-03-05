@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
-#include <yt/client/transaction_client/public.h>
+#include <yt/yt/client/transaction_client/public.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NApi {
 

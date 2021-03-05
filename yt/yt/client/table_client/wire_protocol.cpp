@@ -1,23 +1,23 @@
 #include "wire_protocol.h"
 
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/bitmap.h>
-#include <yt/core/misc/chunked_memory_pool.h>
-#include <yt/core/misc/chunked_output_stream.h>
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/bitmap.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/chunked_output_stream.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
 #include <util/system/sanitizers.h>
 

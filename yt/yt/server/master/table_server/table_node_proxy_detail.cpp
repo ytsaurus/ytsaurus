@@ -3,56 +3,56 @@
 #include "table_node.h"
 #include "replicated_table_node.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/server/master/chunk_server/chunk.h>
-#include <yt/server/master/chunk_server/chunk_list.h>
-#include <yt/server/master/chunk_server/chunk_visitor.h>
-#include <yt/server/master/chunk_server/helpers.h>
+#include <yt/yt/server/master/chunk_server/chunk.h>
+#include <yt/yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/chunk_server/chunk_visitor.h>
+#include <yt/yt/server/master/chunk_server/helpers.h>
 
-#include <yt/server/master/node_tracker_server/node_directory_builder.h>
+#include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
-#include <yt/server/master/table_server/shared_table_schema.h>
+#include <yt/yt/server/master/table_server/shared_table_schema.h>
 
-#include <yt/server/master/tablet_server/tablet.h>
-#include <yt/server/master/tablet_server/tablet_cell.h>
-#include <yt/server/master/tablet_server/table_replica.h>
-#include <yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/tablet_server/tablet_cell.h>
+#include <yt/yt/server/master/tablet_server/table_replica.h>
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
-#include <yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/config.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/table_client/schema.h>
+#include <yt/yt/ytlib/table_client/schema.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/client/transaction_client/helpers.h>
-#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/tree_builder.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/yson/async_consumer.h>
+#include <yt/yt/core/yson/async_consumer.h>
 
 namespace NYT::NTableServer {
 

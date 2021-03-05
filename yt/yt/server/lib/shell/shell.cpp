@@ -3,26 +3,26 @@
 
 #ifdef _linux_
 
-#include <yt/server/lib/containers/instance.h>
+#include <yt/yt/server/lib/containers/instance.h>
 
-#include <yt/server/lib/misc/process.h>
+#include <yt/yt/server/lib/misc/process.h>
 
 #endif
 
-#include <yt/library/process/process.h>
-#include <yt/library/process/pty.h>
+#include <yt/yt/library/process/process.h>
+#include <yt/yt/library/process/pty.h>
 
-#include <yt/core/actions/bind.h>
+#include <yt/yt/core/actions/bind.h>
 
-#include <yt/core/concurrency/async_stream.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/connection.h>
 
 #include <util/stream/file.h>
 

@@ -2,15 +2,15 @@
 #include "private.h"
 #include "file_node.h"
 
-#include <yt/server/master/chunk_server/chunk_owner_node_proxy.h>
+#include <yt/yt/server/master/chunk_server/chunk_owner_node_proxy.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/ytlib/file_client/file_chunk_writer.h>
+#include <yt/yt/ytlib/file_client/file_chunk_writer.h>
 
 namespace NYT::NFileServer {
 

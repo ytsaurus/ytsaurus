@@ -2,12 +2,12 @@
 #include "discovery_client_service_proxy.h"
 #include "helpers.h"
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
-#include <yt/core/rpc/public.h>
-#include <yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 namespace NYT::NDiscoveryClient {
 

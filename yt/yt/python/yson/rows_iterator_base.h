@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/python/common/helpers.h>
-#include <yt/python/common/stream.h>
+#include <yt/yt/python/common/helpers.h>
+#include <yt/yt/python/common/stream.h>
 
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx

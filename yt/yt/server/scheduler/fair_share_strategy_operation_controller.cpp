@@ -2,7 +2,7 @@
 
 #include "operation_controller.h"
 
-#include <yt/server/lib/scheduler/config.h>
+#include <yt/yt/server/lib/scheduler/config.h>
 
 namespace NYT::NScheduler {
 

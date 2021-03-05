@@ -3,7 +3,7 @@
 #include "query.h"
 #include "query_helpers.h"
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
 namespace NYT::NQueryClient {
 

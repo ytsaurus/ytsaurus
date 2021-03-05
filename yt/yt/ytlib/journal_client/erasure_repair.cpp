@@ -1,12 +1,12 @@
 #include "erasure_repair.h"
 #include "erasure_parts_reader.h"
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_writer.h>
-#include <yt/ytlib/chunk_client/ref_counted_proto.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/ref_counted_proto.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 namespace NYT::NJournalClient {
 

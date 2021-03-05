@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/core/misc/cache_config.h>
+#include <yt/yt/core/misc/cache_config.h>
 
-#include <yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/config.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
 namespace NYT::NObjectClient {
 

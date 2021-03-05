@@ -3,13 +3,13 @@
 #include "public.h"
 #include "serialize.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NTabletNode {
 

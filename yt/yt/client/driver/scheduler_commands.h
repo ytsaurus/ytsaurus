@@ -2,11 +2,11 @@
 
 #include "command.h"
 
-#include <yt/client/job_tracker_client/public.h>
+#include <yt/yt/client/job_tracker_client/public.h>
 
-#include <yt/client/scheduler/operation_id_or_alias.h>
+#include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NDriver {
 

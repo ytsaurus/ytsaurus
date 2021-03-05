@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/client/chunk_client/config.h>
+#include <yt/yt/client/chunk_client/config.h>
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
 namespace NYT::NTableClient {
 

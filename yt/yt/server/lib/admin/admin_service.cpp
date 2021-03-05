@@ -2,12 +2,12 @@
 
 #include "private.h"
 
-#include <yt/ytlib/admin/admin_service_proxy.h>
+#include <yt/yt/ytlib/admin/admin_service_proxy.h>
 
-#include <yt/core/misc/core_dumper.h>
+#include <yt/yt/core/misc/core_dumper.h>
 
-#include <yt/core/rpc/service_detail.h>
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NAdmin {
 

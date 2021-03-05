@@ -1,12 +1,12 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 #include "format_writer_ut.h"
 
-#include <yt/client/formats/schemaful_dsv_writer.h>
-#include <yt/client/formats/format.h>
+#include <yt/yt/client/formats/schemaful_dsv_writer.h>
+#include <yt/yt/client/formats/format.h>
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
 #include <limits>
 

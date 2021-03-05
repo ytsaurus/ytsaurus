@@ -1,8 +1,8 @@
 #include "mutation.h"
 
-#include <yt/core/rpc/service.h>
+#include <yt/yt/core/rpc/service.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
 namespace NYT::NHydra {
 

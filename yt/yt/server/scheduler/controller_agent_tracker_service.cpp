@@ -3,7 +3,7 @@
 #include "bootstrap.h"
 #include "private.h"
 
-#include <yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
+#include <yt/yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 
 namespace NYT::NScheduler {
 

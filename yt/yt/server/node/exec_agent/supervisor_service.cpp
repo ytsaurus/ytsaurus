@@ -2,24 +2,24 @@
 #include "private.h"
 #include "job.h"
 
-#include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
+#include <yt/yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/server/node/job_agent/job_controller.h>
-#include <yt/server/node/job_agent/public.h>
+#include <yt/yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/public.h>
 
-#include <yt/server/lib/job_proxy/config.h>
-#include <yt/server/lib/job_proxy/public.h>
+#include <yt/yt/server/lib/job_proxy/config.h>
+#include <yt/yt/server/lib/job_proxy/public.h>
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NExecAgent {
 

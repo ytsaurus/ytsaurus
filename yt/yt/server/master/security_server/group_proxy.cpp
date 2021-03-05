@@ -3,11 +3,11 @@
 #include "security_manager.h"
 #include "subject_proxy_detail.h"
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/ytlib/security_client/proto/group_ypath.pb.h>
+#include <yt/yt/ytlib/security_client/proto/group_ypath.pb.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NSecurityServer {
 

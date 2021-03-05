@@ -1,14 +1,14 @@
 #include "api_test_base.h"
 #include "private.h"
 
-#include <yt/client/api/rowset.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/logging/config.h>
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/log_manager.h>
 
 namespace NYT::NCppTests {
 

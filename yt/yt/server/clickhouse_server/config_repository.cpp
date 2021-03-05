@@ -3,8 +3,8 @@
 #include "clickhouse_config.h"
 #include "poco_config.h"
 
-#include <yt/core/misc/common.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/misc/common.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <Poco/Util/LayeredConfiguration.h>
 

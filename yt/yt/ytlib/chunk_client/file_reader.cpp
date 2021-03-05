@@ -4,12 +4,12 @@
 #include "chunk_reader_statistics.h"
 #include "io_engine.h"
 
-#include <yt/core/misc/checksum.h>
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/ytalloc/memory_zone.h>
+#include <yt/yt/core/ytalloc/memory_zone.h>
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
 namespace NYT::NChunkClient {
 

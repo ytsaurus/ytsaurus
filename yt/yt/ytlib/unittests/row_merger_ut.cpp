@@ -1,31 +1,31 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/ytlib/table_client/row_merger.h>
+#include <yt/yt/ytlib/table_client/row_merger.h>
 
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/overlapping_reader.h>
-#include <yt/ytlib/table_client/row_merger.h>
+#include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/overlapping_reader.h>
+#include <yt/yt/ytlib/table_client/row_merger.h>
 
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/ytlib/query_client/config.h>
-#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/yt/ytlib/query_client/config.h>
+#include <yt/yt/ytlib/query_client/column_evaluator.h>
 
 namespace NYT::NTableClient {
 

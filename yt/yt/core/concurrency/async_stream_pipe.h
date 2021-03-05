@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/async_stream.h>
-#include <yt/core/concurrency/nonblocking_queue.h>
+#include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/nonblocking_queue.h>
 
 
 namespace NYT::NConcurrency {

@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/core/actions/invoker.h>
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/actions/invoker.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <util/datetime/base.h>
 

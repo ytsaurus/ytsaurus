@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/api/table_reader.h>
+#include <yt/yt/client/api/table_reader.h>
 
 namespace NYT::NTableClient {
 

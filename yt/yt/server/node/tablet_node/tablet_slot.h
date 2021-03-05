@@ -2,30 +2,30 @@
 
 #include "public.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
-#include <yt/server/lib/cellar_agent/occupier.h>
+#include <yt/yt/server/lib/cellar_agent/occupier.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/public.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/public.h>
 
-#include <yt/ytlib/hydra/public.h>
+#include <yt/yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/tablet_client/proto/heartbeat.pb.h>
+#include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NTabletNode {
 

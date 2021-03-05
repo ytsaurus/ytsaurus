@@ -3,13 +3,13 @@
 #include "serialize.h"
 #include "tablet_slot.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
 
 namespace NYT::NTabletNode {
 

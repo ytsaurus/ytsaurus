@@ -1,23 +1,23 @@
 #include "client_impl.h"
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/security_client/helpers.h>
+#include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/security_client/account_ypath_proxy.h>
-#include <yt/ytlib/security_client/group_ypath_proxy.h>
-#include <yt/client/security_client/acl.h>
+#include <yt/yt/ytlib/security_client/account_ypath_proxy.h>
+#include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
+#include <yt/yt/client/security_client/acl.h>
 
-#include <yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
 namespace NYT::NApi::NNative {
 

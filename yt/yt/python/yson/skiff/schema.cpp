@@ -2,10 +2,10 @@
 #include "record.h"
 #include "../serialize.h"
 
-#include <yt/python/common/helpers.h>
+#include <yt/yt/python/common/helpers.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NPython {
 

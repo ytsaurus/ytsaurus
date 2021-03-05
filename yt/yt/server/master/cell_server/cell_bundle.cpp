@@ -2,16 +2,16 @@
 #include "private.h"
 #include "cell_bundle.h"
 #include "cell_base.h"
-#include "yt/server/master/tablet_server/private.h"
+#include "yt/yt/server/master/tablet_server/private.h"
 
-#include <yt/server/master/tablet_server/tablet_action.h>
-#include <yt/server/master/tablet_server/tablet_cell.h>
-#include <yt/server/master/tablet_server/tablet_cell_bundle.h>
-#include <yt/server/master/tablet_server/config.h>
+#include <yt/yt/server/master/tablet_server/tablet_action.h>
+#include <yt/yt/server/master/tablet_server/tablet_cell.h>
+#include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
+#include <yt/yt/server/master/tablet_server/config.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 namespace NYT::NCellServer {
 

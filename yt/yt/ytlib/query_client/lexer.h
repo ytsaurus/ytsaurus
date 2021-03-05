@@ -2,7 +2,7 @@
 
 #include "ast.h"
 
-#include <yt/ytlib/query_client/parser.h>
+#include <yt/yt/ytlib/query_client/parser.h>
 
 namespace NYT::NQueryClient::NAst {
 

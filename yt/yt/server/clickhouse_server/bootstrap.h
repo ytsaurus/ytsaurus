@@ -2,11 +2,11 @@
 
 #include "private.h"
 
-#include <yt/ytlib/monitoring/public.h>
+#include <yt/yt/ytlib/monitoring/public.h>
 
-#include <yt/core/bus/public.h>
-#include <yt/core/rpc/public.h>
-#include <yt/core/http/public.h>
+#include <yt/yt/core/bus/public.h>
+#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/core/http/public.h>
 
 namespace NYT::NClickHouseServer {
 

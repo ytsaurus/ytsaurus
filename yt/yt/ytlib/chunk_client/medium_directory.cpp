@@ -1,12 +1,12 @@
 #include "medium_directory.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/chunk_client/proto/medium_directory.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
 namespace NYT::NChunkClient {
 

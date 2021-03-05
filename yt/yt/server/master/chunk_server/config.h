@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/config.h>
 
 namespace NYT::NChunkServer {
 

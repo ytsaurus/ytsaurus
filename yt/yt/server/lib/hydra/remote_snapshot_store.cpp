@@ -4,30 +4,30 @@
 #include "file_snapshot_store.h"
 #include "snapshot.h"
 
-#include <yt/client/api/client.h>
-#include <yt/client/api/config.h>
-#include <yt/client/api/connection.h>
-#include <yt/client/api/file_reader.h>
-#include <yt/client/api/file_writer.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/config.h>
+#include <yt/yt/client/api/connection.h>
+#include <yt/yt/client/api/file_reader.h>
+#include <yt/yt/client/api/file_writer.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
-#include <yt/ytlib/hydra/config.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/config.h>
 
-#include <yt/core/concurrency/async_stream.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
-#include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NHydra {
 

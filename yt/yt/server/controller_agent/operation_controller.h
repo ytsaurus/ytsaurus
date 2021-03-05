@@ -2,35 +2,35 @@
 
 #include "public.h"
 
-#include <yt/server/lib/job_agent/public.h>
+#include <yt/yt/server/lib/job_agent/public.h>
 
-#include <yt/server/lib/scheduler/structs.h>
-#include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/yt/server/lib/scheduler/structs.h>
+#include <yt/yt/server/lib/scheduler/job_metrics.h>
 
-#include <yt/server/lib/controller_agent/structs.h>
+#include <yt/yt/server/lib/controller_agent/structs.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/cypress_client/public.h>
+#include <yt/yt/ytlib/cypress_client/public.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/event_log/public.h>
+#include <yt/yt/ytlib/event_log/public.h>
 
-#include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
+#include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/invoker_pool.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/invoker_pool.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NControllerAgent {
 

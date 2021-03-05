@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/ref_counted.h>
+#include <yt/yt/core/misc/ref_counted.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
 namespace NYT::NNet {
 

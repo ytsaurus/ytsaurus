@@ -4,18 +4,18 @@
 #include "group.h"
 #include "user.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/object_server/object_detail.h>
-#include <yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NSecurityServer {
 

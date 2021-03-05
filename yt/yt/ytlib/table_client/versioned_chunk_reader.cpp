@@ -10,30 +10,30 @@
 #include "versioned_chunk_reader.h"
 #include "versioned_reader_adapter.h"
 
-#include <yt/ytlib/chunk_client/block_cache.h>
-#include <yt/ytlib/chunk_client/block_id.h>
-#include <yt/ytlib/chunk_client/cache_reader.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/block_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/block_id.h>
+#include <yt/yt/ytlib/chunk_client/cache_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/schemaful_reader_adapter.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/schemaful_reader_adapter.h>
 
-#include <yt/ytlib/table_chunk_format/column_reader.h>
-#include <yt/ytlib/table_chunk_format/timestamp_reader.h>
-#include <yt/ytlib/table_chunk_format/null_column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/timestamp_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/null_column_reader.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
 namespace NYT::NTableClient {
 

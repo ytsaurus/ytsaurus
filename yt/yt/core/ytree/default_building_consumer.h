@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/yson/building_consumer.h>
+#include <yt/yt/core/yson/building_consumer.h>
 
 namespace NYT::NYTree {
 

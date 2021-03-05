@@ -6,14 +6,14 @@
 #include "resource_tree_element.h"
 #include "scheduling_context.h"
 
-#include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/misc/heap.h>
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/historic_usage_aggregator.h>
+#include <yt/yt/core/misc/heap.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/historic_usage_aggregator.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <util/generic/ymath.h>
 

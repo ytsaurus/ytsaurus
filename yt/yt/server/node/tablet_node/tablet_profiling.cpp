@@ -2,24 +2,24 @@
 #include "tablet.h"
 #include "tablet_profiling.h"
 
-#include <yt/server/lib/misc/profiling_helpers.h>
+#include <yt/yt/server/lib/misc/profiling_helpers.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/chunk_writer_base.h>
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer_base.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/table_client/versioned_chunk_writer.h>
-#include <yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profiler.h>
 
-#include <yt/core/misc/farm_hash.h>
-#include <yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/farm_hash.h>
+#include <yt/yt/core/misc/singleton.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/syncmap/map.h>

@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
 
 namespace NYT::NPipes {
 

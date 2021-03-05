@@ -1,12 +1,12 @@
 #pragma once
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/table_client/columnar.h>
+#include <yt/yt/ytlib/table_client/columnar.h>
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
 #include <iostream>
 

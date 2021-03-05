@@ -5,8 +5,8 @@
 #include "config.h"
 #include "helpers.h"
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <library/cpp/iterator/functools.h>
 

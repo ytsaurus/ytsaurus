@@ -1,6 +1,6 @@
 #include "signal_registry.h"
 
-#include <yt/build/config.h>
+#include <yt/yt/build/config.h>
 
 #ifdef HAVE_PTHREAD_H
 #   include <pthread.h>

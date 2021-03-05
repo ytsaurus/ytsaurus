@@ -4,12 +4,12 @@
 #include "private.h"
 #include "job_manager.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/table_client/key_bound.h>
-#include <yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/comparator.h>
 
-#include <yt/core/misc/hash_helpers.h>
+#include <yt/yt/core/misc/hash_helpers.h>
 
 #include <random>
 

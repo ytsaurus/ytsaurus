@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/core/http/http.h>
-#include <yt/core/net/address.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/net/address.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 

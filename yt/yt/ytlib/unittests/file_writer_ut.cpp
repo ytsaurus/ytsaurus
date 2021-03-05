@@ -1,14 +1,14 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/ytree/public.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/ytlib/chunk_client/block.h>
-#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/ytlib/chunk_client/file_writer.h>
-#include <yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/file_writer.h>
+#include <yt/yt/ytlib/chunk_client/io_engine.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
 #include <util/system/fs.h>
 

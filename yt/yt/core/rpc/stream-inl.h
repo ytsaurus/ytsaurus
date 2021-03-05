@@ -5,9 +5,9 @@
 #include "stream.h"
 #endif
 
-#include <yt/core/misc/cast.h>
+#include <yt/yt/core/misc/cast.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NRpc {
 

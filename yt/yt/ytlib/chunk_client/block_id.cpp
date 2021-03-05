@@ -1,6 +1,6 @@
 #include "block_id.h"
 
-#include <yt/core/misc/format.h>
+#include <yt/yt/core/misc/format.h>
 
 namespace NYT::NChunkClient {
 

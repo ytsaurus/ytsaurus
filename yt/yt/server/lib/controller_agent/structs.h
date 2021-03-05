@@ -3,15 +3,15 @@
 #include "persistence.h"
 #include "helpers.h"
 
-#include <yt/server/lib/scheduler/public.h>
-#include <yt/server/lib/scheduler/structs.h>
+#include <yt/yt/server/lib/scheduler/public.h>
+#include <yt/yt/server/lib/scheduler/structs.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/core/misc/phoenix.h>
-#include <yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/statistics.h>
 
 namespace NYT::NControllerAgent {
 

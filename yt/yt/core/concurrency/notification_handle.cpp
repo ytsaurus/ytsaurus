@@ -1,6 +1,6 @@
 #include "notification_handle.h"
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
 #ifdef _linux_
     #include <sys/eventfd.h>

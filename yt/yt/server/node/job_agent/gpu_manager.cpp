@@ -1,30 +1,30 @@
 #include "gpu_manager.h"
 #include "private.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/helpers.h>
+#include <yt/yt/server/node/data_node/helpers.h>
 
-#include <yt/server/lib/job_agent/gpu_helpers.h>
+#include <yt/yt/server/lib/job_agent/gpu_helpers.h>
 
-#include <yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_agent/config.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/library/process/subprocess.h>
+#include <yt/yt/library/process/subprocess.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/helpers.h>
 
 #include <util/string/strip.h>
 

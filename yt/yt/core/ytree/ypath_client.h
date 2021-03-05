@@ -3,12 +3,12 @@
 #include "public.h"
 #include "ypath_service.h"
 
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
-#include <yt/core/ytree/proto/ypath.pb.h>
+#include <yt/yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT::NYTree {
 

@@ -6,7 +6,7 @@
 #undef BIND_INL_H_
 
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
 namespace NYT {
 

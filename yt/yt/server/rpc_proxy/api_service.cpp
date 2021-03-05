@@ -6,66 +6,66 @@
 #include "config.h"
 #include "security_manager.h"
 
-#include <yt/server/lib/misc/format_manager.h>
+#include <yt/yt/server/lib/misc/format_manager.h>
 
-#include <yt/server/lib/transaction_server/helpers.h>
+#include <yt/yt/server/lib/transaction_server/helpers.h>
 
-#include <yt/ytlib/auth/cookie_authenticator.h>
-#include <yt/ytlib/auth/token_authenticator.h>
+#include <yt/yt/ytlib/auth/cookie_authenticator.h>
+#include <yt/yt/ytlib/auth/token_authenticator.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/client_cache.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client_cache.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/api/file_reader.h>
-#include <yt/client/api/file_writer.h>
-#include <yt/client/api/journal_reader.h>
-#include <yt/client/api/journal_writer.h>
-#include <yt/client/api/table_reader.h>
-#include <yt/client/api/table_writer.h>
-#include <yt/client/api/transaction.h>
-#include <yt/client/api/rowset.h>
-#include <yt/client/api/sticky_transaction_pool.h>
+#include <yt/yt/client/api/file_reader.h>
+#include <yt/yt/client/api/file_writer.h>
+#include <yt/yt/client/api/journal_reader.h>
+#include <yt/yt/client/api/journal_writer.h>
+#include <yt/yt/client/api/table_reader.h>
+#include <yt/yt/client/api/table_writer.h>
+#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/sticky_transaction_pool.h>
 
-#include <yt/client/api/rpc_proxy/api_service_proxy.h>
-#include <yt/client/api/rpc_proxy/helpers.h>
-#include <yt/client/api/rpc_proxy/protocol_version.h>
-#include <yt/client/api/rpc_proxy/wire_row_stream.h>
-#include <yt/client/api/rpc_proxy/row_stream.h>
+#include <yt/yt/client/api/rpc_proxy/api_service_proxy.h>
+#include <yt/yt/client/api/rpc_proxy/helpers.h>
+#include <yt/yt/client/api/rpc_proxy/protocol_version.h>
+#include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
+#include <yt/yt/client/api/rpc_proxy/row_stream.h>
 
-#include <yt/client/chunk_client/config.h>
+#include <yt/yt/client/chunk_client/config.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/scheduler/operation_id_or_alias.h>
+#include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/client/transaction_client/helpers.h>
-#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/client/arrow/arrow_row_stream_encoder.h>
-#include <yt/client/arrow/arrow_row_stream_decoder.h>
+#include <yt/yt/client/arrow/arrow_row_stream_encoder.h>
+#include <yt/yt/client/arrow/arrow_row_stream_decoder.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/cast.h>
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/cast.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/core/rpc/service_detail.h>
-#include <yt/core/rpc/stream.h>
+#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/stream.h>
 
-#include <yt/core/tracing/sampler.h>
+#include <yt/yt/core/tracing/sampler.h>
 
 namespace NYT::NRpcProxy {
 

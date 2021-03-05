@@ -1,6 +1,6 @@
 #include "event_log.h"
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 namespace NYT::NSchedulerSimulator {
 

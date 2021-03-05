@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/core/misc/shutdownable.h>
-#include <yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/shutdownable.h>
+#include <yt/yt/core/misc/singleton.h>
 
-#include <yt/core/tracing/public.h>
+#include <yt/yt/core/tracing/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NLogging {
 

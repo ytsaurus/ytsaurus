@@ -6,12 +6,12 @@
 
 #include <yt/yt/library/profiling/tag.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
-#include <yt/core/misc/intrusive_ptr.h>
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/intrusive_ptr.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NProfiling {
 

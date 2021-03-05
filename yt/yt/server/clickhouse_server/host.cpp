@@ -9,7 +9,7 @@
 #include "config.h"
 #include "storage_distributor.h"
 #include "storage_system_clique.h"
-#include "yt/server/clickhouse_server/private.h"
+#include "yt/yt/server/clickhouse_server/private.h"
 #include "yt_database.h"
 #include "table_functions.h"
 #include "table_functions_concat.h"
@@ -17,38 +17,38 @@
 #include "memory_watchdog.h"
 #include "health_checker.h"
 
-#include <yt/server/lib/misc/address_helpers.h>
+#include <yt/yt/server/lib/misc/address_helpers.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
-#include <yt/ytlib/table_client/table_columnar_statistics_cache.h>
+#include <yt/yt/ytlib/table_client/table_columnar_statistics_cache.h>
 
-#include <yt/ytlib/chunk_client/block_cache.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
-#include <yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/ytlib/object_client/object_attribute_cache.h>
+#include <yt/yt/ytlib/object_client/object_attribute_cache.h>
 
-#include <yt/client/misc/discovery.h>
+#include <yt/yt/client/misc/discovery.h>
 
 #include <yt/yt/library/clickhouse_functions/functions.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/crash_handler.h>
 
-#include <yt/core/net/local_address.h>
+#include <yt/yt/core/net/local_address.h>
 
-#include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
 
 #include <Common/Exception.h>
 #include <Common/StringUtils/StringUtils.h>

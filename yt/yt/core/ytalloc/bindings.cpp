@@ -1,20 +1,20 @@
 #include "bindings.h"
 #include "config.h"
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/producer.h>
 
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/string_builder.h>
-#include <yt/core/misc/stack_trace.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/string_builder.h>
+#include <yt/yt/core/misc/stack_trace.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/libunwind/libunwind.h>
+#include <yt/yt/core/libunwind/libunwind.h>
 
 #include <util/system/env.h>
 

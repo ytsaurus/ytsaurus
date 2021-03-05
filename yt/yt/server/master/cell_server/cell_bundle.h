@@ -2,21 +2,21 @@
 
 #include "public.h"
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/acl.h>
 
-#include <yt/server/master/cell_master/public.h>
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/tablet_server/public.h>
+#include <yt/yt/server/master/tablet_server/public.h>
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/core/misc/ref_tracked.h>
-#include <yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
 namespace NYT::NCellServer {
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/nullable.h>
+#include <yt/yt/core/misc/nullable.h>
 
 namespace NYT::NJobProberClient {
 

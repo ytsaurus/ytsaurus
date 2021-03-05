@@ -8,9 +8,9 @@
 #include "multicell_manager.h"
 #include "serialize.h"
 
-#include <yt/server/master/cell_master/proto/alert_manager.pb.h>
+#include <yt/yt/server/master/cell_master/proto/alert_manager.pb.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NCellMaster {
 

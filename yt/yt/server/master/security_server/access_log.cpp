@@ -2,22 +2,22 @@
 #include "private.h"
 #include "public.h"
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/logging/public.h>
-#include <yt/core/logging/fluent_log.h>
+#include <yt/yt/core/logging/public.h>
+#include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/core/misc/raw_formatter.h>
+#include <yt/yt/core/misc/raw_formatter.h>
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
 namespace NYT::NSecurityServer {
 

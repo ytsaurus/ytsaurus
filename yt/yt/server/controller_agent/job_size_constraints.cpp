@@ -2,11 +2,11 @@
 
 #include "config.h"
 
-#include <yt/server/lib/controller_agent/job_size_constraints.h>
+#include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
 #include <algorithm>
 

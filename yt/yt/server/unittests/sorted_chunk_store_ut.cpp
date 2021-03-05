@@ -1,8 +1,8 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/tablet_node/sorted_chunk_store.h>
+#include <yt/yt/server/tablet_node/sorted_chunk_store.h>
 
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 namespace NYT {
 namespace NTabletNode {

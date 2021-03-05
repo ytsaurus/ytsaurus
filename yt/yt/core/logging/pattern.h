@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/raw_formatter.h>
+#include <yt/yt/core/misc/raw_formatter.h>
 
 #include <util/generic/size_literals.h>
 

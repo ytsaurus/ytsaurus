@@ -2,20 +2,20 @@
 
 #include "public.h"
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/versioned_row.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/range.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/range.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NTableClient {
 

@@ -3,7 +3,7 @@
 #include "tablet_cell_bundle.h"
 #include "tablet_action.h"
 
-#include <yt/server/master/table_server/table_node.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
 namespace NYT::NTabletServer {
 

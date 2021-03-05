@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
+#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/scheduler/config.h>
-#include <yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
 namespace NYT::NJobProxy {
 

@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/signal.h>
 
 namespace NYT::NHiveClient {
 

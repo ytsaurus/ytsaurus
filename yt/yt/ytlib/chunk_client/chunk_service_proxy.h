@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/proto/chunk_service.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NChunkClient {
 

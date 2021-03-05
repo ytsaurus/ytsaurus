@@ -1,4 +1,4 @@
-#include "yt/library/profiling/solomon/registry.h"
+#include "yt/yt/library/profiling/solomon/registry.h"
 #include <gtest/gtest.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>

@@ -1,19 +1,19 @@
 #pragma once
 
-#include <yt/client/api/connection.h>
-#include <yt/client/api/client.h>
-#include <yt/client/api/file_writer.h>
-#include <yt/client/api/journal_reader.h>
-#include <yt/client/api/journal_writer.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/connection.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/file_writer.h>
+#include <yt/yt/client/api/journal_reader.h>
+#include <yt/yt/client/api/journal_writer.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
 #include <library/cpp/testing/gtest_extensions/gtest_extensions.h>
 

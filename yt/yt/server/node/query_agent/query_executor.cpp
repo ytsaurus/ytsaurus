@@ -2,78 +2,78 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/server/node/data_node/chunk_block_manager.h>
-#include <yt/server/node/data_node/chunk.h>
-#include <yt/server/node/data_node/chunk_registry.h>
-#include <yt/server/node/data_node/local_chunk_reader.h>
-#include <yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/chunk_block_manager.h>
+#include <yt/yt/server/node/data_node/chunk.h>
+#include <yt/yt/server/node/data_node/chunk_registry.h>
+#include <yt/yt/server/node/data_node/local_chunk_reader.h>
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
-#include <yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
 
-#include <yt/server/lib/misc/profiling_helpers.h>
+#include <yt/yt/server/lib/misc/profiling_helpers.h>
 
-#include <yt/server/lib/tablet_node/config.h>
-#include <yt/server/node/tablet_node/security_manager.h>
-#include <yt/server/node/tablet_node/tablet.h>
-#include <yt/server/node/tablet_node/tablet_manager.h>
-#include <yt/server/node/tablet_node/tablet_reader.h>
-#include <yt/server/node/tablet_node/tablet_slot.h>
-#include <yt/server/node/tablet_node/tablet_profiling.h>
-#include <yt/server/node/tablet_node/tablet_snapshot_store.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/node/tablet_node/security_manager.h>
+#include <yt/yt/server/node/tablet_node/tablet.h>
+#include <yt/yt/server/node/tablet_node/tablet_manager.h>
+#include <yt/yt/server/node/tablet_node/tablet_reader.h>
+#include <yt/yt/server/node/tablet_node/tablet_slot.h>
+#include <yt/yt/server/node/tablet_node/tablet_profiling.h>
+#include <yt/yt/server/node/tablet_node/tablet_snapshot_store.h>
 
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/chunk_client/block_cache.h>
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/ytlib/query_client/column_evaluator.h>
-#include <yt/ytlib/query_client/coordinator.h>
-#include <yt/ytlib/query_client/evaluator.h>
-#include <yt/ytlib/query_client/functions_cache.h>
-#include <yt/ytlib/query_client/helpers.h>
-#include <yt/ytlib/query_client/query.h>
-#include <yt/ytlib/query_client/query_helpers.h>
-#include <yt/ytlib/query_client/private.h>
-#include <yt/ytlib/query_client/executor.h>
-#include <yt/ytlib/query_client/coordination_helpers.h>
+#include <yt/yt/ytlib/query_client/column_evaluator.h>
+#include <yt/yt/ytlib/query_client/coordinator.h>
+#include <yt/yt/ytlib/query_client/evaluator.h>
+#include <yt/yt/ytlib/query_client/functions_cache.h>
+#include <yt/yt/ytlib/query_client/helpers.h>
+#include <yt/yt/ytlib/query_client/query.h>
+#include <yt/yt/ytlib/query_client/query_helpers.h>
+#include <yt/yt/ytlib/query_client/private.h>
+#include <yt/yt/ytlib/query_client/executor.h>
+#include <yt/yt/ytlib/query_client/coordination_helpers.h>
 
-#include <yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/config.h>
-#include <yt/client/table_client/pipe.h>
-#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/unordered_schemaful_reader.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/client/table_client/pipe.h>
+#include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/unordered_schemaful_reader.h>
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/collection_helpers.h>
-#include <yt/core/misc/tls_cache.h>
-#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/tls_cache.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
 
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
 namespace NYT::NQueryClient {
 

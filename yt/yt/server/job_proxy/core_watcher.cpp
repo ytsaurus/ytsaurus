@@ -2,27 +2,27 @@
 
 #include "job.h"
 
-#include <yt/server/lib/core_dump/helpers.h>
+#include <yt/yt/server/lib/core_dump/helpers.h>
 
-#include <yt/server/lib/job_proxy/config.h>
+#include <yt/yt/server/lib/job_proxy/config.h>
 
-#include <yt/server/lib/misc/job_table_schema.h>
+#include <yt/yt/server/lib/misc/job_table_schema.h>
 
-#include <yt/ytlib/table_client/blob_table_writer.h>
+#include <yt/yt/ytlib/table_client/blob_table_writer.h>
 
-#include <yt/library/process/io_dispatcher.h>
-#include <yt/library/process/pipe.h>
+#include <yt/yt/library/process/io_dispatcher.h>
+#include <yt/yt/library/process/pipe.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/connection.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <util/folder/iterator.h>
 #include <util/folder/path.h>

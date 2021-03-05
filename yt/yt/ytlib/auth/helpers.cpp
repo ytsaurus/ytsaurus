@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-#include <yt/core/crypto/crypto.h>
+#include <yt/yt/core/crypto/crypto.h>
 
 #include <library/cpp/string_utils/quote/quote.h>
 #include <library/cpp/string_utils/url/url.h>

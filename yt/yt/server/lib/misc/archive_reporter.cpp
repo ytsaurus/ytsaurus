@@ -1,13 +1,13 @@
 #include "archive_reporter.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/client/api/transaction.h>
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/concurrency/async_semaphore.h>
-#include <yt/core/concurrency/nonblocking_batch.h>
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/nonblocking_batch.h>
+#include <yt/yt/core/utilex/random.h>
 
 namespace NYT {
 

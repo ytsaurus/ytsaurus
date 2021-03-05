@@ -2,7 +2,7 @@
 
 #include "object.h"
 
-#include <yt/ytlib/cypress_client/public.h>
+#include <yt/yt/ytlib/cypress_client/public.h>
 
 namespace NYT::NObjectServer {
 

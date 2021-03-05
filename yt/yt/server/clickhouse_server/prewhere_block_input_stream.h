@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 #include <DataStreams/IBlockInputStream.h>
 

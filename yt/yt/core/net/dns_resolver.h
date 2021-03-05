@@ -1,9 +1,9 @@
 #pragma once
 
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/invoker.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/invoker.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
 namespace NYT::NNet {
 

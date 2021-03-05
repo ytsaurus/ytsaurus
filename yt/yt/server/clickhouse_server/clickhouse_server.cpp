@@ -11,13 +11,13 @@
 #include "clickhouse_singletons.h"
 #include "format.h"
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/coroutine.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/coroutine.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 #include <Server/HTTP/HTTPServer.h>
 #include <Server/IServer.h>

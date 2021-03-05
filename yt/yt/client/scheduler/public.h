@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
-#include <yt/client/job_tracker_client/public.h>
+#include <yt/yt/client/job_tracker_client/public.h>
 
 namespace NYT::NScheduler {
 

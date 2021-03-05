@@ -5,13 +5,13 @@
 #include "comparator.h"
 #include "column_sort_schema.h"
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/property.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 #include <util/digest/multi.h>
 

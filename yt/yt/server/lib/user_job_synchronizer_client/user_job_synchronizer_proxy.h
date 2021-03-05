@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/server/lib/user_job_synchronizer_client/proto/user_job_synchronizer_service.pb.h>
+#include <yt/yt/server/lib/user_job_synchronizer_client/proto/user_job_synchronizer_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NUserJobSynchronizerClient {
 

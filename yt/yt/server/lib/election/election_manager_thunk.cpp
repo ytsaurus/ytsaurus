@@ -1,6 +1,6 @@
 #include "election_manager_thunk.h"
 
-#include <yt/core/yson/producer.h>
+#include <yt/yt/core/yson/producer.h>
 
 namespace NYT::NElection {
 

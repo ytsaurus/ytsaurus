@@ -3,19 +3,19 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/hive/public.h>
+#include <yt/yt/ytlib/hive/public.h>
 
-#include <yt/ytlib/hydra/public.h>
+#include <yt/yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NTransactionClient {
 

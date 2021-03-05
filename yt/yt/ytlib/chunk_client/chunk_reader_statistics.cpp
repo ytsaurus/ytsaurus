@@ -1,6 +1,6 @@
 #include "chunk_reader_statistics.h"
 
-#include <yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/statistics.h>
 
 namespace NYT::NChunkClient {
 

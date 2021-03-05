@@ -3,19 +3,19 @@
 #include "scheduler.h"
 #include "bootstrap.h"
 
-#include <yt/client/scheduler/operation_id_or_alias.h>
+#include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/scheduler/helpers.h>
-#include <yt/ytlib/scheduler/scheduler_service_proxy.h>
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/response_keeper.h>
 
-#include <yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/permission.h>
 
 namespace NYT::NScheduler {
 

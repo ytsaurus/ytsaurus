@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/misc/core_dumper.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/core_dumper.h>
+#include <yt/yt/core/misc/ref.h>
 
 #include <util/stream/input.h>
 #include <util/stream/file.h>

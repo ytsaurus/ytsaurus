@@ -1,11 +1,11 @@
 #include "helpers.h"
 #include "config.h"
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/rpc/service.h>
+#include <yt/yt/core/rpc/service.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NObjectServer {
 

@@ -2,10 +2,10 @@
 
 #include "yson_parser_adapter.h"
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnsNumber.h>

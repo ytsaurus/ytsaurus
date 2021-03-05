@@ -1,7 +1,7 @@
 #include "file_helpers.h"
 #include "private.h"
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
 namespace NYT::NHydra {
 

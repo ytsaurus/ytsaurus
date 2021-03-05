@@ -1,15 +1,15 @@
 #include "versioned_reader_adapter.h"
 
-#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
 
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
 namespace NYT::NTableClient {
 

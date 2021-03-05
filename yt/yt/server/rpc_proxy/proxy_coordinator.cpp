@@ -1,15 +1,15 @@
 #include "proxy_coordinator.h"
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/core/rpc/public.h>
-#include <yt/core/rpc/service.h>
+#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/service.h>
 
-#include <yt/core/tracing/sampler.h>
+#include <yt/yt/core/tracing/sampler.h>
 
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 #include <atomic>
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/lib/job_agent/private.h>
+#include <yt/yt/server/lib/job_agent/private.h>
 
 namespace NYT::NJobAgent {
 

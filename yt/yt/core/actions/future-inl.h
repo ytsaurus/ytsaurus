@@ -8,12 +8,12 @@
 
 #include "bind.h"
 
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/event_count.h>
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/event_count.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 #include <atomic>
 #include <type_traits>

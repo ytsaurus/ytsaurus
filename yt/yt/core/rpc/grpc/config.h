@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/crypto/config.h>
+#include <yt/yt/core/crypto/config.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc_security_constants.h>
 

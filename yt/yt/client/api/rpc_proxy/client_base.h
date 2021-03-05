@@ -5,11 +5,11 @@
 #include "connection_impl.h"
 #include "api_service_proxy.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/client/driver/private.h>
+#include <yt/yt/client/driver/private.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NApi::NRpcProxy {
 

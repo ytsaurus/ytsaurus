@@ -3,24 +3,24 @@
 #include "map_object_proxy.h"
 #include "map_object_type_handler.h"
 
-#include <yt/client/object_client/helpers.h>
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/async_writer.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/exception_helpers.h>
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/exception_helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/account.h>
 
-#include <yt/server/master/scheduler_pool_server/scheduler_pool.h>
+#include <yt/yt/server/master/scheduler_pool_server/scheduler_pool.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 namespace NYT::NObjectServer {
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/core/misc/guid.h>
+#include <yt/yt/core/misc/guid.h>
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/bus/public.h>
+#include <yt/yt/core/bus/public.h>
 
 namespace NYT::NRpc {
 

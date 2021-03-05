@@ -5,13 +5,13 @@
 #include "function_context.h"
 #include "objects_holder.h"
 
-#include <yt/client/api/rowset.h>
+#include <yt/yt/client/api/rowset.h>
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/library/codegen/function.h>
+#include <yt/yt/library/codegen/function.h>
 
-#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
 
 #include <deque>
 #include <unordered_map>

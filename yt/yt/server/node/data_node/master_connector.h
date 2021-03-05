@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
+#include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
 namespace NYT::NDataNode {
 

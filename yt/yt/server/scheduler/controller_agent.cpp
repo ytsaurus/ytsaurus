@@ -1,9 +1,9 @@
 #include "controller_agent.h"
 #include "private.h"
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
 namespace NYT::NScheduler {
 

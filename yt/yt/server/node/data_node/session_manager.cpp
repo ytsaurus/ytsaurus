@@ -8,21 +8,21 @@
 #include "journal_session.h"
 #include "location.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/assert.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NDataNode {
 

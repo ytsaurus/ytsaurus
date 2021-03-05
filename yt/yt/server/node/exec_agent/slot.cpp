@@ -3,17 +3,17 @@
 #include "job_environment.h"
 #include "slot_location.h"
 
-#include <yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/node/data_node/volume_manager.h>
+#include <yt/yt/server/node/data_node/volume_manager.h>
 
-#include <yt/ytlib/tools/tools.h>
+#include <yt/yt/ytlib/tools/tools.h>
 
-#include <yt/core/bus/tcp/client.h>
+#include <yt/yt/core/bus/tcp/client.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <util/folder/dirut.h>
 

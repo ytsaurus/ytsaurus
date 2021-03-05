@@ -5,16 +5,16 @@
 #include "column_reader.h"
 #include "helpers.h"
 
-#include <yt/client/table_chunk_format/proto/column_meta.pb.h>
+#include <yt/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
-#include <yt/client/table_client/comparator.h>
-#include <yt/client/table_client/versioned_row.h>
-#include <yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
-#include <yt/core/misc/bitmap.h>
-#include <yt/core/misc/zigzag.h>
-#include <yt/core/misc/algorithm_helpers.h>
-#include <yt/core/misc/bit_packed_unsigned_vector.h>
+#include <yt/yt/core/misc/bitmap.h>
+#include <yt/yt/core/misc/zigzag.h>
+#include <yt/yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 

@@ -1,6 +1,6 @@
 #include "block.h"
 
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/checksum.h>
 
 namespace NYT::NChunkClient {
 

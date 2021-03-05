@@ -1,24 +1,24 @@
 #include "row_helpers.h"
 
-#include <yt/client/unittests/protobuf_format_ut.pb.h>
+#include <yt/yt/client/unittests/protobuf_format_ut.pb.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/yson/string.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/client/formats/config.h>
-#include <yt/client/formats/parser.h>
-#include <yt/client/formats/lenval_control_constants.h>
-#include <yt/client/formats/protobuf_writer.h>
-#include <yt/client/formats/protobuf_parser.h>
-#include <yt/client/formats/protobuf.h>
-#include <yt/client/formats/format.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/value_consumer.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/formats/config.h>
+#include <yt/yt/client/formats/parser.h>
+#include <yt/yt/client/formats/lenval_control_constants.h>
+#include <yt/yt/client/formats/protobuf_writer.h>
+#include <yt/yt/client/formats/protobuf_parser.h>
+#include <yt/yt/client/formats/protobuf.h>
+#include <yt/yt/client/formats/format.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/value_consumer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
 #include <util/random/fast.h>
 

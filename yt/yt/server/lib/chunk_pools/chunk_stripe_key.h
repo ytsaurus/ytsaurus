@@ -3,7 +3,7 @@
 #include "private.h"
 #include "output_order.h"
 
-#include <yt/client/table_client/key.h>
+#include <yt/yt/client/table_client/key.h>
 
 namespace NYT::NChunkPools {
 

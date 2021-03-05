@@ -3,11 +3,11 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
-#include <yt/client/table_client/comparator.h>
-#include <yt/client/table_client/versioned_row.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/yson/lexer.h>
+#include <yt/yt/core/yson/lexer.h>
 
 namespace NYT::NTableClient {
 

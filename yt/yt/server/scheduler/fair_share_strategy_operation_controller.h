@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 namespace NYT::NScheduler {
 

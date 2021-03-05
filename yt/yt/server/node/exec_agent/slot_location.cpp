@@ -3,30 +3,30 @@
 #include "private.h"
 #include "job_directory_manager.h"
 
-#include <yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
-#include <yt/server/lib/misc/disk_health_checker.h>
+#include <yt/yt/server/lib/misc/disk_health_checker.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/tools/tools.h>
-#include <yt/ytlib/tools/proc.h>
+#include <yt/yt/ytlib/tools/tools.h>
+#include <yt/yt/ytlib/tools/proc.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/writer.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <util/system/fs.h>
 

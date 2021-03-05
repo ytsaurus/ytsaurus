@@ -2,13 +2,13 @@
 #include "tree_visitor.h"
 #include "exception_helpers.h"
 
-#include <yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/singleton.h>
 
-#include <yt/core/ypath/token.h>
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/yson/tokenizer.h>
-#include <yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/tokenizer.h>
+#include <yt/yt/core/yson/async_writer.h>
 
 namespace NYT::NYTree {
 

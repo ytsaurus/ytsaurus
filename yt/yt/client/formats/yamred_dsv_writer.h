@@ -5,10 +5,10 @@
 #include "helpers.h"
 #include "yamr_writer_base.h"
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
-#include <yt/core/misc/blob_output.h>
-#include <yt/core/misc/small_set.h>
+#include <yt/yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/small_set.h>
 
 namespace NYT::NFormats {
 

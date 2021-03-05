@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/formats/parser.h>
+#include <yt/yt/client/formats/parser.h>
 
 namespace NYT::NTableClient {
 

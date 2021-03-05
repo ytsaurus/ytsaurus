@@ -5,9 +5,9 @@
 
 #include <util/generic/set.h>
 
-#include <yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/attributes.h>
 
-#include <yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/ytlib/discovery_client/helpers.h>
 
 namespace NYT::NDiscoveryServer {
 

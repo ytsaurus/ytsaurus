@@ -2,35 +2,35 @@
 #include "schemaless_chunk_reader.h"
 #include "private.h"
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/ytlib/query_client/helpers.h>
+#include <yt/yt/ytlib/query_client/query_service_proxy.h>
+#include <yt/yt/ytlib/query_client/helpers.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/ytlib/tablet_client/helpers.h>
+#include <yt/yt/ytlib/tablet_client/helpers.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/tablet_client/config.h>
+#include <yt/yt/client/tablet_client/config.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NTableClient {
 

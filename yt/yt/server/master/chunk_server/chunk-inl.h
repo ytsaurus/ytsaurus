@@ -5,7 +5,7 @@
 #include "chunk.h"
 #endif
 
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
 namespace NYT::NChunkServer {
 

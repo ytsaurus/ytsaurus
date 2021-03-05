@@ -4,19 +4,19 @@
 #include "node.h"
 #include "node_tracker.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/master_hydra_service.h>
-#include <yt/server/master/cell_master/world_initializer.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/master_hydra_service.h>
+#include <yt/yt/server/master/cell_master/world_initializer.h>
 
-#include <yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
+#include <yt/yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
 namespace NYT::NNodeTrackerServer {
 

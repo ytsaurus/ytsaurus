@@ -4,24 +4,24 @@
 #include "ypath_detail.h"
 #include "ypath_proxy.h"
 
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/variant.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/variant.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/bus/bus.h>
+#include <yt/yt/core/bus/bus.h>
 
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/proto/rpc.pb.h>
-#include <yt/core/rpc/server_detail.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/server_detail.h>
 
-#include <yt/core/ypath/token.h>
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/yson/format.h>
-#include <yt/core/yson/tokenizer.h>
+#include <yt/yt/core/yson/format.h>
+#include <yt/yt/core/yson/tokenizer.h>
 
-#include <yt/core/ytree/proto/ypath.pb.h>
+#include <yt/yt/core/ytree/proto/ypath.pb.h>
 
 #include <cmath>
 

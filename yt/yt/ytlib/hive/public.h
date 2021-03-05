@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/client/hive/public.h>
+#include <yt/yt/client/hive/public.h>
 
-#include <yt/ytlib/hydra/public.h>
+#include <yt/yt/ytlib/hydra/public.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NHiveClient {
 

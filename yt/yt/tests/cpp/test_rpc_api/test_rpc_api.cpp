@@ -5,15 +5,15 @@
 //%ENABLE_RPC_PROXY=True
 //%DELTA_MASTER_CONFIG={"object_service":{"timeout_backoff_lead_time":100}}
 
-#include "yt/tests/cpp/api_test_base.h"
-#include "yt/tests/cpp/modify_rows_test.h"
+#include "yt/yt/tests/cpp/api_test_base.h"
+#include "yt/yt/tests/cpp/modify_rows_test.h"
 
-#include <yt/client/api/client.h>
-#include <yt/client/api/rowset.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/rowset.h>
 
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,41 +2,41 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/config.h>
-#include <yt/ytlib/api/native/rpc_helpers.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/config.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/table_client/table_ypath_proxy.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/versioned_row.h>
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
-#include <yt/client/tablet_client/table_mount_cache_detail.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache_detail.h>
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/misc/farm_hash.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/farm_hash.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/core/ytree/proto/ypath.pb.h>
+#include <yt/yt/core/ytree/proto/ypath.pb.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
 #include <util/datetime/base.h>
 

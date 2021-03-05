@@ -1,8 +1,8 @@
 #include "local_address.h"
 
-#include <yt/core/concurrency/fork_aware_spinlock.h>
+#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>

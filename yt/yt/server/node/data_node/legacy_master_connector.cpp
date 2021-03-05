@@ -11,69 +11,69 @@
 #include "session_manager.h"
 #include "network_statistics.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/server/node/cluster_node/node_resource_manager.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/data_node/journal_dispatcher.h>
+#include <yt/yt/server/node/data_node/journal_dispatcher.h>
 
-#include <yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_controller.h>
 
-#include <yt/server/node/exec_agent/master_connector.h>
-#include <yt/server/node/exec_agent/slot_location.h>
-#include <yt/server/node/exec_agent/slot_manager.h>
+#include <yt/yt/server/node/exec_agent/master_connector.h>
+#include <yt/yt/server/node/exec_agent/slot_location.h>
+#include <yt/yt/server/node/exec_agent/slot_manager.h>
 
-#include <yt/server/node/tablet_node/master_connector.h>
-#include <yt/server/node/tablet_node/slot_manager.h>
-#include <yt/server/node/tablet_node/tablet.h>
-#include <yt/server/node/tablet_node/tablet_slot.h>
-#include <yt/server/node/tablet_node/sorted_chunk_store.h>
+#include <yt/yt/server/node/tablet_node/master_connector.h>
+#include <yt/yt/server/node/tablet_node/slot_manager.h>
+#include <yt/yt/server/node/tablet_node/tablet.h>
+#include <yt/yt/server/node/tablet_node/tablet_slot.h>
+#include <yt/yt/server/node/tablet_node/sorted_chunk_store.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/config.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/cell_directory_synchronizer.h>
-#include <yt/ytlib/hive/cluster_directory.h>
-#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/ytlib/node_tracker_client/interop.h>
-#include <yt/ytlib/node_tracker_client/helpers.h>
-#include <yt/ytlib/node_tracker_client/node_statistics.h>
+#include <yt/yt/ytlib/node_tracker_client/interop.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/client/api/client.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/chunk_client/medium_directory.h>
-#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/core/concurrency/async_rw_lock.h>
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
-#include <yt/core/rpc/client.h>
-#include <yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/response_keeper.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
 namespace NYT::NDataNode {
 

@@ -2,7 +2,7 @@
 
 #include "scanner_factory.h"
 
-#include <yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
 #include <util/generic/buffer.h>
 #include <util/stream/buffer.h>

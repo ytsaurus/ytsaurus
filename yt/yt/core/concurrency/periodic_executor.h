@@ -3,8 +3,8 @@
 #include "public.h"
 #include "delayed_executor.h"
 
-#include <yt/core/actions/callback.h>
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/callback.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NConcurrency {
 

@@ -1,10 +1,10 @@
 #include "partitioner.h"
 
-#include <yt/ytlib/chunk_client/key_set.h>
+#include <yt/yt/ytlib/chunk_client/key_set.h>
 
-#include <yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/key_bound.h>
 
-#include <yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/blob_output.h>
 
 namespace NYT::NTableClient {
 

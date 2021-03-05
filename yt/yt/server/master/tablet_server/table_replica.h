@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/table_server/public.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/core/misc/ref_tracked.h>
-#include <yt/core/misc/enum.h>
+#include <yt/yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/enum.h>
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
 namespace NYT::NTabletServer {
 

@@ -5,5 +5,5 @@
 #include <yt/yt/library/profiling/solomon/registry.h>
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
-#include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profile_manager.h>

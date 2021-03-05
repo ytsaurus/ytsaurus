@@ -5,25 +5,25 @@
 #include "private.h"
 #include "rpc_helpers.h"
 
-#include <yt/client/api/operation_archive_schema.h>
-#include <yt/client/api/rowset.h>
+#include <yt/yt/client/api/operation_archive_schema.h>
+#include <yt/yt/client/api/rowset.h>
 
-#include <yt/client/security_client/helpers.h>
+#include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/security_client/helpers.h>
+#include <yt/yt/ytlib/security_client/helpers.h>
 
-#include <yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/ytree/ypath_resolver.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
 
 namespace NYT::NApi::NNative {
 

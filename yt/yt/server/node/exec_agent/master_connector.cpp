@@ -1,21 +1,21 @@
 #include "master_connector.h"
 #include "private.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/exec_agent/slot_location.h>
-#include <yt/server/node/exec_agent/slot_manager.h>
+#include <yt/yt/server/node/exec_agent/slot_location.h>
+#include <yt/yt/server/node/exec_agent/slot_manager.h>
 
-#include <yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_controller.h>
 
-#include <yt/ytlib/exec_node_tracker_client/exec_node_tracker_service_proxy.h>
+#include <yt/yt/ytlib/exec_node_tracker_client/exec_node_tracker_service_proxy.h>
 
-#include <yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/helpers.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
 namespace NYT::NExecAgent {
 

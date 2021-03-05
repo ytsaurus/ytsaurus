@@ -8,13 +8,13 @@
 #include "private.h"
 #include "driver.h"
 
-#include <yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/helpers.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 namespace NYT::NDriver {
 

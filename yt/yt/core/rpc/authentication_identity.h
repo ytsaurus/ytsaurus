@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/hash.h>
+#include <yt/yt/core/misc/hash.h>
 
 namespace NYT::NRpc {
 

@@ -3,7 +3,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/core/misc/async_expiring_cache.h>
+#include <yt/yt/core/misc/async_expiring_cache.h>
 
 namespace NYT::NAuth {
 

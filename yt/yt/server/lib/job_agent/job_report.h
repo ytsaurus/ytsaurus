@@ -2,20 +2,20 @@
 
 #include "public.h"
 
-#include <yt/server/lib/core_dump/helpers.h>
+#include <yt/yt/server/lib/core_dump/helpers.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
-#include <yt/ytlib/core_dump/proto/core_info.pb.h>
+#include <yt/yt/ytlib/core_dump/proto/core_info.pb.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT::NJobAgent {
 

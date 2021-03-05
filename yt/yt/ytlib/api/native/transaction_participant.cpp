@@ -1,15 +1,15 @@
 #include "connection.h"
 #include "transaction_participant.h"
 
-#include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/cell_directory_synchronizer.h>
-#include <yt/ytlib/hive/transaction_participant_service_proxy.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/transaction_participant_service_proxy.h>
 
-#include <yt/ytlib/hydra/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
-#include <yt/client/hive/transaction_participant.h>
+#include <yt/yt/client/hive/transaction_participant.h>
 
-#include <yt/client/api/connection.h>
+#include <yt/yt/client/api/connection.h>
 
 namespace NYT::NApi::NNative {
 

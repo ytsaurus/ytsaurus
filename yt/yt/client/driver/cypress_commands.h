@@ -2,9 +2,9 @@
 
 #include "command.h"
 
-#include <yt/client/cypress_client/public.h>
+#include <yt/yt/client/cypress_client/public.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
 namespace NYT::NDriver {
 

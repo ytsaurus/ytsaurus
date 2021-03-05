@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/concurrency/fiber_api.h>
+#include <yt/yt/core/concurrency/fiber_api.h>
 
 namespace NYT {
 

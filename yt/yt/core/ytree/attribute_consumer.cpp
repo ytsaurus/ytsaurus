@@ -1,7 +1,7 @@
 #include "attribute_consumer.h"
 #include "attributes.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NYTree {
 

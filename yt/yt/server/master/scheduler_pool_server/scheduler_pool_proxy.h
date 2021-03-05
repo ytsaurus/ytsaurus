@@ -4,7 +4,7 @@
 
 #include "scheduler_pool.h"
 
-#include <yt/server/master/object_server/map_object.h>
+#include <yt/yt/server/master/object_server/map_object.h>
 
 namespace NYT::NSchedulerPoolServer {
 

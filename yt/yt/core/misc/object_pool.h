@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
 #include <util/generic/singleton.h>
 

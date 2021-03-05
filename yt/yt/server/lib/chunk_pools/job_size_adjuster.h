@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/server/lib/controller_agent/structs.h>
+#include <yt/yt/server/lib/controller_agent/structs.h>
 
 namespace NYT::NChunkPools {
 

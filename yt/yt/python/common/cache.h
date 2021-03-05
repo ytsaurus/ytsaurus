@@ -2,7 +2,7 @@
 
 #include "helpers.h"
 
-#include <yt/core/misc/sync_cache.h>
+#include <yt/yt/core/misc/sync_cache.h>
 
 #include <Objects.hxx> // pycxx
 

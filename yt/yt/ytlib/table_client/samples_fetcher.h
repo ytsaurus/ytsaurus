@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/fetcher.h>
-#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/fetcher.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NTableClient {
 

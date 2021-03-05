@@ -3,10 +3,10 @@
 #include "public.h"
 #include "event_count.h"
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/misc/common.h>
-#include <yt/core/misc/shutdownable.h>
+#include <yt/yt/core/misc/common.h>
+#include <yt/yt/core/misc/shutdownable.h>
 
 #include <util/system/thread.h>
 #include <util/system/sigset.h>

@@ -2,15 +2,15 @@
 #include "config.h"
 #include "driver.h"
 
-#include <yt/client/api/file_reader.h>
-#include <yt/client/api/rowset.h>
+#include <yt/yt/client/api/file_reader.h>
+#include <yt/yt/client/api/rowset.h>
 
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NDriver {
 

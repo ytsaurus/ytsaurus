@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <yt/ytlib/table_client/proto/table_ypath.pb.h>
+#include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
 
 namespace NYT::NTableClient {
 

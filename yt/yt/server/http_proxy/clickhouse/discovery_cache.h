@@ -2,11 +2,11 @@
 
 #include "private.h"
 
-#include <yt/client/scheduler/public.h>
+#include <yt/yt/client/scheduler/public.h>
 
-#include <yt/client/misc/discovery.h>
+#include <yt/yt/client/misc/discovery.h>
 
-#include <yt/core/misc/async_slru_cache.h>
+#include <yt/yt/core/misc/async_slru_cache.h>
 
 namespace NYT::NHttpProxy::NClickHouse {
 

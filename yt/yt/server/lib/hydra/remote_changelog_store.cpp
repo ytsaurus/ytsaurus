@@ -4,24 +4,24 @@
 #include "config.h"
 #include "lazy_changelog.h"
 
-#include <yt/server/lib/security_server/resource_limits_manager.h>
+#include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
-#include <yt/ytlib/api/native/journal_reader.h>
-#include <yt/ytlib/api/native/journal_writer.h>
+#include <yt/yt/ytlib/api/native/journal_reader.h>
+#include <yt/yt/ytlib/api/native/journal_writer.h>
 
-#include <yt/client/api/client.h>
-#include <yt/client/api/transaction.h>
-#include <yt/client/api/journal_reader.h>
-#include <yt/client/api/journal_writer.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/journal_reader.h>
+#include <yt/yt/client/api/journal_writer.h>
 
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
-#include <yt/ytlib/hydra/config.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/config.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NHydra {
 

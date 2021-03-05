@@ -5,8 +5,8 @@
 #include "bootstrap.h"
 #include "private.h"
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 namespace NYT::NControllerAgent {
 

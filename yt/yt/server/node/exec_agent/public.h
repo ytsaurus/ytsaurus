@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/server/lib/exec_agent/public.h>
+#include <yt/yt/server/lib/exec_agent/public.h>
 
-#include <yt/server/lib/job_agent/public.h>
+#include <yt/yt/server/lib/job_agent/public.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NExecAgent {
 

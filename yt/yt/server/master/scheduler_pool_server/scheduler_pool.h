@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/server/master/object_server/map_object.h>
-#include <yt/server/master/object_server/map_object_proxy.h>
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/map_object.h>
+#include <yt/yt/server/master/object_server/map_object_proxy.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/server/lib/scheduler/config.h>
+#include <yt/yt/server/lib/scheduler/config.h>
 
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
 namespace NYT::NSchedulerPoolServer {
 

@@ -1,6 +1,6 @@
 #include "check_yson_token.h"
 
-#include <yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
 namespace NYT::NComplexTypes {
 

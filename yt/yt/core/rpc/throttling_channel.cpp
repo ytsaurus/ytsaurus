@@ -3,8 +3,8 @@
 #include "client.h"
 #include "config.h"
 
-#include <yt/core/concurrency/throughput_throttler.h>
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/config.h>
 
 namespace NYT::NRpc {
 

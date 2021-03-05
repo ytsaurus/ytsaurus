@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
-#include <yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/table_server/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NTabletServer {
 

@@ -4,7 +4,7 @@
 #include "chunk_list.h"
 #include "dynamic_store.h"
 
-#include <yt/ytlib/tablet_client/helpers.h>
+#include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 

@@ -2,7 +2,7 @@
 #include "demangle.h"
 #include "format.h"
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <algorithm>
 

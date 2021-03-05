@@ -5,18 +5,18 @@
 #include "serialize.h"
 #endif
 
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/mpl.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/mpl.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/server/master/object_server/object.h>
-#include <yt/server/master/object_server/yson_intern_registry.h>
+#include <yt/yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/yson_intern_registry.h>
 
-#include <yt/server/master/cypress_server/node.h>
-#include <yt/server/master/cypress_server/serialize.h>
+#include <yt/yt/server/master/cypress_server/node.h>
+#include <yt/yt/server/master/cypress_server/serialize.h>
 
-#include <yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
 namespace NYT::NCellMaster {
 

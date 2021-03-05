@@ -3,11 +3,11 @@
 #include "private.h"
 #include "column_filter_dictionary.h"
 
-#include <yt/client/table_client/columnar_statistics.h>
+#include <yt/yt/client/table_client/columnar_statistics.h>
 
-#include <yt/ytlib/chunk_client/fetcher.h>
+#include <yt/yt/ytlib/chunk_client/fetcher.h>
 
-#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
 namespace NYT::NTableClient {
 

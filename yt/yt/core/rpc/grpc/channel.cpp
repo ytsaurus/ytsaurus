@@ -3,18 +3,18 @@
 #include "dispatcher.h"
 #include "helpers.h"
 
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/rpc/channel.h>
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/channel.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 

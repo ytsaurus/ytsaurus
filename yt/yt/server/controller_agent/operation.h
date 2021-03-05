@@ -2,18 +2,18 @@
 
 #include "public.h"
 
-#include <yt/server/lib/scheduler/scheduling_tag.h>
-#include <yt/server/lib/scheduler/structs.h>
+#include <yt/yt/server/lib/scheduler/scheduling_tag.h>
+#include <yt/yt/server/lib/scheduler/structs.h>
 
-#include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
+#include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/acl.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 

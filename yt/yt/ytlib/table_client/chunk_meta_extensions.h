@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/misc/sync_cache.h>
+#include <yt/yt/core/misc/sync_cache.h>
 
 namespace NYT {
 

@@ -3,13 +3,13 @@
 #include "cell_bundle_type_handler.h"
 #include "tamed_cell_manager.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/tablet_server/tablet_cell_bundle.h>
+#include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
 namespace NYT::NCellServer {
 

@@ -6,9 +6,9 @@
 #include "notification_handle.h"
 #include "scheduler_thread.h"
 
-#include <yt/core/misc/lock_free.h>
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/ref_tracked.h>
 
 #include <util/system/thread.h>
 

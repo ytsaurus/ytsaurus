@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/actions/bind.h>
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT {
 namespace {

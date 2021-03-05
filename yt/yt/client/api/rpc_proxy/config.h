@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/config.h>
 
-#include <yt/core/http/config.h>
+#include <yt/yt/core/http/config.h>
 
-#include <yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/config.h>
 
-#include <yt/library/re2/re2.h>
+#include <yt/yt/library/re2/re2.h>
 
-#include <yt/client/api/client.h>
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/config.h>
 
 namespace NYT::NApi::NRpcProxy {
 

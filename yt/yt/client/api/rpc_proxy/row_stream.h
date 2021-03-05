@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/client/api/rpc_proxy/proto/api_service.pb.h>
+#include <yt/yt/client/api/rpc_proxy/proto/api_service.pb.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/range.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/range.h>
 
 namespace NYT::NApi::NRpcProxy {
 

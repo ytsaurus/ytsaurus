@@ -1,6 +1,6 @@
 #include "compression.h"
 
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 #include <library/cpp/streams/lzop/lzop.h>
 #include <library/cpp/streams/lz/lz.h>

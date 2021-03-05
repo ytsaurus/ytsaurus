@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/lib/security_server/proto/security_manager.pb.h>
+#include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/ytlib/distributed_throttler/public.h>
+#include <yt/yt/ytlib/distributed_throttler/public.h>
 
 namespace NYT::NSecurityServer {
 

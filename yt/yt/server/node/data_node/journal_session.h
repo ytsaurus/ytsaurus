@@ -3,9 +3,9 @@
 #include "session_detail.h"
 #include "chunk.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
 namespace NYT::NDataNode {
 

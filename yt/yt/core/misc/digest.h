@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 namespace NYT {
 

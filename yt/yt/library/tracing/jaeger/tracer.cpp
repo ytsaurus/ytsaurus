@@ -4,13 +4,13 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/core/rpc/grpc/channel.h>
+#include <yt/yt/core/rpc/grpc/channel.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <util/string/cast.h>
 

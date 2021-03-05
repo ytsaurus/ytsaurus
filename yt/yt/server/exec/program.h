@@ -1,18 +1,18 @@
-#include <yt/server/lib/user_job_executor/config.h>
-#include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
+#include <yt/yt/server/lib/user_job_executor/config.h>
+#include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
-#include <yt/ytlib/program/program.h>
-#include <yt/ytlib/program/program_config_mixin.h>
-#include <yt/ytlib/program/program_tool_mixin.h>
-#include <yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/program.h>
+#include <yt/yt/ytlib/program/program_config_mixin.h>
+#include <yt/yt/ytlib/program/program_tool_mixin.h>
+#include <yt/yt/ytlib/program/helpers.h>
 
-#include <yt/library/process/pipe.h>
+#include <yt/yt/library/process/pipe.h>
 
-#include <yt/core/logging/formatter.h>
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/formatter.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
 
 #include <sys/ioctl.h>
 

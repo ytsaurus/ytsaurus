@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
-#include <yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
+#include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
-#include <yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h>
+#include <yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h>
 
-#include <yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
+#include <yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
 
 namespace NYT::NNodeTrackerClient {
 

@@ -1,10 +1,10 @@
 #include "query_statistics.h"
 
-#include <yt/client/query_client/proto/query_statistics.pb.h>
+#include <yt/yt/client/query_client/proto/query_statistics.pb.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NQueryClient {
 

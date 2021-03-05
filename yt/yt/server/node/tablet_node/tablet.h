@@ -8,27 +8,27 @@
 #include "cached_row.h"
 #include "tablet_profiling.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/ytlib/table_client/tablet_snapshot.h>
-#include <yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/tablet_snapshot.h>
+#include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/query_client/public.h>
+#include <yt/yt/ytlib/query_client/public.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
-#include <yt/core/misc/atomic_object.h>
-#include <yt/core/misc/slab_allocator.h>
-#include <yt/core/misc/concurrent_cache.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/slab_allocator.h>
+#include <yt/yt/core/misc/concurrent_cache.h>
 
 #include <atomic>
 

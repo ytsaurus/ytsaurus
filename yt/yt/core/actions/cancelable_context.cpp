@@ -3,7 +3,7 @@
 #include "invoker_detail.h"
 #include "invoker_util.h"
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 

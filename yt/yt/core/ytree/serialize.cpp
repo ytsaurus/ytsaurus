@@ -1,8 +1,8 @@
 #include "serialize.h"
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/misc/cast.h>
+#include <yt/yt/core/misc/cast.h>
 
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 

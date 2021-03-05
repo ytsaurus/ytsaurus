@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/server/lib/containers/public.h>
+#include <yt/yt/server/lib/containers/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT::NShell {
 

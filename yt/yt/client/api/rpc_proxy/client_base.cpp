@@ -12,25 +12,25 @@
 #include "table_reader.h"
 #include "table_writer.h"
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/misc/small_set.h>
+#include <yt/yt/core/misc/small_set.h>
 
-#include <yt/client/api/rowset.h>
-#include <yt/client/api/file_reader.h>
-#include <yt/client/api/file_writer.h>
-#include <yt/client/api/journal_reader.h>
-#include <yt/client/api/journal_writer.h>
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/file_reader.h>
+#include <yt/yt/client/api/file_writer.h>
+#include <yt/yt/client/api/journal_reader.h>
+#include <yt/yt/client/api/journal_writer.h>
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/row_base.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
 namespace NYT::NApi::NRpcProxy {
 

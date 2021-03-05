@@ -1,20 +1,20 @@
 #include "config.h"
 
-#include <yt/ytlib/hive/config.h>
+#include <yt/yt/ytlib/hive/config.h>
 
-#include <yt/ytlib/node_tracker_client/config.h>
+#include <yt/yt/ytlib/node_tracker_client/config.h>
 
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/ytlib/transaction_client/config.h>
+#include <yt/yt/ytlib/transaction_client/config.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/transaction_client/config.h>
+#include <yt/yt/client/transaction_client/config.h>
 
 namespace NYT::NApi::NNative {
 

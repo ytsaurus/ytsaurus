@@ -1,6 +1,6 @@
-#include <yt/python/common/error.h>
+#include <yt/yt/python/common/error.h>
 
-#include <yt/python/yson/serialize.h>
+#include <yt/yt/python/yson/serialize.h>
 
 namespace NYT::NPython {
 

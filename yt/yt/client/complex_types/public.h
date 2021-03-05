@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/public.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
 namespace NYT::NComplexTypes {
 

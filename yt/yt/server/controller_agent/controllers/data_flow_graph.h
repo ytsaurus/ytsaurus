@@ -2,19 +2,19 @@
 
 #include "private.h"
 
-#include <yt/server/lib/chunk_pools/public.h>
+#include <yt/yt/server/lib/chunk_pools/public.h>
 
-#include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/table_upload_options.h>
+#include <yt/yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/table_upload_options.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/core/misc/topological_ordering.h>
+#include <yt/yt/core/misc/topological_ordering.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

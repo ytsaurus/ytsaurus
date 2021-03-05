@@ -2,14 +2,14 @@
 #include "chunk_reader_memory_manager.h"
 #include "private.h"
 
-#include <yt/core/actions/invoker.h>
+#include <yt/yt/core/actions/invoker.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 namespace NYT::NChunkClient {
 

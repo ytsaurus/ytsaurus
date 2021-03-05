@@ -2,7 +2,7 @@
 #include "config.h"
 #include "helpers.h"
 
-#include <yt/core/misc/utf8_decoder.h>
+#include <yt/yt/core/misc/utf8_decoder.h>
 
 #include <contrib/libs/yajl/api/yajl_gen.h>
 

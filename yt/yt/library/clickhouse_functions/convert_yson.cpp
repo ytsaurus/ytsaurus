@@ -1,8 +1,8 @@
 #include "ypath.h"
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeString.h>

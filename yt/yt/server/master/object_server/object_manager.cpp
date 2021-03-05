@@ -11,70 +11,70 @@
 #include "request_profiling_manager.h"
 #include "helpers.h"
 
-#include <yt/server/master/cypress_server/public.h>
+#include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/server/lib/hydra/entity_map.h>
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/lib/transaction_server/helpers.h>
+#include <yt/yt/server/lib/transaction_server/helpers.h>
 
-#include <yt/server/master/cell_master/automaton.h>
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/automaton.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/chunk_server/chunk_list.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.h>
-#include <yt/server/master/cypress_server/node_detail.h>
-#include <yt/server/master/cypress_server/resolve_cache.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/resolve_cache.h>
 
-#include <yt/server/lib/election/election_manager.h>
+#include <yt/yt/server/lib/election/election_manager.h>
 
-#include <yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/security_server/group.h>
-#include <yt/server/master/security_server/security_manager.h>
-#include <yt/server/master/security_server/user.h>
-#include <yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/group.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/user.h>
+#include <yt/yt/server/master/security_server/account.h>
 
-#include <yt/server/master/transaction_server/boomerang_tracker.h>
-#include <yt/server/master/transaction_server/transaction.h>
-#include <yt/server/master/transaction_server/transaction_manager.h>
+#include <yt/yt/server/master/transaction_server/boomerang_tracker.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
-#include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/rpc/response_keeper.h>
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <yt/core/ytree/node_detail.h>
+#include <yt/yt/core/ytree/node_detail.h>
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/crash_handler.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NObjectServer {
 

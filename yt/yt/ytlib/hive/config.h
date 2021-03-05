@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/config.h>
 
 namespace NYT::NHiveClient {
 

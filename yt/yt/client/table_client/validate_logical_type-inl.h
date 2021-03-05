@@ -7,7 +7,7 @@
 
 #include "logical_type.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <util/charset/utf8.h>
 

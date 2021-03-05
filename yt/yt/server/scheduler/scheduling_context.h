@@ -2,19 +2,19 @@
 
 #include "public.h"
 
-#include <yt/server/lib/scheduler/scheduling_tag.h>
+#include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 
-#include <yt/server/lib/controller_agent/public.h>
+#include <yt/yt/server/lib/controller_agent/public.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
 namespace NYT::NScheduler {
 

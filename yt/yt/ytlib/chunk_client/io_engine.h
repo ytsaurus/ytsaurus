@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/core/actions/future.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
 #include <util/system/file.h>
 

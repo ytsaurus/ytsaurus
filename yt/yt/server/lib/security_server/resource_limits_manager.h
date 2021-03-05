@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/tablet_client/public.h>
+#include <yt/yt/client/tablet_client/public.h>
 
 namespace NYT::NSecurityServer {
 

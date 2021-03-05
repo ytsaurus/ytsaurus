@@ -1,7 +1,7 @@
 #include "hydra_janitor_helpers.h"
 #include "config.h"
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
 namespace NYT::NHydra {
 

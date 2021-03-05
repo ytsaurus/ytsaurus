@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/ytree/attributes.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
 namespace NYT::NYTree {
 namespace {

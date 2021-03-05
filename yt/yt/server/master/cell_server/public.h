@@ -1,15 +1,15 @@
 #pragma once
 
-#include <yt/server/master/tablet_server/public.h>
+#include <yt/yt/server/master/tablet_server/public.h>
 
-#include <yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
-#include <yt/ytlib/hydra/public.h>
+#include <yt/yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/public.h>
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NCellServer {
 

@@ -1,7 +1,7 @@
 #include "error.h"
 #include "helpers.h"
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <Extensions.hxx> // pycxx
 

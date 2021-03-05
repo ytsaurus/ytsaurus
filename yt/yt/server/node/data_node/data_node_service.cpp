@@ -17,56 +17,56 @@
 #include "table_schema_cache.h"
 #include "chunk_meta_manager.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/chunk_slice.h>
-#include <yt/ytlib/chunk_client/proto/data_node_service.pb.h>
-#include <yt/ytlib/chunk_client/client_block_cache.h>
-#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/key_set.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/key_set.h>
 
-#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/chunk_state.h>
-#include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/samples_fetcher.h>
-#include <yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/samples_fetcher.h>
+#include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
 
-#include <yt/server/node/data_node/local_chunk_reader.h>
-#include <yt/server/node/data_node/lookup_session.h>
+#include <yt/yt/server/node/data_node/local_chunk_reader.h>
+#include <yt/yt/server/node/data_node/lookup_session.h>
 
-#include <yt/server/node/tablet_node/sorted_dynamic_comparer.h>
-#include <yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
+#include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
+#include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/bus/bus.h>
+#include <yt/yt/core/bus/bus.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/random.h>
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/random.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
 #include <cmath>
 

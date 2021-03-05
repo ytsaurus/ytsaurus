@@ -1,7 +1,7 @@
 #include "tmpfs_manager.h"
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/statistics.h>
 
 namespace NYT::NJobProxy {
 

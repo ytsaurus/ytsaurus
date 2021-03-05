@@ -3,10 +3,10 @@
 #include "key_bound.h"
 #include "serialize.h"
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 namespace NYT::NTableClient {
 

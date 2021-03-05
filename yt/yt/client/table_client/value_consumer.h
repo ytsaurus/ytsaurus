@@ -5,12 +5,12 @@
 
 #include "schema.h"
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/misc/blob_output.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/writer.h>
 
 namespace NYT::NTableClient {
 

@@ -4,18 +4,18 @@
 #include "chunk_meta_extensions.h"
 #include "input_chunk.h"
 
-#include <yt/ytlib/query_client/helpers.h>
+#include <yt/yt/ytlib/query_client/helpers.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/serialize.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/serialize.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/core/misc/numeric_helpers.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
 #include <cmath>
 

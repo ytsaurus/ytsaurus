@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/python/common/stream.h>
+#include <yt/yt/python/common/stream.h>
 
 #include <util/stream/mem.h>
 

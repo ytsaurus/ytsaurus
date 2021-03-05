@@ -1,8 +1,8 @@
 #include "poco_config.h"
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 namespace NYT::NClickHouseServer {
 

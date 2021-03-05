@@ -1,35 +1,35 @@
-#include <yt/core/test_framework/framework.h>
-#include <yt/core/test_framework/test_key.h>
+#include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/test_key.h>
 
-#include <yt/core/http/server.h>
-#include <yt/core/http/client.h>
-#include <yt/core/http/private.h>
-#include <yt/core/http/http.h>
-#include <yt/core/http/stream.h>
-#include <yt/core/http/config.h>
-#include <yt/core/http/helpers.h>
+#include <yt/yt/core/http/server.h>
+#include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/private.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/stream.h>
+#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/http/helpers.h>
 
-#include <yt/core/https/server.h>
-#include <yt/core/https/client.h>
-#include <yt/core/https/config.h>
+#include <yt/yt/core/https/server.h>
+#include <yt/yt/core/https/client.h>
+#include <yt/yt/core/https/config.h>
 
-#include <yt/core/net/connection.h>
-#include <yt/core/net/listener.h>
-#include <yt/core/net/dialer.h>
-#include <yt/core/net/config.h>
+#include <yt/yt/core/net/connection.h>
+#include <yt/yt/core/net/listener.h>
+#include <yt/yt/core/net/dialer.h>
+#include <yt/yt/core/net/config.h>
 
-#include <yt/core/concurrency/poller.h>
-#include <yt/core/concurrency/thread_pool_poller.h>
-#include <yt/core/concurrency/async_stream.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/poller.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/rpc/grpc/dispatcher.h>
+#include <yt/yt/core/rpc/grpc/dispatcher.h>
 
-#include <yt/core/crypto/tls.h>
+#include <yt/yt/core/crypto/tls.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/finally.h>
-#include <yt/core/https/config.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/https/config.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 

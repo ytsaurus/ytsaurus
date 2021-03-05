@@ -6,13 +6,13 @@
 
 #include <infra/yp_service_discovery/api/api.pb.h>
 
-#include <yt/core/rpc/grpc/channel.h>
-#include <yt/core/rpc/grpc/config.h>
-#include <yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/grpc/channel.h>
+#include <yt/yt/core/rpc/grpc/config.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
-#include <yt/core/misc/async_expiring_cache.h>
-#include <yt/core/misc/guid.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/async_expiring_cache.h>
+#include <yt/yt/core/misc/guid.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NServiceDiscovery {
 

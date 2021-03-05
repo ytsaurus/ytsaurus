@@ -1,4 +1,4 @@
-#include <yt/server/timestamp_provider/program.h>
+#include <yt/yt/server/timestamp_provider/program.h>
 
 int main(int argc, const char** argv)
 {

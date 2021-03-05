@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/file_client/public.h>
+#include <yt/yt/client/file_client/public.h>
 
 namespace NYT::NFileClient {
 

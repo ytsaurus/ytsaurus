@@ -2,19 +2,19 @@
 
 #include "public.h"
 
-#include <yt/server/lib/job_agent/config.h>
+#include <yt/yt/server/lib/job_agent/config.h>
 
-#include <yt/server/lib/job_proxy/config.h>
+#include <yt/yt/server/lib/job_proxy/config.h>
 
-#include <yt/server/lib/containers/config.h>
+#include <yt/yt/server/lib/containers/config.h>
 
-#include <yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/node.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NExecAgent {
 

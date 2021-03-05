@@ -2,12 +2,12 @@
 #include "shared_table_schema.h"
 #include "private.h"
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/chunk_server/chunk_list.h>
 
-#include <yt/server/master/tablet_server/tablet.h>
-#include <yt/server/master/tablet_server/tablet_cell_bundle.h>
+#include <yt/yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
 namespace NYT::NTableServer {
 

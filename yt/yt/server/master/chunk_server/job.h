@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/server/master/chunk_server/chunk_replica.h>
+#include <yt/yt/server/master/chunk_server/chunk_replica.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT::NChunkServer {
 

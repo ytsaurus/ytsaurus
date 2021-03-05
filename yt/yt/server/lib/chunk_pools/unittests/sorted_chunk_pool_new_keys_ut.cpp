@@ -2,23 +2,23 @@
 
 #include "chunk_pools_helpers.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/controller_agent/helpers.h>
-#include <yt/server/controller_agent/job_size_constraints.h>
-#include <yt/server/controller_agent/operation_controller.h>
+#include <yt/yt/server/controller_agent/helpers.h>
+#include <yt/yt/server/controller_agent/job_size_constraints.h>
+#include <yt/yt/server/controller_agent/operation_controller.h>
 
-#include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
-#include <yt/server/lib/chunk_pools/multi_chunk_pool.h>
-#include <yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
+#include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
 
-#include <yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/core/misc/blob_output.h>
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 #include <util/generic/cast.h>
 #include <util/generic/size_literals.h>

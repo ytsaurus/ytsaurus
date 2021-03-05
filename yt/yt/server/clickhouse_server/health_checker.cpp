@@ -3,16 +3,16 @@
 #include "config.h"
 #include "query_context.h"
 #include "helpers.h"
-#include "yt/server/clickhouse_server/private.h"
+#include "yt/yt/server/clickhouse_server/private.h"
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/intrusive_ptr.h>
+#include <yt/yt/core/misc/intrusive_ptr.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 #include <Interpreters/ClientInfo.h>
 #include <Interpreters/executeQuery.h>

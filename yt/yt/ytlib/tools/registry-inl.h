@@ -5,9 +5,9 @@
 #include "registry.h"
 #endif
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/misc/function_traits.h>
+#include <yt/yt/core/misc/function_traits.h>
 
 namespace NYT::NTools::NDetail {
 

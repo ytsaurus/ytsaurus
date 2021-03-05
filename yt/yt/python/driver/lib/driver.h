@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/python/common/helpers.h>
+#include <yt/yt/python/common/helpers.h>
 
-#include <yt/client/api/config.h>
+#include <yt/yt/client/api/config.h>
 
-#include <yt/client/driver/driver.h>
+#include <yt/yt/client/driver/driver.h>
 
 namespace NYT::NPython {
 

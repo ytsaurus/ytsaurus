@@ -1,7 +1,7 @@
 #include "operation_cache.h"
 #include "private.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
 namespace NYT::NScheduler {
 

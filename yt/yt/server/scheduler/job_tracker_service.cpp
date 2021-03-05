@@ -3,7 +3,7 @@
 #include "scheduler.h"
 #include "bootstrap.h"
 
-#include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
+#include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
 namespace NYT::NScheduler {
 

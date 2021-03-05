@@ -12,77 +12,77 @@
 #include "core_watcher.h"
 
 #ifdef __linux__
-#include <yt/server/lib/containers/instance.h>
-#include <yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/server/lib/containers/instance.h>
+#include <yt/yt/server/lib/containers/porto_executor.h>
 #endif
 
-#include <yt/server/lib/job_proxy/config.h>
+#include <yt/yt/server/lib/job_proxy/config.h>
 
-#include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
+#include <yt/yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/server/lib/misc/public.h>
+#include <yt/yt/server/lib/misc/public.h>
 
-#include <yt/server/lib/shell/shell_manager.h>
+#include <yt/yt/server/lib/shell/shell_manager.h>
 
-#include <yt/server/lib/user_job_executor/config.h>
+#include <yt/yt/server/lib/user_job_executor/config.h>
 
-#include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
+#include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/core_dump/proto/core_info.pb.h>
+#include <yt/yt/ytlib/core_dump/proto/core_info.pb.h>
 
-#include <yt/ytlib/file_client/file_chunk_output.h>
+#include <yt/yt/ytlib/file_client/file_chunk_output.h>
 
-#include <yt/ytlib/job_proxy/user_job_read_controller.h>
+#include <yt/yt/ytlib/job_proxy/user_job_read_controller.h>
 
-#include <yt/ytlib/job_prober_client/job_probe.h>
+#include <yt/yt/ytlib/job_prober_client/job_probe.h>
 
-#include <yt/ytlib/query_client/evaluator.h>
-#include <yt/ytlib/query_client/query.h>
-#include <yt/ytlib/query_client/public.h>
-#include <yt/ytlib/query_client/functions_cache.h>
+#include <yt/yt/ytlib/query_client/evaluator.h>
+#include <yt/yt/ytlib/query_client/query.h>
+#include <yt/yt/ytlib/query_client/public.h>
+#include <yt/yt/ytlib/query_client/functions_cache.h>
 
-#include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/tools/tools.h>
-#include <yt/ytlib/tools/signaler.h>
+#include <yt/yt/ytlib/tools/tools.h>
+#include <yt/yt/ytlib/tools/signaler.h>
 
-#include <yt/client/formats/parser.h>
+#include <yt/yt/client/formats/parser.h>
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/schemaful_reader_adapter.h>
-#include <yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/schemaful_reader_adapter.h>
+#include <yt/yt/client/table_client/table_consumer.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/thread_pool.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/numeric_helpers.h>
-#include <yt/core/misc/pattern_formatter.h>
-#include <yt/core/misc/proc.h>
-#include <yt/library/process/process.h>
-#include <yt/core/misc/public.h>
-#include <yt/library/process/subprocess.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/pattern_formatter.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/library/process/process.h>
+#include <yt/yt/core/misc/public.h>
+#include <yt/yt/library/process/subprocess.h>
 
-#include <yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/statistics.h>
 
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/connection.h>
 
-#include <yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/server.h>
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
 #include <util/generic/guid.h>
 

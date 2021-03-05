@@ -3,11 +3,11 @@
 #include "legacy_job_manager.h"
 #include "new_job_manager.h"
 
-#include <yt/server/lib/controller_agent/structs.h>
+#include <yt/yt/server/lib/controller_agent/structs.h>
 
-#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
 namespace NYT::NChunkPools {
 

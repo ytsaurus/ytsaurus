@@ -1,11 +1,11 @@
 #include "consumer.h"
 #include "../object_builder.h"
 
-#include <yt/python/yson/serialize.h>
+#include <yt/yt/python/yson/serialize.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
 namespace NYT::NPython {
 

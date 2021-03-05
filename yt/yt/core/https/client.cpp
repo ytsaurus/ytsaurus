@@ -1,17 +1,17 @@
 #include "client.h"
 #include "config.h"
 
-#include <yt/core/http/client.h>
-#include <yt/core/http/private.h>
+#include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/private.h>
 
-#include <yt/core/net/config.h>
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/config.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/rpc/grpc/dispatcher.h>
+#include <yt/yt/core/rpc/grpc/dispatcher.h>
 
-#include <yt/core/crypto/tls.h>
+#include <yt/yt/core/crypto/tls.h>
 
-#include <yt/core/concurrency/poller.h>
+#include <yt/yt/core/concurrency/poller.h>
 
 #include <library/cpp/openssl/io/stream.h>
 

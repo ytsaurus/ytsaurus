@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/checkpointable_stream.h>
+#include <yt/yt/core/misc/checkpointable_stream.h>
 
 #include <util/stream/mem.h>
 #include <util/stream/str.h>

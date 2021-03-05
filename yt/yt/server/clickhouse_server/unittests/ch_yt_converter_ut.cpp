@@ -1,13 +1,13 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/clickhouse_server/ch_yt_converter.h>
-#include <yt/server/clickhouse_server/data_type_boolean.h>
-#include <yt/server/clickhouse_server/config.h>
+#include <yt/yt/server/clickhouse_server/ch_yt_converter.h>
+#include <yt/yt/server/clickhouse_server/data_type_boolean.h>
+#include <yt/yt/server/clickhouse_server/config.h>
 
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/client/table_client/logical_type.h>
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <Core/Types.h>
 #include <DataTypes/IDataType.h>

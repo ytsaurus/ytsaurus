@@ -2,8 +2,8 @@
 
 #include "helpers.h"
 
-#include <yt/core/logging/log.h>
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NClickHouseServer {
 

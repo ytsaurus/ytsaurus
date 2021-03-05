@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hive/public.h>
+#include <yt/yt/ytlib/hive/public.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
 namespace NYT::NTabletNode {
 

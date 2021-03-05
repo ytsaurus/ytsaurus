@@ -1,17 +1,17 @@
 #include "versioned_chunk_meta_manager.h"
 #include "private.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/core/misc/async_slru_cache.h>
+#include <yt/yt/core/misc/async_slru_cache.h>
 
 namespace NYT::NTabletNode {
 

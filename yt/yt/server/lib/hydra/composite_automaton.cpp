@@ -4,14 +4,14 @@
 #include "mutation_context.h"
 #include "snapshot.h"
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <util/stream/buffered.h>
 

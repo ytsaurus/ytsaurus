@@ -2,16 +2,16 @@
 
 #include "scheduler.h"
 
-#include <yt/core/actions/invoker_util.h>
-#include <yt/core/actions/invoker_detail.h>
+#include <yt/yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_detail.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/ring_queue.h>
-#include <yt/core/misc/weak_ptr.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/weak_ptr.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <utility>
 

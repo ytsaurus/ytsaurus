@@ -9,38 +9,38 @@
 #include "functions_cache.h"
 #include "coordination_helpers.h"
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/ytlib/api/native/config.h>
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/tablet_helpers.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/tablet_helpers.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/collection_helpers.h>
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/algorithm_helpers.h>
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 namespace NYT::NQueryClient {
 

@@ -5,9 +5,9 @@
 #include "operation_id_or_alias.h"
 #endif
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/variant.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/variant.h>
 
 namespace NYT::NScheduler {
 

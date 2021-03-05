@@ -4,28 +4,28 @@
 #include "scheduler.h"
 #include "scheduler_strategy.h"
 
-#include <yt/server/lib/scheduler/scheduling_tag.h>
-#include <yt/server/lib/scheduler/structs.h>
+#include <yt/yt/server/lib/scheduler/scheduling_tag.h>
+#include <yt/yt/server/lib/scheduler/structs.h>
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
-#include <yt/core/misc/sync_expiring_cache.h>
+#include <yt/yt/core/misc/sync_expiring_cache.h>
 
 namespace NYT::NScheduler {
 

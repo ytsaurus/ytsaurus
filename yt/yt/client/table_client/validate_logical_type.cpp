@@ -1,11 +1,11 @@
 #include "validate_logical_type.h"
 #include "logical_type.h"
 
-#include <yt/library/decimal/decimal.h>
+#include <yt/yt/library/decimal/decimal.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/pull_parser.h>
 
 #include <util/stream/mem.h>
 #include <util/generic/adaptor.h>

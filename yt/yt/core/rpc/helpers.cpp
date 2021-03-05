@@ -5,18 +5,18 @@
 #include "service.h"
 #include "authentication_identity.h"
 
-#include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
 
-#include <yt/core/misc/hash.h>
+#include <yt/yt/core/misc/hash.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/service_discovery/service_discovery.h>
+#include <yt/yt/core/service_discovery/service_discovery.h>
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>

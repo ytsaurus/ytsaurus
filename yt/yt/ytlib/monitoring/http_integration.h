@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/ypath_service.h>
 
-#include <yt/core/http/public.h>
+#include <yt/yt/core/http/public.h>
 
 #include <yt/yt/library/profiling/solomon/public.h>
 

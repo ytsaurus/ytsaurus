@@ -1,13 +1,13 @@
 #include "cypress_integration.h"
 #include "group_tree.h"
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
 
-#include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
 namespace NYT::NDiscoveryServer {
 

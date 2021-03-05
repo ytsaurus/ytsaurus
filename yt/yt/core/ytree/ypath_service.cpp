@@ -6,19 +6,19 @@
 #include "ypath_detail.h"
 #include "fluent.h"
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/yson/async_consumer.h>
-#include <yt/core/yson/attribute_consumer.h>
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/async_consumer.h>
+#include <yt/yt/core/yson/attribute_consumer.h>
+#include <yt/yt/core/yson/writer.h>
 
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/atomic_object.h>
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/checksum.h>
 
 namespace NYT::NYTree {
 

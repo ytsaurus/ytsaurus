@@ -2,24 +2,24 @@
 
 #include "public.h"
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
+#include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
-#include <yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/core/actions/cancelable_context.h>
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/concurrency/async_rw_lock.h>
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/throughput_throttler.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 namespace NYT::NDataNode {
 

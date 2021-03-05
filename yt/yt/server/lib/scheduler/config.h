@@ -5,27 +5,27 @@
 #include "scheduling_segment_map.h"
 #include "structs.h"
 
-#include <yt/server/lib/job_proxy/config.h>
+#include <yt/yt/server/lib/job_proxy/config.h>
 
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/ytlib/hive/config.h>
+#include <yt/yt/ytlib/hive/config.h>
 
-#include <yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/client/ypath/public.h>
+#include <yt/yt/client/ypath/public.h>
 
-#include <yt/ytlib/event_log/config.h>
+#include <yt/yt/ytlib/event_log/config.h>
 
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/config.h>
 
-#include <yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/config.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/library/re2/re2.h>
+#include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NScheduler {
 

@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/bit_packed_unsigned_vector.h>
-#include <yt/core/misc/bit_packing.h>
+#include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
+#include <yt/yt/core/misc/bit_packing.h>
 
 namespace NYT {
 namespace {

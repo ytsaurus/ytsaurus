@@ -1,18 +1,18 @@
 #pragma once
 
 #include "public.h"
-#include "yt/library/profiling/sensor.h"
+#include "yt/yt/library/profiling/sensor.h"
 
-#include <yt/server/lib/misc/profiling_helpers.h>
+#include <yt/yt/server/lib/misc/profiling_helpers.h>
 
-#include <yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
-#include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
 #include <yt/yt/library/syncmap/map.h>
 

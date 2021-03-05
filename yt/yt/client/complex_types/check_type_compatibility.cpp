@@ -1,6 +1,6 @@
 #include "check_type_compatibility.h"
 
-#include <yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
 using namespace NYT::NTableClient;
 

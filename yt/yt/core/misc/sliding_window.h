@@ -3,7 +3,7 @@
 #include "error.h"
 #include "public.h"
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
 namespace NYT {
 

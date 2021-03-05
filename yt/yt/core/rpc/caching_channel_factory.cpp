@@ -5,10 +5,10 @@
 #include "dispatcher.h"
 #include "private.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/lock_free.h>
 
 namespace NYT::NRpc {
 

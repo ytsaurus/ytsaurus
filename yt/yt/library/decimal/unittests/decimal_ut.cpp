@@ -1,4 +1,4 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/library/decimal/decimal.h>
 

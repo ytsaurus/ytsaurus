@@ -2,9 +2,9 @@
 
 #include "serialize.h"
 
-#include <yt/python/common/error.h>
+#include <yt/yt/python/common/error.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NPython {
 

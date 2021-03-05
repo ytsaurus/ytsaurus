@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
-#include <yt/core/misc/enum.h>
+#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/enum.h>
 
 namespace NYT::NContainers {
 

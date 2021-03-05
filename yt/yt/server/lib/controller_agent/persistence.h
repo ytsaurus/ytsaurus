@@ -2,7 +2,7 @@
 
 #include "serialize.h"
 
-#include <yt/client/table_client/serialize.h>
+#include <yt/yt/client/table_client/serialize.h>
 
 namespace NYT::NControllerAgent {
 

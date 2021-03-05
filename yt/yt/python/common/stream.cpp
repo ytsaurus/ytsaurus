@@ -2,7 +2,7 @@
 #include "helpers.h"
 #include "error.h"
 
-#include <yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/blob_output.h>
 
 #include <util/stream/buffered.h>
 #include <util/stream/file.h>

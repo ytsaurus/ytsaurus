@@ -4,11 +4,11 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/lock_free.h>
 
-#include <yt/core/rpc/grpc/config.h>
+#include <yt/yt/core/rpc/grpc/config.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NTracing {
 

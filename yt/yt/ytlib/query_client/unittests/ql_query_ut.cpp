@@ -1,36 +1,36 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 #include "ql_helpers.h"
 #include "udf/short_invalid_ir.h"
 #include "udf/long_invalid_ir.h"
 
 #include <library/cpp/resource/resource.h>
 
-#include <yt/ytlib/query_client/callbacks.h>
-#include <yt/ytlib/query_client/column_evaluator.h>
-#include <yt/ytlib/query_client/config.h>
-#include <yt/ytlib/query_client/coordinator.h>
-#include <yt/ytlib/query_client/evaluator.h>
-#include <yt/ytlib/query_client/folding_profiler.h>
-#include <yt/ytlib/query_client/helpers.h>
-#include <yt/ytlib/query_client/query.h>
-#include <yt/ytlib/query_client/proto/query.pb.h>
-#include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/functions.h>
-#include <yt/ytlib/query_client/functions_cg.h>
-#include <yt/ytlib/query_client/functions_builder.h>
+#include <yt/yt/ytlib/query_client/callbacks.h>
+#include <yt/yt/ytlib/query_client/column_evaluator.h>
+#include <yt/yt/ytlib/query_client/config.h>
+#include <yt/yt/ytlib/query_client/coordinator.h>
+#include <yt/yt/ytlib/query_client/evaluator.h>
+#include <yt/yt/ytlib/query_client/folding_profiler.h>
+#include <yt/yt/ytlib/query_client/helpers.h>
+#include <yt/yt/ytlib/query_client/query.h>
+#include <yt/yt/ytlib/query_client/proto/query.pb.h>
+#include <yt/yt/ytlib/query_client/query_preparer.h>
+#include <yt/yt/ytlib/query_client/functions.h>
+#include <yt/yt/ytlib/query_client/functions_cg.h>
+#include <yt/yt/ytlib/query_client/functions_builder.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/pipe.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/pipe.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <util/system/sanitizers.h>
 

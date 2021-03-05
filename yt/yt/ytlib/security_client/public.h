@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
 namespace NYT::NSecurityClient {
 

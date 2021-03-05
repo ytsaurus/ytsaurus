@@ -9,12 +9,12 @@
 #include "serialize.h"
 #include "small_vector.h"
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/misc/defines.h>
+#include <yt/yt/core/misc/defines.h>
 
-#include <yt/core/misc/proto/guid.pb.h>
-#include <yt/core/misc/proto/protobuf_helpers.pb.h>
+#include <yt/yt/core/misc/proto/guid.pb.h>
+#include <yt/yt/core/misc/proto/protobuf_helpers.pb.h>
 
 #include <google/protobuf/message.h>
 #include <google/protobuf/repeated_field.h>

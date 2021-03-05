@@ -1,9 +1,9 @@
 #include "attribute_set.h"
 #include "yson_intern_registry.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
 namespace NYT::NObjectServer {
 

@@ -2,12 +2,12 @@
 
 #include "chunk_meta_extensions.h"
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT::NChunkClient {
 

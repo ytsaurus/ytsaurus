@@ -2,30 +2,30 @@
 
 #include "monitoring_manager.h"
 
-#include <yt/core/json/config.h>
-#include <yt/core/json/json_writer.h>
+#include <yt/yt/core/json/config.h>
+#include <yt/yt/core/json/json_writer.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/virtual.h>
-#include <yt/core/ytree/ypath_detail.h>
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
-#include <yt/core/http/http.h>
-#include <yt/core/http/helpers.h>
-#include <yt/core/http/server.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/helpers.h>
+#include <yt/yt/core/http/server.h>
 
-#include <yt/core/ytalloc/statistics_producer.h>
+#include <yt/yt/core/ytalloc/statistics_producer.h>
 
-#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
+#include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 

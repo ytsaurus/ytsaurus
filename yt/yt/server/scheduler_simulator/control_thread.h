@@ -4,7 +4,7 @@
 #include "operation_description.h"
 #include "shared_data.h"
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 
 namespace NYT::NSchedulerSimulator {

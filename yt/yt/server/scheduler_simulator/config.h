@@ -1,15 +1,15 @@
 #pragma once
 
-#include <yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/ytlib/event_log/config.h>
+#include <yt/yt/ytlib/event_log/config.h>
 
-#include <yt/ytlib/program/program.h>
+#include <yt/yt/ytlib/program/program.h>
 
-#include <yt/core/ytree/public.h>
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <util/system/user.h>
 

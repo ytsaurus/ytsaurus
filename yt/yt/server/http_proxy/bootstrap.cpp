@@ -6,50 +6,50 @@
 #include "http_authenticator.h"
 #include "private.h"
 
-#include <yt/server/http_proxy/clickhouse/handler.h>
+#include <yt/yt/server/http_proxy/clickhouse/handler.h>
 
-#include <yt/ytlib/api/native/config.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/auth/authentication_manager.h>
+#include <yt/yt/ytlib/auth/authentication_manager.h>
 
-#include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/yt/ytlib/monitoring/http_integration.h>
+#include <yt/yt/ytlib/monitoring/monitoring_manager.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
-#include <yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/ytlib/program/build_attributes.h>
+#include <yt/yt/ytlib/program/build_attributes.h>
 
-#include <yt/client/driver/driver.h>
-#include <yt/client/driver/config.h>
+#include <yt/yt/client/driver/driver.h>
+#include <yt/yt/client/driver/config.h>
 
-#include <yt/core/bus/tcp/server.h>
+#include <yt/yt/core/bus/tcp/server.h>
 
-#include <yt/core/concurrency/thread_pool_poller.h>
-#include <yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/http/helpers.h>
-#include <yt/core/http/server.h>
+#include <yt/yt/core/http/helpers.h>
+#include <yt/yt/core/http/server.h>
 
-#include <yt/core/https/config.h>
-#include <yt/core/https/server.h>
+#include <yt/yt/core/https/config.h>
+#include <yt/yt/core/https/server.h>
 
-#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
-#include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/rpc/bus/server.h>
+#include <yt/yt/core/rpc/bus/server.h>
 
-#include <yt/core/ytalloc/statistics_producer.h>
+#include <yt/yt/core/ytalloc/statistics_producer.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/virtual.h>
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
 namespace NYT::NHttpProxy {
 

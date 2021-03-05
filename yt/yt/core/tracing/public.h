@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
-#include <yt/core/misc/guid.h>
+#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/guid.h>
 
 namespace NYT::NTracing {
 

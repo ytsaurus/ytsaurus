@@ -4,22 +4,22 @@
 
 #include "scheduler_tree.h"
 
-#include <yt/server/lib/scheduler/event_log.h>
-#include <yt/server/lib/scheduler/job_metrics.h>
-#include <yt/server/lib/scheduler/resource_metering.h>
-#include <yt/server/lib/scheduler/structs.h>
+#include <yt/yt/server/lib/scheduler/event_log.h>
+#include <yt/yt/server/lib/scheduler/job_metrics.h>
+#include <yt/yt/server/lib/scheduler/resource_metering.h>
+#include <yt/yt/server/lib/scheduler/structs.h>
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/permission.h>
 
 namespace NYT::NScheduler {
 

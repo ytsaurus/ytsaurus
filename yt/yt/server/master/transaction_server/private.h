@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/lib/transaction_server/private.h>
+#include <yt/yt/server/lib/transaction_server/private.h>
 
 namespace NYT::NTransactionServer {
 

@@ -6,11 +6,11 @@
 #include "dispatcher.h"
 #include "chunk_reader_statistics.h"
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 #include <util/random/shuffle.h>
 

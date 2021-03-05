@@ -5,22 +5,22 @@
 
 #include "api.h"
 
-#include <yt/server/lib/misc/format_manager.h>
+#include <yt/yt/server/lib/misc/format_manager.h>
 
-#include <yt/ytlib/auth/public.h>
+#include <yt/yt/ytlib/auth/public.h>
 
-#include <yt/client/driver/driver.h>
-#include <yt/client/driver/helpers.h>
+#include <yt/yt/client/driver/driver.h>
+#include <yt/yt/client/driver/helpers.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/http/public.h>
+#include <yt/yt/core/http/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
-#include <yt/core/rpc/authenticator.h>
+#include <yt/yt/core/rpc/authenticator.h>
 
-#include <yt/server/http_proxy/http_authenticator.h>
+#include <yt/yt/server/http_proxy/http_authenticator.h>
 
 namespace NYT::NHttpProxy {
 

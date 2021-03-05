@@ -1,7 +1,7 @@
 #include "address_helpers.h"
 
-#include <yt/core/net/local_address.h>
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
+#include <yt/yt/core/net/address.h>
 
 namespace NYT {
 

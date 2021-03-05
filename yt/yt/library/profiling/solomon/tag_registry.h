@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
 #include <yt/yt/library/profiling/tag.h>
 

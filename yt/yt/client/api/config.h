@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/client/journal_client/config.h>
+#include <yt/yt/client/journal_client/config.h>
 
-#include <yt/client/tablet_client/config.h>
+#include <yt/yt/client/tablet_client/config.h>
 
-#include <yt/client/chunk_client/config.h>
+#include <yt/yt/client/chunk_client/config.h>
 
-#include <yt/client/file_client/config.h>
+#include <yt/yt/client/file_client/config.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NApi {
 

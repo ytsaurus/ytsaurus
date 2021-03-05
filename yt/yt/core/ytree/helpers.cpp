@@ -1,9 +1,9 @@
 #include "helpers.h"
 #include "ypath_client.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/singleton.h>
 
 namespace NYT::NYTree {
 

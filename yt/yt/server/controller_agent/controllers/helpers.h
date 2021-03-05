@@ -4,11 +4,11 @@
 
 #include "data_flow_graph.h"
 
-#include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_stripe_key.h>
 
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

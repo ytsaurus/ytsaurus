@@ -2,16 +2,16 @@
 
 #include "bootstrap.h"
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/transaction.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/transaction.h>
 
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
-#include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <util/generic/buffer.h>
 #include <util/string/split.h>

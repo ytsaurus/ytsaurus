@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include <yt/core/net/config.h>
+#include <yt/yt/core/net/config.h>
 
 namespace NYT::NHttp {
 

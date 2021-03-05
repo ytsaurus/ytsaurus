@@ -1,7 +1,7 @@
 #include "sys_node_type_handler.h"
 #include "sys_node_proxy.h"
 
-#include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
 
 namespace NYT::NObjectServer {
 

@@ -3,13 +3,13 @@
 #include "private.h"
 #include "operation_controller.h"
 
-#include <yt/server/lib/misc/fork_executor.h>
+#include <yt/yt/server/lib/misc/fork_executor.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/library/process/pipe.h>
+#include <yt/yt/library/process/pipe.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
 #include <util/system/file.h>
 

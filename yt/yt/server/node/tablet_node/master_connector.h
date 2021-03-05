@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/lib/tablet_node/public.h>
+#include <yt/yt/server/lib/tablet_node/public.h>
 
-#include <yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h>
+#include <yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h>
 
 namespace NYT::NTabletNode {
 

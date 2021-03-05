@@ -1,12 +1,12 @@
 #include "job_shell_descriptor_cache.h"
 #include "private.h"
 
-#include <yt/ytlib/scheduler/job_prober_service_proxy.h>
+#include <yt/yt/ytlib/scheduler/job_prober_service_proxy.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/misc/async_expiring_cache.h>
-#include <yt/core/misc/hash.h>
+#include <yt/yt/core/misc/async_expiring_cache.h>
+#include <yt/yt/core/misc/hash.h>
 
 namespace NYT::NJobProberClient {
 

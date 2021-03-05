@@ -4,14 +4,14 @@
 #include "message.h"
 #include "stream.h"
 
-#include <yt/core/net/local_address.h>
+#include <yt/yt/core/net/local_address.h>
 
-#include <yt/core/misc/cast.h>
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/cast.h>
+#include <yt/yt/core/misc/checksum.h>
 
-#include <yt/core/ytalloc/memory_zone.h>
+#include <yt/yt/core/ytalloc/memory_zone.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NRpc {
 

@@ -3,7 +3,7 @@
 #include "public.h"
 #include "shutdown.h"
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
 #include <util/system/mutex.h>
 

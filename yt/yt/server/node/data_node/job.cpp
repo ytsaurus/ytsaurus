@@ -10,48 +10,48 @@
 #include "location.h"
 #include "master_connector.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/node/job_agent/job.h>
+#include <yt/yt/server/node/job_agent/job.h>
 
-#include <yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
 
-#include <yt/server/lib/chunk_server/proto/job.pb.h>
+#include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/ytlib/chunk_client/block_cache.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_writer.h>
-#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/ytlib/chunk_client/erasure_repair.h>
-#include <yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/ytlib/chunk_client/replication_writer.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/erasure_repair.h>
+#include <yt/yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/yt/ytlib/chunk_client/replication_writer.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/ytlib/journal_client/erasure_repair.h>
-#include <yt/ytlib/journal_client/chunk_reader.h>
+#include <yt/yt/ytlib/journal_client/erasure_repair.h>
+#include <yt/yt/ytlib/journal_client/chunk_reader.h>
 
-#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
+#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/string.h>
 
 #include <util/generic/algorithm.h>
 

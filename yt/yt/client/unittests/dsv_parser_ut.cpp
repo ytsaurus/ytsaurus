@@ -1,8 +1,8 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/test_framework/yson_consumer_mock.h>
+#include <yt/yt/core/test_framework/yson_consumer_mock.h>
 
-#include <yt/client/formats/dsv_parser.h>
+#include <yt/yt/client/formats/dsv_parser.h>
 
 namespace NYT::NFormats {
 namespace {

@@ -3,13 +3,13 @@
 #include "http.h"
 #include "private.h"
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/json/json_writer.h>
-#include <yt/core/json/json_parser.h>
-#include <yt/core/json/config.h>
+#include <yt/yt/core/json/json_writer.h>
+#include <yt/yt/core/json/json_parser.h>
+#include <yt/yt/core/json/config.h>
 
 #include <util/stream/buffer.h>
 

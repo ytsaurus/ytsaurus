@@ -1,13 +1,13 @@
 #include "helpers.h"
 
-#include <yt/ytlib/core_dump/proto/core_info.pb.h>
+#include <yt/yt/ytlib/core_dump/proto/core_info.pb.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <util/generic/buffer.h>
 #include <util/generic/size_literals.h>

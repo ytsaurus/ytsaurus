@@ -1,15 +1,15 @@
 #include "tablet_cell_map_proxy.h"
 
-#include <yt/server/master/cypress_server/node_proxy_detail.h>
+#include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
 
-#include <yt/server/master/cell_server/tamed_cell_manager.h>
-#include <yt/server/master/cell_server/cell_base.h>
+#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
+#include <yt/yt/server/master/cell_server/cell_base.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTabletServer {
 

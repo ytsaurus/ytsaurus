@@ -4,11 +4,11 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/lib/hydra/changelog.h>
+#include <yt/yt/server/lib/hydra/changelog.h>
 
-#include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 
 namespace NYT::NDataNode {
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 #include <Poco/Util/AbstractConfiguration.h>
 #include <Poco/Util/LayeredConfiguration.h>

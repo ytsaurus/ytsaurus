@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/blob_output.h>
 
-#include <yt/ytlib/file_client/file_chunk_output.h>
+#include <yt/yt/ytlib/file_client/file_chunk_output.h>
 
 namespace NYT::NJobProxy {
 

@@ -5,12 +5,12 @@
 #include "format.h"
 #include "block.h"
 
-#include <yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/ytlib/chunk_client/io_engine.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/checksum.h>
 
 #include <util/system/align.h>
 #include <util/system/compiler.h>

@@ -9,21 +9,21 @@
 #include "serialize.h"
 #include "tree_visitor.h"
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/misc/guid.h>
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/demangle.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/guid.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/demangle.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
-#include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/actions/bind.h>
+#include <yt/yt/core/actions/bind.h>
 
 #include <util/datetime/base.h>
 

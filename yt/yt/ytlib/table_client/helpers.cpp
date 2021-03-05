@@ -5,46 +5,46 @@
 #include "schemaless_chunk_writer.h"
 #include "private.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
-#include <yt/ytlib/table_chunk_format/column_reader_detail.h>
+#include <yt/yt/ytlib/table_chunk_format/column_reader_detail.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/client/api/table_reader.h>
-#include <yt/client/api/table_writer.h>
+#include <yt/yt/client/api/table_reader.h>
+#include <yt/yt/client/api/table_writer.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/formats/parser.h>
+#include <yt/yt/client/formats/parser.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
 
 
-#include <yt/core/concurrency/async_stream.h>
-#include <yt/core/concurrency/periodic_yielder.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/periodic_yielder.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/permission.h>
-#include <yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/attributes.h>
 
 namespace NYT::NTableClient {
 

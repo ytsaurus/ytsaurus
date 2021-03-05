@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/async_writer.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 namespace NYT::NYson {
 namespace {

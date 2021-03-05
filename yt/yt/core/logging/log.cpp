@@ -1,7 +1,7 @@
 #include "log.h"
 #include "log_manager.h"
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <util/system/thread.h>
 

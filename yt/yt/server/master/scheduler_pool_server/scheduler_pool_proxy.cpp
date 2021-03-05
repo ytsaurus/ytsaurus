@@ -2,15 +2,15 @@
 #include "scheduler_pool_proxy.h"
 #include "scheduler_pool_manager.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/server/master/object_server/type_handler.h>
+#include <yt/yt/server/master/object_server/type_handler.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
 
 namespace NYT::NSchedulerPoolServer {
 

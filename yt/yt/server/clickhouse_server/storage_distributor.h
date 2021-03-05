@@ -5,9 +5,9 @@
 #include "conversion.h"
 #include "subquery_spec.h"
 
-#include <yt/server/lib/chunk_pools/chunk_stripe.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
 #include <Interpreters/Cluster.h>
 #include <Interpreters/Context.h>

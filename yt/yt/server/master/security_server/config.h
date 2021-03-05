@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/ytlib/distributed_throttler/config.h>
+#include <yt/yt/ytlib/distributed_throttler/config.h>
 
 namespace NYT::NSecurityServer {
 

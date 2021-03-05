@@ -1,22 +1,22 @@
 #include "node_directory.h"
 #include "private.h"
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/node_tracker_client/proto/node_directory.pb.h>
+#include <yt/yt/client/node_tracker_client/proto/node_directory.pb.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/hash.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/hash.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 #include <util/digest/numeric.h>
 

@@ -3,17 +3,17 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/server/lib/containers/instance_limits_tracker.h>
+#include <yt/yt/server/lib/containers/instance_limits_tracker.h>
 
-#include <yt/server/node/tablet_node/slot_manager.h>
+#include <yt/yt/server/node/tablet_node/slot_manager.h>
 
-#include <yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <limits>
 

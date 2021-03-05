@@ -1,9 +1,9 @@
 #pragma once
 
-#include <yt/core/rpc/client.h>
-#include <yt/core/rpc/service.h>
+#include <yt/yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/service.h>
 
-#include <yt/core/rpc/unittests/lib/my_service.pb.h>
+#include <yt/yt/core/rpc/unittests/lib/my_service.pb.h>
 
 namespace NYT::NRpc {
 

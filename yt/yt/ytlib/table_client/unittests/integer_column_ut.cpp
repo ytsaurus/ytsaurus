@@ -1,14 +1,14 @@
 #include "column_format_ut.h"
 #include "helpers.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/table_chunk_format/integer_column_writer.h>
-#include <yt/ytlib/table_chunk_format/integer_column_reader.h>
-#include <yt/ytlib/table_chunk_format/helpers.h>
-#include <yt/ytlib/table_chunk_format/private.h>
+#include <yt/yt/ytlib/table_chunk_format/integer_column_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/integer_column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/helpers.h>
+#include <yt/yt/ytlib/table_chunk_format/private.h>
 
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 namespace NYT::NTableClient {
 namespace {

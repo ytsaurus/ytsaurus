@@ -2,11 +2,11 @@
 
 #include "private.h"
 
-#include <yt/server/lib/controller_agent/job_size_constraints.h>
+#include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
-#include <yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 namespace NYT::NControllerAgent {
 

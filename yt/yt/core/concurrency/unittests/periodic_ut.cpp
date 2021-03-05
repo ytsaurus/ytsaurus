@@ -1,16 +1,16 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/actions/invoker_util.h>
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <exception>
 #include <atomic>

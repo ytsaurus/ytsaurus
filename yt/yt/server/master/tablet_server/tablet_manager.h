@@ -7,26 +7,26 @@
 #include "tablet_action.h"
 #include "tablet_action_type_handler.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/chunk_server/chunk_tree_statistics.h>
+#include <yt/yt/server/master/chunk_server/chunk_tree_statistics.h>
 
-#include <yt/server/lib/hydra/entity_map.h>
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/server/master/table_server/public.h>
-#include <yt/server/master/table_server/table_node.h>
+#include <yt/yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/server/master/node_tracker_server/public.h>
+#include <yt/yt/server/master/node_tracker_server/public.h>
 
-#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
-#include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/proto/table_ypath.pb.h>
+#include <yt/yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 namespace NYT::NTabletServer {
 

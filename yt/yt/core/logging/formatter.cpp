@@ -2,10 +2,10 @@
 #include "private.h"
 #include "log.h"
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
-#include <yt/core/json/json_writer.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/json/json_writer.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <util/stream/length.h>
 

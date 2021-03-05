@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/core/ytree/public.h>
-#include <yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/node.h>
 
 #include <Core/Types.h>
 

@@ -1,11 +1,11 @@
 #include "cypress_integration.h"
 #include "scheduler_pool_manager.h"
 
-#include <yt/server/lib/misc/object_helpers.h>
+#include <yt/yt/server/lib/misc/object_helpers.h>
 
-#include <yt/server/master/cypress_server/virtual.h>
+#include <yt/yt/server/master/cypress_server/virtual.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NSchedulerPoolServer {
 

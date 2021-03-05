@@ -3,9 +3,9 @@
 #include "column_writer_detail.h"
 #include "helpers.h"
 
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/core/misc/bit_packed_unsigned_vector.h>
+#include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 

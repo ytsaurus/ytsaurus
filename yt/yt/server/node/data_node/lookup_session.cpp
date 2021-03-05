@@ -7,25 +7,25 @@
 #include "table_schema_cache.h"
 #include "chunk_meta_manager.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
+#include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/client/table_client/config.h>
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/config.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/ytlib/table_client/chunk_state.h>
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/proto/data_node_service.pb.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
 namespace NYT::NDataNode {
 

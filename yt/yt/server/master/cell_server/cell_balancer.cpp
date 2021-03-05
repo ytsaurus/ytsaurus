@@ -1,4 +1,4 @@
-#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include "config.h"
 #include "private.h"
@@ -6,13 +6,13 @@
 #include "cell_balancer.h"
 #include "cell_bundle.h"
 
-#include <yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/server/master/object_server/helpers.h>
+#include <yt/yt/server/master/object_server/helpers.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
 namespace NYT::NCellServer {
 

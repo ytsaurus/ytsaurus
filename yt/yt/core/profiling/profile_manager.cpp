@@ -3,28 +3,28 @@
 #include "resource_tracker.h"
 #include "timing.h"
 
-#include <yt/core/concurrency/profiling_helpers.h>
-#include <yt/core/concurrency/fork_aware_spinlock.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/scheduler_thread.h>
-#include <yt/core/concurrency/invoker_queue.h>
+#include <yt/yt/core/concurrency/profiling_helpers.h>
+#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler_thread.h>
+#include <yt/yt/core/concurrency/invoker_queue.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/hash.h>
-#include <yt/core/misc/id_generator.h>
-#include <yt/core/misc/lock_free.h>
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/hash.h>
+#include <yt/yt/core/misc/id_generator.h>
+#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/shutdown.h>
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/virtual.h>
-#include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
 
-#include <yt/core/profiling/proto/profiling.pb.h>
+#include <yt/yt/core/profiling/proto/profiling.pb.h>
 
 #include <util/generic/iterator_range.h>
 

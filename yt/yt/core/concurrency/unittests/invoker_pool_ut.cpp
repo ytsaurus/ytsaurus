@@ -1,11 +1,11 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/actions/invoker.h>
-#include <yt/core/actions/invoker_detail.h>
-#include <yt/core/actions/invoker_pool.h>
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker.h>
+#include <yt/yt/core/actions/invoker_detail.h>
+#include <yt/yt/core/actions/invoker_pool.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
 namespace NYT {
 namespace {

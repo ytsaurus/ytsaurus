@@ -7,7 +7,7 @@
 
 #include "zigzag.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>

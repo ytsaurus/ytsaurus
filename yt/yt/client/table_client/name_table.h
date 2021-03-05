@@ -3,9 +3,9 @@
 #include "public.h"
 #include "column_sort_schema.h"
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 namespace NYT::NTableClient {
 

@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/guid.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/guid.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
 #include <yt/yt/library/tracing/public.h>
 

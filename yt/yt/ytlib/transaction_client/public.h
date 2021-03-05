@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/transaction_client/public.h>
+#include <yt/yt/client/transaction_client/public.h>
 
 namespace NYT::NTransactionClient {
 

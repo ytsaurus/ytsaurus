@@ -1,18 +1,18 @@
 #include "node_directory_synchronizer.h"
 #include "config.h"
 
-#include <yt/client/api/connection.h>
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/connection.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/client/node_tracker_client/private.h>
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/private.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NNodeTrackerClient {
 

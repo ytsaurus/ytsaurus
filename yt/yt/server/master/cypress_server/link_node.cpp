@@ -2,9 +2,9 @@
 #include "shard.h"
 #include "portal_exit_node.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/core/ypath/helpers.h>
+#include <yt/yt/core/ypath/helpers.h>
 
 namespace NYT::NCypressServer {
 

@@ -3,7 +3,7 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
 namespace NYT::NJson {
 

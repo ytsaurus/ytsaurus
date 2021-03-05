@@ -1,6 +1,6 @@
 #include "serialize.h"
 
-#include <yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/node.h>
 
 namespace NSkiff {
 

@@ -4,20 +4,20 @@
 #include "chunk_spec.h"
 #include "data_source.h"
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/client/tablet_client/public.h>
+#include <yt/yt/client/tablet_client/public.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <array>
 

@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/clickhouse_server/computed_columns.h>
-#include <yt/server/clickhouse_server/config.h>
+#include <yt/yt/server/clickhouse_server/computed_columns.h>
+#include <yt/yt/server/clickhouse_server/config.h>
 
 #include <Parsers/parseQuery.h>
 #include <Parsers/ExpressionListParsers.h>

@@ -2,7 +2,7 @@
 #include "api_service_proxy.h"
 #include "connection_impl.h"
 
-#include <yt/client/transaction_client/timestamp_provider_base.h>
+#include <yt/yt/client/transaction_client/timestamp_provider_base.h>
 
 namespace NYT::NApi::NRpcProxy {
 

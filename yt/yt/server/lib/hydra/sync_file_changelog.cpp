@@ -4,19 +4,19 @@
 #include "file_helpers.h"
 #include "format.h"
 
-#include <yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/ytlib/chunk_client/io_engine.h>
 
-#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/blob_output.h>
-#include <yt/core/misc/checksum.h>
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
 #include <util/system/align.h>
 #include <util/system/flock.h>

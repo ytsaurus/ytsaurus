@@ -1,10 +1,10 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/actions/cancelable_context.h>
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
-#include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
 
 #include <util/system/thread.h>
 

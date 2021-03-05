@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hive/public.h>
+#include <yt/yt/ytlib/hive/public.h>
 
 namespace NYT::NTransactionClient {
 

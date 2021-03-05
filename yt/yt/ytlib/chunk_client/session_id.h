@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/ytlib/chunk_client/proto/session_id.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/session_id.pb.h>
 
 namespace NYT::NChunkClient {
 

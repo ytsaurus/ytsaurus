@@ -1,10 +1,10 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/event_count.h>
+#include <yt/yt/core/concurrency/event_count.h>
 
-#include <yt/core/misc/format.h>
-#include <yt/core/misc/public.h>
-#include <yt/core/misc/weak_ptr.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/weak_ptr.h>
 
 #include <util/system/thread.h>
 

@@ -1,14 +1,14 @@
 #include "config.h"
 #include "formats.h"
 
-#include <yt/server/lib/misc/format_manager.h>
+#include <yt/yt/server/lib/misc/format_manager.h>
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
-#include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NHttpProxy {
 

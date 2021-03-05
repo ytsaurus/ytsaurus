@@ -6,9 +6,9 @@
 #include "ticket_authenticator.h"
 #include "token_authenticator.h"
 
-#include <yt/ytlib/auth/config.h>
+#include <yt/yt/ytlib/auth/config.h>
 
-#include <yt/core/rpc/authenticator.h>
+#include <yt/yt/core/rpc/authenticator.h>
 
 namespace NYT::NAuth {
 

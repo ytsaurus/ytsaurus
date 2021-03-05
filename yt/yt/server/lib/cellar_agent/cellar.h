@@ -4,14 +4,14 @@
 #include "occupant.h"
 #include "public.h"
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/tablet_client/proto/heartbeat.pb.h>
+#include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/ytree/ypath_service.h>
-#include <yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NCellarAgent {
 

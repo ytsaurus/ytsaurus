@@ -5,7 +5,7 @@
 #include "chunk_pool_adapters.h"
 #include "task.h"
 
-#include <yt/server/lib/chunk_pools/unordered_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

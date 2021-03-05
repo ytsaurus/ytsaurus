@@ -5,9 +5,9 @@
 #include "private.h"
 #include "auth_cache.h"
 
-#include <yt/core/crypto/crypto.h>
+#include <yt/yt/core/crypto/crypto.h>
 
-#include <yt/core/rpc/authenticator.h>
+#include <yt/yt/core/rpc/authenticator.h>
 
 #include <util/string/split.h>
 

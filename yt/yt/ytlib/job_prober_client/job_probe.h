@@ -3,7 +3,7 @@
 #include "public.h"
 #include "job_shell_descriptor_cache.h"
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
 namespace NYT::NJobProberClient {
 

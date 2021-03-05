@@ -1,15 +1,15 @@
 #include "transaction_participant_provider.h"
 
-#include <yt/client/api/client.h>
-#include <yt/client/api/connection.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/connection.h>
 
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/transaction_participant.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/transaction_participant.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/hive/cluster_directory.h>
-#include <yt/ytlib/hive/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
 
 namespace NYT::NHiveServer {
 

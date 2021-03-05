@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/master/node_tracker_server/public.h>
+#include <yt/yt/server/master/node_tracker_server/public.h>
 
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
 namespace NYT::NCellServer {
 

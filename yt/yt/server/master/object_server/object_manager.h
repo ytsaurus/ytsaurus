@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <yt/server/master/object_server/proto/object_manager.pb.h>
+#include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/cypress_server/public.h>
+#include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
+#include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

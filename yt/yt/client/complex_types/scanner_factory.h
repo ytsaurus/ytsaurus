@@ -3,8 +3,8 @@
 #include "check_yson_token.h"
 #include "infinite_entity.h"
 
-#include <yt/client/table_client/logical_type.h>
-#include <yt/core/yson/pull_parser.h>
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/core/yson/pull_parser.h>
 
 namespace NYT::NComplexTypes {
 

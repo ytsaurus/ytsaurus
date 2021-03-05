@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
 #include <contrib/libs/snappy/snappy-sinksource.h>
 #include <contrib/libs/snappy/snappy.h>

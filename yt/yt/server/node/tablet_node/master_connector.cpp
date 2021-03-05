@@ -6,26 +6,26 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/server/lib/cellar_agent/cellar.h>
-#include <yt/server/lib/cellar_agent/cellar_manager.h>
+#include <yt/yt/server/lib/cellar_agent/cellar.h>
+#include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/ytlib/tablet_node_tracker_client/tablet_node_tracker_service_proxy.h>
+#include <yt/yt/ytlib/tablet_node_tracker_client/tablet_node_tracker_service_proxy.h>
 
-#include <yt/library/profiling/solomon/registry.h>
+#include <yt/yt/library/profiling/solomon/registry.h>
 
-#include <yt/core/concurrency/async_rw_lock.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/response_keeper.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
 namespace NYT::NTabletNode {
 

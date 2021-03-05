@@ -3,7 +3,7 @@
 #include "type_handler.h"
 #include "type_handler_detail.h"
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 namespace NYT::NObjectServer {
 

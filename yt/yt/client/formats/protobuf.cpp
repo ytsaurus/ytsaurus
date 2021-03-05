@@ -1,9 +1,9 @@
 #include "protobuf.h"
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/misc/string_builder.h>
+#include <yt/yt/core/misc/string_builder.h>
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 

@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/net/public.h>
+#include <yt/yt/core/net/public.h>
 
 #include <util/datetime/base.h>
 #include <util/stream/zerocopy.h>

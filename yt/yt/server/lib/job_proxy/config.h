@@ -2,23 +2,23 @@
 
 #include "public.h"
 
-#include <yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/client/file_client/config.h>
+#include <yt/yt/client/file_client/config.h>
 
-#include <yt/ytlib/hydra/config.h>
+#include <yt/yt/ytlib/hydra/config.h>
 
-#include <yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/config.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NJobProxy {
 

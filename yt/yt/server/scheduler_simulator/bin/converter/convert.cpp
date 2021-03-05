@@ -1,20 +1,20 @@
 #include "operation_description.h"
 
-#include <yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/shutdown.h>
 
-#include <yt/core/logging/config.h>
-#include <yt/core/logging/log.h>
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/phoenix.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/yson/lexer.h>
-#include <yt/core/yson/parser.h>
-#include <yt/core/yson/writer.h>
-#include <yt/core/yson/null_consumer.h>
-#include <yt/core/yson/stream.h>
+#include <yt/yt/core/yson/lexer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/stream.h>
 
 #include <util/system/fs.h>
 

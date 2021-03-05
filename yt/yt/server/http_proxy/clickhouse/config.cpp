@@ -1,8 +1,8 @@
 #include "config.h"
 
-#include <yt/ytlib/security_client/config.h>
+#include <yt/yt/ytlib/security_client/config.h>
 
-#include <yt/core/misc/config.h>
+#include <yt/yt/core/misc/config.h>
 
 namespace NYT::NHttpProxy::NClickHouse {
 

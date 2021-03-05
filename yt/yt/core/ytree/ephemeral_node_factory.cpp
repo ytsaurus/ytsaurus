@@ -4,10 +4,10 @@
 #include "ypath_client.h"
 #include "ypath_detail.h"
 
-#include <yt/core/misc/hash.h>
-#include <yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/hash.h>
+#include <yt/yt/core/misc/singleton.h>
 
-#include <yt/core/yson/async_consumer.h>
+#include <yt/yt/core/yson/async_consumer.h>
 
 #include <algorithm>
 

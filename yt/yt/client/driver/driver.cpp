@@ -10,18 +10,18 @@
 #include "table_commands.h"
 #include "transaction_commands.h"
 
-#include <yt/client/api/transaction.h>
-#include <yt/client/api/connection.h>
-#include <yt/client/api/sticky_transaction_pool.h>
-#include <yt/client/api/client_cache.h>
+#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/connection.h>
+#include <yt/yt/client/api/sticky_transaction_pool.h>
+#include <yt/yt/client/api/client_cache.h>
 
-#include <yt/client/api/rpc_proxy/connection_impl.h>
+#include <yt/yt/client/api/rpc_proxy/connection_impl.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/null_consumer.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
 namespace NYT::NDriver {
 

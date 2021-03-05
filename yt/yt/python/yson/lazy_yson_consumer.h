@@ -2,12 +2,12 @@
 
 #include "lazy_dict_producer.h"
 
-#include <yt/python/common/helpers.h>
-#include <yt/python/common/stream.h>
+#include <yt/yt/python/common/helpers.h>
+#include <yt/yt/python/common/stream.h>
 
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/lexer_detail.h>
-#include <yt/core/yson/parser.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/lexer_detail.h>
+#include <yt/yt/core/yson/parser.h>
 
 #include <Python.h>
 

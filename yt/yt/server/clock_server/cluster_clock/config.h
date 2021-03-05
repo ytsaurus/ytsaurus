@@ -2,21 +2,21 @@
 
 #include "public.h"
 
-#include <yt/server/lib/hive/config.h>
+#include <yt/yt/server/lib/hive/config.h>
 
-#include <yt/server/lib/hydra/config.h>
+#include <yt/yt/server/lib/hydra/config.h>
 
-#include <yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/server/lib/timestamp_server/config.h>
+#include <yt/yt/server/lib/timestamp_server/config.h>
 
-#include <yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/config.h>
 
-#include <yt/ytlib/hive/config.h>
+#include <yt/yt/ytlib/hive/config.h>
 
-#include <yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/config.h>
 
-#include <yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/config.h>
 
 namespace NYT::NClusterClock {
 

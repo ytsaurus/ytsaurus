@@ -1,8 +1,8 @@
 #include "competitive_job_manager.h"
 #include "job_info.h"
 
-#include <yt/server/lib/controller_agent/progress_counter.h>
-#include <yt/server/lib/controller_agent/serialize.h>
+#include <yt/yt/server/lib/controller_agent/progress_counter.h>
+#include <yt/yt/server/lib/controller_agent/serialize.h>
 
 #include <util/generic/algorithm.h>
 

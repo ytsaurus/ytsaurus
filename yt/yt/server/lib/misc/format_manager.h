@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/client/scheduler/public.h>
+#include <yt/yt/client/scheduler/public.h>
 
-#include <yt/client/formats/format.h>
+#include <yt/yt/client/formats/format.h>
 
 namespace NYT {
 

@@ -1,7 +1,7 @@
 #include "percpu.h"
-#include "yt/library/profiling/summary.h"
+#include "yt/yt/library/profiling/summary.h"
 
-#include <yt/core/profiling/tscp.h>
+#include <yt/yt/core/profiling/tscp.h>
 
 namespace NYT::NProfiling {
 

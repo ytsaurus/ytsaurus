@@ -9,22 +9,22 @@
 #include "master_connector.h"
 #include "bootstrap.h"
 
-#include <yt/server/lib/scheduler/config.h>
-#include <yt/server/lib/scheduler/helpers.h>
-#include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/yt/server/lib/scheduler/config.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/job_metrics.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/lease_manager.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/lease_manager.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
 #include <util/string/join.h>
 

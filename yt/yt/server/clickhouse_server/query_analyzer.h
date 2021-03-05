@@ -4,7 +4,7 @@
 
 #include "storage_distributor.h"
 
-#include <yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/key_bound.h>
 
 #include <Storages/MergeTree/KeyCondition.h>
 

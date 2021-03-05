@@ -1,11 +1,11 @@
 #include "dnf.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
 
 #include <util/generic/hash.h>
 

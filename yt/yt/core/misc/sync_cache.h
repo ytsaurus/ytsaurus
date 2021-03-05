@@ -4,7 +4,7 @@
 #include "cache_config.h"
 #include "memory_usage_tracker.h"
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

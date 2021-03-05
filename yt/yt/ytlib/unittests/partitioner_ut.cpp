@@ -1,10 +1,10 @@
-#include <yt/ytlib/chunk_client/key_set.h>
+#include <yt/yt/ytlib/chunk_client/key_set.h>
 
-#include <yt/ytlib/table_client/partitioner.h>
+#include <yt/yt/ytlib/table_client/partitioner.h>
 
-#include <yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/comparator.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NTableClient {
 namespace {

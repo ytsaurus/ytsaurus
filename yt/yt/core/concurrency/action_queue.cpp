@@ -4,13 +4,13 @@
 #include "private.h"
 #include "profiling_helpers.h"
 
-#include <yt/core/actions/invoker_util.h>
-#include <yt/core/actions/invoker_detail.h>
+#include <yt/yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_detail.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
-#include <yt/core/misc/crash_handler.h>
-#include <yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
 #include <util/thread/lfqueue.h>
 

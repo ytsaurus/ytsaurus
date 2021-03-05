@@ -3,13 +3,13 @@
 #include "private.h"
 #include "driver.h"
 
-#include <yt/client/api/client.h>
-#include <yt/client/api/transaction.h>
-#include <yt/client/api/sticky_transaction_pool.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/sticky_transaction_pool.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NDriver {
 

@@ -4,19 +4,19 @@
 #include "chunk_writer.h"
 #include "config.h"
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/checksum.h>
 
-#include <yt/core/ytalloc/memory_zone.h>
+#include <yt/yt/core/ytalloc/memory_zone.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NChunkClient {
 

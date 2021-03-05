@@ -3,25 +3,25 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/chunk_server/chunk_owner_base.h>
+#include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 
-#include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
 
-#include <yt/server/master/tablet_server/public.h>
-#include <yt/server/master/tablet_server/tablet.h>
-#include <yt/server/master/tablet_server/tablet_resources.h>
+#include <yt/yt/server/master/tablet_server/public.h>
+#include <yt/yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/tablet_server/tablet_resources.h>
 
-#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/core/misc/aggregate_property.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/aggregate_property.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 namespace NYT::NTableServer {
 

@@ -1,14 +1,14 @@
 #include "cypress_commands.h"
 #include "config.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NDriver {
 

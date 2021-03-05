@@ -2,17 +2,17 @@
 #include "ypath_client.h"
 #include "ypath_proxy.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/yson/async_writer.h>
-#include <yt/core/yson/tokenizer.h>
+#include <yt/yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/tokenizer.h>
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NYTree {
 

@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/client/table_client/composite_compare.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/composite_compare.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/writer.h>
 
 namespace NYT::NTableClient {
 namespace {

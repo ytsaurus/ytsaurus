@@ -2,9 +2,9 @@
 
 #include "node_tracker.h"
 
-#include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
 namespace NYT::NNodeTrackerServer {
 

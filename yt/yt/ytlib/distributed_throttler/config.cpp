@@ -1,8 +1,8 @@
 #include "config.h"
 
-#include <yt/ytlib/discovery_client/config.h>
+#include <yt/yt/ytlib/discovery_client/config.h>
 
-#include <yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/config.h>
 
 namespace NYT::NDistributedThrottler {
 

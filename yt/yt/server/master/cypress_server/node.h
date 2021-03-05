@@ -3,27 +3,27 @@
 #include "public.h"
 #include "lock.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/cypress_server/proto/cypress_manager.pb.h>
+#include <yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/server/master/security_server/acl.h>
-#include <yt/server/master/security_server/cluster_resources.h>
+#include <yt/yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/cluster_resources.h>
 
-#include <yt/server/master/tablet_server/tablet_resources.h>
+#include <yt/yt/server/master/tablet_server/tablet_resources.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/cypress_client/public.h>
+#include <yt/yt/ytlib/cypress_client/public.h>
 
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref_tracked.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
 #include <queue>
 #include <variant>

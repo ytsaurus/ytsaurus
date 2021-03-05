@@ -8,7 +8,7 @@
 #include "ephemeral_node_factory.h"
 #include "tree_builder.h"
 
-#include <yt/core/yson/forwarding_consumer.h>
+#include <yt/yt/core/yson/forwarding_consumer.h>
 
 #include <memory>
 

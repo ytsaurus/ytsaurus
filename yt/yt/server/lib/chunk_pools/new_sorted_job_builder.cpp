@@ -4,19 +4,19 @@
 #include "input_stream.h"
 #include "new_job_manager.h"
 
-#include <yt/server/lib/controller_agent/job_size_constraints.h>
+#include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
-#include <yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/library/random/bernoulli_sampler.h>
+#include <yt/yt/library/random/bernoulli_sampler.h>
 
-#include <yt/core/concurrency/periodic_yielder.h>
+#include <yt/yt/core/concurrency/periodic_yielder.h>
 
-#include <yt/core/misc/collection_helpers.h>
-#include <yt/core/misc/heap.h>
+#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/heap.h>
 
 #include <cmath>
 

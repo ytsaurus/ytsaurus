@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/core/service_discovery/public.h>
+#include <yt/yt/core/service_discovery/public.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/misc/shutdownable.h>
-#include <yt/core/bus/public.h>
+#include <yt/yt/core/misc/shutdownable.h>
+#include <yt/yt/core/bus/public.h>
 
 namespace NYT::NRpc {
 

@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/lib/user_job_synchronizer_client/public.h>
+#include <yt/yt/server/lib/user_job_synchronizer_client/public.h>
 
-#include <yt/library/process/pipe.h>
+#include <yt/yt/library/process/pipe.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NUserJobExecutor {
 

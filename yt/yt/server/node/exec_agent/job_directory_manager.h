@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/node/data_node/public.h>
+#include <yt/yt/server/node/data_node/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NExecAgent {
 

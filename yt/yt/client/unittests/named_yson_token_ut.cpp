@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/client/complex_types/named_structures_yson.h>
-#include <yt/client/table_client/logical_type.h>
+#include <yt/yt/client/complex_types/named_structures_yson.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
 namespace NYT::NComplexTypes {
 

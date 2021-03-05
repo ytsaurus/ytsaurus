@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
-#include <yt/ytlib/distributed_throttler/proto/distributed_throttler.pb.h>
+#include <yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.pb.h>
 
 namespace NYT::NDistributedThrottler {
 

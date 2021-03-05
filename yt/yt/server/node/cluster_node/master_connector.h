@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
 namespace NYT::NClusterNode {
 

@@ -2,11 +2,11 @@
 
 #include "client_base.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NApi::NRpcProxy {
 

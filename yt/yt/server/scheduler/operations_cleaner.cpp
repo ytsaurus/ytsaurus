@@ -4,41 +4,41 @@
 #include "bootstrap.h"
 #include "helpers.h"
 
-#include <yt/server/lib/scheduler/config.h>
-#include <yt/server/lib/scheduler/experiments.h>
+#include <yt/yt/server/lib/scheduler/config.h>
+#include <yt/yt/server/lib/scheduler/experiments.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/controller_agent/helpers.h>
+#include <yt/yt/ytlib/controller_agent/helpers.h>
 
-#include <yt/client/api/rowset.h>
-#include <yt/client/api/transaction.h>
-#include <yt/client/api/operation_archive_schema.h>
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/operation_archive_schema.h>
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/nonblocking_batch.h>
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/nonblocking_batch.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/ypath_resolver.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
 
 namespace NYT::NScheduler {
 

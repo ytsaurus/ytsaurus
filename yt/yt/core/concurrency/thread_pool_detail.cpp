@@ -1,6 +1,6 @@
 #include "thread_pool_detail.h"
 
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
 #include <algorithm>
 

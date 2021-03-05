@@ -1,10 +1,10 @@
 #include "dispatcher.h"
 #include "dispatcher_impl.h"
 
-#include <yt/core/bus/private.h>
+#include <yt/yt/core/bus/private.h>
 
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 namespace NYT::NBus {
 

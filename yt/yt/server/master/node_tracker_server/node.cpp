@@ -2,28 +2,28 @@
 #include "data_center.h"
 #include "rack.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/chunk_server/chunk.h>
-#include <yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/server/master/chunk_server/job.h>
-#include <yt/server/master/chunk_server/medium.h>
+#include <yt/yt/server/master/chunk_server/chunk.h>
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/job.h>
+#include <yt/yt/server/master/chunk_server/medium.h>
 
-#include <yt/server/master/node_tracker_server/config.h>
+#include <yt/yt/server/master/node_tracker_server/config.h>
 
-#include <yt/server/master/cell_server/cell_base.h>
+#include <yt/yt/server/master/cell_server/cell_base.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/node_tracker_client/interop.h>
-#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/interop.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/misc/arithmetic_formula.h>
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
 #include <atomic>
 

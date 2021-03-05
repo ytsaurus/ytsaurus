@@ -1,9 +1,9 @@
 #pragma once
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/public.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/public.h>
 
-#include <yt/client/cell_master_client/public.h>
+#include <yt/yt/client/cell_master_client/public.h>
 
 namespace NYT::NCellMaster {
 

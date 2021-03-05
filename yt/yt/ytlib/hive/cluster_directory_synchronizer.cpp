@@ -3,13 +3,13 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/client/api/connection.h>
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/connection.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NHiveClient {
 

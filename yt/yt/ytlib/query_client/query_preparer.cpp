@@ -6,17 +6,17 @@
 #include "lexer.h"
 #include "query_helpers.h"
 
-#include <yt/ytlib/query_client/parser.h>
+#include <yt/yt/ytlib/query_client/parser.h>
 
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/core/ytree/yson_serializable.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/misc/collection_helpers.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <unordered_set>
 

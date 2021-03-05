@@ -2,9 +2,9 @@
 
 #include "node_detail.h"
 
-#include <yt/core/ypath/public.h>
+#include <yt/yt/core/ypath/public.h>
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
 namespace NYT::NCypressServer {
 

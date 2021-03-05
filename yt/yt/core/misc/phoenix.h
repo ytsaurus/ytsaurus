@@ -4,7 +4,7 @@
 #include "mpl.h"
 #include "serialize.h"
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
 #include <typeinfo>
 

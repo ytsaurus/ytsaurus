@@ -1,17 +1,17 @@
 #include "helpers.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/server/master/node_tracker_server/public.h>
-#include <yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/public.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/server/master/cell_server/cell_balancer.h>
-#include <yt/server/master/cell_server/cell_bundle.h>
-#include <yt/server/master/cell_server/cell_base.h>
+#include <yt/yt/server/master/cell_server/cell_balancer.h>
+#include <yt/yt/server/master/cell_server/cell_bundle.h>
+#include <yt/yt/server/master/cell_server/cell_base.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <util/random/random.h>
 

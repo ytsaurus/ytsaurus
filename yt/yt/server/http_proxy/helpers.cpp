@@ -3,13 +3,13 @@
 #include "coordinator.h"
 #include "private.h"
 
-#include <yt/core/http/http.h>
-#include <yt/core/http/helpers.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/helpers.h>
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <library/cpp/string_utils/base64/base64.h>
 

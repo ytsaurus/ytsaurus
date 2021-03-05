@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/misc/common.h>
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/common.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/property.h>
 
 namespace NYT {
 

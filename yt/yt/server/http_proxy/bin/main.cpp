@@ -1,4 +1,4 @@
-#include <yt/server/http_proxy/program.h>
+#include <yt/yt/server/http_proxy/program.h>
 
 int main(int argc, const char** argv)
 {

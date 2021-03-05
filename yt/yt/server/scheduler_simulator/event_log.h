@@ -2,7 +2,7 @@
 
 #include "config.h"
 
-#include <yt/ytlib/event_log/event_log.h>
+#include <yt/yt/ytlib/event_log/event_log.h>
 
 namespace NYT::NSchedulerSimulator {
 

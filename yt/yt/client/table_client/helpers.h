@@ -3,11 +3,11 @@
 #include "versioned_row.h"
 #include "unversioned_row.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/net/public.h>
+#include <yt/yt/core/net/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NTableClient {
 

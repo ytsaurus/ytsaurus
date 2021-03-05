@@ -2,14 +2,14 @@
 
 #include "config.h"
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/crash_handler.h>
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
 
 #include <Common/MemoryTracker.h>
 #include <Common/CurrentMetrics.h>

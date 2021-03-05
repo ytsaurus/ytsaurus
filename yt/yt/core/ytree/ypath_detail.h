@@ -6,20 +6,20 @@
 #include "ypath_service.h"
 #include "system_attribute_provider.h"
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/assert.h>
-#include <yt/core/misc/cast.h>
+#include <yt/yt/core/misc/assert.h>
+#include <yt/yt/core/misc/cast.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/writer.h>
-#include <yt/core/yson/producer.h>
-#include <yt/core/yson/forwarding_consumer.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/producer.h>
+#include <yt/yt/core/yson/forwarding_consumer.h>
 
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/proto/ypath.pb.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT::NYTree {
 

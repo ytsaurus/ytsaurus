@@ -1,15 +1,15 @@
 #include "event_log.h"
 
-#include <yt/client/table_client/table_consumer.h>
-#include <yt/client/table_client/unversioned_writer.h>
-#include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
-#include <yt/client/table_client/value_consumer.h>
+#include <yt/yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/ytlib/table_client/schemaless_buffered_table_writer.h>
+#include <yt/yt/client/table_client/value_consumer.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/lock_free.h>
 
 namespace NYT::NEventLog {
 

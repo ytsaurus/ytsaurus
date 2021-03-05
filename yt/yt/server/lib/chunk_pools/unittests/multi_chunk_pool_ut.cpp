@@ -1,16 +1,16 @@
-#include <yt/server/scheduler/public.h>
+#include <yt/yt/server/scheduler/public.h>
 
-#include <yt/server/lib/chunk_pools/chunk_pool.h>
-#include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
-#include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
-#include <yt/server/lib/chunk_pools/multi_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_stripe_key.h>
+#include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
+#include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 
-#include <yt/server/lib/controller_agent/progress_counter.h>
-#include <yt/server/lib/controller_agent/structs.h>
+#include <yt/yt/server/lib/controller_agent/progress_counter.h>
+#include <yt/yt/server/lib/controller_agent/structs.h>
 
-#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <random>
 

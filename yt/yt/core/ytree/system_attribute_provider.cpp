@@ -1,6 +1,6 @@
 #include "system_attribute_provider.h"
 
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/writer.h>
 
 namespace NYT::NYTree {
 

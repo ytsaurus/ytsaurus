@@ -2,9 +2,9 @@
 #include "journal_reader.h"
 #include "journal_writer.h"
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/journal_client/journal_ypath_proxy.h>
+#include <yt/yt/ytlib/journal_client/journal_ypath_proxy.h>
 
 namespace NYT::NApi::NNative {
 

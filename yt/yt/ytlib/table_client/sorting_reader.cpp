@@ -1,18 +1,18 @@
 #include "sorting_reader.h"
 #include "timing_reader.h"
 
-#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schemaless_row_reorderer.h>
-#include <yt/client/table_client/row_batch.h>
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schemaless_row_reorderer.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NTableClient {
 

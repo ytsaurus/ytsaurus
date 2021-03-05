@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/nonblocking_queue.h>
+#include <yt/yt/core/concurrency/nonblocking_queue.h>
 
 namespace NYT::NConcurrency {
 namespace {

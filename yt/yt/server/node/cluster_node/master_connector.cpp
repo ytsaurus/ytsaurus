@@ -6,35 +6,35 @@
 #include "dynamic_config_manager.h"
 #include "node_resource_manager.h"
 
-#include <yt/server/node/data_node/chunk_cache.h>
-#include <yt/server/node/data_node/chunk_store.h>
-#include <yt/server/node/data_node/location.h>
-#include <yt/server/node/data_node/legacy_master_connector.h>
-#include <yt/server/node/data_node/network_statistics.h>
-#include <yt/server/node/data_node/session_manager.h>
+#include <yt/yt/server/node/data_node/chunk_cache.h>
+#include <yt/yt/server/node/data_node/chunk_store.h>
+#include <yt/yt/server/node/data_node/location.h>
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/network_statistics.h>
+#include <yt/yt/server/node/data_node/session_manager.h>
 
-#include <yt/server/node/exec_agent/slot_manager.h>
+#include <yt/yt/server/node/exec_agent/slot_manager.h>
 
-#include <yt/server/node/job_agent/job_controller.h>
+#include <yt/yt/server/node/job_agent/job_controller.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/cell_directory_synchronizer.h>
-#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
 namespace NYT::NClusterNode {
 

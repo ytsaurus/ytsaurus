@@ -7,34 +7,34 @@
 #include "helpers.h"
 #include "persistent_scheduler_state.h"
 
-#include <yt/server/lib/exec_agent/public.h>
+#include <yt/yt/server/lib/exec_agent/public.h>
 
-#include <yt/server/lib/scheduler/config.h>
-#include <yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/config.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
 
-#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/job_proxy/public.h>
+#include <yt/yt/ytlib/job_proxy/public.h>
 
-#include <yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
+#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
 namespace NYT::NScheduler {
 

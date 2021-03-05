@@ -3,12 +3,12 @@
 #include "public.h"
 #include "query_common.h"
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/misc/guid.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/range.h>
+#include <yt/yt/core/misc/guid.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/range.h>
 
 namespace NYT::NQueryClient {
 

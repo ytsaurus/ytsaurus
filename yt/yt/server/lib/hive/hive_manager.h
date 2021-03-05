@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/server/lib/hive/proto/hive_manager.pb.h>
+#include <yt/yt/server/lib/hive/proto/hive_manager.pb.h>
 
-#include <yt/server/lib/hydra/entity_map.h>
-#include <yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
-#include <yt/ytlib/hive/public.h>
+#include <yt/yt/ytlib/hive/public.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NHiveServer {
 

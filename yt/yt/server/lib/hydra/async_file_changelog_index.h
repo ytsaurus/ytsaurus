@@ -3,9 +3,9 @@
 #include "format.h"
 #include "file_helpers.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <util/system/align.h>
 

@@ -3,12 +3,12 @@
 #include "public.h"
 #include "chunk_owner_base.h"
 
-#include <yt/server/master/cypress_server/node_proxy_detail.h>
+#include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
 
-#include <yt/server/master/node_tracker_server/public.h>
+#include <yt/yt/server/master/node_tracker_server/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
 namespace NYT::NChunkServer {
 

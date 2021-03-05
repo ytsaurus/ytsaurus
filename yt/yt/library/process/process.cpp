@@ -1,16 +1,16 @@
 #include "process.h"
 #include "pipe.h"
 
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <util/folder/dirut.h>
 

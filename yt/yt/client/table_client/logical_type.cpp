@@ -1,14 +1,14 @@
 #include "logical_type.h"
 #include "schema.h"
 
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
 
 #include <util/charset/utf8.h>
 

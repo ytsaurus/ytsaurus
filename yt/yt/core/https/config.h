@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/http/config.h>
+#include <yt/yt/core/http/config.h>
 
-#include <yt/core/crypto/config.h>
+#include <yt/yt/core/crypto/config.h>
 
 namespace NYT::NHttps {
 

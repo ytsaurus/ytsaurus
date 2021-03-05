@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/library/numeric/double_array.h>
+#include <yt/yt/library/numeric/double_array.h>
 
 namespace NYT {
 

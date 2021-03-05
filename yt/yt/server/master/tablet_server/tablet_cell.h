@@ -4,28 +4,28 @@
 #include "tablet.h"
 #include "tablet_action.h"
 
-#include <yt/server/master/cell_master/public.h>
-#include <yt/server/master/cell_master/gossip_value.h>
+#include <yt/yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/gossip_value.h>
 
-#include <yt/server/master/cell_server/cell_base.h>
+#include <yt/yt/server/master/cell_server/cell_base.h>
 
-#include <yt/server/master/node_tracker_server/public.h>
+#include <yt/yt/server/master/node_tracker_server/public.h>
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/yt/core/yson/public.h>
 
 namespace NYT::NTabletServer {
 

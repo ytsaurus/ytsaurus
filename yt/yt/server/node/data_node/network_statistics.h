@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/core/misc/ref_counted.h>
+#include <yt/yt/core/misc/ref_counted.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/library/syncmap/map.h>
 

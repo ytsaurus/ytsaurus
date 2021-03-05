@@ -4,26 +4,26 @@
 
 #include "scheduling_context.h"
 
-#include <yt/server/lib/controller_agent/helpers.h>
+#include <yt/yt/server/lib/controller_agent/helpers.h>
 
-#include <yt/server/lib/scheduler/scheduling_tag.h>
-#include <yt/server/lib/scheduler/exec_node_descriptor.h>
+#include <yt/yt/server/lib/scheduler/scheduling_tag.h>
+#include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
-#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+#include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
-#include <yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h>
+#include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/core/concurrency/lease_manager.h>
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/lease_manager.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/property.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NScheduler {
 

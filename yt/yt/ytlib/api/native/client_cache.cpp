@@ -1,6 +1,6 @@
 #include "client_cache.h"
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
 namespace NYT::NApi::NNative {
 

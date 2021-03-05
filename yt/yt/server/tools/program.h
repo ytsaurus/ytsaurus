@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/ytlib/program/program.h>
-#include <yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/program.h>
+#include <yt/yt/ytlib/program/helpers.h>
 
-#include <yt/ytlib/tools/registry.h>
-#include <yt/ytlib/tools/tools.h>
-#include <yt/ytlib/tools/proc.h>
-#include <yt/ytlib/tools/signaler.h>
+#include <yt/yt/ytlib/tools/registry.h>
+#include <yt/yt/ytlib/tools/tools.h>
+#include <yt/yt/ytlib/tools/proc.h>
+#include <yt/yt/ytlib/tools/signaler.h>
 
-#include <yt/ytlib/cgroup/cgroup.h>
+#include <yt/yt/ytlib/cgroup/cgroup.h>
 
 namespace NYT {
 

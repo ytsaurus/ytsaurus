@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/server/lib/scheduler/public.h>
+#include <yt/yt/server/lib/scheduler/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
 namespace NYT::NScheduler {
 

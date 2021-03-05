@@ -5,9 +5,9 @@
 #include "portal_entrance_node.h"
 #include "private.h"
 
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NCypressServer {
 

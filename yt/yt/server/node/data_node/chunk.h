@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/block.h>
-#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT::NDataNode {
 

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/crypto/proto/crypto.pb.h>
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/crypto/proto/crypto.pb.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <array>
 

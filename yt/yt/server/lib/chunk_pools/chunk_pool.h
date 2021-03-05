@@ -4,13 +4,13 @@
 #include "chunk_stripe.h"
 #include "chunk_stripe_key.h"
 
-#include <yt/server/lib/controller_agent/progress_counter.h>
+#include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 namespace NYT::NChunkPools {
 

@@ -1,10 +1,10 @@
 #include "key_helpers.h"
 
-#include <yt/client/table_client/key_bound.h>
-#include <yt/client/table_client/comparator.h>
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <library/cpp/iterator/zip.h>
 

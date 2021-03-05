@@ -6,57 +6,57 @@
 #include "transaction_replication_session.h"
 #include "transaction.h"
 #include "transaction_proxy.h"
-#include "yt/server/lib/transaction_server/private.h"
+#include "yt/yt/server/lib/transaction_server/private.h"
 
-#include <yt/server/master/cell_master/automaton.h>
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/automaton.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.h>
-#include <yt/server/master/cypress_server/node.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/node.h>
 
-#include <yt/server/lib/hive/hive_manager.h>
-#include <yt/server/lib/hive/transaction_supervisor.h>
-#include <yt/server/lib/hive/transaction_lease_tracker.h>
-#include <yt/server/lib/hive/transaction_manager_detail.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
+#include <yt/yt/server/lib/hive/transaction_manager_detail.h>
 
-#include <yt/server/lib/hydra/composite_automaton.h>
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/lib/transaction_server/helpers.h>
+#include <yt/yt/server/lib/transaction_server/helpers.h>
 
-#include <yt/server/master/object_server/attribute_set.h>
-#include <yt/server/master/object_server/object.h>
-#include <yt/server/master/object_server/type_handler_detail.h>
+#include <yt/yt/server/master/object_server/attribute_set.h>
+#include <yt/yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
-#include <yt/server/master/security_server/account.h>
-#include <yt/server/master/security_server/security_manager.h>
-#include <yt/server/master/security_server/user.h>
+#include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/server/master/transaction_server/proto/transaction_manager.pb.h>
+#include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/transaction_client/proto/transaction_service.pb.h>
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/id_generator.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/id_generator.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/ytree/attributes.h>
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/rpc/authentication_identity.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
 namespace NYT::NTransactionServer {
 

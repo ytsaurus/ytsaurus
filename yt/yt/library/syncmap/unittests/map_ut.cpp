@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <yt/library/syncmap/map.h>
+#include <yt/yt/library/syncmap/map.h>
 
 namespace NYT::NConcurrency {
 namespace {

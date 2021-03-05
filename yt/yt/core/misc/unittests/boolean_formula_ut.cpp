@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/arithmetic_formula.h>
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT {
 namespace {

@@ -3,47 +3,47 @@
 #include "automaton.h"
 #include "tablet_slot.h"
 #include "transaction.h"
-#include "yt/library/profiling/sensor.h"
+#include "yt/yt/library/profiling/sensor.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/server/lib/hive/transaction_supervisor.h>
-#include <yt/server/lib/hive/transaction_lease_tracker.h>
-#include <yt/server/lib/hive/transaction_manager_detail.h>
+#include <yt/yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
+#include <yt/yt/server/lib/hive/transaction_manager_detail.h>
 
-#include <yt/server/lib/hydra/hydra_manager.h>
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/server/lib/transaction_server/helpers.h>
+#include <yt/yt/server/lib/transaction_server/helpers.h>
 
-#include <yt/server/node/tablet_node/transaction_manager.pb.h>
+#include <yt/yt/server/node/tablet_node/transaction_manager.pb.h>
 
-#include <yt/ytlib/transaction_client/action.h>
+#include <yt/yt/ytlib/transaction_client/action.h>
 
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/tablet_client/proto/tablet_service.pb.h>
+#include <yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h>
 
-#include <yt/client/transaction_client/helpers.h>
-#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/heap.h>
-#include <yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/heap.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
 #include <set>
 

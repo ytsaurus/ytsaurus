@@ -1,9 +1,9 @@
 #include "logical_type_shortcuts.h"
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/client/table_client/logical_type.h>
-#include <yt/client/table_client/validate_logical_type.h>
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/validate_logical_type.h>
 
 #include <util/string/escape.h>
 

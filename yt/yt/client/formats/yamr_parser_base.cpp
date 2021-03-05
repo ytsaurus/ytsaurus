@@ -3,15 +3,15 @@
 #include "format.h"
 #include "config.h"
 
-#include <yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/public.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/format.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 #include <util/string/escape.h>
 

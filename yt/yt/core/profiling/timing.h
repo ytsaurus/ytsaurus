@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NProfiling {
 

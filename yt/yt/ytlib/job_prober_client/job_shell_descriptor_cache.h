@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/ytlib/job_prober_client/public.h>
+#include <yt/yt/ytlib/job_prober_client/public.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/permission.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NJobProberClient {
 

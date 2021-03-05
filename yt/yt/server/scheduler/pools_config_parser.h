@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NScheduler {
 

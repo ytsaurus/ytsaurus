@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.pb.h>
+#include <yt/yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.pb.h>
 
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 namespace NYT::NTabletClient {
 

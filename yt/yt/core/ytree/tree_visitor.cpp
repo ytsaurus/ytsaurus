@@ -4,11 +4,11 @@
 #include "node.h"
 #include "convert.h"
 
-#include <yt/core/misc/serialize.h>
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/assert.h>
 
-#include <yt/core/yson/producer.h>
-#include <yt/core/yson/async_consumer.h>
+#include <yt/yt/core/yson/producer.h>
+#include <yt/yt/core/yson/async_consumer.h>
 
 namespace NYT::NYTree {
 

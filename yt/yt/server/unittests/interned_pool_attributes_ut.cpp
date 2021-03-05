@@ -1,8 +1,8 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/master/scheduler_pool_server/scheduler_pool.h>
+#include <yt/yt/server/master/scheduler_pool_server/scheduler_pool.h>
 
-#include <yt/core/ytree/interned_attributes.h>
+#include <yt/yt/core/ytree/interned_attributes.h>
 
 namespace NYT::NSchedulerPoolServer {
 namespace {

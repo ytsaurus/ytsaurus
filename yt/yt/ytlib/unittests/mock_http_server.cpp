@@ -1,7 +1,7 @@
 #include "mock_http_server.h"
 
-#include <yt/core/misc/assert.h>
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/assert.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NTests {
 

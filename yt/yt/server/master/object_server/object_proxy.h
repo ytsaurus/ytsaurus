@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/core/ytree/attribute_owner.h>
-#include <yt/core/ytree/system_attribute_provider.h>
-#include <yt/core/ytree/ypath_service.h>
+#include <yt/yt/core/ytree/attribute_owner.h>
+#include <yt/yt/core/ytree/system_attribute_provider.h>
+#include <yt/yt/core/ytree/ypath_service.h>
 
 namespace NYT::NObjectServer {
 

@@ -1,19 +1,19 @@
-#include <yt/server/master/cell_master/program.h>
-#include <yt/server/clock_server/cluster_clock/program.h>
-#include <yt/server/http_proxy/program.h>
-#include <yt/server/rpc_proxy/program.h>
-#include <yt/server/job_proxy/program.h>
-#include <yt/server/scheduler/program.h>
-#include <yt/server/controller_agent/program.h>
-#include <yt/server/tools/program.h>
-#include <yt/server/node/cluster_node/program.h>
-#include <yt/server/exec/program.h>
-#include <yt/server/log_tailer/program.h>
-#include <yt/server/discovery_server/program.h>
-#include <yt/server/timestamp_provider/program.h>
-#include <yt/server/master_cache/program.h>
+#include <yt/yt/server/master/cell_master/program.h>
+#include <yt/yt/server/clock_server/cluster_clock/program.h>
+#include <yt/yt/server/http_proxy/program.h>
+#include <yt/yt/server/rpc_proxy/program.h>
+#include <yt/yt/server/job_proxy/program.h>
+#include <yt/yt/server/scheduler/program.h>
+#include <yt/yt/server/controller_agent/program.h>
+#include <yt/yt/server/tools/program.h>
+#include <yt/yt/server/node/cluster_node/program.h>
+#include <yt/yt/server/exec/program.h>
+#include <yt/yt/server/log_tailer/program.h>
+#include <yt/yt/server/discovery_server/program.h>
+#include <yt/yt/server/timestamp_provider/program.h>
+#include <yt/yt/server/master_cache/program.h>
 
-#include <yt/ytlib/program/program.h>
+#include <yt/yt/ytlib/program/program.h>
 
 #include <library/cpp/getopt/small/last_getopt_parse_result.h>
 

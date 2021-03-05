@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/library/profiling/producer.h>
+#include <yt/yt/library/profiling/producer.h>
 
 namespace NYT::NChunkServer {
 

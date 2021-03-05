@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/misc/range.h>
-#include <yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/misc/range.h>
+#include <yt/yt/core/misc/algorithm_helpers.h>
 
 // TODO(lukyan): Checks denoted by YT_QL_CHECK are heavy. Change them to YT_ASSERT after some time.
 #define YT_QL_CHECK(expr) YT_VERIFY(expr)

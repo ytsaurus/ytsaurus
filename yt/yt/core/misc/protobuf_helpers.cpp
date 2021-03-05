@@ -1,15 +1,15 @@
 #include "protobuf_helpers.h"
 #include "mpl.h"
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/cast.h>
+#include <yt/yt/core/misc/cast.h>
 
-#include <yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream.h>

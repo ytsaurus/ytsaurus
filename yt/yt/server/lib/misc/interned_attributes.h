@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/interned_attributes.h>
+#include <yt/yt/core/ytree/interned_attributes.h>
 
 #define FOR_EACH_INTERNED_ATTRIBUTE(XX) \
     XX(Abc, abc) \

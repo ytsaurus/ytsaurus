@@ -11,10 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/small_string.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_string.h>
+#include <yt/yt/core/misc/small_vector.h>
 
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>

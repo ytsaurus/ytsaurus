@@ -4,11 +4,11 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/helpers.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
 namespace NYT::NApi::NRpcProxy {
 

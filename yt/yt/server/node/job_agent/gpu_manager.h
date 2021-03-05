@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/server/lib/job_agent/config.h>
-#include <yt/server/lib/job_agent/gpu_helpers.h>
+#include <yt/yt/server/lib/job_agent/config.h>
+#include <yt/yt/server/lib/job_agent/gpu_helpers.h>
 
-#include <yt/server/node/cluster_node/public.h>
-#include <yt/server/node/data_node/artifact.h>
+#include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/data_node/artifact.h>
 
-#include <yt/client/hydra/public.h>
+#include <yt/yt/client/hydra/public.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NJobAgent {
 

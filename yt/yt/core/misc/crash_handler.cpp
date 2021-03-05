@@ -2,18 +2,18 @@
 #include "assert.h"
 #include "stack_trace.h"
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/raw_formatter.h>
+#include <yt/yt/core/misc/raw_formatter.h>
 
-#include <yt/core/concurrency/fls.h>
-#include <yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <util/system/defaults.h>
 
 #include <signal.h>
 #include <time.h>
-#include <yt/build/config.h>
+#include <yt/yt/build/config.h>
 #ifdef HAVE_SYS_TYPES_H
 #   include <sys/types.h>
 #endif

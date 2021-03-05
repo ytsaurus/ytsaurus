@@ -3,9 +3,9 @@
 #include "portal_entrance_proxy.h"
 #include "portal_manager.h"
 
-#include <yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
-#include <yt/server/master/cypress_server/proto/portal_manager.pb.h>
+#include <yt/yt/server/master/cypress_server/proto/portal_manager.pb.h>
 
 namespace NYT::NCypressServer {
 

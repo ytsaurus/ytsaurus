@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/client/transaction_client/proto/timestamp_service.pb.h>
+#include <yt/yt/client/transaction_client/proto/timestamp_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NTransactionClient {
 

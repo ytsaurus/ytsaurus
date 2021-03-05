@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/election/private.h>
+#include <yt/yt/ytlib/election/private.h>
 
 namespace NYT::NElection {
 

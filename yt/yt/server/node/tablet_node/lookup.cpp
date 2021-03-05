@@ -6,39 +6,39 @@
 #include "tablet_slot.h"
 #include "tablet_profiling.h"
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/server/lib/misc/profiling_helpers.h>
+#include <yt/yt/server/lib/misc/profiling_helpers.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/row_merger.h>
+#include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/row_merger.h>
 
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
 
-#include <yt/client/table_client/wire_protocol.h>
-#include <yt/client/table_client/proto/wire_protocol.pb.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/proto/wire_protocol.pb.h>
 
-#include <yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/helpers.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/tls_cache.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/tls_cache.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 

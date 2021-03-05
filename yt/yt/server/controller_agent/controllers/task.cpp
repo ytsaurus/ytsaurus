@@ -7,25 +7,25 @@
 #include "helpers.h"
 #include "data_flow_graph.h"
 
-#include <yt/server/controller_agent/chunk_list_pool.h>
-#include <yt/server/controller_agent/config.h>
-#include <yt/server/controller_agent/scheduling_context.h>
+#include <yt/yt/server/controller_agent/chunk_list_pool.h>
+#include <yt/yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/scheduling_context.h>
 
-#include <yt/server/lib/chunk_pools/helpers.h>
+#include <yt/yt/server/lib/chunk_pools/helpers.h>
 
-#include <yt/ytlib/chunk_client/chunk_slice.h>
-#include <yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
-#include <yt/ytlib/node_tracker_client/node_directory_builder.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <yt/ytlib/job_tracker_client/statistics.h>
+#include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
-#include <yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

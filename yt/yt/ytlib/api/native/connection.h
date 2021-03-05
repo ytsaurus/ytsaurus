@@ -2,24 +2,24 @@
 
 #include "public.h"
 
-#include <yt/client/api/connection.h>
+#include <yt/yt/client/api/connection.h>
 
-#include <yt/ytlib/cell_master_client/public.h>
+#include <yt/yt/ytlib/cell_master_client/public.h>
 
-#include <yt/ytlib/query_client/public.h>
+#include <yt/yt/ytlib/query_client/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/job_prober_client/public.h>
+#include <yt/yt/ytlib/job_prober_client/public.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/hive/public.h>
+#include <yt/yt/ytlib/hive/public.h>
 
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/sync_expiring_cache.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/sync_expiring_cache.h>
 
 namespace NYT::NApi::NNative {
 

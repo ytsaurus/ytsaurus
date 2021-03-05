@@ -1,9 +1,9 @@
 #include "job_throttler.h"
 
-#include <yt/server/lib/job_proxy/config.h>
-#include <yt/server/lib/job_proxy/public.h>
+#include <yt/yt/server/lib/job_proxy/config.h>
+#include <yt/yt/server/lib/job_proxy/public.h>
 
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NJobProxy {
 

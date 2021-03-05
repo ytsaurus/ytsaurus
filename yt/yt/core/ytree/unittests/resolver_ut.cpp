@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/ytree/ypath_resolver.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
 
 namespace NYT::NYTree {
 namespace {

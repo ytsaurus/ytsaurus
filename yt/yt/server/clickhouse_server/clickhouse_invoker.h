@@ -1,6 +1,6 @@
 #include "private.h"
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
 namespace NYT::NClickHouseServer {
 

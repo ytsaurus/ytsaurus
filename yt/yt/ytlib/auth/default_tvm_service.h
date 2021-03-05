@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
 namespace NYT::NAuth {
 

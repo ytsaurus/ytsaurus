@@ -2,10 +2,10 @@
 
 #include "process.h"
 
-#include <yt/server/lib/containers/instance.h>
+#include <yt/yt/server/lib/containers/instance.h>
 
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
 
 namespace NYT {
 

@@ -7,14 +7,14 @@
 #include "dispatcher.h"
 #include "private.h"
 
-#include <yt/core/bus/bus.h>
+#include <yt/yt/core/bus/bus.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
 #include <atomic>
 

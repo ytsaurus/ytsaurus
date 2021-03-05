@@ -1,7 +1,7 @@
 #include "cpu_monitor.h"
 #include "job_proxy.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NJobProxy {
 

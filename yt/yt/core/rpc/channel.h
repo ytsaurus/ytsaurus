@@ -5,19 +5,19 @@
 #include "protocol_version.h"
 #include "helpers.h"
 
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/bus/client.h>
+#include <yt/yt/core/bus/client.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NRpc {
 

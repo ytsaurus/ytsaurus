@@ -4,11 +4,11 @@
 #include "cell_directory.h"
 #include "config.h"
 
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/core/rpc/dispatcher.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NCellMasterClient {
 

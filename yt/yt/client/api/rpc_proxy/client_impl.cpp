@@ -7,33 +7,33 @@
 #include "timestamp_provider.h"
 #include "credentials_injecting_channel.h"
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/misc/small_set.h>
+#include <yt/yt/core/misc/small_set.h>
 
-#include <yt/core/rpc/retrying_channel.h>
-#include <yt/core/rpc/stream.h>
-#include <yt/core/rpc/dynamic_channel_pool.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/stream.h>
+#include <yt/yt/core/rpc/dynamic_channel_pool.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/client/api/rowset.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/transaction_client/remote_timestamp_provider.h>
+#include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
 
-#include <yt/client/scheduler/operation_id_or_alias.h>
+#include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/row_base.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
 #include <util/generic/cast.h>
 

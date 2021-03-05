@@ -4,8 +4,8 @@
 
 #include <util/generic/string.h>
 
-#include <yt/core/misc/ref_counted.h>
-#include <yt/core/misc/intrusive_ptr.h>
+#include <yt/yt/core/misc/ref_counted.h>
+#include <yt/yt/core/misc/intrusive_ptr.h>
 
 namespace NYT::NProfiling {
 

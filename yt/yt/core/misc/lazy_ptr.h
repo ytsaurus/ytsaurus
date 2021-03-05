@@ -2,9 +2,9 @@
 
 #include "common.h"
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
 #include <util/system/spinlock.h>
 

@@ -2,16 +2,16 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/ytlib/election/config.h>
+#include <yt/yt/ytlib/election/config.h>
 
-#include <yt/ytlib/hive/proto/cell_directory.pb.h>
+#include <yt/yt/ytlib/hive/proto/cell_directory.pb.h>
 
-#include <yt/ytlib/hydra/config.h>
-#include <yt/ytlib/hydra/peer_channel.h>
+#include <yt/yt/ytlib/hydra/config.h>
+#include <yt/yt/ytlib/hydra/peer_channel.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 namespace NYT::NHiveClient {
 

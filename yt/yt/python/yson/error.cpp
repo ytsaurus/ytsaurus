@@ -1,6 +1,6 @@
 #include "error.h"
 
-#include <yt/python/common/helpers.h>
+#include <yt/yt/python/common/helpers.h>
 
 namespace NYT::NPython {
 

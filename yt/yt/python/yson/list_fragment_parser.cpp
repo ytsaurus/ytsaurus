@@ -1,8 +1,8 @@
 #include "list_fragment_parser.h"
 
-#include <yt/python/common/helpers.h>
+#include <yt/yt/python/common/helpers.h>
 
-#include <yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/node.h>
 
 namespace NYT::NPython {
 

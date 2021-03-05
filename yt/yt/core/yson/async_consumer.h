@@ -4,7 +4,7 @@
 #include "string.h"
 #include "consumer.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NYson {
 

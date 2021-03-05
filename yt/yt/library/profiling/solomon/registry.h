@@ -5,13 +5,13 @@
 #include "producer.h"
 #include "tag_registry.h"
 
-#include <yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/lock_free.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/impl.h>

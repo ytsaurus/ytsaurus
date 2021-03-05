@@ -5,11 +5,11 @@
 #include "context.h"
 #include "private.h"
 
-#include <yt/core/http/helpers.h>
+#include <yt/yt/core/http/helpers.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
 namespace NYT::NHttpProxy {
 

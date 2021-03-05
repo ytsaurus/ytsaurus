@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/net/address.h>
-#include <yt/core/net/socket.h>
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/socket.h>
 
 #include <util/system/fs.h>
 

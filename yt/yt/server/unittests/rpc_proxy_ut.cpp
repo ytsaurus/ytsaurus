@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/client/api/rpc_proxy/api_service_proxy.h>
+#include <yt/yt/client/api/rpc_proxy/api_service_proxy.h>
 
 namespace NYT::NRpcProxy {
 namespace {

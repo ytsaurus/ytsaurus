@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
 namespace NYT::NSecurityClient {
 

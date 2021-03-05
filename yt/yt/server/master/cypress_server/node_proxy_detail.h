@@ -3,19 +3,19 @@
 #include "node_detail.h"
 #include "node_proxy.h"
 
-#include <yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
-#include <yt/server/master/object_server/public.h>
-#include <yt/server/master/object_server/permission_validator.h>
+#include <yt/yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/permission_validator.h>
 
-#include <yt/server/master/security_server/public.h>
+#include <yt/yt/server/master/security_server/public.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
+#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 namespace NYT::NCypressServer {
 

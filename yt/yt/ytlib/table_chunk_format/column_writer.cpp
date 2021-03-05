@@ -6,7 +6,7 @@
 #include "null_column_writer.h"
 #include "string_column_writer.h"
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NTableChunkFormat {
 

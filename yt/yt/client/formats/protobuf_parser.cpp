@@ -4,13 +4,13 @@
 #include "parser.h"
 #include "yson_map_to_unversioned_value.h"
 
-#include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/table_consumer.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/client/table_client/value_consumer.h>
+#include <yt/yt/client/table_client/value_consumer.h>
 
-#include <yt/core/misc/varint.h>
+#include <yt/yt/core/misc/varint.h>
 
 #include <util/generic/buffer.h>
 #include <util/string/escape.h>

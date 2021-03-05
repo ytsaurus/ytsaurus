@@ -4,14 +4,14 @@
 #include "config.h"
 #include "block_id.h"
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/config.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/sync_cache.h>
+#include <yt/yt/core/misc/config.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/sync_cache.h>
 
 namespace NYT::NChunkClient {
 

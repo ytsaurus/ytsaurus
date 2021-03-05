@@ -7,7 +7,7 @@
 
 #include "util.h"
 
-#include <yt/core/misc/assert.h>
+#include <yt/yt/core/misc/assert.h>
 
 #include <cmath>
 #include <type_traits>

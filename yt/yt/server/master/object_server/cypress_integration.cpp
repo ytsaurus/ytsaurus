@@ -1,19 +1,19 @@
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/epoch_history_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/epoch_history_manager.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/server/master/cypress_server/virtual.h>
+#include <yt/yt/server/master/cypress_server/virtual.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/ypath/tokenizer.h>
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/token.h>
 
-#include <yt/core/ytree/virtual.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/yson/producer.h>
+#include <yt/yt/core/yson/producer.h>
 
 namespace NYT::NObjectServer  {
 

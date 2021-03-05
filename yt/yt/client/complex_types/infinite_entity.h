@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/pull_parser.h>
 
 namespace NYT::NComplexTypes {
 

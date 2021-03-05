@@ -2,15 +2,15 @@
 //#include "process.h"
 #include "string.h"
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/common.h>
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/common.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
 #include <util/stream/file.h>
 

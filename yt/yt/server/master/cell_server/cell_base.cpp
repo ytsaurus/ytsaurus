@@ -1,21 +1,21 @@
 #include "cell_base.h"
 #include "cell_bundle.h"
 
-#include <yt/server/master/tablet_server/tablet.h>
+#include <yt/yt/server/master/tablet_server/tablet.h>
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/server/lib/cell_server/proto/cell_manager.pb.h>
+#include <yt/yt/server/lib/cell_server/proto/cell_manager.pb.h>
 
-#include <yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NCellServer {
 

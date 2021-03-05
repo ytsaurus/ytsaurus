@@ -4,9 +4,9 @@
 #include "profiling_helpers.h"
 #include "thread_pool_detail.h"
 
-#include <yt/core/actions/invoker_detail.h>
+#include <yt/yt/core/actions/invoker_detail.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
 namespace NYT::NConcurrency {
 

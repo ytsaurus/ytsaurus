@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
-#include <yt/ytlib/election/public.h>
+#include <yt/yt/ytlib/election/public.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NClusterClock {
 

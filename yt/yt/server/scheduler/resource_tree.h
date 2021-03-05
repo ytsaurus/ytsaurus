@@ -3,11 +3,11 @@
 #include "public.h"
 #include "fair_share_tree_element.h"
 
-#include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/yt/server/lib/scheduler/job_metrics.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/lock_free.h>
 
 namespace NYT::NScheduler {
 

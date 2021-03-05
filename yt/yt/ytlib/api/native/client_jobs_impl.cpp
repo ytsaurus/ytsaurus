@@ -2,9 +2,9 @@
 #include "connection.h"
 #include "config.h"
 
-#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
+#include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
-#include <yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 namespace NYT::NApi::NNative {
 

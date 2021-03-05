@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/core/yson/forwarding_consumer.h>
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/building_consumer.h>
+#include <yt/yt/core/yson/forwarding_consumer.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/building_consumer.h>
 
-#include <yt/core/ytree/tree_builder.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/property.h>
 
 #include <util/generic/iterator_range.h>
 

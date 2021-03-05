@@ -3,7 +3,7 @@
 #include "helpers.h"
 #include "error.h"
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <util/system/sanitizers.h>
 

@@ -1,15 +1,15 @@
 #include "invoker_util.h"
 #include "invoker.h"
 
-#include <yt/core/actions/bind.h>
-#include <yt/core/actions/callback.h>
+#include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/actions/callback.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/fls.h>
-#include <yt/core/concurrency/finalizer_thread.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/finalizer_thread.h>
 
-#include <yt/core/misc/lazy_ptr.h>
-#include <yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/singleton.h>
 
 #include <stack>
 

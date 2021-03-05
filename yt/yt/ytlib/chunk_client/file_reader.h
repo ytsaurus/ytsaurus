@@ -2,9 +2,9 @@
 
 #include "chunk_reader_allowing_repair.h"
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <util/system/file.h>
 #include <util/system/mutex.h>

@@ -1,12 +1,12 @@
-#include <yt/core/test_framework/framework.h>
-#include <yt/core/test_framework/yson_consumer_mock.h>
+#include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/yson_consumer_mock.h>
 
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/writer.h>
 
-#include <yt/core/ytree/tree_builder.h>
-#include <yt/core/ytree/tree_visitor.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/tree_visitor.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
 namespace NYT::NYTree {
 namespace {

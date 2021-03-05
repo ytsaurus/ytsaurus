@@ -2,14 +2,14 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/ytlib/hive/private.h>
-#include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/hive_service_proxy.h>
+#include <yt/yt/ytlib/hive/private.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/hive_service_proxy.h>
 
 namespace NYT::NHiveClient {
 

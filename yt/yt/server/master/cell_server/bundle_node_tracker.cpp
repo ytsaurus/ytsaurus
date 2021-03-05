@@ -4,9 +4,9 @@
 #include "tablet_node_tracker.h"
 #include "tamed_cell_manager.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
 namespace NYT::NCellServer {
 

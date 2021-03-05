@@ -3,11 +3,11 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/client/driver/driver.h>
+#include <yt/yt/client/driver/driver.h>
 
-#include <yt/core/http/http.h>
+#include <yt/yt/core/http/http.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

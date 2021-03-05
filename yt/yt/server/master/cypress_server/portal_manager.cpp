@@ -6,23 +6,23 @@
 #include "shard.h"
 #include "private.h"
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/server/master/cypress_server/proto/portal_manager.pb.h>
+#include <yt/yt/server/master/cypress_server/proto/portal_manager.pb.h>
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/automaton.h>
-#include <yt/server/master/cell_master/serialize.h>
-#include <yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/automaton.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
-#include <yt/server/master/security_server/security_manager.h>
-#include <yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/acl.h>
 
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NCypressServer {
 

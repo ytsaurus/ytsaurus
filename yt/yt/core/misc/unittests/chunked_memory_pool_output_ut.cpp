@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/chunked_memory_pool.h>
-#include <yt/core/misc/chunked_memory_pool_output.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/chunked_memory_pool_output.h>
 
 namespace NYT {
 namespace {

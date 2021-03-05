@@ -1,12 +1,12 @@
 #pragma once
 
-#include <yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/core/bus/tcp/public.h>
+#include <yt/yt/core/bus/tcp/public.h>
 
 namespace NYT::NMasterCache {
 

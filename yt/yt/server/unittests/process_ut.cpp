@@ -1,23 +1,23 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #ifdef _linux_
 
-#include <yt/core/actions/bind.h>
+#include <yt/yt/core/actions/bind.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/guid.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/guid.h>
+#include <yt/yt/core/misc/proc.h>
 
-#include <yt/core/net/connection.h>
+#include <yt/yt/core/net/connection.h>
 
-#include <yt/server/lib/misc/process.h>
+#include <yt/yt/server/lib/misc/process.h>
 
-#include <yt/server/lib/containers/config.h>
-#include <yt/server/lib/containers/porto_executor.h>
-#include <yt/server/lib/containers/instance.h>
+#include <yt/yt/server/lib/containers/config.h>
+#include <yt/yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/server/lib/containers/instance.h>
 
 #include <util/system/platform.h>
 #include <util/system/env.h>

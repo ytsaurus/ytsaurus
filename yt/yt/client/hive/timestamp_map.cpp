@@ -1,8 +1,8 @@
 #include "timestamp_map.h"
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
-#include <yt/client/hive/proto/timestamp_map.pb.h>
+#include <yt/yt/client/hive/proto/timestamp_map.pb.h>
 
 namespace NYT::NHiveClient {
 

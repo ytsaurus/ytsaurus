@@ -2,44 +2,44 @@
 #include "connection.h"
 #include "config.h"
 
-#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/table_client/proto/wire_protocol.pb.h>
+#include <yt/yt/client/table_client/proto/wire_protocol.pb.h>
 
-#include <yt/client/table_client/wire_protocol.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/helpers.h>
 
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/ytlib/api/native/tablet_helpers.h>
+#include <yt/yt/ytlib/api/native/tablet_helpers.h>
 
-#include <yt/ytlib/transaction_client/transaction_manager.h>
-#include <yt/ytlib/transaction_client/action.h>
-#include <yt/ytlib/transaction_client/transaction_service_proxy.h>
+#include <yt/yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/yt/ytlib/transaction_client/action.h>
+#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
-#include <yt/ytlib/tablet_client/tablet_service_proxy.h>
+#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
-#include <yt/ytlib/table_client/row_merger.h>
+#include <yt/yt/ytlib/table_client/row_merger.h>
 
-#include <yt/ytlib/hive/cluster_directory.h>
-#include <yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/yt/ytlib/query_client/column_evaluator.h>
 
-#include <yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/misc/sliding_window.h>
+#include <yt/yt/core/misc/sliding_window.h>
 
 namespace NYT::NApi::NNative {
 

@@ -3,12 +3,12 @@
 #include "config.h"
 #include "log_rotator.h"
 
-#include <yt/ytlib/monitoring/public.h>
+#include <yt/yt/ytlib/monitoring/public.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/http/public.h>
+#include <yt/yt/core/http/public.h>
 
 namespace NYT::NLogTailer {
 

@@ -2,13 +2,13 @@
 
 #include "hydra_manager.h"
 
-#include <yt/server/lib/election/public.h>
+#include <yt/yt/server/lib/election/public.h>
 
-#include <yt/ytlib/election/public.h>
+#include <yt/yt/ytlib/election/public.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/core/profiling/public.h>
 
 namespace NYT::NHydra {
 

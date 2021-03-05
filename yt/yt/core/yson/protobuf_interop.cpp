@@ -1,30 +1,30 @@
 #include "protobuf_interop.h"
 
-#include <yt/core/yson/proto/protobuf_interop.pb.h>
+#include <yt/yt/core/yson/proto/protobuf_interop.pb.h>
 
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/writer.h>
-#include <yt/core/yson/forwarding_consumer.h>
-#include <yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/forwarding_consumer.h>
+#include <yt/yt/core/yson/null_consumer.h>
 
-#include <yt/core/ypath/token.h>
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/misc/zigzag.h>
-#include <yt/core/misc/varint.h>
-#include <yt/core/misc/variant.h>
-#include <yt/core/misc/cast.h>
-#include <yt/core/misc/string.h>
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/zigzag.h>
+#include <yt/yt/core/misc/varint.h>
+#include <yt/yt/core/misc/variant.h>
+#include <yt/yt/core/misc/cast.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/tree_builder.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/fork_aware_spinlock.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/fork_aware_spinlock.h>
 
-#include <yt/core/ytree/proto/attributes.pb.h>
+#include <yt/yt/core/ytree/proto/attributes.pb.h>
 
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/dynamic_message.h>

@@ -1,9 +1,9 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/two_level_fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
-#include <yt/core/actions/invoker.h>
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/invoker.h>
+#include <yt/yt/core/actions/future.h>
 
 #include <util/random/random.h>
 

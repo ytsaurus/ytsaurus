@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/api/client_cache.h>
+#include <yt/yt/client/api/client_cache.h>
 
 namespace NYT::NApi::NNative {
 

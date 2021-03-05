@@ -6,10 +6,10 @@
 #include "snapshot.h"
 #include "snapshot_discovery.h"
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/hydra/hydra_service_proxy.h>
-#include <yt/client/hydra/version.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
+#include <yt/yt/client/hydra/version.h>
 
 namespace NYT::NHydra {
 

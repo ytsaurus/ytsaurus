@@ -4,12 +4,12 @@
 #include "map_object.h"
 #include "object_detail.h"
 
-#include <yt/core/ytree/node_detail.h>
-#include <yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/node_detail.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
 
-#include <yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
+#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
-#include <yt/server/master/cypress_server/public.h>
+#include <yt/yt/server/master/cypress_server/public.h>
 
 namespace NYT::NObjectServer {
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NJournalServer {
 

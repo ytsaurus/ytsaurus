@@ -3,17 +3,17 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/master/cell_master/automaton.h>
-#include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
-#include <yt/server/master/cell_master/hydra_facade.h>
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/automaton.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/server/master/object_server/proto/object_manager.pb.h>
+#include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
 
-#include <yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NObjectServer {
 

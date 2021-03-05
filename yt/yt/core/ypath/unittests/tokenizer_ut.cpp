@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/ypath/tokenizer.h>
-#include <yt/core/ypath/helpers.h>
+#include <yt/yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/helpers.h>
 
 #include <util/string/vector.h>
 

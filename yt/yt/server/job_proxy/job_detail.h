@@ -3,18 +3,18 @@
 #include "public.h"
 #include "job.h"
 
-#include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/ytlib/job_proxy/helpers.h>
+#include <yt/yt/ytlib/job_proxy/helpers.h>
 
-#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
+#include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
-#include <yt/ytlib/job_tracker_client/proto/job.pb.h>
+#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/client/table_client/schemaful_reader_adapter.h>
+#include <yt/yt/client/table_client/schemaful_reader_adapter.h>
 
 namespace NYT::NJobProxy {
 

@@ -6,38 +6,38 @@
 #include "connection.h"
 #include "private.h"
 
-#include <yt/client/api/file_writer.h>
+#include <yt/yt/client/api/file_writer.h>
 
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/file_client/file_chunk_writer.h>
-#include <yt/ytlib/file_client/file_ypath_proxy.h>
+#include <yt/yt/ytlib/file_client/file_chunk_writer.h>
+#include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
-#include <yt/ytlib/transaction_client/transaction_listener.h>
-#include <yt/ytlib/transaction_client/config.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+#include <yt/yt/ytlib/transaction_client/transaction_listener.h>
+#include <yt/yt/ytlib/transaction_client/config.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/crypto/crypto.h>
+#include <yt/yt/core/crypto/crypto.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/helpers.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NApi::NNative {
 

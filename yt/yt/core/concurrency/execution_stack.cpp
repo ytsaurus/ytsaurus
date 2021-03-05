@@ -1,8 +1,8 @@
 #include "execution_stack.h"
 #include "private.h"
 
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref_tracked.h>
 
 #if defined(_unix_)
 #   include <sys/mman.h>
@@ -13,8 +13,8 @@
 #   endif
 #endif
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/object_pool.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/object_pool.h>
 
 #include <util/system/sanitizers.h>
 

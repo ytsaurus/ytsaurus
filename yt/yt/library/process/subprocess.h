@@ -3,7 +3,7 @@
 #include "public.h"
 #include "process.h"
 
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT {
 

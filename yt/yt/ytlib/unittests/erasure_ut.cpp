@@ -1,20 +1,20 @@
 #include <util/random/shuffle.h>
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/ytlib/chunk_client/erasure_repair.h>
-#include <yt/ytlib/chunk_client/erasure_writer.h>
-#include <yt/ytlib/chunk_client/erasure_reader.h>
-#include <yt/ytlib/chunk_client/file_reader.h>
-#include <yt/ytlib/chunk_client/file_writer.h>
-#include <yt/ytlib/chunk_client/session_id.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/erasure_repair.h>
+#include <yt/yt/ytlib/chunk_client/erasure_writer.h>
+#include <yt/yt/ytlib/chunk_client/erasure_reader.h>
+#include <yt/yt/ytlib/chunk_client/file_reader.h>
+#include <yt/yt/ytlib/chunk_client/file_writer.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/io_engine.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/checksum.h>
 
 #include <util/stream/file.h>
 

@@ -9,14 +9,14 @@
 #include "erasure_helpers.h"
 #include "private.h"
 #include "chunk_reader_statistics.h"
-#include "yt/core/misc/error.h"
+#include "yt/yt/core/misc/error.h"
 
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/checksum.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
 #include <numeric>
 

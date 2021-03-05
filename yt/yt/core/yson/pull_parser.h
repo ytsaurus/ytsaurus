@@ -4,7 +4,7 @@
 #include "detail.h"
 #include "syntax_checker.h"
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <util/generic/strbuf.h>
 #include <util/stream/zerocopy.h>

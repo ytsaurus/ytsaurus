@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
 namespace NYT::NControllerAgent {
 

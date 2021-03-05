@@ -5,38 +5,38 @@
 #include "private.h"
 #include "bootstrap.h"
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/config.h>
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/rpc_helpers.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/client/api/rpc_proxy/discovery_service_proxy.h>
+#include <yt/yt/client/api/rpc_proxy/discovery_service_proxy.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/net/address.h>
-#include <yt/core/net/local_address.h>
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/helpers.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/library/profiling/solomon/registry.h>
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
 namespace NYT::NRpcProxy {
 

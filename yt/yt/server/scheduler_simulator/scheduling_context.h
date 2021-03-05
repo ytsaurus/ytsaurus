@@ -2,8 +2,8 @@
 
 #include "scheduler_strategy_host.h"
 
-#include <yt/server/scheduler/scheduling_context_detail.h>
-#include <yt/server/scheduler/exec_node.h>
+#include <yt/yt/server/scheduler/scheduling_context_detail.h>
+#include <yt/yt/server/scheduler/exec_node.h>
 
 namespace NYT::NSchedulerSimulator {
 

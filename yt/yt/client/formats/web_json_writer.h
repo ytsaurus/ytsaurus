@@ -5,13 +5,13 @@
 #include "helpers.h"
 #include "schemaless_writer_adapter.h"
 
-#include <yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/misc/blob.h>
-#include <yt/core/misc/blob_output.h>
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/blob.h>
+#include <yt/yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NFormats {
 

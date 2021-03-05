@@ -3,9 +3,9 @@
 #include "public.h"
 #include "protocol_version.h"
 
-#include <yt/client/api/rpc_proxy/proto/api_service.pb.h>
+#include <yt/yt/client/api/rpc_proxy/proto/api_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NApi::NRpcProxy {
 

@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/client/chunk_client/proto/read_limit.pb.h>
+#include <yt/yt/client/chunk_client/proto/read_limit.pb.h>
 
-#include <yt/client/table_client/key_bound.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/ytree/public.h>
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 namespace NYT::NChunkClient {
 

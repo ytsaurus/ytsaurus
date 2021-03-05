@@ -1,10 +1,10 @@
 #include "column_filter_dictionary.h"
 
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/farm_hash.h>
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/farm_hash.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
 #include <util/digest/multi.h>
 

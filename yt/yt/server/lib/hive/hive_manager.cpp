@@ -4,33 +4,33 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/server/lib/election/election_manager.h>
+#include <yt/yt/server/lib/election/election_manager.h>
 
-#include <yt/server/lib/hydra/composite_automaton.h>
-#include <yt/server/lib/hydra/hydra_manager.h>
-#include <yt/server/lib/hydra/hydra_service.h>
-#include <yt/server/lib/hydra/mutation.h>
-#include <yt/server/lib/hydra/mutation_context.h>
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/hydra_service.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/hive_service_proxy.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/hive_service_proxy.h>
 
-#include <yt/ytlib/hydra/config.h>
-#include <yt/ytlib/hydra/peer_channel.h>
+#include <yt/yt/ytlib/hydra/config.h>
+#include <yt/yt/ytlib/hydra/peer_channel.h>
 
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/fls.h>
-#include <yt/core/concurrency/async_batcher.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/async_batcher.h>
 
-#include <yt/core/net/local_address.h>
+#include <yt/yt/core/net/local_address.h>
 
-#include <yt/core/rpc/proto/rpc.pb.h>
-#include <yt/core/rpc/server.h>
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NHiveServer {
 

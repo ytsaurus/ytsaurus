@@ -3,18 +3,18 @@
 #include "schemaless_writer_adapter.h"
 #include "skiff_yson_converter.h"
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/logical_type.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/library/skiff_ext/schema_match.h>
+#include <yt/yt/library/skiff_ext/schema_match.h>
 
-#include <yt/core/yson/pull_parser.h>
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/writer.h>
 
 #include <library/cpp/skiff/skiff.h>
 #include <library/cpp/skiff/skiff_schema.h>

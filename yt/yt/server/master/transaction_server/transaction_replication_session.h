@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/lib/hydra/public.h>
+#include <yt/yt/server/lib/hydra/public.h>
 
-#include <yt/ytlib/transaction_client/transaction_service_proxy.h>
+#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/misc/small_flat_map.h>
+#include <yt/yt/core/misc/small_flat_map.h>
 
 namespace NYT::NTransactionServer {
 

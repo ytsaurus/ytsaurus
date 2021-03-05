@@ -4,13 +4,13 @@
 #include "interned_attributes.h"
 #include "permission.h"
 
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NYTree {
 

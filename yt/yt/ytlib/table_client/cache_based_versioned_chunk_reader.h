@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/client/api/public.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/client/chunk_client/read_limit.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 
-#include <yt/core/misc/range.h>
-#include <yt/core/misc/linear_probe.h>
+#include <yt/yt/core/misc/range.h>
+#include <yt/yt/core/misc/linear_probe.h>
 
 namespace NYT::NTableClient {
 

@@ -1,7 +1,7 @@
 #include "count_down_latch.h"
 #include "futex-inl.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <cerrno>
 

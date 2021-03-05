@@ -1,6 +1,6 @@
 #include "public.h"
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 namespace NYT::NHiveClient {
 

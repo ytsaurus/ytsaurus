@@ -2,25 +2,25 @@
 
 #include "public.h"
 
-#include <yt/server/lib/core_dump/config.h>
+#include <yt/yt/server/lib/core_dump/config.h>
 
-#include <yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/ytlib/program/config.h>
+#include <yt/yt/ytlib/program/config.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/config.h>
 
-#include <yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/config.h>
 
-#include <yt/core/tracing/config.h>
+#include <yt/yt/core/tracing/config.h>
 
-#include <yt/core/logging/config.h>
+#include <yt/yt/core/logging/config.h>
 
-#include <yt/core/http/config.h>
+#include <yt/yt/core/http/config.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 

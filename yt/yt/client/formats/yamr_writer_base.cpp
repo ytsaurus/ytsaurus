@@ -1,11 +1,11 @@
 #include "yamr_writer_base.h"
 #include "yamr_writer.h"
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/yson/format.h>
+#include <yt/yt/core/yson/format.h>
 
 namespace NYT::NFormats {
 

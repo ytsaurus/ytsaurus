@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/library/erasure/impl/public.h>
+#include <yt/yt/library/erasure/impl/public.h>
 
-#include <yt/core/actions/future-inl.h>
+#include <yt/yt/core/actions/future-inl.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NJournalClient {
 

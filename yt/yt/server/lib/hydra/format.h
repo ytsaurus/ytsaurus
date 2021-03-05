@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <util/system/align.h>
 

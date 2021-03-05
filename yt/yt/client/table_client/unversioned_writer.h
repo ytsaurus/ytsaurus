@@ -2,11 +2,11 @@
 
 #include "unversioned_row.h"
 
-#include <yt/client/chunk_client/writer_base.h>
+#include <yt/yt/client/chunk_client/writer_base.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/range.h>
+#include <yt/yt/core/misc/range.h>
 
 namespace NYT::NTableClient {
 

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/attributes.h>
 
 #include <util/generic/algorithm.h>
 

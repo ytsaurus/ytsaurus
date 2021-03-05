@@ -1,7 +1,7 @@
 #include "tag.h"
-#include "yt/core/misc/hash.h"
+#include "yt/yt/core/misc/hash.h"
 
-#include <yt/core/misc/farm_hash.h>
+#include <yt/yt/core/misc/farm_hash.h>
 
 namespace NYT::NProfiling {
 

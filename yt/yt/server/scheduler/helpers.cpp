@@ -4,29 +4,29 @@
 #include "job.h"
 #include "operation.h"
 
-#include <yt/server/lib/scheduler/config.h>
-#include <yt/server/lib/scheduler/experiments.h>
-#include <yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/config.h>
+#include <yt/yt/server/lib/scheduler/experiments.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
 
-#include <yt/server/lib/core_dump/helpers.h>
+#include <yt/yt/server/lib/core_dump/helpers.h>
 
-#include <yt/ytlib/core_dump/proto/core_info.pb.h>
+#include <yt/yt/ytlib/core_dump/proto/core_info.pb.h>
 
-#include <yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/ytlib/chunk_client/key_set.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/yt/ytlib/chunk_client/key_set.h>
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/security_client/helpers.h>
+#include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 namespace NYT::NScheduler {
 

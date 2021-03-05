@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/client/transaction_client/config.h>
+#include <yt/yt/client/transaction_client/config.h>
 
-#include <yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/config.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NTransactionClient {
 

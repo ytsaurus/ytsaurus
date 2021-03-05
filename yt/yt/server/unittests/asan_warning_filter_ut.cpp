@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/job_proxy/asan_warning_filter.h>
+#include <yt/yt/server/job_proxy/asan_warning_filter.h>
 
 namespace NYT::NJobProxy {
 namespace {

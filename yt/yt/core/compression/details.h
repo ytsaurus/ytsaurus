@@ -1,9 +1,9 @@
 #pragma once
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <contrib/libs/snappy/snappy-sinksource.h>
 #include <contrib/libs/snappy/snappy.h>

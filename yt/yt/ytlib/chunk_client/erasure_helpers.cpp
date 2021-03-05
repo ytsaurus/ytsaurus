@@ -5,12 +5,12 @@
 #include "dispatcher.h"
 #include "public.h"
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/numeric_helpers.h>
-#include <yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/checksum.h>
 
 #include <util/random/random.h>
 

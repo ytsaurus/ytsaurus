@@ -7,7 +7,7 @@
 
 #include "error.h"
 
-#include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
 
 namespace NYT::NPython {
 

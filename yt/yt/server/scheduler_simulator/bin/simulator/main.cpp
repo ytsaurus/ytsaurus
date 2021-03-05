@@ -8,30 +8,30 @@
 #include "node_shard.h"
 #include "control_thread.h"
 
-#include <yt/server/scheduler/public.h>
+#include <yt/yt/server/scheduler/public.h>
 
-#include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/monitoring_manager.h>
+#include <yt/yt/ytlib/monitoring/http_integration.h>
+#include <yt/yt/ytlib/monitoring/monitoring_manager.h>
 
-#include <yt/ytlib/program/program.h>
-#include <yt/ytlib/program/program_pdeathsig_mixin.h>
-#include <yt/ytlib/program/helpers.h>
+#include <yt/yt/ytlib/program/program.h>
+#include <yt/yt/ytlib/program/program_pdeathsig_mixin.h>
+#include <yt/yt/ytlib/program/helpers.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/core/logging/public.h>
+#include <yt/yt/core/logging/public.h>
 
-#include <yt/core/concurrency/public.h>
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/http/server.h>
+#include <yt/yt/core/http/server.h>
 
-#include <yt/core/misc/shutdown.h>
-#include <yt/core/misc/property.h>
+#include <yt/yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/property.h>
 
-#include <yt/library/phdr_cache/phdr_cache.h>
+#include <yt/yt/library/phdr_cache/phdr_cache.h>
 
-#include <yt/core/ytalloc/bindings.h>
+#include <yt/yt/core/ytalloc/bindings.h>
 
 namespace NYT {
 

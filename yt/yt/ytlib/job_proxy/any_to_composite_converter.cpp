@@ -1,10 +1,10 @@
 #include "any_to_composite_converter.h"
 
-#include <yt/client/formats/format.h>
+#include <yt/yt/client/formats/format.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NJobProxy {
 

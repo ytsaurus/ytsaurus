@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/row_base.h>
 
-#include <yt/core/yson/public.h>
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/yson/public.h>
+#include <yt/yt/core/ytree/public.h>
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/ref_counted.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/ref_counted.h>
 
 #include <util/generic/hash.h>
 

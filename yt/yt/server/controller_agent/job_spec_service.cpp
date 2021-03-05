@@ -3,20 +3,20 @@
 #include "bootstrap.h"
 #include "private.h"
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
+#include <yt/yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
 
-#include <yt/ytlib/scheduler/helpers.h>
-#include <yt/ytlib/scheduler/scheduler_service_proxy.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/core/rpc/response_keeper.h>
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/core/misc/format.h>
-#include <yt/core/ytree/permission.h>
+#include <yt/yt/core/misc/format.h>
+#include <yt/yt/core/ytree/permission.h>
 
 namespace NYT::NControllerAgent {
 

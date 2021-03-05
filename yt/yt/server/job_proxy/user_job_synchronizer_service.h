@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/lib/user_job_synchronizer_client/public.h>
+#include <yt/yt/server/lib/user_job_synchronizer_client/public.h>
 
 namespace NYT::NJobProxy {
 

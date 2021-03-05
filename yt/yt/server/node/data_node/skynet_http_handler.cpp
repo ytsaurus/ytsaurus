@@ -3,27 +3,27 @@
 #include "local_chunk_reader.h"
 #include "chunk_meta_manager.h"
 
-#include <yt/server/node/data_node/chunk_store.h>
-#include <yt/server/node/data_node/chunk.h>
+#include <yt/yt/server/node/data_node/chunk_store.h>
+#include <yt/yt/server/node/data_node/chunk.h>
 
-#include <yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/ytlib/table_client/chunk_state.h>
-#include <yt/ytlib/table_client/columnar_chunk_meta.h>
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/ytlib/api/native/table_reader.h>
+#include <yt/yt/ytlib/api/native/table_reader.h>
 
-#include <yt/client/table_client/blob_reader.h>
+#include <yt/yt/client/table_client/blob_reader.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/http/http.h>
+#include <yt/yt/core/http/http.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>
 

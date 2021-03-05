@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/core/misc/enum.h>
+#include <yt/yt/core/misc/enum.h>
 
 namespace NYT::NTransactionClient {
 

@@ -1,19 +1,19 @@
 #include "arrow_row_stream_encoder.h"
 
-#include <yt/client/arrow/fbs/Message.fbs.h>
-#include <yt/client/arrow/fbs/Schema.fbs.h>
+#include <yt/yt/client/arrow/fbs/Message.fbs.h>
+#include <yt/yt/client/arrow/fbs/Schema.fbs.h>
 
-#include <yt/client/api/rpc_proxy/row_stream.h>
-#include <yt/client/api/rpc_proxy/wire_row_stream.h>
+#include <yt/yt/client/api/rpc_proxy/row_stream.h>
+#include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
 
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/ytlib/table_client/columnar.h>
+#include <yt/yt/ytlib/table_client/columnar.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/range.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/range.h>
 
 #include <util/system/align.h>
 

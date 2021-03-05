@@ -4,16 +4,16 @@
 #include "chunk_replica.h"
 #include "medium.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/node_tracker_server/data_center.h>
-#include <yt/server/master/node_tracker_server/node_tracker.h>
-#include <yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/data_center.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/small_set.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/small_set.h>
 
 #include <util/generic/map.h>
 

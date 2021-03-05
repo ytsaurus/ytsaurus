@@ -3,9 +3,9 @@
 #include "public.h"
 #include "callbacks.h"
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
 namespace NYT::NQueryClient {
 

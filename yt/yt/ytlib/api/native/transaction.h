@@ -2,10 +2,10 @@
 
 #include "client.h"
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/client/api/client.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/transaction.h>
 
 namespace NYT::NApi::NNative {
 

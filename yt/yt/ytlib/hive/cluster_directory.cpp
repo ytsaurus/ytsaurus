@@ -2,18 +2,18 @@
 #include "cluster_directory.h"
 #include "private.h"
 
-#include <yt/client/hive/proto/cluster_directory.pb.h>
+#include <yt/yt/client/hive/proto/cluster_directory.pb.h>
 
-#include <yt/ytlib/api/connection.h>
+#include <yt/yt/ytlib/api/connection.h>
 
-#include <yt/client/api/connection.h>
+#include <yt/yt/client/api/connection.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
-#include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NHiveClient {
 

@@ -2,27 +2,27 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/chunk_server/chunk_replica.h>
+#include <yt/yt/server/master/chunk_server/chunk_replica.h>
 
-#include <yt/server/lib/hydra/entity_map.h>
+#include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
+#include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
 
-#include <yt/server/master/cell_server/public.h>
+#include <yt/yt/server/master/cell_server/public.h>
 
-#include <yt/server/master/transaction_server/public.h>
+#include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
-#include <yt/client/node_tracker_client/node_directory.h>
-#include <yt/ytlib/node_tracker_client/node_statistics.h>
+#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/ref_tracked.h>
 
 #include <array>
 

@@ -1,7 +1,7 @@
 #include "record.h"
 #include "schema.h"
 
-#include <yt/python/common/helpers.h>
+#include <yt/yt/python/common/helpers.h>
 
 namespace NYT::NPython {
 

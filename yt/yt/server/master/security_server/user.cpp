@@ -1,11 +1,11 @@
 #include "user.h"
-#include "yt/server/master/security_server/private.h"
+#include "yt/yt/server/master/security_server/private.h"
 
-#include <yt/server/lib/security_server/proto/security_manager.pb.h>
+#include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NSecurityServer {
 

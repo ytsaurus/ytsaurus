@@ -1,19 +1,19 @@
 #include "scheduler_channel.h"
 #include "config.h"
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/bus/tcp/config.h>
-#include <yt/core/bus/tcp/client.h>
+#include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/client.h>
 
-#include <yt/core/rpc/bus/channel.h>
-#include <yt/core/rpc/retrying_channel.h>
-#include <yt/core/rpc/roaming_channel.h>
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/roaming_channel.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NScheduler {
 

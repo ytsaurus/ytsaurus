@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/server/master/tablet_server/config.h>
+#include <yt/yt/server/master/tablet_server/config.h>
 
 namespace NYT::NCellServer {
 

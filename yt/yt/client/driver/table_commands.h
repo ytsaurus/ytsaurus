@@ -2,12 +2,12 @@
 
 #include "command.h"
 
-#include <yt/client/formats/format.h>
+#include <yt/yt/client/formats/format.h>
 
-#include <yt/client/table_client/config.h>
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/config.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
 namespace NYT::NDriver {
 

@@ -5,19 +5,19 @@
 #include "schemaless_block_reader.h"
 #include "timing_reader.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/heap.h>
-#include <yt/core/misc/varint.h>
+#include <yt/yt/core/misc/heap.h>
+#include <yt/yt/core/misc/varint.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
 #include <util/system/yield.h>
 

@@ -6,11 +6,11 @@
 #include "ypath_detail.h"
 #include "ypath_service.h"
 
-#include <yt/core/yson/tokenizer.h>
-#include <yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/tokenizer.h>
+#include <yt/yt/core/yson/async_writer.h>
 
-#include <yt/core/ypath/tokenizer.h>
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/yson/writer.h>
 
 #include <util/generic/hash.h>
 

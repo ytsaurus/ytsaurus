@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/journal_client/public.h>
+#include <yt/yt/client/journal_client/public.h>
 
 namespace NYT::NJournalClient {
 

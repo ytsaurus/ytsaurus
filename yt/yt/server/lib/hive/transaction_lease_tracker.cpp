@@ -1,12 +1,12 @@
 #include "transaction_lease_tracker.h"
 
-#include <yt/server/lib/transaction_server/helpers.h>
+#include <yt/yt/server/lib/transaction_server/helpers.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/variant.h>
+#include <yt/yt/core/misc/variant.h>
 
 namespace NYT::NHiveServer {
 

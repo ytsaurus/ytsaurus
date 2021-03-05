@@ -3,18 +3,18 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NFileClient {
 

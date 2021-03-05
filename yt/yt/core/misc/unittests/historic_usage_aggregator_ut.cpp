@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/historic_usage_aggregator.h>
+#include <yt/yt/core/misc/historic_usage_aggregator.h>
 
 #include <util/generic/ymath.h>
 

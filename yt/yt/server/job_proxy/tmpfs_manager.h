@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/lib/job_proxy/config.h>
+#include <yt/yt/server/lib/job_proxy/config.h>
 
 namespace NYT::NJobProxy {
 

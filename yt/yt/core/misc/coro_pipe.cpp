@@ -1,6 +1,6 @@
 #include "coro_pipe.h"
 
-#include <yt/core/actions/bind.h>
+#include <yt/yt/core/actions/bind.h>
 
 namespace NYT {
 

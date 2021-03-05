@@ -1,7 +1,7 @@
 #include "checksum.h"
 #include "checksum_helpers.h"
 
-#include <yt/core/misc/isa_crc64/checksum.h>
+#include <yt/yt/core/misc/isa_crc64/checksum.h>
 
 #ifdef YT_USE_SSE42
     #include <util/system/cpu_id.h>

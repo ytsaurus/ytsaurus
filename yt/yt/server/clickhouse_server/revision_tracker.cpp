@@ -1,6 +1,6 @@
 #include "revision_tracker.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
 namespace NYT::NClickHouseServer {
 

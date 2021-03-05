@@ -1,12 +1,12 @@
 #pragma once
 
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/ref.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
 #include <Objects.hxx> // pycxx
 

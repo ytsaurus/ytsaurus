@@ -1,6 +1,6 @@
 #include "ordered_dynamic_store_ut_helpers.h"
 
-#include <yt/server/node/tablet_node/ordered_store_manager.h>
+#include <yt/yt/server/node/tablet_node/ordered_store_manager.h>
 
 namespace NYT::NTabletNode {
 namespace {

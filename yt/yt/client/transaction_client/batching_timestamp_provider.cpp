@@ -2,8 +2,8 @@
 #include "timestamp_provider.h"
 #include "private.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NTransactionClient {
 

@@ -9,26 +9,26 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/client/api/connection.h>
+#include <yt/yt/client/api/connection.h>
 
-#include <yt/core/json/json_writer.h>
-#include <yt/core/json/config.h>
+#include <yt/yt/core/json/json_writer.h>
+#include <yt/yt/core/json/config.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/logging/fluent_log.h>
+#include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/poller.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/poller.h>
 
-#include <yt/core/http/http.h>
-#include <yt/core/http/helpers.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/helpers.h>
 
-#include <yt/core/rpc/authenticator.h>
+#include <yt/yt/core/rpc/authenticator.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
 #include <util/string/ascii.h>
 #include <util/string/strip.h>

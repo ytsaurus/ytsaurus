@@ -8,26 +8,26 @@
 #include "service.h"
 #include "config.h"
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/protobuf_interop.h>
 
-#include <yt/core/misc/object_pool.h>
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/object_pool.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profiler.h>
 
-#include <yt/core/rpc/message_format.h>
+#include <yt/yt/core/rpc/message_format.h>
 
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

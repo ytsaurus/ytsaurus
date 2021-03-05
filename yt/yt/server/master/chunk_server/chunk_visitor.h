@@ -5,7 +5,7 @@
 #include "chunk_tree_traverser.h"
 #include "public.h"
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NChunkServer {
 

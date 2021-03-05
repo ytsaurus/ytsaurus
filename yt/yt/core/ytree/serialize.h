@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/core/yson/producer.h>
+#include <yt/yt/core/yson/producer.h>
 
-#include <yt/core/misc/guid.h>
-#include <yt/core/misc/mpl.h>
-#include <yt/core/misc/optional.h>
-#include <yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/guid.h>
+#include <yt/yt/core/misc/mpl.h>
+#include <yt/yt/core/misc/optional.h>
+#include <yt/yt/core/misc/small_vector.h>
 
-#include <yt/core/yson/writer.h>
+#include <yt/yt/core/yson/writer.h>
 
 namespace NYT::NYTree {
 

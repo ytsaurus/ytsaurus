@@ -3,14 +3,14 @@
 #include "public.h"
 #include "mutation_context.h"
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/logging/public.h>
+#include <yt/yt/core/logging/public.h>
 
-#include <yt/core/tracing/public.h>
+#include <yt/yt/core/tracing/public.h>
 
 namespace NYT::NHydra {
 

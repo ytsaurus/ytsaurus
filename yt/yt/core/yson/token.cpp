@@ -1,7 +1,7 @@
 #include "token.h"
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/string.h>
 
 namespace NYT::NYson {
 

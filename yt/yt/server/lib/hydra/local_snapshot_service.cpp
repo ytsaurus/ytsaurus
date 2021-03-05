@@ -4,7 +4,7 @@
 #include "snapshot.h"
 #include "snapshot_service_proxy.h"
 
-#include <yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NHydra {
 

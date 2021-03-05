@@ -5,24 +5,24 @@
 #include "user.h"
 #include "network_project.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/cypress_server/virtual.h>
+#include <yt/yt/server/master/cypress_server/virtual.h>
 
-#include <yt/server/master/object_server/object_detail.h>
-#include <yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/server/lib/misc/interned_attributes.h>
-#include <yt/server/lib/misc/object_helpers.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/lib/misc/object_helpers.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NSecurityServer {
 

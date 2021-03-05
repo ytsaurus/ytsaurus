@@ -1,6 +1,6 @@
 #include "sorted_dynamic_store_ut_helpers.h"
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <util/random/random.h>
 

@@ -1,11 +1,11 @@
 #include "hydra_service.h"
 #include "hydra_manager.h"
 
-#include <yt/server/lib/election/election_manager.h>
+#include <yt/yt/server/lib/election/election_manager.h>
 
-#include <yt/ytlib/hydra/proto/hydra_service.pb.h>
+#include <yt/yt/ytlib/hydra/proto/hydra_service.pb.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/cancelable_context.h>
 
 namespace NYT::NHydra {
 

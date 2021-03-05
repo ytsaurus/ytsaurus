@@ -1,44 +1,44 @@
 #pragma once
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/lib/tablet_node/config.h>
-#include <yt/server/node/tablet_node/sorted_dynamic_store.h>
-#include <yt/server/node/tablet_node/sorted_store_manager.h>
-#include <yt/server/node/tablet_node/ordered_dynamic_store.h>
-#include <yt/server/node/tablet_node/ordered_store_manager.h>
-#include <yt/server/node/tablet_node/tablet.h>
-#include <yt/server/node/tablet_node/tablet_manager.h>
-#include <yt/server/node/tablet_node/transaction.h>
-#include <yt/server/node/tablet_node/automaton.h>
-#include <yt/server/node/tablet_node/structured_logger.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/node/tablet_node/sorted_dynamic_store.h>
+#include <yt/yt/server/node/tablet_node/sorted_store_manager.h>
+#include <yt/yt/server/node/tablet_node/ordered_dynamic_store.h>
+#include <yt/yt/server/node/tablet_node/ordered_store_manager.h>
+#include <yt/yt/server/node/tablet_node/tablet.h>
+#include <yt/yt/server/node/tablet_node/tablet_manager.h>
+#include <yt/yt/server/node/tablet_node/transaction.h>
+#include <yt/yt/server/node/tablet_node/automaton.h>
+#include <yt/yt/server/node/tablet_node/structured_logger.h>
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/memory_reader.h>
-#include <yt/ytlib/chunk_client/memory_writer.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/memory_reader.h>
+#include <yt/yt/ytlib/chunk_client/memory_writer.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/versioned_reader.h>
-#include <yt/client/table_client/versioned_row.h>
-#include <yt/client/table_client/writer.h>
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/writer.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
 
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/ytlib/query_client/column_evaluator.h>
-#include <yt/ytlib/query_client/config.h>
+#include <yt/yt/ytlib/query_client/column_evaluator.h>
+#include <yt/yt/ytlib/query_client/config.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NTabletNode {
 namespace {

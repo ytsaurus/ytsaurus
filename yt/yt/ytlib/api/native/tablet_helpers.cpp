@@ -1,15 +1,15 @@
 #include "tablet_helpers.h"
 
-#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/core/rpc/hedging_channel.h>
+#include <yt/yt/core/rpc/hedging_channel.h>
 
 namespace NYT::NApi::NNative {
 

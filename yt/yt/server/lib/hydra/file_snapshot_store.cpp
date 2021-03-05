@@ -5,14 +5,14 @@
 #include "format.h"
 #include "snapshot.h"
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/checkpointable_stream.h>
-#include <yt/core/misc/checksum.h>
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/checkpointable_stream.h>
+#include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <library/cpp/streams/lz/lz.h>
 

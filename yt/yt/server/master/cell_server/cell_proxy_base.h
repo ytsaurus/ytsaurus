@@ -3,14 +3,14 @@
 #include "public.h"
 #include "cell_base.h"
 
-#include <yt/server/master/cell_master/public.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/object_server/public.h>
-#include <yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/object_detail.h>
 
-#include <yt/server/lib/misc/public.h>
+#include <yt/yt/server/lib/misc/public.h>
 
-#include <yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
 
 namespace NYT::NCellServer {
 

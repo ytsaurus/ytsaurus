@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <Poco/AutoPtr.h>
 #include <Poco/Logger.h>

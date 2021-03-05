@@ -1,10 +1,10 @@
 #include "chunk_spec.h"
 #include "chunk_meta_extensions.h"
 
-#include <yt/client/chunk_client/read_limit.h>
-#include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
 namespace NYT::NChunkClient {
 

@@ -3,24 +3,24 @@
 #include "connection.h"
 #include "private.h"
 
-#include <yt/ytlib/admin/admin_service_proxy.h>
+#include <yt/yt/ytlib/admin/admin_service_proxy.h>
 
-#include <yt/ytlib/controller_agent/controller_agent_service_proxy.h>
+#include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
-#include <yt/ytlib/hive/cell_directory.h>
-#include <yt/ytlib/hive/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
 
-#include <yt/ytlib/hydra/hydra_service_proxy.h>
+#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
-#include <yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
+#include <yt/yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/helpers.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NApi::NNative {
 

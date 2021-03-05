@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/ref.h>
 
 namespace NYT::NApi {
 

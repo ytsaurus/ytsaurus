@@ -5,9 +5,9 @@
 #include "legacy_job_manager.h"
 #include "sorted_job_builder.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
 namespace NYT::NChunkPools {
 

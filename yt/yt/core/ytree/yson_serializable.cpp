@@ -1,10 +1,10 @@
 #include "yson_serializable.h"
 
-#include <yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/consumer.h>
 
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <util/generic/algorithm.h>
 

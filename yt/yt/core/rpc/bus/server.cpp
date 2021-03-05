@@ -1,18 +1,18 @@
 #include "server.h"
 
-#include <yt/core/rpc/server_detail.h>
-#include <yt/core/rpc/private.h>
+#include <yt/yt/core/rpc/server_detail.h>
+#include <yt/yt/core/rpc/private.h>
 
-#include <yt/core/bus/bus.h>
-#include <yt/core/bus/server.h>
+#include <yt/yt/core/bus/bus.h>
+#include <yt/yt/core/bus/server.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/cast.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/cast.h>
 
-#include <yt/core/rpc/message.h>
-#include <yt/core/rpc/stream.h>
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/stream.h>
 
-#include <yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt/core/rpc/proto/rpc.pb.h>
 
 namespace NYT::NRpc::NBus {
 

@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/client/hydra/public.h>
+#include <yt/yt/client/hydra/public.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/misc/range.h>
-#include <yt/core/misc/ref.h>
+#include <yt/yt/core/misc/range.h>
+#include <yt/yt/core/misc/ref.h>
 
-#include <yt/core/compression/public.h>
+#include <yt/yt/core/compression/public.h>
 
 namespace NYT::NTableClient {
 

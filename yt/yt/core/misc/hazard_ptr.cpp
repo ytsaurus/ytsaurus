@@ -1,13 +1,13 @@
 #include "hazard_ptr.h"
 
-#include <yt/core/misc/free_list.h>
-#include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/intrusive_linked_list.h>
-#include <yt/core/misc/ring_queue.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/free_list.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/intrusive_linked_list.h>
+#include <yt/yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/finally.h>
 
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <pthread.h>
 

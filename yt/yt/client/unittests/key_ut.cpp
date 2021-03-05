@@ -1,9 +1,9 @@
-#include <yt/client/table_client/key.h>
+#include <yt/yt/client/table_client/key.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/yson/string.h>
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NTableClient {
 namespace {

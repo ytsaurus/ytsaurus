@@ -1,12 +1,12 @@
 #include "chunk_replica.h"
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
-#include <yt/core/misc/format.h>
+#include <yt/yt/core/misc/format.h>
 
 namespace NYT::NChunkClient {
 

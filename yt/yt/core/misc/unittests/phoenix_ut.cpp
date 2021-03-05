@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/blob_output.h>
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 namespace NYT {
 namespace {

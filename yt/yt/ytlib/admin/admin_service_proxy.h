@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/ytlib/admin/proto/admin_service.pb.h>
+#include <yt/yt/ytlib/admin/proto/admin_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NAdmin {
 

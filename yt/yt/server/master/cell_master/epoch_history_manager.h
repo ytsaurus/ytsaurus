@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/hydra/version.h>
+#include <yt/yt/client/hydra/version.h>
 
 namespace NYT::NCellMaster {
 

@@ -2,7 +2,7 @@
 #include "chunk_spec.h"
 #include "helpers.h"
 
-#include <yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/read_limit.h>
 
 namespace NYT::NChunkClient {
 

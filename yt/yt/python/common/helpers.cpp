@@ -1,8 +1,8 @@
 #include "helpers.h"
 #include "shutdown.h"
 
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/finally.h>
 
 namespace Py {
 

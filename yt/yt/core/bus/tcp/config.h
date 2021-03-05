@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/core/net/config.h>
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/config.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NBus {
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/journal_client/config.h>
+#include <yt/yt/client/journal_client/config.h>
 
 namespace NYT::NJournalClient {
 

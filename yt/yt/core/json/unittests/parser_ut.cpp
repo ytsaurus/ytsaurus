@@ -1,8 +1,8 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/test_framework/yson_consumer_mock.h>
+#include <yt/yt/core/test_framework/yson_consumer_mock.h>
 
-#include <yt/core/json/json_parser.h>
+#include <yt/yt/core/json/json_parser.h>
 
 namespace NYT::NJson {
 namespace {

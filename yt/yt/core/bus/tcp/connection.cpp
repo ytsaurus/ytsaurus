@@ -3,20 +3,20 @@
 #include "server.h"
 #include "dispatcher_impl.h"
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/string.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/string.h>
 
-#include <yt/core/net/socket.h>
-#include <yt/core/net/dialer.h>
+#include <yt/yt/core/net/socket.h>
+#include <yt/yt/core/net/dialer.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <util/system/error.h>
 #include <util/system/guard.h>

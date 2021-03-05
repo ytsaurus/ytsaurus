@@ -3,10 +3,10 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <queue>
 

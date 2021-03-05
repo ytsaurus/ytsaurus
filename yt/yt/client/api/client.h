@@ -3,57 +3,57 @@
 #include "public.h"
 #include "connection.h"
 
-#include <yt/client/cypress_client/public.h>
+#include <yt/yt/client/cypress_client/public.h>
 
-#include <yt/client/job_tracker_client/public.h>
+#include <yt/yt/client/job_tracker_client/public.h>
 
-#include <yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/public.h>
 
-#include <yt/client/query_client/query_statistics.h>
+#include <yt/yt/client/query_client/query_statistics.h>
 
-#include <yt/client/scheduler/operation_id_or_alias.h>
+#include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
-#include <yt/client/security_client/public.h>
+#include <yt/yt/client/security_client/public.h>
 
-#include <yt/client/node_tracker_client/public.h>
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/public.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/client/table_client/config.h>
-#include <yt/client/table_client/row_base.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/config.h>
+#include <yt/yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/client/table_client/columnar_statistics.h>
+#include <yt/yt/client/table_client/columnar_statistics.h>
 
-#include <yt/client/tablet_client/public.h>
+#include <yt/yt/client/tablet_client/public.h>
 
-#include <yt/client/chunk_client/config.h>
+#include <yt/yt/client/chunk_client/config.h>
 
-#include <yt/client/transaction_client/public.h>
+#include <yt/yt/client/transaction_client/public.h>
 
-#include <yt/client/driver/private.h>
+#include <yt/yt/client/driver/private.h>
 
-#include <yt/client/ypath/public.h>
+#include <yt/yt/client/ypath/public.h>
 
-#include <yt/client/hive/timestamp_map.h>
+#include <yt/yt/client/hive/timestamp_map.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/optional.h>
 
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/permission.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
 namespace NYT::NApi {
 

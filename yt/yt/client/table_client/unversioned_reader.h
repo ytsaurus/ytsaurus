@@ -3,9 +3,9 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/client/chunk_client/reader_base.h>
+#include <yt/yt/client/chunk_client/reader_base.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NTableClient {
 

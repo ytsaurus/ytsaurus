@@ -1,11 +1,11 @@
 #include "statistics.h"
 
-#include <yt/core/ypath/token.h>
-#include <yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/helpers.h>
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 namespace NYT {
 

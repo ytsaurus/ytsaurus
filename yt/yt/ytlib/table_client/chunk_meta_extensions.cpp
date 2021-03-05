@@ -1,12 +1,12 @@
 #include "chunk_meta_extensions.h"
 
-#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 
-#include <yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/key_bound.h>
 
-#include <yt/core/misc/object_pool.h>
+#include <yt/yt/core/misc/object_pool.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTableClient {
 

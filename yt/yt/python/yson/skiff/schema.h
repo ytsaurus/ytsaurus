@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/library/skiff_ext/public.h>
-#include <yt/library/skiff_ext/schema_match.h>
+#include <yt/yt/library/skiff_ext/public.h>
+#include <yt/yt/library/skiff_ext/schema_match.h>
 
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx

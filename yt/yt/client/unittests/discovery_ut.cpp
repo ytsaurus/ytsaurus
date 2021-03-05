@@ -1,13 +1,13 @@
-#include <yt/client/unittests/mock/client.h>
-#include <yt/client/unittests/mock/transaction.h>
+#include <yt/yt/client/unittests/mock/client.h>
+#include <yt/yt/client/unittests/mock/transaction.h>
 
-#include <yt/client/misc/discovery.h>
+#include <yt/yt/client/misc/discovery.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace {

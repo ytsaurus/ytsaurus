@@ -3,27 +3,27 @@
 #include "response.h"
 #include "error.h"
 #include "descriptor.h"
-#include "yt/core/tracing/trace_context.h"
+#include "yt/yt/core/tracing/trace_context.h"
 
-#include <yt/python/common/buffered_stream.h>
-#include <yt/python/common/shutdown.h>
+#include <yt/yt/python/common/buffered_stream.h>
+#include <yt/yt/python/common/shutdown.h>
 
-#include <yt/client/driver/config.h>
+#include <yt/yt/client/driver/config.h>
 
-#include <yt/client/api/sticky_transaction_pool.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/sticky_transaction_pool.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/core/misc/crash_handler.h>
-#include <yt/core/misc/signal_registry.h>
-#include <yt/core/misc/shutdown.h>
-#include <yt/core/misc/variant.h>
+#include <yt/yt/core/misc/crash_handler.h>
+#include <yt/yt/core/misc/signal_registry.h>
+#include <yt/yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/variant.h>
 
-#include <yt/core/logging/log_manager.h>
-#include <yt/core/logging/config.h>
+#include <yt/yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/config.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
-#include <yt/core/net/config.h>
+#include <yt/yt/core/net/config.h>
 
 namespace NYT::NPython {
 

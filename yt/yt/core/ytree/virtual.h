@@ -3,7 +3,7 @@
 #include "system_attribute_provider.h"
 #include "ypath_detail.h"
 
-#include <yt/core/yson/producer.h>
+#include <yt/yt/core/yson/producer.h>
 
 namespace NYT::NYTree {
 

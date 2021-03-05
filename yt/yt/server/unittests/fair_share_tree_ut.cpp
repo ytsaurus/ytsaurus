@@ -1,16 +1,16 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/server/scheduler/fair_share_tree_element.h>
-#include <yt/server/scheduler/operation_controller.h>
-#include <yt/server/scheduler/resource_tree.h>
+#include <yt/yt/server/scheduler/fair_share_tree_element.h>
+#include <yt/yt/server/scheduler/operation_controller.h>
+#include <yt/yt/server/scheduler/resource_tree.h>
 
-#include <yt/ytlib/chunk_client/proto/medium_directory.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/profiling/profile_manager.h>
 
-#include <yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/null_consumer.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 

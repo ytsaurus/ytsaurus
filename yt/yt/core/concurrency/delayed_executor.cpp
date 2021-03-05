@@ -3,10 +3,10 @@
 #include "scheduler.h"
 #include "private.h"
 
-#include <yt/core/misc/lock_free.h>
-#include <yt/core/misc/singleton.h>
-#include <yt/core/misc/shutdown.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <util/datetime/base.h>
 

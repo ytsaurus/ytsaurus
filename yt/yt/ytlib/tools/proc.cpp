@@ -1,7 +1,7 @@
 #include "proc.h"
 
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
 
 #include <util/system/yield.h>
 #include <util/system/fs.h>

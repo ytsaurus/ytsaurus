@@ -1,13 +1,13 @@
 #include "features.h"
 
-#include <yt/client/table_client/row_base.h>
-#include <yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
-#include <yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/public.h>
 
-#include <yt/core/compression/codec.h>
+#include <yt/yt/core/compression/codec.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NObjectServer {
 

@@ -1,13 +1,13 @@
 #include "trace_context.h"
 #include "private.h"
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/shutdown.h>
-#include <yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/singleton.h>
 
-#include <yt/core/tracing/proto/tracing_ext.pb.h>
+#include <yt/yt/core/tracing/proto/tracing_ext.pb.h>
 
 #include <yt/yt/library/tracing/tracer.h>
 

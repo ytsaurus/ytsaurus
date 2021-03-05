@@ -5,11 +5,11 @@
 #include "snapshot.h"
 #include "snapshot_discovery.h"
 
-#include <yt/server/lib/hydra/snapshot_service_proxy.h>
+#include <yt/yt/server/lib/hydra/snapshot_service_proxy.h>
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NHydra {
 

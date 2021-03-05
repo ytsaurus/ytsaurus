@@ -1,32 +1,32 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/actions/cancelable_context.h>
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/invoker_util.h>
 // TODO(lukyan): Move invoker_detail to concurrency? Merge concurrency and actions?
-#include <yt/core/actions/invoker_detail.h>
+#include <yt/yt/core/actions/invoker_detail.h>
 
-#include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/thread_pool.h>
-#include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/fair_share_thread_pool.h>
-#include <yt/core/concurrency/two_level_fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/actions/cancelable_context.h>
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
-#include <yt/core/misc/lazy_ptr.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
-#include <yt/core/tracing/trace_context.h>
+#include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <util/system/compiler.h>
 #include <util/system/thread.h>

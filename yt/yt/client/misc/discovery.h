@@ -2,10 +2,10 @@
 
 #include "config.h"
 
-#include <yt/client/api/public.h>
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/public.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
 namespace NYT {
 

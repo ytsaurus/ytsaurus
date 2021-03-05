@@ -4,7 +4,7 @@
 #include "unversioned_row.h"
 #include "versioned_row.h"
 
-#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
 
 namespace NYT::NTableClient {
 

@@ -1,25 +1,25 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 #include <util/string/builder.h>
 
-#include <yt/server/lib/discovery_server/config.h>
-#include <yt/server/lib/discovery_server/discovery_server.h>
+#include <yt/yt/server/lib/discovery_server/config.h>
+#include <yt/yt/server/lib/discovery_server/discovery_server.h>
 
-#include <yt/ytlib/discovery_client/public.h>
-#include <yt/ytlib/discovery_client/helpers.h>
-#include <yt/ytlib/discovery_client/discovery_client.h>
-#include <yt/ytlib/discovery_client/member_client.h>
+#include <yt/yt/ytlib/discovery_client/public.h>
+#include <yt/yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/ytlib/discovery_client/discovery_client.h>
+#include <yt/yt/ytlib/discovery_client/member_client.h>
 
-#include <yt/core/rpc/local_channel.h>
-#include <yt/core/rpc/local_server.h>
-#include <yt/core/rpc/server.h>
-#include <yt/core/rpc/static_channel_factory.h>
+#include <yt/yt/core/rpc/local_channel.h>
+#include <yt/yt/core/rpc/local_server.h>
+#include <yt/yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/static_channel_factory.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/yt/core/yson/string.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NDiscoveryServer {
 namespace {

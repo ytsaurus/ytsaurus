@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include <yt/client/transaction_client/config.h>
+#include <yt/yt/client/transaction_client/config.h>
 
 namespace NYT::NTimestampProvider {
 

@@ -1,17 +1,17 @@
 #include "config.h"
 
-#include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/client/security_client/acl.h>
-#include <yt/client/security_client/helpers.h>
+#include <yt/yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/helpers.h>
 
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/client/scheduler/operation_id_or_alias.h>
+#include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
-#include <yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/convert.h>
 
-#include <yt/core/misc/fs.h>
+#include <yt/yt/core/misc/fs.h>
 
 #include <util/string/split.h>
 #include <util/folder/path.h>

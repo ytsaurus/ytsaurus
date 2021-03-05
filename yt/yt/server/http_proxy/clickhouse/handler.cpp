@@ -3,25 +3,25 @@
 #include "discovery_cache.h"
 #include "config.h"
 
-#include <yt/server/http_proxy/bootstrap.h>
-#include <yt/server/http_proxy/coordinator.h>
-#include <yt/server/http_proxy/http_authenticator.h>
+#include <yt/yt/server/http_proxy/bootstrap.h>
+#include <yt/yt/server/http_proxy/coordinator.h>
+#include <yt/yt/server/http_proxy/http_authenticator.h>
 
-#include <yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/ytlib/auth/token_authenticator.h>
-#include <yt/ytlib/auth/config.h>
+#include <yt/yt/ytlib/auth/token_authenticator.h>
+#include <yt/yt/ytlib/auth/config.h>
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/client/scheduler/operation_cache.h>
+#include <yt/yt/client/scheduler/operation_cache.h>
 
-#include <yt/core/http/client.h>
-#include <yt/core/http/helpers.h>
+#include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/helpers.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <library/cpp/string_utils/base64/base64.h>
 

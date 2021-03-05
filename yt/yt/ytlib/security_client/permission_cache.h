@@ -3,12 +3,12 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/ytlib/object_client/object_ypath_proxy.h>
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/object_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
-#include <yt/core/misc/async_expiring_cache.h>
+#include <yt/yt/core/misc/async_expiring_cache.h>
 
 namespace NYT::NSecurityClient {
 

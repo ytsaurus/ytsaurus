@@ -1,7 +1,7 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/common.h>
-#include <yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/common.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
 namespace NYT {
 namespace {

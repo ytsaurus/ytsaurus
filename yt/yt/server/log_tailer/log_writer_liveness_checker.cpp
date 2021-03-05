@@ -5,7 +5,7 @@
 #include "log_reader.h"
 #include "log_tailer.h"
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
 namespace NYT::NLogTailer {
 

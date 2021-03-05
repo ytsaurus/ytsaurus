@@ -1,11 +1,11 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include "column_format_ut.h"
 
-#include <yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/helpers.h>
 
-#include <yt/ytlib/table_chunk_format/null_column_reader.h>
-#include <yt/ytlib/table_chunk_format/null_column_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/null_column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/null_column_writer.h>
 
 namespace NYT::NTableClient {
 namespace {

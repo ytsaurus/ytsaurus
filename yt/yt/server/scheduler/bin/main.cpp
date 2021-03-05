@@ -1,4 +1,4 @@
-#include <yt/server/scheduler/program.h>
+#include <yt/yt/server/scheduler/program.h>
 
 int main(int argc, const char** argv)
 {

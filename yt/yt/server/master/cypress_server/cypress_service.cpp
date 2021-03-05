@@ -2,10 +2,10 @@
 #include "private.h"
 #include "cypress_manager.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/master_hydra_service.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/master_hydra_service.h>
 
-#include <yt/ytlib/cypress_client/cypress_service_proxy.h>
+#include <yt/yt/ytlib/cypress_client/cypress_service_proxy.h>
 
 namespace NYT::NCypressServer {
 

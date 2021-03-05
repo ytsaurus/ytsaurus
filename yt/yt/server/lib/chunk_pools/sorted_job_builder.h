@@ -5,7 +5,7 @@
 #include "chunk_pool.h"
 #include "new_job_manager.h"
 
-#include <yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/comparator.h>
 
 namespace NYT::NChunkPools {
 

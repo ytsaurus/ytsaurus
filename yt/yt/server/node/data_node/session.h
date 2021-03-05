@@ -2,21 +2,21 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/session_id.h>
-#include <yt/ytlib/chunk_client/block.h>
-#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
+#include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/client/misc/workload.h>
+#include <yt/yt/client/misc/workload.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/misc/error.h>
-#include <yt/core/concurrency/lease_manager.h>
-#include <yt/core/misc/optional.h>
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/concurrency/lease_manager.h>
+#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NDataNode {
 

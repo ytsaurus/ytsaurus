@@ -5,10 +5,10 @@
 #include "config.h"
 #include "scheduler_strategy_host.h"
 
-#include <yt/server/lib/scheduler/config.h>
+#include <yt/yt/server/lib/scheduler/config.h>
 
-#include <yt/server/scheduler/job.h>
-#include <yt/server/scheduler/operation.h>
+#include <yt/yt/server/scheduler/job.h>
+#include <yt/yt/server/scheduler/operation.h>
 
 #include <fstream>
 

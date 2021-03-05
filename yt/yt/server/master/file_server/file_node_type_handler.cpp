@@ -2,14 +2,14 @@
 #include "file_node.h"
 #include "file_node_proxy.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
-#include <yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
 
-#include <yt/server/master/chunk_server/chunk_owner_type_handler.h>
+#include <yt/yt/server/master/chunk_server/chunk_owner_type_handler.h>
 
-#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/core/crypto/crypto.h>
+#include <yt/yt/core/crypto/crypto.h>
 
 namespace NYT::NFileServer {
 

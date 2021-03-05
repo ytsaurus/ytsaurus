@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/rpc/channel.h>
+#include <yt/yt/core/rpc/channel.h>
 
 namespace NYT::NNodeTrackerClient {
 

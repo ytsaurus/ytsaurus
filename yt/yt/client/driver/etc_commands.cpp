@@ -1,18 +1,18 @@
 #include "etc_commands.h"
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/client/api/rpc_proxy/public.h>
+#include <yt/yt/client/api/rpc_proxy/public.h>
 
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/async_writer.h>
 
 namespace NYT::NDriver {
 

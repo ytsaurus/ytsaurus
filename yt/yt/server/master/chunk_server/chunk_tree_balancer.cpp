@@ -2,7 +2,7 @@
 #include "chunk_list.h"
 #include "chunk_manager.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <stack>
 

@@ -8,24 +8,24 @@
 #include "unversioned_value_yson_writer.h"
 #include "yql_yson_converter.h"
 
-#include <yt/client/complex_types/named_structures_yson.h>
+#include <yt/yt/client/complex_types/named_structures_yson.h>
 
-#include <yt/client/table_client/logical_type.h>
-#include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/core/yson/format.h>
-#include <yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/format.h>
+#include <yt/yt/core/yson/pull_parser.h>
 
-#include <yt/core/json/json_writer.h>
-#include <yt/core/json/config.h>
-#include <yt/core/json/helpers.h>
+#include <yt/yt/core/json/json_writer.h>
+#include <yt/yt/core/json/config.h>
+#include <yt/yt/core/json/helpers.h>
 
-#include <yt/core/misc/utf8_decoder.h>
+#include <yt/yt/core/misc/utf8_decoder.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <util/generic/buffer.h>
 

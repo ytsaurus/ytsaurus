@@ -1,15 +1,15 @@
 #include "cluster_connection.h"
 
-#include <yt/core/concurrency/thread_pool_poller.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
 
-#include <yt/core/http/client.h>
-#include <yt/core/http/config.h>
-#include <yt/core/http/http.h>
-#include <yt/core/http/helpers.h>
+#include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/helpers.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/library/auth/auth.h>
+#include <yt/yt/library/auth/auth.h>
 
 #include <util/system/env.h>
 

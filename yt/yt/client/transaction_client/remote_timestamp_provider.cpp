@@ -5,13 +5,13 @@
 #include "config.h"
 #include "timestamp_service_proxy.h"
 
-#include <yt/core/rpc/balancing_channel.h>
-#include <yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/balancing_channel.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/ytree/convert.h>
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTransactionClient {
 

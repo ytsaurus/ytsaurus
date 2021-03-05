@@ -1,7 +1,7 @@
 #include "rack.h"
 #include "data_center.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 namespace NYT::NNodeTrackerServer {
 

@@ -1,20 +1,20 @@
 #include "node_addresses_provider.h"
 
-#include <yt/client/api/connection.h>
+#include <yt/yt/client/api/connection.h>
 
-#include <yt/client/node_tracker_client/private.h>
+#include <yt/yt/client/node_tracker_client/private.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/core/rpc/dispatcher.h>
-#include <yt/core/rpc/roaming_channel.h>
+#include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/roaming_channel.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
-#include <yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 namespace NYT::NNodeTrackerClient {
 

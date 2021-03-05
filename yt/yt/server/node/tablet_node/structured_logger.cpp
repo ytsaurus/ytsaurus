@@ -7,19 +7,19 @@
 #include "store_detail.h"
 #include "tablet.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/config.h>
-#include <yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/server/node/tablet_node/slot_manager.h>
-#include <yt/server/node/tablet_node/tablet_manager.h>
-#include <yt/server/node/tablet_node/tablet_slot.h>
+#include <yt/yt/server/node/tablet_node/slot_manager.h>
+#include <yt/yt/server/node/tablet_node/tablet_manager.h>
+#include <yt/yt/server/node/tablet_node/tablet_slot.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/core/logging/fluent_log.h>
+#include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
 namespace NYT::NTabletNode {
 

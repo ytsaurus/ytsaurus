@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/misc/enum.h>
+#include <yt/yt/core/misc/enum.h>
 
 namespace NYT::NErasure {
 

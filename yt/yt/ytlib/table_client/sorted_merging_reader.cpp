@@ -4,14 +4,14 @@
 #include "schemaless_multi_chunk_reader.h"
 #include "timing_reader.h"
 
-#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
-#include <yt/core/misc/heap.h>
+#include <yt/yt/core/misc/heap.h>
 
 namespace NYT::NTableClient {
 

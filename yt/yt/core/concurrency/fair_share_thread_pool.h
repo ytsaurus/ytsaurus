@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/core/misc/shutdownable.h>
+#include <yt/yt/core/misc/shutdownable.h>
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
 namespace NYT::NConcurrency {
 

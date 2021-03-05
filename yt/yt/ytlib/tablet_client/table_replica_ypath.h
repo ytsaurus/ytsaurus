@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h>
+#include <yt/yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h>
 
-#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NTabletClient {
 

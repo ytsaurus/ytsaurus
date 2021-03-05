@@ -1,13 +1,13 @@
 #include "hint_manager.h"
 #include "private.h"
 
-#include <yt/server/node/cluster_node/bootstrap.h>
-#include <yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/server/lib/dynamic_config/dynamic_config_manager.h>
+#include <yt/yt/server/lib/dynamic_config/dynamic_config_manager.h>
 
-#include <yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
 
 namespace NYT::NTabletNode {
 

@@ -3,11 +3,11 @@
 #include "public.h"
 #include "cypress_integration.h"
 
-#include <yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/server.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NDiscoveryServer {
 

@@ -2,7 +2,7 @@
 #include "serialize.h"
 #include "checkpointable_stream_block_header.h"
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT {
 

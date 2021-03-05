@@ -3,7 +3,7 @@
 #include "column_reader_detail.h"
 #include "private.h"
 
-#include <yt/core/misc/bit_packed_unsigned_vector.h>
+#include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 

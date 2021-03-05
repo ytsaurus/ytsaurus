@@ -1,12 +1,12 @@
 #include "periodic_executor.h"
 #include "scheduler.h"
 
-#include <yt/core/actions/bind.h>
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/utilex/random.h>
+#include <yt/yt/core/utilex/random.h>
 
 namespace NYT::NConcurrency {
 

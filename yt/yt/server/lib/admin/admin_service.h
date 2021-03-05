@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/core/actions/public.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/ytlib/misc/public.h>
+#include <yt/yt/ytlib/misc/public.h>
 
 namespace NYT::NAdmin {
 

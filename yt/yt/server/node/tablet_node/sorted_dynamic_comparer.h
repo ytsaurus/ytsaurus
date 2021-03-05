@@ -4,10 +4,10 @@
 #include "dynamic_store_bits.h"
 #include "row_comparer_generator.h"
 
-#include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/chunked_memory_pool.h>
 
 namespace NYT::NTabletNode {
 

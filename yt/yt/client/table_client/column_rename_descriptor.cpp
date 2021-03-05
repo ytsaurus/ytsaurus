@@ -1,12 +1,12 @@
 #include "column_rename_descriptor.h"
 
-#include <yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
 
-#include <yt/core/yson/consumer.h>
-#include <yt/core/yson/parser.h>
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/parser.h>
 
-#include <yt/core/ytree/node.h>
-#include <yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/serialize.h>
 
 namespace NYT::NTableClient {
 

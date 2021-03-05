@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hive/proto/hive_service.pb.h>
+#include <yt/yt/ytlib/hive/proto/hive_service.pb.h>
 
-#include <yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NHiveClient {
 

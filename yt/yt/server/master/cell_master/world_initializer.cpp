@@ -3,38 +3,38 @@
 #include "config.h"
 #include "hydra_facade.h"
 
-#include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/cypress_server/node_detail.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
 
-#include <yt/server/master/security_server/acl.h>
-#include <yt/server/master/security_server/group.h>
+#include <yt/yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/group.h>
 
-#include <yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/yt/server/lib/hive/transaction_supervisor.h>
 
-#include <yt/server/lib/scheduler/public.h>
+#include <yt/yt/server/lib/scheduler/public.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/ytlib/election/cell_manager.h>
+#include <yt/yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/transaction_client/transaction_service_proxy.h>
+#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
-#include <yt/ytlib/tablet_client/helpers.h>
+#include <yt/yt/ytlib/tablet_client/helpers.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/yt/core/logging/log.h>
 
-#include <yt/core/misc/atomic_object.h>
-#include <yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
-#include <yt/core/ypath/token.h>
+#include <yt/yt/core/ypath/token.h>
 
-#include <yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 namespace NYT::NCellMaster {
 

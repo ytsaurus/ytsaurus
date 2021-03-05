@@ -6,7 +6,7 @@
 #include "check_yson_token-inl.h"
 #endif
 
-#include <yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/pull_parser.h>
 
 namespace NYT::NComplexTypes {
 

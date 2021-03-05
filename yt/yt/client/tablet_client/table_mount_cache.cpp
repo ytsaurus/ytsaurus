@@ -1,8 +1,8 @@
 #include "table_mount_cache.h"
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/key_bound.h>
 
 namespace NYT::NTabletClient {
 

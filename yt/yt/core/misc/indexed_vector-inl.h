@@ -5,7 +5,7 @@
 #include "indexed_vector.h"
 #endif
 
-#include <yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/serialize.h>
 
 namespace NYT {
 

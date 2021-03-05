@@ -1,19 +1,19 @@
-#include <yt/core/test_framework/framework.h>
+#include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/unittests/proto/ref_counted_tracker_ut.pb.h>
+#include <yt/yt/core/misc/unittests/proto/ref_counted_tracker_ut.pb.h>
 
 #define YT_ENABLE_REF_COUNTED_TRACKING
 
-#include <yt/core/misc/blob.h>
-#include <yt/core/misc/new.h>
-#include <yt/core/misc/protobuf_helpers.h>
-#include <yt/core/misc/ref_counted.h>
-#include <yt/core/misc/ref_counted_tracker.h>
-#include <yt/core/misc/ref_tracked.h>
+#include <yt/yt/core/misc/blob.h>
+#include <yt/yt/core/misc/new.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/ref_counted.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/ref_tracked.h>
 
-#include <yt/core/actions/future.h>
+#include <yt/yt/core/actions/future.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 namespace NYT {
 namespace {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/query_client/function_context.h>
+#include <yt/yt/ytlib/query_client/function_context.h>
 
 #include <stdlib.h>
 

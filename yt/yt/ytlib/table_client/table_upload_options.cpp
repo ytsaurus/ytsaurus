@@ -1,9 +1,9 @@
 #include "table_upload_options.h"
 #include "helpers.h"
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/core/ytree/helpers.h>
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NTableClient {
 

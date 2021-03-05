@@ -1,7 +1,7 @@
 #include "operation_controller.h"
 #include "operation.h"
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NSchedulerSimulator {
 

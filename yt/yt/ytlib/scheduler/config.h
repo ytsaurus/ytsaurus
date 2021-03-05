@@ -5,38 +5,38 @@
 #include "job_resources.h"
 #include "config.h"
 
-#include <yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/client/formats/format.h>
-#include <yt/client/formats/config.h>
+#include <yt/yt/client/formats/format.h>
+#include <yt/yt/client/formats/config.h>
 
-#include <yt/client/table_client/column_sort_schema.h>
-#include <yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/column_sort_schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
-#include <yt/client/transaction_client/public.h>
+#include <yt/yt/client/transaction_client/public.h>
 
-#include <yt/client/security_client/acl.h>
+#include <yt/yt/client/security_client/acl.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/yt/client/ypath/rich.h>
 
-#include <yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/config.h>
 
-#include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/permission.h>
-#include <yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
-#include <yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/phoenix.h>
 
 namespace NYT::NScheduler {
 

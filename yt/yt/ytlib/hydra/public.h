@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/client/hydra/public.h>
+#include <yt/yt/client/hydra/public.h>
 
 namespace NYT::NHydra {
 

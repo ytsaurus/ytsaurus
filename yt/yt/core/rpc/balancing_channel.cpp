@@ -6,14 +6,14 @@
 #include "dynamic_channel_pool.h"
 #include "dispatcher.h"
 
-#include <yt/core/service_discovery/service_discovery.h>
+#include <yt/yt/core/service_discovery/service_discovery.h>
 
-#include <yt/core/concurrency/spinlock.h>
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
 namespace NYT::NRpc {
 

@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/signal.h>
+#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/actions/signal.h>
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/error.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/public.h>
 
-#include <yt/core/net/public.h>
+#include <yt/yt/core/net/public.h>
 
 namespace NYT::NBus {
 
