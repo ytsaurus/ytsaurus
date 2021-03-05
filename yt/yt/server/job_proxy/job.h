@@ -50,7 +50,8 @@ struct IJobHost
 
     virtual void OnPrepared() = 0;
 
-    virtual NChunkClient::IBlockCachePtr GetBlockCache() const = 0;
+    virtual NChunkClient::IBlockCachePtr GetReaderBlockCache() const = 0;
+    virtual NChunkClient::IBlockCachePtr GetWriterBlockCache() const = 0;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const = 0;
 

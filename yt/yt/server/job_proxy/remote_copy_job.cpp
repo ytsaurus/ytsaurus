@@ -331,7 +331,7 @@ private:
             inputChunkId,
             inputReplicas,
             erasureCodec,
-            Host_->GetBlockCache(),
+            Host_->GetReaderBlockCache(),
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());
@@ -560,7 +560,7 @@ private:
             localChunkReplicas,
             erasureCodec,
             repairPartIndicies,
-            Host_->GetBlockCache(),
+            Host_->GetReaderBlockCache(),
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());
@@ -632,7 +632,7 @@ private:
             std::nullopt,
             inputChunkId,
             inputReplicas,
-            Host_->GetBlockCache(),
+            Host_->GetReaderBlockCache(),
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());
@@ -646,7 +646,7 @@ private:
             TChunkReplicaWithMediumList(),
             New<TNodeDirectory>(),
             Host_->GetClient(),
-            GetNullBlockCache(),
+            Host_->GetWriterBlockCache(),
             Host_->GetTrafficMeter(),
             Host_->GetOutBandwidthThrottler());
 

@@ -191,6 +191,7 @@ public:
             BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
             SandboxDirectoryNames[ESandboxKind::Udf],
             BlockReadOptions_,
+            Host_->GetReaderBlockCache(),
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());

@@ -48,6 +48,7 @@ DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory)
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    NChunkClient::IBlockCachePtr blockCache,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr inBandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr outBandwidthThrottler,

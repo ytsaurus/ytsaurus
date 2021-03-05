@@ -78,7 +78,7 @@ public:
             return CreatePartitionSortReader(
                 tableReaderConfig,
                 Host_->GetClient(),
-                Host_->GetBlockCache(),
+                Host_->GetReaderBlockCache(),
                 Host_->GetInputNodeDirectory(),
                 outputSchema->ToComparator(),
                 nameTable,

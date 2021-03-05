@@ -28,8 +28,8 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     std::optional<NNodeTrackerClient::TNodeId> localNodeId,
     TChunkId chunkId,
-    const TChunkReplicaList& seedReplicas = TChunkReplicaList(),
-    IBlockCachePtr blockCache = GetNullBlockCache(),
+    const TChunkReplicaList& seedReplicas,
+    IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());

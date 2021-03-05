@@ -70,7 +70,7 @@ public:
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
                 std::nullopt,
-                Host_->GetBlockCache(),
+                Host_->GetReaderBlockCache(),
                 Host_->GetInputNodeDirectory(),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
