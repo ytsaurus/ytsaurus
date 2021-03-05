@@ -30,7 +30,6 @@ public:
         const TBlockId& blockId,
         const NChunkClient::TBlock& data,
         const std::optional<NNodeTrackerClient::TNodeDescriptor>& source);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedBlock)
@@ -44,34 +43,28 @@ using TCachedBlockCookie = TAsyncSlruCacheBase<TBlockId, TCachedBlock>::TInsertC
  *  \note
  *  Thread affinity: any
  */
-class TChunkBlockManager
-    : public TRefCounted
+struct IChunkBlockManager
+    : public virtual TRefCounted
 {
-public:
-    TChunkBlockManager(
-        TDataNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
-
-    ~TChunkBlockManager();
-
     //! Synchronously looks up a compressed block in the block cache.
-    TCachedBlockPtr FindCachedBlock(const TBlockId& blockId);
+    //! Returns |nullptr| if block was not found.
+    virtual TCachedBlockPtr FindCachedBlock(const TBlockId& blockId) = 0;
 
     //! Puts a compressed block into the store's cache.
     /*!
      *  The store may already have another copy of the same block.
      *  In this case the block content is checked for identity.
      */
-    void PutCachedBlock(
+    virtual void PutCachedBlock(
         const TBlockId& blockId,
         const NChunkClient::TBlock& data,
-        const std::optional<NNodeTrackerClient::TNodeDescriptor>& source);
+        const std::optional<NNodeTrackerClient::TNodeDescriptor>& source) = 0;
 
     //! Starts an asynchronous block load.
     /*!
      *  See TAsyncCacheValueBase for more details.
      */
-    TCachedBlockCookie BeginInsertCachedBlock(const TBlockId& blockId);
+    virtual TCachedBlockCookie BeginInsertCachedBlock(const TBlockId& blockId) = 0;
 
     //! Asynchronously reads a range of blocks from the store.
     /*!
@@ -84,11 +77,11 @@ public:
      *  Note that blob chunks will indicate an error if an attempt is made to read a non-existing block.
      *  Journal chunks, however, will silently ignore it.
      */
-    TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
+    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         TChunkId chunkId,
         int firstBlockIndex,
         int blockCount,
-        const TBlockReadOptions& options);
+        const TBlockReadOptions& options) = 0;
 
     //! Asynchronously reads a set of blocks from the store.
     /*!
@@ -97,21 +90,20 @@ public:
      *  The resulting list may contain less blocks than requested.
      *  If the whole chunk or some of its blocks does not exist then null block may be returned.
      */
-    TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
+    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         TChunkId chunkId,
         const std::vector<int>& blockIndexes,
-        const TBlockReadOptions& options);
+        const TBlockReadOptions& options) = 0;
 
     //! Gets a vector of all blocks with non-null source stored in the cache. Thread-safe.
-    std::vector<TCachedBlockPtr> GetAllBlocksWithSource() const;
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual std::vector<TCachedBlockPtr> GetAllBlocksWithSource() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkBlockManager)
+DEFINE_REFCOUNTED_TYPE(IChunkBlockManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChunkBlockManagerPtr CreateChunkBlockManager(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

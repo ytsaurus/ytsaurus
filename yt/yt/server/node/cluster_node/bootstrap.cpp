@@ -388,7 +388,7 @@ void TBootstrap::DoInitialize()
 
     ChunkMetaManager_ = CreateChunkMetaManager(this);
 
-    ChunkBlockManager_ = New<TChunkBlockManager>(Config_->DataNode, this);
+    ChunkBlockManager_ = CreateChunkBlockManager(this);
 
     NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
 
@@ -1052,7 +1052,7 @@ const TSessionManagerPtr& TBootstrap::GetSessionManager() const
     return SessionManager_;
 }
 
-const TChunkBlockManagerPtr& TBootstrap::GetChunkBlockManager() const
+const IChunkBlockManagerPtr& TBootstrap::GetChunkBlockManager() const
 {
     return ChunkBlockManager_;
 }

@@ -32,7 +32,7 @@ public:
     TLocalChunkReader(
         TReplicationReaderConfigPtr config,
         IChunkPtr chunk,
-        TChunkBlockManagerPtr chunkBlockManager,
+        IChunkBlockManagerPtr chunkBlockManager,
         IBlockCachePtr blockCache,
         TBlockMetaCachePtr blockMetaCache)
         : Config_(std::move(config))
@@ -130,7 +130,7 @@ public:
 private:
     const TReplicationReaderConfigPtr Config_;
     const IChunkPtr Chunk_;
-    const TChunkBlockManagerPtr ChunkBlockManager_;
+    const IChunkBlockManagerPtr ChunkBlockManager_;
     const IBlockCachePtr BlockCache_;
     const TBlockMetaCachePtr BlockMetaCache_;
 
@@ -215,7 +215,7 @@ private:
 IChunkReaderPtr CreateLocalChunkReader(
     TReplicationReaderConfigPtr config,
     IChunkPtr chunk,
-    TChunkBlockManagerPtr chunkBlockManager,
+    IChunkBlockManagerPtr chunkBlockManager,
     IBlockCachePtr blockCache,
     TBlockMetaCachePtr blockMetaCache)
 {

@@ -152,7 +152,7 @@ TOrderedChunkStore::TOrderedChunkStore(
     TTablet* tablet,
     IBlockCachePtr blockCache,
     TChunkRegistryPtr chunkRegistry,
-    TChunkBlockManagerPtr chunkBlockManager,
+    IChunkBlockManagerPtr chunkBlockManager,
     IVersionedChunkMetaManagerPtr chunkMetaManager,
     NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
