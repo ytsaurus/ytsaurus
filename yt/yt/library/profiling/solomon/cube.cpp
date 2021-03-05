@@ -386,13 +386,15 @@ int TCube<T>::ReadSensors(
 
                 writeLabels(tagIds, {}, true);
 
-                auto hist = NMonitoring::TExplicitHistogramSnapshot::New(value.Times.size());
-                for (size_t i = 0; i < value.Times.size(); ++i) {
-                    int bucketValue = i < value.Values.size() ? value.Values[i] : 0;
+                size_t n = value.Times.size();
+                auto hist = NMonitoring::TExplicitHistogramSnapshot::New(n + 1);
+                for (size_t i = 0; i != n; ++i) {
+                    int bucketValue = i < value.Values.size() ? value.Values[i] : 0u;
                     (*hist)[i] = {value.Times[i].SecondsFloat(), bucketValue};
                 }
-
-                sensorCount = value.Values.size();
+                // add inf
+                (*hist)[n] = {Max<NMonitoring::TBucketBound>(), n < value.Values.size() ? value.Values[n] : 0u};
+                sensorCount = n + 1;
                 consumer->OnHistogram(time, hist);
                 consumer->OnMetricEnd();
             } else {
@@ -459,11 +461,13 @@ int TCube<T>::ReadSensorValues(
         ++valuesRead;
     } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
         std::vector<std::pair<double, int>> hist;
-        hist.reserve(value.Times.size());
-        for (size_t i = 0; i < value.Times.size(); ++i) {
+        size_t n = value.Times.size();
+        hist.reserve(n + 1);
+        for (size_t i = 0; i != n; ++i) {
             int bucketValue = i < value.Values.size() ? value.Values[i] : 0;
             hist.emplace_back(value.Times[i].SecondsFloat(), bucketValue);
         }
+        hist.emplace_back(Max<double>(), n < value.Values.size() ? value.Values[n] : 0u);
 
         fluent.DoMapFor(hist, [] (TFluentMap fluent, const auto& bar) {
             fluent

@@ -211,17 +211,21 @@ TEST(TSolomonRegistry, ExponentialHistogramProjections)
 
     auto result = Collect(impl).Histograms;
 
-    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 15u);
-    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 15u);
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 16u);
+    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 16u);
 
     c0.Record(TDuration::MilliSeconds(5));
     c1.Record(TDuration::MilliSeconds(5));
+    c0.Record(TDuration::MilliSeconds(30));
 
     result = Collect(impl).Histograms;
 
-    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 15u);
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 16u);
     ASSERT_EQ(result["yt.d.histogram{}"]->Value(13), 2u);
     ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Value(13), 1u);
+
+    ASSERT_EQ(result["yt.d.histogram{}"]->Value(15), 1u);
+    ASSERT_EQ(Max<double>(), result["yt.d.histogram{}"]->UpperBound(15));
 
     c0.Record(TDuration::MilliSeconds(10));
     c1 = {};
@@ -249,17 +253,21 @@ TEST(TSolomonRegistry, CustomHistogramProjections)
 
     auto result = Collect(impl).Histograms;
 
-    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 4u);
-    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 4u);
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 5u);
+    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 5u);
 
     c0.Record(TDuration::MilliSeconds(5));
     c1.Record(TDuration::MilliSeconds(5));
+    c0.Record(TDuration::MilliSeconds(16));
 
     result = Collect(impl).Histograms;
 
-    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 4u);
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 5u);
     ASSERT_EQ(result["yt.d.histogram{}"]->Value(1), 2u);
     ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Value(1), 1u);
+
+    ASSERT_EQ(result["yt.d.histogram{}"]->Value(4), 1u);
+    ASSERT_EQ(Max<double>(), result["yt.d.histogram{}"]->UpperBound(4));
 
     c0.Record(TDuration::MilliSeconds(10));
     c1 = {};
@@ -288,7 +296,7 @@ TEST(TSolomonRegistry, SparseHistogram)
     result = Collect(impl).Histograms;
 
     ASSERT_FALSE(result.empty());
-    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 15u);
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 16u);
     ASSERT_EQ(result["yt.d.histogram{}"]->Value(13), 1u);
 
     Collect(impl, 2);
