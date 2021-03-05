@@ -42,6 +42,8 @@
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -93,6 +95,7 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NProfiling;
 using namespace NYson;
+using namespace NChunkClient;
 
 using NYT::FromProto;
 
@@ -833,6 +836,7 @@ private:
     std::vector<TNodeGroup> NodeGroups_;
     TNodeGroup* DefaultNodeGroup_ = nullptr;
     THashSet<TString> PendingRegisterNodeAddreses_;
+    THashMap<TLocationUuid, TNode*> RegisteredLocationUuids_;    
     TNodeDiscoveryManagerPtr MasterCacheManager_;
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
 
@@ -886,6 +890,7 @@ private:
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
         auto tags = FromProto<std::vector<TString>>(request->tags());
         auto flavors = FromProto<THashSet<ENodeFlavor>>(request->flavors());
+        auto locationUuids = FromProto<std::vector<TLocationUuid>>(request->location_uuids());
 
         // COMPAT(gritukan)
         if (flavors.empty()) {
@@ -946,7 +951,18 @@ private:
             } else {
                 EnsureNodeDisposed(node);
             }
+        }
 
+        for (auto locationUuid : locationUuids) {
+            if (auto it = RegisteredLocationUuids_.find(locationUuid)) {
+                THROW_ERROR_EXCEPTION("Cannot register node %v: there is a registered node %v with the same location uuid %v",
+                    node->GetDefaultAddress(),
+                    it->second->GetDefaultAddress(),
+                    locationUuid);
+            }
+        }
+
+        if (!isNodeNew) {
             UpdateNode(node, nodeAddresses);
         } else {
             auto nodeId = request->has_node_id() ? request->node_id() : GenerateNodeId();
@@ -1005,6 +1021,12 @@ private:
             node->SetLeaseTransaction(leaseTransaction);
             RegisterLeaseTransaction(node);
         }
+
+        for (auto locationUuid : locationUuids) {
+            YT_VERIFY(RegisteredLocationUuids_.emplace(locationUuid, node).second);
+        }
+
+        node->LocationUuids() = std::move(locationUuids);
 
         NodeRegistered_.Fire(node);
 
@@ -1327,6 +1349,7 @@ private:
         NodeMap_.SaveValues(context);
         RackMap_.SaveValues(context);
         DataCenterMap_.SaveValues(context);
+        Save(context, RegisteredLocationUuids_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -1352,6 +1375,11 @@ private:
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
         DataCenterMap_.LoadValues(context);
+
+        // COMPAT(aleksandra-zh)
+        if (context.GetVersion() >= EMasterReign::RegisteredLocationUuids) {
+            Load(context, RegisteredLocationUuids_);
+        }
     }
 
 
@@ -1668,6 +1696,11 @@ private:
             UpdateNodeCounters(node, -1);
             node->SetLocalState(ENodeState::Unregistered);
             node->ReportedHeartbeats().clear();
+
+            for (const auto& locationUuid : node->LocationUuids()) {
+                YT_VERIFY(RegisteredLocationUuids_.erase(locationUuid) > 0);
+            }
+
             NodeUnregistered_.Fire(node);
 
             if (propagate) {

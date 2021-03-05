@@ -18,6 +18,7 @@ message TReqRegisterNode
     optional string cypress_annotations = 6;
     optional string build_version = 7;
     repeated int32 flavors = 8; // ENodeFlavor
+    repeated NYT.NProto.TGuid location_uuids = 9;
 
     reserved 2;
 }

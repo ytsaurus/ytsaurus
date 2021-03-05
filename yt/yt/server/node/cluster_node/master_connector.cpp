@@ -477,6 +477,10 @@ private:
         req->set_cypress_annotations(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
         req->set_build_version(GetVersion());
 
+        for (const auto& location : Bootstrap_->GetChunkStore()->Locations()) {
+            ToProto(req->add_location_uuids(), location->GetUuid());
+        }
+
         YT_LOG_INFO("Registering at primary master");
 
         auto rsp = WaitFor(req->Invoke())

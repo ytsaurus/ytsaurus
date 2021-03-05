@@ -408,6 +408,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, TabletSlots_);
     Save(context, Annotations_);
     Save(context, Version_);
+    Save(context, LocationUuids_);
     Save(context, Flavors_);
     Save(context, ReportedHeartbeats_);
 }
@@ -481,6 +482,11 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, TabletSlots_);
     Load(context, Annotations_);
     Load(context, Version_);
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::RegisteredLocationUuids) {
+        Load(context, LocationUuids_);
+    }
 
     // COMPAT(gritukan)
     if (context.GetVersion() >= EMasterReign::NodeFlavors) {
