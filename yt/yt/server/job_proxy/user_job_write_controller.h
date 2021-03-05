@@ -35,7 +35,7 @@ protected:
     const IJobHost* Host_;
     const NLogging::TLogger Logger;
 
-    std::atomic<bool> Initialized_ = {false};
+    std::atomic<bool> Initialized_ = false;
 
     std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
     std::vector<std::unique_ptr<NTableClient::IFlushableValueConsumer>> ValueConsumers_;

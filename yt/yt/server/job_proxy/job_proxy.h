@@ -175,7 +175,8 @@ private:
 
     virtual void OnPrepared() override;
 
-    virtual NChunkClient::IBlockCachePtr GetBlockCache() const override;
+    virtual NChunkClient::IBlockCachePtr GetReaderBlockCache() const override;
+    virtual NChunkClient::IBlockCachePtr GetWriterBlockCache() const override;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const override;
 

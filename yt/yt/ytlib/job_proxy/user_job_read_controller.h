@@ -49,6 +49,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
     NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    NChunkClient::IBlockCachePtr blockCache,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler);

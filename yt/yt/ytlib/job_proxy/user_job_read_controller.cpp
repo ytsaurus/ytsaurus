@@ -324,6 +324,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
     TClientBlockReadOptions& blockReadOptions,
+    IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -338,6 +339,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
             CreateUserJobIOFactory(
                 jobSpecHelper,
                 blockReadOptions,
+                std::move(blockCache),
                 trafficMeter,
                 std::move(bandwidthThrottler),
                 nullptr,

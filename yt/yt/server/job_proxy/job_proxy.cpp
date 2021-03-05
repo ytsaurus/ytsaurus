@@ -860,7 +860,12 @@ NApi::NNative::IClientPtr TJobProxy::GetClient() const
     return Client_;
 }
 
-IBlockCachePtr TJobProxy::GetBlockCache() const
+IBlockCachePtr TJobProxy::GetReaderBlockCache() const
+{
+    return GetNullBlockCache();
+}
+
+IBlockCachePtr TJobProxy::GetWriterBlockCache() const
 {
     return GetNullBlockCache();
 }

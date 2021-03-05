@@ -28,7 +28,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartReaders(
     const TChunkReplicaList& seedReplicas,
     const NErasure::ICodec* codec,
     const NErasure::TPartIndexList& partIndexList,
-    IBlockCachePtr blockCache = GetNullBlockCache(),
+    IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
@@ -41,7 +41,7 @@ std::vector<IChunkReaderPtr> CreateAllErasurePartReaders(
     TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
     const NErasure::ICodec* codec,
-    IBlockCachePtr blockCache = GetNullBlockCache(),
+    IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());

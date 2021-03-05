@@ -94,6 +94,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
     const TColumnFilter& columnFilter,
     bool isParallel,
     const TClientBlockReadOptions& blockReadOptions,
+    IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
@@ -109,7 +110,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
         std::move(client),
         nodeDescriptor,
         std::nullopt,
-        GetNullBlockCache(),
+        std::move(blockCache),
         jobSpecHelper->GetInputNodeDirectory(),
         dataSourceDirectory,
         std::move(dataSliceDescriptors),
@@ -133,6 +134,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
     const TClientBlockReadOptions& blockReadOptions,
+    IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
@@ -160,6 +162,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         columnFilter,
         isParallel,
         blockReadOptions,
+        std::move(blockCache),
         std::move(trafficMeter),
         std::move(bandwidthThrottler),
         std::move(rpsThrottler),
@@ -176,12 +179,14 @@ struct TUserJobIOFactoryBase
     TUserJobIOFactoryBase(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientBlockReadOptions& blockReadOptions,
+        IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , BlockReadOptions_(blockReadOptions)
+        , BlockCache_(std::move(blockCache))
         , TrafficMeter_(std::move(trafficMeter))
         , InBandwidthThrottler_(std::move(inBandwidthThrottler))
         , OutBandwidthThrottler_(std::move(outBandwidthThrottler))
@@ -228,6 +233,7 @@ struct TUserJobIOFactoryBase
 protected:
     const IJobSpecHelperPtr JobSpecHelper_;
     const TClientBlockReadOptions BlockReadOptions_;
+    const IBlockCachePtr BlockCache_;
     const TTrafficMeterPtr TrafficMeter_;
     const IThroughputThrottlerPtr InBandwidthThrottler_;
     const IThroughputThrottlerPtr OutBandwidthThrottler_;
@@ -247,6 +253,7 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         bool useParallelReader,
         const TClientBlockReadOptions& blockReadOptions,
+        IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
@@ -254,6 +261,7 @@ public:
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             blockReadOptions,
+            std::move(blockCache),
             std::move(trafficMeter),
             std::move(inBandwidthThrottler),
             std::move(outBandwidthThrottler),
@@ -278,6 +286,7 @@ public:
             std::move(nameTable),
             columnFilter,
             BlockReadOptions_,
+            BlockCache_,
             TrafficMeter_,
             InBandwidthThrottler_,
             OutRpsThrottler_,
@@ -304,6 +313,7 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         bool interruptAtKeyEdge,
         const TClientBlockReadOptions& blockReadOptions,
+        IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
@@ -311,6 +321,7 @@ public:
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             blockReadOptions,
+            std::move(blockCache),
             std::move(trafficMeter),
             std::move(inBandwidthThrottler),
             std::move(outBandwidthThrottler),
@@ -362,7 +373,7 @@ public:
                 client,
                 nodeDescriptor,
                 std::nullopt,
-                GetNullBlockCache(),
+                BlockCache_,
                 JobSpecHelper_->GetInputNodeDirectory(),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
@@ -396,7 +407,7 @@ public:
                 client,
                 nodeDescriptor,
                 std::nullopt,
-                GetNullBlockCache(),
+                BlockCache_,
                 JobSpecHelper_->GetInputNodeDirectory(),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
@@ -447,6 +458,7 @@ public:
     explicit TPartitionMapJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientBlockReadOptions& blockReadOptions,
+        IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
@@ -454,6 +466,7 @@ public:
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             blockReadOptions,
+            std::move(blockCache),
             std::move(trafficMeter),
             std::move(inBandwidthThrottler),
             std::move(outBandwidthThrottler),
@@ -481,6 +494,7 @@ public:
             std::move(nameTable),
             columnFilter,
             BlockReadOptions_,
+            BlockCache_,
             TrafficMeter_,
             InBandwidthThrottler_,
             OutRpsThrottler_,
@@ -569,6 +583,7 @@ public:
     TPartitionReduceJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientBlockReadOptions& blockReadOptions,
+        IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
@@ -576,6 +591,7 @@ public:
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             blockReadOptions,
+            std::move(blockCache),
             std::move(trafficMeter),
             std::move(inBandwidthThrottler),
             std::move(outBandwidthThrottler),
@@ -627,7 +643,7 @@ public:
         return CreatePartitionSortReader(
             JobSpecHelper_->GetJobIOConfig()->TableReader,
             std::move(client),
-            GetNullBlockCache(),
+            BlockCache_,
             JobSpecHelper_->GetInputNodeDirectory(),
             GetComparator(sortColumns),
             nameTable,
@@ -649,7 +665,6 @@ protected:
     {
         return JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -661,6 +676,7 @@ public:
     TVanillaJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientBlockReadOptions& blockReadOptions,
+        IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr inBandwidthThrottler,
         IThroughputThrottlerPtr outBandwidthThrottler,
@@ -668,6 +684,7 @@ public:
         : TUserJobIOFactoryBase(
             std::move(jobSpecHelper),
             blockReadOptions,
+            std::move(blockCache),
             std::move(trafficMeter),
             std::move(inBandwidthThrottler),
             std::move(outBandwidthThrottler),
@@ -696,6 +713,7 @@ protected:
 IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     const TClientBlockReadOptions& blockReadOptions,
+    IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr inBandwidthThrottler,
     IThroughputThrottlerPtr outBandwidthThrottler,
@@ -708,6 +726,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
                 jobSpecHelper,
                 true,
                 blockReadOptions,
+                std::move(blockCache),
                 std::move(trafficMeter),
                 std::move(inBandwidthThrottler),
                 std::move(outBandwidthThrottler),
@@ -718,6 +737,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
                 jobSpecHelper,
                 false,
                 blockReadOptions,
+                std::move(blockCache),
                 std::move(trafficMeter),
                 std::move(inBandwidthThrottler),
                 std::move(outBandwidthThrottler),
@@ -728,6 +748,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
                 jobSpecHelper,
                 true,
                 blockReadOptions,
+                std::move(blockCache),
                 std::move(trafficMeter),
                 std::move(inBandwidthThrottler),
                 std::move(outBandwidthThrottler),
@@ -738,6 +759,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
                 jobSpecHelper,
                 false,
                 blockReadOptions,
+                std::move(blockCache),
                 std::move(trafficMeter),
                 std::move(inBandwidthThrottler),
                 std::move(outBandwidthThrottler),
@@ -747,6 +769,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
             return New<TPartitionMapJobIOFactory>(
                 jobSpecHelper,
                 blockReadOptions,
+                std::move(blockCache),
                 std::move(trafficMeter),
                 std::move(inBandwidthThrottler),
                 std::move(outBandwidthThrottler),
@@ -758,6 +781,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
             return New<TPartitionReduceJobIOFactory>(
                 jobSpecHelper,
                 blockReadOptions,
+                std::move(blockCache),
                 std::move(trafficMeter),
                 std::move(inBandwidthThrottler),
                 std::move(outBandwidthThrottler),
@@ -767,6 +791,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
             return New<TVanillaJobIOFactory>(
                 jobSpecHelper,
                 blockReadOptions,
+                std::move(blockCache),
                 std::move(trafficMeter),
                 std::move(inBandwidthThrottler),
                 std::move(outBandwidthThrottler),

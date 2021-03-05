@@ -187,13 +187,14 @@ void TUserJobWriteController::Init()
 {
     YT_LOG_INFO("Opening writers");
 
-    auto guard = Finally([&] () {
+    auto guard = Finally([&] {
         Initialized_ = true;
     });
 
     auto userJobIOFactory = CreateUserJobIOFactory(
         Host_->GetJobSpecHelper(),
         TClientBlockReadOptions(),
+        Host_->GetWriterBlockCache(),
         Host_->GetTrafficMeter(),
         Host_->GetInBandwidthThrottler(),
         Host_->GetOutBandwidthThrottler(),
