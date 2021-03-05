@@ -143,19 +143,15 @@ static std::vector<TDuration> BucketBounds(const TSensorOptions& options)
 
 THistogram::THistogram(const TSensorOptions& options)
     : Bounds_(!options.HistogramBounds.empty() ? std::vector<TDuration>{options.HistogramBounds} : BucketBounds(options))
-    , Buckets_(Bounds_.size())
+    , Buckets_(Bounds_.size() + 1)
 {
     YT_VERIFY(!Bounds_.empty());
-    YT_VERIFY(Bounds_.size() < MaxBinCount);
+    YT_VERIFY(Bounds_.size() <= MaxBinCount);
 }
 
 void THistogram::Record(TDuration value)
 {
     auto it = std::lower_bound(Bounds_.begin(), Bounds_.end(), value);
-    if (it == Bounds_.end()) {
-        it--;
-    }
-
     Buckets_[it - Bounds_.begin()].fetch_add(1, std::memory_order_relaxed);
 }
 
