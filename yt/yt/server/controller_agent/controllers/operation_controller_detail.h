@@ -416,7 +416,7 @@ protected:
     NApi::NNative::IClientPtr Client;
     NApi::NNative::IClientPtr InputClient;
     NApi::NNative::IClientPtr OutputClient;
-    
+
     // These clients are identical to the above, but uses scheduler user.
     NApi::NNative::IClientPtr SchedulerClient;
     NApi::NNative::IClientPtr SchedulerInputClient;
@@ -883,6 +883,7 @@ protected:
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
     std::vector<std::deque<NChunkClient::TLegacyDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
+
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
         TJobletPtr joblet) const;
@@ -1089,7 +1090,7 @@ private:
 
     const NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 
-    int RetainedJobWithStderrCount_ = 0;
+    std::atomic<int> RetainedJobWithStderrCount_ = 0;
     int RetainedJobsCoreInfoCount_ = 0;
     int RetainedJobCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;

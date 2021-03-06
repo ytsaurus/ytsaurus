@@ -61,6 +61,9 @@ struct ITaskHost
     // TODO(max42): get rid of this; serialize files either in tasks or in controller.
     virtual const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const = 0;
 
+    /*!
+     *  \note Invoker affinity: JobSpecBuildInvoker.
+     */
     virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) const = 0;
     virtual void CustomizeJoblet(const TJobletPtr& joblet) = 0;
 

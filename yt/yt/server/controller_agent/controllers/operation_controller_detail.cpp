@@ -347,7 +347,7 @@ void TOperationControllerBase::InitializeClients()
         ->CreateNativeClient(TClientOptions::FromUser(AuthenticatedUser));
     InputClient = Client;
     OutputClient = Client;
-    
+
     SchedulerClient = Host
         ->GetClient()
         ->GetNativeConnection()
@@ -748,8 +748,16 @@ void TOperationControllerBase::InitUpdatingTables()
 
 void TOperationControllerBase::InitializeOrchid()
 {
-    auto createService = [=] (auto fluentMethod) -> IYPathServicePtr {
-        return IYPathService::FromProducer(BIND([fluentMethod = std::move(fluentMethod), weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+    YT_LOG_DEBUG("Initializing orchid");
+
+    auto createService = [=] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
+        return IYPathService::FromProducer(BIND([
+            =,
+            fluentMethod = std::move(fluentMethod),
+            weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+                YT_LOG_DEBUG(
+                    "Handling orchid request in controller (Key: %v)",
+                    key);
                 auto strongThis = weakThis.Lock();
                 if (!strongThis) {
                     THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
@@ -773,26 +781,44 @@ void TOperationControllerBase::InitializeOrchid()
         };
     };
 
-    auto createCachedMapService = [=] (auto fluentMethod) -> IYPathServicePtr {
-        return createService(wrapWithMap(std::move(fluentMethod)))
+    auto createCachedMapService = [=] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
+        return createService(wrapWithMap(std::move(fluentMethod)), key)
             ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
     };
 
     // NB: we may safely pass unretained this below as all the callbacks are wrapped with a createService helper
     // that takes care on checking the controller presence and properly replying in case it is already destroyed.
     auto service = New<TCompositeMapService>()
-        ->AddChild("progress", createCachedMapService(BIND(&TOperationControllerBase::BuildProgress, Unretained(this))))
-        ->AddChild("brief_progress", createCachedMapService(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this))))
-        ->AddChild("running_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this))))
-        ->AddChild("retained_finished_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildRetainedFinishedJobsYson, Unretained(this))))
-        ->AddChild("memory_usage", createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this))))
-        ->AddChild("state", createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this))))
-        ->AddChild("data_flow_graph", DataFlowGraph_->GetService()
-            ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this))))
-        ->AddChild("testing", createService(BIND(&TOperationControllerBase::BuildTestingState, Unretained(this))));
+        ->AddChild(
+            "progress",
+            createCachedMapService(BIND(&TOperationControllerBase::BuildProgress, Unretained(this)), "progress"))
+        ->AddChild(
+            "brief_progress",
+            createCachedMapService(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this)), "brief_progress"))
+        ->AddChild(
+            "running_jobs",
+            createCachedMapService(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this)), "running_jobs"))
+        ->AddChild(
+            "retained_finished_jobs",
+            createCachedMapService(BIND(&TOperationControllerBase::BuildRetainedFinishedJobsYson, Unretained(this)), "retained_finished_jobs"))
+        ->AddChild(
+            "memory_usage",
+            createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this)), "memory_usage"))
+        ->AddChild(
+            "state",
+            createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this)), "state"))
+        ->AddChild(
+            "data_flow_graph",
+            DataFlowGraph_->GetService()
+                ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this))))
+        ->AddChild(
+            "testing",
+            createService(BIND(&TOperationControllerBase::BuildTestingState, Unretained(this)), "testing"));
     service->SetOpaque(false);
     Orchid_ = service
         ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
+
+    YT_LOG_DEBUG("Orchid initialized");
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -4257,6 +4283,8 @@ void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /* joblet */)
 
 void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) const
 {
+    VERIFY_INVOKER_AFFINITY(Host->GetJobSpecBuildPoolInvoker());
+
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
     schedulerJobSpecExt->set_yt_alloc_min_large_unreclaimable_bytes(GetYTAllocMinLargeUnreclaimableBytes());
@@ -8397,6 +8425,8 @@ void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet) const
 {
+    VERIFY_INVOKER_AFFINITY(Host->GetJobSpecBuildPoolInvoker());
+
     ToProto(jobSpec->mutable_debug_output_transaction_id(), DebugTransaction->GetId());
 
     i64 memoryReserve = joblet->EstimatedResourceUsage.GetUserJobMemory() * *joblet->UserJobMemoryReserveFactor;
@@ -8468,6 +8498,8 @@ void TOperationControllerBase::AddStderrOutputSpecs(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet) const
 {
+    VERIFY_INVOKER_AFFINITY(Host->GetJobSpecBuildPoolInvoker());
+
     auto* stderrTableSpec = jobSpec->mutable_stderr_table_spec();
     auto* outputSpec = stderrTableSpec->mutable_output_table_spec();
     outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable_->TableWriterOptions).ToString());
@@ -8483,6 +8515,8 @@ void TOperationControllerBase::AddCoreOutputSpecs(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet) const
 {
+    VERIFY_INVOKER_AFFINITY(Host->GetJobSpecBuildPoolInvoker());
+
     auto* coreTableSpec = jobSpec->mutable_core_table_spec();
     auto* outputSpec = coreTableSpec->mutable_output_table_spec();
     outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable_->TableWriterOptions).ToString());

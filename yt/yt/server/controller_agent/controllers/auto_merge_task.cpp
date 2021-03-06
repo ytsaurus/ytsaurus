@@ -237,6 +237,8 @@ TExtendedJobResources TAutoMergeTask::GetMinNeededResourcesHeavy() const
 
 void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec)
 {
+    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+
     auto poolIndex = *joblet->InputStripeList->PartitionTag;
     jobSpec->CopyFrom(TaskHost_->GetAutoMergeJobSpecTemplate(GetTableIndex(poolIndex)));
     AddSequentialInputSpec(jobSpec, joblet);

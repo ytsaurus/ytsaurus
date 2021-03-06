@@ -101,6 +101,8 @@ public:
 
     virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override
     {
+        VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+
         jobSpec->CopyFrom(JobSpecTemplate_);
         AddOutputTableSpecs(jobSpec, joblet);
     }
