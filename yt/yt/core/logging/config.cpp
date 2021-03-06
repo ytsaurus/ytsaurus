@@ -36,7 +36,7 @@ TLogManagerConfigPtr TLogManagerConfig::CreateLogFile(const TString& path)
 
     auto config = New<TLogManagerConfig>();
     config->Rules.push_back(rule);
-    config->WriterConfigs.emplace("FileWriter", fileWriterConfig);
+    config->Writers.emplace("FileWriter", fileWriterConfig);
 
     config->MinDiskSpace = 0;
     config->HighBacklogWatermark = 100000;
@@ -56,7 +56,7 @@ TLogManagerConfigPtr TLogManagerConfig::CreateStderrLogger(ELogLevel logLevel)
 
     auto config = New<TLogManagerConfig>();
     config->Rules.push_back(rule);
-    config->WriterConfigs.emplace(TString(DefaultStderrWriterName), stderrWriterConfig);
+    config->Writers.emplace(TString(DefaultStderrWriterName), stderrWriterConfig);
 
     config->MinDiskSpace = 0;
     config->HighBacklogWatermark = 100000;
@@ -103,7 +103,7 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentN
             logLevel == ELogLevel::Info ? "" : "." + FormatEnum(logLevel));
 
         config->Rules.push_back(rule);
-        config->WriterConfigs.emplace(ToString(logLevel), fileWriterConfig);
+        config->Writers.emplace(ToString(logLevel), fileWriterConfig);
     }
 
     return config;
@@ -182,7 +182,7 @@ TLogManagerConfigPtr TLogManagerConfig::TryCreateFromEnv()
     auto stderrWriter = New<TWriterConfig>();
     stderrWriter->Type = EWriterType::Stderr;
 
-    config->WriterConfigs.emplace(stderrWriterName, std::move(stderrWriter));
+    config->Writers.emplace(stderrWriterName, std::move(stderrWriter));
 
     return config;
 }

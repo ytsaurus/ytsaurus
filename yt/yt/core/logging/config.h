@@ -121,7 +121,7 @@ public:
     TDuration ShutdownGraceTimeout;
 
     std::vector<TRuleConfigPtr> Rules;
-    THashMap<TString, TWriterConfigPtr> WriterConfigs;
+    THashMap<TString, TWriterConfigPtr> Writers;
     std::vector<TString> SuppressedMessages;
     THashMap<TString, size_t> CategoryRateLimits;
 
@@ -149,7 +149,7 @@ public:
         RegisterParameter("shutdown_grace_timeout", ShutdownGraceTimeout)
             .Default(TDuration::Seconds(1));
 
-        RegisterParameter("writers", WriterConfigs);
+        RegisterParameter("writers", Writers);
         RegisterParameter("rules", Rules);
         RegisterParameter("suppressed_messages", SuppressedMessages)
             .Default();
@@ -166,8 +166,8 @@ public:
         RegisterPostprocessor([&] () {
             for (const auto& rule : Rules) {
                 for (const TString& writer : rule->Writers) {
-                    auto it = WriterConfigs.find(writer);
-                    if (it == WriterConfigs.end()) {
+                    auto it = Writers.find(writer);
+                    if (it == Writers.end()) {
                         THROW_ERROR_EXCEPTION("Unknown writer %Qv", writer);
                     }
                     if (rule->MessageFormat != it->second->AcceptedMessageFormat) {

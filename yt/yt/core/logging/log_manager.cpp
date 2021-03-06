@@ -795,7 +795,7 @@ private:
             SuppressedRequestIdQueue_.DequeueAll();
         }
 
-        for (const auto& [name, config] : Config_->WriterConfigs) {
+        for (const auto& [name, config] : Config_->Writers) {
             ILogWriterPtr writer;
             std::unique_ptr<ILogFormatter> formatter;
             std::unique_ptr<TNotificationWatch> watch;
@@ -981,7 +981,7 @@ private:
             auto minLogStorageAvailableSpace = std::numeric_limits<i64>::max();
             auto minLogStorageFreeSpace = std::numeric_limits<i64>::max();
 
-            for (const auto& [name, writerConfig] : Config_->WriterConfigs) {
+            for (const auto& [name, writerConfig] : Config_->Writers) {
                 if (writerConfig->Type == EWriterType::File) {
                     auto logStorageDiskSpaceStatistics = GetDiskSpaceStatistics(GetDirectoryName(writerConfig->FileName));
                     minLogStorageAvailableSpace = std::min<i64>(minLogStorageAvailableSpace, logStorageDiskSpaceStatistics.AvailableSpace);
