@@ -133,6 +133,7 @@ def test_ypath_dirname():
         assert ypath_dirname("abc/def")
 
 @pytest.mark.timeout(1200)
+@flaky(max_runs=3)
 @pytest.mark.usefixtures("yt_env_job_archive")
 class TestYtBinary(object):
     @authors("asaitgalin")

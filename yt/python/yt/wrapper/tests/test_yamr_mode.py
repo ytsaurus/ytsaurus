@@ -18,6 +18,8 @@ import yt.wrapper as yt
 
 import pytest
 
+from flaky import flaky
+
 import os
 import uuid
 import string
@@ -111,6 +113,7 @@ class TestYamrMode(object):
 
     @authors("ignat")
     @pytest.mark.timeout(1800)
+    @flaky(max_runs=3)
     def test_mapreduce_binary(self, yt_env_for_yamr):
         env = get_environment_for_binary_test(yt_env_for_yamr)
         env["FALSE"] = "false"
