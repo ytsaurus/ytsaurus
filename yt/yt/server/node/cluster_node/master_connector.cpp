@@ -478,7 +478,9 @@ private:
         req->set_build_version(GetVersion());
 
         for (const auto& location : Bootstrap_->GetChunkStore()->Locations()) {
-            ToProto(req->add_location_uuids(), location->GetUuid());
+            if (location->IsEnabled()) {
+                ToProto(req->add_location_uuids(), location->GetUuid());
+            }
         }
 
         YT_LOG_INFO("Registering at primary master");
