@@ -405,7 +405,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
 
         TSubrequest subrequest;
         ToProto(subrequest.mutable_tablet_id(), tabletInfo->TabletId);
-        ToProto(subrequest.mutable_tablet_id(), tabletInfo->CellId);
+        ToProto(subrequest.mutable_cell_id(), tabletInfo->CellId);
         subrequest.set_table_index(0);
         subrequest.set_mount_revision(tabletInfo->MountRevision);
         for (int rangeIndex = 0; rangeIndex < ranges.size(); ++rangeIndex) {
