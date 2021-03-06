@@ -6,7 +6,7 @@ namespace NYT::NMasterCache {
 
 const NLogging::TLogger MasterCacheLogger("MasterCache");
 
-const NProfiling::TRegistry MasterCacheProfiler("/master_cache");
+const NProfiling::TProfiler MasterCacheProfiler("/master_cache");
 
 ////////////////////////////////////////////////////////////////////////////////
 

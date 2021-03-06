@@ -105,7 +105,7 @@ public:
             NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
             Config_->IdleChannelTtl))
         , StickyGroupSizeCache_(Config_->EnableDynamicCacheStickyGroupSize ? New<TStickyGroupSizeCache>() : nullptr)
-        , Profiler_(TRegistry("/connection").WithTag("connection_name", Config_->Name))
+        , Profiler_(TProfiler("/connection").WithTag("connection_name", Config_->Name))
     { }
 
     void Initialize()
@@ -505,7 +505,7 @@ private:
     TThreadPoolPtr ThreadPool_;
     IInvokerPtr ThreadPoolInvoker_;
 
-    TRegistry Profiler_;
+    TProfiler Profiler_;
 
     std::atomic<bool> Terminated_ = {false};
 

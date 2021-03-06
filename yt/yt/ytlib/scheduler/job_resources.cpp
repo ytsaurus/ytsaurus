@@ -253,7 +253,7 @@ TString FormatResources(const TExtendedJobResources& resources)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobResourcesProfiler::Init(const NProfiling::TRegistry& profiler)
+void TJobResourcesProfiler::Init(const NProfiling::TProfiler& profiler)
 {
 #define XX(name, Name) Name = profiler.Gauge("/" #name);
     ITERATE_JOB_RESOURCES(XX)

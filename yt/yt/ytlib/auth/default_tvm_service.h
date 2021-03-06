@@ -13,7 +13,7 @@ namespace NYT::NAuth {
 ITvmServicePtr CreateDefaultTvmService(
     TDefaultTvmServiceConfigPtr config,
     NConcurrency::IPollerPtr poller,
-    NProfiling::TRegistry profiler = {});
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

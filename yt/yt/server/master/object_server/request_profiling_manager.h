@@ -9,7 +9,7 @@ namespace NYT::NObjectServer {
 struct TRequestProfilingCounters
     : public TRefCounted
 {
-    explicit TRequestProfilingCounters(const NProfiling::TRegistry& profiler);
+    explicit TRequestProfilingCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter TotalReadRequestCounter;
     NProfiling::TCounter TotalWriteRequestCounter;

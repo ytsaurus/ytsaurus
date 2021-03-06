@@ -106,7 +106,7 @@ public:
         TString reporterName,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
-        const TRegistry& profiler)
+        const TProfiler& profiler)
         : Logger(NYT::NDetail::ArchiveReporterLogger.WithTag("ReporterName: %v", std::move(reporterName)))
         , Config_(std::move(config))
         , NameTable_(std::move(nameTable))
@@ -355,7 +355,7 @@ TArchiveReporter::TArchiveReporter(
     TString reporterName,
     NNative::IClientPtr client,
     IInvokerPtr invoker,
-    const TRegistry& profiler)
+    const TProfiler& profiler)
     : Impl_(New<TImpl>(
         std::move(version),
         std::move(config),

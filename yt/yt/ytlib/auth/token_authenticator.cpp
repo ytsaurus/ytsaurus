@@ -33,7 +33,7 @@ public:
     TBlackboxTokenAuthenticator(
         TBlackboxTokenAuthenticatorConfigPtr config,
         IBlackboxServicePtr blackboxService,
-        NProfiling::TRegistry profiler)
+        NProfiling::TProfiler profiler)
         : Config_(std::move(config))
         , Blackbox_(std::move(blackboxService))
     {
@@ -155,7 +155,7 @@ private:
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     TBlackboxTokenAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackboxService,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
 {
     return New<TBlackboxTokenAuthenticator>(
         std::move(config),
@@ -268,7 +268,7 @@ public:
     TCachingTokenAuthenticator(
         TCachingTokenAuthenticatorConfigPtr config,
         ITokenAuthenticatorPtr tokenAuthenticator,
-        NProfiling::TRegistry profiler)
+        NProfiling::TProfiler profiler)
         : TAuthCache(config->Cache, std::move(profiler))
         , TokenAuthenticator_(std::move(tokenAuthenticator))
     { }
@@ -292,7 +292,7 @@ private:
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
     TCachingTokenAuthenticatorConfigPtr config,
     ITokenAuthenticatorPtr authenticator,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
 {
     return New<TCachingTokenAuthenticator>(
         std::move(config),

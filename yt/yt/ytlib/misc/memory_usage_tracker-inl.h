@@ -60,7 +60,7 @@ TMemoryUsageTracker<ECategory, TPoolTag>::TMemoryUsageTracker(
     i64 totalLimit,
     const std::vector<std::pair<ECategory, i64>>& limits,
     const NLogging::TLogger& logger,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
     : TotalLimit_(totalLimit)
     , TotalFree_(totalLimit)
     , Logger(logger)

@@ -49,7 +49,7 @@ public:
         TDefaultSecretVaultServiceConfigPtr config,
         ITvmServicePtr tvmService,
         IPollerPtr poller,
-        NProfiling::TRegistry profiler)
+        NProfiling::TProfiler profiler)
         : Config_(std::move(config))
         , TvmService_(std::move(tvmService))
         , HttpClient_(CreateHttpClient(std::move(poller)))
@@ -352,7 +352,7 @@ ISecretVaultServicePtr CreateDefaultSecretVaultService(
     TDefaultSecretVaultServiceConfigPtr config,
     ITvmServicePtr tvmService,
     IPollerPtr poller,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
 {
     return New<TDefaultSecretVaultService>(
         std::move(config),

@@ -20,11 +20,11 @@ extern const NLogging::TLogger ClickHouseYtLogger;
 //! Logger which is used by ClickHouse native code.
 extern const NLogging::TLogger ClickHouseNativeLogger;
 //! Root profiler for all metrics.
-extern const NProfiling::TRegistry ClickHouseProfiler;
+extern const NProfiling::TProfiler ClickHouseProfiler;
 //! Profiler for our own metrics.
-extern const NProfiling::TRegistry ClickHouseYtProfiler;
+extern const NProfiling::TProfiler ClickHouseYtProfiler;
 //! Profiler exporting raw ClickHouse metrics.
-extern const NProfiling::TRegistry ClickHouseNativeProfiler;
+extern const NProfiling::TProfiler ClickHouseNativeProfiler;
 
 constexpr int MemoryLimitExceededExitCode = 42;
 

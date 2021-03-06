@@ -184,7 +184,7 @@ struct TFairSharePostUpdateContext
 
 struct TScheduleJobsProfilingCounters
 {
-    TScheduleJobsProfilingCounters(const NProfiling::TRegistry& profiler);
+    TScheduleJobsProfilingCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter PrescheduleJobCount;
     NProfiling::TEventTimer PrescheduleJobTime;

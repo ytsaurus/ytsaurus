@@ -34,7 +34,7 @@ public:
     TReconfigurableThroughputThrottler(
         TThroughputThrottlerConfigPtr config,
         const NLogging::TLogger& logger,
-        const NProfiling::TRegistry& profiler)
+        const NProfiling::TProfiler& profiler)
         : Logger(logger)
         , ValueCounter_(profiler.Counter("/value"))
         , QueueSizeCounter_(profiler.Gauge("/queue_size"))
@@ -368,7 +368,7 @@ private:
 IReconfigurableThroughputThrottlerPtr CreateReconfigurableThroughputThrottler(
     TThroughputThrottlerConfigPtr config,
     const NLogging::TLogger& logger,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
 {
     return New<TReconfigurableThroughputThrottler>(
         config,
@@ -380,7 +380,7 @@ IReconfigurableThroughputThrottlerPtr CreateNamedReconfigurableThroughputThrottl
     TThroughputThrottlerConfigPtr config,
     const TString& name,
     NLogging::TLogger logger,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
 {
     return CreateReconfigurableThroughputThrottler(
         std::move(config),
@@ -395,7 +395,7 @@ class TUnlimitedThroughtputThrottler
 {
 public:
     explicit TUnlimitedThroughtputThrottler(
-        const NProfiling::TRegistry& profiler = {})
+        const NProfiling::TProfiler& profiler = {})
         : ValueCounter_(profiler.Counter("/value"))
     { }
 
@@ -457,7 +457,7 @@ IThroughputThrottlerPtr GetUnlimitedThrottler()
 
 IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
     const TString& name,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
 {
     profiler = profiler.WithPrefix("/" + CamelCaseToUnderscoreCase(name));
     return New<TUnlimitedThroughtputThrottler>(profiler);

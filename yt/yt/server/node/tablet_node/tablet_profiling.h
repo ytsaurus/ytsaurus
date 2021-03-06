@@ -26,7 +26,7 @@ struct TLookupCounters
 {
     TLookupCounters() = default;
 
-    explicit TLookupCounters(const NProfiling::TRegistry& profiler)
+    explicit TLookupCounters(const NProfiling::TProfiler& profiler)
         : CacheHits(profiler.Counter("/lookup/cache_hits"))
         , CacheOutdated(profiler.Counter("/lookup/cache_outdated"))
         , CacheMisses(profiler.Counter("/lookup/cache_misses"))
@@ -59,7 +59,7 @@ struct TSelectCpuCounters
 {
     TSelectCpuCounters() = default;
 
-    explicit TSelectCpuCounters(const NProfiling::TRegistry& profiler)
+    explicit TSelectCpuCounters(const NProfiling::TProfiler& profiler)
         : CpuTime(profiler.TimeCounter("/select/cpu_time"))
         , ChunkReaderStatisticsCounters(profiler.WithPrefix("/select/chunk_reader_statistics"))
     { }
@@ -72,7 +72,7 @@ struct TSelectReadCounters
 {
     TSelectReadCounters() = default;
 
-    explicit TSelectReadCounters(const NProfiling::TRegistry& profiler)
+    explicit TSelectReadCounters(const NProfiling::TProfiler& profiler)
         : RowCount(profiler.Counter("/select/row_count"))
         , DataWeight(profiler.Counter("/select/data_weight"))
         , UnmergedRowCount(profiler.Counter("/select/unmerged_row_count"))
@@ -93,7 +93,7 @@ struct TWriteCounters
 {
     TWriteCounters() = default;
 
-    explicit TWriteCounters(const NProfiling::TRegistry& profiler)
+    explicit TWriteCounters(const NProfiling::TProfiler& profiler)
         : RowCount(profiler.Counter("/write/row_count"))
         , DataWeight(profiler.Counter("/write/data_weight"))
     { }
@@ -108,7 +108,7 @@ struct TCommitCounters
 {
     TCommitCounters() = default;
 
-    explicit TCommitCounters(const NProfiling::TRegistry& profiler)
+    explicit TCommitCounters(const NProfiling::TProfiler& profiler)
         : RowCount(profiler.Counter("/commit/row_count"))
         , DataWeight(profiler.Counter("/commit/data_weight"))
     { }
@@ -123,7 +123,7 @@ struct TRemoteDynamicStoreReadCounters
 {
     TRemoteDynamicStoreReadCounters() = default;
 
-    explicit TRemoteDynamicStoreReadCounters(const NProfiling::TRegistry& profiler)
+    explicit TRemoteDynamicStoreReadCounters(const NProfiling::TProfiler& profiler)
         : RowCount(profiler.Counter("/dynamic_store_read/row_count"))
         , DataWeight(profiler.Counter("/dynamic_store_read/data_weight"))
         , CpuTime(profiler.TimeCounter("/dynamic_store_read/cpu_time"))
@@ -152,7 +152,7 @@ struct TChunkReadCounters
 {
     TChunkReadCounters() = default;
 
-    explicit TChunkReadCounters(const NProfiling::TRegistry& profiler)
+    explicit TChunkReadCounters(const NProfiling::TProfiler& profiler)
         : CompressedDataSize(profiler.Counter("/chunk_reader/compressed_data_size"))
         , UnmergedDataWeight(profiler.Counter("/chunk_reader/unmerged_data_weight"))
         , DecompressionCpuTime(profiler.TimeCounter("/chunk_reader/decompression_cpu_time"))
@@ -175,7 +175,7 @@ struct TChunkWriteCounters
 {
     TChunkWriteCounters() = default;
 
-    explicit TChunkWriteCounters(const NProfiling::TRegistry& profiler)
+    explicit TChunkWriteCounters(const NProfiling::TProfiler& profiler)
         : DiskSpace(profiler.Counter("/chunk_writer/disk_space"))
         , DataWeight(profiler.Counter("/chunk_writer/data_weight"))
         , CompressionCpuTime(profiler.TimeCounter("/chunk_writer/compression_cpu_time"))
@@ -196,7 +196,7 @@ struct TTabletCounters
 {
     TTabletCounters() = default;
 
-    explicit TTabletCounters(const NProfiling::TRegistry& profiler)
+    explicit TTabletCounters(const NProfiling::TProfiler& profiler)
         : OverlappingStoreCount(profiler.GaugeSummary("/tablet/overlapping_store_count"))
         , EdenStoreCount(profiler.GaugeSummary("/tablet/eden_store_count"))
     {
@@ -218,7 +218,7 @@ struct TReplicaCounters
 {
     TReplicaCounters() = default;
 
-    explicit TReplicaCounters(const NProfiling::TRegistry& profiler)
+    explicit TReplicaCounters(const NProfiling::TProfiler& profiler)
         : LagRowCount(profiler.Summary("/replica/lag_row_count"))
         , LagTime(profiler.TimeGauge("/replica/lag_time"))
         , ReplicationThrottleTime(profiler.Timer("/replica/replication_throttle_time"))
@@ -254,7 +254,7 @@ struct TQueryServiceCounters
 {
     TQueryServiceCounters() = default;
 
-    explicit TQueryServiceCounters(const NProfiling::TRegistry& profiler)
+    explicit TQueryServiceCounters(const NProfiling::TProfiler& profiler)
         : ExecuteCpuTime(profiler.TimeCounter("/execute/cumulative_cpu_time"))
         , ExecuteRequestCount(profiler.Counter("/execute/request_count"))
         , ExecuteRequestDuration(profiler.Timer("/execute/request_duration"))
@@ -299,8 +299,8 @@ public:
     TTableProfiler() = default;
 
     TTableProfiler(
-        const NProfiling::TRegistry& profiler,
-        const NProfiling::TRegistry& diskProfiler);
+        const NProfiling::TProfiler& profiler,
+        const NProfiling::TProfiler& diskProfiler);
 
     static TTableProfilerPtr GetDisabled();
 
@@ -325,7 +325,7 @@ public:
 
 private:
     bool Disabled_ = true;
-    const NProfiling::TRegistry Profiler_{};
+    const NProfiling::TProfiler Profiler_{};
 
     TTabletCounters TabletCounters_;
 
@@ -337,7 +337,7 @@ private:
         TCounter* Get(
             bool disabled,
             const std::optional<TString>& userTag,
-            const NProfiling::TRegistry& profiler);
+            const NProfiling::TProfiler& profiler);
     };
 
     TUserTaggedCounter<TLookupCounters> LookupCounters_;

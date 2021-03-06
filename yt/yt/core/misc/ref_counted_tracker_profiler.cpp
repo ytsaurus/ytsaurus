@@ -22,11 +22,11 @@ class TRefCountedTrackerProfiler
 public:
     TRefCountedTrackerProfiler()
     {
-        TRegistry registry{"/ref_counted_tracker"};
+        TProfiler registry{"/ref_counted_tracker"};
         registry.AddProducer("/total", MakeStrong(this));
     }
 
-    void Collect(ISensorWriter* writer)
+    void CollectSensors(ISensorWriter* writer)
     {
         auto statistics = TRefCountedTracker::Get()->GetStatistics().TotalStatistics;
 

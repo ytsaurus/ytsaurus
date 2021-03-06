@@ -95,14 +95,14 @@ DEFINE_REFCOUNTED_TYPE(IReconfigurableThroughputThrottler)
 IReconfigurableThroughputThrottlerPtr CreateReconfigurableThroughputThrottler(
     TThroughputThrottlerConfigPtr config,
     const NLogging::TLogger& logger = NLogging::TLogger(),
-    const NProfiling::TRegistry& profiler = {});
+    const NProfiling::TProfiler& profiler = {});
 
 //! Constructs a throttler from #config and initializes logger and profiler.
 IReconfigurableThroughputThrottlerPtr CreateNamedReconfigurableThroughputThrottler(
     TThroughputThrottlerConfigPtr config,
     const TString& name,
     NLogging::TLogger logger,
-    NProfiling::TRegistry profiler = {});
+    NProfiling::TProfiler profiler = {});
 
 //! Returns a throttler that imposes no throughput limit.
 IThroughputThrottlerPtr GetUnlimitedThrottler();
@@ -110,7 +110,7 @@ IThroughputThrottlerPtr GetUnlimitedThrottler();
 //! Returns a throttler that imposes no throughput limit and profiles throughput.
 IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
     const TString& name,
-    NProfiling::TRegistry profiler = {});
+    NProfiling::TProfiler profiler = {});
 
 //! Constructs a throttler providing a joint rate limit
 //! enforced by a set of underlying #throttlers.

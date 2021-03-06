@@ -29,7 +29,7 @@ public:
         const TString& path,
         IInvokerPtr invoker,
         NLogging::TLogger logger,
-        const NProfiling::TRegistry& profiler = {});
+        const NProfiling::TProfiler& profiler = {});
 
     //! Runs single health check.
     //! Don't call after #Start(), otherwise two checks may interfere.

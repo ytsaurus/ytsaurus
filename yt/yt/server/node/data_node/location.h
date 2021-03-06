@@ -49,7 +49,7 @@ DEFINE_ENUM(EIOCategory,
 struct TLocationPerformanceCounters
     : public TRefCounted
 {
-    explicit TLocationPerformanceCounters(const NProfiling::TRegistry& registry);
+    explicit TLocationPerformanceCounters(const NProfiling::TProfiler& registry);
 
     TEnumIndexedVector<EIODirection, TEnumIndexedVector<EIOCategory, std::atomic<i64>>> PendingIOSize;
     TEnumIndexedVector<EIODirection, TEnumIndexedVector<EIOCategory, NProfiling::TCounter>> CompletedIOSize;
@@ -135,7 +135,7 @@ public:
     //! Returns the medium descriptor.
     const NChunkClient::TMediumDescriptor& GetMediumDescriptor() const;
 
-    const NProfiling::TRegistry& GetProfiler() const;
+    const NProfiling::TProfiler& GetProfiler() const;
 
     //! Returns various performance counters.
     TLocationPerformanceCounters& GetPerformanceCounters();
@@ -250,7 +250,7 @@ public:
 
 protected:
     NClusterNode::TBootstrap* const Bootstrap_;
-    NProfiling::TRegistry Profiler_;
+    NProfiling::TProfiler Profiler_;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
     static void ForceHashDirectories(const TString& rootPath);

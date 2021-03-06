@@ -106,7 +106,7 @@ public:
     TEnumIndexedVector<EQueryPhase, std::atomic<int>> PerPhaseRunningInitialQueryCount;
     TEnumIndexedVector<EQueryPhase, std::atomic<int>> PerPhaseRunningSecondaryQueryCount;
 
-    explicit TUserProfilingEntry(const TRegistry& profiler)
+    explicit TUserProfilingEntry(const TProfiler& profiler)
     {
         profiler.AddFuncGauge("/running_initial_query_count", MakeStrong(this), [this] {
             return RunningInitialQueryCount.load();
@@ -368,7 +368,7 @@ public:
         return IdlePromise_.ToFuture();
     }
 
-    virtual void Collect(NProfiling::ISensorWriter* writer) override
+    virtual void CollectSensors(NProfiling::ISensorWriter* writer) override
     {
         TProcessListSnapshot snapshot;
         {
@@ -418,7 +418,7 @@ private:
     DB::Context* Context_;
     THashSet<TQueryContextPtr> QueryContexts_;
 
-    NProfiling::TRegistry QueryRegistryProfiler_;
+    NProfiling::TProfiler QueryRegistryProfiler_;
 
     THashMap<TString, TUserProfilingEntryPtr> UserToUserProfilingEntry_;
 

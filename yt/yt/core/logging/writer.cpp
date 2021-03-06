@@ -82,7 +82,7 @@ TStreamLogWriterBase::TStreamLogWriterBase(std::unique_ptr<ILogFormatter> format
     , RateLimit_(
         std::nullopt,
         {},
-        TRegistry{"/logging"}.WithSparse().WithTag("writer", name).Counter("/events_skipped_by_global_limit"))
+        TProfiler{"/logging"}.WithSparse().WithTag("writer", name).Counter("/events_skipped_by_global_limit"))
 { }
 
 TStreamLogWriterBase::~TStreamLogWriterBase() = default;
@@ -169,7 +169,7 @@ TRateLimitCounter* TStreamLogWriterBase::GetCategoryRateLimitCounter(TStringBuf 
 {
     auto it = CategoryToRateLimit_.find(category);
     if (it == CategoryToRateLimit_.end()) {
-        auto r = TRegistry{"/logging"}
+        auto r = TProfiler{"/logging"}
             .WithSparse()
             .WithTag("writer", Name_)
             .WithTag("category", TString{category}, -1);

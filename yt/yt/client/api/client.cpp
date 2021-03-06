@@ -79,7 +79,7 @@ NRpc::TMutationId TMutatingOptions::GetOrGenerateMutationId() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJournalWriterPerformanceCounters::TJournalWriterPerformanceCounters(const NProfiling::TRegistry& profiler)
+TJournalWriterPerformanceCounters::TJournalWriterPerformanceCounters(const NProfiling::TProfiler& profiler)
 {
 #define XX(name) \
     name ## Timer = profiler.Timer("/" + CamelCaseToUnderscoreCase(#name) + "_time");

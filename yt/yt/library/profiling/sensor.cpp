@@ -159,7 +159,7 @@ bool TSensorOptions::operator != (const TSensorOptions& other) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRegistry::TRegistry(
+TProfiler::TProfiler(
     const IRegistryImplPtr& impl,
     const TString& prefix,
     const TString& _namespace)
@@ -169,7 +169,7 @@ TRegistry::TRegistry(
     , Impl_(impl)
 { }
 
-TRegistry::TRegistry(
+TProfiler::TProfiler(
     const TString& prefix,
     const TString& _namespace,
     const TTagSet& tags,
@@ -183,16 +183,16 @@ TRegistry::TRegistry(
     , Impl_(impl ? impl : GetGlobalRegistry())
 { }
 
-TRegistry TRegistry::WithPrefix(const TString& prefix) const
+TProfiler TProfiler::WithPrefix(const TString& prefix) const
 {
     if (!Enabled_) {
         return {};
     }
 
-    return TRegistry(Prefix_ + prefix, Namespace_, Tags_, Impl_);
+    return TProfiler(Prefix_ + prefix, Namespace_, Tags_, Impl_);
 }
 
-TRegistry TRegistry::WithTag(const TString& name, const TString& value, int parent) const
+TProfiler TProfiler::WithTag(const TString& name, const TString& value, int parent) const
 {
     if (!Enabled_) {
         return {};
@@ -200,10 +200,10 @@ TRegistry TRegistry::WithTag(const TString& name, const TString& value, int pare
 
     auto allTags = Tags_;
     allTags.AddTag(std::pair(name, value), parent);
-    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
+    return TProfiler(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
-TRegistry TRegistry::WithRequiredTag(const TString& name, const TString& value, int parent) const
+TProfiler TProfiler::WithRequiredTag(const TString& name, const TString& value, int parent) const
 {
     if (!Enabled_) {
         return {};
@@ -211,10 +211,10 @@ TRegistry TRegistry::WithRequiredTag(const TString& name, const TString& value, 
 
     auto allTags = Tags_;
     allTags.AddRequiredTag(std::pair(name, value), parent);
-    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
+    return TProfiler(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
-TRegistry TRegistry::WithExcludedTag(const TString& name, const TString& value, int parent) const
+TProfiler TProfiler::WithExcludedTag(const TString& name, const TString& value, int parent) const
 {
     if (!Enabled_) {
         return {};
@@ -222,10 +222,10 @@ TRegistry TRegistry::WithExcludedTag(const TString& name, const TString& value, 
 
     auto allTags = Tags_;
     allTags.AddExcludedTag(std::pair(name, value), parent);
-    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
+    return TProfiler(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
-TRegistry TRegistry::WithAlternativeTag(const TString& name, const TString& value, int alternativeTo, int parent) const
+TProfiler TProfiler::WithAlternativeTag(const TString& name, const TString& value, int alternativeTo, int parent) const
 {
     if (!Enabled_) {
         return {};
@@ -234,10 +234,10 @@ TRegistry TRegistry::WithAlternativeTag(const TString& name, const TString& valu
     auto allTags = Tags_;
 
     allTags.AddAlternativeTag(std::pair(name, value), alternativeTo, parent);
-    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
+    return TProfiler(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
-TRegistry TRegistry::WithTags(const TTagSet& tags) const
+TProfiler TProfiler::WithTags(const TTagSet& tags) const
 {
     if (!Enabled_) {
         return {};
@@ -245,10 +245,10 @@ TRegistry TRegistry::WithTags(const TTagSet& tags) const
 
     auto allTags = Tags_;
     allTags.Append(tags);
-    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
+    return TProfiler(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
-TRegistry TRegistry::WithSparse() const
+TProfiler TProfiler::WithSparse() const
 {
     if (!Enabled_) {
         return {};
@@ -256,10 +256,10 @@ TRegistry TRegistry::WithSparse() const
 
     auto opts = Options_;
     opts.Sparse = true;
-    return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
+    return TProfiler(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
-TRegistry TRegistry::WithGlobal() const
+TProfiler TProfiler::WithGlobal() const
 {
     if (!Enabled_) {
         return {};
@@ -267,10 +267,10 @@ TRegistry TRegistry::WithGlobal() const
 
     auto opts = Options_;
     opts.Global = true;
-    return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
+    return TProfiler(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
-TRegistry TRegistry::WithDefaultDisabled() const
+TProfiler TProfiler::WithDefaultDisabled() const
 {
     if (!Enabled_) {
         return {};
@@ -278,10 +278,10 @@ TRegistry TRegistry::WithDefaultDisabled() const
 
     auto opts = Options_;
     opts.DisableDefault = true;
-    return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
+    return TProfiler(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
-TRegistry TRegistry::WithProjectionsDisabled() const
+TProfiler TProfiler::WithProjectionsDisabled() const
 {
     if (!Enabled_) {
         return {};
@@ -289,20 +289,20 @@ TRegistry TRegistry::WithProjectionsDisabled() const
 
     auto allTags = Tags_;
     allTags.SetEnabled(false);
-    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
+    return TProfiler(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
-TRegistry TRegistry::WithRenameDisabled() const
+TProfiler TProfiler::WithRenameDisabled() const
 {
     if (!Enabled_) {
         return {};
     }
     auto opts = Options_;
     opts.DisableSensorsRename = true;
-    return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
+    return TProfiler(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
-TRegistry TRegistry::WithHot() const
+TProfiler TProfiler::WithHot() const
 {
     if (!Enabled_) {
         return {};
@@ -310,10 +310,10 @@ TRegistry TRegistry::WithHot() const
 
     auto opts = Options_;
     opts.Hot = true;
-    return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
+    return TProfiler(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
-TCounter TRegistry::Counter(const TString& name) const
+TCounter TProfiler::Counter(const TString& name) const
 {
     if (!Impl_) {
         return {};
@@ -324,7 +324,7 @@ TCounter TRegistry::Counter(const TString& name) const
     return counter;
 }
 
-TTimeCounter TRegistry::TimeCounter(const TString& name) const
+TTimeCounter TProfiler::TimeCounter(const TString& name) const
 {
     if (!Impl_) {
         return {};
@@ -335,7 +335,7 @@ TTimeCounter TRegistry::TimeCounter(const TString& name) const
     return counter;
 }
 
-TGauge TRegistry::Gauge(const TString& name) const
+TGauge TProfiler::Gauge(const TString& name) const
 {
     if (!Impl_) {
         return TGauge();
@@ -346,7 +346,7 @@ TGauge TRegistry::Gauge(const TString& name) const
     return gauge;
 }
 
-TTimeGauge TRegistry::TimeGauge(const TString& name) const
+TTimeGauge TProfiler::TimeGauge(const TString& name) const
 {
     if (!Impl_) {
         return TTimeGauge();
@@ -357,7 +357,7 @@ TTimeGauge TRegistry::TimeGauge(const TString& name) const
     return gauge;
 }
 
-TSummary TRegistry::Summary(const TString& name) const
+TSummary TProfiler::Summary(const TString& name) const
 {
     if (!Impl_) {
         return {};
@@ -368,7 +368,7 @@ TSummary TRegistry::Summary(const TString& name) const
     return summary;
 }
 
-TGauge TRegistry::GaugeSummary(const TString& name) const
+TGauge TProfiler::GaugeSummary(const TString& name) const
 {
     if (!Impl_) {
         return {};
@@ -379,7 +379,7 @@ TGauge TRegistry::GaugeSummary(const TString& name) const
     return gauge;
 }
 
-TEventTimer TRegistry::Timer(const TString& name) const
+TEventTimer TProfiler::Timer(const TString& name) const
 {
     if (!Impl_) {
         return {};
@@ -390,7 +390,7 @@ TEventTimer TRegistry::Timer(const TString& name) const
     return timer;
 }
 
-TEventTimer TRegistry::Histogram(const TString& name, TDuration min, TDuration max) const
+TEventTimer TProfiler::Histogram(const TString& name, TDuration min, TDuration max) const
 {
     if (!Impl_) {
         return {};
@@ -405,7 +405,7 @@ TEventTimer TRegistry::Histogram(const TString& name, TDuration min, TDuration m
     return timer;
 }
 
-TEventTimer TRegistry::Histogram(const TString& name, std::vector<TDuration> bounds) const
+TEventTimer TProfiler::Histogram(const TString& name, std::vector<TDuration> bounds) const
 {
     if (!Impl_) {
         return {};
@@ -418,7 +418,7 @@ TEventTimer TRegistry::Histogram(const TString& name, std::vector<TDuration> bou
     return timer;
 }
 
-void TRegistry::AddFuncCounter(
+void TProfiler::AddFuncCounter(
     const TString& name,
     const TRefCountedPtr& owner,
     std::function<i64()> reader) const
@@ -430,7 +430,7 @@ void TRegistry::AddFuncCounter(
     Impl_->RegisterFuncCounter(Namespace_ + Prefix_ + name, Tags_, Options_, owner, reader);
 }
 
-void TRegistry::AddFuncGauge(
+void TProfiler::AddFuncGauge(
     const TString& name,
     const TRefCountedPtr& owner,
     std::function<double()> reader) const
@@ -442,7 +442,7 @@ void TRegistry::AddFuncGauge(
     Impl_->RegisterFuncGauge(Namespace_ + Prefix_ + name, Tags_, Options_, owner, reader);
 }
 
-void TRegistry::AddProducer(
+void TProfiler::AddProducer(
     const TString& prefix,
     const ISensorProducerPtr& producer) const
 {

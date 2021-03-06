@@ -70,7 +70,7 @@ public:
     virtual void Stop() override;
     virtual void Finalize() override;
     virtual NCellarAgent::ECellarType GetCellarType() override;
-    virtual NProfiling::TRegistry GetProfiler() override;
+    virtual NProfiling::TProfiler GetProfiler() override;
     
     NHydra::TCellId GetCellId() const;
     NHydra::EPeerState GetAutomatonState() const;

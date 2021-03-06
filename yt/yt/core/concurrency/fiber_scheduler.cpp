@@ -152,7 +152,7 @@ class TFiberExecutionStackProfiler
 public:
     TFiberExecutionStackProfiler()
     {
-        TRegistry{""}.AddProducer("/fiber_execution_stack", MakeStrong(this));
+        TProfiler{""}.AddProducer("/fiber_execution_stack", MakeStrong(this));
     }
 
     void StackAllocated(int stackSize)
@@ -167,7 +167,7 @@ public:
         BytesAlive_.fetch_sub(stackSize, std::memory_order_relaxed);
     }
 
-    void Collect(ISensorWriter* writer)
+    void CollectSensors(ISensorWriter* writer)
     {
         writer->AddCounter("/bytes_allocated", BytesAllocated_);
         writer->AddCounter("/bytes_freed", BytesFreed_);
@@ -340,7 +340,7 @@ void DestroyIdleFibers()
 REGISTER_SHUTDOWN_CALLBACK(0, DestroyIdleFibers)
 #endif
 
-static NProfiling::TCounter CreatedFibersCounter = NProfiling::TRegistry{"/action_queue"}.Counter("/created_fibers");
+static NProfiling::TCounter CreatedFibersCounter = NProfiling::TProfiler{"/action_queue"}.Counter("/created_fibers");
 
 void FiberMain()
 {

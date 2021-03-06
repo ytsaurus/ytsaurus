@@ -144,7 +144,7 @@ auto TServiceBase::TMethodDescriptor::SetRequestBytesThrottler(TThroughputThrott
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TRegistry& registry)
+TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TProfiler& registry)
     : RequestCounter(registry.Counter("/request_count"))
     , CanceledRequestCounter(registry.Counter("/canceled_request_count"))
     , FailedRequestCounter(registry.Counter("/failed_request_count"))
@@ -163,7 +163,7 @@ TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProf
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& descriptor,
-    const NProfiling::TRegistry& registry)
+    const NProfiling::TProfiler& registry)
     : Descriptor(descriptor)
     , Registry(registry.WithTag("method", descriptor.Method, -1))
     , RequestBytesThrottler(
@@ -1606,7 +1606,7 @@ TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanc
     const TRuntimeMethodInfoPtr& runtimeInfo,
     const std::optional<TString>& userTag)
 {
-    TRegistry registry = runtimeInfo->Registry.WithSparse();
+    TProfiler registry = runtimeInfo->Registry.WithSparse();
     if (userTag) {
         registry = registry.WithTag("user", *userTag);
     }

@@ -13,8 +13,8 @@ namespace NYT::NRpc {
 extern const NLogging::TLogger RpcServerLogger;
 extern const NLogging::TLogger RpcClientLogger;
 
-extern const NProfiling::TRegistry RpcServerProfiler;
-extern const NProfiling::TRegistry RpcClientProfiler;
+extern const NProfiling::TProfiler RpcServerProfiler;
+extern const NProfiling::TProfiler RpcClientProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

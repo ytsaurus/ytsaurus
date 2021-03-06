@@ -160,7 +160,7 @@ struct TProfilingCounters
 {
     TProfilingCounters() = default;
 
-    TProfilingCounters(const TRegistry& registry)
+    TProfilingCounters(const TProfiler& registry)
         : CopyChunkListIfSharedActionCount(registry.Counter("/copy_chunk_list_if_shared/action_count"))
         , UpdateTabletStoresStoreCount(registry.Counter("/update_tablet_stores/store_count"))
         , UpdateTabletStoreTime(registry.TimeCounter("/update_tablet_stores/cumulative_time"))

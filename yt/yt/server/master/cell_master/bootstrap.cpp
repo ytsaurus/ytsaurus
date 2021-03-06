@@ -529,7 +529,7 @@ public:
         : Config_(config)
     { }
 
-    virtual void Collect(ISensorWriter* writer) override
+    virtual void CollectSensors(ISensorWriter* writer) override
     {
         try {
             auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Snapshots->Path);
@@ -651,7 +651,7 @@ void TBootstrap::DoInitialize()
     ChangelogStoreFactory_ = CreateLocalChangelogStoreFactory(
         Config_->Changelogs,
         "ChangelogFlush",
-        NProfiling::TRegistry("/changelogs"));
+        NProfiling::TProfiler("/changelogs"));
 
     auto fileSnapshotStore = New<TFileSnapshotStore>(
         Config_->Snapshots);
@@ -857,7 +857,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->Configure(Config_->RpcServer);
 
     DiskSpaceProfiler_ = New<TDiskSpaceProfiler>(Config_);
-    TRegistry{""}.AddProducer("", DiskSpaceProfiler_);
+    TProfiler{""}.AddProducer("", DiskSpaceProfiler_);
 }
 
 void TBootstrap::InitializeTimestampProvider()

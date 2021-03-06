@@ -139,7 +139,7 @@ private:
     NClusterNode::TBootstrap* const Bootstrap_;
     const TStoreCompactorConfigPtr Config_;
 
-    const TRegistry Profiler_ = TabletNodeProfiler.WithPrefix("/store_compactor");
+    const TProfiler Profiler_ = TabletNodeProfiler.WithPrefix("/store_compactor");
     const TGauge FeasiblePartitioningsCounter_ = Profiler_.Gauge("/feasible_partitionings");
     const TGauge FeasibleCompactionsCounter_ = Profiler_.Gauge("/feasible_compactions");
     const TCounter ScheduledPartitioningsCounter_ = Profiler_.Counter("/scheduled_partitionings");

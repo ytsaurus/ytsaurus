@@ -358,7 +358,7 @@ public:
     }
 
 
-    NProfiling::TRegistry GetProfiler() const
+    NProfiling::TProfiler GetProfiler() const
     {
         return TabletNodeProfiler;
     }
@@ -615,7 +615,7 @@ void TTabletSlot::UpdateDynamicConfig(const NTabletClient::NProto::TUpdateTablet
     Impl_->UpdateDynamicConfig(updateInfo);
 }
 
-NProfiling::TRegistry TTabletSlot::GetProfiler()
+NProfiling::TProfiler TTabletSlot::GetProfiler()
 {
     return Impl_->GetProfiler();
 }

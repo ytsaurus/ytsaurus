@@ -14,7 +14,7 @@ using namespace NConcurrency;
 const TString SnapshotExtension("snapshot");
 const TString ChangelogExtension("log");
 const TString ChangelogIndexExtension("index");
-const NProfiling::TRegistry HydraProfiler("/hydra");
+const NProfiling::TProfiler HydraProfiler("/hydra");
 
 static TActionQueuePtr GetHydraIOActionQueue()
 {

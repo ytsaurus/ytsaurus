@@ -41,7 +41,7 @@ struct ICellarOccupier
 
     virtual ECellarType GetCellarType() = 0;
 
-    virtual NProfiling::TRegistry GetProfiler() = 0;
+    virtual NProfiling::TProfiler GetProfiler() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellarOccupier)

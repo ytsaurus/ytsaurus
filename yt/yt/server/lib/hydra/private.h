@@ -32,7 +32,7 @@ DECLARE_REFCOUNTED_CLASS(TStateHashChecker)
 extern const TString SnapshotExtension;
 extern const TString ChangelogExtension;
 extern const TString ChangelogIndexExtension;
-extern const NProfiling::TRegistry HydraProfiler;
+extern const NProfiling::TProfiler HydraProfiler;
 
 IInvokerPtr GetHydraIOInvoker();
 void ShutdownHydraIOInvoker();

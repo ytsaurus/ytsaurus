@@ -533,7 +533,7 @@ protected:
     struct TMethodPerformanceCounters
         : public TRefCounted
     {
-        explicit TMethodPerformanceCounters(const NProfiling::TRegistry& registry);
+        explicit TMethodPerformanceCounters(const NProfiling::TProfiler& registry);
 
         //! Counts the number of method calls.
         NProfiling::TCounter RequestCounter;
@@ -586,10 +586,10 @@ protected:
     {
         TRuntimeMethodInfo(
             const TMethodDescriptor& descriptor,
-            const NProfiling::TRegistry& registry);
+            const NProfiling::TProfiler& registry);
 
         TMethodDescriptor Descriptor;
-        const NProfiling::TRegistry Registry;
+        const NProfiling::TProfiler Registry;
 
         std::atomic<int> QueueSize = 0;
 
@@ -691,7 +691,7 @@ private:
     const TServiceDescriptor ServiceDescriptor_;
     const TServiceId ServiceId_;
 
-    const NProfiling::TRegistry ProfilingRegistry_;
+    const NProfiling::TProfiler ProfilingRegistry_;
 
     struct TPendingPayloadsEntry
     {

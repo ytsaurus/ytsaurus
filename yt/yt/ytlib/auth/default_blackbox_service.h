@@ -12,7 +12,7 @@ IBlackboxServicePtr CreateDefaultBlackboxService(
     TDefaultBlackboxServiceConfigPtr config,
     ITvmServicePtr tvmService,
     NConcurrency::IPollerPtr poller,
-    NProfiling::TRegistry profiler = {});
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

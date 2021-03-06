@@ -33,7 +33,7 @@ struct TCellBundleProfilingCounters
 
     NProfiling::TGauge TabletCellCount;
 
-    NProfiling::TRegistry Profiler;
+    NProfiling::TProfiler Profiler;
 
     THashMap<TString, NProfiling::TCounter> LeaderReassignment;
 

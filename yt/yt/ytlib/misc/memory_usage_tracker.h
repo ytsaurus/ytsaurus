@@ -25,7 +25,7 @@ public:
         i64 totalLimit,
         const std::vector<std::pair<ECategory, i64>>& limits,
         const NLogging::TLogger& logger = {},
-        const NProfiling::TRegistry& profiler = {});
+        const NProfiling::TProfiler& profiler = {});
 
     i64 GetTotalLimit() const;
     i64 GetTotalUsed() const;
@@ -93,7 +93,7 @@ private:
     std::atomic<i64> TotalPoolWeight_ = 0;
 
     const NLogging::TLogger Logger;
-    const NProfiling::TRegistry Profiler_;
+    const NProfiling::TProfiler Profiler_;
 
     const NConcurrency::TPeriodicExecutorPtr PeriodicUpdater_;
 

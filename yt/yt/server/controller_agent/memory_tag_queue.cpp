@@ -19,7 +19,7 @@ using namespace NYTree;
 using namespace NYTAlloc;
 
 static const auto& Logger = ControllerLogger;
-static const TRegistry MemoryTagQueueProfiler("/memory_tag_queue");
+static const TProfiler MemoryTagQueueProfiler("/memory_tag_queue");
 
 DEFINE_REFCOUNTED_TYPE(TMemoryTagQueue)
 
@@ -164,7 +164,7 @@ i64 TMemoryTagQueue::GetTotalUsage()
     return CachedTotalUsage_;
 }
 
-void TMemoryTagQueue::Collect(ISensorWriter* writer)
+void TMemoryTagQueue::CollectSensors(ISensorWriter* writer)
 {
     UpdateStatisticsIfNeeded();
 

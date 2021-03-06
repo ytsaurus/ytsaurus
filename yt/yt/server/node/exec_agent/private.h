@@ -11,7 +11,7 @@ namespace NYT::NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger ExecAgentLogger;
-extern const NProfiling::TRegistry ExecAgentProfiler;
+extern const NProfiling::TProfiler ExecAgentProfiler;
 
 extern const int TmpfsRemoveAttemptCount;
 

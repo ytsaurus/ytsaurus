@@ -616,7 +616,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     ISnapshotStorePtr snapshotStore,
     TStateHashCheckerPtr stateHashChecker,
     const NLogging::TLogger& logger,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
     : Config_(std::move(config))
     , Options_(options)
     , Automaton_(std::move(automaton))

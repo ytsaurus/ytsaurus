@@ -23,7 +23,7 @@ public:
     TBatchingSecretVaultService(
         TBatchingSecretVaultServiceConfigPtr config,
         ISecretVaultServicePtr underlying,
-        NProfiling::TRegistry profiler)
+        NProfiling::TProfiler profiler)
         : Config_(std::move(config))
         , Underlying_(std::move(underlying))
         , TickExecutor_(New<TPeriodicExecutor>(
@@ -136,7 +136,7 @@ private:
 ISecretVaultServicePtr CreateBatchingSecretVaultService(
     TBatchingSecretVaultServiceConfigPtr config,
     ISecretVaultServicePtr underlying,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
 {
     return New<TBatchingSecretVaultService>(
         std::move(config),

@@ -94,7 +94,7 @@ private:
 
     const NConcurrency::IPollerPtr Poller_;
 
-    const NProfiling::TRegistry SparseProfiler_ = HttpProxyProfiler.WithSparse();
+    const NProfiling::TProfiler SparseProfiler_ = HttpProxyProfiler.WithSparse();
 
     std::vector<std::pair<NNet::TIP6Network, TString>> Networks_;
     TString DefaultNetworkName_;

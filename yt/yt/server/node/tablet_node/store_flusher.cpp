@@ -95,7 +95,7 @@ private:
     NClusterNode::TBootstrap* const Bootstrap_;
     const TTabletNodeConfigPtr Config_;
 
-    const NProfiling::TRegistry Profiler = TabletNodeProfiler.WithPrefix("/store_flusher");
+    const NProfiling::TProfiler Profiler = TabletNodeProfiler.WithPrefix("/store_flusher");
 
     const TThreadPoolPtr ThreadPool_;
     const TProfiledAsyncSemaphorePtr Semaphore_;

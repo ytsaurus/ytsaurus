@@ -23,7 +23,7 @@ public:
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
         NLogging::TLogger logger,
-        NProfiling::TRegistry profiler);
+        NProfiling::TProfiler profiler);
     ~TTableColumnarStatisticsCache();
 
     //! Represents a request for aggregate columnar statistics for `Path`. Statistics are guaranteed to correspond

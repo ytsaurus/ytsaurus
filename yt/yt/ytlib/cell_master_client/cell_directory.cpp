@@ -66,7 +66,7 @@ public:
             Config_->CachingObjectService,
             GetNullMemoryUsageTracker(),
             Logger,
-            TRegistry("/local_cache")))
+            TProfiler("/local_cache")))
         , RpcServer_(CreateLocalServer())
         , RandomGenerator_(TInstant::Now().GetValue())
     {

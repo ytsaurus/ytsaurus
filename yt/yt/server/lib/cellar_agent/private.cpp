@@ -5,7 +5,7 @@ namespace NYT::NCellarAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger CellarAgentLogger("CellarAgent");
-const NProfiling::TRegistry CellarAgentProfiler("/cellar_agent");
+const NProfiling::TProfiler CellarAgentProfiler("/cellar_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
 

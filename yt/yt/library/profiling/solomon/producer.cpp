@@ -102,7 +102,7 @@ int TProducerSet::Collect()
 
         TSensorBuffer buffer;
         try {
-            owner->Collect(&buffer);
+            owner->CollectSensors(&buffer);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Producer read failed");
             continue;
@@ -277,7 +277,7 @@ void TProducerSet::LegacyReadSensors()
         auto commonTags = TagRegistry_->EncodeLegacy(producer->TagIds);
 
         TSensorBuffer buffer;
-        owner->Collect(&buffer);
+        owner->CollectSensors(&buffer);
 
         for (const auto& [name, tags, value] : buffer.GetCounters()) {
             auto prefix = TStringBuf{producer->Prefix};
@@ -337,7 +337,7 @@ std::vector<TSensorInfo> TProducerSet::ListSensors() const
     return list;
 }
 
-void TProducerSet::Profile(const TRegistry& profiler)
+void TProducerSet::Profile(const TProfiler& profiler)
 {
     SelfProfiler_ = profiler;
     ProducerCollectDuration_ = profiler.Timer("/producer_collect_duration");

@@ -19,7 +19,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TRegistry MultiReaderMemoryManagerProfiler("/chunk_reader/memory");
+const TProfiler MultiReaderMemoryManagerProfiler("/chunk_reader/memory");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -271,7 +271,7 @@ private:
     std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithoutDesiredMemoryAmount_;
 
     const TTagIdList ProfilingTagList_;
-    TRegistry Profiler_;
+    TProfiler Profiler_;
     const TPeriodicExecutorPtr ProfilingExecutor_;
 
     const TGuid Id_;

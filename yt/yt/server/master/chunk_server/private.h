@@ -21,7 +21,7 @@ class TReqUpdateChunkPresence;
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger ChunkServerLogger;
-extern const NProfiling::TRegistry ChunkServerProfilerRegistry;
+extern const NProfiling::TProfiler ChunkServerProfilerRegistry;
 
 ////////////////////////////////////////////////////////////////////////////////
 

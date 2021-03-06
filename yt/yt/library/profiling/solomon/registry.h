@@ -116,13 +116,13 @@ public:
     int GetWindowSize() const;
     int IndexOf(i64 iteration) const;
 
-    void Profile(const TRegistry& profiler);
-    const TRegistry& GetSelfProfiler() const;
+    void Profile(const TProfiler& profiler);
+    const TProfiler& GetSelfProfiler() const;
 
 private:
     i64 Iteration_ = 0;
     std::optional<int> WindowSize_;
-    TRegistry SelfProfiler_;
+    TProfiler SelfProfiler_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, DynamicTagsLock_);
     std::vector<TTag> DynamicTags_;

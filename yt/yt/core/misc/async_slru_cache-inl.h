@@ -36,7 +36,7 @@ NYT::TAsyncCacheValueBase<TKey, TValue, THash>::~TAsyncCacheValueBase()
 template <class TKey, class TValue, class THash>
 TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
     TSlruCacheConfigPtr config,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
     : Config_(std::move(config))
     , Capacity_(Config_->Capacity)
     , YoungerSizeFraction_(Config_->YoungerSizeFraction)
@@ -654,7 +654,7 @@ template <class TKey, class TValue, class THash>
 TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::TMemoryTrackingAsyncSlruCacheBase(
     TSlruCacheConfigPtr config,
     IMemoryUsageTrackerPtr memoryTracker,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
     : TAsyncSlruCacheBase<TKey, TValue, THash>(
         std::move(config),
         profiler)

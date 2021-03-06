@@ -763,7 +763,7 @@ struct TJournalReaderOptions
 struct TJournalWriterPerformanceCounters
 {
     TJournalWriterPerformanceCounters() = default;
-    explicit TJournalWriterPerformanceCounters(const NProfiling::TRegistry& profiler);
+    explicit TJournalWriterPerformanceCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TEventTimer GetBasicAttributesTimer;
     NProfiling::TEventTimer BeginUploadTimer;

@@ -13,10 +13,10 @@ namespace NYT::NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger DataNodeLogger;
-extern const NProfiling::TRegistry DataNodeProfiler;
-extern const NProfiling::TRegistry LocationProfiler;
+extern const NProfiling::TProfiler DataNodeProfiler;
+extern const NProfiling::TProfiler LocationProfiler;
 extern const NLogging::TLogger P2PLogger;
-extern const NProfiling::TRegistry P2PProfiler;
+extern const NProfiling::TProfiler P2PProfiler;
 
 extern const TString CellIdFileName;
 extern const TString LocationUuidFileName;

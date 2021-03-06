@@ -31,7 +31,7 @@ public:
     explicit TAsyncExpiringCache(
         TAsyncExpiringCacheConfigPtr config,
         NLogging::TLogger logger = {},
-        NProfiling::TRegistry profiler = {});
+        NProfiling::TProfiler profiler = {});
 
     TFuture<TValue> Get(const TKey& key);
     TExtendedGetResult GetExtended(const TKey& key);

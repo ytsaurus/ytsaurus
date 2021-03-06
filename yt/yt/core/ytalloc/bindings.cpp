@@ -70,11 +70,11 @@ class TProfilingStatisticsProducer
 public:
     TProfilingStatisticsProducer()
     {
-        NProfiling::TRegistry registry{""};
+        NProfiling::TProfiler registry{""};
         registry.AddProducer("/yt_alloc", MakeStrong(this));
     }
 
-    virtual void Collect(NProfiling::ISensorWriter* writer) override
+    virtual void CollectSensors(NProfiling::ISensorWriter* writer) override
     {
         PushSystemAllocationStatistics(writer);
         PushTotalAllocationStatistics(writer);

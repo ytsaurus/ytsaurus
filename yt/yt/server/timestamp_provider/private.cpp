@@ -6,7 +6,7 @@ namespace NYT::NTimestampProvider {
 
 const NLogging::TLogger TimestampProviderLogger("TimestampProvider");
 
-const NProfiling::TRegistry TimestampProviderProfiler("/timestamp_provider");
+const NProfiling::TProfiler TimestampProviderProfiler("/timestamp_provider");
 
 ////////////////////////////////////////////////////////////////////////////////
 

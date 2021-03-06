@@ -16,7 +16,7 @@ struct IBootstrap;
 
 extern const NLogging::TLogger TimestampProviderLogger;
 
-extern const NProfiling::TRegistry TimestampProviderProfiler;
+extern const NProfiling::TProfiler TimestampProviderProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

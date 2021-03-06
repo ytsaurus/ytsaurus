@@ -94,7 +94,7 @@ public:
     std::vector<TSensorInfo> ListSensors() const;
     void LegacyReadSensors();
 
-    void Profile(const TRegistry& profiler);
+    void Profile(const TProfiler& profiler);
 
 private:
     TTagRegistry* const TagRegistry_;
@@ -103,7 +103,7 @@ private:
     THashSet<TProducerStatePtr> Producers_;
     THashMap<TString, TProducerBuffer> Buffers_;
 
-    TRegistry SelfProfiler_;
+    TProfiler SelfProfiler_;
     TEventTimer ProducerCollectDuration_;
 
     TProducerBuffer* Find(const TString& name, const TSensorOptions& options);

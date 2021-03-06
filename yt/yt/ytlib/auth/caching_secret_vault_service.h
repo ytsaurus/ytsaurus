@@ -13,7 +13,7 @@ namespace NYT::NAuth {
 ISecretVaultServicePtr CreateCachingSecretVaultService(
     TCachingSecretVaultServiceConfigPtr config,
     ISecretVaultServicePtr underlying,
-    NProfiling::TRegistry profiler = {});
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

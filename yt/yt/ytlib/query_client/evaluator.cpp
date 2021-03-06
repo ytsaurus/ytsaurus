@@ -61,7 +61,7 @@ class TEvaluator
 public:
     TEvaluator(
         const TExecutorConfigPtr& config,
-        const NProfiling::TRegistry& profiler)
+        const NProfiling::TProfiler& profiler)
         : TAsyncSlruCacheBase(config->CGCache, profiler.WithPrefix("/cg_cache"))
     { }
 
@@ -217,7 +217,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IEvaluatorPtr CreateEvaluator(TExecutorConfigPtr config, const NProfiling::TRegistry& profiler)
+IEvaluatorPtr CreateEvaluator(TExecutorConfigPtr config, const NProfiling::TProfiler& profiler)
 {
     return New<TEvaluator>(std::move(config), profiler);
 }

@@ -153,7 +153,7 @@ void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TS
 class TJobResourcesProfiler
 {
 public:
-    void Init(const NProfiling::TRegistry& profiler);
+    void Init(const NProfiling::TProfiler& profiler);
     void Reset();
     void Update(const TJobResources& resources);
 

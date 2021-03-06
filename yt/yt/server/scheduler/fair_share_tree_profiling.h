@@ -20,7 +20,7 @@ public:
         const IInvokerPtr& profilingInvoker);
 
     // Thread affinity: Control thread.
-    NProfiling::TRegistry GetRegistry() const;
+    NProfiling::TProfiler GetRegistry() const;
 
     // Thread affinity: Control thread.
     void ProfileOperationUnregistration(const TCompositeSchedulerElement* pool, EOperationState state);
@@ -38,7 +38,7 @@ public:
         const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation);
 
 private:
-    const NProfiling::TRegistry Registry_;
+    const NProfiling::TProfiler Registry_;
     const IInvokerPtr ProfilingInvoker_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

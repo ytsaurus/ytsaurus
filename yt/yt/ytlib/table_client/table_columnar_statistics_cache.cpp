@@ -87,7 +87,7 @@ public:
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
         TLogger logger,
-        TRegistry registry)
+        TProfiler registry)
         : TAsyncExpiringCache<TTableKey, TColumnarStatisticsEntry>(
             config,
             logger,
@@ -283,7 +283,7 @@ TTableColumnarStatisticsCache::TTableColumnarStatisticsCache(
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,
     TLogger logger,
-    TRegistry profiler)
+    TProfiler profiler)
     : Impl_(New<TImpl>(std::move(config), std::move(client), std::move(invoker), logger, profiler))
 { }
 

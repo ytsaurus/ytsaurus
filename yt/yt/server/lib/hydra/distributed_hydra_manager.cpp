@@ -550,7 +550,7 @@ private:
 
     const IElectionCallbacksPtr ElectionCallbacks_;
 
-    const NProfiling::TRegistry Profiler_;
+    const NProfiling::TProfiler Profiler_;
     THashMap<TString, NProfiling::TCounter> RestartCounter_;
     NProfiling::TEventTimer LeaderSyncTimer_;
 

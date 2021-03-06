@@ -63,7 +63,7 @@ TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResourc
 ////////////////////////////////////////////////////////////////////////////////
 
 TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
     : PrescheduleJobCount(profiler.Counter("/preschedule_job_count"))
     , PrescheduleJobTime(profiler.Timer("/preschedule_job_time"))
     , TotalControllerScheduleJobTime(profiler.Timer("/controller_schedule_job_time/total"))

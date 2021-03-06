@@ -78,7 +78,7 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheEntry)
 struct TCacheProfilingCounters
     : public TRefCounted
 {
-    explicit TCacheProfilingCounters(const NProfiling::TRegistry& profiler);
+    explicit TCacheProfilingCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter HitRequestCount;
     NProfiling::TCounter HitResponseBytes;
@@ -97,7 +97,7 @@ public:
         TObjectServiceCacheConfigPtr config,
         IMemoryUsageTrackerPtr memoryTracker,
         const NLogging::TLogger& logger,
-        const NProfiling::TRegistry& profiler);
+        const NProfiling::TProfiler& profiler);
 
     using TCookie = TAsyncSlruCacheBase<TObjectServiceCacheKey, TObjectServiceCacheEntry>::TInsertCookie;
     TCookie BeginLookup(
@@ -121,7 +121,7 @@ public:
 private:
     const TObjectServiceCacheConfigPtr Config_;
     const NLogging::TLogger Logger;
-    const NProfiling::TRegistry Profiler_;
+    const NProfiling::TProfiler Profiler_;
 
     std::atomic<double> TopEntryByteRateThreshold_;
 

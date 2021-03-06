@@ -13,7 +13,7 @@ namespace NYT::NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger BusLogger;
-extern const NProfiling::TRegistry BusProfiler;
+extern const NProfiling::TProfiler BusProfiler;
 
 using TConnectionId = TGuid;
 using TPacketId = TGuid;

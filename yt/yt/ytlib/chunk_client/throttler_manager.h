@@ -22,7 +22,7 @@ public:
     explicit TThrottlerManager(
         NConcurrency::TThroughputThrottlerConfigPtr config,
         NLogging::TLogger logger = {},
-        NProfiling::TRegistry profiler = {});
+        NProfiling::TProfiler profiler = {});
 
     NConcurrency::IThroughputThrottlerPtr GetThrottler(NObjectClient::TCellTag cellTag);
 
@@ -31,7 +31,7 @@ public:
 private:
     NConcurrency::TThroughputThrottlerConfigPtr Config_;
     const NLogging::TLogger Logger_;
-    const NProfiling::TRegistry Profiler_;
+    const NProfiling::TProfiler Profiler_;
 
     //! Protects the section immediately following it.
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);

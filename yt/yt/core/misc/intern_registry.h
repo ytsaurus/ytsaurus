@@ -55,8 +55,8 @@ private:
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
 
-    using TRegistrySet = THashSet<TInternedObjectData<T>*, THash, TEqual>;
-    TRegistrySet Registry_;
+    using TProfilerSet = THashSet<TInternedObjectData<T>*, THash, TEqual>;
+    TProfilerSet Registry_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,7 +78,7 @@ private:
     const T Data_;
     const size_t Hash_;
     const TInternRegistryPtr<T> Registry_;
-    typename TInternRegistry<T>::TRegistrySet::iterator Iterator_;
+    typename TInternRegistry<T>::TProfilerSet::iterator Iterator_;
 
     TInternedObjectData(const T& data, TInternRegistryPtr<T> registry);
     TInternedObjectData(T&& data, TInternRegistryPtr<T> registry);

@@ -11,7 +11,7 @@ namespace NYT::NPhoenix {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void* TRegistry::DoInstantiate()
+void* TProfiler::DoInstantiate()
 {
     using TFactory = typename TFactoryTraits<T>::TFactory;
     using TBase = typename TPolymorphicTraits<T>::TBase;
@@ -22,7 +22,7 @@ void* TRegistry::DoInstantiate()
 }
 
 template <class T>
-void TRegistry::Register(ui32 tag)
+void TProfiler::Register(ui32 tag)
 {
     using TIdClass = typename TIdClass<T>::TType;
 
@@ -36,7 +36,7 @@ void TRegistry::Register(ui32 tag)
 }
 
 template <class T>
-T* TRegistry::Instantiate(ui32 tag)
+T* TProfiler::Instantiate(ui32 tag)
 {
     using TBase = typename TPolymorphicTraits<T>::TBase;
     TBase* basePtr = static_cast<TBase*>(GetEntry(tag).Factory());
@@ -115,7 +115,7 @@ struct TSerializer
 
             if (saveBody) {
                 if (dynamic) {
-                    ui32 tag = TRegistry::Get()->GetTag(*typeInfo);
+                    ui32 tag = TProfiler::Get()->GetTag(*typeInfo);
                     Save(context, tag);
                 }
                 Save(context, *ptr);
@@ -211,14 +211,14 @@ struct TSerializer
         {
             using NYT::Load;
             ui32 tag = Load<ui32>(context);
-            return TRegistry::Get()->Instantiate<T>(tag);
+            return TProfiler::Get()->Instantiate<T>(tag);
         }
 
         static void ValidateTag(C& context, T* rawPtr)
         {
             using NYT::Load;
             ui32 streamTag = Load<ui32>(context);
-            ui32 runtimeTag = TRegistry::Get()->GetTag(typeid (*rawPtr));
+            ui32 runtimeTag = TProfiler::Get()->GetTag(typeid (*rawPtr));
             YT_VERIFY(streamTag == runtimeTag);
         }
     };

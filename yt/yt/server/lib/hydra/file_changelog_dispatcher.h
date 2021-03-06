@@ -41,7 +41,7 @@ IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NChunkClient::IIOEnginePtr ioEngine,
     IFileChangelogDispatcherConfigPtr config,
     TString threadName,
-    NProfiling::TRegistry profiler);
+    NProfiling::TProfiler profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

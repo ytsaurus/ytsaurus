@@ -133,7 +133,7 @@ struct TLayerLocationPerformanceCounters
 {
     TLayerLocationPerformanceCounters() = default;
 
-    explicit TLayerLocationPerformanceCounters(const TRegistry& profiler)
+    explicit TLayerLocationPerformanceCounters(const TProfiler& profiler)
     {
         LayerCount = profiler.Gauge("/layer_count");
         VolumeCount = profiler.Gauge("/volume_count");

@@ -46,7 +46,7 @@ class TFileChangelogQueue
 public:
     explicit TFileChangelogQueue(
         TSyncFileChangelogPtr changelog,
-        const TRegistry& profiler,
+        const TProfiler& profiler,
         const IInvokerPtr& invoker)
         : Changelog_(std::move(changelog))
         , Profiler(profiler)
@@ -223,7 +223,7 @@ public:
 
 private:
     const TSyncFileChangelogPtr Changelog_;
-    const TRegistry Profiler;
+    const TProfiler Profiler;
     const IInvokerPtr Invoker_;
     const TClosure ProcessQueueCallback_;
 
@@ -303,7 +303,7 @@ public:
         NChunkClient::IIOEnginePtr ioEngine,
         IFileChangelogDispatcherConfigPtr config,
         TString threadName,
-        TRegistry profiler)
+        TProfiler profiler)
         : IOEngine_(std::move(ioEngine))
         , Config_(std::move(config))
         , ProcessQueuesCallback_(BIND(&TFileChangelogDispatcher::ProcessQueues, MakeWeak(this)))
@@ -440,7 +440,7 @@ private:
     const TActionQueuePtr ActionQueue_;
     const TPeriodicExecutorPtr PeriodicExecutor_;
 
-    const TRegistry Profiler;
+    const TProfiler Profiler;
 
     THashSet<TFileChangelogQueuePtr> Queues_;
 
@@ -681,7 +681,7 @@ IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NChunkClient::IIOEnginePtr ioEngine,
     IFileChangelogDispatcherConfigPtr config,
     TString threadName,
-    TRegistry profiler)
+    TProfiler profiler)
 {
     return New<TFileChangelogDispatcher>(
         std::move(ioEngine),

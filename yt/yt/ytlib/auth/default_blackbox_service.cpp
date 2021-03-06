@@ -36,7 +36,7 @@ public:
         TDefaultBlackboxServiceConfigPtr config,
         ITvmServicePtr tvmService,
         IPollerPtr poller,
-        NProfiling::TRegistry profiler)
+        NProfiling::TProfiler profiler)
         : Config_(std::move(config))
         , TvmService_(Config_->UseTvm ? std::move(tvmService) : nullptr)
         , HttpClient_(Config_->Secure
@@ -291,7 +291,7 @@ IBlackboxServicePtr CreateDefaultBlackboxService(
     TDefaultBlackboxServiceConfigPtr config,
     ITvmServicePtr tvmService,
     IPollerPtr poller,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
 {
     return New<TDefaultBlackboxService>(
         std::move(config),
