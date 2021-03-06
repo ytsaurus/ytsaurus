@@ -64,32 +64,28 @@ private:
     {
         YT_LOG_DEBUG("Validating ticket scopes (TicketHash: %v)",
             ticketHash);
-        const auto result = TvmService_->ParseUserTicket(ticket);
-        if (!result.IsOK()) {
-            YT_LOG_DEBUG(result, "Parsing user ticket failed (TicketHash: %v)",
-                ticketHash);
-            return result
-                << TErrorAttribute("ticket_hash", ticketHash);
-        }
-        const auto& scopes = result.Value().Scopes;
-        YT_LOG_DEBUG("Got user ticket with scopes %v", scopes);
+        try {
+            const auto result = TvmService_->ParseUserTicket(ticket);
+            const auto& scopes = result.Scopes;
+            YT_LOG_DEBUG("Got user ticket with scopes %v", scopes);
 
-        const auto& allowedScopes = Config_->Scopes;
-        if (allowedScopes.empty()) {
-            // This mode is to examine received scopes in prod logs.
-            YT_LOG_WARNING("Got user ticket with scopes %v", scopes);
-            return TError();
-        }
-        for (const auto& scope : scopes) {
-            if (allowedScopes.contains(scope)) {
-                return TError();
+            const auto& allowedScopes = Config_->Scopes;
+            for (const auto& scope : scopes) {
+                if (allowedScopes.contains(scope)) {
+                    return TError();
+                }
             }
-        }
 
-        return TError(NRpc::EErrorCode::InvalidCredentials,
-            "Ticket does not provide an allowed scope")
-            << TErrorAttribute("scopes", scopes)
-            << TErrorAttribute("allowed_scopes", allowedScopes);
+            return TError(NRpc::EErrorCode::InvalidCredentials,
+                "Ticket does not provide an allowed scope")
+                << TErrorAttribute("scopes", scopes)
+                << TErrorAttribute("allowed_scopes", allowedScopes);
+        } catch (const std::exception& ex) {
+            TError error(ex);
+            YT_LOG_DEBUG(error, "Parsing user ticket failed (TicketHash: %v)",
+                ticketHash);
+            return error << TErrorAttribute("ticket_hash", ticketHash);
+        }
     }
 
     TAuthenticationResult OnBlackboxCallResult(const TString& ticketHash, const INodePtr& data)

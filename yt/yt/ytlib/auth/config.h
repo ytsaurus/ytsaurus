@@ -51,7 +51,6 @@ public:
     TDuration AttemptTimeout;
     TDuration BackoffTimeout;
     bool UseLowercaseLogin;
-    bool UseTvm;
 
     TDefaultBlackboxServiceConfig()
     {
@@ -73,8 +72,6 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("use_lowercase_login", UseLowercaseLogin)
             .Default(true);
-        RegisterParameter("use_tvm", UseTvm)
-            .Default(false);
     }
 };
 
@@ -86,15 +83,6 @@ class TDefaultTvmServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    // TvmTool settings (deprecated)
-    NHttp::TClientConfigPtr HttpClient;
-    TString Host;
-    int Port = 0;
-    TString Token;
-    TString Src; // When tvmtool has multiple clients, almost never happens.
-
-    TDuration RequestTimeout;
-
     // TvmClient settings
     ui32 ClientSelfId = 0;
     TString ClientDiskCacheDir;
@@ -111,17 +99,6 @@ public:
 
     TDefaultTvmServiceConfig()
     {
-        RegisterParameter("http_client", HttpClient)
-            .DefaultNew();
-        RegisterParameter("host", Host)
-            .Default("localhost");
-        RegisterParameter("port", Port);
-        RegisterParameter("token", Token);
-        RegisterParameter("request_timeout", RequestTimeout)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("src", Src)
-            .Optional();
-
         RegisterParameter("client_self_id", ClientSelfId)
             .Default(0);
         RegisterParameter("client_disk_cache_dir", ClientDiskCacheDir)
@@ -144,15 +121,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDefaultTvmServiceConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCachingDefaultTvmServiceConfig
-    : public TDefaultTvmServiceConfig
-    , public TAsyncExpiringCacheConfig
-{ };
-
-DEFINE_REFCOUNTED_TYPE(TCachingDefaultTvmServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -404,7 +372,7 @@ public:
     NAuth::TCachingBlackboxCookieAuthenticatorConfigPtr BlackboxCookieAuthenticator;
     NAuth::TDefaultBlackboxServiceConfigPtr BlackboxService;
     NAuth::TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
-    NAuth::TCachingDefaultTvmServiceConfigPtr TvmService;
+    NAuth::TDefaultTvmServiceConfigPtr TvmService;
     NAuth::TBlackboxTicketAuthenticatorConfigPtr BlackboxTicketAuthenticator;
 
     TAuthenticationManagerConfig()

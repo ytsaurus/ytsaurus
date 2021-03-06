@@ -42,15 +42,14 @@ protected:
         config->RequestTimeout = TDuration::Seconds(10);
         config->AttemptTimeout = TDuration::Seconds(10);
         config->BackoffTimeout = TDuration::Seconds(10);
-        config->UseTvm = true;
         return config;
     }
 
     IBlackboxServicePtr CreateDefaultBlackboxService(TDefaultBlackboxServiceConfigPtr config = {})
     {
         MockTvmService_ = New<NiceMock<TMockTvmService>>();
-        ON_CALL(*MockTvmService_, GetTicket("blackbox"))
-            .WillByDefault(Return(MakeFuture(TString("blackbox_ticket"))));
+        ON_CALL(*MockTvmService_, GetServiceTicket("blackbox"))
+            .WillByDefault(Return(TString("blackbox_ticket")));
 
         return NAuth::CreateDefaultBlackboxService(
             config ? config : CreateDefaultBlackboxServiceConfig(),
@@ -154,8 +153,8 @@ TEST_F(TDefaultBlackboxTest, FailOnBlackboxException)
 TEST_F(TDefaultBlackboxTest, FailOnTvmException)
 {
     auto service = CreateDefaultBlackboxService();
-    EXPECT_CALL(*MockTvmService_, GetTicket("blackbox"))
-        .WillOnce(Return(MakeFuture<TString>(TError("TVM out of tickets."))));
+    EXPECT_CALL(*MockTvmService_, GetServiceTicket("blackbox"))
+        .WillOnce(Throw(std::exception()));
     auto result = service->Call("hello", {}).Get();
     EXPECT_FALSE(result.IsOK());
 }
@@ -172,25 +171,6 @@ TEST_F(TDefaultBlackboxTest, Success)
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}).Get();
     ASSERT_TRUE(result.IsOK());
-    EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString(TStringBuf("{status=ok}")))));
-}
-
-TEST_F(TDefaultBlackboxTest, DoesNotCallTvmWithoutPermission)
-{
-    SetCallback([&] (TClientRequest* request) {
-        EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello&foo=bar&spam=ham"));
-        auto header = request->Input().Headers().FindHeader("X-Ya-Service-Ticket");
-        EXPECT_EQ(nullptr, header);
-        request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
-    });
-    auto config = CreateDefaultBlackboxServiceConfig();
-    config->UseTvm = false;
-    auto service = CreateDefaultBlackboxService(config);
-    EXPECT_CALL(*MockTvmService_, GetTicket("blackbox")).Times(0);
-
-    auto result = service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}).Get();
-
-    EXPECT_TRUE(result.IsOK());
     EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString(TStringBuf("{status=ok}")))));
 }
 
@@ -607,21 +587,12 @@ TEST_F(TTicketAuthenticatorTest, DisableScopeCheck)
     EXPECT_EQ("ScopelessUser", result.Value().Login);
 }
 
-TEST_F(TTicketAuthenticatorTest, AllowAllScopes)
-{
-    Config_->Scopes.clear();
-    auto result = Invoke("bad_ticket").Get();
-    ASSERT_TRUE(result.IsOK());
-    EXPECT_EQ("ScopelessUser", result.Value().Login);
-}
-
 TEST_F(TTicketAuthenticatorTest, FailOnTvmFailure)
 {
     EXPECT_CALL(*Tvm_, ParseUserTicket(_))
-        .WillOnce(Return(TError("Tvm failure")));
+        .WillOnce(Throw(std::exception()));
     auto result = Invoke("good_ticket").Get();
-    ASSERT_TRUE(!result.IsOK());
-    EXPECT_THAT(CollectMessages(result), HasSubstr("Tvm failure"));
+    ASSERT_FALSE(result.IsOK());
 }
 
 TEST_F(TTicketAuthenticatorTest, FailOnBlackboxFailure)

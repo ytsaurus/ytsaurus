@@ -1,26 +1,23 @@
 #include "default_blackbox_service.h"
 #include "blackbox_service.h"
+
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
 #include "tvm_service.h"
 
-#include <yt/yt/core/json/json_parser.h>
-
-#include <yt/yt/core/https/client.h>
-
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/http.h>
-
+#include <yt/yt/core/https/client.h>
+#include <yt/yt/core/json/json_parser.h>
 #include <yt/yt/core/rpc/dispatcher.h>
-
-#include <yt/yt/core/concurrency/delayed_executor.h>
 
 namespace NYT::NAuth {
 
-using namespace NYTree;
-using namespace NHttp;
 using namespace NConcurrency;
+using namespace NHttp;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +35,7 @@ public:
         IPollerPtr poller,
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
-        , TvmService_(Config_->UseTvm ? std::move(tvmService) : nullptr)
+        , TvmService_(std::move(tvmService))
         , HttpClient_(Config_->Secure
             ? NHttps::CreateClient(Config_->HttpClient, std::move(poller))
             : NHttp::CreateClient(Config_->HttpClient, std::move(poller)))
@@ -83,17 +80,7 @@ private:
         const THashMap<TString, TString>& params)
     {
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
-
-        TString blackboxTicket;
-        if (TvmService_) {
-            auto rspOrError = WaitFor(TvmService_->GetTicket(Config_->BlackboxServiceId));
-            if (!rspOrError.IsOK()) {
-                BlackboxCallFatalErrors_.Increment();
-                YT_LOG_ERROR(rspOrError);
-                THROW_ERROR_EXCEPTION("TVM call failed") << rspOrError;
-            }
-            blackboxTicket = rspOrError.Value();
-        }
+        auto callId = TGuid::Create();
 
         TSafeUrlBuilder builder;
         builder.AppendString(Format("%v://%v:%v/blackbox?",
@@ -114,11 +101,8 @@ private:
         auto safeUrl = builder.FlushSafeUrl();
 
         auto httpHeaders = New<THeaders>();
-        if (!blackboxTicket.empty()) {
-            httpHeaders->Add("X-Ya-Service-Ticket", blackboxTicket);
-        }
-
-        auto callId = TGuid::Create();
+        httpHeaders->Add("X-Ya-Service-Ticket",
+            TvmService_->GetServiceTicket(Config_->BlackboxServiceId));
 
         std::vector<TError> accumulatedErrors;
 

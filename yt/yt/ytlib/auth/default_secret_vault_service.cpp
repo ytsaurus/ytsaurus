@@ -1,30 +1,28 @@
 #include "default_secret_vault_service.h"
 #include "secret_vault_service.h"
-#include "tvm_service.h"
+
 #include "config.h"
 #include "private.h"
-
-#include <yt/yt/core/misc/string.h>
-
-#include <yt/yt/core/json/json_writer.h>
-#include <yt/yt/core/json/json_parser.h>
-
-#include <yt/yt/core/ytree/fluent.h>
-#include <yt/yt/core/ytree/tree_builder.h>
-#include <yt/yt/core/ytree/ephemeral_node_factory.h>
-
-#include <yt/yt/core/https/client.h>
+#include "tvm_service.h"
 
 #include <yt/yt/core/http/client.h>
-#include <yt/yt/core/http/http.h>
 #include <yt/yt/core/http/helpers.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/https/client.h>
+#include <yt/yt/core/json/json_parser.h>
+#include <yt/yt/core/json/json_writer.h>
+#include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/tree_builder.h>
 
 namespace NYT::NAuth {
 
 using namespace NConcurrency;
+using namespace NHttp;
 using namespace NJson;
 using namespace NYTree;
-using namespace NHttp;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +50,9 @@ public:
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
         , TvmService_(std::move(tvmService))
-        , HttpClient_(CreateHttpClient(std::move(poller)))
+        , HttpClient_(Config_->Secure
+                      ? NHttps::CreateClient(Config_->HttpClient, std::move(poller))
+                      : NHttp::CreateClient(Config_->HttpClient, std::move(poller)))
         , SubrequestsPerCallGauge_(profiler.Gauge("/subrequests_per_call"))
         , CallCountCounter_(profiler.Counter("/call_count"))
         , SubrequestCountCounter_(profiler.Counter("/subrequest_count"))
@@ -64,13 +64,12 @@ public:
         , FailedSubrequestCountCounter_(profiler.Counter("/failed_subrequest_count"))
     { }
 
-    virtual TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(const std::vector<TSecretSubrequest>& subrequests) override
+    virtual TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(
+        const std::vector<TSecretSubrequest>& subrequests) override
     {
-        return TvmService_->GetTicket(Config_->VaultServiceId)
-            .Apply(BIND(
-                &TDefaultSecretVaultService::OnTvmCallResult,
-                MakeStrong(this),
-                subrequests));
+        return BIND(&TDefaultSecretVaultService::DoGetSecrets, MakeStrong(this), subrequests)
+            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
+            .Run();
     }
 
 private:
@@ -90,15 +89,8 @@ private:
     NProfiling::TCounter FailedSubrequestCountCounter_;
 
 private:
-    NHttp::IClientPtr CreateHttpClient(IPollerPtr poller) const
-    {
-        if (Config_->Secure) {
-            return NHttps::CreateClient(Config_->HttpClient, std::move(poller));
-        }
-        return NHttp::CreateClient(Config_->HttpClient, std::move(poller));
-    }
-
-    TFuture<std::vector<TErrorOrSecretSubresponse>> OnTvmCallResult(const std::vector<TSecretSubrequest>& subrequests, const TString& vaultTicket)
+    std::vector<TErrorOrSecretSubresponse> DoGetSecrets(
+        const std::vector<TSecretSubrequest>& subrequests)
     {
         auto callId = TGuid::Create();
 
@@ -117,23 +109,14 @@ private:
         if (!Config_->Consumer.empty()) {
             url += "?consumer=" + Config_->Consumer;
         }
+
+        auto vaultTicket = TvmService_->GetServiceTicket(Config_->VaultServiceId);
         auto body = MakeRequestBody(vaultTicket, subrequests);
         static const auto Headers = MakeRequestHeaders();
-        NProfiling::TWallTimer timer;
-        return HttpClient_->Post(url, body, Headers)
-            .WithTimeout(Config_->RequestTimeout)
-            .Apply(BIND(
-                &TDefaultSecretVaultService::OnVaultCallResult,
-                MakeStrong(this),
-                callId,
-                timer));
-    }
 
-    std::vector<TErrorOrSecretSubresponse> OnVaultCallResult(
-        TGuid callId,
-        const NProfiling::TWallTimer& timer,
-        const TErrorOr<NHttp::IResponsePtr>& rspOrError)
-    {
+        NProfiling::TWallTimer timer;
+        auto rspOrError = WaitFor(HttpClient_->Post(url, body, Headers)
+            .WithTimeout(Config_->RequestTimeout));
         CallTimer_.Record(timer.GetElapsedTime());
 
         auto onError = [&] (TError error) {

@@ -83,14 +83,14 @@ private:
         : public ITvmService
     {
     public:
-        virtual TFuture<TString> GetTicket(const TString& serviceId) override
+        virtual TString GetServiceTicket(const TString& serviceId) override
         {
-            return MakeFuture("ticket:" + serviceId);
+            return Format("ticket:%v", serviceId);
         }
 
-        virtual TErrorOr<TParsedTicket> ParseUserTicket(const TString& ticket) override
+        virtual TParsedTicket ParseUserTicket(const TString& ticket) override
         {
-            return TError("Not implemented");
+            THROW_ERROR_EXCEPTION("Not implemented");
         }
     };
 
