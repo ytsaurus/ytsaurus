@@ -35,7 +35,7 @@ TFairShareTreeProfiler::TFairShareTreeProfiler(
     VERIFY_THREAD_AFFINITY(ControlThread);
 }
 
-NProfiling::TRegistry TFairShareTreeProfiler::GetRegistry() const
+NProfiling::TProfiler TFairShareTreeProfiler::GetRegistry() const
 {
     return Registry_;
 }

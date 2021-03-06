@@ -61,7 +61,7 @@ void DumpChunkReaderStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(const NProfiling::TRegistry& profiler)
+TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(const NProfiling::TProfiler& profiler)
     : DataBytesReadFromDisk_(profiler.Counter("/data_bytes_read_from_disk"))
     , DataBytesTransmitted_(profiler.Counter("/data_bytes_transmitted"))
     , DataBytesReadFromCache_(profiler.Counter("/data_bytes_read_from_cache"))

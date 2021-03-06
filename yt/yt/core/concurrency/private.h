@@ -48,7 +48,7 @@ DECLARE_REFCOUNTED_STRUCT(IFairShareCallbackQueue)
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger ConcurrencyLogger;
-extern const NProfiling::TRegistry ConcurrencyProfiler;
+extern const NProfiling::TProfiler ConcurrencyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

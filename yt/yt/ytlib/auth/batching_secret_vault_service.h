@@ -11,7 +11,7 @@ namespace NYT::NAuth {
 ISecretVaultServicePtr CreateBatchingSecretVaultService(
     TBatchingSecretVaultServiceConfigPtr config,
     ISecretVaultServicePtr underlying,
-    NProfiling::TRegistry profiler = {});
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

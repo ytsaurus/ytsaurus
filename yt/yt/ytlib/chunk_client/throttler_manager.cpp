@@ -15,7 +15,7 @@ using namespace NProfiling;
 TThrottlerManager::TThrottlerManager(
     TThroughputThrottlerConfigPtr config,
     NLogging::TLogger logger,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
     : Config_(std::move(config))
     , Logger_(std::move(logger))
     , Profiler_(std::move(profiler))

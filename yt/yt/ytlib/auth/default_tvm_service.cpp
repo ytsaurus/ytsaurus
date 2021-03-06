@@ -67,7 +67,7 @@ public:
     TDefaultTvmService(
         TDefaultTvmServiceConfigPtr config,
         IPollerPtr poller,
-        NProfiling::TRegistry profiler)
+        NProfiling::TProfiler profiler)
         : Config_(std::move(config))
         , HttpClient_(CreateClient(Config_->HttpClient, std::move(poller)))
         , GetServiceTicketCountCounter_(profiler.Counter("/get_service_ticket_count"))
@@ -336,7 +336,7 @@ private:
 ITvmServicePtr CreateDefaultTvmService(
     TDefaultTvmServiceConfigPtr config,
     IPollerPtr poller,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
 {
     return New<TDefaultTvmService>(
         std::move(config),

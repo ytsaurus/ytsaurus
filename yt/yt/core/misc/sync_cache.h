@@ -61,7 +61,7 @@ protected:
 
     explicit TSyncSlruCacheBase(
         TSlruCacheConfigPtr config,
-        const NProfiling::TRegistry& profiler = {});
+        const NProfiling::TProfiler& profiler = {});
 
     virtual i64 GetWeight(const TValuePtr& value) const;
     virtual void OnAdded(const TValuePtr& value);
@@ -127,7 +127,7 @@ public:
     explicit TMemoryTrackingSyncSlruCacheBase(
         TSlruCacheConfigPtr config,
         IMemoryUsageTrackerPtr memoryTracker,
-        const NProfiling::TRegistry& profiler = {});
+        const NProfiling::TProfiler& profiler = {});
 
     void Reconfigure(const TSlruCacheDynamicConfigPtr& config);
 

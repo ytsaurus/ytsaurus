@@ -424,7 +424,7 @@ protected:
     TIntrusivePtr<TFairShareTreeHostMock> FairShareTreeHostMock_ = New<TFairShareTreeHostMock>(TreeConfig_);
     TScheduleJobsStage SchedulingStageMock_ = TScheduleJobsStage(
         /* nameInLogs */ "Test scheduling stage",
-        TScheduleJobsProfilingCounters(NProfiling::TRegistry{"/test_scheduling_stage"}));
+        TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/test_scheduling_stage"}));
 
     int SlotIndex_ = 0;
 

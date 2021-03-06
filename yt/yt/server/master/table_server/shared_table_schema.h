@@ -41,7 +41,7 @@ private:
         bool operator() (const TSharedTableSchema* lhs, const NTableClient::TTableSchema& rhs) const;
     };
 
-    using TRegistrySet = THashSet<TSharedTableSchema*, TSharedTableSchemaHash, TSharedTableSchemaEqual>;
+    using TProfilerSet = THashSet<TSharedTableSchema*, TSharedTableSchemaHash, TSharedTableSchemaEqual>;
     THashSet<TSharedTableSchema*, TSharedTableSchemaHash, TSharedTableSchemaEqual> Registry_;
 };
 

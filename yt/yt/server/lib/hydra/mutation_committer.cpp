@@ -40,7 +40,7 @@ TCommitterBase::TCommitterBase(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     NLogging::TLogger logger,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
     : Config_(std::move(config))
     , Options_(options)
     , DecoratedAutomaton_(std::move(decoratedAutomaton))
@@ -363,7 +363,7 @@ TLeaderCommitter::TLeaderCommitter(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     NLogging::TLogger logger,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
     : TCommitterBase(
         std::move(config),
         options,
@@ -582,7 +582,7 @@ TFollowerCommitter::TFollowerCommitter(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     NLogging::TLogger logger,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
     : TCommitterBase(
         std::move(config),
         options,

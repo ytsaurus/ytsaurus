@@ -10,7 +10,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRequestProfilingCounters::TRequestProfilingCounters(const TRegistry& profiler)
+TRequestProfilingCounters::TRequestProfilingCounters(const TProfiler& profiler)
     : TotalReadRequestCounter(profiler.Counter("/total_read_request_count"))
     , TotalWriteRequestCounter(profiler.Counter("/total_write_request_count"))
     , LocalReadRequestCounter(profiler.Counter("/local_read_request_count"))

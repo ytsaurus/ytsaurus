@@ -154,7 +154,7 @@ private:
     std::optional<TInstant> UserMemoryOverdraftInstant_;
     std::optional<TInstant> CpuOverdraftInstant_;
 
-    TRegistry Profiler_;
+    TProfiler Profiler_;
     TBufferedProducerPtr ActiveJobCountBuffer_ = New<TBufferedProducer>();
     TBufferedProducerPtr ResourceLimitsBuffer_ = New<TBufferedProducer>();
     TBufferedProducerPtr ResourceUsageBuffer_ = New<TBufferedProducer>();

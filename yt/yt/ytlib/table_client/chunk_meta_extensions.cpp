@@ -181,7 +181,7 @@ i64 TCachedBlockMeta::GetWeight() const
 TBlockMetaCache::TBlockMetaCache(
     TSlruCacheConfigPtr config,
     IMemoryUsageTrackerPtr memoryTracker,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
     : TMemoryTrackingSyncSlruCacheBase<TChunkId, TCachedBlockMeta>(
         std::move(config),
         std::move(memoryTracker),

@@ -222,7 +222,7 @@ public:
         const NChunkClient::IIOEnginePtr& ioEngine,
         TFileChangelogStoreConfigPtr config,
         const TString& threadName,
-        const NProfiling::TRegistry& profiler)
+        const NProfiling::TProfiler& profiler)
         : TAsyncSlruCacheBase(config->ChangelogReaderCache)
         , IOEngine_(ioEngine)
         , Config_(config)
@@ -447,7 +447,7 @@ IChangelogStorePtr TLocalChangelogStoreFactory::CreateStore(TVersion reachableVe
 IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
     TFileChangelogStoreConfigPtr config,
     const TString& threadName,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
 {
     auto store = New<TLocalChangelogStoreFactory>(
         NChunkClient::CreateIOEngine(config->IOEngineType, config->IOConfig),

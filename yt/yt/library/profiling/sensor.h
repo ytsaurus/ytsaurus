@@ -27,7 +27,7 @@ public:
     explicit operator bool() const;
 
 private:
-    friend class TRegistry;
+    friend class TProfiler;
     friend struct TTesting;
 
     ICounterImplPtr Counter_;
@@ -43,7 +43,7 @@ public:
     explicit operator bool() const;
 
 private:
-    friend class TRegistry;
+    friend class TProfiler;
     friend struct TTesting;
 
     ITimeCounterImplPtr Counter_;
@@ -59,7 +59,7 @@ public:
     explicit operator bool() const;
 
 private:
-    friend class TRegistry;
+    friend class TProfiler;
     friend struct TTesting;
 
     IGaugeImplPtr Gauge_;
@@ -75,7 +75,7 @@ public:
     explicit operator bool() const;
 
 private:
-    friend class TRegistry;
+    friend class TProfiler;
     friend struct TTesting;
 
     ITimeGaugeImplPtr Gauge_;
@@ -91,7 +91,7 @@ public:
     explicit operator bool() const;
 
 private:
-    friend class TRegistry;
+    friend class TProfiler;
 
     ISummaryImplPtr Summary_;
 };
@@ -106,7 +106,7 @@ public:
     explicit operator bool() const;
 
 private:
-    friend class TRegistry;
+    friend class TProfiler;
 
     ITimerImplPtr Timer_;
 };
@@ -148,39 +148,39 @@ TString ToString(const TSensorOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! TRegistry stores common settings of profiling counters.
-class TRegistry
+//! TProfiler stores common settings of profiling counters.
+class TProfiler
 {
 public:
     //! Default constructor creates null registry. Every method of null registry is no-op.
     /*!
      *  Default constructor is useful for implementing optional profiling. E.g:
      *
-     *      TCache CreateCache(TRegistry& registry = {});
+     *      TCache CreateCache(TProfiler& registry = {});
      *
      *      void Example()
      *      {
      *          auto cache = CreateCache(); // Create cache without profiling
-     *          auto profiledCache = CreateCache(TRegistry{"/my_cache"}); // Enable profiling
+     *          auto profiledCache = CreateCache(TProfiler{"/my_cache"}); // Enable profiling
      *      }
      */
-    TRegistry() = default;
+    TProfiler() = default;
 
     static constexpr auto DefaultNamespace = "yt";
 
-    TRegistry(
+    TProfiler(
         const IRegistryImplPtr& impl,
         const TString& prefix,
         const TString& _namespace = DefaultNamespace);
 
-    explicit TRegistry(
+    explicit TProfiler(
         const TString& prefix,
         const TString& _namespace = DefaultNamespace,
         const TTagSet& tags = {},
         const IRegistryImplPtr& impl = nullptr,
         TSensorOptions options = {});
 
-    TRegistry WithPrefix(const TString& prefix) const;
+    TProfiler WithPrefix(const TString& prefix) const;
 
     //! Tag settings control local aggregates.
     /*!
@@ -188,36 +188,36 @@ public:
      *  #parent is negative number representing parent tag index.
      *  #alternativeTo is negative number representing alternative tag index.
      */
-    TRegistry WithTag(const TString& name, const TString& value, int parent = NoParent) const;
-    TRegistry WithRequiredTag(const TString& name, const TString& value, int parent = NoParent) const;
-    TRegistry WithExcludedTag(const TString& name, const TString& value, int parent = NoParent) const;
-    TRegistry WithAlternativeTag(const TString& name, const TString& value, int alternativeTo, int parent = NoParent) const;
-    TRegistry WithTags(const TTagSet& tags) const;
+    TProfiler WithTag(const TString& name, const TString& value, int parent = NoParent) const;
+    TProfiler WithRequiredTag(const TString& name, const TString& value, int parent = NoParent) const;
+    TProfiler WithExcludedTag(const TString& name, const TString& value, int parent = NoParent) const;
+    TProfiler WithAlternativeTag(const TString& name, const TString& value, int alternativeTo, int parent = NoParent) const;
+    TProfiler WithTags(const TTagSet& tags) const;
 
     //! WithSparse sets sparse flags on all sensors created using returned registry.
     /*!
      *  Sparse sensors with zero value are omitted from profiling results.
      */
-    TRegistry WithSparse() const;
+    TProfiler WithSparse() const;
 
     //! WithGlobal marks all sensors as global.
     /*!
      *  Global sensors are exported without host= tag and instance tags.
      */
-    TRegistry WithGlobal() const;
+    TProfiler WithGlobal() const;
 
     //! WithDefaultDisabled disables export of default values.
     /*!
      *  By default, gauges report zero value after creation. With this setting enabled,
      *  gauges are not exported before first call to Update().
      */
-    TRegistry WithDefaultDisabled() const;
+    TProfiler WithDefaultDisabled() const;
 
     //! WithProjectionsDisabled disables local aggregation.
-    TRegistry WithProjectionsDisabled() const;
+    TProfiler WithProjectionsDisabled() const;
 
     //! WithRenameDisabled disables sensors name normalization.
-    TRegistry WithRenameDisabled() const;
+    TProfiler WithRenameDisabled() const;
 
     //! WithHot sets hot flag on all sensors created using returned registry.
     /*!
@@ -231,7 +231,7 @@ public:
      *  Per-CPU implementation:
      *    4160 bytes - Counter, TimeCounter, Gauge, Timer, Summary
      */
-    TRegistry WithHot() const;
+    TProfiler WithHot() const;
 
     //! Counter is used to measure rate of events.
     TCounter Counter(const TString& name) const;
@@ -302,6 +302,8 @@ private:
     IRegistryImplPtr Impl_;
 };
 
+using TRegistry = TProfiler;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define YT_PROFILE_GENNAME0(line) PROFILE_TIMING__ ## line
@@ -309,7 +311,7 @@ private:
 
 //! Measures execution time of the statement that immediately follows this macro.
 #define YT_PROFILE_TIMING(name) \
-    static auto YT_PROFILE_GENNAME(__LINE__) = ::NYT::NProfiling::TRegistry{name}.WithHot().Timer(""); \
+    static auto YT_PROFILE_GENNAME(__LINE__) = ::NYT::NProfiling::TProfiler{name}.WithHot().Timer(""); \
     if (auto PROFILE_TIMING__Guard = ::NYT::NProfiling::TEventTimerGuard(YT_PROFILE_GENNAME(__LINE__)); false) \
     { YT_ABORT(); } \
     else

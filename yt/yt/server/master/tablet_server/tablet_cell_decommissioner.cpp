@@ -82,7 +82,7 @@ public:
 
 private:
     const NCellMaster::TBootstrap* Bootstrap_;
-    const NProfiling::TRegistry Profiler;
+    const NProfiling::TProfiler Profiler;
     TTabletCellDecommissionerConfigPtr Config_;
     TPeriodicExecutorPtr DecommissionExecutor_;
     TPeriodicExecutorPtr KickOrphansExecutor_;

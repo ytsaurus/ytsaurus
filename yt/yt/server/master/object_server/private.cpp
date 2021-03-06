@@ -5,7 +5,7 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger ObjectServerLogger("ObjectServer");
-const NProfiling::TRegistry ObjectServerProfiler("/object_server");
+const NProfiling::TProfiler ObjectServerProfiler("/object_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

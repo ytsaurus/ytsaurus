@@ -25,7 +25,7 @@ public:
         TAuthenticationManagerConfigPtr config,
         IPollerPtr poller,
         IClientPtr client,
-        NProfiling::TRegistry profiler)
+        NProfiling::TProfiler profiler)
     {
         std::vector<NRpc::IAuthenticatorPtr> rpcAuthenticators;
         std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
@@ -145,7 +145,7 @@ TAuthenticationManager::TAuthenticationManager(
     TAuthenticationManagerConfigPtr config,
     IPollerPtr poller,
     IClientPtr client,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
     : Impl_(std::make_unique<TImpl>(
         std::move(config),
         std::move(poller),

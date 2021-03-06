@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
         NYTAlloc::EnableYTProfiling();
         EnableRefCountedTrackerProfiling();
 
-        TRegistry r{"/my_loop"};
+        TProfiler r{"/my_loop"};
 
         auto iterationCount = r.WithTag("thread", "main").Counter("/iteration_count");
         auto randomNumber = r.WithTag("thread", "main").Gauge("/random_number");

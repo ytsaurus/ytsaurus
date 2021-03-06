@@ -139,7 +139,7 @@ public:
         const TTagSet& tags)
         : CallbackEventCount_(std::move(callbackEventCount))
     {
-        auto profiler = TRegistry{"/fair_share_queue"}.WithHot().WithTags(tags);
+        auto profiler = TProfiler{"/fair_share_queue"}.WithHot().WithTags(tags);
         BucketCounter_ = profiler.Gauge("/buckets");
         SizeCounter_ = profiler.Summary("/size");
         WaitTimeCounter_ = profiler.Timer("/time/wait");

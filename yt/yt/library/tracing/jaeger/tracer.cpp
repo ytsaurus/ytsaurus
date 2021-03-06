@@ -25,7 +25,7 @@ using namespace NConcurrency;
 using namespace NProfiling;
 
 static NLogging::TLogger Logger{"Jaeger"};
-static NProfiling::TRegistry Profiler{"/tracing"};
+static NProfiling::TProfiler Profiler{"/tracing"};
 
 ////////////////////////////////////////////////////////////////////////////////
 

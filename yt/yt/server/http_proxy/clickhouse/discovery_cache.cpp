@@ -26,7 +26,7 @@ TCachedDiscovery::TCachedDiscovery(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiscoveryCache::TDiscoveryCache(TDiscoveryCacheConfigPtr config, const NProfiling::TRegistry& profiler)
+TDiscoveryCache::TDiscoveryCache(TDiscoveryCacheConfigPtr config, const NProfiling::TProfiler& profiler)
     : TAsyncSlruCacheBase(config->CacheBase, profiler)
 { }
 

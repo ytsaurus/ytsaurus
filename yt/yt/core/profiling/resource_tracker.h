@@ -22,7 +22,7 @@ public:
     double GetSystemCpu();
     double GetCpuWait();
 
-    virtual void Collect(ISensorWriter* writer) override;
+    virtual void CollectSensors(ISensorWriter* writer) override;
 
 private:
     i64 TicksPerSecond_;
@@ -66,13 +66,13 @@ private:
     bool ProcessThread(TString tid, TThreadInfo* result);
     TThreadMap ProcessThreads();
 
-    void CollectAggregatedTimings(
+    void CollectSensorsAggregatedTimings(
         ISensorWriter* writer,
         const TThreadMap& oldTidToInfo,
         const TThreadMap& newTidToInfo,
         i64 timeDeltaUsec);
 
-    void CollectThreadCounts(
+    void CollectSensorsThreadCounts(
         ISensorWriter* writer,
         const TThreadMap& tidToInfo) const;
 };

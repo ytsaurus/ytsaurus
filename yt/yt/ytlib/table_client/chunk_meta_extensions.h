@@ -102,7 +102,7 @@ public:
     TBlockMetaCache(
         TSlruCacheConfigPtr config,
         IMemoryUsageTrackerPtr memoryTracker,
-        const NProfiling::TRegistry& profiler);
+        const NProfiling::TProfiler& profiler);
 
 private:
     virtual i64 GetWeight(const TCachedBlockMetaPtr& value) const override;

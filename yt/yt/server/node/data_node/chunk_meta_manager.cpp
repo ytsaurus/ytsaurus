@@ -188,7 +188,7 @@ private:
         TChunkMetaCache(
             TSlruCacheConfigPtr config,
             IMemoryUsageTrackerPtr memoryTracker,
-            NProfiling::TRegistry profiler)
+            NProfiling::TProfiler profiler)
             : TMemoryTrackingAsyncSlruCacheBase(
                 std::move(config),
                 std::move(memoryTracker),
@@ -213,7 +213,7 @@ private:
         TBlocksExtCache(
             TSlruCacheConfigPtr config,
             IMemoryUsageTrackerPtr memoryTracker,
-            NProfiling::TRegistry profiler)
+            NProfiling::TProfiler profiler)
             : TMemoryTrackingAsyncSlruCacheBase(
                 std::move(config),
                 std::move(memoryTracker),

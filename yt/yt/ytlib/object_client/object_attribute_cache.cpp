@@ -20,7 +20,7 @@ TObjectAttributeCache::TObjectAttributeCache(
     NNative::IClientPtr client,
     IInvokerPtr invoker,
     const NLogging::TLogger& logger,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
     : TAsyncExpiringCache(
         config,
         ObjectClientLogger.WithTag("Cache: ObjectAttribute"),

@@ -161,7 +161,7 @@ public:
     TThreadedIOEngine(
         TConfigPtr config,
         TString locationId,
-        TRegistry profiler,
+        TProfiler profiler,
         NLogging::TLogger logger)
         : TIOEngineBase(std::move(logger))
         , Config_(std::move(config))
@@ -651,7 +651,7 @@ IIOEnginePtr CreateIOEngine(
     EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
     TString locationId,
-    TRegistry profiler,
+    TProfiler profiler,
     NLogging::TLogger logger)
 {
     switch (engineType) {

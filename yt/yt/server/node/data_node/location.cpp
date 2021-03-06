@@ -53,7 +53,7 @@ static const int ChunkFilesPermissions = 0751;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TRegistry& registry)
+TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TProfiler& registry)
 {
     for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
         for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
@@ -220,7 +220,7 @@ const TMediumDescriptor& TLocation::GetMediumDescriptor() const
     return descriptor ? *descriptor : Empty;
 }
 
-const NProfiling::TRegistry& TLocation::GetProfiler() const
+const NProfiling::TProfiler& TLocation::GetProfiler() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

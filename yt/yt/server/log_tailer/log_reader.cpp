@@ -113,7 +113,7 @@ TLogFileReader::TLogFileReader(
     , Logger("LogTailer")
     , ExtraLogTableColumns_(std::move(extraLogTableColumns))
 {
-    auto profiler = TRegistry{"/log_tailer"}.WithTag("filename", Config_->Path);
+    auto profiler = TProfiler{"/log_tailer"}.WithTag("filename", Config_->Path);
 
     TotalRowsWritten_ = profiler.Counter("/rows_written");
     TotalBytesWritten_ = profiler.Counter("/bytes_written");

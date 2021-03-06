@@ -35,7 +35,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceTracker)
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLogging::TLogger Logger("Profiling");
-static TRegistry Profiler("/resource_tracker");
+static TProfiler Profiler("/resource_tracker");
 
 static constexpr auto procPath = "/proc/self/task";
 
@@ -83,7 +83,7 @@ TResourceTracker::TResourceTracker()
     Profiler.WithSparse().AddProducer("", MakeStrong(this));
 }
 
-void TResourceTracker::Collect(ISensorWriter* writer)
+void TResourceTracker::CollectSensors(ISensorWriter* writer)
 {
     i64 timeDeltaUsec = TInstant::Now().MicroSeconds() - LastUpdateTime_.MicroSeconds();
     if (timeDeltaUsec <= 0) {
@@ -91,8 +91,8 @@ void TResourceTracker::Collect(ISensorWriter* writer)
     }
 
     auto tidToInfo = ProcessThreads();
-    CollectAggregatedTimings(writer, TidToInfo_, tidToInfo, timeDeltaUsec);
-    CollectThreadCounts(writer, tidToInfo);
+    CollectSensorsAggregatedTimings(writer, TidToInfo_, tidToInfo, timeDeltaUsec);
+    CollectSensorsThreadCounts(writer, tidToInfo);
     TidToInfo_ = tidToInfo;
 
     LastUpdateTime_ = TInstant::Now();
@@ -214,7 +214,7 @@ TResourceTracker::TThreadMap TResourceTracker::ProcessThreads()
     return tidToStats;
 }
 
-void TResourceTracker::CollectAggregatedTimings(
+void TResourceTracker::CollectSensorsAggregatedTimings(
     ISensorWriter* writer,
     const TResourceTracker::TThreadMap& oldTidToInfo,
     const TResourceTracker::TThreadMap& newTidToInfo,
@@ -279,7 +279,7 @@ void TResourceTracker::CollectAggregatedTimings(
         totalCpuWaitTime);
 }
 
-void TResourceTracker::CollectThreadCounts(ISensorWriter* writer, const TThreadMap& tidToInfo) const
+void TResourceTracker::CollectSensorsThreadCounts(ISensorWriter* writer, const TThreadMap& tidToInfo) const
 {
     THashMap<TString, int> profilingKeyToCount;
 

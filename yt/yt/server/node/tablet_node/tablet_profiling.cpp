@@ -236,7 +236,7 @@ template <class TCounter>
 TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
     bool disabled,
     const std::optional<TString>& userTag,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
 {
     if (disabled) {
         static TCounter counter;
@@ -254,8 +254,8 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
 
 
 TTableProfiler::TTableProfiler(
-    const NProfiling::TRegistry& profiler,
-    const NProfiling::TRegistry& diskProfiler)
+    const NProfiling::TProfiler& profiler,
+    const NProfiling::TProfiler& diskProfiler)
     : Disabled_(false)
     , Profiler_(profiler)
     , TabletCounters_(profiler)

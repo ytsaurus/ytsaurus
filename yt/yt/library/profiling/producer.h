@@ -82,7 +82,7 @@ struct ISensorProducer
      *  Do not use this interface, if set of tags might grow unbound. There is
      *  no way to cleanup removed tags.
      */
-    virtual void Collect(ISensorWriter* writer) = 0;
+    virtual void CollectSensors(ISensorWriter* writer) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISensorProducer)
@@ -93,7 +93,7 @@ class TBufferedProducer
     : public ISensorProducer
 {
 public:
-    virtual void Collect(ISensorWriter* writer) override;
+    virtual void CollectSensors(ISensorWriter* writer) override;
 
     void Update(TSensorBuffer buffer);
     void Update(std::function<void(ISensorWriter*)> cb);

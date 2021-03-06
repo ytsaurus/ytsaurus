@@ -22,7 +22,7 @@ public:
     TCachingSecretVaultService(
         TCachingSecretVaultServiceConfigPtr config,
         ISecretVaultServicePtr underlying,
-        NProfiling::TRegistry profiler)
+        NProfiling::TProfiler profiler)
         : TAsyncExpiringCache(
             config->Cache,
             AuthLogger.WithTag("Cache: SecretVault"),
@@ -65,7 +65,7 @@ private:
 ISecretVaultServicePtr CreateCachingSecretVaultService(
     TCachingSecretVaultServiceConfigPtr config,
     ISecretVaultServicePtr underlying,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
 {
     return New<TCachingSecretVaultService>(
         std::move(config),

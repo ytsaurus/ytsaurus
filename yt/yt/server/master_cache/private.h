@@ -16,7 +16,7 @@ struct IBootstrap;
 
 extern const NLogging::TLogger MasterCacheLogger;
 
-extern const NProfiling::TRegistry MasterCacheProfiler;
+extern const NProfiling::TProfiler MasterCacheProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -488,7 +488,7 @@ public:
                 Sleep(TDuration::Max());
             }
 
-            // Collect last-minute information.
+            // CollectSensors last-minute information.
             TRawFormatter<1024> formatter;
             formatter.AppendString("\n*** Fatal error ***\n");
             formatter.AppendString(TStringBuf(event.Message.Begin(), event.Message.End()));
@@ -960,7 +960,7 @@ private:
         return it->second;
     }
 
-    void Collect(ISensorWriter* writer)
+    void CollectSensors(ISensorWriter* writer)
     {
         auto writtenEvents = WrittenEvents_.load();
         auto enqueuedEvents = EnqueuedEvents_.load();
@@ -1241,7 +1241,7 @@ private:
     using TEventProfilingKey = std::pair<TStringBuf, ELogLevel>;
     THashMap<TEventProfilingKey, TCounter> WrittenEventsCounters_;
 
-    TRegistry LoggingProfiler{"/logging"};
+    TProfiler LoggingProfiler{"/logging"};
     TGauge MinLogStorageAvailableSpace_ = LoggingProfiler.Gauge("/min_log_storage_available_space");
     TGauge MinLogStorageFreeSpace_ = LoggingProfiler.Gauge("/min_log_storage_free_space");
 
@@ -1292,7 +1292,7 @@ TLogManager::TLogManager()
     : Impl_(New<TImpl>())
 {
     // NB: TLogManager is instanciated before main. We can't rely on global variables here.
-    NProfiling::TRegistry{""}.AddProducer("/logging", Impl_);
+    NProfiling::TProfiler{""}.AddProducer("/logging", Impl_);
 }
 
 TLogManager::~TLogManager() = default;

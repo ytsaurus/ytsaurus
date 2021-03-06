@@ -23,7 +23,7 @@ IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
     IMemoryUsageTrackerPtr memoryTracker,
-    const NProfiling::TRegistry& profiler = {});
+    const NProfiling::TProfiler& profiler = {});
 
 //! Returns an always-empty block cache.
 IBlockCachePtr GetNullBlockCache();

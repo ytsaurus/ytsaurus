@@ -74,7 +74,7 @@ private:
     TMultipleProducerSingleConsumerLockFreeStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, StructureLock_);
 
-    NProfiling::TRegistry Profiler_ = NProfiling::TRegistry{"/resource_tree"}.WithHot();
+    NProfiling::TProfiler Profiler_ = NProfiling::TProfiler{"/resource_tree"}.WithHot();
     NProfiling::TCounter StructureLockReadCount_ = Profiler_.Counter("/structure_lock_read_count");
     NProfiling::TCounter StructureLockWriteCount_ = Profiler_.Counter("/structure_lock_write_count");
     NProfiling::TCounter UsageLockReadCount_ = Profiler_.Counter("/usage_read_count");

@@ -32,7 +32,7 @@ TInternedObject<T> TInternRegistry<T>::Intern(U&& data)
         return TInternedObject<T>();
     }
     auto guard = Guard(Lock_);
-    typename TRegistrySet::insert_ctx context;
+    typename TProfilerSet::insert_ctx context;
     if (auto it = Registry_.find(data, context)) {
         return TInternedObject<T>(MakeStrong(*it));
     } else {

@@ -5,7 +5,7 @@ namespace NYT::NClusterDiscoveryServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger ClusterDiscoveryServerLogger("DiscoveryServer");
-const NProfiling::TRegistry ClusterDiscoveryServerProfiler("/discovery_server");
+const NProfiling::TProfiler ClusterDiscoveryServerProfiler("/discovery_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

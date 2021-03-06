@@ -330,7 +330,7 @@ DECLARE_REFCOUNTED_STRUCT(TCacheProfilingCounters);
 struct TCacheProfilingCounters
     : public TRefCounted
 {
-    explicit TCacheProfilingCounters(const NProfiling::TRegistry& registry)
+    explicit TCacheProfilingCounters(const NProfiling::TProfiler& registry)
         : CacheHitCounter(registry.Counter("/cache_hit"))
         , CacheMissCounter(registry.Counter("/cache_miss"))
         , RedundantCacheMissCounter(registry.Counter("/redundant_cache_miss"))
@@ -454,7 +454,7 @@ public:
         IYPathServicePtr underlyingService,
         TDuration updatePeriod,
         IInvokerPtr workerInvoker,
-        const NProfiling::TRegistry& registry);
+        const NProfiling::TProfiler& registry);
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override;
 
@@ -485,7 +485,7 @@ TCachedYPathService::TCachedYPathService(
     IYPathServicePtr underlyingService,
     TDuration updatePeriod,
     IInvokerPtr workerInvoker,
-    const NProfiling::TRegistry& registry)
+    const NProfiling::TProfiler& registry)
     : UnderlyingService_(std::move(underlyingService))
     , WorkerInvoker_(workerInvoker
         ? workerInvoker
@@ -604,7 +604,7 @@ void TCachedYPathService::UpdateCachedTree(const TErrorOr<INodePtr>& treeOrError
 IYPathServicePtr IYPathService::Cached(
     TDuration updatePeriod,
     IInvokerPtr workerInvoker,
-    const NProfiling::TRegistry& registry)
+    const NProfiling::TProfiler& registry)
 {
     return New<TCachedYPathService>(this, updatePeriod, workerInvoker, registry);
 }

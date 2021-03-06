@@ -16,7 +16,7 @@ namespace NYT::NSecurityServer {
 
 extern const NLogging::TLogger SecurityServerLogger;
 extern const NLogging::TLogger AccessLogger;
-extern const NProfiling::TRegistry SecurityProfiler;
+extern const NProfiling::TProfiler SecurityProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

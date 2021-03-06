@@ -73,7 +73,7 @@ DEFINE_ENUM(EResourceTreeElementKind,
 inline const NLogging::TLogger SchedulerEventLogger{"SchedulerEventLog", /* essentital */ true};
 inline const NLogging::TLogger SchedulerResourceMeteringLogger{"SchedulerResourceMetering", /* essentital */ true};
 
-inline const NProfiling::TRegistry SchedulerProfiler{"/scheduler"};
+inline const NProfiling::TProfiler SchedulerProfiler{"/scheduler"};
 
 static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;
 

@@ -6,25 +6,25 @@ namespace NYT::NPhoenix {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRegistry::TRegistry()
+TProfiler::TProfiler()
 { }
 
-TRegistry* TRegistry::Get()
+TProfiler* TProfiler::Get()
 {
-    return Singleton<TRegistry>();
+    return Singleton<TProfiler>();
 }
 
-ui32 TRegistry::GetTag(const std::type_info& typeInfo)
+ui32 TProfiler::GetTag(const std::type_info& typeInfo)
 {
     return GetEntry(typeInfo).Tag;
 }
 
-const TRegistry::TEntry& TRegistry::GetEntry(ui32 tag)
+const TProfiler::TEntry& TProfiler::GetEntry(ui32 tag)
 {
     return GetOrCrash(TagToEntry_, tag);
 }
 
-const TRegistry::TEntry& TRegistry::GetEntry(const std::type_info& typeInfo)
+const TProfiler::TEntry& TProfiler::GetEntry(const std::type_info& typeInfo)
 {
     return *GetOrCrash(TypeInfoToEntry_, &typeInfo);
 }

@@ -171,7 +171,7 @@ public:
 
     bool IsEmpty() const;
 
-    void Profile(const TRegistry& profiler);
+    void Profile(const TProfiler& profiler);
     void ValidateOptions(TSensorOptions options);
 
     void AddCounter(TCounterStatePtr counter);

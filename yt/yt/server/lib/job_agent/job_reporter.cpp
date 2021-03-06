@@ -48,7 +48,7 @@ using namespace NLogging;
 
 namespace {
 
-static const TRegistry ReporterProfiler("/job_reporter");
+static const TProfiler ReporterProfiler("/job_reporter");
 
 ////////////////////////////////////////////////////////////////////////////////
 

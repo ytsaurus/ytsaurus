@@ -196,7 +196,7 @@ public:
     TCachingCookieAuthenticator(
         TCachingCookieAuthenticatorConfigPtr config,
         ICookieAuthenticatorPtr underlying,
-        NProfiling::TRegistry profiler)
+        NProfiling::TProfiler profiler)
         : TAuthCache(config->Cache, std::move(profiler))
         , UnderlyingAuthenticator_(std::move(underlying))
     { }
@@ -222,7 +222,7 @@ private:
 ICookieAuthenticatorPtr CreateCachingCookieAuthenticator(
     TCachingCookieAuthenticatorConfigPtr config,
     ICookieAuthenticatorPtr authenticator,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
 {
     return New<TCachingCookieAuthenticator>(
         std::move(config),

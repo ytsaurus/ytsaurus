@@ -5,7 +5,7 @@ namespace NYT::NHttp {
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger HttpLogger("Http");
-const NProfiling::TRegistry HttpProfiler = NProfiling::TRegistry{"/http"}.WithHot();
+const NProfiling::TProfiler HttpProfiler = NProfiling::TProfiler{"/http"}.WithHot();
 
 ////////////////////////////////////////////////////////////////////////////////
 

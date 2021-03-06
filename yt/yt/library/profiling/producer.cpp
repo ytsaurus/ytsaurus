@@ -93,7 +93,7 @@ void TSensorBuffer::WriteTo(ISensorWriter* writer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBufferedProducer::Collect(ISensorWriter* writer)
+void TBufferedProducer::CollectSensors(ISensorWriter* writer)
 {
     TIntrusivePtr<TSensorBuffer> buffer;
     {

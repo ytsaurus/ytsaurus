@@ -170,7 +170,7 @@ protected:
     i64 UpperWriteCountDumpLimit_ = std::numeric_limits<i64>::max();
 
     const NLogging::TLogger Logger;
-    NProfiling::TRegistry Profiler_;
+    NProfiling::TProfiler Profiler_;
 
 protected:
     TCompositeAutomaton(

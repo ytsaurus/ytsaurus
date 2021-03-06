@@ -129,7 +129,7 @@ DEFINE_REFCOUNTED_TYPE(IPortoExecutor)
 IPortoExecutorPtr CreatePortoExecutor(
     TPortoExecutorConfigPtr config,
     const TString& threadNameSuffix,
-    const NProfiling::TRegistry& profiler = {});
+    const NProfiling::TProfiler& profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

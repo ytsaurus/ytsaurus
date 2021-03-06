@@ -11,7 +11,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRegistry EventQueue{"/event_queue"};
+TProfiler EventQueue{"/event_queue"};
 
 auto GlobalEventCounter = EventQueue.Counter("/event_counter");
 auto GlobalQueueSize = EventQueue.Gauge("/queue_size");

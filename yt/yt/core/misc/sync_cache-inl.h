@@ -33,7 +33,7 @@ TSyncSlruCacheBase<TKey, TValue, THash>::TItem::TItem(TValuePtr value)
 template <class TKey, class TValue, class THash>
 TSyncSlruCacheBase<TKey, TValue, THash>::TSyncSlruCacheBase(
     TSlruCacheConfigPtr config,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
     : Config_(std::move(config))
     , Capacity_(Config_->Capacity)
     , YoungerSizeFraction_(Config_->YoungerSizeFraction)
@@ -414,7 +414,7 @@ template <class TKey, class TValue, class THash>
 TMemoryTrackingSyncSlruCacheBase<TKey, TValue, THash>::TMemoryTrackingSyncSlruCacheBase(
     TSlruCacheConfigPtr config,
     IMemoryUsageTrackerPtr memoryTracker,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
     : TSyncSlruCacheBase<TKey, TValue, THash>(
         std::move(config),
         profiler)

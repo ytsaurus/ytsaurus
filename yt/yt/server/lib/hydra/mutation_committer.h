@@ -48,7 +48,7 @@ protected:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
-        NProfiling::TRegistry profiler);
+        NProfiling::TProfiler profiler);
 
     virtual void DoSuspendLogging() = 0;
     virtual void DoResumeLogging() = 0;
@@ -91,7 +91,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
-        NProfiling::TRegistry profiler);
+        NProfiling::TProfiler profiler);
 
     ~TLeaderCommitter();
 
@@ -185,7 +185,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
-        NProfiling::TRegistry profiler);
+        NProfiling::TProfiler profiler);
 
     //! Logs a batch of mutations at the follower.
     TFuture<void> AcceptMutations(

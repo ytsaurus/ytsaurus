@@ -52,7 +52,7 @@ public:
         EBlockType type,
         TSlruCacheConfigPtr config,
         IMemoryUsageTrackerPtr memoryTracker,
-        const NProfiling::TRegistry& profiler)
+        const NProfiling::TProfiler& profiler)
         : TMemoryTrackingSyncSlruCacheBase(
             std::move(config),
             std::move(memoryTracker),
@@ -125,7 +125,7 @@ public:
         TBlockCacheConfigPtr config,
         EBlockType supportedBlockTypes,
         IMemoryUsageTrackerPtr memoryTracker,
-        const NProfiling::TRegistry& profiler)
+        const NProfiling::TProfiler& profiler)
         : SupportedBlockTypes_(supportedBlockTypes)
     {
         auto initType = [&] (EBlockType type, TSlruCacheConfigPtr config) {
@@ -194,7 +194,7 @@ IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
     IMemoryUsageTrackerPtr memoryTracker,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
 {
     return New<TClientBlockCache>(
         std::move(config),

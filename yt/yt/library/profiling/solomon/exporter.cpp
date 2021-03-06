@@ -79,7 +79,7 @@ TSolomonExporter::TSolomonExporter(
     , Root_(New<TSensorService>(Registry_, Invoker_))
 {
     if (Config_->EnableSelfProfiling) {
-        Registry_->Profile(TRegistry{Registry_, ""});
+        Registry_->Profile(TProfiler{Registry_, ""});
     }
 
     CollectionStartDelay_ = Registry_->GetSelfProfiler().Timer("/collection_delay");
@@ -93,14 +93,14 @@ TSolomonExporter::TSolomonExporter(
     Registry_->SetWindowSize(Config_->WindowSize);
 
     if (config->ReportBuildInfo) {
-        TRegistry profiler{registry, ""};
+        TProfiler profiler{registry, ""};
 
         profiler
             .WithRequiredTag("version", GetVersion())
             .AddFuncGauge("/build/version", MakeStrong(this), [] { return 1.0; });
     }
     if (config->ReportRestart) {
-        TRegistry profiler{registry, ""};
+        TProfiler profiler{registry, ""};
 
         profiler.AddFuncGauge(
             "/server/restarted_5min_ago",

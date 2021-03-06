@@ -5,7 +5,7 @@ namespace NYT::NClusterNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger ClusterNodeLogger("CellNode");
-const NProfiling::TRegistry ClusterNodeProfiler("/cluster_node");
+const NProfiling::TProfiler ClusterNodeProfiler("/cluster_node");
 
 ////////////////////////////////////////////////////////////////////////////////
 

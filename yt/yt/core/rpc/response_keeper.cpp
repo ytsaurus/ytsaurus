@@ -32,7 +32,7 @@ public:
         TResponseKeeperConfigPtr config,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger,
-        const NProfiling::TRegistry& registry)
+        const NProfiling::TProfiler& registry)
         : Config_(std::move(config))
         , Invoker_(std::move(invoker))
         , Logger(logger)
@@ -337,7 +337,7 @@ TResponseKeeper::TResponseKeeper(
     TResponseKeeperConfigPtr config,
     IInvokerPtr invoker,
     const NLogging::TLogger& logger,
-    const NProfiling::TRegistry& registry)
+    const NProfiling::TProfiler& registry)
     : Impl_(New<TImpl>(
         std::move(config),
         std::move(invoker),

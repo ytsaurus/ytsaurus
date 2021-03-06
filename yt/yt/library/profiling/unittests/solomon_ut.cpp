@@ -100,7 +100,7 @@ TEST(TSolomonRegistry, Registration)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "/debug");
+    TProfiler registry(impl, "/debug");
 
     auto counter = registry.Counter("/c0");
     auto gauge = registry.Gauge("/g0");
@@ -111,7 +111,7 @@ TEST(TSolomonRegistry, Registration)
     gauge.Update(42);
 }
 
-TTestMetricConsumer Collect(TSolomonRegistryPtr impl, int subsample = 1, bool enableHack = false)
+TTestMetricConsumer CollectSensors(TSolomonRegistryPtr impl, int subsample = 1, bool enableHack = false)
 {
     impl->ProcessRegistrations();
 
@@ -137,12 +137,12 @@ TEST(TSolomonRegistry, CounterProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "/d");
+    TProfiler registry(impl, "/d");
 
     auto c0 = registry.WithTag("user", "u0").Counter("/count");
     auto c1 = registry.WithTag("user", "u1").Counter("/count");
 
-    auto result = Collect(impl).Counters;
+    auto result = CollectSensors(impl).Counters;
 
     ASSERT_EQ(result["yt.d.count{}"], 0u);
     ASSERT_EQ(result["yt.d.count{user=u0}"], 0u);
@@ -150,7 +150,7 @@ TEST(TSolomonRegistry, CounterProjections)
     c0.Increment();
     c1.Increment();
 
-    result = Collect(impl).Counters;
+    result = CollectSensors(impl).Counters;
 
     ASSERT_EQ(result["yt.d.count{}"], 2u);
     ASSERT_EQ(result["yt.d.count{user=u0}"], 1u);
@@ -158,25 +158,25 @@ TEST(TSolomonRegistry, CounterProjections)
     c0.Increment();
     c1 = {};
 
-    result = Collect(impl).Counters;
+    result = CollectSensors(impl).Counters;
     ASSERT_EQ(result["yt.d.count{}"], 3u);
     ASSERT_EQ(result["yt.d.count{user=u0}"], 2u);
     ASSERT_EQ(result.find("yt.d.count{user=u1}"), result.end());
 
-    Collect(impl, 2);
-    Collect(impl, 3);
+    CollectSensors(impl, 2);
+    CollectSensors(impl, 3);
 }
 
 TEST(TSolomonRegistry, GaugeProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "/d");
+    TProfiler registry(impl, "/d");
 
     auto g0 = registry.WithTag("user", "u0").Gauge("/memory");
     auto g1 = registry.WithTag("user", "u1").Gauge("/memory");
 
-    auto result = Collect(impl).Gauges;
+    auto result = CollectSensors(impl).Gauges;
 
     ASSERT_EQ(result["yt.d.memory{}"], 0.0);
     ASSERT_EQ(result["yt.d.memory{user=u0}"], 0.0);
@@ -184,32 +184,32 @@ TEST(TSolomonRegistry, GaugeProjections)
     g0.Update(1.0);
     g1.Update(2.0);
 
-    result = Collect(impl).Gauges;
+    result = CollectSensors(impl).Gauges;
     ASSERT_EQ(result["yt.d.memory{}"], 3.0);
     ASSERT_EQ(result["yt.d.memory{user=u0}"], 1.0);
 
     g0.Update(10.0);
     g1 = {};
 
-    result = Collect(impl).Gauges;
+    result = CollectSensors(impl).Gauges;
     ASSERT_EQ(result["yt.d.memory{}"], 10.0);
     ASSERT_EQ(result["yt.d.memory{user=u0}"], 10.0);
     ASSERT_EQ(result.find("yt.d.memory{user=u1}"), result.end());
 
-    Collect(impl, 2);
-    Collect(impl, 3);
+    CollectSensors(impl, 2);
+    CollectSensors(impl, 3);
 }
 
 TEST(TSolomonRegistry, ExponentialHistogramProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "/d");
+    TProfiler registry(impl, "/d");
 
     auto c0 = registry.WithTag("user", "u0").Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
     auto c1 = registry.WithTag("user", "u1").Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
 
-    auto result = Collect(impl).Histograms;
+    auto result = CollectSensors(impl).Histograms;
 
     ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 16u);
     ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 16u);
@@ -218,7 +218,7 @@ TEST(TSolomonRegistry, ExponentialHistogramProjections)
     c1.Record(TDuration::MilliSeconds(5));
     c0.Record(TDuration::MilliSeconds(30));
 
-    result = Collect(impl).Histograms;
+    result = CollectSensors(impl).Histograms;
 
     ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 16u);
     ASSERT_EQ(result["yt.d.histogram{}"]->Value(13), 2u);
@@ -230,20 +230,20 @@ TEST(TSolomonRegistry, ExponentialHistogramProjections)
     c0.Record(TDuration::MilliSeconds(10));
     c1 = {};
 
-    result = Collect(impl).Histograms;
+    result = CollectSensors(impl).Histograms;
     ASSERT_EQ(result["yt.d.histogram{}"]->Value(14), 1u);
     ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Value(14), 1u);
     ASSERT_EQ(result.find("yt.d.histogram{user=u1}"), result.end());
 
-    Collect(impl, 2);
-    Collect(impl, 3);
+    CollectSensors(impl, 2);
+    CollectSensors(impl, 3);
 }
 
 TEST(TSolomonRegistry, CustomHistogramProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "/d");
+    TProfiler registry(impl, "/d");
 
     std::vector<TDuration> bounds{
         TDuration::Zero(), TDuration::MilliSeconds(5), TDuration::MilliSeconds(10), TDuration::MilliSeconds(15)
@@ -251,7 +251,7 @@ TEST(TSolomonRegistry, CustomHistogramProjections)
     auto c0 = registry.WithTag("user", "u0").Histogram("/histogram", bounds);
     auto c1 = registry.WithTag("user", "u1").Histogram("/histogram", bounds);
 
-    auto result = Collect(impl).Histograms;
+    auto result = CollectSensors(impl).Histograms;
 
     ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 5u);
     ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 5u);
@@ -260,7 +260,7 @@ TEST(TSolomonRegistry, CustomHistogramProjections)
     c1.Record(TDuration::MilliSeconds(5));
     c0.Record(TDuration::MilliSeconds(16));
 
-    result = Collect(impl).Histograms;
+    result = CollectSensors(impl).Histograms;
 
     ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 5u);
     ASSERT_EQ(result["yt.d.histogram{}"]->Value(1), 2u);
@@ -272,60 +272,60 @@ TEST(TSolomonRegistry, CustomHistogramProjections)
     c0.Record(TDuration::MilliSeconds(10));
     c1 = {};
 
-    result = Collect(impl).Histograms;
+    result = CollectSensors(impl).Histograms;
     ASSERT_EQ(result["yt.d.histogram{}"]->Value(2), 1u);
     ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Value(2), 1u);
     ASSERT_EQ(result.find("yt.d.histogram{user=u1}"), result.end());
 
-    Collect(impl, 2);
-    Collect(impl, 3);
+    CollectSensors(impl, 2);
+    CollectSensors(impl, 3);
 }
 
 TEST(TSolomonRegistry, SparseHistogram)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "/d");
+    TProfiler registry(impl, "/d");
 
     auto h0 = registry.WithSparse().Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
 
-    auto result = Collect(impl).Histograms;
+    auto result = CollectSensors(impl).Histograms;
     ASSERT_TRUE(result.empty());
 
     h0.Record(TDuration::MilliSeconds(5));
-    result = Collect(impl).Histograms;
+    result = CollectSensors(impl).Histograms;
 
     ASSERT_FALSE(result.empty());
     ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 16u);
     ASSERT_EQ(result["yt.d.histogram{}"]->Value(13), 1u);
 
-    Collect(impl, 2);
-    Collect(impl, 3);
+    CollectSensors(impl, 2);
+    CollectSensors(impl, 3);
 }
 
 TEST(TSolomonRegistry, SparseCounters)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "/d");
+    TProfiler registry(impl, "/d");
 
     auto c = registry.WithSparse().Counter("/sparse_counter");
 
-    auto result = Collect(impl).Counters;
+    auto result = CollectSensors(impl).Counters;
     ASSERT_TRUE(result.empty());
 
     c.Increment();
-    result = Collect(impl).Counters;
+    result = CollectSensors(impl).Counters;
     ASSERT_EQ(result["yt.d.sparse_counter{}"], 1u);
 
-    result = Collect(impl).Counters;
+    result = CollectSensors(impl).Counters;
     ASSERT_TRUE(result.empty());
 
-    Collect(impl, 2);
-    Collect(impl, 3);
+    CollectSensors(impl, 2);
+    CollectSensors(impl, 3);
 
     c.Increment();
-    result = Collect(impl).Counters;
+    result = CollectSensors(impl).Counters;
     ASSERT_EQ(result["yt.d.sparse_counter{}"], 2u);
 }
 
@@ -333,15 +333,15 @@ TEST(TSolomonRegistry, GaugesNoDefault)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "/d");
+    TProfiler registry(impl, "/d");
 
     auto g = registry.WithDefaultDisabled().Gauge("/gauge");
 
-    auto result = Collect(impl).Gauges;
+    auto result = CollectSensors(impl).Gauges;
     ASSERT_TRUE(result.empty());
 
     g.Update(1);
-    result = Collect(impl).Gauges;
+    result = CollectSensors(impl).Gauges;
     ASSERT_EQ(result["yt.d.gauge{}"], 1.0);
 }
 
@@ -349,24 +349,24 @@ TEST(TSolomonRegistry, SparseCountersWithHack)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "/d");
+    TProfiler registry(impl, "/d");
 
     auto c = registry.WithSparse().Counter("/sparse_counter_with_hack");
 
-    auto result = Collect(impl, 1, true).Counters;
+    auto result = CollectSensors(impl, 1, true).Counters;
     ASSERT_TRUE(result.empty());
 
     c.Increment();
-    result = Collect(impl, 1, true).Counters;
+    result = CollectSensors(impl, 1, true).Counters;
     ASSERT_EQ(result["yt.d.sparse_counter_with_hack{}"], 1u);
 
-    result = Collect(impl, 2, true).Counters;
+    result = CollectSensors(impl, 2, true).Counters;
     ASSERT_EQ(result["yt.d.sparse_counter_with_hack{}"], 1u);
 
-    result = Collect(impl, 3, true).Counters;
+    result = CollectSensors(impl, 3, true).Counters;
     ASSERT_EQ(result["yt.d.sparse_counter_with_hack{}"], 1u);
 
-    result = Collect(impl, 3, true).Counters;
+    result = CollectSensors(impl, 3, true).Counters;
     ASSERT_TRUE(result.empty());
 }
 
@@ -374,30 +374,30 @@ TEST(TSolomonRegistry, SparseGauge)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "/d");
+    TProfiler registry(impl, "/d");
 
     auto c = registry.WithSparse().Gauge("/sparse_gauge");
 
-    auto result = Collect(impl).Gauges;
+    auto result = CollectSensors(impl).Gauges;
     ASSERT_TRUE(result.empty());
 
     c.Update(1.0);
-    result = Collect(impl).Gauges;
+    result = CollectSensors(impl).Gauges;
     ASSERT_EQ(result["yt.d.sparse_gauge{}"], 1.0);
 
     c.Update(0.0);
-    result = Collect(impl).Gauges;
+    result = CollectSensors(impl).Gauges;
     ASSERT_TRUE(result.empty());
 
-    Collect(impl, 2);
-    Collect(impl, 3);
+    CollectSensors(impl, 2);
+    CollectSensors(impl, 3);
 }
 
 TEST(TSolomonRegistry, InvalidSensors)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "/d");
+    TProfiler r(impl, "/d");
 
     auto invalidTypeCounter = r.Counter("/invalid_type");
     auto invalidTypeGauge = r.Gauge("/invalid_type");
@@ -405,12 +405,12 @@ TEST(TSolomonRegistry, InvalidSensors)
     auto invalidSettingsCounter0 = r.Counter("/invalid_settings");
     auto invalidSettingsCounter1 = r.WithGlobal().Counter("/invalid_settings");
 
-    auto result = Collect(impl);
+    auto result = CollectSensors(impl);
     ASSERT_TRUE(result.Counters.empty());
     ASSERT_TRUE(result.Gauges.empty());
 
-    Collect(impl, 2);
-    Collect(impl, 3);
+    CollectSensors(impl, 2);
+    CollectSensors(impl, 3);
 }
 
 struct TDebugProducer
@@ -421,7 +421,7 @@ struct TDebugProducer
     virtual ~TDebugProducer()
     { }
 
-    virtual void Collect(ISensorWriter* writer) override
+    virtual void CollectSensors(ISensorWriter* writer) override
     {
         Buffer.WriteTo(writer);
     }
@@ -431,7 +431,7 @@ TEST(TSolomonRegistry, GaugeProducer)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "/d");
+    TProfiler r(impl, "/d");
 
     auto p0 = New<TDebugProducer>();
     r.AddProducer("/cpu", p0);
@@ -439,7 +439,7 @@ TEST(TSolomonRegistry, GaugeProducer)
     auto p1 = New<TDebugProducer>();
     r.AddProducer("/cpu", p1);
 
-    auto result = Collect(impl).Gauges;
+    auto result = CollectSensors(impl).Gauges;
     ASSERT_TRUE(result.empty());
 
     p0->Buffer.PushTag(std::pair<TString, TString>{"thread", "Control"});
@@ -450,7 +450,7 @@ TEST(TSolomonRegistry, GaugeProducer)
     p1->Buffer.AddGauge("/user_time", 2);
     p1->Buffer.AddGauge("/system_time", 25);
 
-    result = Collect(impl).Gauges;
+    result = CollectSensors(impl).Gauges;
     ASSERT_EQ(result["yt.d.cpu.user_time{thread=Control}"], 98.0);
     ASSERT_EQ(result["yt.d.cpu.user_time{thread=Profiler}"], 2.0);
     ASSERT_EQ(result["yt.d.cpu.user_time{}"], 100.0);
@@ -459,22 +459,22 @@ TEST(TSolomonRegistry, GaugeProducer)
     ASSERT_EQ(result["yt.d.cpu.system_time{}"], 40.0);
 
     p0 = {};
-    result = Collect(impl).Gauges;
+    result = CollectSensors(impl).Gauges;
     ASSERT_EQ(result.size(), static_cast<size_t>(4));
     ASSERT_EQ(result["yt.d.cpu.user_time{thread=Profiler}"], 2.0);
     ASSERT_EQ(result["yt.d.cpu.user_time{}"], 2.0);
     ASSERT_EQ(result["yt.d.cpu.system_time{thread=Profiler}"], 25.0);
     ASSERT_EQ(result["yt.d.cpu.system_time{}"], 25.0);
 
-    Collect(impl, 2);
-    Collect(impl, 3);
+    CollectSensors(impl, 2);
+    CollectSensors(impl, 3);
 }
 
 TEST(TSolomonRegistry, CustomProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "/d");
+    TProfiler r(impl, "/d");
 
     auto c0 = r.Counter("/simple_sharded");
     c0.Increment();
@@ -500,7 +500,7 @@ TEST(TSolomonRegistry, CustomProjections)
         .Counter("/iops");
     c3.Increment();
 
-    auto result = Collect(impl);
+    auto result = CollectSensors(impl);
     ASSERT_EQ(result.Counters["yt.d.simple_sharded{}"], 2u);
 
     ASSERT_EQ(result.Gauges["yt.d.excluded_tag{}"], 30.0);
@@ -511,15 +511,15 @@ TEST(TSolomonRegistry, CustomProjections)
     ASSERT_TRUE(result.Counters.find("yt.d.request_count{}") == result.Counters.end());
     ASSERT_TRUE(result.Counters.find("yt.d.request_count{table_path=//sys/operations}") == result.Counters.end());
 
-    Collect(impl, 2);
-    Collect(impl, 3);
+    CollectSensors(impl, 2);
+    CollectSensors(impl, 3);
 }
 
 TEST(TSolomonRegistry, DisableProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "/d");
+    TProfiler r(impl, "/d");
 
     auto p0 = New<TDebugProducer>();
     r.WithProjectionsDisabled().AddProducer("/bigb", p0);
@@ -541,7 +541,7 @@ TEST(TSolomonRegistry, DisableProjections)
         }
     }
 
-    auto result = Collect(impl);
+    auto result = CollectSensors(impl);
     ASSERT_EQ(1u, result.Gauges.size());
     ASSERT_EQ(10.0, result.Gauges["yt.d.bigb{mode=sum}"]);
 
@@ -554,7 +554,7 @@ TEST(TSolomonRegistry, DisableRenaming)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "/d", "");
+    TProfiler r(impl, "/d", "");
 
     auto p0 = New<TDebugProducer>();
     r.WithRenameDisabled().AddProducer("/bigb", p0);
@@ -562,7 +562,7 @@ TEST(TSolomonRegistry, DisableRenaming)
     p0->Buffer.AddCounter("/counter", 5);
 
 
-    auto result = Collect(impl);
+    auto result = CollectSensors(impl);
     ASSERT_EQ(1u, result.Gauges.size());
     EXPECT_EQ(10.0, result.Gauges["/d/bigb/gauge{}"]);
 
@@ -577,7 +577,7 @@ struct TCounterProducer
 {
     int i = 0;
 
-    virtual void Collect(ISensorWriter* writer)
+    virtual void CollectSensors(ISensorWriter* writer)
     {
         writer->AddCounter("/counter", ++i);
     }
@@ -589,18 +589,18 @@ TEST(TSolomonRegistry, CounterProducer)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "/d");
+    TProfiler r(impl, "/d");
 
     auto p0 = New<TCounterProducer>();
     r.WithProjectionsDisabled().AddProducer("", p0);
 
-    auto result = Collect(impl).Counters;
+    auto result = CollectSensors(impl).Counters;
     ASSERT_EQ(1, result["yt.d.counter{}"]);
 
-    result = Collect(impl).Counters;
+    result = CollectSensors(impl).Counters;
     ASSERT_EQ(2, result["yt.d.counter{}"]);
 
-    result = Collect(impl).Counters;
+    result = CollectSensors(impl).Counters;
     ASSERT_EQ(3, result["yt.d.counter{}"]);
 }
 
@@ -609,7 +609,7 @@ DECLARE_REFCOUNTED_STRUCT(TBadProducer)
 struct TBadProducer
     : public ISensorProducer
 {
-    virtual void Collect(ISensorWriter*)
+    virtual void CollectSensors(ISensorWriter*)
     {
         THROW_ERROR_EXCEPTION("Unavailable");
     }
@@ -621,7 +621,7 @@ TEST(TSolomonRegistry, Exceptions)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "/d");
+    TProfiler r(impl, "/d");
 
     auto producer = New<TBadProducer>();
     r.AddProducer("/p", producer);
@@ -640,7 +640,7 @@ TEST(TSolomonRegistry, CounterTagsBug)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "/d");
+    TProfiler r(impl, "/d");
 
     auto r1 = r.WithTag("client", "1");
 

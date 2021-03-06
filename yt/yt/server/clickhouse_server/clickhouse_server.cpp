@@ -359,7 +359,7 @@ private:
 #endif
     }
 
-    void Collect(NProfiling::ISensorWriter* writer)
+    void CollectSensors(NProfiling::ISensorWriter* writer)
     {
         for (int index = 0; index < static_cast<int>(CurrentMetrics::end()); ++index) {
             const auto* name = CurrentMetrics::getName(index);

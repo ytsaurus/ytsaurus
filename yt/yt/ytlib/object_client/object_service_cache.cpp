@@ -131,7 +131,7 @@ TInstant TObjectServiceCacheEntry::GetLastUpdateTime() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCacheProfilingCounters::TCacheProfilingCounters(const NProfiling::TRegistry& profiler)
+TCacheProfilingCounters::TCacheProfilingCounters(const NProfiling::TProfiler& profiler)
     : HitRequestCount(profiler.Counter("/hit_request_count"))
     , HitResponseBytes(profiler.Counter("/hit_response_bytes"))
     , MissRequestCount(profiler.Counter("/miss_request_count"))
@@ -143,7 +143,7 @@ TObjectServiceCache::TObjectServiceCache(
     TObjectServiceCacheConfigPtr config,
     IMemoryUsageTrackerPtr memoryTracker,
     const NLogging::TLogger& logger,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
     : TMemoryTrackingAsyncSlruCacheBase(
         config,
         std::move(memoryTracker))

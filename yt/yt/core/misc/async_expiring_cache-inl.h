@@ -33,7 +33,7 @@ template <class TKey, class TValue>
 TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(
     TAsyncExpiringCacheConfigPtr config,
     NLogging::TLogger logger,
-    NProfiling::TRegistry profiler)
+    NProfiling::TProfiler profiler)
     : Config_(std::move(config))
     , Logger_(std::move(logger))
     , HitCounter_(profiler.Counter("/hit"))

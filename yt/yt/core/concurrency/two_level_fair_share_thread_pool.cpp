@@ -145,7 +145,7 @@ public:
         : CallbackEventCount_(std::move(callbackEventCount))
         , ThreadNamePrefix_(threadNamePrefix)
     {
-        Profiler_ = TRegistry{"/fair_share_queue"}
+        Profiler_ = TProfiler{"/fair_share_queue"}
             .WithHot();
     }
 
@@ -375,7 +375,7 @@ private:
 
     struct TExecutionPool
     {
-        TExecutionPool(const TString& poolName, const TRegistry& profiler)
+        TExecutionPool(const TString& poolName, const TProfiler& profiler)
             : PoolName(poolName)
             , BucketCounter(profiler.Gauge("/buckets"))
             , SizeCounter(profiler.Summary("/size"))
@@ -422,7 +422,7 @@ private:
     const std::shared_ptr<TEventCount> CallbackEventCount_;
     const TString ThreadNamePrefix_;
 
-    TRegistry Profiler_;
+    TProfiler Profiler_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::vector<std::unique_ptr<TExecutionPool>> IdToPool_;

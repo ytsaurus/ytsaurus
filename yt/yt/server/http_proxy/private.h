@@ -11,7 +11,7 @@ namespace NYT::NHttpProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger HttpProxyLogger;
-extern const NProfiling::TRegistry HttpProxyProfiler;
+extern const NProfiling::TProfiler HttpProxyProfiler;
 
 extern const NLogging::TLogger HttpStructuredProxyLogger;
 

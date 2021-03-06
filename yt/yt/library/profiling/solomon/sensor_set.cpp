@@ -36,7 +36,7 @@ bool TSensorSet::IsEmpty() const
         Histograms_.empty();
 }
 
-void TSensorSet::Profile(const TRegistry &profiler)
+void TSensorSet::Profile(const TProfiler &profiler)
 {
     CubeSize_ = profiler.Gauge("/cube_size");
     SensorsEmitted_ = profiler.Gauge("/sensors_emitted");

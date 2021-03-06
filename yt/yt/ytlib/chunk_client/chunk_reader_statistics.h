@@ -52,7 +52,7 @@ class TChunkReaderStatisticsCounters
 public:
     TChunkReaderStatisticsCounters() = default;
 
-    explicit TChunkReaderStatisticsCounters(const NProfiling::TRegistry& profiler);
+    explicit TChunkReaderStatisticsCounters(const NProfiling::TProfiler& profiler);
 
     void Increment(const TChunkReaderStatisticsPtr& chunkReaderStatistics);
 

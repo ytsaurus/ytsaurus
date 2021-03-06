@@ -27,7 +27,7 @@ DEFINE_REFCOUNTED_TYPE(IEvaluator)
 
 IEvaluatorPtr CreateEvaluator(
     TExecutorConfigPtr config,
-    const NProfiling::TRegistry& profiler = {});
+    const NProfiling::TProfiler& profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

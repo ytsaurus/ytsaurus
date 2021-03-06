@@ -135,7 +135,7 @@ public:
         ISnapshotStorePtr snapshotStore,
         TStateHashCheckerPtr stateHashChecker,
         const NLogging::TLogger& logger,
-        const NProfiling::TRegistry& profiler);
+        const NProfiling::TProfiler& profiler);
 
     void Initialize();
     void OnStartLeading(TEpochContextPtr epochContext);

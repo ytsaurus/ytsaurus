@@ -56,7 +56,7 @@ public:
         TString reporterName,
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
-        const NProfiling::TRegistry& profiler);
+        const NProfiling::TProfiler& profiler);
 
     ~TArchiveReporter();
 

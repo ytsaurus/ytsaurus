@@ -11,7 +11,7 @@ namespace NYT::NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger TransactionServerLogger;
-extern const NProfiling::TRegistry TransactionServerProfiler;
+extern const NProfiling::TProfiler TransactionServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

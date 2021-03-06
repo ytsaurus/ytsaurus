@@ -43,7 +43,7 @@ TInvokerQueue<TQueueImpl>::TInvokerQueue(
     const TTagSet& tags)
     : CallbackEventCount_(std::move(callbackEventCount))
 {
-    auto profiler = TRegistry("/action_queue").WithTags(tags);
+    auto profiler = TProfiler("/action_queue").WithTags(tags);
 
     EnqueuedCounter_ = profiler.Counter("/enqueued");
     DequeuedCounter_ = profiler.Counter("/dequeued");

@@ -21,7 +21,7 @@ TDiskHealthChecker::TDiskHealthChecker(
     const TString& path,
     IInvokerPtr invoker,
     TLogger logger,
-    const TRegistry& profiler)
+    const TProfiler& profiler)
     : Config_(config)
     , Path_(path)
     , CheckInvoker_(invoker)

@@ -91,7 +91,7 @@ public:
     TPortoExecutor(
         TPortoExecutorConfigPtr config,
         const TString& threadNameSuffix,
-        const NProfiling::TRegistry& profiler)
+        const NProfiling::TProfiler& profiler)
         : Config_(std::move(config))
         , Queue_(New<TActionQueue>(Format("Porto:%v", threadNameSuffix)))
         , Profiler_(profiler)
@@ -320,7 +320,7 @@ public:
 private:
     const TPortoExecutorConfigPtr Config_;
     const TActionQueuePtr Queue_;
-    const NProfiling::TRegistry Profiler_;
+    const NProfiling::TProfiler Profiler_;
 
     const std::unique_ptr<Porto::TPortoApi> Api_ = std::make_unique<Porto::TPortoApi>();
     const TPeriodicExecutorPtr PollExecutor_;
@@ -331,7 +331,7 @@ private:
 
     struct TCommandEntry
     {
-        explicit TCommandEntry(const NProfiling::TRegistry& registry)
+        explicit TCommandEntry(const NProfiling::TProfiler& registry)
             : TimeGauge(registry.Timer("/command_time"))
             , RetryCounter(registry.Counter("/command_retries"))
             , SuccessCounter(registry.Counter("/command_successes"))
@@ -677,7 +677,7 @@ const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = {
 IPortoExecutorPtr CreatePortoExecutor(
     TPortoExecutorConfigPtr config,
     const TString& threadNameSuffix,
-    const NProfiling::TRegistry& profiler)
+    const NProfiling::TProfiler& profiler)
 {
     return New<TPortoExecutor>(
         std::move(config),

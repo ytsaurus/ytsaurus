@@ -138,10 +138,10 @@ struct TIdClass<
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRegistry
+class TProfiler
 {
 public:
-    static TRegistry* Get();
+    static TProfiler* Get();
 
     ui32 GetTag(const std::type_info& typeInfo);
 
@@ -162,7 +162,7 @@ private:
     THashMap<const std::type_info*, TEntry*> TypeInfoToEntry_;
     THashMap<ui32, TEntry> TagToEntry_;
 
-    TRegistry();
+    TProfiler();
 
     const TEntry& GetEntry(ui32 tag);
     const TEntry& GetEntry(const std::type_info& typeInfo);
@@ -184,7 +184,7 @@ struct TDynamicInitializer
 {
     TDynamicInitializer()
     {
-        TRegistry::Get()->Register<TType>(tag);
+        TProfiler::Get()->Register<TType>(tag);
     }
 };
 
@@ -196,7 +196,7 @@ struct TDynamicInitializer<TType, tag, TRefCountedFactory>
 {
     TDynamicInitializer()
     {
-        TRegistry::Get()->Register<TType>(tag);
+        TProfiler::Get()->Register<TType>(tag);
     }
 };
 

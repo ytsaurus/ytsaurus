@@ -40,7 +40,7 @@ static constexpr auto CompactionReadThrottlerRpcTimeout = TDuration::Minutes(1);
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger TabletNodeLogger;
-extern const NProfiling::TRegistry TabletNodeProfiler;
+extern const NProfiling::TProfiler TabletNodeProfiler;
 extern const NLogging::TLogger LsmLogger;
 
 ////////////////////////////////////////////////////////////////////////////////

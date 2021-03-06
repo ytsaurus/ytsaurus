@@ -15,7 +15,7 @@ using namespace NConcurrency;
 TEST(TSolomonExporter, MemoryLeak)
 {
     auto registry = New<TSolomonRegistry>();
-    auto counter = TRegistry{registry, "yt"}.Counter("/foo");
+    auto counter = TProfiler{registry, "yt"}.Counter("/foo");
 
     auto config = New<TSolomonExporterConfig>();
     config->GridStep = TDuration::Seconds(1);

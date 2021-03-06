@@ -5,7 +5,7 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger ChunkServerLogger("ChunkServer");
-const NProfiling::TRegistry ChunkServerProfilerRegistry("/chunk_server");
+const NProfiling::TProfiler ChunkServerProfilerRegistry("/chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

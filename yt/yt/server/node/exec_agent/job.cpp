@@ -906,7 +906,7 @@ private:
             }
         }
         UserJobSensorProducer_ = New<TBufferedProducer>();
-        TRegistry("/user_job")
+        TProfiler("/user_job")
             .WithGlobal()
             .WithRequiredTag("job_descriptor", monitoringConfig.job_descriptor())
             .AddProducer("", UserJobSensorProducer_);
