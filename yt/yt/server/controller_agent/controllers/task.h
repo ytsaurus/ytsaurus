@@ -303,6 +303,10 @@ protected:
     void FinishTaskInput(const TTaskPtr& task);
 
     virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
+
+    /*!
+     *  \note Invoker affinity: JobSpecBuildInvoker.
+     */
     virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
     virtual void SetStreamDescriptors(TJobletPtr joblet) const;

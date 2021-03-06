@@ -201,6 +201,8 @@ public:
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
+            VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+
             jobSpec->CopyFrom(Controller_->JobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
             AddOutputTableSpecs(jobSpec, joblet);
