@@ -836,7 +836,7 @@ private:
     std::vector<TNodeGroup> NodeGroups_;
     TNodeGroup* DefaultNodeGroup_ = nullptr;
     THashSet<TString> PendingRegisterNodeAddreses_;
-    THashMap<TLocationUuid, TNode*> RegisteredLocationUuids_;    
+    THashMap<TLocationUuid, TNode*> RegisteredLocationUuids_;
     TNodeDiscoveryManagerPtr MasterCacheManager_;
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
 
@@ -956,7 +956,7 @@ private:
         for (auto locationUuid : locationUuids) {
             if (auto it = RegisteredLocationUuids_.find(locationUuid)) {
                 THROW_ERROR_EXCEPTION("Cannot register node %v: there is a registered node %v with the same location uuid %v",
-                    node->GetDefaultAddress(),
+                    address,
                     it->second->GetDefaultAddress(),
                     locationUuid);
             }
