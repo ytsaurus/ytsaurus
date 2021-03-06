@@ -8,8 +8,8 @@ class TMockTvmService
     : public ITvmService
 {
 public:
-    MOCK_METHOD1(GetTicket, TFuture<TString>(const TString&));
-    MOCK_METHOD1(ParseUserTicket, TErrorOr<TParsedTicket>(const TString&));
+    MOCK_METHOD1(GetServiceTicket, TString(const TString&));
+    MOCK_METHOD1(ParseUserTicket, TParsedTicket(const TString&));
 };
 
 } // namespace NYT::NAuth

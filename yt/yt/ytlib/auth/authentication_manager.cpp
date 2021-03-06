@@ -1,5 +1,4 @@
 #include "authentication_manager.h"
-#include "caching_tvm_service.h"
 #include "cookie_authenticator.h"
 #include "default_blackbox_service.h"
 #include "default_tvm_service.h"
@@ -31,13 +30,10 @@ public:
         std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
 
         if (config->TvmService && poller) {
-            TvmService_ = CreateCachingTvmService(
-                CreateDefaultTvmService(
-                    config->TvmService,
-                    poller,
-                    profiler.WithPrefix("/tvm/remote")),
+            TvmService_ = CreateDefaultTvmService(
                 config->TvmService,
-                profiler.WithPrefix("/tvm/cache"));
+                poller,
+                profiler.WithPrefix("/tvm/remote"));
         }
 
         IBlackboxServicePtr blackboxService;

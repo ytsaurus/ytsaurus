@@ -13,8 +13,12 @@ namespace NYT::NAuth {
 struct ITvmService
     : public virtual TRefCounted
 {
-    virtual TFuture<TString> GetTicket(const TString& serviceId) = 0;
-    virtual TErrorOr<TParsedTicket> ParseUserTicket(const TString& ticket) = 0;
+    // Get TVM service ticket from us to serviceId. Service mapping must be in config.
+    // Throws on failure.
+    virtual TString GetServiceTicket(const TString& serviceId) = 0;
+
+    // Decode user ticket contents. Throws on failure.
+    virtual TParsedTicket ParseUserTicket(const TString& ticket) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITvmService)
