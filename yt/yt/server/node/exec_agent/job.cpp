@@ -1444,7 +1444,7 @@ private:
             proxyConfig->Binds = Config_->RootFSBinds;
         }
         // This replace logic used for testing puproses.
-        for (const auto& [name, writerConfig]: proxyConfig->Logging->WriterConfigs) {
+        for (const auto& [name, writerConfig]: proxyConfig->Logging->Writers) {
             size_t index = writerConfig->FileName.find(SlotIndexPattern);
             if (index != TString::npos) {
                 writerConfig->FileName.replace(index, SlotIndexPattern.size(), ToString(Slot_->GetSlotIndex()));
