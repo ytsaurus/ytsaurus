@@ -40,10 +40,12 @@ private:
     {
         const auto& path = key.Path;
 
-        YT_LOG_DEBUG("Requesting table mount info (Path: %v)", path);
+        YT_LOG_DEBUG("Requesting table mount info (Path: %v)", 
+            path);
 
         TApiServiceProxy proxy(Channel_);
         proxy.SetDefaultTimeout(Timeout_);
+        
         auto req = proxy.GetTableMountInfo();
         req->set_path(path);
 
@@ -74,7 +76,7 @@ private:
                     tabletInfo->UpdateTime = Now();
                     tabletInfo->Owners.push_back(MakeWeak(tableInfo));
 
-                    tabletInfo = TabletCache_.Insert(std::move(tabletInfo));
+                    tabletInfo = TabletInfoCache_.Insert(std::move(tabletInfo));
                     tableInfo->Tablets.push_back(tabletInfo);
                     if (tabletInfo->State == ETabletState::Mounted) {
                         tableInfo->MountedTablets.push_back(tabletInfo);

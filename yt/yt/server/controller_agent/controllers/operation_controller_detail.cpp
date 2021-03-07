@@ -5606,7 +5606,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
 
                 auto tabletState = attributes->Get<ETabletState>("tablet_state");
                 if (tabletState != ETabletState::Frozen && tabletState != ETabletState::Unmounted) {
-                    THROW_ERROR_EXCEPTION("Input table has tablet state %Qv, expected %Qv or %Qv",
+                    THROW_ERROR_EXCEPTION("Input table has tablet state %Qlv: expected %Qlv or %Qlv",
                         tabletState,
                         ETabletState::Frozen,
                         ETabletState::Unmounted)

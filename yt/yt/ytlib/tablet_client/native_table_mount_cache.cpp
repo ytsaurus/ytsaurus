@@ -199,7 +199,9 @@ private:
 
         void OnTableAttributesReceived(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
         {
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of table %v", Key_.Path);
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of table %v",
+                Key_.Path);
+            
             const auto& batchRsp = batchRspOrError.Value();
             auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
             auto& rsp = getAttributesRspOrError.Value();
@@ -253,7 +255,8 @@ private:
 
         TTableMountInfoPtr OnTableMountInfoReceived(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
         {
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting mount info for table %v", Key_.Path);
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting mount info for table %v",
+                Key_.Path);
 
             const auto& batchRsp = batchRspOrError.Value();
             const auto& rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspGetMountInfo>(0);
@@ -285,13 +288,9 @@ private:
                 tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
                 tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
                 tabletInfo->MountRevision = protoTabletInfo.mount_revision();
-                tabletInfo->State = ETabletState(protoTabletInfo.state());
+                tabletInfo->State = FromProto<ETabletState>(protoTabletInfo.state());
                 tabletInfo->UpdateTime = Now();
-
-                // COMPAT(savrus)
-                tabletInfo->InMemoryMode = protoTabletInfo.has_in_memory_mode()
-                    ? std::make_optional(EInMemoryMode(protoTabletInfo.in_memory_mode()))
-                    : std::nullopt;
+                tabletInfo->InMemoryMode = FromProto<EInMemoryMode>(protoTabletInfo.in_memory_mode());
 
                 if (tableInfo->IsSorted()) {
                     // Take the actual pivot from master response.
@@ -310,7 +309,7 @@ private:
 
                 tabletInfo->Owners.push_back(MakeWeak(tableInfo));
 
-                tabletInfo = Owner_->TabletCache_.Insert(std::move(tabletInfo));
+                tabletInfo = Owner_->TabletInfoCache_.Insert(std::move(tabletInfo));
                 tableInfo->Tablets.push_back(tabletInfo);
                 if (tabletInfo->State == ETabletState::Mounted) {
                     tableInfo->MountedTablets.push_back(tabletInfo);
@@ -327,7 +326,7 @@ private:
                 replicaInfo->ReplicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
                 replicaInfo->ClusterName = protoReplicaInfo.cluster_name();
                 replicaInfo->ReplicaPath = protoReplicaInfo.replica_path();
-                replicaInfo->Mode = ETableReplicaMode(protoReplicaInfo.mode());
+                replicaInfo->Mode = FromProto<ETableReplicaMode>(protoReplicaInfo.mode());
                 tableInfo->Replicas.push_back(replicaInfo);
             }
 
