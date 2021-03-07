@@ -110,6 +110,7 @@ public:
     {
         auto mergedConfig = New<TDispatcherConfig>();
         mergedConfig->ChunkReaderPoolSize = dynamicConfig->ChunkReaderPoolSize.value_or(ChunkReaderPoolSize);
+        mergedConfig->Postprocess();
         return mergedConfig;
     }
 };

@@ -169,6 +169,10 @@ class TYsonSerializable
 
 template <class T>
 TIntrusivePtr<T> CloneYsonSerializable(const TIntrusivePtr<T>& obj);
+template <class T>
+std::vector<TIntrusivePtr<T>> CloneYsonSerializables(const std::vector<TIntrusivePtr<T>>& objs);
+template <class T>
+THashMap<TString, TIntrusivePtr<T>> CloneYsonSerializables(const THashMap<TString, TIntrusivePtr<T>>& objs);
 
 void Serialize(const TYsonSerializableLite& value, NYson::IYsonConsumer* consumer);
 void Deserialize(TYsonSerializableLite& value, NYTree::INodePtr node);

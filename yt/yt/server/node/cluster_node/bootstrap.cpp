@@ -117,6 +117,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/program/helpers.h>
+
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -1354,22 +1356,8 @@ void TBootstrap::OnDynamicConfigChanged(
     const TClusterNodeDynamicConfigPtr& /* oldConfig */,
     const TClusterNodeDynamicConfigPtr& newConfig)
 {
-    // Reconfigure spinlock profiling.
-    NConcurrency::SetSpinlockHiccupThresholdTicks(NProfiling::DurationToCpuDuration(
-        newConfig->SpinlockHiccupThreshold.value_or(Config_->SpinlockHiccupThreshold)));
+    ReconfigureSingletons(Config_, newConfig);
 
-    // Reconfigure YTAlloc (unless configured from env).
-    if (!NYTAlloc::IsConfiguredFromEnv()) {
-        NYTAlloc::Configure(newConfig->YTAlloc ? newConfig->YTAlloc : Config_->YTAlloc);
-    }
-
-    // Reconfigure RPC.
-    NRpc::TDispatcher::Get()->Configure(Config_->RpcDispatcher->ApplyDynamic(newConfig->RpcDispatcher));
-
-    // Reconfigure Chunk Client.
-    NChunkClient::TDispatcher::Get()->Configure(Config_->ChunkClientDispatcher->ApplyDynamic(newConfig->ChunkClientDispatcher));
-
-    // Reconfigure thread pools.
     QueryThreadPool_->Configure(
         newConfig->QueryAgent->QueryThreadPoolSize.value_or(Config_->QueryAgent->QueryThreadPoolSize));
     TabletLookupThreadPool_->Configure(
@@ -1383,15 +1371,13 @@ void TBootstrap::OnDynamicConfigChanged(
     StorageLookupThreadPool_->Configure(
         newConfig->DataNode->StorageLookupThreadCount.value_or(Config_->DataNode->StorageLookupThreadCount));
 
-    // Reconfigure Data Node throttlers.
-    for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+    for (auto kind : TEnumTraits<NDataNode::EDataNodeThrottlerKind>::GetDomainValues()) {
         auto throttlerConfig = newConfig->DataNode->Throttlers[kind]
             ? newConfig->DataNode->Throttlers[kind]
             : Config_->DataNode->Throttlers[kind];
         RawDataNodeThrottlers_[kind]->Reconfigure(throttlerConfig);
     }
 
-    // Reconfigure Tablet Node throttlers.
     for (auto kind : TEnumTraits<NTabletNode::ETabletNodeThrottlerKind>::GetDomainValues()) {
         auto throttlerConfig = newConfig->TabletNode->Throttlers[kind]
             ? newConfig->TabletNode->Throttlers[kind]

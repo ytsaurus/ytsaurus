@@ -645,23 +645,11 @@ DEFINE_REFCOUNTED_TYPE(TClusterNodeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public TSingletonsDynamicConfig
 {
 public:
     //! Dynamic config annotation.
     TString ConfigAnnotation;
-
-    //! See TSingletonsConfig.
-    std::optional<TDuration> SpinlockHiccupThreshold;
-
-    //! YTAlloc configuration.
-    NYTAlloc::TYTAllocConfigPtr YTAlloc;
-
-    //! RPC dispatcher configuration.
-    NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
-
-    //! Chunk client dispatcher configuration.
-    NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
 
     //! Node resource limits.
     TResourceLimitsDynamicConfigPtr ResourceLimits;
@@ -688,14 +676,6 @@ public:
     {
         RegisterParameter("config_annotation", ConfigAnnotation)
             .Optional();
-        RegisterParameter("spinlock_hiccup_threshold", SpinlockHiccupThreshold)
-            .Optional();
-        RegisterParameter("yt_alloc", YTAlloc)
-            .Optional();
-        RegisterParameter("rpc_dispatcher", RpcDispatcher)
-            .DefaultNew();
-        RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
-            .DefaultNew();
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
         RegisterParameter("data_node", DataNode)

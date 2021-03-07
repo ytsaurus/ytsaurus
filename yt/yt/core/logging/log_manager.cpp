@@ -352,7 +352,7 @@ public:
     {
         try {
             if (auto config = TLogManagerConfig::TryCreateFromEnv()) {
-                DoUpdateConfig(std::move(config), true);
+                DoUpdateConfig(config, true);
             }
         } catch (const std::exception& ex) {
             fprintf(stderr, "Error configuring logging from environment variables\n%s\n",
@@ -708,7 +708,7 @@ private:
         return nullptr;
     }
 
-    void UpdateConfig(TConfigEvent& event)
+    void UpdateConfig(const TConfigEvent& event)
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
@@ -738,8 +738,7 @@ private:
             WatchExecutor_.Reset();
         }
 
-        auto flushPeriod = Config_->FlushPeriod;
-        if (flushPeriod) {
+        if (auto flushPeriod = Config_->FlushPeriod) {
             FlushExecutor_ = New<TPeriodicExecutor>(
                 EventQueue_,
                 BIND(&TImpl::FlushWriters, MakeStrong(this)),
@@ -747,8 +746,7 @@ private:
             FlushExecutor_->Start();
         }
 
-        auto watchPeriod = Config_->WatchPeriod;
-        if (watchPeriod) {
+        if (auto watchPeriod = Config_->WatchPeriod) {
             WatchExecutor_ = New<TPeriodicExecutor>(
                 EventQueue_,
                 BIND(&TImpl::WatchWriters, MakeStrong(this)),
@@ -756,8 +754,7 @@ private:
             WatchExecutor_->Start();
         }
 
-        auto checkSpacePeriod = Config_->CheckSpacePeriod;
-        if (checkSpacePeriod) {
+        if (auto checkSpacePeriod = Config_->CheckSpacePeriod) {
             CheckSpaceExecutor_ = New<TPeriodicExecutor>(
                 EventQueue_,
                 BIND(&TImpl::CheckSpace, MakeStrong(this)),
@@ -768,7 +765,7 @@ private:
         event.Promise.Set();
     }
 
-    void DoUpdateConfig(const TLogManagerConfigPtr& logConfig, bool fromEnv)
+    void DoUpdateConfig(const TLogManagerConfigPtr& config, bool fromEnv)
     {
         {
             decltype(Writers_) writers;
@@ -777,7 +774,7 @@ private:
             TGuard<TForkAwareSpinLock> guard(SpinLock_);
             Writers_.swap(writers);
             CachedWriters_.swap(cachedWriters);
-            Config_ = logConfig;
+            Config_ = config;
             HighBacklogWatermark_ = Config_->HighBacklogWatermark;
             LowBacklogWatermark_ = Config_->LowBacklogWatermark;
             RequestSuppressionEnabled_ = Config_->RequestSuppressionTimeout != TDuration::Zero();
@@ -795,27 +792,27 @@ private:
             SuppressedRequestIdQueue_.DequeueAll();
         }
 
-        for (const auto& [name, config] : Config_->Writers) {
+        for (const auto& [name, writerConfig] : Config_->Writers) {
             ILogWriterPtr writer;
             std::unique_ptr<ILogFormatter> formatter;
             std::unique_ptr<TNotificationWatch> watch;
 
-            switch (config->AcceptedMessageFormat) {
+            switch (writerConfig->AcceptedMessageFormat) {
                 case ELogMessageFormat::PlainText:
                     formatter = std::make_unique<TPlainTextLogFormatter>(
-                        config->EnableSystemMessages,
-                        config->EnableSourceLocation);
+                        writerConfig->EnableSystemMessages,
+                        writerConfig->EnableSourceLocation);
                     break;
                 case ELogMessageFormat::Structured:
                     formatter = std::make_unique<TJsonLogFormatter>(
-                        config->CommonFields,
-                        config->EnableSystemMessages);
+                        writerConfig->CommonFields,
+                        writerConfig->EnableSystemMessages);
                     break;
                 default:
                     YT_ABORT();
             }
 
-            switch (config->Type) {
+            switch (writerConfig->Type) {
                 case EWriterType::Stdout:
                     writer = New<TStdoutLogWriter>(std::move(formatter), name);
                     break;
@@ -826,17 +823,17 @@ private:
                     writer = New<TFileLogWriter>(
                         std::move(formatter),
                         name,
-                        config->FileName,
-                        config->EnableCompression,
-                        config->CompressionMethod,
-                        config->CompressionLevel);
-                    watch = CreateNotificationWatch(writer, config->FileName);
+                        writerConfig->FileName,
+                        writerConfig->EnableCompression,
+                        writerConfig->CompressionMethod,
+                        writerConfig->CompressionLevel);
+                    watch = CreateNotificationWatch(writer, writerConfig->FileName);
                     break;
                 default:
                     YT_ABORT();
             }
 
-            writer->SetRateLimit(config->RateLimit);
+            writer->SetRateLimit(writerConfig->RateLimit);
             writer->SetCategoryRateLimits(Config_->CategoryRateLimits);
 
             YT_VERIFY(Writers_.emplace(name, std::move(writer)).second);
@@ -1115,48 +1112,29 @@ private:
     int ProcessTimeOrderedBuffer()
     {
         int eventsWritten = 0;
-        if (!RequestSuppressionEnabled_) {
-            // Fast path.
-            while (!TimeOrderedBuffer_.empty()) {
-                auto& event = TimeOrderedBuffer_.front();
-
-                ++eventsWritten;
-
-                Visit(event,
-                    [&] (TConfigEvent& event) {
-                        return UpdateConfig(event);
-                    },
-                    [&] (const TLogEvent& event) {
-                        WriteEvent(event);
-                    });
-
-                TimeOrderedBuffer_.pop_front();
-            }
-
-            return eventsWritten;
-        }
+        int eventsSuppressed = 0;
 
         SuppressedRequestIdSet_.Update(SuppressedRequestIdQueue_.DequeueAll());
 
+        auto requestSuppressionEnabled = RequestSuppressionEnabled_.load(std::memory_order_relaxed);
         auto deadline = GetCpuInstant() - DurationToCpuDuration(Config_->RequestSuppressionTimeout);
 
-        int suppressed = 0;
         while (!TimeOrderedBuffer_.empty()) {
-            auto& event = TimeOrderedBuffer_.front();
+            const auto& event = TimeOrderedBuffer_.front();
 
-            if (GetEventInstant(event) > deadline) {
+            if (requestSuppressionEnabled && GetEventInstant(event) > deadline) {
                 break;
             }
 
             ++eventsWritten;
 
             Visit(event,
-                [&] (TConfigEvent& event) {
+                [&] (const TConfigEvent& event) {
                     return UpdateConfig(event);
                 },
                 [&] (const TLogEvent& event) {
-                    if (event.RequestId && SuppressedRequestIdSet_.Contains(event.RequestId)) {
-                        ++suppressed;
+                    if (requestSuppressionEnabled && event.RequestId && SuppressedRequestIdSet_.Contains(event.RequestId)) {
+                        ++eventsSuppressed;
                     } else {
                         WriteEvent(event);
                     }
@@ -1165,7 +1143,7 @@ private:
             TimeOrderedBuffer_.pop_front();
         }
 
-        SuppressedEvents_ += suppressed;
+        SuppressedEvents_ += eventsSuppressed;
 
         return eventsWritten;
     }
