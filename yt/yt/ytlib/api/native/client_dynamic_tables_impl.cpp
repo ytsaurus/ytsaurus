@@ -634,10 +634,8 @@ TRowset TClient::DoLookupRowsOnce(
             batch.MountRevision = startShard->MountRevision;
             batch.OffsetInResult = currentResultIndex;
 
-            if (startShard->InMemoryMode) {
-                YT_VERIFY(!inMemory || *inMemory == startShard->IsInMemory());
-                inMemory = startShard->IsInMemory();
-            }
+            YT_VERIFY(!inMemory || *inMemory == startShard->IsInMemory());
+            inMemory = startShard->IsInMemory();
 
             std::vector<TLegacyKey> rows;
             rows.reserve(endItemsIt - itemsIt);

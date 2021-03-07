@@ -32,7 +32,7 @@ struct TTabletInfo
     TTabletId TabletId;
     NHydra::TRevision MountRevision = NHydra::NullRevision;
     ETabletState State;
-    std::optional<EInMemoryMode> InMemoryMode;
+    EInMemoryMode InMemoryMode;
     NTableClient::TLegacyOwningKey PivotKey;
     TTabletCellId CellId;
     NObjectClient::TObjectId TableId;
@@ -129,7 +129,7 @@ struct ITableMountCache
     : public virtual TRefCounted
 {
     virtual TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) = 0;
-    virtual TTabletInfoPtr FindTablet(TTabletId tabletId) = 0;
+    virtual TTabletInfoPtr FindTabletInfo(TTabletId tabletId) = 0;
     virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) = 0;
     virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error, bool forceRetry) = 0;
 

@@ -18,11 +18,7 @@ TKeyBound TTabletInfo::GetLowerKeyBound() const
 
 bool TTabletInfo::IsInMemory() const
 {
-    if (!InMemoryMode) {
-        return false;
-    }
-
-    switch (*InMemoryMode) {
+    switch (InMemoryMode) {
         case EInMemoryMode::None:
             return false;
 

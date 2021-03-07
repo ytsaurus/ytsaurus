@@ -8,22 +8,26 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/core/profiling/public.h>
+
 namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletCache
+class TTabletInfoCache
 {
 public:
     TTabletInfoPtr Find(TTabletId tabletId);
-    TTabletInfoPtr Insert(TTabletInfoPtr tabletInfo);
+    TTabletInfoPtr Insert(const TTabletInfoPtr& tabletInfo);
+    void Clear();
 
 private:
-    void RemoveExpiredEntries();
+    void SweepExpiredEntries();
 
+    std::atomic<NProfiling::TCpuInstant> ExpiredEntriesSweepDeadline_ = 0;
+
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MapLock_);
     THashMap<TTabletId, TWeakPtr<TTabletInfo>> Map_;
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
-    TInstant LastExpiredRemovalTime_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -58,7 +62,7 @@ public:
         NLogging::TLogger logger);
 
     virtual TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) override;
-    virtual TTabletInfoPtr FindTablet(TTabletId tabletId) override;
+    virtual TTabletInfoPtr FindTabletInfo(TTabletId tabletId) override;
     virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) override;
     virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error, bool forceRetry) override;
     virtual void Clear();
@@ -66,7 +70,8 @@ public:
 protected:
     const TTableMountCacheConfigPtr Config_;
     const NLogging::TLogger Logger;
-    TTabletCache TabletCache_;
+
+    TTabletInfoCache TabletInfoCache_;
 
     virtual void InvalidateTable(const TTableMountInfoPtr& tableInfo) = 0;
 };

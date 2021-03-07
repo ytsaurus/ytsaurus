@@ -4,28 +4,34 @@
 
 #include <yt/yt/core/misc/hash.h>
 
+#include <yt/core/profiling/timing.h>
+
 namespace NYT::NTabletClient {
 
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDuration TabletCacheExpireTimeout = TDuration::Seconds(1);
+static const auto TabletCacheSweepPeriod = TDuration::Seconds(60);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TTabletInfoPtr TTabletCache::Find(TTabletId tabletId)
+TTabletInfoPtr TTabletInfoCache::Find(TTabletId tabletId)
 {
-    auto guard = ReaderGuard(SpinLock_);
-    RemoveExpiredEntries();
+    SweepExpiredEntries();
+
+    auto guard = ReaderGuard(MapLock_);
     auto it = Map_.find(tabletId);
     return it != Map_.end() ? it->second.Lock() : nullptr;
 }
 
-TTabletInfoPtr TTabletCache::Insert(TTabletInfoPtr tabletInfo)
+TTabletInfoPtr TTabletInfoCache::Insert(const TTabletInfoPtr& tabletInfo)
 {
-    auto guard = WriterGuard(SpinLock_);
-    auto it = Map_.find(tabletInfo->TabletId);
+    SweepExpiredEntries();
+
+    auto guard = WriterGuard(MapLock_);
+    typename decltype(Map_)::insert_ctx context;
+    auto it = Map_.find(tabletInfo->TabletId, context);
     if (it != Map_.end()) {
         if (auto existingTabletInfo = it->second.Lock()) {
             if (tabletInfo->MountRevision < existingTabletInfo->MountRevision) {
@@ -42,31 +48,50 @@ TTabletInfoPtr TTabletCache::Insert(TTabletInfoPtr tabletInfo)
                 }
             }
         }
-
         it->second = MakeWeak(tabletInfo);
     } else {
-        YT_VERIFY(Map_.insert({tabletInfo->TabletId, tabletInfo}).second);
+        Map_.emplace_direct(context, tabletInfo->TabletId, tabletInfo);
     }
     return tabletInfo;
 }
 
-void TTabletCache::RemoveExpiredEntries()
+void TTabletInfoCache::Clear()
 {
-    if (LastExpiredRemovalTime_ + TabletCacheExpireTimeout < Now()) {
+    auto guard = WriterGuard(MapLock_);
+    Map_.clear();
+}
+
+void TTabletInfoCache::SweepExpiredEntries()
+{
+    auto now = NProfiling::GetCpuInstant();
+    auto deadline = ExpiredEntriesSweepDeadline_.load(std::memory_order_relaxed);
+    if (now < deadline) {
         return;
     }
 
-    std::vector<TTabletId> removeIds;
-    for (auto it = Map_.begin(); it != Map_.end(); ++it) {
-        if (it->second.IsExpired()) {
-            removeIds.push_back(it->first);
-        }
-    }
-    for (auto tabletId : removeIds) {
-        Map_.erase(tabletId);
+    if (!ExpiredEntriesSweepDeadline_.compare_exchange_strong(deadline, now + NProfiling::DurationToCpuDuration(TabletCacheSweepPeriod))) {
+        return;
     }
 
-    LastExpiredRemovalTime_ = Now();
+    std::vector<TTabletId> expiredIds;
+
+    {
+        auto guard = ReaderGuard(MapLock_);
+        for (auto it = Map_.begin(); it != Map_.end(); ++it) {
+            if (it->second.IsExpired()) {
+                expiredIds.push_back(it->first);
+            }
+        }
+    }
+
+    if (!expiredIds.empty()) {
+        auto guard = WriterGuard(MapLock_);
+        for (auto id : expiredIds) {
+            if (auto it = Map_.find(id); it && it->second.IsExpired()) {
+                Map_.erase(it);
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,9 +158,9 @@ TFuture<TTableMountInfoPtr> TTableMountCacheBase::GetTableInfo(const NYPath::TYP
     return future;
 }
 
-TTabletInfoPtr TTableMountCacheBase::FindTablet(TTabletId tabletId)
+TTabletInfoPtr TTableMountCacheBase::FindTabletInfo(TTabletId tabletId)
 {
-    return TabletCache_.Find(tabletId);
+    return TabletInfoCache_.Find(tabletId);
 }
 
 void TTableMountCacheBase::InvalidateTablet(TTabletInfoPtr tabletInfo)
@@ -165,8 +190,8 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                     continue;
                 }
 
-                auto isTabletUnmounted = retriableError->Attributes().Find<bool>("is_tablet_unmounted");
-                auto tabletInfo = FindTablet(*tabletId);
+                auto isTabletUnmounted = retriableError->Attributes().Get<bool>("is_tablet_unmounted", false);
+                auto tabletInfo = FindTabletInfo(*tabletId);
                 if (tabletInfo) {
                     YT_LOG_DEBUG(error,
                         "Invalidating tablet in table mount cache "
@@ -189,7 +214,6 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                 bool dontRetry =
                     code == NTabletClient::EErrorCode::TabletNotMounted &&
                     isTabletUnmounted &&
-                    *isTabletUnmounted &&
                     !forceRetry;
 
                 return std::make_pair(!dontRetry, tabletInfo);
@@ -203,6 +227,7 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
 void TTableMountCacheBase::Clear()
 {
     TAsyncExpiringCache::Clear();
+    TabletInfoCache_.Clear();
     YT_LOG_DEBUG("Table mount info cache cleared");
 }
 
