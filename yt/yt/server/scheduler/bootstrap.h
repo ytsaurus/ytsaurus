@@ -46,7 +46,7 @@ private:
     const NYTree::INodePtr ConfigNode_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    NConcurrency::TFairShareActionQueuePtr ControlQueue_;
+    NConcurrency::IEnumIndexedFairShareActionQueuePtr<EControlQueue> ControlQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;

@@ -370,7 +370,6 @@ private:
 
     ICellarOccupantPtr Occupant_;
 
-    const TFairShareActionQueuePtr AutomatonQueue_;
     const TActionQueuePtr SnapshotQueue_;
 
     TCellDescriptor CellDescriptor_;

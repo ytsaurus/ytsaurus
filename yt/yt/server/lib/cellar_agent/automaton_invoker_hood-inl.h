@@ -19,9 +19,7 @@ namespace NYT::NCellarAgent {
 
 template <typename EQueue>
 TAutomatonInvokerHood<EQueue>::TAutomatonInvokerHood(const TString& threadName)
-    : AutomatonQueue_(New<NConcurrency::TFairShareActionQueue>(
-        threadName,
-        TEnumTraits<EQueue>::GetDomainNames()))
+    : AutomatonQueue_(NConcurrency::CreateEnumIndexedFairShareActionQueue<EQueue>(threadName))
 {
     ResetEpochInvokers();
     ResetGuardedInvokers();
@@ -30,7 +28,7 @@ TAutomatonInvokerHood<EQueue>::TAutomatonInvokerHood(const TString& threadName)
 template <typename EQueue>
 IInvokerPtr TAutomatonInvokerHood<EQueue>::GetAutomatonInvoker(EQueue queue) const
 {
-    return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
+    return AutomatonQueue_->GetInvoker(queue);
 }
 
 template <typename EQueue>

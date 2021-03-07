@@ -17,8 +17,6 @@ public:
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName);
 
-    IInvokerPtr GetInvoker(int index);
-
 protected:
     const TFairShareInvokerQueuePtr Queue_;
 

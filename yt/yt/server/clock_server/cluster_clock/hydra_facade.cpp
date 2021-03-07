@@ -58,7 +58,7 @@ public:
         YT_VERIFY(Config_);
         YT_VERIFY(Bootstrap_);
 
-        AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
+        AutomatonQueue_ = CreateEnumIndexedFairShareActionQueue<EAutomatonThreadQueue>("Automaton");
         Automaton_ = New<TClockAutomaton>(Bootstrap_);
 
         ResponseKeeper_ = New<TResponseKeeper>(
@@ -154,7 +154,7 @@ public:
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
-        return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
+        return AutomatonQueue_->GetInvoker(queue);
     }
 
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
@@ -173,7 +173,7 @@ private:
 
     IElectionManagerPtr ElectionManager_;
 
-    TFairShareActionQueuePtr AutomatonQueue_;
+    IEnumIndexedFairShareActionQueuePtr<EAutomatonThreadQueue> AutomatonQueue_;
     TClockAutomatonPtr Automaton_;
     IHydraManagerPtr HydraManager_;
 

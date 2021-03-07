@@ -104,6 +104,10 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (DataNodeTrackerService)
 );
 
+DEFINE_ENUM(EAutomatonThreadBucket,
+    (Gossips)
+);
+
 using NCellMasterClient::EMasterCellRole;
 using NCellMasterClient::EMasterCellRoles;
 
