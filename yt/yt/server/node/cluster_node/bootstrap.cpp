@@ -129,6 +129,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/table_client/unversioned_row.h>
+
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -287,6 +289,8 @@ bool TBootstrap::IsTabletNode() const
 void TBootstrap::DoInitialize()
 {
     auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+
+    SetExplodeOnNullRowRowBufferDeserialization();
 
     if (!Config_->ClusterConnection->Networks) {
         Config_->ClusterConnection->Networks = GetLocalNetworks();

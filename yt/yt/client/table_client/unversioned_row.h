@@ -526,6 +526,10 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedValue* begin, const TUnversionedValue* end);
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow, std::optional<int> nullPaddingWidth = std::nullopt);
+
+//! This is temporary while we investigate YT-14462.
+void SetExplodeOnNullRowRowBufferDeserialization();
+
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer);
 
 void ToBytes(TString* bytes, const TUnversionedOwningRow& row);
