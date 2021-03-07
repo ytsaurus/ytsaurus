@@ -70,8 +70,8 @@ class TProfilingStatisticsProducer
 public:
     TProfilingStatisticsProducer()
     {
-        NProfiling::TProfiler registry{""};
-        registry.AddProducer("/yt_alloc", MakeStrong(this));
+        NProfiling::TProfiler profiler{""};
+        profiler.AddProducer("/yt_alloc", MakeStrong(this));
     }
 
     virtual void CollectSensors(NProfiling::ISensorWriter* writer) override

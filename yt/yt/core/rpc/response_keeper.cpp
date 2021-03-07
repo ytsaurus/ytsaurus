@@ -32,7 +32,7 @@ public:
         TResponseKeeperConfigPtr config,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger,
-        const NProfiling::TProfiler& registry)
+        const NProfiling::TProfiler& profiler)
         : Config_(std::move(config))
         , Invoker_(std::move(invoker))
         , Logger(logger)
@@ -47,10 +47,10 @@ public:
             EvictionPeriod);
         EvictionExecutor_->Start();
 
-        registry.AddFuncGauge("/response_keeper/kept_response_count", MakeStrong(this), [this] {
+        profiler.AddFuncGauge("/response_keeper/kept_response_count", MakeStrong(this), [this] {
             return FinishedResponseCount_.load();
         });
-        registry.AddFuncGauge("/response_keeper/kept_response_space", MakeStrong(this), [this] {
+        profiler.AddFuncGauge("/response_keeper/kept_response_space", MakeStrong(this), [this] {
             return FinishedResponseSpace_.load();
         });
     }
@@ -337,12 +337,12 @@ TResponseKeeper::TResponseKeeper(
     TResponseKeeperConfigPtr config,
     IInvokerPtr invoker,
     const NLogging::TLogger& logger,
-    const NProfiling::TProfiler& registry)
+    const NProfiling::TProfiler& profiler)
     : Impl_(New<TImpl>(
         std::move(config),
         std::move(invoker),
         logger,
-        registry))
+        profiler))
 { }
 
 TResponseKeeper::~TResponseKeeper() = default;

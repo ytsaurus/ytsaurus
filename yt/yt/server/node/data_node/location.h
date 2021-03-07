@@ -49,7 +49,7 @@ DEFINE_ENUM(EIOCategory,
 struct TLocationPerformanceCounters
     : public TRefCounted
 {
-    explicit TLocationPerformanceCounters(const NProfiling::TProfiler& registry);
+    explicit TLocationPerformanceCounters(const NProfiling::TProfiler& profiler);
 
     TEnumIndexedVector<EIODirection, TEnumIndexedVector<EIOCategory, std::atomic<i64>>> PendingIOSize;
     TEnumIndexedVector<EIODirection, TEnumIndexedVector<EIOCategory, NProfiling::TCounter>> CompletedIOSize;
