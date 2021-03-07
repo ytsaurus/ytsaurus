@@ -105,7 +105,7 @@ TBootstrap::~TBootstrap() = default;
 
 void TBootstrap::Run()
 {
-    ControlQueue_ = New<TFairShareActionQueue>("Control", TEnumTraits<EControlQueue>::GetDomainNames());
+    ControlQueue_ = CreateEnumIndexedFairShareActionQueue<EControlQueue>("Control");
 
     BIND(&TBootstrap::DoRun, this)
         .AsyncVia(GetControlInvoker(EControlQueue::Default))
@@ -225,7 +225,7 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks() const
 
 IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
 {
-    return ControlQueue_->GetInvoker(static_cast<int>(queue));
+    return ControlQueue_->GetInvoker(queue);
 }
 
 const TSchedulerPtr& TBootstrap::GetScheduler() const

@@ -1,5 +1,8 @@
 #include "fair_share_invoker_queue.h"
+
 #include "invoker_queue.h"
+
+#include <yt/core/actions/invoker_detail.h>
 
 namespace NYT::NConcurrency {
 
@@ -9,16 +12,44 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TProfilingTagSettingInvoker
+    : public TInvokerWrapper
+{
+public:
+    TProfilingTagSettingInvoker(
+        TMpscInvokerQueuePtr queue,
+        int profilingTag)
+        : TInvokerWrapper(queue)
+        , Queue_(std::move(queue))
+        , ProfilingTag_(profilingTag)
+    { }
+
+    virtual void Invoke(TClosure callback) override
+    {
+        Queue_->Invoke(std::move(callback), ProfilingTag_);
+    }
+
+private:
+    const TMpscInvokerQueuePtr Queue_;
+    const int ProfilingTag_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFairShareInvokerQueue::TFairShareInvokerQueue(
     std::shared_ptr<TEventCount> callbackEventCount,
-    const std::vector<NProfiling::TTagSet>& bucketsTags)
-    : Buckets_(bucketsTags.size())
+    const std::vector<TBucketDescription>& bucketDescriptions)
 {
-    for (size_t index = 0; index < bucketsTags.size(); ++index) {
-        Buckets_[index].Queue = New<TMpscInvokerQueue>(
+    Buckets_.reserve(bucketDescriptions.size());
+    for (const auto& bucketDescription : bucketDescriptions) {
+        auto& bucket = Buckets_.emplace_back();
+        bucket.Queue = New<TMpscInvokerQueue>(
             callbackEventCount,
-            bucketsTags[index]);
-        Buckets_[index].Invoker = Buckets_[index].Queue;
+            bucketDescription.QueueTagSets,
+            bucketDescription.BucketTagSet);
+        for (int index = 0; index < bucketDescription.QueueTagSets.size(); ++index) {
+            bucket.Invokers.push_back(New<TProfilingTagSettingInvoker>(bucket.Queue, index));
+        }
     }
 }
 
@@ -31,10 +62,13 @@ void TFairShareInvokerQueue::SetThreadId(TThreadId threadId)
     }
 }
 
-const IInvokerPtr& TFairShareInvokerQueue::GetInvoker(int index)
+const IInvokerPtr& TFairShareInvokerQueue::GetInvoker(int bucketIndex, int queueIndex) const
 {
-    YT_ASSERT(0 <= index && index < static_cast<int>(Buckets_.size()));
-    return Buckets_[index].Invoker;
+    YT_ASSERT(0 <= bucketIndex && bucketIndex < static_cast<int>(Buckets_.size()));
+    const auto& bucket = Buckets_[bucketIndex];
+
+    YT_ASSERT(0 <= queueIndex && queueIndex < static_cast<int>(bucket.Invokers.size()));
+    return bucket.Invokers[queueIndex];
 }
 
 void TFairShareInvokerQueue::Shutdown()

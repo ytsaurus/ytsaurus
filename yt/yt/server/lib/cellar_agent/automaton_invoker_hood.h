@@ -22,7 +22,7 @@ public:
     IInvokerPtr GetGuardedAutomatonInvoker(EQueue queue = EQueue::Default) const;
 
 protected:
-    const NConcurrency::TFairShareActionQueuePtr AutomatonQueue_;
+    const NConcurrency::IEnumIndexedFairShareActionQueuePtr<EQueue> AutomatonQueue_;
 
     TEnumIndexedVector<EQueue, TAtomicObject<IInvokerPtr>> EpochAutomatonInvokers_;
     TEnumIndexedVector<EQueue, TAtomicObject<IInvokerPtr>> GuardedAutomatonInvokers_;

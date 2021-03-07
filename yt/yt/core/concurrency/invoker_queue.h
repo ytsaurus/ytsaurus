@@ -23,6 +23,7 @@ struct TEnqueuedAction
     NProfiling::TCpuInstant StartedAt = 0;
     NProfiling::TCpuInstant FinishedAt = 0;
     TClosure Callback;
+    int ProfilingTag = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,11 +60,17 @@ class TInvokerQueue
 public:
     TInvokerQueue(
         std::shared_ptr<TEventCount> callbackEventCount,
-        const NProfiling::TTagSet& tagSet);
+        const NProfiling::TTagSet& counterTagSet);
+
+    TInvokerQueue(
+        std::shared_ptr<TEventCount> callbackEventCount,
+        const std::vector<NProfiling::TTagSet>& counterTagSets,
+        const NProfiling::TTagSet& cumulativeCounterTagSet);
 
     void SetThreadId(TThreadId threadId);
 
     virtual void Invoke(TClosure callback) override;
+    void Invoke(TClosure callback, int profilingTag);
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     virtual TThreadId GetThreadId() const override;
@@ -90,12 +97,24 @@ private:
     std::atomic<bool> Running_ = true;
     std::atomic<int> Size_ = 0;
 
-    NProfiling::TCounter EnqueuedCounter_;
-    NProfiling::TCounter DequeuedCounter_;
-    NProfiling::TEventTimer WaitTimer_;
-    NProfiling::TEventTimer ExecTimer_;
-    NProfiling::TTimeCounter CumulativeTimeCounter_;
-    NProfiling::TEventTimer TotalTimer_;
+    struct TCounters
+    {
+        NProfiling::TCounter EnqueuedCounter;
+        NProfiling::TCounter DequeuedCounter;
+        NProfiling::TEventTimer WaitTimer;
+        NProfiling::TEventTimer ExecTimer;
+        NProfiling::TTimeCounter CumulativeTimeCounter;
+        NProfiling::TEventTimer TotalTimer;
+        std::atomic<int> ActiveCallbacks = 0;
+    };
+    using TCountersPtr = std::unique_ptr<TCounters>;
+
+    std::vector<TCountersPtr> Counters_;
+    TCountersPtr CumulativeCounters_;
+
+    int CurrentProfilingTag_ = 0;
+
+    TCountersPtr CreateCounters(const NProfiling::TTagSet& tagSet);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

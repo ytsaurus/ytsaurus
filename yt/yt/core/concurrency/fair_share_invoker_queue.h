@@ -10,6 +10,14 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBucketDescription
+{
+    std::vector<NProfiling::TTagSet> QueueTagSets;
+    NProfiling::TTagSet BucketTagSet;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareInvokerQueue
     : public TRefCounted
     , public IShutdownable
@@ -17,13 +25,13 @@ class TFairShareInvokerQueue
 public:
     TFairShareInvokerQueue(
         std::shared_ptr<TEventCount> callbackEventCount,
-        const std::vector<NProfiling::TTagSet>& bucketsTags);
+        const std::vector<TBucketDescription>& bucketDescriptions);
 
     ~TFairShareInvokerQueue();
 
     void SetThreadId(TThreadId threadId);
 
-    const IInvokerPtr& GetInvoker(int index);
+    const IInvokerPtr& GetInvoker(int bucketIndex, int queueIndex) const;
 
     virtual void Shutdown() override;
 
@@ -38,7 +46,7 @@ private:
     struct TBucket
     {
         TMpscInvokerQueuePtr Queue;
-        IInvokerPtr Invoker;
+        std::vector<IInvokerPtr> Invokers;
         NProfiling::TCpuDuration ExcessTime = 0;
     };
 

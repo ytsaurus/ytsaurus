@@ -12,9 +12,9 @@ NProfiling::TTagSet GetBucketTags(
     const TString& threadName,
     const TString& bucketName);
 
-std::vector<NProfiling::TTagSet> GetBucketsTags(
+NProfiling::TTagSet GetQueueTags(
     const TString& threadName,
-    const std::vector<TString>& bucketNames);
+    const TString& queueName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
