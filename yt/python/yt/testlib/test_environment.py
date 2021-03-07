@@ -291,8 +291,19 @@ def _cleanup_objects(object_ids_to_ignore):
             except YtError:
                 pass
 
+    # COMPAT(gritukan)
+    def list_multiple_action(list_kwargs):
+        result = []
+        for kwargs in list_kwargs:
+            try:
+                result.append(yt.list(**kwargs))
+            except YtError:
+                result.append([])
+                pass
+        return result
+
     test_cleanup.cleanup_objects(
-        list_multiple_action=lambda list_kwargs: [yt.list(**kwargs) for kwargs in list_kwargs],
+        list_multiple_action=list_multiple_action,
         remove_multiple_action=remove_multiple_action,
         exists_multiple_action=lambda object_ids: [yt.exists(object_id) for object_id in object_ids],
         object_ids_to_ignore=object_ids_to_ignore)

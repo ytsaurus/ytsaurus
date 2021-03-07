@@ -13,6 +13,7 @@ using TSubjectId = NObjectClient::TObjectId;
 using TUserId = NObjectClient::TObjectId;
 using TGroupId = NObjectClient::TObjectId;
 using TNetworkProjectId = NObjectClient::TObjectId;
+using TProxyRoleId = NObjectClient::TObjectId;
 
 extern const TString RootAccountName;
 extern const TString RootAccountCypressPath;
@@ -63,6 +64,12 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchAccount)                (905))
     ((NoSuchSubject)                (907))
     ((SafeModeEnabled)              (906))
+);
+
+// NB: Changing this list requires reign promotion.
+DEFINE_ENUM(EProxyKind,
+    ((Http)          (1))
+    ((Rpc)           (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

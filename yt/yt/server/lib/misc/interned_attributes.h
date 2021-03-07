@@ -296,6 +296,7 @@
     XX(ProfilingMode, profiling_mode) \
     XX(ProfilingTag, profiling_tag) \
     XX(ProjectId, project_id) \
+    XX(ProxyKind, proxy_kind) \
     XX(QuorumInfo, quorum_info) \
     XX(QuorumRowCount, quorum_row_count) \
     XX(Rack, rack) \

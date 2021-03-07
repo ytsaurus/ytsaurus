@@ -192,6 +192,9 @@ DEFINE_ENUM(EObjectType,
     ((GroupMap)                      (416))
     ((NetworkProject)                (503))
     ((NetworkProjectMap)             (426))
+    ((ProxyRole)                     (504))
+    ((HttpProxyRoleMap)              (427))
+    ((RpcProxyRoleMap)               (429))
 
     // Global stuff
     // A mysterious creature representing the master as a whole.

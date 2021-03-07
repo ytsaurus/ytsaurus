@@ -263,6 +263,16 @@ def check_duplicate_attributes():
             assert get("//tmp/m{}/@a{}".format(i, j)) == attrs[j]
 
 
+def check_proxy_roles():
+    create_proxy_role("h", "http")
+    create_proxy_role("r", "rpc")
+
+    yield
+
+    assert get("//sys/http_proxy_roles/h/@proxy_kind") == "http"
+    assert get("//sys/rpc_proxy_roles/r/@proxy_kind") == "rpc"
+
+
 class TestMasterSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -279,6 +289,7 @@ class TestMasterSnapshots(YTEnvSetup):
             check_master_memory,
             check_hierarchical_accounts,
             check_duplicate_attributes,
+            check_proxy_roles,
             check_removed_account,  # keep this item last as it's sensitive to timings
         ]
 

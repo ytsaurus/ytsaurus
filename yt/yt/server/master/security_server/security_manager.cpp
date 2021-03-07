@@ -8,6 +8,8 @@
 #include "group_proxy.h"
 #include "network_project.h"
 #include "network_project_proxy.h"
+#include "proxy_role.h"
+#include "proxy_role_proxy.h"
 #include "request_tracker.h"
 #include "user.h"
 #include "user_proxy.h"
@@ -336,6 +338,43 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TSecurityManager::TProxyRoleTypeHandler
+    : public TObjectTypeHandlerWithMapBase<TProxyRole>
+{
+public:
+    explicit TProxyRoleTypeHandler(TImpl* owner);
+
+    virtual ETypeFlags GetFlags() const override
+    {
+        return
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
+    }
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::ProxyRole;
+    }
+
+    virtual TObject* CreateObject(
+        TObjectId hintId,
+        IAttributeDictionary* attributes) override;
+
+    virtual TAccessControlDescriptor* DoFindAcd(TProxyRole* proxyRole) override
+    {
+        return &proxyRole->Acd();
+    }
+
+private:
+    TImpl* const Owner_;
+
+    virtual IObjectProxyPtr DoGetProxy(TProxyRole* proxyRoles, TTransaction* transaction) override;
+    virtual void DoZombifyObject(TProxyRole* proxyRole) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSecurityManager::TImpl
     : public TMasterAutomatonPart
 {
@@ -403,6 +442,7 @@ public:
         objectManager->RegisterHandler(New<TUserTypeHandler>(this));
         objectManager->RegisterHandler(New<TGroupTypeHandler>(this));
         objectManager->RegisterHandler(New<TNetworkProjectTypeHandler>(this));
+        objectManager->RegisterHandler(New<TProxyRoleTypeHandler>(this));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
@@ -1372,6 +1412,56 @@ public:
         networkProject->SetName(newName);
     }
 
+    TProxyRole* CreateProxyRole(const TString& name, EProxyKind proxyKind, TObjectId hintId)
+    {
+        if (ProxyRoleNameMaps_[proxyKind].contains(name)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Proxy role %Qv with proxy kind %Qlv already exists",
+                name,
+                proxyKind);
+        }
+
+        if (name.empty()) {
+            THROW_ERROR_EXCEPTION("Proxy role name cannot be empty");
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::ProxyRole, hintId);
+        auto* proxyRole = DoCreateProxyRole(id, name, proxyKind);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Proxy role created (Name: %v, ProxyKind: %v)",
+            name,
+            proxyKind);
+        LogStructuredEventFluently(Logger, ELogLevel::Info)
+            .Item("event").Value(EAccessControlEvent::ProxyRoleCreated)
+            .Item("name").Value(name)
+            .Item("proxy_kind").Value(proxyKind);
+
+        return proxyRole;
+    }
+
+    void DestroyProxyRole(TProxyRole* proxyRole)
+    {
+        auto name = proxyRole->GetName();
+        auto proxyKind = proxyRole->GetProxyKind();
+
+        YT_VERIFY(ProxyRoleNameMaps_[proxyKind].erase(name) == 1);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Proxy role destroyed (Name: %v, ProxyKind: %v)",
+            name,
+            proxyKind);
+        LogStructuredEventFluently(Logger, ELogLevel::Info)
+            .Item("event").Value(EAccessControlEvent::ProxyRoleDestroyed)
+            .Item("name").Value(name)
+            .Item("proxy_kind").Value(proxyKind);
+    }
+
+    const THashMap<TString, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const
+    {
+        return ProxyRoleNameMaps_[proxyKind];
+    }
+
     void AddMember(TGroup* group, TSubject* member, bool ignoreExisting)
     {
         ValidateMembershipUpdate(group, member);
@@ -2071,6 +2161,7 @@ private:
     friend class TUserTypeHandler;
     friend class TGroupTypeHandler;
     friend class TNetworkProjectTypeHandler;
+    friend class TProxyRoleTypeHandler;
 
     const TRequestTrackerPtr RequestTracker_;
 
@@ -2155,6 +2246,9 @@ private:
 
     NHydra::TEntityMap<TNetworkProject> NetworkProjectMap_;
     THashMap<TString, TNetworkProject*> NetworkProjectNameMap_;
+
+    NHydra::TEntityMap<TProxyRole> ProxyRoleMap_;
+    TEnumIndexedVector<EProxyKind, THashMap<TString, TProxyRole*>> ProxyRoleNameMaps_;
 
     // COMPAT(shakurov)
     bool RecomputeAccountResourceUsage_ = false;
@@ -2350,6 +2444,21 @@ private:
         return networkProject;
     }
 
+    TProxyRole* DoCreateProxyRole(TProxyRoleId id, const TString& name, EProxyKind proxyKind)
+    {
+        auto proxyRoleHolder = std::make_unique<TProxyRole>(id);
+        proxyRoleHolder->SetName(name);
+        proxyRoleHolder->SetProxyKind(proxyKind);
+
+        auto proxyRole = ProxyRoleMap_.Insert(id, std::move(proxyRoleHolder));
+        YT_VERIFY(ProxyRoleNameMaps_[proxyKind].emplace(name, proxyRole).second);
+
+        // Make the fake reference.
+        YT_VERIFY(proxyRole->RefObject() == 1);
+
+        return proxyRole;
+    }
+
     void PropagateRecursiveMemberOf(TSubject* subject, TGroup* ancestorGroup)
     {
         bool added = subject->RecursiveMemberOf().insert(ancestorGroup).second;
@@ -2434,6 +2543,7 @@ private:
         UserMap_.SaveKeys(context);
         GroupMap_.SaveKeys(context);
         NetworkProjectMap_.SaveKeys(context);
+        ProxyRoleMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -2443,6 +2553,7 @@ private:
         GroupMap_.SaveValues(context);
         NetworkProjectMap_.SaveValues(context);
         Save(context, MustRecomputeMembershipClosure_);
+        ProxyRoleMap_.SaveValues(context);
     }
 
 
@@ -2452,6 +2563,11 @@ private:
         UserMap_.LoadKeys(context);
         GroupMap_.LoadKeys(context);
         NetworkProjectMap_.LoadKeys(context);
+
+        // COMPAT(gritukan)
+        if (context.GetVersion() >= EMasterReign::ProxyRoles) {
+            ProxyRoleMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2479,6 +2595,11 @@ private:
 
         // COMPAT(aleksandra-zh)
         NeedAdjustRootAccountLimits_ = context.GetVersion() < EMasterReign::FixRootAccountLimits;
+
+        // COMPAT(gritukan)
+        if (context.GetVersion() >= EMasterReign::ProxyRoles) {
+            ProxyRoleMap_.LoadValues(context);
+        }
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -2542,6 +2663,20 @@ private:
 
             // Reconstruct network project name map.
             YT_VERIFY(NetworkProjectNameMap_.emplace(networkProject->GetName(), networkProject).second);
+        }
+
+        for (auto proxyKind : TEnumTraits<EProxyKind>::GetDomainValues()) {
+            ProxyRoleNameMaps_[proxyKind].clear();
+        }
+        for (auto [proxyRoleId, proxyRole] : ProxyRoleMap_) {
+            if (!IsObjectAlive(proxyRole)) {
+                continue;
+            }
+
+            // Reconstruct proxy role name maps.
+            auto name = proxyRole->GetName();
+            auto proxyKind = proxyRole->GetProxyKind();
+            YT_VERIFY(ProxyRoleNameMaps_[proxyKind].emplace(name, proxyRole).second);
         }
 
         InitBuiltins();
@@ -2797,6 +2932,11 @@ private:
 
         NetworkProjectMap_.Clear();
         NetworkProjectNameMap_.clear();
+
+        ProxyRoleMap_.Clear();
+        for (auto proxyKind : TEnumTraits<EProxyKind>::GetDomainValues()) {
+            ProxyRoleNameMaps_[proxyKind].clear();
+        }
 
         RootUser_ = nullptr;
         GuestUser_ = nullptr;
@@ -3923,6 +4063,36 @@ void TSecurityManager::TNetworkProjectTypeHandler::DoZombifyObject(TNetworkProje
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSecurityManager::TProxyRoleTypeHandler::TProxyRoleTypeHandler(TImpl* owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->ProxyRoleMap_)
+    , Owner_(owner)
+{ }
+
+TObject* TSecurityManager::TProxyRoleTypeHandler::CreateObject(
+    TObjectId hintId,
+    IAttributeDictionary* attributes)
+{
+    auto name = attributes->GetAndRemove<TString>("name");
+    auto proxyKind = attributes->GetAndRemove<EProxyKind>("proxy_kind");
+
+    return Owner_->CreateProxyRole(name, proxyKind, hintId);
+}
+
+IObjectProxyPtr TSecurityManager::TProxyRoleTypeHandler::DoGetProxy(
+    TProxyRole* proxyRole,
+    TTransaction* /* transaction */)
+{
+    return CreateProxyRoleProxy(Owner_->Bootstrap_, &Metadata_, proxyRole);
+}
+
+void TSecurityManager::TProxyRoleTypeHandler::DoZombifyObject(TProxyRole* proxyRole)
+{
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(proxyRole);
+    Owner_->DestroyProxyRole(proxyRole);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSecurityManager::TSecurityManager(
     const TSecurityManagerConfigPtr& config,
     NCellMaster::TBootstrap* bootstrap)
@@ -4127,6 +4297,11 @@ TNetworkProject* TSecurityManager::FindNetworkProjectByName(const TString& name)
 void TSecurityManager::RenameNetworkProject(NYT::NSecurityServer::TNetworkProject* networkProject, const TString& newName)
 {
     Impl_->RenameNetworkProject(networkProject, newName);
+}
+
+const THashMap<TString, TProxyRole*>& TSecurityManager::GetProxyRolesWithProxyKind(EProxyKind proxyKind) const
+{
+    return Impl_->GetProxyRolesWithProxyKind(proxyKind);
 }
 
 void TSecurityManager::AddMember(TGroup* group, TSubject* member, bool ignoreExisting)

@@ -845,6 +845,8 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateUserMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateGroupMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateNetworkProjectMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateProxyRoleMapTypeHandler(this, EObjectType::HttpProxyRoleMap));
+    CypressManager_->RegisterHandler(CreateProxyRoleMapTypeHandler(this, EObjectType::RpcProxyRoleMap));
     CypressManager_->RegisterHandler(CreatePoolTreeMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellMapTypeHandler(this));

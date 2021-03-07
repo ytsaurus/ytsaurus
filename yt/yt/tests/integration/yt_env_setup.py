@@ -795,7 +795,16 @@ class YTEnvSetup(object):
                     for kwargs in list_kwargs
                 ],
                 driver=driver)
-            return [yt_commands.get_batch_output(response) for response in responses]
+            # COMPAT(gritukan)
+            object_lists = []
+            for response in responses:
+                objects = []
+                try:
+                    objects = yt_commands.get_batch_output(response)
+                except:
+                    pass
+                object_lists.append(objects)
+            return object_lists
 
         def remove_multiple_action(remove_kwargs):
             yt_commands.gc_collect(driver=driver)
