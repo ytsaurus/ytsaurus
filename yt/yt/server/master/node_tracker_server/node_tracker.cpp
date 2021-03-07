@@ -841,7 +841,7 @@ private:
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
 
     // COMPAT(gritukan)
-    bool NeedToUnregisterAllNodes_ = false;
+    bool NeedToRunCompatForNodeFlavors_ = false;
 
     using TNodeGroupList = SmallVector<TNodeGroup*, 4>;
 
@@ -1358,7 +1358,7 @@ private:
         RackMap_.LoadKeys(context);
         DataCenterMap_.LoadKeys(context);
 
-        NeedToUnregisterAllNodes_ = context.GetVersion() < EMasterReign::NodeFlavors;
+        NeedToRunCompatForNodeFlavors_ = context.GetVersion() < EMasterReign::NodeFlavors;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1464,15 +1464,23 @@ private:
         }
 
         // COMPAT(gritukan)
-        if (NeedToUnregisterAllNodes_) {
+        if (NeedToRunCompatForNodeFlavors_) {
             for (const auto& [nodeId, node] : NodeMap_) {
                 if (!IsObjectAlive(node)) {
                     continue;
                 }
-                if (node->GetLocalState() == ENodeState::Registered ||
-                    node->GetLocalState() == ENodeState::Online)
-                {
-                    UnregisterNode(node, /* propagate */ false);
+
+                node->Flavors() = {
+                    ENodeFlavor::Cluster,
+                    ENodeFlavor::Data,
+                    ENodeFlavor::Exec,
+                    ENodeFlavor::Tablet,
+                };
+
+                if (node->GetLocalState() == ENodeState::Online) {
+                    node->ReportedHeartbeats() = node->Flavors();
+                } else {
+                    node->ReportedHeartbeats() = {};
                 }
             }
         }
