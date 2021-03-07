@@ -146,6 +146,7 @@ public:
                     for (int blockIndex : blockIndexes) {
                         auto blockId = TBlockId(chunkId, blockIndex);
                         auto block = options.BlockCache->Find(blockId, EBlockType::CompressedData);
+                        options.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
                         blocks.push_back(block);
                     }
                 }
