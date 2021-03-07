@@ -154,6 +154,7 @@ DEFINE_ENUM(EMasterReign,
     ((CellDescriptorMap)                                            (1508))  // aleksandra-zh
     ((MasterAlerts)                                                 (1509))  // gritukan
     ((NodeFlavors)                                                  (1510))  // gritukan
+    ((ProxyRoles)                                                   (1511))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

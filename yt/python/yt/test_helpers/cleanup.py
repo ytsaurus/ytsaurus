@@ -48,6 +48,8 @@ def cleanup_objects(list_multiple_action, remove_multiple_action, exists_multipl
         "tablet_cells",
         "tablet_cell_bundles",
         "network_projects",
+        "http_proxy_roles",
+        "rpc_proxy_roles",
     ]
 
     if enable_secondary_cells_cleanup:

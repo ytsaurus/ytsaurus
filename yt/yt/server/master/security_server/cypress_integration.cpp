@@ -4,6 +4,7 @@
 #include "group.h"
 #include "user.h"
 #include "network_project.h"
+#include "proxy_role.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
@@ -303,6 +304,82 @@ INodeTypeHandlerPtr CreateNetworkProjectMapTypeHandler(TBootstrap* bootstrap)
         EObjectType::NetworkProjectMap,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualNetworkProjectMap>(bootstrap, owningNode);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualProxyRoleMap
+    : public TVirtualMapBase
+{
+public:
+    TVirtualProxyRoleMap(TBootstrap* bootstrap, INodePtr owningNode, EObjectType type)
+        : TVirtualMapBase(std::move(owningNode))
+        , Bootstrap_(bootstrap)
+        , Type_(type)
+    { }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    const EObjectType Type_;
+
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    {
+        return ToNames(GetValues(GetProxyRoles(), sizeLimit));
+    }
+
+    virtual i64 GetSize() const override
+    {
+        return GetProxyRoles().size();
+    }
+
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        const auto& proxyRoles = GetProxyRoles();
+        auto proxyRolesIt = proxyRoles.find(static_cast<TString>(key));
+        if (proxyRolesIt == proxyRoles.end()) {
+            return nullptr;
+        }
+
+        auto* proxyRole = proxyRolesIt->second;
+        if (!IsObjectAlive(proxyRole)) {
+            return nullptr;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(proxyRole);
+    }
+
+    const THashMap<TString, TProxyRole*>& GetProxyRoles() const
+    {
+        EProxyKind proxyKind;
+        switch (Type_) {
+            case EObjectType::HttpProxyRoleMap:
+                proxyKind = EProxyKind::Http;
+                break;
+            case EObjectType::RpcProxyRoleMap:
+                proxyKind = EProxyKind::Rpc;
+                break;
+            default:
+                YT_ABORT();
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        return securityManager->GetProxyRolesWithProxyKind(proxyKind);
+    }
+};
+
+INodeTypeHandlerPtr CreateProxyRoleMapTypeHandler(TBootstrap* bootstrap, EObjectType type)
+{
+    YT_VERIFY(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        type,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualProxyRoleMap>(bootstrap, owningNode, type);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

@@ -12,6 +12,9 @@ NCypressServer::INodeTypeHandlerPtr CreateAccountMapTypeHandler(NCellMaster::TBo
 NCypressServer::INodeTypeHandlerPtr CreateUserMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 NCypressServer::INodeTypeHandlerPtr CreateGroupMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 NCypressServer::INodeTypeHandlerPtr CreateNetworkProjectMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateProxyRoleMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap,
+    NObjectClient::EObjectType type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

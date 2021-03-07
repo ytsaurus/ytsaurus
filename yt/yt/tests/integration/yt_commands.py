@@ -1719,6 +1719,19 @@ def remove_network_project(name, **kwargs):
     remove("//sys/network_projects/" + name, **kwargs)
 
 
+def create_proxy_role(name, proxy_kind, **kwargs):
+    kwargs["type"] = "proxy_role"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    kwargs["attributes"]["proxy_kind"] = proxy_kind
+    execute_command("create", kwargs)
+
+
+def remove_proxy_role(name, proxy_kind, **kwargs):
+    remove("//sys/{}_proxy_roles/{}".format(proxy_kind, name), **kwargs)
+
+
 def create_tablet_cell(**kwargs):
     kwargs["type"] = "tablet_cell"
     if "attributes" not in kwargs:

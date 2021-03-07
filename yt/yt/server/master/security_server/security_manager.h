@@ -137,7 +137,7 @@ public:
     //! Returns account with a given name (throws if none).
     TAccount* GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly);
 
-    
+
     //! Returns "root" built-in account.
     TAccount* GetRootAccount();
 
@@ -159,7 +159,7 @@ public:
      */
     TAccount* GetChunkWiseAccountingMigrationAccount();
 
-    
+
     using TViolatedResourceLimits = TClusterResourceLimits;
     //! Returns recursive violated resource limits for account's subtree.
     TViolatedResourceLimits GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const;
@@ -206,7 +206,7 @@ public:
     //! Recomputes the transaction per-account usage statistics from scratch.
     void RecomputeTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction);
 
-    
+
     //! Assigns node to a given account, updates the total resource usage.
     void SetAccount(
         NCypressServer::TCypressNode* node,
@@ -282,6 +282,11 @@ public:
     void RenameNetworkProject(TNetworkProject* networkProject, const TString& newName);
 
 
+    //! Returns a map from proxy role name to proxy role for proxy roles
+    //! with a given proxy kind.
+    const THashMap<TString, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const;
+
+
     //! Returns the object ACD or |nullptr| if access is not controlled.
     TAccessControlDescriptor* FindAcd(NObjectServer::TObject* object);
 
@@ -309,7 +314,7 @@ public:
     //! Returns |true| if safe mode is active.
     bool IsSafeMode();
 
-    
+
     //! Checks if #object ACL allows access with #permission.
     /*!
      *  NB: All permission checked are suppressed (== always succeed)
@@ -425,6 +430,7 @@ private:
     class TUserTypeHandler;
     class TGroupTypeHandler;
     class TNetworkProjectTypeHandler;
+    class TProxyRoleTypeHandler;
 
     const TIntrusivePtr<TImpl> Impl_;
 
