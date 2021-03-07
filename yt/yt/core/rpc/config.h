@@ -28,13 +28,7 @@ public:
     bool EnablePerUserProfiling;
     ERequestTracingMode TracingMode;
 
-    TServiceCommonConfig()
-    {
-        RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
-            .Default(false);
-        RegisterParameter("tracing_mode", TracingMode)
-            .Default(ERequestTracingMode::Enable);
-    }
+    TServiceCommonConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceCommonConfig)
@@ -47,11 +41,7 @@ class TServerConfig
 public:
     THashMap<TString, NYTree::INodePtr> Services;
 
-    TServerConfig()
-    {
-        RegisterParameter("services", Services)
-            .Default();
-    }
+    TServerConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerConfig)
@@ -64,29 +54,11 @@ class TServiceConfig
 public:
     std::optional<bool> EnablePerUserProfiling;
     std::optional<ERequestTracingMode> TracingMode;
-
     THashMap<TString, TMethodConfigPtr> Methods;
+    std::optional<int> AuthenticationQueueSizeLimit;
+    std::optional<TDuration> PendingPayloadsTimeout;
 
-    static const int DefaultAuthenticationQueueSizeLimit;
-    int AuthenticationQueueSizeLimit;
-
-    static const TDuration DefaultPendingPayloadsTimeout;
-    TDuration PendingPayloadsTimeout;
-
-    TServiceConfig()
-    {
-        RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
-            .Optional();
-        RegisterParameter("tracing_mode", TracingMode)
-            .Optional();
-        RegisterParameter("methods", Methods)
-            .Optional();
-        RegisterParameter("authentication_queue_size_limit", AuthenticationQueueSizeLimit)
-            .Alias("max_authentication_queue_size")
-            .Default(DefaultAuthenticationQueueSizeLimit);
-        RegisterParameter("pending_payloads_timeout", PendingPayloadsTimeout)
-            .Default(DefaultPendingPayloadsTimeout);
-    }
+    TServiceConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceConfig)
@@ -97,49 +69,16 @@ class TMethodConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    static const bool DefaultHeavy;
-    bool Heavy;
-
-    static const int DefaultQueueSizeLimit;
-    int QueueSizeLimit;
-
-    static const int DefaultConcurrencyLimit;
-    int ConcurrencyLimit;
-
-    static const NLogging::ELogLevel DefaultLogLevel;
-    NLogging::ELogLevel LogLevel;
-
-    static const TDuration DefaultLoggingSuppressionTimeout;
-    TDuration LoggingSuppressionTimeout;
-
+    std::optional<bool> Heavy;
+    std::optional<int> QueueSizeLimit;
+    std::optional<int> ConcurrencyLimit;
+    std::optional<NLogging::ELogLevel> LogLevel;
+    std::optional<TDuration> LoggingSuppressionTimeout;
     NConcurrency::TThroughputThrottlerConfigPtr RequestBytesThrottler;
-
-    static const NConcurrency::TThroughputThrottlerConfigPtr DefaultLoggingSuppressionFailedRequestThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr LoggingSuppressionFailedRequestThrottler;
-
     std::optional<ERequestTracingMode> TracingMode;
 
-    TMethodConfig()
-    {
-        RegisterParameter("heavy", Heavy)
-            .Default(DefaultHeavy);
-        RegisterParameter("queue_size_limit", QueueSizeLimit)
-            .Alias("max_queue_size")
-            .Default(DefaultQueueSizeLimit);
-        RegisterParameter("concurrency_limit", ConcurrencyLimit)
-            .Alias("max_concurrency")
-            .Default(DefaultConcurrencyLimit);
-        RegisterParameter("log_level", LogLevel)
-            .Default(DefaultLogLevel);
-        RegisterParameter("request_bytes_throttler", RequestBytesThrottler)
-            .Default();
-        RegisterParameter("logging_suppression_timeout", LoggingSuppressionTimeout)
-            .Default(DefaultLoggingSuppressionTimeout);
-        RegisterParameter("logging_suppression_failed_request_throttler", LoggingSuppressionFailedRequestThrottler)
-            .Default(DefaultLoggingSuppressionFailedRequestThrottler);
-        RegisterParameter("tracing_mode", TracingMode)
-            .Optional();
-    }
+    TMethodConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TMethodConfig)
@@ -160,17 +99,7 @@ public:
     //! If null then no limit is enforced.
     std::optional<TDuration> RetryTimeout;
 
-    TRetryingChannelConfig()
-    {
-        RegisterParameter("retry_backoff_time", RetryBackoffTime)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("retry_attempts", RetryAttempts)
-            .GreaterThanOrEqual(1)
-            .Default(10);
-        RegisterParameter("retry_timeout", RetryTimeout)
-            .GreaterThanOrEqual(TDuration::Zero())
-            .Default();
-    }
+    TRetryingChannelConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRetryingChannelConfig)
@@ -209,21 +138,7 @@ public:
     //! returns a soft failure (i.e. "down" response) to |Discover| request.
     TDuration SoftBackoffTime;
 
-    TBalancingChannelConfigBase()
-    {
-        RegisterParameter("discover_timeout", DiscoverTimeout)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("acknowledgement_timeout", AcknowledgementTimeout)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("rediscover_period", RediscoverPeriod)
-            .Default(TDuration::Seconds(60));
-        RegisterParameter("rediscover_splay", RediscoverSplay)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("hard_backoff_time", HardBackoffTime)
-            .Default(TDuration::Seconds(60));
-        RegisterParameter("soft_backoff_time", SoftBackoffTime)
-            .Default(TDuration::Seconds(15));
-    }
+    TBalancingChannelConfigBase();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -246,20 +161,7 @@ public:
     //! random peer could be evicted after #RandomPeerEvictionPeriod.
     TDuration RandomPeerEvictionPeriod;
 
-    TDynamicChannelPoolConfig()
-    {
-        RegisterParameter("max_concurrent_discover_requests", MaxConcurrentDiscoverRequests)
-            .GreaterThan(0)
-            .Default(10);
-        RegisterParameter("hashes_per_peer", HashesPerPeer)
-            .GreaterThan(0)
-            .Default(10);
-        RegisterParameter("max_peer_count", MaxPeerCount)
-            .GreaterThan(1)
-            .Default(100);
-        RegisterParameter("random_peer_eviction_period", RandomPeerEvictionPeriod)
-            .Default(TDuration::Minutes(1));
-    }
+    TDynamicChannelPoolConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChannelPoolConfig)
@@ -274,13 +176,7 @@ public:
     TString EndpointSetId;
     TDuration UpdatePeriod;
 
-    TServiceDiscoveryEndpointsConfig()
-    {
-        RegisterParameter("cluster", Cluster);
-        RegisterParameter("endpoint_set_id", EndpointSetId);
-        RegisterParameter("update_period", UpdatePeriod)
-            .Default(TDuration::Seconds(60));
-    }
+    TServiceDiscoveryEndpointsConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceDiscoveryEndpointsConfig)
@@ -297,26 +193,7 @@ public:
     //! Second option: SD endpoints.
     TServiceDiscoveryEndpointsConfigPtr Endpoints;
 
-    TBalancingChannelConfig()
-    {
-        RegisterParameter("addresses", Addresses)
-            .Optional();
-        RegisterParameter("endpoints", Endpoints)
-            .Optional();
-
-        RegisterPostprocessor([&] {
-            int endpointConfigCount = 0;
-            if (Addresses) {
-                ++endpointConfigCount;
-            }
-            if (Endpoints) {
-                ++endpointConfigCount;
-            }
-            if (endpointConfigCount != 1) {
-                THROW_ERROR_EXCEPTION("Exactly one of \"addresses\" and \"endpoints\" must be specified");
-            }
-        });
-    }
+    TBalancingChannelConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBalancingChannelConfig)
@@ -330,12 +207,7 @@ public:
     //! Maximum allowed number of requests per second.
     int RateLimit;
 
-    TThrottlingChannelConfig()
-    {
-        RegisterParameter("rate_limit", RateLimit)
-            .GreaterThan(0)
-            .Default(10);
-    }
+    TThrottlingChannelConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TThrottlingChannelConfig)
@@ -348,12 +220,7 @@ class TThrottlingChannelDynamicConfig
 public:
     std::optional<int> RateLimit;
 
-    TThrottlingChannelDynamicConfig()
-    {
-        RegisterParameter("rate_limit", RateLimit)
-            .GreaterThan(0)
-            .Optional();
-    }
+    TThrottlingChannelDynamicConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TThrottlingChannelDynamicConfig)
@@ -377,22 +244,7 @@ public:
     //! For how long the keeper remains passive after start and merely collects all responses.
     TDuration WarmupTime;
 
-    TResponseKeeperConfig()
-    {
-        RegisterParameter("expiration_time", ExpirationTime)
-            .Default(TDuration::Minutes(5));
-        RegisterParameter("max_eviction_busy_time", MaxEvictionTickTime)
-            .Default(TDuration::MilliSeconds(10));
-        RegisterParameter("enable_warmup", EnableWarmup)
-            .Default(true);
-        RegisterParameter("warmup_time", WarmupTime)
-            .Default(TDuration::Minutes(6));
-        RegisterPostprocessor([&] () {
-            if (EnableWarmup && WarmupTime < ExpirationTime) {
-                THROW_ERROR_EXCEPTION("\"warmup_time\" cannot be less than \"expiration_time\"");
-            }
-        });
-    }
+    TResponseKeeperConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TResponseKeeperConfig)
@@ -406,14 +258,7 @@ public:
     int TosLevel;
     THashMap<TString, int> NetworkToTosLevel;
 
-    TMultiplexingBandConfig()
-    {
-        RegisterParameter("tos_level", TosLevel)
-            .Default(NYT::NBus::DefaultTosLevel);
-
-        RegisterParameter("network_to_tos_level", NetworkToTosLevel)
-            .Default();
-    }
+    TMultiplexingBandConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiplexingBandConfig)

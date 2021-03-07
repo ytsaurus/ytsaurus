@@ -49,6 +49,11 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto DefaultRequestBytesThrottlerConfig = New<TThroughputThrottlerConfig>();
+static const auto DefaultLoggingSuppressionFailedRequestThrottlerConfig = New<TThroughputThrottlerConfig>(1'000);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TServiceBase::TMethodDescriptor::TMethodDescriptor(
     TString method,
     TLiteHandler liteHandler,
@@ -136,12 +141,6 @@ auto TServiceBase::TMethodDescriptor::SetPooled(bool value) -> TMethodDescriptor
     return *this;
 }
 
-auto TServiceBase::TMethodDescriptor::SetRequestBytesThrottler(TThroughputThrottlerConfigPtr config) -> TMethodDescriptor&
-{
-    RequestBytesThrottlerConfig = std::move(config);
-    return *this;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TProfiler& registry)
@@ -167,14 +166,9 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     : Descriptor(descriptor)
     , Registry(registry.WithTag("method", descriptor.Method, -1))
     , RequestBytesThrottler(
-        CreateReconfigurableThroughputThrottler(
-            Descriptor.RequestBytesThrottlerConfig
-            ? Descriptor.RequestBytesThrottlerConfig
-            : New<TThroughputThrottlerConfig>()
-        ))
-    , RequestBytesThrottlerSpecified(static_cast<bool>(Descriptor.RequestBytesThrottlerConfig))
+        CreateReconfigurableThroughputThrottler(DefaultRequestBytesThrottlerConfig))
     , LoggingSuppressionFailedRequestThrottler(
-        CreateReconfigurableThroughputThrottler(TMethodConfig::DefaultLoggingSuppressionFailedRequestThrottler))
+        CreateReconfigurableThroughputThrottler(DefaultLoggingSuppressionFailedRequestThrottlerConfig))
 {
     Registry.AddFuncGauge("/request_queue_size", MakeStrong(this), [this] {
         return QueueSize.load(std::memory_order_relaxed);
@@ -204,7 +198,7 @@ public:
             std::move(acceptedRequest.Header),
             std::move(acceptedRequest.Message),
             logger,
-            acceptedRequest.RuntimeInfo->Descriptor.LogLevel)
+            acceptedRequest.RuntimeInfo->LogLevel.load(std::memory_order_relaxed))
         , Service_(std::move(service))
         , RequestId_(acceptedRequest.RequestId)
         , ReplyBus_(std::move(acceptedRequest.ReplyBus))
@@ -784,10 +778,9 @@ private:
 
     void HandleLoggingSuppression()
     {
-        auto timeout = RuntimeInfo_->Descriptor.LoggingSuppressionTimeout;
-        if (RequestHeader_->has_logging_suppression_timeout()) {
-            timeout = FromProto<TDuration>(RequestHeader_->logging_suppression_timeout());
-        }
+        auto timeout = RequestHeader_->has_logging_suppression_timeout()
+            ? FromProto<TDuration>(RequestHeader_->logging_suppression_timeout())
+            : RuntimeInfo_->LoggingSuppressionTimeout.load(std::memory_order_relaxed);
 
         if (TotalTime_ >= timeout) {
             return;
@@ -1098,7 +1091,7 @@ void TServiceBase::HandleRequest(
     }
 
     // Not actually atomic but should work fine as long as some small error is OK.
-    auto queueSizeLimit = runtimeInfo->Descriptor.QueueSizeLimit;
+    auto queueSizeLimit = runtimeInfo->QueueSizeLimit.load(std::memory_order_relaxed);
     if (runtimeInfo->QueueSize.load() > queueSizeLimit) {
         replyError(TError(
             NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
@@ -1395,7 +1388,7 @@ void TServiceBase::OnReplyBusTerminated(const IBusPtr& bus, const TError& error)
 bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
     auto& semaphore = runtimeInfo->ConcurrencySemaphore;
-    auto limit = runtimeInfo->Descriptor.ConcurrencyLimit;
+    auto limit = runtimeInfo->ConcurrencyLimit.load(std::memory_order_relaxed);
     auto current = semaphore.load(std::memory_order_relaxed);
     while (true) {
         if (current >= limit) {
@@ -1465,7 +1458,8 @@ void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 void TServiceBase::RunRequest(const TServiceContextPtr& context)
 {
     const auto& runtimeInfo = context->GetRuntimeInfo();
-    const auto& options = runtimeInfo->Descriptor.Options;
+    auto options = runtimeInfo->Descriptor.Options
+        .SetHeavy(runtimeInfo->Heavy.load(std::memory_order_relaxed));
     if (options.Heavy) {
         BIND(runtimeInfo->Descriptor.HeavyHandler)
             .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
@@ -1656,11 +1650,19 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
     ValidateInactive();
 
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, ProfilingRegistry_);
+
     runtimeInfo->GlobalPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, std::nullopt);
     runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, RootUserName);
 
+    runtimeInfo->Heavy.store(descriptor.Options.Heavy);
+    runtimeInfo->QueueSizeLimit.store(descriptor.QueueSizeLimit);
+    runtimeInfo->ConcurrencyLimit.store(descriptor.ConcurrencyLimit);
+    runtimeInfo->LogLevel.store(descriptor.LogLevel);
+    runtimeInfo->LoggingSuppressionTimeout.store(descriptor.LoggingSuppressionTimeout);
+
     // Failure here means that such method is already registered.
     YT_VERIFY(MethodMap_.emplace(descriptor.Method, runtimeInfo).second);
+
     return runtimeInfo;
 }
 
@@ -1676,7 +1678,9 @@ void TServiceBase::ValidateRequestFeatures(const IServiceContextPtr& context)
     }
 }
 
-void TServiceBase::DoConfigure(TServiceCommonConfigPtr configDefaults, TServiceConfigPtr config)
+void TServiceBase::DoConfigure(
+    const TServiceCommonConfigPtr& configDefaults,
+    const TServiceConfigPtr& config)
 {
     try {
         YT_LOG_DEBUG("Configuring RPC service (Service: %v)",
@@ -1688,33 +1692,30 @@ void TServiceBase::DoConfigure(TServiceCommonConfigPtr configDefaults, TServiceC
         }
 
         EnablePerUserProfiling_.store(config->EnablePerUserProfiling.value_or(configDefaults->EnablePerUserProfiling));
-        AuthenticationQueueSizeLimit_.store(config->AuthenticationQueueSizeLimit);
-        PendingPayloadsTimeout_.store(config->PendingPayloadsTimeout);
+        AuthenticationQueueSizeLimit_.store(config->AuthenticationQueueSizeLimit.value_or(DefaultAuthenticationQueueSizeLimit));
+        PendingPayloadsTimeout_.store(config->PendingPayloadsTimeout.value_or(DefaultPendingPayloadsTimeout));
 
         for (const auto& [methodName, runtimeInfo] : MethodMap_) {
-            TMethodConfigPtr methodConfig;
-            if (auto it = config->Methods.find(methodName)) {
-                methodConfig = it->second;
-            } else {
-                methodConfig = New<TMethodConfig>();
-            }
+            auto methodIt = config->Methods.find(methodName);
+            auto methodConfig = methodIt ? methodIt->second : New<TMethodConfig>();
 
-            // TODO(babenko): fix races here
-            auto& descriptor = runtimeInfo->Descriptor;
-            descriptor.SetHeavy(methodConfig->Heavy);
-            descriptor.SetQueueSizeLimit(methodConfig->QueueSizeLimit);
-            descriptor.SetConcurrencyLimit(methodConfig->ConcurrencyLimit);
-            descriptor.SetLogLevel(methodConfig->LogLevel);
-            descriptor.SetLoggingSuppressionTimeout(methodConfig->LoggingSuppressionTimeout);
+            const auto& descriptor = runtimeInfo->Descriptor;
+            runtimeInfo->Heavy.store(methodConfig->Heavy.value_or(descriptor.Options.Heavy));
+            runtimeInfo->QueueSizeLimit.store(methodConfig->QueueSizeLimit.value_or(descriptor.QueueSizeLimit));
+            runtimeInfo->ConcurrencyLimit.store(methodConfig->ConcurrencyLimit.value_or(descriptor.ConcurrencyLimit));
+            runtimeInfo->LogLevel.store(methodConfig->LogLevel.value_or(descriptor.LogLevel));
+            runtimeInfo->LoggingSuppressionTimeout.store(methodConfig->LoggingSuppressionTimeout.value_or(descriptor.LoggingSuppressionTimeout));
 
             auto requestBytesThrottlerConfig = methodConfig->RequestBytesThrottler
                 ? methodConfig->RequestBytesThrottler
-                : New<TThroughputThrottlerConfig>();
+                : DefaultRequestBytesThrottlerConfig;
             runtimeInfo->RequestBytesThrottler->Reconfigure(requestBytesThrottlerConfig);
             runtimeInfo->RequestBytesThrottlerSpecified.store(methodConfig->RequestBytesThrottler.operator bool());
 
-            runtimeInfo->LoggingSuppressionFailedRequestThrottler->Reconfigure(
-                methodConfig->LoggingSuppressionFailedRequestThrottler);
+            auto loggingSuppressionFailedRequestThrottlerConfig = methodConfig->LoggingSuppressionFailedRequestThrottler
+                ? methodConfig->LoggingSuppressionFailedRequestThrottler
+                : DefaultLoggingSuppressionFailedRequestThrottlerConfig;
+            runtimeInfo->LoggingSuppressionFailedRequestThrottler->Reconfigure(loggingSuppressionFailedRequestThrottlerConfig);
 
             runtimeInfo->TracingMode.store(
                 methodConfig->TracingMode.value_or(
@@ -1728,7 +1729,9 @@ void TServiceBase::DoConfigure(TServiceCommonConfigPtr configDefaults, TServiceC
     }
 }
 
-void TServiceBase::Configure(TServiceCommonConfigPtr configDefaults, INodePtr configNode)
+void TServiceBase::Configure(
+    const TServiceCommonConfigPtr& configDefaults,
+    const INodePtr& configNode)
 {
     TServiceConfigPtr config;
     if (configNode) {
@@ -1742,7 +1745,7 @@ void TServiceBase::Configure(TServiceCommonConfigPtr configDefaults, INodePtr co
     } else {
         config = New<TServiceConfig>();
     }
-    DoConfigure(std::move(configDefaults), std::move(config));
+    DoConfigure(configDefaults, config);
 }
 
 TFuture<void> TServiceBase::Stop()
