@@ -7,6 +7,62 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TWriterConfig::TWriterConfig()
+{
+    RegisterParameter("type", Type);
+    RegisterParameter("file_name", FileName)
+        .Default();
+    RegisterParameter("accepted_message_format", AcceptedMessageFormat)
+        .Default(ELogMessageFormat::PlainText);
+    RegisterParameter("rate_limit", RateLimit)
+        .Default();
+    RegisterParameter("enable_compression", EnableCompression)
+        .Default(false);
+    RegisterParameter("compression_method", CompressionMethod)
+        .Default(ECompressionMethod::Gzip);
+    RegisterParameter("compression_level", CompressionLevel)
+        .Default(6);
+    RegisterParameter("common_fields", CommonFields)
+        .Default();
+    RegisterParameter("enable_system_messages", EnableSystemMessages)
+        .Alias("enable_control_messages")
+        .Default(true);
+    RegisterParameter("enable_source_location", EnableSourceLocation)
+        .Default(false);
+
+    RegisterPostprocessor([&] () {
+        if (Type == EWriterType::File && FileName.empty()) {
+            THROW_ERROR_EXCEPTION("Missing \"file_name\" attribute for \"file\" writer");
+        } else if (Type != EWriterType::File && !FileName.empty()) {
+            THROW_ERROR_EXCEPTION("Unused \"file_name\" attribute for %Qlv writer", Type);
+        }
+
+        if (CompressionMethod == ECompressionMethod::Gzip && (CompressionLevel < 0 || CompressionLevel > 9)) {
+            THROW_ERROR_EXCEPTION("Invalid \"compression_level\" attribute for \"gzip\" compression method");
+        } else if (CompressionMethod == ECompressionMethod::Zstd && CompressionLevel > 22) {
+            THROW_ERROR_EXCEPTION("Invalid \"compression_level\" attribute for \"zstd\" compression method");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRuleConfig::TRuleConfig()
+{
+    RegisterParameter("include_categories", IncludeCategories)
+        .Default();
+    RegisterParameter("exclude_categories", ExcludeCategories)
+        .Default();
+    RegisterParameter("min_level", MinLevel)
+        .Default(ELogLevel::Minimum);
+    RegisterParameter("max_level", MaxLevel)
+        .Default(ELogLevel::Maximum);
+    RegisterParameter("message_format", MessageFormat)
+        .Default(ELogMessageFormat::PlainText);
+    RegisterParameter("writers", Writers)
+        .NonEmpty();
+}
+
 bool TRuleConfig::IsApplicable(TStringBuf category, ELogMessageFormat format) const
 {
     return
@@ -23,6 +79,77 @@ bool TRuleConfig::IsApplicable(TStringBuf category, ELogLevel level, ELogMessage
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TLogManagerConfig::TLogManagerConfig()
+{
+    RegisterParameter("flush_period", FlushPeriod)
+        .Default();
+    RegisterParameter("watch_period", WatchPeriod)
+        .Default();
+    RegisterParameter("check_space_period", CheckSpacePeriod)
+        .Default();
+    RegisterParameter("min_disk_space", MinDiskSpace)
+        .GreaterThanOrEqual(1_GB)
+        .Default(5_GB);
+    RegisterParameter("high_backlog_watermark", HighBacklogWatermark)
+        .GreaterThan(0)
+        .Default(10'000'000);
+    RegisterParameter("low_backlog_watermark", LowBacklogWatermark)
+        .GreaterThan(0)
+        .Default(1'000'000);
+    RegisterParameter("shutdown_grace_timeout", ShutdownGraceTimeout)
+        .Default(TDuration::Seconds(1));
+
+    RegisterParameter("writers", Writers);
+    RegisterParameter("rules", Rules);
+    RegisterParameter("suppressed_messages", SuppressedMessages)
+        .Default();
+    RegisterParameter("category_rate_limits", CategoryRateLimits)
+        .Default();
+
+    RegisterParameter("request_suppression_timeout", RequestSuppressionTimeout)
+        .Alias("trace_suppression_timeout")
+        .Default(TDuration::Zero());
+
+    RegisterParameter("abort_on_alert", AbortOnAlert)
+        .Default(false);
+
+    RegisterPostprocessor([&] () {
+        for (const auto& rule : Rules) {
+            for (const TString& writer : rule->Writers) {
+                auto it = Writers.find(writer);
+                if (it == Writers.end()) {
+                    THROW_ERROR_EXCEPTION("Unknown writer %Qv", writer);
+                }
+                if (rule->MessageFormat != it->second->AcceptedMessageFormat) {
+                    THROW_ERROR_EXCEPTION("Writer %Qv does not accept message format %Qv",
+                        writer,
+                        rule->MessageFormat);
+                }
+            }
+        }
+    });
+}
+
+TLogManagerConfigPtr TLogManagerConfig::ApplyDynamic(const TLogManagerDynamicConfigPtr& dynamicConfig) const
+{
+    auto mergedConfig = New<TLogManagerConfig>();
+    mergedConfig->FlushPeriod = FlushPeriod;
+    mergedConfig->WatchPeriod = WatchPeriod;
+    mergedConfig->CheckSpacePeriod = CheckSpacePeriod;
+    mergedConfig->MinDiskSpace = dynamicConfig->MinDiskSpace.value_or(MinDiskSpace);
+    mergedConfig->HighBacklogWatermark = dynamicConfig->HighBacklogWatermark.value_or(HighBacklogWatermark);
+    mergedConfig->LowBacklogWatermark = dynamicConfig->LowBacklogWatermark.value_or(LowBacklogWatermark);
+    mergedConfig->ShutdownGraceTimeout = ShutdownGraceTimeout;
+    mergedConfig->Rules = CloneYsonSerializables(dynamicConfig->Rules.value_or(Rules));
+    mergedConfig->Writers = CloneYsonSerializables(Writers);
+    mergedConfig->SuppressedMessages = dynamicConfig->SuppressedMessages.value_or(SuppressedMessages);
+    mergedConfig->CategoryRateLimits = dynamicConfig->CategoryRateLimits.value_or(CategoryRateLimits);
+    mergedConfig->RequestSuppressionTimeout = dynamicConfig->RequestSuppressionTimeout.value_or(RequestSuppressionTimeout);
+    mergedConfig->AbortOnAlert = dynamicConfig->AbortOnAlert.value_or(AbortOnAlert);
+    mergedConfig->Postprocess();
+    return mergedConfig;
+}
 
 TLogManagerConfigPtr TLogManagerConfig::CreateLogFile(const TString& path)
 {
@@ -185,6 +312,31 @@ TLogManagerConfigPtr TLogManagerConfig::TryCreateFromEnv()
     config->Writers.emplace(stderrWriterName, std::move(stderrWriter));
 
     return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLogManagerDynamicConfig::TLogManagerDynamicConfig()
+{
+    RegisterParameter("min_disk_space", MinDiskSpace)
+        .Optional();
+    RegisterParameter("high_backlog_watermark", HighBacklogWatermark)
+        .Optional();
+    RegisterParameter("low_backlog_watermark", LowBacklogWatermark)
+        .Optional();
+
+    RegisterParameter("rules", Rules)
+        .Optional();
+    RegisterParameter("suppressed_messages", SuppressedMessages)
+        .Optional();
+    RegisterParameter("category_rate_limits", CategoryRateLimits)
+        .Optional();
+
+    RegisterParameter("request_suppression_timeout", RequestSuppressionTimeout)
+        .Optional();
+
+    RegisterParameter("abort_on_alert", AbortOnAlert)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

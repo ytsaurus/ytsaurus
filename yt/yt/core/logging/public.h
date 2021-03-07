@@ -38,6 +38,7 @@ DEFINE_ENUM(ECompressionMethod,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TLogManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TLogManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TFormatterConfig)
 DECLARE_REFCOUNTED_CLASS(TWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TRuleConfig)

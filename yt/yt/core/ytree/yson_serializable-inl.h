@@ -587,9 +587,31 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::RegisterParameter(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline TIntrusivePtr<T> CloneYsonSerializable(const TIntrusivePtr<T>& obj)
+TIntrusivePtr<T> CloneYsonSerializable(const TIntrusivePtr<T>& obj)
 {
     return NYTree::ConvertTo<TIntrusivePtr<T>>(NYTree::ConvertToYsonString(*obj));
+}
+
+template <class T>
+std::vector<TIntrusivePtr<T>> CloneYsonSerializables(const std::vector<TIntrusivePtr<T>>& objs)
+{
+    std::vector<TIntrusivePtr<T>> clonedObjs;
+    clonedObjs.reserve(objs.size());
+    for (const auto& obj : objs) {
+        clonedObjs.push_back(CloneYsonSerializable(obj));
+    }
+    return clonedObjs;
+}
+
+template <class T>
+THashMap<TString, TIntrusivePtr<T>> CloneYsonSerializables(const THashMap<TString, TIntrusivePtr<T>>& objs)
+{
+    THashMap<TString, TIntrusivePtr<T>> clonedObjs;
+    clonedObjs.reserve(objs.size());
+    for (const auto& [key, obj] : objs) {
+        clonedObjs.emplace(key, CloneYsonSerializable(obj));
+    }
+    return clonedObjs;
 }
 
 template <class T>

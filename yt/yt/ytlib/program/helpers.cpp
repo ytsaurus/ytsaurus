@@ -84,6 +84,24 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
     NProfiling::TProfileManager::Get()->Start();
 }
 
+void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletonsDynamicConfigPtr& dynamicConfig)
+{
+    NConcurrency::SetSpinlockHiccupThresholdTicks(NProfiling::DurationToCpuDuration(
+        dynamicConfig->SpinlockHiccupThreshold.value_or(config->SpinlockHiccupThreshold)));
+
+    if (!NYTAlloc::IsConfiguredFromEnv()) {
+        NYTAlloc::Configure(dynamicConfig->YTAlloc ? dynamicConfig->YTAlloc : config->YTAlloc);
+    }
+
+    if (!NLogging::TLogManager::Get()->IsConfiguredFromEnv()) {
+        NLogging::TLogManager::Get()->Configure(config->Logging->ApplyDynamic(dynamicConfig->Logging));
+    }
+
+    NRpc::TDispatcher::Get()->Configure(config->RpcDispatcher->ApplyDynamic(dynamicConfig->RpcDispatcher));
+
+    NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher->ApplyDynamic(dynamicConfig->ChunkClientDispatcher));
+}
+
 void StartDiagnosticDump(const TDiagnosticDumpConfigPtr& config)
 {
     static NLogging::TLogger Logger("DiagDump");
