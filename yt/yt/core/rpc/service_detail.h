@@ -127,7 +127,7 @@ struct THandlerInvocationOptions
 {
     //! Should we be deserializing the request and serializing the request
     //! in a separate thread?
-    bool Heavy = TMethodConfig::DefaultHeavy;
+    bool Heavy = false;
 
     //! In case the client has provided "none" response codec, this value is used instead.
     NCompression::ECodec ResponseCodec = NCompression::ECodec::None;
@@ -420,8 +420,8 @@ class TServiceBase
 {
 public:
     virtual void Configure(
-        TServiceCommonConfigPtr configDefaults,
-        NYTree::INodePtr configNode) override;
+        const TServiceCommonConfigPtr& configDefaults,
+        const NYTree::INodePtr& configNode) override;
     virtual TFuture<void> Stop() override;
 
     virtual const TServiceId& GetServiceId() const override;
@@ -478,10 +478,10 @@ protected:
         THandlerInvocationOptions Options;
 
         //! Maximum number of requests in queue (both waiting and executing).
-        int QueueSizeLimit = TMethodConfig::DefaultQueueSizeLimit;
+        int QueueSizeLimit = 10'000;
 
         //! Maximum number of requests executing concurrently.
-        int ConcurrencyLimit = TMethodConfig::DefaultConcurrencyLimit;
+        int ConcurrencyLimit = 10'000;
 
         //! System requests are completely transparent to derived classes;
         //! in particular, |BeforeInvoke| is not called.
@@ -489,10 +489,10 @@ protected:
         bool System = false;
 
         //! Log level for events emitted via |Set(Request|Response)Info|-like functions.
-        NLogging::ELogLevel LogLevel = TMethodConfig::DefaultLogLevel;
+        NLogging::ELogLevel LogLevel = NLogging::ELogLevel::Debug;
 
         //! Logging suppression timeout for this method requests.
-        TDuration LoggingSuppressionTimeout = TMethodConfig::DefaultLoggingSuppressionTimeout;
+        TDuration LoggingSuppressionTimeout = TDuration::Zero();
 
         //! Cancelable requests can be canceled by clients.
         //! This, however, requires additional book-keeping at server-side so one is advised
@@ -511,8 +511,6 @@ protected:
         //! If |true| then requests and responses are pooled.
         bool Pooled = true;
 
-        NConcurrency::TThroughputThrottlerConfigPtr RequestBytesThrottlerConfig;
-
         TMethodDescriptor& SetInvoker(IInvokerPtr value);
         TMethodDescriptor& SetInvokerProvider(TInvokerProvider value);
         TMethodDescriptor& SetHeavy(bool value);
@@ -526,7 +524,6 @@ protected:
         TMethodDescriptor& SetGenerateAttachmentChecksums(bool value);
         TMethodDescriptor& SetStreamingEnabled(bool value);
         TMethodDescriptor& SetPooled(bool value);
-        TMethodDescriptor& SetRequestBytesThrottler(NConcurrency::TThroughputThrottlerConfigPtr config);
     };
 
     //! Per-user and per-method profiling counters.
@@ -591,10 +588,17 @@ protected:
         TMethodDescriptor Descriptor;
         const NProfiling::TProfiler Registry;
 
+        std::atomic<bool> Heavy = false;
+
+        std::atomic<int> QueueSizeLimit = 0;
         std::atomic<int> QueueSize = 0;
 
+        std::atomic<int> ConcurrencyLimit = 0;
         std::atomic<int> ConcurrencySemaphore = 0;
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
+
+        std::atomic<NLogging::ELogLevel> LogLevel = {};
+        std::atomic<TDuration> LoggingSuppressionTimeout = {};
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr RequestBytesThrottler;
         std::atomic<bool> RequestBytesThrottlerSpecified = false;
@@ -679,8 +683,8 @@ protected:
 
     //! A typed implementation of #Configure.
     void DoConfigure(
-        TServiceCommonConfigPtr configDefaults,
-        TServiceConfigPtr config);
+        const TServiceCommonConfigPtr& configDefaults,
+        const TServiceConfigPtr& config);
 
 protected:
     const NLogging::TLogger Logger;
@@ -724,7 +728,8 @@ private:
     static constexpr size_t ReplyBusBucketCount = 64;
     std::array<TReplyBusBucket, ReplyBusBucketCount> ReplyBusBuckets_;
 
-    std::atomic<TDuration> PendingPayloadsTimeout_ = TServiceConfig::DefaultPendingPayloadsTimeout;
+    static constexpr auto DefaultPendingPayloadsTimeout = TDuration::Seconds(30);
+    std::atomic<TDuration> PendingPayloadsTimeout_ = DefaultPendingPayloadsTimeout;
 
     std::atomic<bool> Stopped_ = false;
     const TPromise<void> StopResult_ = NewPromise<void>();
@@ -732,7 +737,9 @@ private:
 
     std::atomic<int> AuthenticationQueueSize_ = 0;
     NProfiling::TEventTimer AuthenticationTimer_;
-    std::atomic<int> AuthenticationQueueSizeLimit_ = TServiceConfig::DefaultAuthenticationQueueSizeLimit;
+
+    static constexpr auto DefaultAuthenticationQueueSizeLimit = 10'000;
+    std::atomic<int> AuthenticationQueueSizeLimit_ = DefaultAuthenticationQueueSizeLimit;
 
     std::atomic<bool> EnablePerUserProfiling_ = false;
 
