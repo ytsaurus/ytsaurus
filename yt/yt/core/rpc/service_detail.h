@@ -530,7 +530,7 @@ protected:
     struct TMethodPerformanceCounters
         : public TRefCounted
     {
-        explicit TMethodPerformanceCounters(const NProfiling::TProfiler& registry);
+        explicit TMethodPerformanceCounters(const NProfiling::TProfiler& profiler);
 
         //! Counts the number of method calls.
         NProfiling::TCounter RequestCounter;
@@ -583,7 +583,7 @@ protected:
     {
         TRuntimeMethodInfo(
             const TMethodDescriptor& descriptor,
-            const NProfiling::TProfiler& registry);
+            const NProfiling::TProfiler& profiler);
 
         TMethodDescriptor Descriptor;
         const NProfiling::TProfiler Registry;

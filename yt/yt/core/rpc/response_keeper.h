@@ -35,7 +35,7 @@ public:
         TResponseKeeperConfigPtr config,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger,
-        const NProfiling::TProfiler& registry);
+        const NProfiling::TProfiler& profiler);
     ~TResponseKeeper();
 
     //! Activates the keeper.

@@ -100,10 +100,10 @@ TEST(TSolomonRegistry, Registration)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TProfiler registry(impl, "/debug");
+    TProfiler profiler(impl, "/debug");
 
-    auto counter = registry.Counter("/c0");
-    auto gauge = registry.Gauge("/g0");
+    auto counter = profiler.Counter("/c0");
+    auto gauge = profiler.Gauge("/g0");
 
     impl->ProcessRegistrations();
 
@@ -137,10 +137,10 @@ TEST(TSolomonRegistry, CounterProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TProfiler registry(impl, "/d");
+    TProfiler profiler(impl, "/d");
 
-    auto c0 = registry.WithTag("user", "u0").Counter("/count");
-    auto c1 = registry.WithTag("user", "u1").Counter("/count");
+    auto c0 = profiler.WithTag("user", "u0").Counter("/count");
+    auto c1 = profiler.WithTag("user", "u1").Counter("/count");
 
     auto result = CollectSensors(impl).Counters;
 
@@ -171,10 +171,10 @@ TEST(TSolomonRegistry, GaugeProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TProfiler registry(impl, "/d");
+    TProfiler profiler(impl, "/d");
 
-    auto g0 = registry.WithTag("user", "u0").Gauge("/memory");
-    auto g1 = registry.WithTag("user", "u1").Gauge("/memory");
+    auto g0 = profiler.WithTag("user", "u0").Gauge("/memory");
+    auto g1 = profiler.WithTag("user", "u1").Gauge("/memory");
 
     auto result = CollectSensors(impl).Gauges;
 
@@ -204,10 +204,10 @@ TEST(TSolomonRegistry, ExponentialHistogramProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TProfiler registry(impl, "/d");
+    TProfiler profiler(impl, "/d");
 
-    auto c0 = registry.WithTag("user", "u0").Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
-    auto c1 = registry.WithTag("user", "u1").Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
+    auto c0 = profiler.WithTag("user", "u0").Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
+    auto c1 = profiler.WithTag("user", "u1").Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
 
     auto result = CollectSensors(impl).Histograms;
 
@@ -243,13 +243,13 @@ TEST(TSolomonRegistry, CustomHistogramProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TProfiler registry(impl, "/d");
+    TProfiler profiler(impl, "/d");
 
     std::vector<TDuration> bounds{
         TDuration::Zero(), TDuration::MilliSeconds(5), TDuration::MilliSeconds(10), TDuration::MilliSeconds(15)
     };
-    auto c0 = registry.WithTag("user", "u0").Histogram("/histogram", bounds);
-    auto c1 = registry.WithTag("user", "u1").Histogram("/histogram", bounds);
+    auto c0 = profiler.WithTag("user", "u0").Histogram("/histogram", bounds);
+    auto c1 = profiler.WithTag("user", "u1").Histogram("/histogram", bounds);
 
     auto result = CollectSensors(impl).Histograms;
 
@@ -285,9 +285,9 @@ TEST(TSolomonRegistry, SparseHistogram)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TProfiler registry(impl, "/d");
+    TProfiler profiler(impl, "/d");
 
-    auto h0 = registry.WithSparse().Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
+    auto h0 = profiler.WithSparse().Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
 
     auto result = CollectSensors(impl).Histograms;
     ASSERT_TRUE(result.empty());
@@ -307,9 +307,9 @@ TEST(TSolomonRegistry, SparseCounters)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TProfiler registry(impl, "/d");
+    TProfiler profiler(impl, "/d");
 
-    auto c = registry.WithSparse().Counter("/sparse_counter");
+    auto c = profiler.WithSparse().Counter("/sparse_counter");
 
     auto result = CollectSensors(impl).Counters;
     ASSERT_TRUE(result.empty());
@@ -333,9 +333,9 @@ TEST(TSolomonRegistry, GaugesNoDefault)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TProfiler registry(impl, "/d");
+    TProfiler profiler(impl, "/d");
 
-    auto g = registry.WithDefaultDisabled().Gauge("/gauge");
+    auto g = profiler.WithDefaultDisabled().Gauge("/gauge");
 
     auto result = CollectSensors(impl).Gauges;
     ASSERT_TRUE(result.empty());
@@ -349,9 +349,9 @@ TEST(TSolomonRegistry, SparseCountersWithHack)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TProfiler registry(impl, "/d");
+    TProfiler profiler(impl, "/d");
 
-    auto c = registry.WithSparse().Counter("/sparse_counter_with_hack");
+    auto c = profiler.WithSparse().Counter("/sparse_counter_with_hack");
 
     auto result = CollectSensors(impl, 1, true).Counters;
     ASSERT_TRUE(result.empty());
@@ -374,9 +374,9 @@ TEST(TSolomonRegistry, SparseGauge)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TProfiler registry(impl, "/d");
+    TProfiler profiler(impl, "/d");
 
-    auto c = registry.WithSparse().Gauge("/sparse_gauge");
+    auto c = profiler.WithSparse().Gauge("/sparse_gauge");
 
     auto result = CollectSensors(impl).Gauges;
     ASSERT_TRUE(result.empty());

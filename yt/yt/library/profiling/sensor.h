@@ -156,7 +156,7 @@ public:
     /*!
      *  Default constructor is useful for implementing optional profiling. E.g:
      *
-     *      TCache CreateCache(TProfiler& registry = {});
+     *      TCache CreateCache(const TProfiler& profiler = {});
      *
      *      void Example()
      *      {

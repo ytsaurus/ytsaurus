@@ -123,7 +123,7 @@ struct IYPathService
     IYPathServicePtr Cached(
         TDuration updatePeriod,
         IInvokerPtr workerInvoker,
-        const NProfiling::TProfiler& registry = {});
+        const NProfiling::TProfiler& profiler = {});
 
     //! Creates a wrapper that calls given callback on each invocation
     //! in order to validate user permission to query the ypath service.

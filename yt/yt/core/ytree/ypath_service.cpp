@@ -330,12 +330,12 @@ DECLARE_REFCOUNTED_STRUCT(TCacheProfilingCounters);
 struct TCacheProfilingCounters
     : public TRefCounted
 {
-    explicit TCacheProfilingCounters(const NProfiling::TProfiler& registry)
-        : CacheHitCounter(registry.Counter("/cache_hit"))
-        , CacheMissCounter(registry.Counter("/cache_miss"))
-        , RedundantCacheMissCounter(registry.Counter("/redundant_cache_miss"))
-        , InvalidCacheHitCounter(registry.Counter("/invalid_cache_hit"))
-        , ByteSize(registry.Gauge("/byte_size"))
+    explicit TCacheProfilingCounters(const NProfiling::TProfiler& profiler)
+        : CacheHitCounter(profiler.Counter("/cache_hit"))
+        , CacheMissCounter(profiler.Counter("/cache_miss"))
+        , RedundantCacheMissCounter(profiler.Counter("/redundant_cache_miss"))
+        , InvalidCacheHitCounter(profiler.Counter("/invalid_cache_hit"))
+        , ByteSize(profiler.Gauge("/byte_size"))
     { }
 
     NProfiling::TCounter CacheHitCounter;
@@ -454,7 +454,7 @@ public:
         IYPathServicePtr underlyingService,
         TDuration updatePeriod,
         IInvokerPtr workerInvoker,
-        const NProfiling::TProfiler& registry);
+        const NProfiling::TProfiler& profiler);
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override;
 
@@ -485,7 +485,7 @@ TCachedYPathService::TCachedYPathService(
     IYPathServicePtr underlyingService,
     TDuration updatePeriod,
     IInvokerPtr workerInvoker,
-    const NProfiling::TProfiler& registry)
+    const NProfiling::TProfiler& profiler)
     : UnderlyingService_(std::move(underlyingService))
     , WorkerInvoker_(workerInvoker
         ? workerInvoker
@@ -494,7 +494,7 @@ TCachedYPathService::TCachedYPathService(
         WorkerInvoker_,
         BIND(&TCachedYPathService::RebuildCache, MakeWeak(this)),
         updatePeriod))
-    , ProfilingCounters_(New<TCacheProfilingCounters>(registry))
+    , ProfilingCounters_(New<TCacheProfilingCounters>(profiler))
 {
     YT_VERIFY(UnderlyingService_);
     SetCachePeriod(updatePeriod);
@@ -604,9 +604,9 @@ void TCachedYPathService::UpdateCachedTree(const TErrorOr<INodePtr>& treeOrError
 IYPathServicePtr IYPathService::Cached(
     TDuration updatePeriod,
     IInvokerPtr workerInvoker,
-    const NProfiling::TProfiler& registry)
+    const NProfiling::TProfiler& profiler)
 {
-    return New<TCachedYPathService>(this, updatePeriod, workerInvoker, registry);
+    return New<TCachedYPathService>(this, updatePeriod, workerInvoker, profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

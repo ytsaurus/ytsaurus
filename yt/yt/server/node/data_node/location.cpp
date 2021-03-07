@@ -53,12 +53,12 @@ static const int ChunkFilesPermissions = 0751;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TProfiler& registry)
+TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TProfiler& profiler)
 {
     for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
         for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
             // Do not export both location_id and (direction, category).
-            auto r = registry
+            auto r = profiler
                 .WithAlternativeTag("direction", FormatEnum(direction), -1)
                 .WithAlternativeTag("category", FormatEnum(category), -2);
 
@@ -70,51 +70,51 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
         }
     }
 
-    ThrottledReads = registry.Counter("/throttled_reads");
-    ThrottledWrites = registry.Counter("/throttled_writes");
+    ThrottledReads = profiler.Counter("/throttled_reads");
+    ThrottledWrites = profiler.Counter("/throttled_writes");
 
-    PutBlocksWallTime = registry.Timer("/put_blocks_wall_time");
-    BlobChunkMetaReadTime = registry.Timer("/blob_chunk_meta_read_time");
+    PutBlocksWallTime = profiler.Timer("/put_blocks_wall_time");
+    BlobChunkMetaReadTime = profiler.Timer("/blob_chunk_meta_read_time");
 
-    BlobChunkReaderOpenTime = registry.Timer("/blob_chunk_reader_open_time");
+    BlobChunkReaderOpenTime = profiler.Timer("/blob_chunk_reader_open_time");
 
-    BlobChunkWriterOpenTime = registry.Timer("/blob_chunk_writer_open_time");
-    BlobChunkWriterAbortTime = registry.Timer("/blob_chunk_writer_abort_time");
-    BlobChunkWriterCloseTime = registry.Timer("/blob_chunk_writer_close_time");
+    BlobChunkWriterOpenTime = profiler.Timer("/blob_chunk_writer_open_time");
+    BlobChunkWriterAbortTime = profiler.Timer("/blob_chunk_writer_abort_time");
+    BlobChunkWriterCloseTime = profiler.Timer("/blob_chunk_writer_close_time");
 
-    BlobBlockReadSize = registry.Summary("/blob_block_read_size");
-    BlobBlockReadTime = registry.Timer("/blob_block_read_time");
-    BlobBlockReadBytes = registry.Counter("/blob_block_read_bytes");
+    BlobBlockReadSize = profiler.Summary("/blob_block_read_size");
+    BlobBlockReadTime = profiler.Timer("/blob_block_read_time");
+    BlobBlockReadBytes = profiler.Counter("/blob_block_read_bytes");
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
         // Do not export both location_id and category.
-        auto r = registry.WithAlternativeTag("category", FormatEnum(category), -1);
+        auto categoryProfiler = profiler.WithAlternativeTag("category", FormatEnum(category), -1);
 
-        BlobBlockReadLatencies[category] = r.Timer("/blob_block_read_latency");
-        BlobChunkMetaReadLatencies[category] = r.Timer("/blob_chunk_meta_read_latency");
+        BlobBlockReadLatencies[category] = categoryProfiler.Timer("/blob_block_read_latency");
+        BlobChunkMetaReadLatencies[category] = categoryProfiler.Timer("/blob_chunk_meta_read_latency");
     }
 
-    BlobBlockWriteSize = registry.Summary("/blob_block_write_size");
-    BlobBlockWriteTime = registry.Timer("/blob_block_write_time");
-    BlobBlockWriteBytes = registry.Counter("/blob_block_write_bytes");
+    BlobBlockWriteSize = profiler.Summary("/blob_block_write_size");
+    BlobBlockWriteTime = profiler.Timer("/blob_block_write_time");
+    BlobBlockWriteBytes = profiler.Counter("/blob_block_write_bytes");
 
-    JournalBlockReadSize = registry.Summary("/journal_block_read_size");
-    JournalBlockReadTime = registry.Timer("/journal_block_read_time");
-    JournalBlockReadBytes = registry.Counter("/journal_block_read_bytes");
+    JournalBlockReadSize = profiler.Summary("/journal_block_read_size");
+    JournalBlockReadTime = profiler.Timer("/journal_block_read_time");
+    JournalBlockReadBytes = profiler.Counter("/journal_block_read_bytes");
 
-    JournalChunkCreateTime = registry.Timer("/journal_chunk_create_time");
-    JournalChunkOpenTime = registry.Timer("/journal_chunk_open_time");
-    JournalChunkRemoveTime = registry.Timer("/journal_chunk_remove_time");
+    JournalChunkCreateTime = profiler.Timer("/journal_chunk_create_time");
+    JournalChunkOpenTime = profiler.Timer("/journal_chunk_open_time");
+    JournalChunkRemoveTime = profiler.Timer("/journal_chunk_remove_time");
 
     for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
-        registry.WithTag("type", FormatEnum(type)).AddFuncGauge("/session_count", MakeStrong(this), [this, type] {
+        profiler.WithTag("type", FormatEnum(type)).AddFuncGauge("/session_count", MakeStrong(this), [this, type] {
             return SessionCount[type].load();
         });
     }
 
-    UsedSpace = registry.Gauge("/used_space");
-    AvailableSpace = registry.Gauge("/available_space");
-    Full = registry.Gauge("/full");
+    UsedSpace = profiler.Gauge("/used_space");
+    AvailableSpace = profiler.Gauge("/available_space");
+    Full = profiler.Gauge("/full");
 }
 
 void TLocationPerformanceCounters::ThrottleRead()

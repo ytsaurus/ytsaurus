@@ -143,28 +143,28 @@ auto TServiceBase::TMethodDescriptor::SetPooled(bool value) -> TMethodDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TProfiler& registry)
-    : RequestCounter(registry.Counter("/request_count"))
-    , CanceledRequestCounter(registry.Counter("/canceled_request_count"))
-    , FailedRequestCounter(registry.Counter("/failed_request_count"))
-    , TimedOutRequestCounter(registry.Counter("/timed_out_request_count"))
-    , ExecutionTimeCounter(registry.Timer("/request_time/execution"))
-    , RemoteWaitTimeCounter(registry.Timer("/request_time/remote_wait"))
-    , LocalWaitTimeCounter(registry.Timer("/request_time/local_wait"))
-    , TotalTimeCounter(registry.Timer("/request_time/total"))
-    , HandlerFiberTimeCounter(registry.TimeCounter("/request_time/handler_fiber"))
-    , TraceContextTimeCounter(registry.TimeCounter("/request_time/trace_context"))
-    , RequestMessageBodySizeCounter(registry.Counter("/request_message_body_bytes"))
-    , RequestMessageAttachmentSizeCounter(registry.Counter("/request_message_attachment_bytes"))
-    , ResponseMessageBodySizeCounter(registry.Counter("/response_message_body_bytes"))
-    , ResponseMessageAttachmentSizeCounter(registry.Counter("/response_message_attachment_bytes"))
+TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TProfiler& profiler)
+    : RequestCounter(profiler.Counter("/request_count"))
+    , CanceledRequestCounter(profiler.Counter("/canceled_request_count"))
+    , FailedRequestCounter(profiler.Counter("/failed_request_count"))
+    , TimedOutRequestCounter(profiler.Counter("/timed_out_request_count"))
+    , ExecutionTimeCounter(profiler.Timer("/request_time/execution"))
+    , RemoteWaitTimeCounter(profiler.Timer("/request_time/remote_wait"))
+    , LocalWaitTimeCounter(profiler.Timer("/request_time/local_wait"))
+    , TotalTimeCounter(profiler.Timer("/request_time/total"))
+    , HandlerFiberTimeCounter(profiler.TimeCounter("/request_time/handler_fiber"))
+    , TraceContextTimeCounter(profiler.TimeCounter("/request_time/trace_context"))
+    , RequestMessageBodySizeCounter(profiler.Counter("/request_message_body_bytes"))
+    , RequestMessageAttachmentSizeCounter(profiler.Counter("/request_message_attachment_bytes"))
+    , ResponseMessageBodySizeCounter(profiler.Counter("/response_message_body_bytes"))
+    , ResponseMessageAttachmentSizeCounter(profiler.Counter("/response_message_attachment_bytes"))
 { }
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& descriptor,
-    const NProfiling::TProfiler& registry)
+    const NProfiling::TProfiler& profiler)
     : Descriptor(descriptor)
-    , Registry(registry.WithTag("method", descriptor.Method, -1))
+    , Registry(profiler.WithTag("method", descriptor.Method, -1))
     , RequestBytesThrottler(
         CreateReconfigurableThroughputThrottler(DefaultRequestBytesThrottlerConfig))
     , LoggingSuppressionFailedRequestThrottler(
@@ -1600,12 +1600,12 @@ TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanc
     const TRuntimeMethodInfoPtr& runtimeInfo,
     const std::optional<TString>& userTag)
 {
-    TProfiler registry = runtimeInfo->Registry.WithSparse();
+    auto profiler = runtimeInfo->Registry.WithSparse();
     if (userTag) {
-        registry = registry.WithTag("user", *userTag);
+        profiler = profiler.WithTag("user", *userTag);
     }
 
-    return New<TMethodPerformanceCounters>(registry);
+    return New<TMethodPerformanceCounters>(profiler);
 }
 
 TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCounters(
