@@ -21,6 +21,7 @@
 #include <library/cpp/streams/zstd/zstd.h>
 
 #include <util/system/fs.h>
+#include <util/system/tempfile.h>
 
 #include <util/stream/zlib.h>
 
@@ -39,21 +40,23 @@ using namespace NJson;
 
 static const TLogger Logger("Test");
 
+namespace {
+
+TString GenerateLogFileName()
+{
+    return GenerateRandomFileName("log");
+}
+
+} // namespace
+
 class TLoggingTest
     : public ::testing::Test
 {
-public:
-    TLoggingTest()
-        : SomeDate("2014-04-24 23:41:09,804")
-        , DateLength(SomeDate.length())
-    {
-        Category.Name = "category";
-    }
-
 protected:
-    TLoggingCategory Category;
-    TString SomeDate;
-    int DateLength;
+    const TLoggingCategory Category = {
+        .Name = "category"
+    };
+    const int DateLength = ToString("2014-04-24 23:41:09,804").length();
 
     IMapNodePtr DeserializeJson(const TString& source)
     {
@@ -120,12 +123,12 @@ protected:
 
     void DoTestCompression(ECompressionMethod method, int compressionLevel)
     {
-        NFs::Remove("test.log.gz");
+        TTempFile logFile(GenerateLogFileName() + ".gz");
 
         auto writer = New<TFileLogWriter>(
             std::make_unique<TPlainTextLogFormatter>(),
             "test_writer",
-            "test.log.gz",
+            logFile.Name(),
             /* enableCompression */ true,
             method,
             compressionLevel);
@@ -135,13 +138,11 @@ protected:
         WritePlainTextEvent(writer.Get());
 
         {
-            auto lines = ReadFile("test.log.gz", true, method);
+            auto lines = ReadFile(logFile.Name(), true, method);
             EXPECT_EQ(5, lines.size());
             EXPECT_TRUE(lines[0].find("Logging started") != -1);
             EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
         }
-
-        NFs::Remove("test.log.gz");
     }
 };
 
@@ -149,14 +150,12 @@ protected:
 
 TEST_F(TLoggingTest, ReloadOnSighup)
 {
-    Cerr << "Removing files" << Endl;
-
-    NFs::Remove("reload-on-sighup.log");
-    NFs::Remove("reload-on-sighup.log.1");
+    TTempFile logFile(GenerateLogFileName());
+    TTempFile rotatedLogFile(logFile.Name() + ".1");
 
     Cerr << "Configuring logging" << Endl;
 
-    Configure(R"({
+    Configure(Format(R"({
         rules = [
             {
                 "min_level" = "info";
@@ -165,22 +164,22 @@ TEST_F(TLoggingTest, ReloadOnSighup)
         ];
         "writers" = {
             "info" = {
-                "file_name" = "reload-on-sighup.log";
+                "file_name" = "%v";
                 "type" = "file";
             };
         };
-    })");
+    })", logFile.Name()));
 
     Cerr << "Waiting for message 1" << Endl;
 
     WaitForPredicate([&] {
         YT_LOG_INFO("Message1");
-        return NFs::Exists("reload-on-sighup.log");
+        return NFs::Exists(logFile.Name());
     });
 
     Cerr << "Renaming logfile" << Endl;
 
-    NFs::Rename("reload-on-sighup.log", "reload-on-sighup.log.1");
+    NFs::Rename(logFile.Name(), rotatedLogFile.Name());
 
     Cerr << "Sending SIGHUP" << Endl;
 
@@ -190,7 +189,7 @@ TEST_F(TLoggingTest, ReloadOnSighup)
 
     WaitForPredicate([&] {
         YT_LOG_INFO("Message2");
-        return NFs::Exists("reload-on-sighup.log");
+        return NFs::Exists(logFile.Name());
     });
 
     Cerr << "Success" << Endl;
@@ -200,13 +199,17 @@ TEST_F(TLoggingTest, ReloadOnSighup)
 
 TEST_F(TLoggingTest, FileWriter)
 {
-    NFs::Remove("test.log");
+    TTempFile logFile(GenerateLogFileName());
 
-    auto writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test_writer", "test.log", false);
+    auto writer = New<TFileLogWriter>(
+        std::make_unique<TPlainTextLogFormatter>(),
+        "test_writer",
+        logFile.Name(),
+        /* enableCompression */ false);
     WritePlainTextEvent(writer.Get());
 
     {
-        auto lines = ReadFile("test.log");
+        auto lines = ReadFile(logFile.Name());
         EXPECT_EQ(2, lines.size());
         EXPECT_TRUE(lines[0].find("Logging started") != -1);
         EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
@@ -216,7 +219,7 @@ TEST_F(TLoggingTest, FileWriter)
     WritePlainTextEvent(writer.Get());
 
     {
-        auto lines = ReadFile("test.log");
+        auto lines = ReadFile(logFile.Name());
         EXPECT_EQ(5, lines.size());
         EXPECT_TRUE(lines[0].find("Logging started") != -1);
         EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength));
@@ -224,8 +227,6 @@ TEST_F(TLoggingTest, FileWriter)
         EXPECT_TRUE(lines[3].find("Logging started") != -1);
         EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[4].substr(DateLength));
     }
-
-    NFs::Remove("test.log");
 }
 
 TEST_F(TLoggingTest, Compression)
@@ -258,7 +259,10 @@ TEST_F(TLoggingTest, CompressionZstd)
 TEST_F(TLoggingTest, StreamWriter)
 {
     TStringStream stringOutput;
-    auto writer = New<TStreamLogWriter>(&stringOutput, std::make_unique<TPlainTextLogFormatter>(), "test_writer");
+    auto writer = New<TStreamLogWriter>(
+        &stringOutput,
+        std::make_unique<TPlainTextLogFormatter>(),
+        "test_writer");
 
     WritePlainTextEvent(writer.Get());
 
@@ -287,10 +291,10 @@ TEST_F(TLoggingTest, Rule)
 
 TEST_F(TLoggingTest, LogManager)
 {
-    NFs::Remove("test.log");
-    NFs::Remove("test.error.log");
+    TTempFile infoFile(GenerateLogFileName());
+    TTempFile errorFile(GenerateLogFileName());
 
-    Configure(R"({
+    Configure(Format(R"({
         rules = [
             {
                 "min_level" = "info";
@@ -303,15 +307,15 @@ TEST_F(TLoggingTest, LogManager)
         ];
         "writers" = {
             "error" = {
-                "file_name" = "test.error.log";
+                "file_name" = "%v";
                 "type" = "file";
             };
             "info" = {
-                "file_name" = "test.log";
+                "file_name" = "%v";
                 "type" = "file";
             };
         };
-    })");
+    })", errorFile.Name(), infoFile.Name()));
 
     YT_LOG_DEBUG("Debug message");
     YT_LOG_INFO("Info message");
@@ -319,20 +323,15 @@ TEST_F(TLoggingTest, LogManager)
 
     TLogManager::Get()->Synchronize();
 
-    auto infoLog = ReadFile("test.log");
-    auto errorLog = ReadFile("test.error.log");
+    auto infoLog = ReadFile(infoFile.Name());
+    auto errorLog = ReadFile(errorFile.Name());
 
     EXPECT_EQ(3, infoLog.size());
     EXPECT_EQ(2, errorLog.size());
-
-    NFs::Remove("test.log");
-    NFs::Remove("test.error.log");
 }
 
 TEST_F(TLoggingTest, StructuredJsonLogging)
 {
-    NFs::Remove("test.log");
-
     TLogEvent event;
     event.MessageFormat = ELogMessageFormat::Structured;
     event.Category = &Category;
@@ -342,11 +341,15 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
         .Value("test_message")
         .Finish();
 
-    auto writer = New<TFileLogWriter>(std::make_unique<TJsonLogFormatter>(THashMap<TString, INodePtr>{}), "test_writer", "test.log");
+    TTempFile logFile(GenerateLogFileName());
+    auto writer = New<TFileLogWriter>(
+        std::make_unique<TJsonLogFormatter>(THashMap<TString, INodePtr>{}),
+        "test_writer",
+        logFile.Name());
     WriteEvent(writer.Get(), event);
     TLogManager::Get()->Synchronize();
 
-    auto log = ReadFile("test.log");
+    auto log = ReadFile(logFile.Name());
 
     auto logStartedJson = DeserializeJson(log[0]);
     EXPECT_EQ(logStartedJson->GetChildOrThrow("message")->AsString()->GetValue(), "Logging started");
@@ -357,8 +360,6 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
     EXPECT_EQ(contentJson->GetChildOrThrow("message")->AsString()->GetValue(), "test_message");
     EXPECT_EQ(contentJson->GetChildOrThrow("level")->AsString()->GetValue(), "debug");
     EXPECT_EQ(contentJson->GetChildOrThrow("category")->AsString()->GetValue(), "category");
-
-    NFs::Remove("test.log");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -367,10 +368,8 @@ class TAppendableZstdFileTest
     : public ::testing::Test
 {
 protected:
-    void WriteTestFile(const TString &filename, i64 addBytes, bool writeTruncateMessage)
+    void WriteTestFile(const TString& filename, i64 addBytes, bool writeTruncateMessage)
     {
-        NFs::Remove(filename);
-
         {
             TFile rawFile(filename, OpenAlways|RdWr|CloseOnExec);
             TAppendableZstdFile file(&rawFile, DefaultZstdCompressionLevel, writeTruncateMessage);
@@ -392,46 +391,43 @@ protected:
 
 TEST_F(TAppendableZstdFileTest, Write)
 {
-    WriteTestFile("test.txt.zst", 0, false);
+    TTempFile logFile(GenerateLogFileName() + ".zst");
+    WriteTestFile(logFile.Name(), 0, false);
 
-    TUnbufferedFileInput file("test.txt.zst");
+    TUnbufferedFileInput file(logFile.Name());
     TZstdDecompress decompress(&file);
     EXPECT_EQ("foo\nbar\nzog\n", decompress.ReadAll());
-
-    NFs::Remove("test.txt.zst");
 }
 
 TEST_F(TAppendableZstdFileTest, RepairSmall)
 {
+    TTempFile logFile(GenerateLogFileName() + ".zst");
     WriteTestFile("test.txt.zst", -1, false);
 
     TUnbufferedFileInput file("test.txt.zst");
     TZstdDecompress decompress(&file);
     EXPECT_EQ("foo\nzog\n", decompress.ReadAll());
-
-    NFs::Remove("test.txt.zst");
 }
 
 TEST_F(TAppendableZstdFileTest, RepairLarge)
 {
-    WriteTestFile("test.txt.zst", 10_MB, true);
+    TTempFile logFile(GenerateLogFileName() + ".zst");
+    WriteTestFile(logFile.Name(), 10_MB, true);
 
-    TUnbufferedFileInput file("test.txt.zst");
+    TUnbufferedFileInput file(logFile.Name());
     TZstdDecompress decompress(&file);
 
     TStringBuilder expected;
     expected.AppendFormat("foo\nbar\nTruncated %v bytes due to zstd repair.\nzog\n", 10_MB);
     EXPECT_EQ(expected.Flush(), decompress.ReadAll());
-
-    NFs::Remove("test.txt.zst");
 }
 
 TEST(TRandomAccessGZipTest, Write)
 {
-    NFs::Remove("test.txt.gz");
+    TTempFile logFile(GenerateLogFileName() + ".gz");
 
     {
-        TFile rawFile("test.txt.gz", OpenAlways|RdWr|CloseOnExec);
+        TFile rawFile(logFile.Name(), OpenAlways|RdWr|CloseOnExec);
         TRandomAccessGZipFile file(&rawFile);
         file << "foo\n";
         file.Flush();
@@ -439,24 +435,23 @@ TEST(TRandomAccessGZipTest, Write)
         file.Finish();
     }
     {
-        TFile rawFile("test.txt.gz", OpenAlways|RdWr|CloseOnExec);
+        TFile rawFile(logFile.Name(), OpenAlways|RdWr|CloseOnExec);
         TRandomAccessGZipFile file(&rawFile);
         file << "zog\n";
         file.Finish();
     }
 
-    auto input = TUnbufferedFileInput("test.txt.gz");
+    auto input = TUnbufferedFileInput(logFile.Name());
     TZLibDecompress decompress(&input);
     EXPECT_EQ("foo\nbar\nzog\n", decompress.ReadAll());
-
-    NFs::Remove("test.txt.gz");
 }
 
 TEST(TRandomAccessGZipTest, RepairIncompleteBlocks)
 {
-    NFs::Remove("test.txt.gz");
+    TTempFile logFile(GenerateLogFileName() + ".gz");
+
     {
-        TFile rawFile("test.txt.gz", OpenAlways|RdWr|CloseOnExec);
+        TFile rawFile(logFile.Name(), OpenAlways|RdWr|CloseOnExec);
         TRandomAccessGZipFile file(&rawFile);
         file << "foo\n";
         file.Flush();
@@ -466,31 +461,28 @@ TEST(TRandomAccessGZipTest, RepairIncompleteBlocks)
 
     i64 fullSize;
     {
-        TFile file("test.txt.gz", OpenAlways|RdWr);
+        TFile file(logFile.Name(), OpenAlways|RdWr);
         fullSize = file.GetLength();
         file.Resize(fullSize - 1);
     }
 
     {
-        TFile rawFile("test.txt.gz", OpenAlways | RdWr | CloseOnExec);
+        TFile rawFile(logFile.Name(), OpenAlways | RdWr | CloseOnExec);
         TRandomAccessGZipFile file(&rawFile);
     }
 
     {
-        TFile file("test.txt.gz", OpenAlways|RdWr);
+        TFile file(logFile.Name(), OpenAlways|RdWr);
         EXPECT_LE(file.GetLength(), fullSize - 1);
     }
-
-    NFs::Remove("test.txt.gz");
 }
 
 // This test is for manual check of YT_LOG_FATAL
 TEST_F(TLoggingTest, DISABLED_LogFatal)
 {
-    NFs::Remove("test.log");
-    NFs::Remove("test.error.log");
+    TTempFile logFile(GenerateLogFileName());
 
-    Configure(R"({
+    Configure(Format(R"({
         rules = [
             {
                 "min_level" = "info";
@@ -499,11 +491,11 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
         ];
         "writers" = {
             "info" = {
-                "file_name" = "test.log";
+                "file_name" = "%v";
                 "type" = "file";
             };
         };
-    })");
+    })", logFile.Name()));
 
     YT_LOG_INFO("Info message");
 
@@ -511,16 +503,13 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
 
     YT_LOG_INFO("Info message");
     YT_LOG_FATAL("FATAL");
-
-    NFs::Remove("test.log");
-    NFs::Remove("test.error.log");
 }
 
 TEST_F(TLoggingTest, RequestSuppression)
 {
-    NFs::Remove("test.log");
+    TTempFile logFile(GenerateLogFileName());
 
-    Configure(R"({
+    Configure(Format(R"({
         rules = [
             {
                 "min_level" = "info";
@@ -529,12 +518,12 @@ TEST_F(TLoggingTest, RequestSuppression)
         ];
         "writers" = {
             "info" = {
-                "file_name" = "test.log";
+                "file_name" = "%v";
                 "type" = "file";
             };
         };
         "request_suppression_timeout" = 100;
-    })");
+    })", logFile.Name()));
 
     {
         auto requestId = NTracing::TRequestId::Create();
@@ -550,13 +539,11 @@ TEST_F(TLoggingTest, RequestSuppression)
 
     TLogManager::Get()->Synchronize();
 
-    auto lines = ReadFile("test.log");
+    auto lines = ReadFile(logFile.Name());
 
     EXPECT_EQ(2, lines.size());
     EXPECT_TRUE(lines[0].find("Logging started") != -1);
     EXPECT_TRUE(lines[1].find("Info message") != -1);
-
-    NFs::Remove("test.log");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -626,11 +613,9 @@ protected:
         }
     }
 
-    void ConfigureForLongMessages()
+    void ConfigureForLongMessages(const TString& fileName)
     {
-        NFs::Remove("test.log");
-
-        Configure(R"({
+        Configure(Format(R"({
             rules = [
                 {
                     "min_level" = "info";
@@ -640,11 +625,11 @@ protected:
             ];
             "writers" = {
                 "info" = {
-                    "file_name" = "test.log";
+                    "file_name" = "%v";
                     "type" = "file";
                 };
             };
-        })");
+        })", fileName));
     }
 
     void LogLongMessages()
@@ -654,32 +639,32 @@ protected:
         }
     }
 
-    void CheckLongMessages()
+    void CheckLongMessages(const TString& fileName)
     {
         TLogManager::Get()->Synchronize();
 
-        auto infoLog = ReadFile("test.log");
+        auto infoLog = ReadFile(fileName);
         EXPECT_EQ(N + 1, infoLog.size());
         for (int i = 0; i < N; ++i) {
             auto expected = Format("%v", MakeRange(Chunks_.data(), Chunks_.data() + i));
             auto actual = infoLog[i + 1];
             EXPECT_NE(TString::npos, actual.find(expected));
         }
-
-        NFs::Remove("test.log");
     }
 };
 
 TEST_F(TLongMessagesTest, WithPerThreadCache)
 {
-    ConfigureForLongMessages();
+    TTempFile logFile(GenerateLogFileName());
+    ConfigureForLongMessages(logFile.Name());
     LogLongMessages();
-    CheckLongMessages();
+    CheckLongMessages(logFile.Name());
 }
 
 TEST_F(TLongMessagesTest, WithoutPerThreadCache)
 {
-    ConfigureForLongMessages();
+    TTempFile logFile(GenerateLogFileName());
+    ConfigureForLongMessages(logFile.Name());
     using TThis = typename std::remove_reference<decltype(*this)>::type;
     TThread thread([] (void* opaque) -> void* {
         auto this_ = static_cast<TThis*>(opaque);
@@ -689,7 +674,7 @@ TEST_F(TLongMessagesTest, WithoutPerThreadCache)
     }, this);
     thread.Start();
     thread.Join();
-    CheckLongMessages();
+    CheckLongMessages(logFile.Name());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

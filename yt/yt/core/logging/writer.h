@@ -140,7 +140,7 @@ public:
         TString fileName,
         bool enableCompression = false,
         ECompressionMethod compressionMethod = ECompressionMethod::Gzip,
-        size_t compressionLevel = 6);
+        int compressionLevel = 6);
     ~TFileLogWriter();
 
     virtual void Reload() override;
@@ -154,7 +154,7 @@ private:
     const TString FileName_;
     const bool EnableCompression_;
     const ECompressionMethod CompressionMethod_;
-    const size_t CompressionLevel_;
+    const int CompressionLevel_;
 
     std::atomic<bool> Disabled_ = false;
 
