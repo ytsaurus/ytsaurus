@@ -969,8 +969,6 @@ class TestArtifactCacheBypass(YTEnvSetup):
             out="//tmp/t_output",
             spec={
                 "mapper": {
-                    "tmpfs_size": 1024 * 1024,
-                    "tmpfs_path": ".",
                     "file_paths": [file_path],
                     "output_format": "json",
                 },
@@ -984,7 +982,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
                 return get("{0}/@progress/jobs/aborted/total".format(op.get_path())) > 0
             except:
                 return False
-        wait(check)
+        wait(check, sleep_backoff=0.6)
 
         op.abort()
 
