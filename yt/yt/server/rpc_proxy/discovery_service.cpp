@@ -203,7 +203,6 @@ private:
             }
         }
 
-        batchReq->SetTimeout(Config_->LivenessUpdatePeriod);
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
             GetCumulativeError(batchRspOrError),
@@ -259,7 +258,6 @@ private:
             batchReq->AddRequest(req);
         }
 
-        batchReq->SetTimeout(Config_->LivenessUpdatePeriod);
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error updating proxy liveness");
 
@@ -284,7 +282,6 @@ private:
 
         auto batchReq = proxy.ExecuteBatch();
         SetBalancingHeader(batchReq, connection->GetConfig(), options);
-        batchReq->SetTimeout(Config_->ProxyUpdatePeriod);
 
         {
             auto req = TYPathProxy::Get(ProxyPath_ + "/@");
