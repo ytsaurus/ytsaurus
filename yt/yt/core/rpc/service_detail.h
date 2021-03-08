@@ -132,17 +132,8 @@ struct THandlerInvocationOptions
     //! In case the client has provided "none" response codec, this value is used instead.
     NCompression::ECodec ResponseCodec = NCompression::ECodec::None;
 
-    THandlerInvocationOptions& SetHeavy(bool value)
-    {
-        Heavy = value;
-        return *this;
-    }
-
-    THandlerInvocationOptions& SetResponseCodec(NCompression::ECodec value)
-    {
-        ResponseCodec = value;
-        return *this;
-    }
+    THandlerInvocationOptions SetHeavy(bool value) const;
+    THandlerInvocationOptions SetResponseCodec(NCompression::ECodec value) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -511,19 +502,19 @@ protected:
         //! If |true| then requests and responses are pooled.
         bool Pooled = true;
 
-        TMethodDescriptor& SetInvoker(IInvokerPtr value);
-        TMethodDescriptor& SetInvokerProvider(TInvokerProvider value);
-        TMethodDescriptor& SetHeavy(bool value);
-        TMethodDescriptor& SetResponseCodec(NCompression::ECodec value);
-        TMethodDescriptor& SetQueueSizeLimit(int value);
-        TMethodDescriptor& SetConcurrencyLimit(int value);
-        TMethodDescriptor& SetSystem(bool value);
-        TMethodDescriptor& SetLogLevel(NLogging::ELogLevel value);
-        TMethodDescriptor& SetLoggingSuppressionTimeout(TDuration timeout);
-        TMethodDescriptor& SetCancelable(bool value);
-        TMethodDescriptor& SetGenerateAttachmentChecksums(bool value);
-        TMethodDescriptor& SetStreamingEnabled(bool value);
-        TMethodDescriptor& SetPooled(bool value);
+        TMethodDescriptor SetInvoker(IInvokerPtr value) const;
+        TMethodDescriptor SetInvokerProvider(TInvokerProvider value) const;
+        TMethodDescriptor SetHeavy(bool value) const;
+        TMethodDescriptor SetResponseCodec(NCompression::ECodec value) const;
+        TMethodDescriptor SetQueueSizeLimit(int value) const;
+        TMethodDescriptor SetConcurrencyLimit(int value) const;
+        TMethodDescriptor SetSystem(bool value) const;
+        TMethodDescriptor SetLogLevel(NLogging::ELogLevel value) const;
+        TMethodDescriptor SetLoggingSuppressionTimeout(TDuration value) const;
+        TMethodDescriptor SetCancelable(bool value) const;
+        TMethodDescriptor SetGenerateAttachmentChecksums(bool value) const;
+        TMethodDescriptor SetStreamingEnabled(bool value) const;
+        TMethodDescriptor SetPooled(bool value) const;
     };
 
     //! Per-user and per-method profiling counters.

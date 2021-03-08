@@ -54,6 +54,22 @@ static const auto DefaultLoggingSuppressionFailedRequestThrottlerConfig = New<TT
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THandlerInvocationOptions THandlerInvocationOptions::SetHeavy(bool value) const
+{
+    auto result = *this;
+    result.Heavy = value;
+    return result;
+}
+
+THandlerInvocationOptions THandlerInvocationOptions::SetResponseCodec(NCompression::ECodec value) const
+{
+    auto result = *this;
+    result.ResponseCodec = value;
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TServiceBase::TMethodDescriptor::TMethodDescriptor(
     TString method,
     TLiteHandler liteHandler,
@@ -63,82 +79,95 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
     , HeavyHandler(std::move(heavyHandler))
 { }
 
-auto TServiceBase::TMethodDescriptor::SetInvoker(IInvokerPtr value) -> TMethodDescriptor&
+auto TServiceBase::TMethodDescriptor::SetInvoker(IInvokerPtr value) const -> TMethodDescriptor
 {
-    Invoker = std::move(value);
+    auto result = *this;
+    result.Invoker = std::move(value);
+    return result;
+}
+
+auto TServiceBase::TMethodDescriptor::SetInvokerProvider(TInvokerProvider value) const -> TMethodDescriptor
+{
+    auto result = *this;
+    result.InvokerProvider = std::move(value);
+    return result;
+}
+
+auto TServiceBase::TMethodDescriptor::SetHeavy(bool value) const -> TMethodDescriptor
+{
+    auto result = *this;
+    result.Options.Heavy = value;
+    return result;
+}
+
+auto TServiceBase::TMethodDescriptor::SetResponseCodec(NCompression::ECodec value) const -> TMethodDescriptor
+{
+    auto result = *this;
+    result.Options.ResponseCodec = value;
+    return result;
+}
+
+auto TServiceBase::TMethodDescriptor::SetQueueSizeLimit(int value) const -> TMethodDescriptor
+{
+    auto result = *this;
+    result.QueueSizeLimit = value;
+    return result;
+}
+
+auto TServiceBase::TMethodDescriptor::SetConcurrencyLimit(int value) const -> TMethodDescriptor
+{
+    auto result = *this;
+    result.ConcurrencyLimit = value;
+    return result;
+}
+
+auto TServiceBase::TMethodDescriptor::SetSystem(bool value) const -> TMethodDescriptor
+{
+    auto result = *this;
+    result.System = value;
     return *this;
 }
 
-auto TServiceBase::TMethodDescriptor::SetInvokerProvider(TInvokerProvider value) -> TMethodDescriptor&
+auto TServiceBase::TMethodDescriptor::SetLogLevel(NLogging::ELogLevel value) const -> TMethodDescriptor
 {
-    InvokerProvider = std::move(value);
-    return *this;
+    auto result = *this;
+    result.LogLevel = value;
+    return result;
 }
 
-auto TServiceBase::TMethodDescriptor::SetHeavy(bool value) -> TMethodDescriptor&
+auto TServiceBase::TMethodDescriptor::SetLoggingSuppressionTimeout(TDuration value) const -> TMethodDescriptor
 {
-    Options.Heavy = value;
-    return *this;
+    auto result = *this;
+    result.LoggingSuppressionTimeout = value;
+    return result;
 }
 
-auto TServiceBase::TMethodDescriptor::SetResponseCodec(NCompression::ECodec value) -> TMethodDescriptor&
+auto TServiceBase::TMethodDescriptor::SetCancelable(bool value) const -> TMethodDescriptor
 {
-    Options.ResponseCodec = value;
-    return *this;
+    auto result = *this;
+    result.Cancelable = value;
+    return result;
 }
 
-auto TServiceBase::TMethodDescriptor::SetQueueSizeLimit(int value) -> TMethodDescriptor&
+auto TServiceBase::TMethodDescriptor::SetGenerateAttachmentChecksums(bool value) const -> TMethodDescriptor
 {
-    QueueSizeLimit = value;
-    return *this;
+    auto result = *this;
+    result.GenerateAttachmentChecksums = value;
+    return result;
 }
 
-auto TServiceBase::TMethodDescriptor::SetConcurrencyLimit(int value) -> TMethodDescriptor&
+auto TServiceBase::TMethodDescriptor::SetStreamingEnabled(bool value) const -> TMethodDescriptor
 {
-    ConcurrencyLimit = value;
-    return *this;
+    auto result = *this;
+    result.StreamingEnabled = value;
+    return result;
 }
 
-auto TServiceBase::TMethodDescriptor::SetSystem(bool value) -> TMethodDescriptor&
+auto TServiceBase::TMethodDescriptor::SetPooled(bool value) const -> TMethodDescriptor
 {
-    System = value;
-    return *this;
-}
-
-auto TServiceBase::TMethodDescriptor::SetLogLevel(NLogging::ELogLevel value) -> TMethodDescriptor&
-{
-    LogLevel = value;
-    return *this;
-}
-
-auto TServiceBase::TMethodDescriptor::SetLoggingSuppressionTimeout(TDuration timeout) -> TMethodDescriptor&
-{
-    LoggingSuppressionTimeout = timeout;
-    return *this;
-}
-
-auto TServiceBase::TMethodDescriptor::SetCancelable(bool value) -> TMethodDescriptor&
-{
-    Cancelable = value;
-    return *this;
-}
-
-auto TServiceBase::TMethodDescriptor::SetGenerateAttachmentChecksums(bool value) -> TMethodDescriptor&
-{
-    GenerateAttachmentChecksums = value;
-    return *this;
-}
-
-auto TServiceBase::TMethodDescriptor::SetStreamingEnabled(bool value) -> TMethodDescriptor&
-{
-    StreamingEnabled = value;
-    return *this;
-}
-
-auto TServiceBase::TMethodDescriptor::SetPooled(bool value) -> TMethodDescriptor&
-{
-    Pooled = value;
-    return *this;
+    auto result = *this;
+    result.Pooled = value;
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
