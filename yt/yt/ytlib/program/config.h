@@ -52,7 +52,7 @@ DEFINE_REFCOUNTED_TYPE(TSingletonsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSingletonsDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     std::optional<TDuration> SpinlockHiccupThreshold;

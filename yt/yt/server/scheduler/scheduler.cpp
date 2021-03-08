@@ -23,6 +23,8 @@
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/job_resources.h>
 
+#include <yt/yt/ytlib/program/helpers.h>
+
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
@@ -479,7 +481,7 @@ public:
         TOperationId operationId,
         EOperationAlertType alertType,
         const TError& alert,
-        std::optional<TDuration> timeout = std::nullopt) override
+        std::optional<TDuration> timeout = {}) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1149,7 +1151,7 @@ public:
 
         return resourceLimits;
     }
-    
+
     virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1784,14 +1786,14 @@ public:
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
-    ui64 ConfigRevision_ = 0;
+    int ConfigRevision_ = 0;
 
     TBootstrap* const Bootstrap_;
 
     NYTree::INodePtr SpecTemplate_;
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
-    std::atomic<bool> Connected_ = {false};
+    std::atomic<bool> Connected_ = false;
 
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, MediumDirectoryLock_);
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
@@ -1875,7 +1877,7 @@ private:
     std::unique_ptr<IYsonConsumer> ControlEventLogWriterConsumer_;
     std::unique_ptr<IYsonConsumer> FairShareEventLogWriterConsumer_;
 
-    std::atomic<int> OperationArchiveVersion_ = {-1};
+    std::atomic<int> OperationArchiveVersion_ = -1;
 
     TEnumIndexedVector<EOperationState, std::vector<TOperationPtr>> StateToTransientOperations_;
     TInstant OperationToAgentAssignmentFailureTime_;
@@ -2504,6 +2506,8 @@ private:
                 nodeShard->GetInvoker()->Invoke(
                     BIND(&TNodeShard::UpdateConfig, nodeShard, Config_));
             }
+
+            ReconfigureSingletons(Bootstrap_->GetConfig(), Config_);
 
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
