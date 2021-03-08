@@ -606,7 +606,8 @@ class TestErasureJournals(TestJournals):
 
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@quorum_row_count") == len(self.DATA)
-        assert get("//tmp/j/@chunk_count") == 1
+        if not enable_chunk_preallocation:
+            assert get("//tmp/j/@chunk_count") == 1
 
         def check():
             for i in xrange(0, len(self.DATA)):
