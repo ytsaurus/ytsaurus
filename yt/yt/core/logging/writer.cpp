@@ -224,7 +224,7 @@ TFileLogWriter::TFileLogWriter(
     TString fileName,
     bool enableCompression,
     ECompressionMethod compressionMethod,
-    size_t compressionLevel)
+    int compressionLevel)
     : TStreamLogWriterBase(std::move(formatter), std::move(writerName))
     , FileName_(std::move(fileName))
     , EnableCompression_(enableCompression)

@@ -767,13 +767,21 @@ private:
 
     void DoUpdateConfig(const TLogManagerConfigPtr& config, bool fromEnv)
     {
+        if (AreNodesEqual(ConvertToNode(Config_), ConvertToNode(config))) {
+            return;
+        }
+
         {
             decltype(Writers_) writers;
             decltype(CachedWriters_) cachedWriters;
+            decltype(NotificationWatchesIndex_) notificationWatchesIndex;
+            decltype(NotificationWatches_) notificationWatches;
 
             TGuard<TForkAwareSpinLock> guard(SpinLock_);
             Writers_.swap(writers);
             CachedWriters_.swap(cachedWriters);
+            NotificationWatchesIndex_.swap(notificationWatchesIndex);
+            NotificationWatches_.swap(notificationWatches);
             Config_ = config;
             HighBacklogWatermark_ = Config_->HighBacklogWatermark;
             LowBacklogWatermark_ = Config_->LowBacklogWatermark;
