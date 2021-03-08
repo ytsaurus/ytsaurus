@@ -1256,6 +1256,7 @@ print row + table_index
         )
 
     @authors("dakovalkov", "gritukan")
+    @pytest.mark.xfail(run=False, reason="YT-14467")
     @flaky(max_runs=3)
     def test_map_soft_interrupt_job(self):
         create_test_tables(row_count=1)
