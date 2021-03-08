@@ -155,6 +155,7 @@ DEFINE_ENUM(EMasterReign,
     ((MasterAlerts)                                                 (1509))  // gritukan
     ((NodeFlavors)                                                  (1510))  // gritukan
     ((ProxyRoles)                                                   (1511))  // gritukan
+    ((ReconfigurableMasterSingletons)                               (1512))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

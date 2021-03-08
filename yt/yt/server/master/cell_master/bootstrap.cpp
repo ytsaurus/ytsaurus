@@ -96,6 +96,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
@@ -666,6 +667,7 @@ void TBootstrap::DoInitialize()
     AlertManager_ = CreateAlertManager(this);
 
     ConfigManager_ = New<TConfigManager>(this);
+    ConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
     EpochHistoryManager_ = New<TEpochHistoryManager>(this);
 
@@ -967,6 +969,12 @@ void TBootstrap::ValidateLoadSnapshotParameters(
         }
         *dumpConfig = ConvertTo<TSerializationDumperConfigPtr>(NYson::TYsonString(dumpConfigString));
     }
+}
+
+void TBootstrap::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& /*oldConfig*/)
+{
+    const auto& config = ConfigManager_->GetConfig();
+    ReconfigureSingletons(Config_, config->CellMaster);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

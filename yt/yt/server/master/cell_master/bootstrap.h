@@ -208,6 +208,8 @@ private:
         bool enableTotalWriteCountReport,
         const TString& dumpConfigString,
         TSerializationDumperConfigPtr* dumpConfig);
+
+    void OnDynamicConfigChanged(const TDynamicClusterConfigPtr& oldConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

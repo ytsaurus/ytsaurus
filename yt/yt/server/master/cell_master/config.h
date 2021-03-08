@@ -34,6 +34,8 @@
 
 #include <yt/yt/ytlib/transaction_client/config.h>
 
+#include <yt/yt/ytlib/program/config.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/rpc/config.h>
@@ -276,7 +278,7 @@ DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicCellMasterConfig
-    : public NYTree::TYsonSerializable
+    : public TSingletonsDynamicConfig
 {
 public:
     TDuration MutationTimeCommitPeriod;
