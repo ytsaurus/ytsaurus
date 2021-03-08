@@ -32,6 +32,8 @@
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
+#include <yt/yt/ytlib/program/helpers.h>
+
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -401,6 +403,8 @@ public:
         }
 
         Config_ = config;
+
+        ReconfigureSingletons(Bootstrap_->GetConfig(), Config_);
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
 
@@ -984,7 +988,7 @@ private:
 
     bool Connected_= false;
     bool ConnectScheduled_ = false;
-    std::atomic<TInstant> ConnectionTime_ = {TInstant::Zero()};
+    std::atomic<TInstant> ConnectionTime_ = TInstant::Zero();
     TIncarnationId IncarnationId_;
     TString SchedulerVersion_;
 
@@ -1325,7 +1329,7 @@ private:
                     default:
                         YT_ABORT();
                 }
-                
+
                 switch (event.EventType) {
                     case EAgentToSchedulerOperationEventType::Completed:
                     case EAgentToSchedulerOperationEventType::Aborted:

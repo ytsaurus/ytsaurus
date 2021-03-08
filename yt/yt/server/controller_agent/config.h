@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources.h>
 
+#include <yt/yt/ytlib/program/config.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/concurrency/config.h>
@@ -506,6 +508,7 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
 
 class TControllerAgentConfig
     : public NChunkClient::TChunkTeleporterConfig
+    , public TSingletonsDynamicConfig
 {
 public:
     //! Number of chunk lists to be allocated when an operation starts.
