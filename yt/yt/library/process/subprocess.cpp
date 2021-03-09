@@ -77,7 +77,7 @@ TSubprocessResult TSubprocess::Execute(const TSharedRef& input)
 
         //! Return dummy ref, so later we cat put Future into vector
         //! along with stdout and stderr.
-        return EmptySharedRef;
+        return TSharedRef::MakeEmpty();
     });
 
     std::vector<TFuture<TSharedRef>> futures = {

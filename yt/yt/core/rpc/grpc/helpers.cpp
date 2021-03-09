@@ -283,7 +283,7 @@ TMessageWithAttachments ByteBufferToMessageWithAttachments(
         if (attachmentSize == MinusOne) {
             result.Attachments.push_back(TSharedRef());
         } else if (attachmentSize == 0) {
-            result.Attachments.push_back(EmptySharedRef);
+            result.Attachments.push_back(TSharedRef::MakeEmpty());
         } else {
             if (stream.Load(attachmentsBuffer, attachmentSize) != attachmentSize) {
                 THROW_ERROR_EXCEPTION("Unexpected end of stream while reading message attachment");

@@ -26,6 +26,8 @@ public:
     //! Creates a TRef for a given range of memory.
     TRef(const void* begin, const void* end);
 
+    //! Creates an empty TRef.
+    static TRef MakeEmpty();
 
     //! Creates a non-owning TRef for a given blob.
     static TRef FromBlob(const TBlob& blob);
@@ -44,8 +46,6 @@ public:
     static bool AreBitwiseEqual(TRef lhs, TRef rhs);
 };
 
-extern const TRef EmptyRef;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A non-owning reference to a mutable range of memory.
@@ -63,9 +63,11 @@ public:
     //! Creates a TMutableRef for a given range of memory.
     TMutableRef(void* begin, void* end);
 
+    //! Creates an empty TMutableRef.
+    static TMutableRef MakeEmpty();
+
     //! Converts a TMutableRef to TRef.
     operator TRef() const;
-
 
     //! Creates a non-owning TMutableRef for a given blob.
     static TMutableRef FromBlob(TBlob& blob);
@@ -105,8 +107,11 @@ public:
     //! Creates a TSharedRef from a pointer and length.
     TSharedRef(const void* data, size_t length, THolderPtr holder);
 
-    //! Creates a TSharedRange from a range.
+    //! Creates a TSharedRef from a range.
     TSharedRef(const void* begin, const void* end, THolderPtr holder);
+
+    //! Creates an empty TSharedRef.
+    static TSharedRef MakeEmpty();
 
     //! Converts a TSharedRef to TRef.
     operator TRef() const;
@@ -153,8 +158,6 @@ private:
     friend class TSharedRefArrayImpl;
 };
 
-extern const TSharedRef EmptySharedRef;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A reference to a mutable range of memory with shared ownership.
@@ -172,8 +175,11 @@ public:
     //! Creates a TSharedMutableRef from a pointer and length.
     TSharedMutableRef(void* data, size_t length, THolderPtr holder);
 
-    //! Creates a TSharedMutableRange from a range.
+    //! Creates a TSharedMutableRef from a range.
     TSharedMutableRef(void* begin, void* end, THolderPtr holder);
+
+    //! Creates an empty TSharedMutableRef.
+    static TSharedMutableRef MakeEmpty();
 
     //! Converts a TSharedMutableRef to TMutableRef.
     operator TMutableRef() const;

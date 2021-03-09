@@ -182,7 +182,7 @@ void TPacketDecoder::NextMessagePartPhase()
         if (partSize == NullPacketPartSize) {
             Parts_.push_back(TSharedRef());
         } else if (partSize == 0) {
-            Parts_.push_back(EmptySharedRef);
+            Parts_.push_back(TSharedRef::MakeEmpty());
         } else {
             NYTAlloc::TMemoryZoneGuard guard(Any(FixedHeader_.Flags & EPacketFlags::UseUndumpableMemoryZone)
                 ? NYTAlloc::EMemoryZone::Undumpable

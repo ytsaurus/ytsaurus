@@ -832,7 +832,7 @@ TYPED_TEST(TRpcTest, NullAndEmptyAttachments)
     auto req = proxy.NullAndEmptyAttachments();
 
     req->Attachments().push_back(TSharedRef());
-    req->Attachments().push_back(EmptySharedRef);
+    req->Attachments().push_back(TSharedRef::MakeEmpty());
 
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
