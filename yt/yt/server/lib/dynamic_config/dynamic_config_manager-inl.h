@@ -278,21 +278,25 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
     VERIFY_THREAD_AFFINITY_ANY();
 
     NYTree::INodePtr configNode;
+    TConfigPtr config;
     TInstant lastConfigUpdateTime;
     TInstant lastConfigChangeTime;
     {
         auto guard = Guard(SpinLock_);
         configNode = AppliedConfigNode_;
+        config = AppliedConfig_;
         lastConfigUpdateTime = LastConfigUpdateTime_;
         lastConfigChangeTime = LastConfigChangeTime_;
     }
 
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .DoIf(configNode.operator bool(), [&] (auto fluent) {
+            .DoIf(static_cast<bool>(configNode), [&] (auto fluent) {
                 fluent.Item("applied_config").Value(configNode);
             })
-            .Item("effective_config").Value(Config_)
+            .DoIf(static_cast<bool>(config), [&] (auto fluent) {
+                fluent.Item("effective_config").Value(config);
+            })
             .Item("last_config_update_time").Value(lastConfigUpdateTime)
             .Item("last_config_change_time").Value(lastConfigChangeTime)
         .EndMap();
