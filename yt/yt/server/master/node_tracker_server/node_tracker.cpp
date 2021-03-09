@@ -343,7 +343,7 @@ public:
     {
         auto* node = FindNodeByAddress(address);
         if (!node) {
-            THROW_ERROR_EXCEPTION("No such cluster node %v", address);
+            THROW_ERROR_EXCEPTION("No such cluster node %Qv", address);
         }
         return node;
     }
@@ -892,6 +892,8 @@ private:
         auto flavors = FromProto<THashSet<ENodeFlavor>>(request->flavors());
         auto locationUuids = FromProto<std::vector<TLocationUuid>>(request->location_uuids());
 
+        ValidateNoDuplicateLocationUuids(address, locationUuids);
+
         // COMPAT(gritukan)
         if (flavors.empty()) {
             flavors = THashSet<ENodeFlavor>{
@@ -944,7 +946,7 @@ private:
 
                 auto aggregatedState = node->GetAggregatedState();
                 if (aggregatedState != ENodeState::Offline) {
-                    THROW_ERROR_EXCEPTION("Node %v is still in %Qlv state; must wait for it to become fully offline",
+                    THROW_ERROR_EXCEPTION("Node %Qv is still in %Qlv state; must wait for it to become fully offline",
                         node->GetDefaultAddress(),
                         aggregatedState);
                 }
@@ -955,7 +957,7 @@ private:
 
         for (auto locationUuid : locationUuids) {
             if (auto it = RegisteredLocationUuids_.find(locationUuid)) {
-                THROW_ERROR_EXCEPTION("Cannot register node %v: there is a registered node %v with the same location uuid %v",
+                THROW_ERROR_EXCEPTION("Cannot register node %Qv: there is a registered node %Qv with the same location uuid %v",
                     address,
                     it->second->GetDefaultAddress(),
                     locationUuid);
@@ -1751,6 +1753,20 @@ private:
 
         if (node->GetLocalState() == ENodeState::Unregistered) {
             DisposeNode(node);
+        }
+    }
+
+    static void ValidateNoDuplicateLocationUuids(
+        const TString& address,
+        const std::vector<TLocationUuid>& uuids)
+    {
+        THashSet<TLocationUuid> uuidSet;
+        for (auto uuid : uuids) {
+            if (!uuidSet.insert(uuid).second) {
+                THROW_ERROR_EXCEPTION("Duplicate location uuid %v reported by node %Qv",
+                    uuid,
+                    address);
+            }
         }
     }
 

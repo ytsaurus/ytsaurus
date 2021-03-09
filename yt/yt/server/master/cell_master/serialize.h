@@ -142,6 +142,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropSealedFromChunkTreeStatistics)                            (1458))  // gritukan
     ((RegisteredLocationUuids)                                      (1459))  // aleksandra-zh
     ((MigrateMinShareResourcesToStrongGuaranteeResources2)          (1460))  // renadeen
+    ((ValidateNoDuplicateLocationUuidsFromSameNode)                 (1461))  // babenko
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42
