@@ -781,11 +781,10 @@ class YTInstance(object):
             tags = []
             if self.yt_config.use_porto_for_servers:
                 tags.append("name: {}".format(p._portoName))
-
             tags.append("pid: {}".format(p.pid))
             tags.append("current_process_pid: {}".format(os.getpid()))
 
-            logger.debug("Process %s started (%s)", name, tags)
+            logger.debug("Process %s started (%s)", name, ", ".join(tags))
 
             return p
 
