@@ -577,7 +577,14 @@ public:
 
         std::vector<pid_t> pids;
         for (auto pid : ListPids()) {
-            auto cgroups = GetProcessCGroups(pid);
+            std::map<TString, TString> cgroups;
+            try {
+                cgroups = GetProcessCGroups(pid);
+            } catch (const std::exception& ex) {
+                YT_LOG_DEBUG(ex, "Failed to get CGroups for process (Pid: %v)", pid);
+                continue;
+            }
+
             auto processPidCgroup = normalizePidCgroup(cgroups["pids"]);
             if (instanceCgroup == processPidCgroup) {
                 pids.push_back(pid);
