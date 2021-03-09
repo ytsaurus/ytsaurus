@@ -238,7 +238,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             rpsThrottler,
                             blockReadOptions,
                             dataSource.Columns(),
-                            multiReaderMemoryManager->CreateChunkReaderMemoryManager(512_MB),
+                            multiReaderMemoryManager->CreateChunkReaderMemoryManager(
+                                DefaultRemoteDynamicStoreReaderMemoryEstimate),
                             createChunkReaderFromSpecAsync));
                     }
 
@@ -656,7 +657,7 @@ public:
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
-        IMultiReaderMemoryManagerPtr readerMemoryManager);
+        IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
     virtual TFuture<void> GetReadyEvent() const override
     {
@@ -980,7 +981,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
-    IMultiReaderMemoryManagerPtr readerMemoryManager)
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (config->SamplingRate && config->SamplingMode == ESamplingMode::Block) {
         THROW_ERROR_EXCEPTION("Block sampling is not yet supported for sorted dynamic tables");
@@ -1073,8 +1074,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto performanceCounters = New<TChunkReaderPerformanceCounters>();
 
-    if (!readerMemoryManager) {
-        readerMemoryManager = CreateParallelReaderMemoryManager(
+    if (!multiReaderMemoryManager) {
+        multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
                 .MaxInitialReaderReservedMemory = config->WindowSize
@@ -1100,9 +1101,12 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         bandwidthThrottler,
         rpsThrottler,
         renameDescriptors,
-        readerMemoryManager,
+        multiReaderMemoryManager,
         Logger
-    ] (const TChunkSpec& chunkSpec) -> IVersionedReaderPtr {
+    ] (
+        const TChunkSpec& chunkSpec,
+        const TChunkReaderMemoryManagerPtr& chunkReaderMemoryManager) -> IVersionedReaderPtr
+    {
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
         auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
@@ -1160,8 +1164,6 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             performanceCounters,
             nullptr,
             nullptr);
-        auto chunkReaderMemoryManager =
-            readerMemoryManager->CreateChunkReaderMemoryManager(chunkMeta->Misc().uncompressed_data_size());
 
         return CreateVersionedChunkReader(
             config,
@@ -1174,7 +1176,10 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             TColumnFilter(),
             timestamp,
             false,
-            chunkReaderMemoryManager);
+            chunkReaderMemoryManager
+                ? chunkReaderMemoryManager
+                : multiReaderMemoryManager->CreateChunkReaderMemoryManager(
+                    chunkMeta->Misc().uncompressed_data_size()));
     };
 
     auto createVersionedReader = [
@@ -1193,8 +1198,9 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         bandwidthThrottler,
         rpsThrottler,
         renameDescriptors,
-        Logger,
-        createVersionedChunkReader
+        multiReaderMemoryManager,
+        createVersionedChunkReader,
+        Logger
     ] (int index) -> IVersionedReaderPtr {
         const auto& chunkSpec = chunkSpecs[index];
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
@@ -1213,9 +1219,11 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
                 blockReadOptions,
                 columnFilter,
                 timestamp,
+                multiReaderMemoryManager->CreateChunkReaderMemoryManager(
+                    DefaultRemoteDynamicStoreReaderMemoryEstimate),
                 BIND(createVersionedChunkReader));
         } else {
-            return createVersionedChunkReader(chunkSpec);
+            return createVersionedChunkReader(chunkSpec, nullptr);
         }
     };
 
@@ -1253,7 +1261,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         std::move(idMapping),
         std::move(nameTable),
         rowCount,
-        std::move(readerMemoryManager),
+        std::move(multiReaderMemoryManager),
         Logger);
 }
 
