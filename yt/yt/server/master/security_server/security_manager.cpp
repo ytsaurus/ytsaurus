@@ -2708,6 +2708,10 @@ private:
 
         // Leads to overcommit in hierarchical accounts!
         if (MustInitializeMasterMemoryLimits_) {
+            auto resourceLimits = RootAccount_->ClusterResourceLimits();
+            resourceLimits.MasterMemory = 100_GB;
+            TrySetResourceLimits(RootAccount_, resourceLimits);
+            
             for (auto [accountId, account] : AccountMap_) {
                 if (!IsObjectAlive(account)) {
                     continue;
@@ -2720,7 +2724,12 @@ private:
             }
         }
 
+        // Leads to overcommit in hierarchical accounts!
         if (MustInitializeChunkHostMasterMemoryLimits_) {
+            auto resourceLimits = RootAccount_->ClusterResourceLimits();
+            resourceLimits.ChunkHostMasterMemory = 100_GB;
+            TrySetResourceLimits(RootAccount_, resourceLimits);
+
             for (auto [accountId, account] : AccountMap_) {
                 if (!IsObjectAlive(account)) {
                     continue;
