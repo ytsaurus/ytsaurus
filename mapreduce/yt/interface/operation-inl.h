@@ -822,19 +822,19 @@ Y_GENERATE_UNIQUE_ID(TJobRegistrator)(NYT::YtRegistryTypeName(TypeName<__VA_ARGS
 static NYT::TReducerRegistrator<__VA_ARGS__> \
 Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
-#define REGISTER_NAMED_RAW_JOB(name, className) \
-static NYT::TRawJobRegistrator<className> \
+#define REGISTER_NAMED_RAW_JOB(name, ...) \
+static NYT::TRawJobRegistrator<__VA_ARGS__> \
 Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
-#define REGISTER_RAW_JOB(className) \
-REGISTER_NAMED_RAW_JOB((NYT::YtRegistryTypeName(TypeName<className>()).data()), className)
+#define REGISTER_RAW_JOB(...) \
+REGISTER_NAMED_RAW_JOB((NYT::YtRegistryTypeName(TypeName<__VA_ARGS__>()).data()), __VA_ARGS__)
 
-#define REGISTER_NAMED_VANILLA_JOB(name, className) \
-static NYT::TVanillaJobRegistrator<className> \
+#define REGISTER_NAMED_VANILLA_JOB(name, ...) \
+static NYT::TVanillaJobRegistrator<__VA_ARGS__> \
 Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
-#define REGISTER_VANILLA_JOB(className) \
-REGISTER_NAMED_VANILLA_JOB((NYT::YtRegistryTypeName(TypeName<className>()).data()), className)
+#define REGISTER_VANILLA_JOB(...) \
+REGISTER_NAMED_VANILLA_JOB((NYT::YtRegistryTypeName(TypeName<__VA_ARGS__>()).data()), __VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
 
