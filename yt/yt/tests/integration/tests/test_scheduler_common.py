@@ -942,7 +942,8 @@ class TestSchedulerCommon(YTEnvSetup):
 
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):
-    NUM_SECONDARY_MASTER_CELLS = 4
+    NUM_TEST_PARTITIONS = 6
+    NUM_SECONDARY_MASTER_CELLS = 2
 
 
 ##################################################################

@@ -45,8 +45,6 @@ class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
 
 
 class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
-    NUM_SECONDARY_MASTER_CELLS = 3
-
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "snapshot_period": 500,
@@ -741,7 +739,7 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
 
 class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
     NUM_TEST_PARTITIONS = 6
-    NUM_SECONDARY_MASTER_CELLS = 4
+    NUM_SECONDARY_MASTER_CELLS = 2
 
 
 ##################################################################
