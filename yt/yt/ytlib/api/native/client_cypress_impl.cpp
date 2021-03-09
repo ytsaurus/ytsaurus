@@ -146,6 +146,15 @@ protected:
         , Logger(std::move(logger))
     { }
 
+    ~TCrossCellExecutor()
+    {
+        try {
+            MaybeAbortTransaction();
+        } catch (std::exception& e) {
+            YT_LOG_DEBUG(TError(e), "Error aborting transaction");
+        }
+    }
+
     struct TSerializedSubtree
     {
         TSerializedSubtree() = default;
@@ -167,6 +176,7 @@ protected:
     const NLogging::TLogger Logger;
 
     ITransactionPtr Transaction_;
+    bool TransactionCommitted_ = false;
 
     std::vector<TSerializedSubtree> SerializedSubtrees_;
 
@@ -380,10 +390,26 @@ protected:
     {
         YT_LOG_DEBUG("Committing transaction");
 
+        // NB: failing to commit still means we shouldn't try to abort.
+        TransactionCommitted_ = true;
         auto error = WaitFor(Transaction_->Commit());
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error committing transaction");
 
         YT_LOG_DEBUG("Transaction committed");
+    }
+
+    void MaybeAbortTransaction()
+    {
+        if (!Transaction_ || TransactionCommitted_) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Aborting transaction");
+
+        auto error = WaitFor(Transaction_->Abort());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error aborting transaction");
+
+        YT_LOG_DEBUG("Transaction aborted");
     }
 };
 
