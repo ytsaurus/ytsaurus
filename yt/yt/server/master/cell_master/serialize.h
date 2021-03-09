@@ -156,6 +156,7 @@ DEFINE_ENUM(EMasterReign,
     ((NodeFlavors)                                                  (1510))  // gritukan
     ((ProxyRoles)                                                   (1511))  // gritukan
     ((ReconfigurableMasterSingletons)                               (1512))  // gritukan
+    ((FixMasterMemoryCompats)                                       (1513))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
