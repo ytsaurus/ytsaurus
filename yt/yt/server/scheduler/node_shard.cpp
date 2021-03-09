@@ -132,16 +132,16 @@ TNodeShard::TNodeShard(
     
     SoftConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
         .WithTag("limit_type", "soft")
-        .Counter("/node_heartbeat/concurrent_limit_reached");
+        .Counter("/node_heartbeat/concurrent_limit_reached_count");
     HardConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
         .WithTag("limit_type", "hard")
-        .Counter("/node_heartbeat/concurrent_limit_reached");
+        .Counter("/node_heartbeat/concurrent_limit_reached_count");
     HeartbeatWithScheduleJobsCounter_ = SchedulerProfiler
         .Counter("/node_heartbeat/with_schedule_jobs_count");
     HeartbeatJobCount_ = SchedulerProfiler
         .Counter("/node_heartbeat/job_count");
     HeartbeatStatisticBytes_ = SchedulerProfiler
-        .Counter("/node_heartbit/statistics_bytes");
+        .Counter("/node_heartbeat/statistic_bytes");
     HeartbeatProtoMessageBytes_ = SchedulerProfiler
         .Counter("/node_heartbeat/proto_message_bytes");
     HeartbeatCount_ = SchedulerProfiler
@@ -429,7 +429,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     if (request->has_job_reporter_write_failures_count()) {
         jobReporterWriteFailuresCount = request->job_reporter_write_failures_count();
     }
-    if (jobReporterWriteFailuresCount) {
+    if (jobReporterWriteFailuresCount > 0) {
         JobReporterWriteFailuresCount_.fetch_add(jobReporterWriteFailuresCount, std::memory_order_relaxed);
     }
 
