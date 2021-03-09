@@ -130,7 +130,7 @@ const THeadersPtr& THttpParser::GetTrailers() const
 TSharedRef THttpParser::GetLastBodyChunk()
 {
     auto chunk = LastBodyChunk_;
-    LastBodyChunk_ = EmptySharedRef;
+    LastBodyChunk_ = TSharedRef::MakeEmpty();
     return chunk;
 }
 
@@ -466,7 +466,7 @@ void THttpInput::SetHttps()
 TSharedRef THttpInput::DoRead()
 {
     if (Parser_.GetState() == EParserState::MessageFinished) {
-        return EmptySharedRef;
+        return TSharedRef::MakeEmpty();
     }
 
     Connection_->SetReadDeadline(TInstant::Now() + Config_->BodyReadIdleTimeout);
@@ -491,7 +491,7 @@ TSharedRef THttpInput::DoRead()
             FinishMessage();
 
             Connection_->SetReadDeadline(std::nullopt);
-            return EmptySharedRef;
+            return TSharedRef::MakeEmpty();
         }
 
         // EOF must be handled by HTTP parser.
@@ -732,7 +732,7 @@ TFuture<void> THttpOutput::Close()
     }
 
     if (!HeadersFlushed_) {
-        return WriteBody(EmptySharedRef);
+        return WriteBody(TSharedRef::MakeEmpty());
     }
 
     return FinishChunked();

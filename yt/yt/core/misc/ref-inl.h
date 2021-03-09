@@ -9,6 +9,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+extern const char EmptyRefData[0];
+extern char MutableEmptyRefData[0];
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 Y_FORCE_INLINE TRef::TRef(const void* data, size_t size)
     : TRange<char>(static_cast<const char*>(data), size)
 { }
@@ -16,6 +25,11 @@ Y_FORCE_INLINE TRef::TRef(const void* data, size_t size)
 Y_FORCE_INLINE TRef::TRef(const void* begin, const void* end)
     : TRange<char>(static_cast<const char*>(begin), static_cast<const char*>(end))
 { }
+
+Y_FORCE_INLINE TRef TRef::MakeEmpty()
+{
+    return TRef(NDetail::EmptyRefData, NDetail::EmptyRefData);
+}
 
 Y_FORCE_INLINE TRef TRef::FromBlob(const TBlob& blob)
 {
@@ -49,6 +63,11 @@ Y_FORCE_INLINE TMutableRef::TMutableRef(void* data, size_t size)
 Y_FORCE_INLINE TMutableRef::TMutableRef(void* begin, void* end)
     : TMutableRange<char>(static_cast<char*>(begin), static_cast<char*>(end))
 { }
+
+Y_FORCE_INLINE TMutableRef TMutableRef::MakeEmpty()
+{
+    return TMutableRef(NDetail::MutableEmptyRefData, NDetail::MutableEmptyRefData);
+}
 
 Y_FORCE_INLINE TMutableRef::operator TRef() const
 {
@@ -92,6 +111,11 @@ Y_FORCE_INLINE TSharedRef::TSharedRef(const void* data, size_t length, TSharedRa
 Y_FORCE_INLINE TSharedRef::TSharedRef(const void* begin, const void* end, TSharedRange<char>::THolderPtr holder)
     : TSharedRange<char>(static_cast<const char*>(begin), static_cast<const char*>(end), std::move(holder))
 { }
+
+Y_FORCE_INLINE TSharedRef TSharedRef::MakeEmpty()
+{
+    return TSharedRef(TRef::MakeEmpty(), nullptr);
+}
 
 Y_FORCE_INLINE TSharedRef::operator TRef() const
 {
@@ -141,6 +165,11 @@ Y_FORCE_INLINE TSharedMutableRef::TSharedMutableRef(void* data, size_t length, T
 Y_FORCE_INLINE TSharedMutableRef::TSharedMutableRef(void* begin, void* end, TSharedMutableRange<char>::THolderPtr holder)
     : TSharedMutableRange<char>(static_cast<char*>(begin), static_cast<char*>(end), std::move(holder))
 { }
+
+Y_FORCE_INLINE TSharedMutableRef TSharedMutableRef::MakeEmpty()
+{
+    return TSharedMutableRef(TMutableRef::MakeEmpty(), nullptr);
+}
 
 Y_FORCE_INLINE TSharedMutableRef::operator TMutableRef() const
 {

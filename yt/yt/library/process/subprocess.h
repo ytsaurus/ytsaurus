@@ -28,7 +28,7 @@ public:
     void AddArgument(TStringBuf arg);
     void AddArguments(std::initializer_list<TStringBuf> args);
 
-    TSubprocessResult Execute(const TSharedRef& input = EmptySharedRef);
+    TSubprocessResult Execute(const TSharedRef& input = TSharedRef::MakeEmpty());
     void Kill(int signal);
 
     TString GetCommandLine() const;
