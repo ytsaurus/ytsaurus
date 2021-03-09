@@ -133,8 +133,11 @@ TSharedRef TSharedRef::FromBlob(TBlob&& blob)
 
 TSharedRef TSharedRef::MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie)
 {
+    if (!ref) {
+        return {};
+    }
     if (ref.Empty()) {
-        return TSharedRef();
+        return TSharedRef::MakeEmpty();
     }
     auto result = TSharedMutableRef::Allocate(ref.Size(), false, tagCookie);
     ::memcpy(result.Begin(), ref.Begin(), ref.Size());
@@ -176,8 +179,11 @@ TSharedMutableRef TSharedMutableRef::FromBlob(TBlob&& blob)
 
 TSharedMutableRef TSharedMutableRef::MakeCopy(TRef ref, TRefCountedTypeCookie tagCookie)
 {
+    if (!ref) {
+        return {};
+    }
     if (ref.Empty()) {
-        return TSharedMutableRef();
+        return TSharedMutableRef::MakeEmpty();
     }
     auto result = Allocate(ref.Size(), false, tagCookie);
     ::memcpy(result.Begin(), ref.Begin(), ref.Size());
