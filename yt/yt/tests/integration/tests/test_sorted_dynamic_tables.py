@@ -28,6 +28,14 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
             "timestamp_provider": {
                 "update_period": 100
             }
+        },
+        "resource_limits": {
+            "memory_limits": {
+                "lookup_rows_cache": {
+                    "type": "static",
+                    "value": 1 * 1024 * 1024
+                }
+            }
         }
     }
 
