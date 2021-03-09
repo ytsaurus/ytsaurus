@@ -14,6 +14,9 @@ class TVirtualValueDirectory;
 
 constexpr int DefaultPartitionTag = -1;
 
+// TODO(ifsmirnov): calculate actual estimates.
+constexpr i64 DefaultRemoteDynamicStoreReaderMemoryEstimate = 64_MB;
+
 DEFINE_ENUM(ETableChunkFormat,
     ((Old)                  (1))
     ((VersionedSimple)      (2))

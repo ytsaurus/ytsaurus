@@ -45,7 +45,10 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
-    TCallback<IVersionedReaderPtr(NChunkClient::NProto::TChunkSpec)> chunkReaderFactory);
+    NChunkClient::TChunkReaderMemoryManagerPtr readerMemoryManager,
+    TCallback<IVersionedReaderPtr(
+        NChunkClient::NProto::TChunkSpec,
+        NChunkClient::TChunkReaderMemoryManagerPtr)> chunkReaderFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

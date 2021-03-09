@@ -51,6 +51,11 @@ using NYT::FromProto;
 using TIdMapping = SmallVector<int, TypicalColumnCount>;
 
 template <class IReaderPtr>
+using TChunkReaderFactory = TCallback<IReaderPtr(
+    TChunkSpec,
+    TChunkReaderMemoryManagerPtr)>;
+
+template <class IReaderPtr>
 using TAsyncChunkReaderFactory = TCallback<TFuture<IReaderPtr>(
     TChunkSpec,
     TChunkReaderMemoryManagerPtr)>;
@@ -1031,6 +1036,7 @@ public:
         const TColumnFilter& columnFilter,
         const TClientBlockReadOptions& blockReadOptions,
         TTimestamp timestamp,
+        NChunkClient::TChunkReaderMemoryManagerPtr readerMemoryManager,
         TAsyncChunkReaderFactory<IVersionedReaderPtr> chunkReaderFactory)
         : TRetryingRemoteDynamicStoreReaderBase(
             std::move(chunkSpec),
@@ -1039,7 +1045,7 @@ public:
             std::move(client),
             std::move(nodeDirectory),
             blockReadOptions,
-            nullptr /*readerMemoryManager*/,
+            std::move(readerMemoryManager),
             std::move(chunkReaderFactory))
         , ColumnFilter_(columnFilter)
         , Timestamp_(timestamp)
@@ -1136,13 +1142,16 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
     const TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
-    TCallback<IVersionedReaderPtr(NChunkClient::NProto::TChunkSpec)> chunkReaderFactory)
+    TChunkReaderMemoryManagerPtr readerMemoryManager,
+    TChunkReaderFactory<IVersionedReaderPtr> chunkReaderFactory)
 {
     auto asyncChunkReaderFactory = BIND([chunkReaderFactory = std::move(chunkReaderFactory)] (
         TChunkSpec chunkSpec,
-        TChunkReaderMemoryManagerPtr /*readerMemoryManager*/)
+        TChunkReaderMemoryManagerPtr readerMemoryManager)
     {
-        return MakeFuture(chunkReaderFactory(std::move(chunkSpec)));
+        return MakeFuture(chunkReaderFactory(
+            std::move(chunkSpec),
+            std::move(readerMemoryManager)));
     });
 
     return New<TRetryingRemoteSortedDynamicStoreReader>(
@@ -1154,6 +1163,7 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
         columnFilter,
         blockReadOptions,
         timestamp,
+        std::move(readerMemoryManager),
         asyncChunkReaderFactory);
 }
 
