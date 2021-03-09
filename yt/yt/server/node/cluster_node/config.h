@@ -154,6 +154,14 @@ public:
             .LessThanOrEqual(1_GB)
             .Default(1_MB);
 
+        RegisterPreprocessor([&] {
+            // Default LookupRowsCache memory limit.
+            auto lookupRowsCacheLimit = New<TMemoryLimit>();
+            lookupRowsCacheLimit->Type = NNodeTrackerClient::EMemoryLimitType::Static;
+            lookupRowsCacheLimit->Value = 0;
+            MemoryLimits[NNodeTrackerClient::EMemoryCategory::LookupRowsCache] = lookupRowsCacheLimit;
+        });
+
         RegisterPostprocessor([&] {
             if (UserJobs) {
                 MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs] = UserJobs;
