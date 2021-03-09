@@ -6,12 +6,8 @@
 
 #include <yt/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/yt/client/chunk_client/public.h>
-
 #include <yt/yt/core/misc/fixed_point_number.h>
 #include <yt/yt/core/misc/small_vector.h>
-
-#include <yt/yt/core/profiling/metrics_accumulator.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -222,11 +218,6 @@ bool Dominates(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& 
 TJobResources Max(const TJobResources& lhs, const TJobResources& rhs);
 TJobResources Min(const TJobResources& lhs, const TJobResources& rhs);
 TJobResourcesWithQuota Min(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
-
-void Serialize(const TExtendedJobResources& resources, NYson::IYsonConsumer* consumer);
-void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
-
-void Deserialize(TJobResources& resources, NYTree::INodePtr node);
 
 const TJobResources& MinSpareNodeResources();
 

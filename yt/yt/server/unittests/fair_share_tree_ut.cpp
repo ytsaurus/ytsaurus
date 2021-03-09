@@ -558,10 +558,7 @@ protected:
             /* runningJobs */ {},
             host->GetMediumDirectory());
 
-        {
-            TUpdateFairShareContext updateContext;
-            DoFairShareUpdate(host, rootElement, &updateContext);
-        }
+        DoFairShareUpdate(host, rootElement);
 
         TScheduleJobsContext context(
             schedulingContext,
@@ -583,19 +580,29 @@ protected:
     void DoFairShareUpdate(
         const ISchedulerStrategyHost* host,
         const TRootElementPtr& rootElement,
-        TUpdateFairShareContext* context)
+        TInstant now = TInstant(),
+        std::optional<TInstant> previousUpdateTime = std::nullopt)
     {
-        context->TotalResourceLimits = host->GetResourceLimits(TreeConfig_->NodesFilter);
+		NFairShare::TFairShareUpdateContext context(
+            /* totalResourceLimits */ host->GetResourceLimits(TreeConfig_->NodesFilter),
+            TreeConfig_->MainResource,
+            TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod,
+            TreeConfig_->IntegralGuarantees->SmoothPeriod,
+            now,
+            previousUpdateTime);
 
         TFairSharePostUpdateContext fairSharePostUpdateContext;
         TManageTreeSchedulingSegmentsContext manageSegmentsContext{
             .TreeConfig = TreeConfig_,
-            .TotalResourceLimits = context->TotalResourceLimits,
+            .TotalResourceLimits = context.TotalResourceLimits,
         };
 
-        rootElement->PreUpdate(context);
-        rootElement->Update(context);
-        rootElement->PostUpdate(&fairSharePostUpdateContext, &manageSegmentsContext);
+        rootElement->PreUpdate(&context);
+
+		NFairShare::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
+		updateExecutor.Run();
+
+		rootElement->PostUpdate(&fairSharePostUpdateContext, &manageSegmentsContext);
     }
 };
 
@@ -689,8 +696,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     }
 
     {
-        TUpdateFairShareContext updateContext;
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        DoFairShareUpdate(host.Get(), rootElement);
 
         auto expectedOperationDemand = TResourceVector::FromJobResources(jobResources, nodeResources);
         auto poolExpectedDemand = expectedOperationDemand * (OperationCount / 2.0);
@@ -729,8 +735,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
-        TUpdateFairShareContext updateContext;
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        DoFairShareUpdate(host.Get(), rootElement);
 
         // Demand increased to 0.2 due to started jobs, so did fair share.
         // usage(0.1) / fair_share(0.2) = 0.5
@@ -760,8 +765,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
-        TUpdateFairShareContext updateContext;
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        DoFairShareUpdate(host.Get(), rootElement);
 
         // Demand increased to 0.2 due to started jobs, so did fair share.
         // usage(0.1) / fair_share(0.2) = 0.5
@@ -796,19 +800,18 @@ TEST_F(TFairShareTreeTest, TestResourceLimits)
     poolB->AttachParent(poolA.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        DoFairShareUpdate(host.Get(), rootElement);
 
         EXPECT_EQ(totalLimitsShare, rootElement->Attributes().LimitsShare);
-        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
 
         EXPECT_EQ(totalLimitsShare, poolA->Attributes().LimitsShare);
-        EXPECT_EQ(nodeResources.ToJobResources(), poolA->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
 
         EXPECT_EQ(totalLimitsShare, poolB->Attributes().LimitsShare);
-        EXPECT_EQ(nodeResources.ToJobResources(), poolB->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), poolB->GetResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolB->GetTotalResourceLimits());
     }
 
@@ -829,22 +832,21 @@ TEST_F(TFairShareTreeTest, TestResourceLimits)
     poolB->SetConfig(poolBConfig);
 
     {
-        TUpdateFairShareContext updateContext;
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        DoFairShareUpdate(host.Get(), rootElement);
 
         EXPECT_EQ(totalLimitsShare, rootElement->Attributes().LimitsShare);
-        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
 
         auto poolALimitsShare = TResourceVector::FromJobResources(poolAResourceLimits, nodeResources);
         EXPECT_EQ(poolALimitsShare, poolA->Attributes().LimitsShare);
-        EXPECT_EQ(poolAResourceLimits, poolA->ResourceLimits());
+        EXPECT_EQ(poolAResourceLimits, poolA->GetResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
 
         auto poolBResourceLimits = nodeResources * maxShareRatio;
         auto poolBLimitsShare = TResourceVector::FromJobResources(poolBResourceLimits, nodeResources);
         EXPECT_EQ(poolBLimitsShare, poolB->Attributes().LimitsShare);
-        EXPECT_EQ(poolBResourceLimits, poolB->ResourceLimits());
+        EXPECT_EQ(poolBResourceLimits, poolB->GetResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolB->GetTotalResourceLimits());
     }
 }
@@ -877,16 +879,15 @@ TEST_F(TFairShareTreeTest, TestFractionalResourceLimits)
     poolResourceLimits.SetMemory(99);
 
     {
-        TUpdateFairShareContext updateContext;
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        DoFairShareUpdate(host.Get(), rootElement);
 
         EXPECT_EQ(totalLimitsShare, rootElement->Attributes().LimitsShare);
-        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
 
         auto poolLimitsShare = TResourceVector::FromJobResources(poolResourceLimits, nodeResources);
         EXPECT_EQ(poolLimitsShare, poolA->Attributes().LimitsShare);
-        EXPECT_EQ(poolResourceLimits.ToJobResources(), poolA->ResourceLimits());
+        EXPECT_EQ(poolResourceLimits.ToJobResources(), poolA->GetResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
     }
 }
@@ -923,8 +924,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
             /* precommitedResources */ {});
     }
 
-    TUpdateFairShareContext updateContext;
-    DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+    DoFairShareUpdate(host.Get(), rootElement);
 
     EXPECT_EQ(1.6, MaxComponent(operationElementX->Attributes().DemandShare));
     EXPECT_EQ(1.0, MaxComponent(operationElementX->Attributes().FairShare.Total));
@@ -968,8 +968,7 @@ TEST_F(TFairShareTreeTest, TestBestAllocationShare)
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(3, jobResources));
     auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), rootElement.Get(), operationOptions);
 
-    TUpdateFairShareContext updateContext;
-    DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+    DoFairShareUpdate(host.Get(), rootElement);
 
     auto totalResources = nodeResourcesA * 2. + nodeResourcesB;
     auto demandShare = TResourceVector::FromJobResources(jobResources * 3., totalResources);
@@ -1101,9 +1100,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareEmptyTree)
     auto poolB = CreateTestPool(host.Get(), "PoolB");
     poolB->AttachParent(rootElement.Get());
 
-    // Update tree
-    TUpdateFairShareContext updateContext;
-    DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+    DoFairShareUpdate(host.Get(), rootElement);
 
     // Check the values
     EXPECT_EQ(TResourceVector::Zero(), rootElement->GetFairShare());
@@ -1142,9 +1139,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareOneLargeOperation)
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
     auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), poolA.Get(), operationOptions);
 
-    // Update tree
-    TUpdateFairShareContext updateContext;
-    DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+    DoFairShareUpdate(host.Get(), rootElement);
 
     // Check the values
     EXPECT_EQ(TResourceVector({0.5, 0.5, 0.0, 1.0, 0.0}), rootElement->GetFairShare());
@@ -1184,9 +1179,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareOneSmallOperation)
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
     auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), poolA.Get(), operationOptions);
 
-    // Update tree
-    TUpdateFairShareContext updateContext;
-    DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+    DoFairShareUpdate(host.Get(), rootElement);
 
     // Check the values
     EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.6, 0.0}), rootElement->GetFairShare());
@@ -1239,9 +1232,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareTwoComplementaryOperations)
     auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
     auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), poolA.Get(), operationOptions2);
 
-    // Update tree
-    TUpdateFairShareContext updateContext;
-    DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+    DoFairShareUpdate(host.Get(), rootElement);
 
     // Check the values
     EXPECT_EQ(TResourceVector({2.0 / 3, 1.0, 0.0, 1.0, 0.0}), rootElement->GetFairShare());
@@ -1308,9 +1299,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareComplexCase)
     auto operation3 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount3, jobResources3));
     auto operationElement3 = CreateTestOperationElement(host.Get(), operation3.Get(), poolB.Get(), operationOptions3);
 
-    // Update tree
-    TUpdateFairShareContext updateContext;
-    DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+    DoFairShareUpdate(host.Get(), rootElement);
 
     // Check the values
 
@@ -1374,9 +1363,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShare)
     auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
     auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), poolA.Get(), operationOptions2);
 
-    // Update tree
-    TUpdateFairShareContext updateContext;
-    DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+    DoFairShareUpdate(host.Get(), rootElement);
 
     // Check the values
 
@@ -1446,9 +1433,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShareFunctionIsLe
     auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
     auto operationElement2 = CreateTestOperationElement(host.Get(), operation2.Get(), poolA.Get(), operationOptions2);
 
-    // Update tree.
-    TUpdateFairShareContext updateContext;
-    DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+    DoFairShareUpdate(host.Get(), rootElement);
 
     // Check the values.
     // 0.4 is a discontinuity point of root's FSBS, so the amount of fair share given to poolA equals to
@@ -1509,8 +1494,7 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareImpreciseComposition)
         jobResourcesA.ToJobResources(),
         /* precommitedResources */ {});
 
-    TUpdateFairShareContext updateContext;
-    DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+	DoFairShareUpdate(host.Get(), rootElement);
 
     EXPECT_FALSE(Dominates(TResourceVector::Ones(), pool->GetFairShare()));
 }
@@ -1553,8 +1537,7 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
     }
 
 
-    TUpdateFairShareContext updateContext;
-    DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+	DoFairShareUpdate(host.Get(), rootElement);
 
     EXPECT_EQ(TResourceVector({0.0, 0.4, 0.0, 0.4, 0.0}), operationElement->Attributes().DemandShare);
     EXPECT_EQ(TResourceVector({0.0, 0.4, 0.0, 0.4, 0.0}), operationElement->Attributes().FairShare.Total);
@@ -1595,10 +1578,8 @@ TEST_F(TFairShareTreeTest, TestRelaxedPoolFairShareSimple)
     auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), relaxedPool.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 3, operationElement->Attributes().FairShare.WeightProportional);
@@ -1640,10 +1621,7 @@ TEST_F(TFairShareTreeTest, TestRelaxedPoolWithIncreasedMultiplierLimit)
     increasedLimitRelaxedPool->InitAccumulatedResourceVolume(hugeVolume);
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = std::nullopt;  // It disables refill stage.
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        DoFairShareUpdate(host.Get(), rootElement);
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 3, defaultRelaxedPool->Attributes().FairShare.IntegralGuarantee);  // Default multiplier is 3.
@@ -1665,10 +1643,8 @@ TEST_F(TFairShareTreeTest, TestBurstPoolFairShareSimple)
     auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), burstPool.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 3, operationElement->Attributes().FairShare.WeightProportional);
@@ -1697,20 +1673,22 @@ TEST_F(TFairShareTreeTest, TestAccumulatedVolumeProvidesMore)
     auto firstUpdateTime = TInstant::Now();
     {
         // Make first update to accumulate volume
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = firstUpdateTime;
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        DoFairShareUpdate(
+			host.Get(),
+			rootElement,
+			/* now */ firstUpdateTime,
+			/* previousUpdateTime */ firstUpdateTime - TDuration::Minutes(1));
     }
 
     auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), relaxedPool.Get());
     auto secondUpdateTime = firstUpdateTime + TDuration::Minutes(1);
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = secondUpdateTime;
-        updateContext.PreviousUpdateTime = firstUpdateTime;
         ResetFairShareFunctionsRecursively(rootElement.Get());
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        DoFairShareUpdate(
+			host.Get(),
+			rootElement,
+			/* now */ secondUpdateTime,
+			/* previousUpdateTime */ firstUpdateTime);
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 3, operationElement->Attributes().FairShare.WeightProportional);
@@ -1739,10 +1717,8 @@ TEST_F(TFairShareTreeTest, TestStrongGuaranteePoolVsBurstPool)
     auto [strongOperationElement, strongOperationHost] = CreateOperationWithJobs(100, host.Get(), strongPool.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 5, strongPool->Attributes().FairShare.StrongGuarantee);
@@ -1774,10 +1750,8 @@ TEST_F(TFairShareTreeTest, TestStrongGuaranteePoolVsRelaxedPool)
     auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 5, strongPool->Attributes().FairShare.StrongGuarantee);
@@ -1811,10 +1785,8 @@ TEST_F(TFairShareTreeTest, TestBurstGetsAll_RelaxedNone)
     auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
@@ -1846,10 +1818,8 @@ TEST_F(TFairShareTreeTest, TestBurstGetsBurstGuaranteeOnly_RelaxedGetsRemaining)
     auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
@@ -1897,10 +1867,8 @@ TEST_F(TFairShareTreeTest, TestAllKindsOfPoolsShareWeightProportionalComponent)
     auto [noGuaranteeElement, noGuaranteeOperationHost] = CreateOperationWithJobs(100, host.Get(), noGuaranteePool.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 1, strongPool->Attributes().FairShare.StrongGuarantee);
@@ -1949,10 +1917,7 @@ TEST_F(TFairShareTreeTest, TestTwoRelaxedPoolsGetShareRatioProportionalToVolume)
     relaxedPool1->InitAccumulatedResourceVolume(volume1);
     relaxedPool2->InitAccumulatedResourceVolume(volume2);
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = std::nullopt;  // It disables refill stage.
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        DoFairShareUpdate(host.Get(), rootElement);
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 0, relaxedPool1->Attributes().FairShare.StrongGuarantee);
@@ -1984,9 +1949,7 @@ TEST_F(TFairShareTreeTest, TestStrongGuaranteeAdjustmentToTotalResources)
     auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, host.Get(), strongPool2.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        DoFairShareUpdate(host.Get(), rootElement);
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 2.5, strongPool1->Attributes().FairShare.StrongGuarantee);
@@ -2016,10 +1979,8 @@ TEST_F(TFairShareTreeTest, TestStrongGuaranteePlusBurstGuaranteeAdjustmentToTota
     auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 6, strongPool->Attributes().FairShare.StrongGuarantee);
@@ -2048,10 +2009,8 @@ TEST_F(TFairShareTreeTest, TestLimitsLowerThanStrongGuarantee)
     auto [opElement, opHost] = CreateOperationWithJobs(100, host.Get(), strongPoolChild.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 5, strongPoolParent->Attributes().FairShare.StrongGuarantee);
@@ -2081,10 +2040,8 @@ TEST_F(TFairShareTreeTest, TestParentWithoutGuaranteeAndHisLimitsLowerThanChildB
     auto [opElement, opHost] = CreateOperationWithJobs(100, host.Get(), burstChild.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 5, burstChild->Attributes().FairShare.IntegralGuarantee);
@@ -2110,10 +2067,8 @@ TEST_F(TFairShareTreeTest, TestParentWithStrongGuaranteeAndHisLimitsLowerThanChi
     auto [opElement, opHost] = CreateOperationWithJobs(100, host.Get(), burstChild.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 0, burstChild->Attributes().FairShare.StrongGuarantee);
@@ -2139,10 +2094,8 @@ TEST_F(TFairShareTreeTest, TestStrongGuaranteeAndRelaxedPoolVsRelaxedPool)
     auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 4, strongAndRelaxedPool->Attributes().FairShare.StrongGuarantee);
@@ -2179,10 +2132,8 @@ TEST_F(TFairShareTreeTest, PromisedFairShareOfIntegralPools)
     relaxedPool->AttachParent(relaxedPoolParent.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(host.Get(), rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 3, burstPool->Attributes().PromisedFairShare);
@@ -2247,10 +2198,8 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     }
 
 
-    {
-        TUpdateFairShareContext updateContext;
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
-    }
+	DoFairShareUpdate(host.Get(), rootElement);
+
     auto schedulingContext = CreateSchedulingContext(
         /* nodeShardId */ 0,
         SchedulerConfig_,
@@ -2321,10 +2270,13 @@ TEST_F(TFairShareTreeTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolu
 
     relaxedPool->InitAccumulatedResourceVolume(hugeVolume);
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Seconds(1);  // enable refill of volume
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        // Enable refill of volume.
+        DoFairShareUpdate(
+            host.Get(),
+            rootElement,
+            now,
+            now - TDuration::Seconds(1));
 
         auto updatedVolume = relaxedPool->GetAccumulatedResourceVolume();
         EXPECT_EQ(hugeVolume.GetCpu(), updatedVolume.GetCpu());
@@ -2358,10 +2310,12 @@ TEST_F(TFairShareTreeTest, TestIntegralPoolsWithParent)
     auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
 
     {
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = TInstant::Now();
-        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
-        DoFairShareUpdate(host.Get(), rootElement, &updateContext);
+        auto now = TInstant::Now();
+        DoFairShareUpdate(
+            host.Get(),
+            rootElement,
+            now,
+            now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);

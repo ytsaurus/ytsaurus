@@ -1,6 +1,8 @@
 #include "scheduling_context.h"
 #include "scheduling_context_detail.h"
 
+#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
+
 namespace NYT::NScheduler {
 
 using namespace NObjectClient;
