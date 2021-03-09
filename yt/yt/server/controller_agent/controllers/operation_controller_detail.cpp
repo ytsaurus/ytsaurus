@@ -61,6 +61,7 @@
 #include <yt/yt/ytlib/query_client/range_inferrer.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
 
 #include <yt/yt/client/security_client/acl.h>
 

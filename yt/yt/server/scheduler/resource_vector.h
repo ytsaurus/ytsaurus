@@ -6,8 +6,6 @@
 #include <yt/yt/library/numeric/double_array.h>
 #include <yt/yt/library/numeric/piecewise_linear_function.h>
 
-#include <yt/yt/core/ytree/fluent.h>
-
 #include <yt/yt/core/profiling/metrics_accumulator.h>
 
 #include <util/generic/cast.h>
@@ -62,27 +60,7 @@ public:
         const TJobResources& resources,
         const TJobResources& totalLimits,
         double zeroDivByZero = 0.0,
-        double oneDivByZero = 0.0)
-    {
-        TResourceVector result = {};
-        int resourceId = 0;
-        auto update = [&](auto resourceValue, auto resourceLimit) {
-            if (static_cast<double>(resourceLimit) == 0.0) {
-                if (static_cast<double>(resourceValue) == 0.0) {
-                    result[resourceId] = zeroDivByZero;
-                } else {
-                    result[resourceId] = oneDivByZero;
-                }
-            } else {
-                result[resourceId] = static_cast<double>(resourceValue) / static_cast<double>(resourceLimit);
-            }
-            ++resourceId;
-        };
-        #define XX(name, Name) update(resources.Get##Name(), totalLimits.Get##Name());
-        ITERATE_JOB_RESOURCES(XX)
-        #undef XX
-        return result;
-    }
+        double oneDivByZero = 0.0);
 
     static constexpr TResourceVector SmallEpsilon()
     {
@@ -126,93 +104,22 @@ inline TJobResources operator*(const TJobResources& lhs, const TResourceVector& 
     return result;
 }
 
-inline void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf format)
-{
-    auto getResourceSuffix = [] (EJobResourceType resourceType) {
-        const auto& resourceNames = TEnumTraits<EJobResourceType>::GetDomainNames();
-        switch (resourceType) {
-            case EJobResourceType::UserSlots:
-                // S is for Slots.
-                return 'S';
+void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf format);
 
-            default:
-                return resourceNames[ToUnderlying(resourceType)][0];
-        }
-    };
-
-    builder->AppendChar('[');
-    bool isFirst = true;
-    for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
-        if (!isFirst) {
-            builder->AppendChar(' ');
-        }
-        isFirst = false;
-
-        FormatValue(builder, resourceVector[resourceType], format);
-        builder->AppendChar(getResourceSuffix(resourceType));
-    }
-    builder->AppendChar(']');
-}
-
-inline void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer)
-{
-    auto fluent = NYTree::BuildYsonFluently(consumer).BeginMap();
-    for (int index = 0; index < ResourceCount; ++index) {
-        fluent
-            .Item(FormatEnum(TResourceVector::GetResourceTypeById(index)))
-            .Value(resourceVector[index]);
-    }
-    fluent.EndMap();
-}
-
-inline void ProfileResourceVector(
+void ProfileResourceVector(
     NProfiling::ISensorWriter* writer,
     const THashSet<EJobResourceType>& resourceTypes,
     const TResourceVector& resourceVector,
     const TString& prefix,
-    bool profilingCompatibilityEnabled)
-{
-    if (profilingCompatibilityEnabled) {
-        for (auto resourceType : resourceTypes) {
-            writer->AddGauge(
-                prefix + "_x100000/" + FormatEnum(resourceType),
-                static_cast<i64>(resourceVector[resourceType] * 1e5));
-        }
-    } else {
-        for (auto resourceType : resourceTypes) {
-            writer->AddGauge(
-                prefix + "/" + FormatEnum(resourceType),
-                resourceVector[resourceType]);
-        }
-    }
-}
+    bool profilingCompatibilityEnabled);
 
-inline void ProfileResourceVector(
+void ProfileResourceVector(
     NProfiling::TMetricsAccumulator& accumulator,
     const THashSet<EJobResourceType>& resourceTypes,
     const TResourceVector& resourceVector,
     const TString& prefix,
     const NProfiling::TTagIdList& tagIds,
-    bool profilingCompatibilityEnabled)
-{
-    if (profilingCompatibilityEnabled) {
-        for (auto resourceType : resourceTypes) {
-            accumulator.Add(
-                prefix + "_x100000/" + FormatEnum(resourceType),
-                static_cast<i64>(resourceVector[resourceType] * 1e5),
-                NProfiling::EMetricType::Gauge,
-                tagIds);
-        }
-    } else {
-        for (auto resourceType : resourceTypes) {
-            accumulator.Add(
-                prefix + "/" + FormatEnum(resourceType),
-                resourceVector[resourceType],
-                NProfiling::EMetricType::Gauge,
-                tagIds);
-        }
-    }
-}
+    bool profilingCompatibilityEnabled);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,6 +3,7 @@
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
 
 namespace NYT::NScheduler {
 

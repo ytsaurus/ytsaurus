@@ -9,8 +9,10 @@
 #include "scheduler_tree.h"
 #include "scheduling_context.h"
 #include "scheduling_segment_manager.h"
+#include "serialize.h"
 #include "fair_share_strategy_operation_controller.h"
 #include "fair_share_tree_profiling.h"
+#include "fair_share_update.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
@@ -18,6 +20,7 @@
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources.h>
+#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -451,7 +454,7 @@ public:
                     return TError("Operation has an ancestor whose resource limits are too small to satisfy operation's minimum job resource demand")
                         << TErrorAttribute("safe_timeout", limitingAncestorSafeTimeout)
                         << TErrorAttribute("limiting_ancestor", limitingAncestor->GetId())
-                        << TErrorAttribute("resource_limits", limitingAncestor->ResourceLimits())
+                        << TErrorAttribute("resource_limits", limitingAncestor->GetResourceLimits())
                         << TErrorAttribute("min_needed_resources", minNeededResources);
                 }
             } else if (it != OperationIdToFirstFoundLimitingAncestorTime_.end()) {
@@ -682,7 +685,7 @@ public:
         for (const auto& [poolId, pool] : Pools_) {
             if (pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
                 auto state = New<TPersistentPoolState>();
-                state->AccumulatedResourceVolume = pool->GetAccumulatedResourceVolume();
+                state->AccumulatedResourceVolume = pool->IntegralResourcesState().AccumulatedVolume;
                 result->PoolStates.emplace(poolId, std::move(state));
             }
         }
@@ -1070,10 +1073,13 @@ private:
 
         ResourceTree_->PerformPostponedActions();
 
-        TUpdateFairShareContext updateContext;
-        updateContext.Now = now;
-        updateContext.PreviousUpdateTime = LastFairShareUpdateTime_;
-        updateContext.TotalResourceLimits = StrategyHost_->GetResourceLimits(Config_->NodesFilter);
+        NFairShare::TFairShareUpdateContext updateContext(
+            /* totalResourceLimits */ StrategyHost_->GetResourceLimits(Config_->NodesFilter),
+            Config_->MainResource,
+            Config_->IntegralGuarantees->PoolCapacitySaturationPeriod,
+            Config_->IntegralGuarantees->SmoothPeriod,
+            now,
+            LastFairShareUpdateTime_);
 
         THashMap<TDataCenter, TJobResources> resourceLimitsPerDataCenter;
         if (Config_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
@@ -1102,7 +1108,10 @@ private:
                 TForbidContextSwitchGuard contextSwitchGuard;
                 {
                     TEventTimer timer(FairShareUpdateTimer_);
-                    rootElement->Update(&updateContext);
+
+                    NFairShare::TFairShareUpdateExecutor updateExecutor(rootElement, &updateContext);
+                    updateExecutor.Run();
+
                     rootElement->PostUpdate(&fairSharePostUpdateContext, &manageSegmentsContext);
                 }
             })
@@ -1616,7 +1625,7 @@ private:
                 continue;
             }
 
-            if (!Dominates(operationElement->ResourceLimits(), operationElement->GetInstantResourceUsage())) {
+            if (!Dominates(operationElement->GetResourceLimits(), operationElement->GetInstantResourceUsage())) {
                 job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
                     operationElement->GetId()));
                 PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext());
@@ -2051,7 +2060,7 @@ private:
     {
         const TSchedulerElement* current = element;
         while (current) {
-            if (!Dominates(current->ResourceLimits(), neededResources)) {
+            if (!Dominates(current->GetResourceLimits(), neededResources)) {
                 return current;
             }
             current = current->GetParent();
@@ -2348,22 +2357,31 @@ private:
 
     void DoBuildPoolsInformation(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
-        auto buildPoolInfo = [&] (const TCompositeSchedulerElement* pool, TFluentMap fluent) {
+        auto buildCompositeElementInfo = [&] (const TCompositeSchedulerElement* element, TFluentMap fluent) {
+            const auto& attributes = element->Attributes();
+            fluent
+                .Item("running_operation_count").Value(element->RunningOperationCount())
+                .Item("operation_count").Value(element->OperationCount())
+                .Item("max_running_operation_count").Value(element->GetMaxRunningOperationCount())
+                .Item("max_operation_count").Value(element->GetMaxOperationCount())
+                .Item("forbid_immediate_operations").Value(element->AreImmediateOperationsForbidden())
+                .Item("aggressive_starvation_enabled").Value(element->IsAggressiveStarvationEnabled())
+                .Item("total_resource_flow_ratio").Value(attributes.TotalResourceFlowRatio)
+                .Item("total_burst_ratio").Value(attributes.TotalBurstRatio)
+                .DoIf(element->GetParent(), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("parent").Value(element->GetParent()->GetId());
+                })
+                .Do(std::bind(&TFairShareTree::DoBuildElementYson, this, element, std::placeholders::_1));
+        };
+
+        auto buildPoolInfo = [&] (const TPool* pool, TFluentMap fluent) {
             const auto& id = pool->GetId();
-            const auto& attributes = pool->Attributes();
             fluent
                 .Item(id).BeginMap()
                     .Item("mode").Value(pool->GetMode())
-                    .Item("running_operation_count").Value(pool->RunningOperationCount())
-                    .Item("operation_count").Value(pool->OperationCount())
-                    .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
-                    .Item("max_operation_count").Value(pool->GetMaxOperationCount())
-                    .Item("aggressive_starvation_enabled").Value(pool->IsAggressiveStarvationEnabled())
-                    .Item("forbid_immediate_operations").Value(pool->AreImmediateOperationsForbidden())
                     .Item("is_ephemeral").Value(pool->IsDefaultConfigured())
                     .Item("integral_guarantee_type").Value(pool->GetIntegralGuaranteeType())
-                    .Item("total_resource_flow_ratio").Value(attributes.TotalResourceFlowRatio)
-                    .Item("total_burst_ratio").Value(attributes.TotalBurstRatio)
                     .DoIf(pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None, [&] (TFluentMap fluent) {
                         auto burstRatio = pool->GetSpecifiedBurstRatio();
                         auto resourceFlowRatio = pool->GetSpecifiedResourceFlowRatio();
@@ -2376,18 +2394,15 @@ private:
                             .Item("accumulated_resource_ratio_volume").Value(pool->GetAccumulatedResourceRatioVolume())
                             .Item("accumulated_resource_volume").Value(pool->GetAccumulatedResourceVolume());
                         if (burstRatio > resourceFlowRatio + RatioComparisonPrecision) {
-                            fluent.Item("estimated_burst_usage_duration_sec").Value(pool->GetAccumulatedResourceRatioVolume() / (burstRatio - resourceFlowRatio));
+                            fluent.Item("estimated_burst_usage_duration_seconds").Value(
+                                pool->GetAccumulatedResourceRatioVolume() / (burstRatio - resourceFlowRatio));
                         }
                     })
                     .DoIf(pool->GetMode() == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                         fluent
                             .Item("fifo_sort_parameters").Value(pool->GetFifoSortParameters());
                     })
-                    .DoIf(pool->GetParent(), [&] (TFluentMap fluent) {
-                        fluent
-                            .Item("parent").Value(pool->GetParent()->GetId());
-                    })
-                    .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(pool)))
+                    .Do(std::bind(buildCompositeElementInfo, pool, std::placeholders::_1))
                 .EndMap();
         };
 
@@ -2397,7 +2412,9 @@ private:
                 .DoFor(treeSnapshotImpl->PoolMap(), [&] (TFluentMap fluent, const TNonOwningPoolMap::value_type& pair) {
                     buildPoolInfo(pair.second, fluent);
                 })
-                .Do(BIND(buildPoolInfo, Unretained(treeSnapshotImpl->RootElement().Get())))
+                .Item(RootPoolName).BeginMap()
+                    .Do(std::bind(buildCompositeElementInfo, treeSnapshotImpl->RootElement().Get(), std::placeholders::_1))
+                .EndMap()
             .EndMap();
     }
 
@@ -2442,19 +2459,19 @@ private:
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
             .Item("dominant_resource").Value(attributes.DominantResource)
 
-            .Item("resource_usage").Value(element->ResourceUsageAtUpdate())
+            .Item("resource_usage").Value(element->GetResourceUsageAtUpdate())
             .Item("usage_share").Value(attributes.UsageShare)
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("usage_ratio").Value(element->GetResourceDominantUsageShareAtUpdate())
             .Item("dominant_usage_share").Value(element->GetResourceDominantUsageShareAtUpdate())
 
-            .Item("resource_demand").Value(element->ResourceDemand())
+            .Item("resource_demand").Value(element->GetResourceDemand())
             .Item("demand_share").Value(attributes.DemandShare)
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("demand_ratio").Value(MaxComponent(attributes.DemandShare))
             .Item("dominant_demand_share").Value(MaxComponent(attributes.DemandShare))
 
-            .Item("resource_limits").Value(element->ResourceLimits())
+            .Item("resource_limits").Value(element->GetResourceLimits())
             .Item("limits_share").Value(attributes.LimitsShare)
 
             // COMPAT(ignat): remove it after UI and other tools migration.
@@ -2472,7 +2489,7 @@ private:
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("fair_share_ratio").Value(MaxComponent(attributes.FairShare.Total))
             .Item("detailed_fair_share").Value(attributes.FairShare)
-            .Item("detailed_dominant_fair_share").Do(std::bind(&SerializeDominant, attributes.FairShare, std::placeholders::_1))
+            .Item("detailed_dominant_fair_share").Do(std::bind(&NFairShare::SerializeDominant, attributes.FairShare, std::placeholders::_1))
 
             .Item("promised_fair_share").Value(attributes.PromisedFairShare)
             .Item("promised_dominant_fair_share").Value(MaxComponent(attributes.PromisedFairShare))
@@ -2541,7 +2558,7 @@ private:
             .Item("dominant_resource").Value(attributes.DominantResource)
             .DoIf(element->IsOperation(), [&] (TFluentMap fluent) {
                 fluent
-                    .Item("resource_usage").Value(element->ResourceUsageAtUpdate());
+                    .Item("resource_usage").Value(element->GetResourceUsageAtUpdate());
             });
     }
 

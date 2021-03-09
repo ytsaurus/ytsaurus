@@ -1,7 +1,5 @@
 #pragma once
 
-#include "private.h"
-
 #include "resource_vector.h"
 
 namespace NYT::NScheduler {
@@ -27,7 +25,7 @@ TUnpackedVectorPiecewiseSegment UnpackVectorSegment(const TVectorPiecewiseSegmen
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TPiecewiseFunction>
-void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const NLogging::TLogger& logger = SchedulerLogger);
+void VerifyNondecreasing(const TPiecewiseFunction& vecFunc, const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

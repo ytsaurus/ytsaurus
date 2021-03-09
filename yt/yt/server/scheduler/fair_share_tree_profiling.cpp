@@ -270,9 +270,9 @@ void TFairShareTreeProfiler::ProfileElement(
         writer->AddGauge("/dominant_fair_share/total", MaxComponent(detailedFairShare.Total));
     }
 
-    ProfileResources(writer, element->ResourceUsageAtUpdate(), "/resource_usage");
-    ProfileResources(writer, element->ResourceLimits(), "/resource_limits");
-    ProfileResources(writer, element->ResourceDemand(), "/resource_demand");
+    ProfileResources(writer, element->GetResourceUsageAtUpdate(), "/resource_usage");
+    ProfileResources(writer, element->GetResourceLimits(), "/resource_limits");
+    ProfileResources(writer, element->GetResourceDemand(), "/resource_demand");
 
     auto jobMetricsIt = JobMetricsMap_.find(element->GetId());
     if (jobMetricsIt != JobMetricsMap_.end()) {
@@ -370,7 +370,7 @@ void TFairShareTreeProfiler::ProfileElement(
         if (!element->IsOperation()) {
             ProfileResourceVolume(
                 writer,
-                element->GetAccumulatedResourceVolume(),
+                element->PersistentAttributes().IntegralResourcesState.AccumulatedVolume,
                 "/accumulated_resource_volume");
         }
     }

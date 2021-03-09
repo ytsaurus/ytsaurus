@@ -23,6 +23,8 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
+#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
+
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/finally.h>
