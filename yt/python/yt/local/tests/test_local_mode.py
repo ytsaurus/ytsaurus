@@ -239,10 +239,7 @@ class TestLocalMode(object):
     def test_commands_sanity(self):
         with local_yt(id=_get_id("test_commands_sanity")) as environment:
             pids = _read_pids_file(environment.id)
-            if environment.abi_version >= (19, 3):
-                assert len(pids) == 6
-            else:
-                assert len(pids) == 5
+            assert len(pids) == 6
             # Should not delete running instance
             with pytest.raises(yt.YtError):
                 delete(environment.id)
@@ -268,19 +265,13 @@ class TestLocalMode(object):
             assert len(environment.configs["scheduler"]) == 2
             assert len(environment.configs["master"]) == 1
             assert len(environment.configs["http_proxy"]) == 0
-            if environment.abi_version >= (19, 3):
-                assert len(environment.configs["controller_agent"]) == 1
-                assert len(_read_pids_file(environment.id)) == 10
-            else:
-                assert len(_read_pids_file(environment.id)) == 9
+            assert len(environment.configs["controller_agent"]) == 1
+            assert len(_read_pids_file(environment.id)) == 10
             with pytest.raises(yt.YtError):
                 environment.get_proxy_address()
 
         with local_yt(id=_get_id("test_start_with_one_node"), node_count=1) as environment:
-            if environment.abi_version >= (19, 3):
-                assert len(_read_pids_file(environment.id)) == 6
-            else:
-                assert len(_read_pids_file(environment.id)) == 5
+            assert len(_read_pids_file(environment.id)) == 6
 
         with local_yt(id=_get_id("test_start_masters_only"), node_count=0,
                       scheduler_count=0, controller_agent_count=0, http_proxy_count=0) as environment:
