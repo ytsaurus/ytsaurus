@@ -328,8 +328,11 @@ class TestTables(YTEnvSetup):
                 sorted_by=sorted_by,
                 tx=tx2,
             )
-        abort_transaction(tx1)
-        self._wait_until_unlocked("//tmp/table")
+
+        # Make sure tx2 does not hold a lock.
+        locks = get("//tmp/table/@locks")
+        assert len(locks) == 1
+        assert locks[0]["transaction_id"] == tx1
 
     @authors("gritukan")
     def test_append_sorted_different_sort_order(self):
