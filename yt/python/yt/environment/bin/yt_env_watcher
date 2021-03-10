@@ -93,6 +93,8 @@ def main():
 
             logger.info("Wait %d seconds before next logrotate call", options.logrotate_interval)
 
+        logger.info("Watcher process is alive")
+
         time.sleep(1)
 
 if __name__ == "__main__":

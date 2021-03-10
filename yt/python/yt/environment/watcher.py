@@ -1,4 +1,5 @@
 from .default_config import get_watcher_config
+from .helpers import is_file_locked
 
 from yt.common import which, touch
 
@@ -10,6 +11,7 @@ import yt.wrapper as yt
 import os
 import sys
 import logging
+import signal
 
 try:
     import yt_env_watcher
@@ -66,7 +68,7 @@ class ProcessWatcher(object):
             "--logrotate-config-path", self._config_path,
             "--logrotate-state-file", self._state_path,
             "--logrotate-interval", str(self._config["logs_rotate_interval"]),
-            "--log-path", self._log_path
+            "--log-path", self._log_path,
         ]
         if self._config.get("disable_logrotate"):
             watcher_cmd += ["--disable-logrotate"]
@@ -75,8 +77,8 @@ class ProcessWatcher(object):
 
         def watcher_lock_created():
             if self._process.poll() is not None:
-                raise yt.YtError("Watcher process unexpectedly terminated with error code {0}".format(self._process.return_code))
-            return os.path.exists(self._lock_path)
+                raise yt.YtError("Watcher process unexpectedly terminated with error code {0}".format(self._process.returncode))
+            return is_file_locked(self._lock_path)
 
         wait(watcher_lock_created)
 
