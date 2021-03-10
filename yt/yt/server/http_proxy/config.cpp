@@ -5,6 +5,8 @@
 
 #include <yt/yt/ytlib/auth/config.h>
 
+#include <yt/yt/ytlib/security_client/config.h>
+
 #include <yt/yt/client/driver/config.h>
 
 #include <yt/yt/client/api/config.h>
@@ -98,6 +100,23 @@ TApiConfig::TApiConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAccessCheckerConfig::TAccessCheckerConfig()
+{
+    RegisterParameter("enabled", Enabled)
+        .Default(false);
+
+    RegisterParameter("path_prefix", PathPrefix)
+        .Default("//sys/http_proxy_roles");
+
+    RegisterParameter("allow_access_if_node_does_not_exist", AllowAccessIfNodeDoesNotExist)
+        .Default(true);
+
+    RegisterParameter("cache", Cache)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TProxyConfig::TProxyConfig()
 {
     RegisterParameter("port", Port)
@@ -127,6 +146,9 @@ TProxyConfig::TProxyConfig()
     RegisterParameter("coordinator", Coordinator)
         .DefaultNew();
     RegisterParameter("api", Api)
+        .DefaultNew();
+
+    RegisterParameter("access_checker", AccessChecker)
         .DefaultNew();
 
     RegisterParameter("clickhouse", ClickHouse)

@@ -40,6 +40,12 @@ class HttpProxyTestBase(YTEnvSetup):
         "api": {
             "force_tracing": True,
         },
+        "access_checker": {
+            "enabled": True,
+            "cache": {
+                "expire_after_access_time": 100,
+            },
+        },
     }
 
     def _get_proxy_address(self):
@@ -61,6 +67,10 @@ class HttpProxyTestBase(YTEnvSetup):
 
 
 class TestHttpProxy(HttpProxyTestBase):
+    def teardown(self):
+        for proxy in ls("//sys/proxies"):
+            set("//sys/proxies/{}/@role".format(proxy), "data")
+
     @authors("prime")
     def test_ping(self):
         rsp = requests.get(self._get_proxy_address() + "/ping")
@@ -211,6 +221,9 @@ class TestHttpProxy(HttpProxyTestBase):
             if proxy["address"] in ("test_http_proxy", "test_rpc_proxy"):
                 assert proxy.get("state") == "offline"
 
+        remove("//sys/proxies/test_http_proxy")
+        remove("//sys/rpc_proxies/test_rpc_proxy")
+
     @authors("greatkorn")
     def test_structured_logs(self):
         client = self.Env.create_client()
@@ -233,6 +246,41 @@ class TestHttpProxy(HttpProxyTestBase):
     @authors("greatkorn")
     def test_fail_logging(self):
         requests.get(self._get_proxy_address() + "/api/v2/get")
+
+    @authors("gritukan")
+    def test_access_checker(self):
+        def check_access(proxy_address, user):
+            url = "{}/api/v3/get?path=//sys/@config".format(proxy_address)
+            rsp = requests.get(url, headers={"X-YT-Testing-User-Name": user})
+            assert rsp.status_code == 200 or rsp.status_code == 403
+            return rsp.status_code == 200
+
+        create_user("u")
+        create_proxy_role("r1", "http")
+        create_proxy_role("r2", "http")
+
+        set("//sys/http_proxy_roles/r1/@acl", [make_ace("deny", "u", "use")])
+        set("//sys/http_proxy_roles/r2/@acl", [make_ace("allow", "u", "use")])
+
+        proxy = ls("//sys/proxies")[0]
+        proxy_address = self._get_proxy_address()
+
+        # "u" is not allowed to use proxies with role "r1".
+        set("//sys/proxies/" + proxy + "/@role", "r1")
+        wait(lambda: not check_access(proxy_address, "u"))
+
+        # "u" is allowed to use proxies with role "r2".
+        set("//sys/proxies/" + proxy + "/@role", "r2")
+        wait(lambda: check_access(proxy_address, "u"))
+
+        # Now "u" is not allowed to use proxies with role "r2".
+        set("//sys/http_proxy_roles/r2/@acl", [make_ace("deny", "u", "use")])
+        wait(lambda: not check_access(proxy_address, "u"))
+
+        # There is no node for proxy role "r3". By default we allow access to
+        # proxies with unknown role.
+        set("//sys/proxies/" + proxy + "/@role", "r3")
+        wait(lambda: check_access(proxy_address, "u"))
 
 
 class TestHttpProxyFraming(HttpProxyTestBase):

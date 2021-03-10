@@ -1,5 +1,6 @@
 #include "api.h"
 
+#include "access_checker.h"
 #include "bootstrap.h"
 #include "config.h"
 #include "context.h"
@@ -16,6 +17,7 @@ namespace NYT::NHttpProxy {
 using namespace NConcurrency;
 using namespace NHttp;
 using namespace NProfiling;
+using namespace NSecurityClient;
 
 static const auto& Logger = HttpProxyLogger;
 
@@ -41,6 +43,7 @@ TApi::TApi(TBootstrap* bootstrap)
     , DriverV4_(bootstrap->GetDriverV4())
     , HttpAuthenticator_(bootstrap->GetHttpAuthenticator())
     , Coordinator_(bootstrap->GetCoordinator())
+    , AccessChecker_(bootstrap->GetAccessChecker())
     , Poller_(bootstrap->GetPoller())
     , DefaultNetworkName_(bootstrap->GetConfig()->DefaultNetwork)
 {
@@ -117,6 +120,11 @@ void TApi::PutUserIntoBanCache(const TString& user)
 {
     auto guard = WriterGuard(BanCacheLock_);
     BanCache_[user] = TInstant::Now() + Config_->BanCacheExpirationTime;
+}
+
+TError TApi::ValidateAccess(const TString& user)
+{
+    return AccessChecker_->ValidateAccess(user);
 }
 
 int TApi::GetNumberOfConcurrentRequests()

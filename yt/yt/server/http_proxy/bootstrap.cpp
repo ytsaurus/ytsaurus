@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 
+#include "access_checker.h"
 #include "config.h"
 #include "coordinator.h"
 #include "api.h"
@@ -141,6 +142,8 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     ClickHouseHandler_ = New<NClickHouse::TClickHouseHandler>(this);
 
+    AccessChecker_ = CreateAccessChecker(this);
+
     auto driverV3Config = CloneNode(Config_->Driver);
     driverV3Config->AsMap()->AddChild("api_version", ConvertToNode<i64>(3));
     DriverV3_ = CreateDriver(Connection_, ConvertTo<TDriverConfigPtr>(driverV3Config));
@@ -253,6 +256,11 @@ const NDriver::IDriverPtr& TBootstrap::GetDriverV4() const
 const TCoordinatorPtr& TBootstrap::GetCoordinator() const
 {
     return Coordinator_;
+}
+
+const IAccessCheckerPtr& TBootstrap::GetAccessChecker() const
+{
+    return AccessChecker_;
 }
 
 const THttpAuthenticatorPtr& TBootstrap::GetHttpAuthenticator() const
