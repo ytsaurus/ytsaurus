@@ -902,6 +902,12 @@ TEST(TSkiffWriter, TestSparse)
         }).Get(),
     });
 
+    writer->Write({
+        MakeRow({
+            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        }).Get(),
+    });
+
     writer->Close()
         .Get()
         .ThrowOnError();
@@ -935,6 +941,10 @@ TEST(TSkiffWriter, TestSparse)
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseInt64(), -8);
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), EndOfSequenceTag<ui16>());
+
+    // row 4
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), EndOfSequenceTag<ui16>());
 
     // end
