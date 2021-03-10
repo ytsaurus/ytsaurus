@@ -793,6 +793,10 @@ void TBootstrap::DoRun()
         CreateVirtualNode(CellarManager_->GetCellar(ECellarType::Tablet)->GetOrchidService()));
     SetNodeByYPath(
         OrchidRoot_,
+        "/tablet_slot_manager",
+        CreateVirtualNode(TabletSlotManager_->GetOrchidService()));
+    SetNodeByYPath(
+        OrchidRoot_,
         "/job_controller",
         CreateVirtualNode(JobController_->GetOrchidService()
             ->Via(GetControlInvoker())));

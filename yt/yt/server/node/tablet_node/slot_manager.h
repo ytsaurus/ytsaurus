@@ -29,6 +29,8 @@ struct ISlotManager
     //! Finds the slot by cell id, returns null if none.
     virtual TTabletSlotPtr FindSlot(NHydra::TCellId id) = 0;
 
+    virtual const NYTree::IYPathServicePtr& GetOrchidService() const = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(), BeginSlotScan);
     DECLARE_INTERFACE_SIGNAL(void(TTabletSlotPtr), ScanSlot);
     DECLARE_INTERFACE_SIGNAL(void(), EndSlotScan);
