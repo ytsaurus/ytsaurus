@@ -1,4 +1,6 @@
 #include "bootstrap.h"
+
+#include "access_checker.h"
 #include "config.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -128,6 +130,7 @@ void TBootstrap::DoRun()
         HttpPoller_,
         NativeClient_);
     ProxyCoordinator_ = CreateProxyCoordinator();
+    AccessChecker_ = CreateAccessChecker(this);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
@@ -237,6 +240,11 @@ const IProxyCoordinatorPtr& TBootstrap::GetProxyCoordinator() const
 const NNodeTrackerClient::TAddressMap& TBootstrap::GetLocalAddresses() const
 {
     return LocalAddresses_;
+}
+
+const IAccessCheckerPtr& TBootstrap::GetAccessChecker() const
+{
+    return AccessChecker_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

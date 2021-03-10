@@ -21,6 +21,9 @@ struct IProxyCoordinator
     virtual void SetBanMessage(const TString& message) = 0;
     virtual TString GetBanMessage() const = 0;
 
+    virtual void SetProxyRole(const std::optional<TString>& role) = 0;
+    virtual std::optional<TString> GetProxyRole() const = 0;
+
     virtual bool SetAvailableState(bool available) = 0;
     virtual bool GetAvailableState() const = 0;
 

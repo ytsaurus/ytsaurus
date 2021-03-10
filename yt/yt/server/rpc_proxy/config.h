@@ -2,19 +2,21 @@
 
 #include "public.h"
 
-#include <yt/yt/client/api/config.h>
-
-#include <yt/yt/client/formats/public.h>
-
 #include <yt/yt/server/lib/misc/config.h>
-
-#include <yt/yt/ytlib/auth/config.h>
 
 #include <yt/yt/server/rpc_proxy/config.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/auth/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
+
+#include <yt/yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/yt/ytlib/security_client/config.h>
+
+#include <yt/yt/client/api/config.h>
+
+#include <yt/yt/client/formats/public.h>
 
 #include <yt/yt/core/misc/config.h>
 
@@ -136,6 +138,44 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAccessCheckerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Whether access checker is enabled.
+    bool Enabled;
+
+    //! Access checker will check use permission for
+    //! PathPrefix/ProxyRole path.
+    TString PathPrefix;
+
+    //! Whether user should be allowed to use proxy
+    //! if PathPrefix/ProxyRole does not exist.
+    bool AllowAccessIfNodeDoesNotExist;
+
+    //! Parameters of the permission cache.
+    NSecurityClient::TPermissionCacheConfigPtr Cache;
+
+    TAccessCheckerConfig()
+    {
+        RegisterParameter("enabled", Enabled)
+            .Default(false);
+
+        RegisterParameter("path_prefix", PathPrefix)
+            .Default("//sys/rpc_proxy_roles");
+
+        RegisterParameter("allow_access_if_node_does_not_exist", AllowAccessIfNodeDoesNotExist)
+            .Default(true);
+
+        RegisterParameter("cache", Cache)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAccessCheckerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProxyConfig
     : public TServerConfig
     , public NAuth::TAuthenticationManagerConfig
@@ -143,11 +183,13 @@ class TProxyConfig
 public:
     //! Proxy-to-master connection.
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
-    NRpcProxy::TApiServiceConfigPtr ApiService;
-    NRpcProxy::TDiscoveryServiceConfigPtr DiscoveryService;
+    TApiServiceConfigPtr ApiService;
+    TDiscoveryServiceConfigPtr DiscoveryService;
     //! Known RPC proxy addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
     int WorkerThreadPoolSize;
+
+    TAccessCheckerConfigPtr AccessChecker;
 
     //! GRPC server configuration.
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
@@ -173,6 +215,9 @@ public:
         RegisterParameter("worker_thread_pool_size", WorkerThreadPoolSize)
             .GreaterThan(0)
             .Default(8);
+
+        RegisterParameter("access_checker", AccessChecker)
+            .DefaultNew();
 
         RegisterParameter("cypress_annotations", CypressAnnotations)
             .Default(NYTree::BuildYsonNodeFluently()

@@ -6,6 +6,8 @@ namespace NYT::NRpcProxy {
 
 const NLogging::TLogger RpcProxyLogger("RpcProxy");
 
+const NProfiling::TProfiler RpcProxyProfiler("/rpc_proxy");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpcProxy

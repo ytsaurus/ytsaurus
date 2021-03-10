@@ -33,6 +33,9 @@ public:
     virtual void SetBanMessage(const TString& message) override;
     virtual TString GetBanMessage() const override;
 
+    virtual void SetProxyRole(const std::optional<TString>& role) override;
+    virtual std::optional<TString> GetProxyRole() const override;
+
     virtual bool SetAvailableState(bool available) override;
     virtual bool GetAvailableState() const override;
 
@@ -50,6 +53,8 @@ private:
     std::atomic<bool> Available_ = false;
 
     TAtomicObject<TString> BanMessage_;
+
+    TAtomicObject<std::optional<TString>> ProxyRole_;
 
     NTracing::TSampler Sampler_;
 
@@ -76,6 +81,16 @@ void TProxyCoordinator::SetBanMessage(const TString& message)
 TString TProxyCoordinator::GetBanMessage() const
 {
     return BanMessage_.Load();
+}
+
+void TProxyCoordinator::SetProxyRole(const std::optional<TString>& role)
+{
+    ProxyRole_.Store(role);
+}
+
+std::optional<TString> TProxyCoordinator::GetProxyRole() const
+{
+    return ProxyRole_.Load();
 }
 
 bool TProxyCoordinator::SetAvailableState(bool available)
