@@ -89,7 +89,9 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     auto connection = GetRpcProxyConnection();
     auto client = GetRpcProxyClient();
     bool sticky = (type == ETransactionType::Tablet) || options.Sticky;
+    bool dontRetryStartTransaction = sticky && options.Id != NullTransactionId;
     auto channel = sticky ? GetStickyChannel() : GetChannel();
+    channel = sticky && !dontRetryStartTransaction ? WrapStickyChannel(channel) : channel;
 
     const auto& config = connection->GetConfig();
     auto timeout = options.Timeout.value_or(config->DefaultTransactionTimeout);
@@ -127,6 +129,8 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     return req->Invoke().Apply(BIND(
         [
             =,
+            this,
+            this_ = MakeStrong(this),
             connection = std::move(connection),
             client = std::move(client),
             channel = std::move(channel)
@@ -137,7 +141,7 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
             return CreateTransaction(
                 std::move(connection),
                 std::move(client),
-                std::move(channel),
+                dontRetryStartTransaction ? WrapStickyChannel(std::move(channel)) : std::move(channel),
                 transactionId,
                 startTimestamp,
                 type,

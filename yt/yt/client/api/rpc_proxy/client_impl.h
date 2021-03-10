@@ -290,6 +290,7 @@ private:
     virtual TClientPtr GetRpcProxyClient() override;
     virtual NRpc::IChannelPtr GetChannel() override;
     virtual NRpc::IChannelPtr GetStickyChannel() override;
+    virtual NRpc::IChannelPtr WrapStickyChannel(NRpc::IChannelPtr) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

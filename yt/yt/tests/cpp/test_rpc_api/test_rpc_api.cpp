@@ -8,8 +8,14 @@
 #include "yt/yt/tests/cpp/api_test_base.h"
 #include "yt/yt/tests/cpp/modify_rows_test.h"
 
-#include <yt/yt/client/api/client.h>
-#include <yt/yt/client/api/rowset.h>
+#include <yt/client/api/client.h>
+#include <yt/client/api/rowset.h>
+#include <yt/client/api/transaction.h>
+
+#include <yt/client/api/rpc_proxy/helpers.h>
+
+#include <yt/client/object_client/public.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -23,9 +29,29 @@ namespace {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TApiTestBase, TestDuplicateTransactionId)
+{
+    TTransactionStartOptions options{
+        .Id = MakeRandomId(EObjectType::AtomicTabletTransaction, MinValidCellTag)
+    };
+
+    auto transaction1 = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet, options))
+        .ValueOrThrow();
+
+    auto resOrError = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet, options));
+    EXPECT_FALSE(resOrError.IsOK());
+    EXPECT_FALSE(NRpcProxy::IsRetriableError(resOrError));
+
+    WaitFor(transaction1->Commit())
+        .ValueOrThrow();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

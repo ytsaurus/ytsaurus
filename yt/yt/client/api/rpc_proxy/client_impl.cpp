@@ -140,11 +140,14 @@ NRpc::IChannelPtr TClient::MaybeCreateRetryingChannel(NRpc::IChannelPtr channel,
 
 IChannelPtr TClient::GetStickyChannel()
 {
-    return MaybeCreateRetryingChannel(
-        CreateCredentialsInjectingChannel(
-            Connection_->CreateChannel(true),
-            ClientOptions_),
-        false /* retryProxyBanned */);
+    return CreateCredentialsInjectingChannel(
+        Connection_->CreateChannel(true),
+        ClientOptions_);
+}
+
+IChannelPtr TClient::WrapStickyChannel(IChannelPtr channel)
+{
+    return MaybeCreateRetryingChannel(channel, false /* retryProxyBanned */);
 }
 
 ITimestampProviderPtr TClient::CreateTimestampProvider() const

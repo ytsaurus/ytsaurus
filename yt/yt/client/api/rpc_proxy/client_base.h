@@ -31,6 +31,8 @@ protected:
     // Must return an RPC channel to use for API calls within single transaction.
     virtual NRpc::IChannelPtr GetStickyChannel() = 0;
 
+    virtual NRpc::IChannelPtr WrapStickyChannel(NRpc::IChannelPtr) = 0;
+
     TApiServiceProxy CreateApiServiceProxy(NRpc::IChannelPtr channel = {});
     void InitStreamingRequest(NRpc::TClientRequest& request);
     friend class TTransaction;
