@@ -46,12 +46,19 @@ public:
             transaction,
             NConcurrency::TLeaseManager::CreateLease(
                 transaction->GetTimeout(),
-                BIND(&TStickyTransactionPool::OnStickyTransactionLeaseExpired, MakeWeak(this), transactionId))
+                BIND(&TStickyTransactionPool::OnStickyTransactionLeaseExpired, MakeWeak(this), transactionId, MakeWeak(transaction)))
         };
 
+        bool inserted;
         {
             auto guard = WriterGuard(StickyTransactionLock_);
-            YT_VERIFY(IdToStickyTransactionEntry_.emplace(transactionId, entry).second);
+            inserted = IdToStickyTransactionEntry_.emplace(transactionId, entry).second;
+        }
+
+        if (!inserted) {
+            NConcurrency::TLeaseManager::CloseLease(entry.Lease);
+            THROW_ERROR_EXCEPTION(NTransactionClient::EErrorCode::InvalidTransactionState,
+                "Failed to register duplicate sticky transaction (TransactionId: %v)", transactionId);
         }
 
         transaction->SubscribeCommitted(
@@ -114,16 +121,22 @@ private:
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, StickyTransactionLock_);
     THashMap<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
 
-    void OnStickyTransactionLeaseExpired(TTransactionId transactionId)
+    void OnStickyTransactionLeaseExpired(TTransactionId transactionId, TWeakPtr<ITransaction> weakTransaction)
     {
-        ITransactionPtr transaction;
+        auto transaction = weakTransaction.Lock();
+        if (!transaction) {
+            return;
+        }
+
         {
             auto guard = WriterGuard(StickyTransactionLock_);
             auto it = IdToStickyTransactionEntry_.find(transactionId);
             if (it == IdToStickyTransactionEntry_.end()) {
                 return;
             }
-            transaction = it->second.Transaction;
+            if (it->second.Transaction != transaction) {
+                return;
+            }
             IdToStickyTransactionEntry_.erase(it);
         }
 
@@ -132,6 +145,7 @@ private:
 
         transaction->Abort();
     }
+
     void OnStickyTransactionFinished(TTransactionId transactionId)
     {
         NConcurrency::TLease lease;
