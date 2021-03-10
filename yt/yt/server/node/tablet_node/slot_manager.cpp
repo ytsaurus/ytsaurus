@@ -26,11 +26,15 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NCellarAgent;
 using namespace NClusterNode;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +53,7 @@ public:
             Bootstrap_->GetControlInvoker(),
             BIND(&TSlotManager::OnScanSlots, Unretained(this)),
             Config_->SlotScanPeriod))
+        , OrchidService_(CreateOrchidService())
     { }
 
     virtual void Initialize() override
@@ -95,6 +100,11 @@ public:
         return nullptr;
     }
 
+    virtual const IYPathServicePtr& GetOrchidService() const override
+    {
+        return OrchidService_;
+    }
+
     DEFINE_SIGNAL(void(), BeginSlotScan);
     DEFINE_SIGNAL(void(TTabletSlotPtr), ScanSlot);
     DEFINE_SIGNAL(void(), EndSlotScan);
@@ -102,13 +112,32 @@ public:
 private:
     TBootstrap* const Bootstrap_;
     const TTabletNodeConfigPtr Config_;
-
-    TPeriodicExecutorPtr SlotScanExecutor_;
+    const TPeriodicExecutorPtr SlotScanExecutor_;
+    const IYPathServicePtr OrchidService_;
 
     using TBundlesMemoryPoolWeights = THashMap<TString, int>;
     TBundlesMemoryPoolWeights BundlesMemoryPoolWeights_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    TCompositeMapServicePtr CreateOrchidService()
+    {
+        return New<TCompositeMapService>()
+            ->AddChild("dynamic_memory_pool_weights", IYPathService::FromMethod(
+                &TSlotManager::GetDynamicMemoryPoolWeightsOrchid,
+                MakeWeak(this)));
+    }
+
+    void GetDynamicMemoryPoolWeightsOrchid(IYsonConsumer* consumer) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        BuildYsonFluently(consumer)
+            .DoMapFor(BundlesMemoryPoolWeights_, [] (TFluentMap fluent, const auto& pair) {
+                fluent
+                    .Item(pair.first).Value(pair.second);
+            });
+    }
 
 
     void UpdateMemoryPoolWeights(TBundlesMemoryPoolWeights weights)

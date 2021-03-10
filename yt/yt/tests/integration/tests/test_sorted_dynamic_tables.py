@@ -1929,17 +1929,19 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
         remove("//tmp/t2")
 
         node = ls("//sys/cluster_nodes")[0]
-        orchid_prefix = "//sys/cluster_nodes/{}/orchid/tablet_cells".format(node)
-        dynamic_options_prefix = "{}/{}/dynamic_options".format(orchid_prefix, cell1)
+        node_orchid_prefix = "//sys/cluster_nodes/{}/orchid".format(node)
+        tablet_cells_orchid_prefix = "{}/tablet_cells".format(node_orchid_prefix)
+        dynamic_options_prefix = "{}/{}/dynamic_options".format(tablet_cells_orchid_prefix, cell1)
+        pool_weights_prefix = "{}/tablet_slot_manager/dynamic_memory_pool_weights/b1".format(node_orchid_prefix)
 
         if eviction_type == "remove_cell":
             remove("#{}".format(cell2))
             node = ls("//sys/cluster_nodes")[0]
-            wait(lambda: cell2 not in ls(orchid_prefix))
+            wait(lambda: cell2 not in ls(tablet_cells_orchid_prefix))
         elif eviction_type == "update_weight":
             set("//sys/tablet_cell_bundles/b1/@dynamic_options/dynamic_memory_pool_weight", 1000)
             node = ls("//sys/cluster_nodes")[0]
-            wait(lambda: get(dynamic_options_prefix + "/dynamic_memory_pool_weight") == 1000)
+            wait(lambda: get(pool_weights_prefix) == 1000)
         elif eviction_type == "disable_limit":
             set("//sys/tablet_cell_bundles/b1/@dynamic_options/enable_tablet_dynamic_memory_limit", False)
             node = ls("//sys/cluster_nodes")[0]
