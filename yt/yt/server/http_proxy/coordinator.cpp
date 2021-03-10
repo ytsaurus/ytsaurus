@@ -556,7 +556,7 @@ void TPingHandler::HandleRequest(
     }
 
     rsp->SetStatus(Coordinator_->IsBanned() || Coordinator_->IsDead(Coordinator_->GetSelf(), TInstant::Now()) 
-        ? EStatusCode::ServiceUnavailable 
+        ? EStatusCode::ServiceUnavailable
         : EStatusCode::OK);
     WaitFor(rsp->Close())
         .ThrowOnError();

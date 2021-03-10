@@ -195,19 +195,27 @@ bool TContext::TryParseUser()
     }
 
     Auth_ = authResult.Value();
+    const auto& authenticatedUser = Auth_->Result.Login;
 
     if (DriverRequest_.CommandName == "ping_tx" || DriverRequest_.CommandName == "parse_ypath") {
-        DriverRequest_.AuthenticatedUser = Auth_->Result.Login;
+        DriverRequest_.AuthenticatedUser = authenticatedUser;
         return true;
     }
 
-    if (Api_->IsUserBannedInCache(Auth_->Result.Login)) {
+    if (Api_->IsUserBannedInCache(authenticatedUser)) {
         Response_->SetStatus(EStatusCode::Forbidden);
-        ReplyFakeError(Format("User %Qv is banned", Auth_->Result.Login));
+        ReplyFakeError(Format("User %Qv is banned", authenticatedUser));
         return false;
     }
 
-    DriverRequest_.AuthenticatedUser = Auth_->Result.Login;
+    if (auto error = Api_->ValidateAccess(authenticatedUser); !error.IsOK()) {
+        YT_LOG_DEBUG(error);
+        Response_->SetStatus(EStatusCode::Forbidden);
+        ReplyFakeError(Format("User %Qv is not allowed to access this proxy", authenticatedUser));
+        return false;
+    }
+
+    DriverRequest_.AuthenticatedUser = authenticatedUser;
     return true;
 }
 

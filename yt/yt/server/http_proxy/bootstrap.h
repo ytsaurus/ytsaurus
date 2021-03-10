@@ -52,6 +52,7 @@ public:
     const NDriver::IDriverPtr& GetDriverV3() const;
     const NDriver::IDriverPtr& GetDriverV4() const;
     const TCoordinatorPtr& GetCoordinator() const;
+    const IAccessCheckerPtr& GetAccessChecker() const;
     const THttpAuthenticatorPtr& GetHttpAuthenticator() const;
     const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
     const NConcurrency::IPollerPtr& GetPoller() const;
@@ -95,6 +96,7 @@ private:
     TPingHandlerPtr PingHandler_;
     TDiscoverVersionsHandlerPtr DiscoverVersionsHandlerV1_;
     TDiscoverVersionsHandlerPtr DiscoverVersionsHandlerV2_;
+    IAccessCheckerPtr AccessChecker_;
 
     void RegisterRoutes(const NHttp::IServerPtr& server);
 

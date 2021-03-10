@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/ytlib/security_client/public.h>
+
 #include <yt/yt/client/driver/public.h>
 
 #include <yt/yt/client/formats/public.h>
@@ -109,6 +111,31 @@ DEFINE_REFCOUNTED_TYPE(TApiConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAccessCheckerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Whether access checker is enabled.
+    bool Enabled;
+
+    //! Access checker will check use permission for
+    //! PathPrefix/ProxyRole path.
+    TString PathPrefix;
+
+    //! Whether user should be allowed to use proxy
+    //! if PathPrefix/ProxyRole does not exist.
+    bool AllowAccessIfNodeDoesNotExist;
+
+    //! Parameters of the permission cache.
+    NSecurityClient::TPermissionCacheConfigPtr Cache;
+
+    TAccessCheckerConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TAccessCheckerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProxyConfig
     : public TServerConfig
 {
@@ -126,6 +153,8 @@ public:
 
     TCoordinatorConfigPtr Coordinator;
     TApiConfigPtr Api;
+
+    TAccessCheckerConfigPtr AccessChecker;
 
     NClickHouse::TStaticClickHouseConfigPtr ClickHouse;
 

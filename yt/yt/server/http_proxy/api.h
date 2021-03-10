@@ -17,7 +17,7 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TUserCommandPair =std::pair<TString, TString>;
+using TUserCommandPair = std::pair<TString, TString>;
 
 class TSemaphoreGuard
 {
@@ -61,6 +61,8 @@ public:
     bool IsUserBannedInCache(const TString& user);
     void PutUserIntoBanCache(const TString& user);
 
+    TError ValidateAccess(const TString& user);
+
     std::optional<TSemaphoreGuard> AcquireSemaphore(const TString& user, const TString& command);
     void ReleaseSemaphore(const TUserCommandPair& key);
 
@@ -91,6 +93,7 @@ private:
 
     const THttpAuthenticatorPtr HttpAuthenticator_;
     const TCoordinatorPtr Coordinator_;
+    const IAccessCheckerPtr AccessChecker_;
 
     const NConcurrency::IPollerPtr Poller_;
 
