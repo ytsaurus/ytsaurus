@@ -54,7 +54,8 @@ public:
         bool enableRowIndex,
         const TIdMapping& idMapping,
         int tabletIndex,
-        i64 lowerRowIndex)
+        i64 lowerRowIndex,
+        TChunkReaderPerformanceCountersPtr performanceCounters)
         : UnderlyingReader_(std::move(underlyingReader))
         , TabletIndex_(tabletIndex)
         , EnableTabletIndex_(enableTabletIndex)
@@ -62,6 +63,7 @@ public:
         , IdMapping_(idMapping)
         , CurrentRowIndex_(lowerRowIndex)
         , Pool_(TOrderedChunkStoreReaderTag())
+        , PerformanceCounters_(std::move(performanceCounters))
     { }
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -76,6 +78,8 @@ public:
         updatedRows.reserve(rows.size());
 
         Pool_.Clear();
+
+        i64 dataWeight = 0;
         for (auto row : rows) {
             int updatedColumnCount =
                 row.GetCount() +
@@ -99,9 +103,13 @@ public:
                 ++updatedValue;
             }
 
+            dataWeight += GetDataWeight(updatedRow);
             updatedRows.push_back(updatedRow);
             ++CurrentRowIndex_;
         }
+
+        PerformanceCounters_->StaticChunkRowReadCount += updatedRows.size();
+        PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeight;
 
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(updatedRows), MakeStrong(this)));
     }
@@ -141,7 +149,7 @@ private:
     i64 CurrentRowIndex_;
 
     TChunkedMemoryPool Pool_;
-
+    TChunkReaderPerformanceCountersPtr PerformanceCounters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,7 +282,8 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         enableRowIndex,
         idMapping,
         tabletIndex,
-        lowerRowIndex);
+        lowerRowIndex,
+        PerformanceCounters_);
 }
 
 void TOrderedChunkStore::Save(TSaveContext& context) const
@@ -330,7 +339,8 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(
         enableRowIndex,
         idMapping,
         tabletIndex,
-        lowerRowIndex);
+        lowerRowIndex,
+        PerformanceCounters_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -105,6 +105,10 @@ public:
         }
         RowCount_ += rows.size();
         DataWeight_ += dataWeight;
+
+        Store_->PerformanceCounters_->DynamicRowReadCount += rows.size();
+        Store_->PerformanceCounters_->DynamicRowReadDataWeightCount += dataWeight;
+
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
