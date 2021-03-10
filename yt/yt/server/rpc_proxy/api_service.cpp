@@ -1,4 +1,6 @@
 #include "api_service.h"
+
+#include "access_checker.h"
 #include "proxy_coordinator.h"
 #include "public.h"
 #include "private.h"
@@ -339,6 +341,7 @@ public:
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->ApiService)
         , Coordinator_(bootstrap->GetProxyCoordinator())
+        , AccessChecker_(bootstrap->GetAccessChecker())
         , SecurityManager_(Config_->SecurityManager, Bootstrap_)
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
         , AuthenticatedClientCache_(New<NApi::NNative::TClientCache>(
@@ -469,6 +472,7 @@ private:
     TBootstrap* const Bootstrap_;
     const TApiServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
+    const IAccessCheckerPtr AccessChecker_;
 
     TSecurityManager SecurityManager_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
@@ -514,6 +518,9 @@ private:
         SetupTracing(context);
 
         const auto& user = context->GetAuthenticationIdentity().User;
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(AccessChecker_->ValidateAccess(user));
+
         SecurityManager_.ValidateUser(user);
 
         Coordinator_->ValidateOperable();

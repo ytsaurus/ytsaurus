@@ -326,6 +326,8 @@ private:
             }
 
             auto role = attributes->Find<TString>(RoleAttributeName);
+            Coordinator_->SetProxyRole(role);
+
             if (role) {
                 NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", *role}});
             } else {

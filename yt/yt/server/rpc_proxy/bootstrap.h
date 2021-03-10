@@ -46,6 +46,7 @@ public:
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const;
     const NRpcProxy::IProxyCoordinatorPtr& GetProxyCoordinator() const;
     const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
+    const IAccessCheckerPtr& GetAccessChecker() const;
 
     void Run();
 
@@ -71,6 +72,7 @@ private:
     NAuth::TAuthenticationManagerPtr AuthenticationManager_;
     NRpcProxy::IProxyCoordinatorPtr ProxyCoordinator_;
     NNodeTrackerClient::TAddressMap LocalAddresses_;
+    IAccessCheckerPtr AccessChecker_;
 
     void DoRun();
 };

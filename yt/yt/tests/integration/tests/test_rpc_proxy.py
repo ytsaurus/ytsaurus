@@ -18,6 +18,21 @@ class TestRpcProxy(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
+    NUM_RPC_PROXIES = 1
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "retry_request_queue_size_limit_exceeded": False,
+        "discovery_service": {
+            "proxy_update_period": 100
+        },
+        "access_checker": {
+            "enabled": True,
+            "cache": {
+                "expire_after_access_time": 100,
+            },
+        },
+    }
+
     @authors("shakurov")
     def test_non_sticky_transactions_dont_stick(self):
         tx = start_transaction(timeout=1000)
@@ -37,6 +52,43 @@ class TestRpcProxy(YTEnvSetup):
             return "prime" in config["tracing"]["user_sample_rate"]
 
         wait(config_updated)
+
+    @authors("gritukan")
+    def test_access_checker(self):
+        rpc_proxies = ls("//sys/rpc_proxies")
+        assert len(rpc_proxies) == 1
+        proxy_name = rpc_proxies[0]
+
+        def check_access(user):
+            try:
+                get("//sys/@config", authenticated_user=user)
+            except YtError:
+                return False
+            return True
+
+        create_user("u")
+        create_proxy_role("r1", "rpc")
+        create_proxy_role("r2", "rpc")
+
+        set("//sys/rpc_proxy_roles/r1/@acl", [make_ace("deny", "u", "use")])
+        set("//sys/rpc_proxy_roles/r2/@acl", [make_ace("allow", "u", "use")])
+
+        # "u" is not allowed to use proxies with role "r1".
+        set("//sys/rpc_proxies/" + proxy_name + "/@role", "r1")
+        wait(lambda: not check_access("u"))
+
+        # "u" is allowed to use proxies with role "r2".
+        set("//sys/rpc_proxies/" + proxy_name + "/@role", "r2")
+        wait(lambda: check_access("u"))
+
+        # Now "u" is not allowed to use proxies with role "r2".
+        set("//sys/rpc_proxy_roles/r2/@acl", [make_ace("deny", "u", "use")])
+        wait(lambda: not check_access("u"))
+
+        # There is no node for proxy role "r3". By default we allow access to
+        # proxies with unknown role.
+        set("//sys/rpc_proxies/" + proxy_name + "/@role", "r3")
+        wait(lambda: check_access("u"))
 
 
 ##################################################################
