@@ -5,6 +5,11 @@
 #include "subject_proxy_detail.h"
 #include "user.h"
 
+#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
+#include <yt/yt/server/master/cell_server/cell_bundle.h>
+
+#include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/security_client/proto/user_ypath.pb.h>
@@ -68,6 +73,8 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsableNetworkProjects)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsableTabletCellBundles)
+            .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -113,6 +120,28 @@ private:
                         auto permissionCheckResult = securityManager->CheckPermission(account, user, EPermission::Use);
                         if (permissionCheckResult.Action == ESecurityAction::Allow) {
                             fluent.Item().Value(account->GetName());
+                        }
+                    });
+                return true;
+            }
+
+            case EInternedAttributeKey::UsableTabletCellBundles: {
+                const auto& cellManager = Bootstrap_->GetTamedCellManager();
+                const auto& securityManager = Bootstrap_->GetSecurityManager();
+                BuildYsonFluently(consumer)
+                    .DoListFor(cellManager->CellBundles(), [&] (TFluentList fluent,
+                        const std::pair<const NCellServer::TCellBundleId, NCellServer::TCellBundle*>& pair) {
+                        auto* cellBundle = pair.second;
+                        if (!IsObjectAlive(cellBundle)) {
+                            return;
+                        }
+                        if (cellBundle->GetType() != EObjectType::TabletCellBundle) {
+                            return;
+                        }
+                        auto* tabletCellBundle = cellBundle->As<NTabletServer::TTabletCellBundle>();
+                        auto permissionCheckResult = securityManager->CheckPermission(tabletCellBundle, user, EPermission::Use);
+                        if (permissionCheckResult.Action == ESecurityAction::Allow) {
+                            fluent.Item().Value(tabletCellBundle->GetName());
                         }
                     });
                 return true;
