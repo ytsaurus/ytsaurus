@@ -22,7 +22,7 @@ from yt.test_helpers import wait
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
-from yt.packages.six import itervalues, iteritems
+from yt.packages.six import itervalues, iteritems, reraise
 from yt.packages.six.moves import xrange, map as imap
 import yt.packages.requests as requests
 
@@ -701,6 +701,7 @@ class YTInstance(object):
             wait(lambda: is_dead(proc.pid))
         except WaitFailed:
             if not is_dead(proc.pid):
+                exc_info = sys.exc_info()
                 try:
                     with open("/proc/{0}/status".format(proc.pid), "r") as fin:
                         logger.error("Process status: %s", fin.read().replace("\n", "\\n"))
@@ -708,7 +709,7 @@ class YTInstance(object):
                     logger.error("Process stack: %s", stack.replace("\n", "\\n"))
                 except (IOError, subprocess.CalledProcessError):
                     pass
-                raise
+                reraise(*exc_info)
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + "\n")
