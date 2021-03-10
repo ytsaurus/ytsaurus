@@ -411,6 +411,7 @@
     XX(UpstreamReplicaId, upstream_replica_id) \
     XX(UsableAccounts, usable_accounts) \
     XX(UsableNetworkProjects, usable_network_projects) \
+    XX(UsableTabletCellBundles, usable_tablet_cell_bundles) \
     XX(UseClassicScheduler, use_classic_scheduler) \
     XX(UseRecentResourceUsageForLocalSatisfaction, use_recent_resource_usage_for_local_satisfaction) \
     XX(UsedSpace, used_space) \
