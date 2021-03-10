@@ -477,6 +477,7 @@ struct TSkiffWriterTableDescription
     int RowIndexFieldIndex = -1;
     ERowRangeIndexMode RangeIndexMode = ERowRangeIndexMode::Incremental;
     ERowRangeIndexMode RowIndexMode = ERowRangeIndexMode::Incremental;
+    bool HasSparseColumns = false;
     bool HasOtherColumns = false;
 };
 
@@ -522,6 +523,7 @@ public:
             TableDescriptionList_.emplace_back();
             auto& writerTableDescription = TableDescriptionList_.back();
             writerTableDescription.HasOtherColumns = commonTableDescription.HasOtherColumns;
+            writerTableDescription.HasSparseColumns = !commonTableDescription.SparseFieldDescriptionList.empty();
             writerTableDescription.KeySwitchFieldIndex = commonTableDescription.KeySwitchFieldIndex.value_or(MissingSystemColumn);
 
             writerTableDescription.RowIndexFieldIndex = commonTableDescription.RowIndexFieldIndex.value_or(MissingSystemColumn);
@@ -731,6 +733,7 @@ private:
             const auto& knownFields = TableDescriptionList_[tableIndex].KnownFields;
             const auto& denseFields = TableDescriptionList_[tableIndex].DenseFieldInfos;
             const auto hasOtherColumns = TableDescriptionList_[tableIndex].HasOtherColumns;
+            const auto hasSparseColumns = TableDescriptionList_[tableIndex].HasSparseColumns;
             const auto keySwitchFieldIndex = TableDescriptionList_[tableIndex].KeySwitchFieldIndex;
             const auto rowIndexFieldIndex = TableDescriptionList_[tableIndex].RowIndexFieldIndex;
             const auto rangeIndexFieldIndex = TableDescriptionList_[tableIndex].RangeIndexFieldIndex;
@@ -834,7 +837,7 @@ private:
                 }
             }
 
-            if (!SparseFields_.empty()) {
+            if (hasSparseColumns) {
                 for (const auto& fieldInfo : SparseFields_) {
                     const auto& value = row[fieldInfo.ValueIndex];
                     if (value.Type != EValueType::Null) {
