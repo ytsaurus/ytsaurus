@@ -24,6 +24,9 @@ DECLARE_REFCOUNTED_CLASS(TCopyDirectoryContentConfig)
 
 DECLARE_REFCOUNTED_CLASS(TSendSignalConfig)
 
+DECLARE_REFCOUNTED_STRUCT(TSlotConfig)
+DECLARE_REFCOUNTED_STRUCT(TSlotLocationBuilderConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

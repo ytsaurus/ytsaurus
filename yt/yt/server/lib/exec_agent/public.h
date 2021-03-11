@@ -55,6 +55,10 @@ DEFINE_ENUM(EJobEnvironmentType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const TEnumIndexedVector<ESandboxKind, TString> SandboxDirectoryNames;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TSlotLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSimpleJobEnvironmentConfig)
@@ -68,9 +72,8 @@ DECLARE_REFCOUNTED_CLASS(TBindConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TExecAgentDynamicConfig)
 
-////////////////////////////////////////////////////////////////////////////////
-
-extern const TEnumIndexedVector<ESandboxKind, TString> SandboxDirectoryNames;
+DECLARE_REFCOUNTED_STRUCT(TSlotConfig)
+DECLARE_REFCOUNTED_STRUCT(TSlotLocationBuilderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -157,8 +157,6 @@ private:
         const TString& destinationName,
         bool canUseLightInvoker);
 
-    void CreateSandboxDirectories(int slotIndex);
-
     void ChownChmod(
         const TString& path,
         int userId,
