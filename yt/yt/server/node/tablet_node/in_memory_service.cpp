@@ -180,7 +180,7 @@ private:
             for (int index = 0; index < request->block_ids_size(); ++index) {
                 auto blockId = FromProto<TBlockId>(request->block_ids(index));
 
-                session->InterceptingBlockCache->Put(
+                session->InterceptingBlockCache->PutBlock(
                     blockId,
                     session->InterceptingBlockCache->GetSupportedBlockTypes(),
                     TBlock(request->Attachments()[index]),

@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -323,7 +324,7 @@ TP2PBlockDistributor::TChosenBlocks TP2PBlockDistributor::ChooseBlocks()
 
     TP2PBlockDistributor::TChosenBlocks chosenBlocks;
 
-    const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+    const auto& blockCache = Bootstrap_->GetBlockCache();
     const auto& distributionThrottler = Bootstrap_->GetDataNodeThrottler(EDataNodeThrottlerKind::P2POut);
 
     for (const auto& candidate : candidates) {
@@ -332,8 +333,8 @@ TP2PBlockDistributor::TChosenBlocks TP2PBlockDistributor::ChooseBlocks()
         }
 
         auto blockId = candidate.BlockId;
-        auto cachedBlock = chunkBlockManager->FindCachedBlock(blockId);
-        if (!cachedBlock) {
+        auto cachedBlock = blockCache->FindBlock(blockId, EBlockType::CompressedData);
+        if (!cachedBlock.Block) {
             // TODO(max42): the block is both hot enough to be distributed,
             // but missing in the block cache? Sounds strange, but maybe we
             // should fetch it from the disk then?
@@ -349,9 +350,9 @@ TP2PBlockDistributor::TChosenBlocks TP2PBlockDistributor::ChooseBlocks()
         int requestCount = candidate.RequestCount;
         auto lastDistributionTime = candidate.LastDistributionTime;
         int distributionCount = candidate.DistributionCount;
-        i64 blockSize = cachedBlock->GetData().Size();
-        auto source = cachedBlock->Source();
-        auto block = cachedBlock->GetData();
+        i64 blockSize = cachedBlock.Block.Size();
+        auto source = cachedBlock.Source;
+        auto block = cachedBlock.Block;
         if (!source) {
             // TODO(max42): seems like the idea of remembering the source of a block
             // is currently not working properly (it is almost always null) as there

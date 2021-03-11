@@ -88,7 +88,6 @@ public:
             bool active);
 
         void Abort();
-
     };
 
     int GetSize() const;

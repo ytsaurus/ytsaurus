@@ -227,12 +227,12 @@ private:
 
         TBlockId blockId(chunkMeta->GetChunkId(), blockIndex);
 
-        auto cachedBlock = blockCache->Find(blockId, EBlockType::UncompressedData);
+        auto cachedBlock = blockCache->FindBlock(blockId, EBlockType::UncompressedData).Block;
         if (cachedBlock) {
             return cachedBlock.Data;
         }
 
-        auto compressedBlock = blockCache->Find(blockId, EBlockType::CompressedData);
+        auto compressedBlock = blockCache->FindBlock(blockId, EBlockType::CompressedData).Block;
         if (compressedBlock) {
             NCompression::ECodec codecId;
             YT_VERIFY(TryEnumCast(chunkMeta->Misc().compression_codec(), &codecId));
@@ -243,7 +243,7 @@ private:
             DecompressionStatistics_.Append(TCodecDuration{codecId, timer.GetElapsedTime()});
 
             if (codecId != NCompression::ECodec::None) {
-                blockCache->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
+                blockCache->PutBlock(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
             }
             return uncompressedBlock;
         }

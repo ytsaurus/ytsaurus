@@ -11,7 +11,6 @@
 #include <yt/yt/server/lib/exec_agent/config.h>
 
 #include <yt/yt/server/node/data_node/blob_reader_cache.h>
-#include <yt/yt/server/node/data_node/block_cache.h>
 #include <yt/yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/yt/server/node/data_node/chunk_cache.h>
 #include <yt/yt/server/node/data_node/chunk_registry.h>
@@ -335,7 +334,11 @@ void TBootstrap::DoInitialize()
         Config_->DataNode->StorageLookupThreadCount,
         "StorageLookup");
 
-    BlockCache_ = ClientBlockCache_ = CreateDataNodeBlockCache(this);
+    BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
+        Config_->DataNode->BlockCache,
+        EBlockType::UncompressedData | EBlockType::CompressedData,
+        MemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
+        DataNodeProfiler.WithPrefix("/block_cache"));
 
     MasterConnection_ = NApi::NNative::CreateConnection(
         Config_->ClusterConnection,
@@ -1079,6 +1082,11 @@ const IChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const
 const IBlockCachePtr& TBootstrap::GetBlockCache() const
 {
     return BlockCache_;
+}
+
+const IClientBlockCachePtr& TBootstrap::GetClientBlockCache() const
+{
+    return ClientBlockCache_;
 }
 
 const TP2PBlockDistributorPtr& TBootstrap::GetP2PBlockDistributor() const

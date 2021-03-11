@@ -381,7 +381,7 @@ private:
                 << TErrorAttribute("blocks_length", request->blocks_size());
         }
 
-        const auto& blockManager = Bootstrap_->GetChunkBlockManager();
+        const auto& blockCache = Bootstrap_->GetBlockCache();
         for (size_t index = 0; index < blocks.size(); ++index) {
             const auto& block = blocks[index];
             const auto& protoBlock = request->blocks(index);
@@ -389,7 +389,7 @@ private:
             auto sourceDescriptor = protoBlock.has_source_descriptor()
                 ? std::make_optional(FromProto<TNodeDescriptor>(protoBlock.source_descriptor()))
                 : std::nullopt;
-            blockManager->PutCachedBlock(blockId, block, sourceDescriptor);
+            blockCache->PutBlock(blockId, EBlockType::CompressedData, block, sourceDescriptor);
         }
 
         // We mimic TBlockPeerUpdater behavior here.

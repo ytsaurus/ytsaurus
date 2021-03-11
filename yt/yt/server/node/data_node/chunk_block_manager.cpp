@@ -34,73 +34,13 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DataNodeLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCachedBlock::TCachedBlock(
-    const TBlockId& blockId,
-    const TBlock& data,
-    const std::optional<TNodeDescriptor>& source)
-    : TAsyncCacheValueBase<TBlockId, TCachedBlock>(blockId)
-    , Data_(data)
-    , Source_(source)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkBlockManager
     : public IChunkBlockManager
-    , public TAsyncSlruCacheBase<TBlockId, TCachedBlock>
 {
 public:
     explicit TChunkBlockManager(TBootstrap* bootstrap)
-        : TAsyncSlruCacheBase(
-            bootstrap->GetConfig()->DataNode->BlockCache->CompressedData,
-            DataNodeProfiler.WithPrefix("/block_cache/" + FormatEnum(EBlockType::CompressedData)))
-        , Bootstrap_(bootstrap)
+        : Bootstrap_(bootstrap)
     { }
-
-    virtual TCachedBlockPtr FindCachedBlock(const TBlockId& blockId) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto cachedBlock = TAsyncSlruCacheBase::Find(blockId);
-
-        if (cachedBlock) {
-            YT_LOG_TRACE("Block cache hit (BlockId: %v)", blockId);
-        } else {
-            YT_LOG_TRACE("Block cache miss (BlockId: %v)", blockId);
-        }
-
-        return cachedBlock;
-    }
-
-    virtual void PutCachedBlock(
-        const TBlockId& blockId,
-        const TBlock& data,
-        const std::optional<TNodeDescriptor>& source) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto cookie = BeginInsert(blockId);
-        if (!cookie.IsActive()) {
-            return;
-        }
-
-        auto cachedBlock = New<TCachedBlock>(blockId, data, source);
-        cookie.EndInsert(cachedBlock);
-
-        if (source) {
-            auto guard = Guard(BlocksWithSourceLock_);
-            BlocksWithSource_.push_back(std::move(cachedBlock));
-        }
-    }
-
-    virtual TCachedBlockCookie BeginInsertCachedBlock(const TBlockId& blockId) override
-    {
-        return BeginInsert(blockId);
-    }
 
     virtual TFuture<std::vector<TBlock>> ReadBlockRange(
         TChunkId chunkId,
@@ -145,9 +85,9 @@ public:
                 {
                     for (int blockIndex : blockIndexes) {
                         auto blockId = TBlockId(chunkId, blockIndex);
-                        auto block = options.BlockCache->Find(blockId, EBlockType::CompressedData);
-                        options.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
+                        auto block = options.BlockCache->FindBlock(blockId, EBlockType::CompressedData).Block;
                         blocks.push_back(block);
+                        options.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
                     }
                 }
                 return MakeFuture(blocks);
@@ -159,40 +99,8 @@ public:
         }
     }
 
-    virtual std::vector<TCachedBlockPtr> GetAllBlocksWithSource() override
-    {
-        std::vector<TCachedBlockPtr> result;
-        auto guard = Guard(BlocksWithSourceLock_);
-        result.reserve(BlocksWithSource_.size());
-        auto sourceIt = BlocksWithSource_.begin();
-        auto destIt = sourceIt;
-        while (sourceIt != BlocksWithSource_.end()) {
-            auto block = sourceIt->Lock();
-            if (block) {
-                result.push_back(std::move(block));
-                *destIt++ = std::move(*sourceIt++);
-            } else {
-                ++sourceIt;
-            }
-        }
-        BlocksWithSource_.erase(sourceIt, BlocksWithSource_.end());
-        return result;
-    }
-
 private:
-    const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
-
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, BlocksWithSourceLock_);
-    std::vector<TWeakPtr<TCachedBlock>> BlocksWithSource_;
-
-
-    virtual i64 GetWeight(const TCachedBlockPtr& block) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return block->GetData().Size();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

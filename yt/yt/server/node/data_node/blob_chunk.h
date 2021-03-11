@@ -6,6 +6,8 @@
 #include "chunk_meta_manager.h"
 
 #include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
@@ -63,7 +65,7 @@ private:
             //! Index of this entry before sorting by block index.
             int EntryIndex = -1;
             bool Cached = false;
-            TCachedBlockCookie Cookie;
+            std::unique_ptr<NChunkClient::ICachedBlockCookie> Cookie;
             NChunkClient::TBlock Block;
             i64 BeginOffset = -1;
             i64 EndOffset = -1;

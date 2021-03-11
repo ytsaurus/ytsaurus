@@ -157,7 +157,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
         windowSlot.MemoryUsageGuard = MemoryManager_->Acquire(BlockInfos_[windowIndex].UncompressedDataSize);
 
         TBlockId blockId(ChunkReader_->GetChunkId(), blockIndex);
-        auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
+        auto uncompressedBlock = BlockCache_->FindBlock(blockId, EBlockType::UncompressedData).Block;
         if (uncompressedBlock) {
             auto managedBlock = New<TMemoryManagedData>(
                 uncompressedBlock.Data, std::move(windowSlot.MemoryUsageGuard));
@@ -238,7 +238,7 @@ void TBlockFetcher::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlock.Size();
 
-        BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
+        BlockCache_->PutBlock(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
     }
 }
 
@@ -277,7 +277,7 @@ void TBlockFetcher::FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGua
                 memoryUsageGuard->MemoryManager);
 
             TBlockId blockId(ChunkReader_->GetChunkId(), blockIndex);
-            auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
+            auto uncompressedBlock = BlockCache_->FindBlock(blockId, EBlockType::UncompressedData).Block;
             if (uncompressedBlock) {
                 auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
                 auto managedBlock = New<TMemoryManagedData>(

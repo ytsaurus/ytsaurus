@@ -95,6 +95,7 @@ public:
     const NDataNode::IChunkBlockManagerPtr& GetChunkBlockManager() const;
     NDataNode::TNetworkStatistics& GetNetworkStatistics() const;
     const NChunkClient::IBlockCachePtr& GetBlockCache() const;
+    const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const;
     const NDataNode::TP2PBlockDistributorPtr& GetP2PBlockDistributor() const;
     const NDataNode::TBlockPeerTablePtr& GetBlockPeerTable() const;
     const NDataNode::TBlockPeerUpdaterPtr& GetBlockPeerUpdater() const;
@@ -184,8 +185,8 @@ private:
     NDataNode::IChunkMetaManagerPtr ChunkMetaManager_;
     NDataNode::IChunkBlockManagerPtr ChunkBlockManager_;
     std::unique_ptr<NDataNode::TNetworkStatistics> NetworkStatistics_;
-    NChunkClient::IClientBlockCachePtr ClientBlockCache_;
     NChunkClient::IBlockCachePtr BlockCache_;
+    NChunkClient::IClientBlockCachePtr ClientBlockCache_;
     NDataNode::TBlockPeerTablePtr BlockPeerTable_;
     NDataNode::TBlockPeerUpdaterPtr BlockPeerUpdater_;
     NDataNode::TP2PBlockDistributorPtr P2PBlockDistributor_;

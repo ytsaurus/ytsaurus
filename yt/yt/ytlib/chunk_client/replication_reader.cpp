@@ -1362,7 +1362,7 @@ private:
         for (int blockIndex : BlockIndexes_) {
             if (Blocks_.find(blockIndex) == Blocks_.end()) {
                 TBlockId blockId(ChunkId_, blockIndex);
-                auto block = reader->BlockCache_->Find(blockId, EBlockType::CompressedData);
+                auto block = reader->BlockCache_->FindBlock(blockId, EBlockType::CompressedData).Block;
                 if (block) {
                     YT_LOG_DEBUG("Block is fetched from cache (Block: %v)", blockIndex);
                     YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
@@ -1582,7 +1582,7 @@ private:
                 ? std::optional<TNodeDescriptor>(GetPeerDescriptor(respondedPeer.AddressWithNetwork.Address))
                 : std::optional<TNodeDescriptor>(std::nullopt);
 
-            reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
+            reader->BlockCache_->PutBlock(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
             YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
             bytesReceived += block.Size();

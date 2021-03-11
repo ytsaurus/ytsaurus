@@ -361,26 +361,40 @@ public:
         , UnderlyingCache_(std::move(underlyingCache))
     { }
 
-    virtual void Put(
+    virtual void PutBlock(
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
         const std::optional<NNodeTrackerClient::TNodeDescriptor>& source) override
     {
-        UnderlyingCache_->Put(id, type, data, source);
+        UnderlyingCache_->PutBlock(id, type, data, source);
     }
 
-    virtual TBlock Find(
+    virtual TCachedBlock FindBlock(
         const TBlockId& id,
         EBlockType type) override
     {
-        if (type == GetSupportedBlockTypes()) {
+        if (Any(type & GetSupportedBlockTypes())) {
             YT_ASSERT(id.ChunkId == ChunkId_);
             int blockIndex = id.BlockIndex - ChunkData_->StartBlockIndex;
             YT_ASSERT(blockIndex >= 0 && blockIndex < ChunkData_->Blocks.size());
-            return ChunkData_->Blocks[blockIndex];
+            return TCachedBlock(ChunkData_->Blocks[blockIndex]);
         } else {
-            return UnderlyingCache_->Find(id, type);
+            return UnderlyingCache_->FindBlock(id, type);
+        }
+    }
+
+    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+        const TBlockId& id,
+        EBlockType type) override
+    {
+        if (Any(type & GetSupportedBlockTypes())) {
+            YT_ASSERT(id.ChunkId == ChunkId_);
+            int blockIndex = id.BlockIndex - ChunkData_->StartBlockIndex;
+            YT_ASSERT(blockIndex >= 0 && blockIndex < ChunkData_->Blocks.size());
+            return CreatePresetCachedBlockCookie(TCachedBlock(ChunkData_->Blocks[blockIndex]));
+        } else {
+            return UnderlyingCache_->GetCachedBlockCookie(id, type);
         }
     }
 
@@ -394,7 +408,6 @@ private:
     const TInMemoryChunkDataPtr ChunkData_;
     const TChunkId ChunkId_;
     const IBlockCachePtr UnderlyingCache_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)

@@ -1,7 +1,6 @@
 #include "blob_session.h"
 #include "private.h"
 #include "blob_chunk.h"
-#include "chunk_block_manager.h"
 #include "chunk_store.h"
 #include "config.h"
 #include "location.h"
@@ -12,6 +11,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/file_writer.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -455,7 +455,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         memoryTrackerGuards.emplace_back(std::move(guardOrError.Value()));
     }
 
-    const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+    const auto& blockCache = Bootstrap_->GetBlockCache();
 
     std::vector<int> receivedBlockIndexes;
     for (int localIndex = 0; localIndex < static_cast<int>(blocks.size()); ++localIndex) {
@@ -491,7 +491,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         slot.MemoryTrackerGuard = std::move(memoryTrackerGuards[localIndex]);
 
         if (enableCaching) {
-            chunkBlockManager->PutCachedBlock(blockId, block, std::nullopt);
+            blockCache->PutBlock(blockId, EBlockType::CompressedData, block, /* source */ std::nullopt);
         }
 
         Location_->UpdateUsedSpace(block.Size());
