@@ -10,10 +10,10 @@ namespace NYT::NScheduler {
 class TFairShareTreeSnapshotImpl
     : public TRefCounted
 {
-    DEFINE_BYREF_RO_PROPERTY(TRootElementPtr, RootElement)
+    DEFINE_BYREF_RO_PROPERTY(TSchedulerRootElementPtr, RootElement)
     DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementMap, EnabledOperationMap)
     DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementMap, DisabledOperationMap)
-    DEFINE_BYREF_RO_PROPERTY(TNonOwningPoolMap, PoolMap)
+    DEFINE_BYREF_RO_PROPERTY(TNonOwningPoolElementMap, PoolMap)
     DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyTreeConfigPtr, TreeConfig)
     DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyOperationControllerConfigPtr, ControllerConfig)
     DEFINE_BYVAL_RO_PROPERTY(bool, CoreProfilingCompatibilityEnabled)
@@ -21,18 +21,18 @@ class TFairShareTreeSnapshotImpl
         
 public:
     TFairShareTreeSnapshotImpl(
-        TRootElementPtr rootElement,
+        TSchedulerRootElementPtr rootElement,
         TNonOwningOperationElementMap enabledOperationIdToElement,
         TNonOwningOperationElementMap disabledOperationIdToElement,
-        TNonOwningPoolMap poolNameToElement,
+        TNonOwningPoolElementMap poolNameToElement,
         TFairShareStrategyTreeConfigPtr treeConfig,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         bool coreProfilingCompatibilityEnabled,
         TTreeSchedulingSegmentsState schedulingSegmentsState);
 
-    TPool* FindPool(const TString& poolName) const;
-    TOperationElement* FindEnabledOperationElement(TOperationId operationId) const;
-    TOperationElement* FindDisabledOperationElement(TOperationId operationId) const;
+    TSchedulerPoolElement* FindPool(const TString& poolName) const;
+    TSchedulerOperationElement* FindEnabledOperationElement(TOperationId operationId) const;
+    TSchedulerOperationElement* FindDisabledOperationElement(TOperationId operationId) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTreeSnapshotImpl)

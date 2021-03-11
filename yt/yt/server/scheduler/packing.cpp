@@ -68,7 +68,7 @@ void TPackingStatistics::RecordHeartbeat(
 }
 
 bool TPackingStatistics::CheckPacking(
-    const TOperationElement* operationElement,
+    const TSchedulerOperationElement* operationElement,
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TJobResourcesWithQuota& jobResourcesWithQuota,
     const TJobResources& totalResourceLimits,

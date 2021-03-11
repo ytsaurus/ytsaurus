@@ -18,11 +18,11 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
-DECLARE_REFCOUNTED_CLASS(TOperationElement)
-DECLARE_REFCOUNTED_CLASS(TOperationElementSharedState)
-DECLARE_REFCOUNTED_CLASS(TCompositeSchedulerElement)
-DECLARE_REFCOUNTED_CLASS(TPool)
-DECLARE_REFCOUNTED_CLASS(TRootElement)
+DECLARE_REFCOUNTED_CLASS(TSchedulerOperationElement)
+DECLARE_REFCOUNTED_CLASS(TSchedulerOperationElementSharedState)
+DECLARE_REFCOUNTED_CLASS(TSchedulerCompositeElement)
+DECLARE_REFCOUNTED_CLASS(TSchedulerPoolElement)
+DECLARE_REFCOUNTED_CLASS(TSchedulerRootElement)
 
 DECLARE_REFCOUNTED_CLASS(TResourceTree)
 DECLARE_REFCOUNTED_CLASS(TResourceTreeElement)
@@ -41,11 +41,11 @@ using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, std::pair<i64, NPr
 using TAbortedJobCounter = THashMap<std::tuple<EJobType, EJobState, EAbortReason>, NProfiling::TCounter>;
 using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterruptReason>, NProfiling::TCounter>;
 
-using TNonOwningOperationElementMap = THashMap<TOperationId, TOperationElement*>;
-using TOperationElementMap = THashMap<TOperationId, TOperationElementPtr>;
+using TNonOwningOperationElementMap = THashMap<TOperationId, TSchedulerOperationElement*>;
+using TOperationElementMap = THashMap<TOperationId, TSchedulerOperationElementPtr>;
 
-using TNonOwningPoolMap = THashMap<TString, TPool*>;
-using TPoolMap = THashMap<TString, TPoolPtr>;
+using TNonOwningPoolElementMap = THashMap<TString, TSchedulerPoolElement*>;
+using TPoolElementMap = THashMap<TString, TSchedulerPoolElementPtr>;
 
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)

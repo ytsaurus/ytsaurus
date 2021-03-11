@@ -5,10 +5,10 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 TFairShareTreeSnapshotImpl::TFairShareTreeSnapshotImpl(
-    TRootElementPtr rootElement,
+    TSchedulerRootElementPtr rootElement,
     TNonOwningOperationElementMap enabledOperationIdToElement,
     TNonOwningOperationElementMap disabledOperationIdToElement,
-    TNonOwningPoolMap poolNameToElement,
+    TNonOwningPoolElementMap poolNameToElement,
     TFairShareStrategyTreeConfigPtr treeConfig,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     bool coreProfilingCompatibilityEnabled,
@@ -23,19 +23,19 @@ TFairShareTreeSnapshotImpl::TFairShareTreeSnapshotImpl(
     , SchedulingSegmentsState_(std::move(schedulingSegmentsState))
 { }
 
-TPool* TFairShareTreeSnapshotImpl::FindPool(const TString& poolName) const
+TSchedulerPoolElement* TFairShareTreeSnapshotImpl::FindPool(const TString& poolName) const
 {
     auto it = PoolMap_.find(poolName);
     return it != PoolMap_.end() ? it->second : nullptr;
 }
 
-TOperationElement* TFairShareTreeSnapshotImpl::FindEnabledOperationElement(TOperationId operationId) const
+TSchedulerOperationElement* TFairShareTreeSnapshotImpl::FindEnabledOperationElement(TOperationId operationId) const
 {
     auto it = EnabledOperationMap_.find(operationId);
     return it != EnabledOperationMap_.end() ? it->second : nullptr;
 }
 
-TOperationElement* TFairShareTreeSnapshotImpl::FindDisabledOperationElement(TOperationId operationId) const
+TSchedulerOperationElement* TFairShareTreeSnapshotImpl::FindDisabledOperationElement(TOperationId operationId) const
 {
     auto it = DisabledOperationMap_.find(operationId);
     return it != DisabledOperationMap_.end() ? it->second : nullptr;

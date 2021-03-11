@@ -40,7 +40,7 @@ NProfiling::TProfiler TFairShareTreeProfiler::GetRegistry() const
     return Registry_;
 }
 
-void TFairShareTreeProfiler::ProfileOperationUnregistration(const TCompositeSchedulerElement* pool, EOperationState state)
+void TFairShareTreeProfiler::ProfileOperationUnregistration(const TSchedulerCompositeElement* pool, EOperationState state)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -58,14 +58,14 @@ void TFairShareTreeProfiler::ProfileOperationUnregistration(const TCompositeSche
     }
 }
 
-void TFairShareTreeProfiler::RegisterPool(const TCompositeSchedulerElementPtr& element)
+void TFairShareTreeProfiler::RegisterPool(const TSchedulerCompositeElementPtr& element)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     RegisterPoolProfiler(element->GetId());
 }
 
-void TFairShareTreeProfiler::UnregisterPool(const TCompositeSchedulerElementPtr& element)
+void TFairShareTreeProfiler::UnregisterPool(const TSchedulerCompositeElementPtr& element)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
         
@@ -103,7 +103,7 @@ void TFairShareTreeProfiler::PrepareOperationProfilingEntries(const TFairShareTr
             while (parent != nullptr) {
                 bool enableProfiling = false;
                 if (!parent->IsRoot()) {
-                    const auto* pool = static_cast<const TPool*>(parent);
+                    const auto* pool = static_cast<const TSchedulerPoolElement*>(parent);
                     enableProfiling = pool->GetConfig()->EnableByUserProfiling.value_or(enableByUserProfiling);
                 } else {
                     enableProfiling = enableByUserProfiling;
@@ -398,7 +398,7 @@ void TFairShareTreeProfiler::ProfileOperations(const TFairShareTreeSnapshotImplP
 }
 
 void TFairShareTreeProfiler::ProfilePool(
-    const TCompositeSchedulerElement* element,
+    const TSchedulerCompositeElement* element,
     const TFairShareStrategyTreeConfigPtr& treeConfig,
     bool profilingCompatibilityEnabled,
     const NProfiling::TBufferedProducerPtr& producer)

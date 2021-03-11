@@ -105,7 +105,7 @@ public:
     {
         TJobPtr Job;
         bool IsPreemptable = false;
-        TOperationElementPtr OperationElement;
+        TSchedulerOperationElementPtr OperationElement;
     };
 
 public:
@@ -142,7 +142,7 @@ public:
         , FairShareFluentLogTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_fluent_log_time"))
         , FairShareTextLogTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_text_log_time"))
     {
-        RootElement_ = New<TRootElement>(StrategyHost_, this, Config_, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
+        RootElement_ = New<TSchedulerRootElement>(StrategyHost_, this, Config_, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
 
         TreeProfiler_->RegisterPool(RootElement_);
 
@@ -236,7 +236,7 @@ public:
 
         auto operationId = state->GetHost()->GetId();
 
-        auto operationElement = New<TOperationElement>(
+        auto operationElement = New<TSchedulerOperationElement>(
             Config_,
             spec,
             runtimeParameters,
@@ -522,7 +522,7 @@ public:
     virtual void TryRunAllPendingOperations() override
     {
         std::vector<TOperationId> readyOperationIds;
-        std::vector<std::pair<TOperationElementPtr, TCompositeSchedulerElement*>> stillPending;
+        std::vector<std::pair<TSchedulerOperationElementPtr, TSchedulerCompositeElement*>> stillPending;
         for (const auto& [_, pool] : Pools_) {
             for (auto pendingOperationId : pool->PendingOperationIds()) {
                 if (auto element = FindOperationElement(pendingOperationId)) {
@@ -593,7 +593,7 @@ public:
         for (const auto& updatePoolAction : poolsConfigParser.GetOrderedUpdatePoolActions()) {
             switch (updatePoolAction.Type) {
                 case EUpdatePoolActionType::Create: {
-                    auto pool = New<TPool>(
+                    auto pool = New<TSchedulerPoolElement>(
                         StrategyHost_,
                         this,
                         updatePoolAction.Name,
@@ -604,7 +604,7 @@ public:
                         TreeId_,
                         Logger);
                     const auto& parent = updatePoolAction.ParentName == RootPoolName
-                        ? static_cast<TCompositeSchedulerElementPtr>(RootElement_)
+                        ? static_cast<TSchedulerCompositeElementPtr>(RootElement_)
                         : GetPool(updatePoolAction.ParentName);
 
                     RegisterPool(pool, parent);
@@ -640,7 +640,7 @@ public:
                     ReconfigurePool(pool, updatePoolAction.PoolConfig);
                     if (updatePoolAction.Type == EUpdatePoolActionType::Move) {
                         const auto& parent = updatePoolAction.ParentName == RootPoolName
-                            ? static_cast<TCompositeSchedulerElementPtr>(RootElement_)
+                            ? static_cast<TSchedulerCompositeElementPtr>(RootElement_)
                             : GetPool(updatePoolAction.ParentName);
                         pool->ChangeParent(parent.Get());
                     }
@@ -763,7 +763,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        TOperationElement* element = nullptr;
+        TSchedulerOperationElement* element = nullptr;
         if (TreeSnapshotImpl_) {
             if (auto elementFromSnapshot = TreeSnapshotImpl_->FindEnabledOperationElement(operationId)) {
                 element = elementFromSnapshot;
@@ -857,7 +857,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    TPoolMap Pools_;
+    TPoolElementMap Pools_;
 
     std::optional<TInstant> LastFairShareUpdateTime_;
 
@@ -890,7 +890,7 @@ private:
     };
     THashMap<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount_;
 
-    TRootElementPtr RootElement_;
+    TSchedulerRootElementPtr RootElement_;
 
     class TFairShareTreeSnapshot
         : public IFairShareTreeSnapshot
@@ -1561,7 +1561,7 @@ private:
                 return lhs->GetStartTime() > rhs->GetStartTime();
             });
 
-        auto findPoolWithViolatedLimitsForJob = [&] (const TJobPtr& job) -> const TCompositeSchedulerElement* {
+        auto findPoolWithViolatedLimitsForJob = [&] (const TJobPtr& job) -> const TSchedulerCompositeElement* {
             auto* operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
             if (!operationElement) {
                 return nullptr;
@@ -1577,7 +1577,7 @@ private:
             return nullptr;
         };
 
-        auto findOperationElementForJob = [&] (const TJobPtr& job) -> TOperationElement* {
+        auto findOperationElementForJob = [&] (const TJobPtr& job) -> TSchedulerOperationElement* {
             auto operationElement = treeSnapshotImpl->FindEnabledOperationElement(job->GetOperationId());
             if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
                 YT_LOG_DEBUG("Dangling preemptable job found (JobId: %v, OperationId: %v)",
@@ -1678,7 +1678,7 @@ private:
 
     void PreemptJob(
         const TJobPtr& job,
-        const TOperationElementPtr& operationElement,
+        const TSchedulerOperationElementPtr& operationElement,
         const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl,
         const ISchedulingContextPtr& schedulingContext) const
     {
@@ -1691,7 +1691,7 @@ private:
         schedulingContext->PreemptJob(job, treeConfig->JobInterruptTimeout);
     }
 
-    void DoRegisterPool(const TPoolPtr& pool)
+    void DoRegisterPool(const TSchedulerPoolElementPtr& pool)
     {
         int index = RegisterSchedulingTagFilter(pool->GetSchedulingTagFilter());
         pool->SetSchedulingTagFilterIndex(index);
@@ -1701,7 +1701,7 @@ private:
         TreeProfiler_->RegisterPool(pool);
     }
 
-    void RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
+    void RegisterPool(const TSchedulerPoolElementPtr& pool, const TSchedulerCompositeElementPtr& parent)
     {
         DoRegisterPool(pool);
 
@@ -1712,7 +1712,7 @@ private:
             parent->GetId());
     }
 
-    void ReconfigurePool(const TPoolPtr& pool, const TPoolConfigPtr& config)
+    void ReconfigurePool(const TSchedulerPoolElementPtr& pool, const TPoolConfigPtr& config)
     {
         auto oldSchedulingTagFilter = pool->GetSchedulingTagFilter();
         pool->SetConfig(config);
@@ -1724,7 +1724,7 @@ private:
         }
     }
 
-    void UnregisterPool(const TPoolPtr& pool)
+    void UnregisterPool(const TSchedulerPoolElementPtr& pool)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1754,7 +1754,7 @@ private:
             parent->GetId());
     }
 
-    TPoolPtr GetOrCreatePool(const TPoolName& poolName, TString userName)
+    TSchedulerPoolElementPtr GetOrCreatePool(const TPoolName& poolName, TString userName)
     {
         auto pool = FindPool(poolName.GetPool());
         if (pool) {
@@ -1770,7 +1770,7 @@ private:
             poolConfig->MaxRunningOperationCount = parentPoolConfig->EphemeralSubpoolConfig->MaxRunningOperationCount;
             poolConfig->ResourceLimits = parentPoolConfig->EphemeralSubpoolConfig->ResourceLimits;
         }
-        pool = New<TPool>(
+        pool = New<TSchedulerPoolElement>(
             StrategyHost_,
             this,
             poolName.GetPool(),
@@ -1783,7 +1783,7 @@ private:
 
         pool->SetUserName(userName);
 
-        TCompositeSchedulerElement* parent;
+        TSchedulerCompositeElement* parent;
         if (poolName.GetParentPool()) {
             parent = GetPool(*poolName.GetParentPool()).Get();
         } else {
@@ -1949,8 +1949,8 @@ private:
 
     void OnOperationRemovedFromPool(
         const TFairShareStrategyOperationStatePtr& state,
-        const TOperationElementPtr& element,
-        const TCompositeSchedulerElementPtr& parent)
+        const TSchedulerOperationElementPtr& element,
+        const TSchedulerCompositeElementPtr& parent)
     {
         auto operationId = state->GetHost()->GetId();
         ReleaseOperationSlotIndex(state, parent->GetId());
@@ -1970,7 +1970,7 @@ private:
     // Returns true if all pool constraints are satisfied.
     bool OnOperationAddedToPool(
         const TFairShareStrategyOperationStatePtr& state,
-        const TOperationElementPtr& operationElement)
+        const TSchedulerOperationElementPtr& operationElement)
     {
         auto violatedPool = FindPoolViolatingMaxRunningOperationCount(operationElement->GetMutableParent());
         if (!violatedPool) {
@@ -1991,10 +1991,10 @@ private:
         return false;
     }
 
-    void RemoveEmptyEphemeralPoolsRecursive(TCompositeSchedulerElement* compositeElement)
+    void RemoveEmptyEphemeralPoolsRecursive(TSchedulerCompositeElement* compositeElement)
     {
         if (!compositeElement->IsRoot() && compositeElement->IsEmpty()) {
-            TPoolPtr parentPool = static_cast<TPool*>(compositeElement);
+            TSchedulerPoolElementPtr parentPool = static_cast<TSchedulerPoolElement*>(compositeElement);
             if (parentPool->IsDefaultConfigured()) {
                 UnregisterPool(parentPool);
                 RemoveEmptyEphemeralPoolsRecursive(parentPool->GetMutableParent());
@@ -2002,7 +2002,7 @@ private:
         }
     }
 
-    void CheckOperationsPendingByPool(TCompositeSchedulerElement* pool)
+    void CheckOperationsPendingByPool(TSchedulerCompositeElement* pool)
     {
         auto* current = pool;
         while (current) {
@@ -2030,7 +2030,7 @@ private:
         }
     }
 
-    TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool) const
+    TSchedulerCompositeElement* FindPoolViolatingMaxRunningOperationCount(TSchedulerCompositeElement* pool) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2043,9 +2043,9 @@ private:
         return nullptr;
     }
 
-    const TCompositeSchedulerElement* FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element) const
+    const TSchedulerCompositeElement* FindPoolWithViolatedOperationCountLimit(const TSchedulerCompositeElementPtr& element) const
     {
-        const TCompositeSchedulerElement* current = element.Get();
+        const TSchedulerCompositeElement* current = element.Get();
         while (current) {
             if (current->OperationCount() >= current->GetMaxOperationCount()) {
                 return current;
@@ -2069,7 +2069,7 @@ private:
         return nullptr;
     }
 
-    TYPath GetPoolPath(const TCompositeSchedulerElementPtr& element) const
+    TYPath GetPoolPath(const TSchedulerCompositeElementPtr& element) const
     {
         std::vector<TString> tokens;
         const auto* current = element.Get();
@@ -2090,7 +2090,7 @@ private:
         return path;
     }
 
-    TCompositeSchedulerElementPtr GetDefaultParentPool() const
+    TSchedulerCompositeElementPtr GetDefaultParentPool() const
     {
         auto defaultPool = FindPool(Config_->DefaultParentPool);
         if (!defaultPool) {
@@ -2104,9 +2104,9 @@ private:
         return defaultPool;
     }
 
-    TCompositeSchedulerElementPtr GetPoolOrParent(const TPoolName& poolName) const
+    TSchedulerCompositeElementPtr GetPoolOrParent(const TPoolName& poolName) const
     {
-        TCompositeSchedulerElementPtr pool = FindPool(poolName.GetPool());
+        TSchedulerCompositeElementPtr pool = FindPool(poolName.GetPool());
         if (pool) {
             return pool;
         }
@@ -2132,11 +2132,11 @@ private:
         }
     }
 
-    std::vector<const TCompositeSchedulerElement*> GetPoolsToValidateOperationCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName) const
+    std::vector<const TSchedulerCompositeElement*> GetPoolsToValidateOperationCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName) const
     {
         auto operationElement = GetOperationElement(operationId);
 
-        std::vector<const TCompositeSchedulerElement*> poolsToValidate;
+        std::vector<const TSchedulerCompositeElement*> poolsToValidate;
         const auto* pool = GetPoolOrParent(newPoolName).Get();
         while (pool) {
             poolsToValidate.push_back(pool);
@@ -2149,7 +2149,7 @@ private:
         }
 
         // Operation is running, we can validate only tail of new pools.
-        std::vector<const TCompositeSchedulerElement*> oldPools;
+        std::vector<const TSchedulerCompositeElement*> oldPools;
         pool = operationElement->GetParent();
         while (pool) {
             oldPools.push_back(pool);
@@ -2203,7 +2203,7 @@ private:
 
     void DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const
     {
-        TCompositeSchedulerElementPtr pool = FindPool(poolName.GetPool());
+        TSchedulerCompositeElementPtr pool = FindPool(poolName.GetPool());
         // NB: Check is not performed if operation is started in default or unknown pool.
         if (pool && pool->AreImmediateOperationsForbidden()) {
             THROW_ERROR_EXCEPTION("Starting operations immediately in pool %Qv is forbidden", poolName.GetPool());
@@ -2221,33 +2221,33 @@ private:
         return Pools_.size();
     }
 
-    TPoolPtr FindPool(const TString& id) const
+    TSchedulerPoolElementPtr FindPool(const TString& id) const
     {
         auto it = Pools_.find(id);
         return it == Pools_.end() ? nullptr : it->second;
     }
 
-    TPoolPtr GetPool(const TString& id) const
+    TSchedulerPoolElementPtr GetPool(const TString& id) const
     {
         auto pool = FindPool(id);
         YT_VERIFY(pool);
         return pool;
     }
 
-    TOperationElementPtr FindOperationElement(TOperationId operationId) const
+    TSchedulerOperationElementPtr FindOperationElement(TOperationId operationId) const
     {
         auto it = OperationIdToElement_.find(operationId);
         return it == OperationIdToElement_.end() ? nullptr : it->second;
     }
 
-    TOperationElementPtr GetOperationElement(TOperationId operationId) const
+    TSchedulerOperationElementPtr GetOperationElement(TOperationId operationId) const
     {
         auto element = FindOperationElement(operationId);
         YT_VERIFY(element);
         return element;
     }
 
-    TOperationElement* FindOperationElementInSnapshot(TOperationId operationId) const
+    TSchedulerOperationElement* FindOperationElementInSnapshot(TOperationId operationId) const
     {
         if (TreeSnapshotImpl_) {
             if (auto element = TreeSnapshotImpl_->FindEnabledOperationElement(operationId)) {
@@ -2347,7 +2347,7 @@ private:
         fluent
             .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), treeSnapshotImpl))
             .Item("resource_distribution_info").BeginMap()
-                .Do(BIND(&TRootElement::BuildResourceDistributionInfo, treeSnapshotImpl->RootElement()))
+                .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshotImpl->RootElement()))
             .EndMap()
             .Item("operations").BeginMap()
                 .DoFor(treeSnapshotImpl->EnabledOperationMap(), buildOperationsInfo)
@@ -2357,7 +2357,7 @@ private:
 
     void DoBuildPoolsInformation(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
-        auto buildCompositeElementInfo = [&] (const TCompositeSchedulerElement* element, TFluentMap fluent) {
+        auto buildCompositeElementInfo = [&] (const TSchedulerCompositeElement* element, TFluentMap fluent) {
             const auto& attributes = element->Attributes();
             fluent
                 .Item("running_operation_count").Value(element->RunningOperationCount())
@@ -2375,7 +2375,7 @@ private:
                 .Do(std::bind(&TFairShareTree::DoBuildElementYson, this, element, std::placeholders::_1));
         };
 
-        auto buildPoolInfo = [&] (const TPool* pool, TFluentMap fluent) {
+        auto buildPoolInfo = [&] (const TSchedulerPoolElement* pool, TFluentMap fluent) {
             const auto& id = pool->GetId();
             fluent
                 .Item(id).BeginMap()
@@ -2410,7 +2410,7 @@ private:
         fluent
             .Item("pool_count").Value(GetPoolCount())
             .Item("pools").BeginMap()
-                .DoFor(treeSnapshotImpl->PoolMap(), [&] (TFluentMap fluent, const TNonOwningPoolMap::value_type& pair) {
+                .DoFor(treeSnapshotImpl->PoolMap(), [&] (TFluentMap fluent, const TNonOwningPoolElementMap::value_type& pair) {
                     buildPoolInfo(pair.second, fluent);
                 })
                 .Item(RootPoolName).BeginMap()
@@ -2419,7 +2419,7 @@ private:
             .EndMap();
     }
 
-    void DoBuildOperationProgress(const TOperationElement* element, TFluentMap fluent) const
+    void DoBuildOperationProgress(const TSchedulerOperationElement* element, TFluentMap fluent) const
     {
         auto* parent = element->GetParent();
         fluent
@@ -2526,7 +2526,7 @@ private:
         const auto& poolMap = treeSnapshotImpl->PoolMap();
         fluent
             .Item("pool_count").Value(poolMap.size())
-            .Item("pools").DoMapFor(poolMap, [&] (TFluentMap fluent, const TNonOwningPoolMap::value_type& pair) {
+            .Item("pools").DoMapFor(poolMap, [&] (TFluentMap fluent, const TNonOwningPoolElementMap::value_type& pair) {
                 const auto& [poolName, pool] = pair;
                 fluent
                     .Item(poolName).BeginMap()
@@ -2535,7 +2535,7 @@ private:
             });
     }
 
-    void DoBuildEssentialOperationProgress(const TOperationElement* element, const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
+    void DoBuildEssentialOperationProgress(const TSchedulerOperationElement* element, const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
     {
         fluent
             .Do(BIND(&TFairShareTree::DoBuildEssentialElementYson, Unretained(this), Unretained(element), treeSnapshotImpl));
