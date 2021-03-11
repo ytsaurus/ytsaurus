@@ -149,7 +149,7 @@ private:
 public:
     void Append(const T* begin, const T* end)
     {
-        if (std::distance(begin, end) > Capacity) {
+        if (std::distance(begin, end) > static_cast<i64>(Capacity)) {
             begin = end - Capacity;
         }
 
@@ -678,7 +678,7 @@ public:
                     ch);
         }
 
-        for (int i = 0; i < expectedString.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(expectedString.size()); ++i) {
             if (expectedString[i] != ch) {
                 THROW_ERROR_EXCEPTION("Incorrect %%-literal prefix \"%v%c\", expected %Qv",
                     expectedString.SubStr(0, i),
@@ -795,7 +795,7 @@ public:
         PushBack(TBaseStream::template GetChar<AllowFinish>());
         TBaseStream::Advance(1);
         if (Buffer_[0] == trueString[0]) {
-            for (int i = 1; i < trueString.size(); ++i) {
+            for (int i = 1; i < static_cast<int>(trueString.size()); ++i) {
                 PushBack(TBaseStream::template GetChar<AllowFinish>());
                 TBaseStream::Advance(1);
                 if (Buffer_.back() != trueString[i]) {
@@ -804,7 +804,7 @@ public:
             }
             return true;
         } else if (Buffer_[0] == falseString[0]) {
-            for (int i = 1; i < falseString.size(); ++i) {
+            for (int i = 1; i < static_cast<int>(falseString.size()); ++i) {
                 PushBack(TBaseStream::template GetChar<AllowFinish>());
                 TBaseStream::Advance(1);
                 if (Buffer_.back() != falseString[i]) {

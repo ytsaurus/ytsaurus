@@ -27,9 +27,7 @@ using namespace NYTree;
 
 TColumnSchema ColumnFromYson(const TString& yson)
 {
-    TColumnSchema column;
-    Deserialize(column, ConvertToNode(TYsonString(yson)));
-    return column;
+    return ConvertTo<TColumnSchema>(TYsonStringBuf(yson));
 }
 
 TEST(TTableSchemaTest, ColumnTypeV1Deserialization)

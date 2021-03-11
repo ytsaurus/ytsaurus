@@ -5,13 +5,17 @@
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/formats/skiff_yson_converter.h>
 
+#include <yt/yt/core/yson/parser.h>
 #include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/token_writer.h>
+#include <yt/yt/core/yson/writer.h>
 
 #include <library/cpp/skiff/skiff.h>
 #include <library/cpp/skiff/skiff_schema.h>
 
 #include <util/string/hex.h>
+
+#include <util/stream/mem.h>
 
 namespace NYT::NFormats {
 namespace {

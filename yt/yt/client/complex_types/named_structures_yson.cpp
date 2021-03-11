@@ -4,8 +4,14 @@
 
 #include <yt/yt/client/table_client/logical_type.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
+#include <yt/yt/core/yson/consumer.h>
+#include <yt/yt/core/yson/writer.h>
+
 #include <util/generic/buffer.h>
 #include <util/stream/buffer.h>
+#include <util/stream/mem.h>
 
 namespace NYT::NComplexTypes {
 

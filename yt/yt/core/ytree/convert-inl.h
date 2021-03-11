@@ -16,6 +16,8 @@
 #include <yt/yt/core/yson/parser.h>
 #include <yt/yt/core/yson/stream.h>
 #include <yt/yt/core/yson/producer.h>
+#include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/pull_parser_deserialize.h>
 
 #include <yt/yt/core/misc/cast.h>
 
@@ -128,6 +130,23 @@ template <class TTo, class TFrom>
 TTo ConvertTo(const TFrom& value)
 {
     auto type = GetYsonType(value);
+    if constexpr (
+        NYson::ArePullParserDeserializable<TTo>() &&
+        (std::is_same_v<TFrom, NYson::TYsonString> || std::is_same_v<TFrom, NYson::TYsonStringBuf>))
+    {
+        using NYson::Deserialize;
+
+        TMemoryInput input(value.AsStringBuf());
+        NYson::TYsonPullParser parser(&input, type);
+        NYson::TYsonPullParserCursor cursor(&parser);
+        TTo result;
+        Deserialize(result, &cursor);
+        if (!cursor->IsEndOfStream()) {
+            THROW_ERROR_EXCEPTION("Expected end of stream after parsing YSON, found %Qlv",
+                cursor->GetType());
+        }
+        return result;
+    }
     std::unique_ptr<NYson::IBuildingYsonConsumer<TTo>> buildingConsumer;
     CreateBuildingYsonConsumer(&buildingConsumer, type);
     Serialize(value, buildingConsumer.get());

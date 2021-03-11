@@ -300,7 +300,6 @@ TEST(TSerializationTest, MapOnArray)
         {"333", {{7U, 93U, 9U}}},
         {"rel", {{233U, 9763U, 0U}}}
     };
-
     TestSerializationDeserialization(original);
 }
 

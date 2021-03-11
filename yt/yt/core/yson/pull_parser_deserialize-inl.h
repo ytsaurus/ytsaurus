@@ -1,4 +1,5 @@
 #pragma once
+#include "yt/core/misc/error.h"
 #ifndef PULL_PARSER_DESERIALIZE_INL_H_
 #error "Direct inclusion of this file is not allowed, include pull_parser_deserialize.h"
 // For the sake of sane code completion.
@@ -10,7 +11,6 @@
 #include "pull_parser.h"
 #include "pull_parser_deserialize.h"
 
-
 #include <vector>
 
 namespace NYT::NYson {
@@ -19,14 +19,31 @@ namespace NYT::NYson {
 
 namespace NDetail {
 
-template<class T>
+inline void SkipAttributes(TYsonPullParserCursor* cursor)
+{
+    cursor->SkipAttributes();
+    if ((*cursor)->GetType() == EYsonItemType::BeginAttributes) {
+        THROW_ERROR_EXCEPTION("Repeated attributes are not allowed");
+    }
+}
+
+inline void MaybeSkipAttributes(TYsonPullParserCursor* cursor)
+{
+    if ((*cursor)->GetType() == EYsonItemType::BeginAttributes) {
+        SkipAttributes(cursor);
+    }
+}
+
+template <class T>
 void DeserializeVector(T& value, TYsonPullParserCursor* cursor) {
+    NDetail::MaybeSkipAttributes(cursor);
     int index = 0;
     cursor->ParseList([&](TYsonPullParserCursor* cursor) {
         if (index < static_cast<int>(value.size())) {
             Deserialize(value[index], cursor);
         } else {
-            Deserialize(value.emplace_back(), cursor);
+            value.emplace_back();
+            Deserialize(value.back(), cursor);
         }
         ++index;
     });
@@ -36,6 +53,7 @@ void DeserializeVector(T& value, TYsonPullParserCursor* cursor) {
 template <class T>
 void DeserializeSet(T& value, TYsonPullParserCursor* cursor)
 {
+    NDetail::MaybeSkipAttributes(cursor);
     value.clear();
     cursor->ParseList([&] (TYsonPullParserCursor* cursor) {
         value.insert(ExtractTo<typename T::value_type>(cursor));
@@ -45,10 +63,14 @@ void DeserializeSet(T& value, TYsonPullParserCursor* cursor)
 template <class T>
 void DeserializeMap(T& value, TYsonPullParserCursor* cursor)
 {
+    NDetail::MaybeSkipAttributes(cursor);
     value.clear();
     cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
         auto key = ExtractTo<typename T::key_type>(cursor);
         auto item = ExtractTo<typename T::mapped_type>(cursor);
+        if (value.contains(key)) {
+            THROW_ERROR_EXCEPTION("Duplicate key %Qv", key);
+        }
         value.emplace(std::move(key), std::move(item));
     });
 }
@@ -104,6 +126,7 @@ struct TTupleHelper
 template <class T>
 void DeserializeTuple(T& value, TYsonPullParserCursor* cursor)
 {
+    NDetail::MaybeSkipAttributes(cursor);
     EnsureYsonToken("tuple", *cursor, EYsonItemType::BeginList);
     cursor->Next();
     TTupleHelper<T>::DeserializeItem(value, cursor);
@@ -118,14 +141,15 @@ void DeserializeTuple(T& value, TYsonPullParserCursor* cursor)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class A>
-void Deserialize(std::vector<T, A>& value, NYson::TYsonPullParserCursor* cursor)
+void Deserialize(std::vector<T, A>& value, NYson::TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<T>(), void*>)
 {
     NDetail::DeserializeVector(value, cursor);
 }
 
 template <class T>
-void Deserialize(std::optional<T>& value, TYsonPullParserCursor* cursor)
+void Deserialize(std::optional<T>& value, TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<T>(), void*>)
 {
+    NDetail::MaybeSkipAttributes(cursor);
     if ((*cursor)->GetType() == EYsonItemType::EntityValue) {
         value.reset();
         cursor->Next();
@@ -141,8 +165,7 @@ void Deserialize(std::optional<T>& value, TYsonPullParserCursor* cursor)
 template <class T>
 void Deserialize(T& value, TYsonPullParserCursor* cursor, std::enable_if_t<TEnumTraits<T>::IsEnum, void*>)
 {
-    static_assert(TEnumTraits<T>::IsEnum);
-
+    NDetail::MaybeSkipAttributes(cursor);
     if constexpr (TEnumTraits<T>::IsBitEnum) {
         switch ((*cursor)->GetType()) {
             case EYsonItemType::BeginList:
@@ -172,39 +195,43 @@ void Deserialize(T& value, TYsonPullParserCursor* cursor, std::enable_if_t<TEnum
 
 // SmallVector
 template <class T, unsigned N>
-void Deserialize(SmallVector<T, N>& value, TYsonPullParserCursor* cursor)
+void Deserialize(SmallVector<T, N>& value, TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<T>(), void*>)
 {
     NDetail::DeserializeVector(value, cursor);
 }
 
 template <class F, class S>
-void Deserialize(std::pair<F, S>& value, TYsonPullParserCursor* cursor)
+void Deserialize(std::pair<F, S>& value, TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<F, S>(), void*>)
 {
     NDetail::DeserializeTuple(value, cursor);
 }
 
 template <class T, size_t N>
-void Deserialize(std::array<T, N>& value, TYsonPullParserCursor* cursor)
+void Deserialize(std::array<T, N>& value, TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<T>(), void*>)
 {
     NDetail::DeserializeTuple(value, cursor);
 }
 
 template <class... T>
-void Deserialize(std::tuple<T...>& value, TYsonPullParserCursor* cursor)
+void Deserialize(std::tuple<T...>& value, TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<T...>(), void*>)
 {
     NDetail::DeserializeTuple(value, cursor);
 }
 
 // For any associative container.
 template <template<typename...> class C, class... T, class K>
-void Deserialize(C<T...>& value, TYsonPullParserCursor* cursor)
+void Deserialize(
+    C<T...>& value,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<typename NDetail::TRemoveConst<typename C<T...>::value_type>::Type>(), void*>)
 {
     NDetail::DeserializeAssociative(value, cursor);
 }
 
 template <class E, class T, E Min, E Max>
-void Deserialize(TEnumIndexedVector<E, T, Min, Max>& vector, TYsonPullParserCursor* cursor)
+void Deserialize(TEnumIndexedVector<E, T, Min, Max>& vector, TYsonPullParserCursor* cursor, std::enable_if_t<ArePullParserDeserializable<T>(), void*>)
 {
+    NDetail::MaybeSkipAttributes(cursor);
     vector = {};
     cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
         auto key = ExtractTo<E>(cursor);
