@@ -109,7 +109,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
         this.startTimestamp = Objects.requireNonNull(startTimestamp);
         this.ping = ping;
         this.sticky = sticky;
-        this.transactionalOptions = new TransactionalOptions(id, ping, pingAncestors, sticky);
+        this.transactionalOptions = new TransactionalOptions(id, sticky);
         this.pingPeriod = pingPeriod;
         this.executor = executor;
 
