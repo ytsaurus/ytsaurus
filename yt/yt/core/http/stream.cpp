@@ -336,6 +336,7 @@ void THttpInput::Reset()
     Url_ = {};
     SafeToReuse_ = false;
     LastProgressLogTime_ = TInstant::Now();
+    StartTime_ = TInstant::Zero();
 
     StartByteCount_ = Connection_->GetReadByteCount();
     StartStatistics_ = Connection_->GetReadStatistics();
@@ -366,12 +367,12 @@ bool THttpInput::ReceiveHeaders()
     }
 
     bool idleConnection = MessageType_ == EMessageType::Request;
-    StartTime_ = TInstant::Now();
+    TInstant start = TInstant::Now();
 
     if (idleConnection) {
-        Connection_->SetReadDeadline(StartTime_ + Config_->ConnectionIdleTimeout);
+        Connection_->SetReadDeadline(start + Config_->ConnectionIdleTimeout);
     } else {
-        Connection_->SetReadDeadline(StartTime_ + Config_->HeaderReadTimeout);
+        Connection_->SetReadDeadline(start + Config_->HeaderReadTimeout);
     }
 
     while (true) {
@@ -384,6 +385,9 @@ bool THttpInput::ReceiveHeaders()
             readResult = WaitFor(asyncReadResult);
             if (readResult.IsOK()) {
                 UnconsumedData_ = InputBuffer_.Slice(0, readResult.ValueOrThrow());
+                if (!StartTime_) {
+                    StartTime_ = TInstant::Now();
+                }
             } else {
                 UnconsumedData_ = InputBuffer_.Slice(static_cast<size_t>(0), static_cast<size_t>(0));
             }
