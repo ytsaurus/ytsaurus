@@ -14,6 +14,8 @@
 
 namespace NYT::NTableClient {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TWalkContext
@@ -1768,6 +1770,185 @@ void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
                     wrapper.LogicalType = TaggedLogicalType(std::move(tag), std::move(element.LogicalType));
                     return;
                 }
+            }
+            YT_ABORT();
+        }
+    }, typeName);
+}
+
+void DeserializeV3(TLogicalTypePtr& type, NYson::TYsonPullParserCursor* cursor)
+{
+    if ((*cursor)->GetType() == EYsonItemType::StringValue) {
+        auto typeNameString = (*cursor)->UncheckedAsString();
+        auto typeName = FromTypeV3(typeNameString);
+        std::visit([&](const auto& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, ESimpleLogicalValueType>) {
+                type = SimpleLogicalType(arg);
+            } else {
+                static_assert(std::is_same_v<T, ELogicalMetatype> || std::is_same_v<T, TV3Variant>);
+                THROW_ERROR_EXCEPTION("Type %Qv must be represented by map not a string",
+                    typeNameString);
+            }
+        }, typeName);
+        cursor->Next();
+        return;
+    }
+    if ((*cursor)->GetType() != EYsonItemType::BeginMap) {
+        THROW_ERROR_EXCEPTION("Error parsing logical type: expected %Qlv or %Qlv, actual %Qlv",
+            EYsonItemType::BeginMap,
+            EYsonItemType::BeginList,
+            (*cursor)->GetType());
+    }
+
+    TV3TypeName typeName;
+    std::optional<std::vector<TStructField>> members;
+    std::optional<std::vector<TLogicalTypePtr>> elements;
+    TLogicalTypePtr item, keyType, valueType;
+    std::optional<i64> precision, scale;
+    TString tag;
+
+    cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
+        EnsureYsonToken(TStringBuf("logical type attribute key"), *cursor, EYsonItemType::StringValue);
+        auto key = (*cursor)->UncheckedAsString();
+        if (key == TStringBuf("type_name")) {
+            cursor->Next();
+            EnsureYsonToken(TStringBuf("logical type name"), *cursor, EYsonItemType::StringValue);
+            typeName = FromTypeV3((*cursor)->UncheckedAsString());
+            cursor->Next();
+        } else if (key == TStringBuf("item")) {
+            cursor->Next();
+            DeserializeV3(item, cursor);
+        } else if (key == TStringBuf("members")) {
+            cursor->Next();
+            members.emplace();
+            cursor->ParseList([&] (TYsonPullParserCursor* cursor) {
+                std::optional<TString> name;
+                TLogicalTypePtr type;
+                cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
+                    EnsureYsonToken(TStringBuf("logical type member attribute key"), *cursor, EYsonItemType::StringValue);
+                    auto key = (*cursor)->UncheckedAsString();
+                    if (key == TStringBuf("name")) {
+                        cursor->Next();
+                        name = ExtractTo<TString>(cursor);
+                    } else if (key == TStringBuf("type")) {
+                        cursor->Next();
+                        DeserializeV3(type, cursor);
+                    } else {
+                        cursor->Next();
+                        cursor->SkipComplexValue();
+                    }
+                });
+                if (!name) {
+                    THROW_ERROR_EXCEPTION("Name is required");
+                }
+                if (!type) {
+                    THROW_ERROR_EXCEPTION("Type is required");
+                }
+                members->push_back({std::move(*name), std::move(type)});
+            });
+        } else if (key == TStringBuf("elements")) {
+            cursor->Next();
+            elements.emplace();
+            cursor->ParseList([&] (TYsonPullParserCursor* cursor) {
+                TLogicalTypePtr type;
+                cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
+                    EnsureYsonToken(TStringBuf("logical type member attribute key"), *cursor, EYsonItemType::StringValue);
+                    auto key = (*cursor)->UncheckedAsString();
+                    if (key == TStringBuf("type")) {
+                        cursor->Next();
+                        DeserializeV3(type, cursor);
+                    } else {
+                        cursor->Next();
+                        cursor->SkipComplexValue();
+                    }
+                });
+                if (!type) {
+                    THROW_ERROR_EXCEPTION("Type is required");
+                }
+                elements->push_back(std::move(type));
+            });
+        } else if (key == TStringBuf("precision")) {
+            cursor->Next();
+            precision = ExtractTo<i64>(cursor);
+        } else if (key == TStringBuf("scale")) {
+            cursor->Next();
+            scale = ExtractTo<i64>(cursor);
+        } else if (key == TStringBuf("key")) {
+            cursor->Next();
+            DeserializeV3(keyType, cursor);
+        } else if (key == TStringBuf("value")) {
+            cursor->Next();
+            DeserializeV3(valueType, cursor);
+        } else if (key == TStringBuf("tag")) {
+            cursor->Next();
+            tag = ExtractTo<TString>(cursor);
+        } else {
+            cursor->Next();
+            cursor->SkipComplexValue();
+        }
+    });
+    
+    type = std::visit([&](const auto& typeName) {
+        using T = std::decay_t<decltype(typeName)>;
+        if constexpr (std::is_same_v<T, ESimpleLogicalValueType>) {
+            return SimpleLogicalType(typeName);
+        } else {
+            ELogicalMetatype type;
+            if constexpr (std::is_same_v<T, ELogicalMetatype>) {
+                type = typeName;
+            } else {
+                if (members && elements) {
+                    THROW_ERROR_EXCEPTION("\"variant\" cannot have both children \"elements\" and \"members\"");
+                } else if (members) {
+                    type = ELogicalMetatype::VariantStruct;
+                } else if (elements) {
+                    type = ELogicalMetatype::VariantTuple;
+                } else {
+                    THROW_ERROR_EXCEPTION("\"variant\" must have \"elements\" or \"members\" child");
+                }
+            }
+            auto ensureIsPresent = [&] (const char* fieldName, const auto& value) {
+                if (!value) {
+                    THROW_ERROR_EXCEPTION("Field %Qv is required for logical type %Qlv",
+                        fieldName,
+                        type);
+                }
+            };
+            switch (type) {
+                case ELogicalMetatype::Simple:
+                    // NB. FromTypeV3 never returns this value.
+                    YT_ABORT();
+                case ELogicalMetatype::Decimal:
+                    ensureIsPresent("precision", precision);
+                    ensureIsPresent("scale", scale);
+                    return DecimalLogicalType(*precision, *scale);
+                case ELogicalMetatype::Optional:
+                    ensureIsPresent("item", item);
+                    return OptionalLogicalType(std::move(item));
+                case ELogicalMetatype::List:
+                    ensureIsPresent("item", item);
+                    return ListLogicalType(std::move(item));
+                case ELogicalMetatype::Struct:
+                    ensureIsPresent("members", members);
+                    return StructLogicalType(std::move(*members));
+                case ELogicalMetatype::VariantStruct:
+                    ensureIsPresent("members", members);
+                    return VariantStructLogicalType(std::move(*members));
+                case ELogicalMetatype::Tuple:
+                    ensureIsPresent("elements", elements);
+                    return TupleLogicalType(std::move(*elements));
+                case ELogicalMetatype::VariantTuple:
+                    ensureIsPresent("elements", elements);
+                    return VariantTupleLogicalType(std::move(*elements));
+                case ELogicalMetatype::Dict:
+                    ensureIsPresent("key", keyType);
+                    ensureIsPresent("value", valueType);
+                    return DictLogicalType(std::move(keyType), std::move(valueType));
+                case ELogicalMetatype::Tagged:
+                    ensureIsPresent("tag", tag);
+                    ensureIsPresent("item", item);
+                    return TaggedLogicalType(std::move(tag), std::move(item));
             }
             YT_ABORT();
         }

@@ -1,5 +1,7 @@
 #include "schema.h"
 #include "unversioned_row.h"
+#include "yt/core/yson/public.h"
+#include "yt/core/yson/pull_parser_deserialize.h"
 
 #include <yt/yt/core/ytree/serialize.h>
 #include <yt/yt/core/ytree/convert.h>
@@ -139,6 +141,75 @@ ESimpleLogicalValueType TColumnSchema::CastToV1Type() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void RunColumnSchemaPostprocessor(
+    TColumnSchema& schema,
+    std::optional<ESimpleLogicalValueType> logicalTypeV1,
+    std::optional<bool> requiredV1,
+    TLogicalTypePtr logicalTypeV3)
+{
+    // Name
+    if (schema.Name().empty()) {
+        THROW_ERROR_EXCEPTION("Column name cannot be empty");
+    }
+
+    try {
+        int setTypeVersion = 0;
+        if (logicalTypeV3) {
+            schema.SetLogicalType(logicalTypeV3);
+            setTypeVersion = 3;
+        }
+
+        if (logicalTypeV1) {
+            if (setTypeVersion == 0) {
+                schema.SetLogicalType(MakeLogicalType(*logicalTypeV1, requiredV1.value_or(false)));
+                setTypeVersion = 1;
+            } else {
+                if (*logicalTypeV1 != schema.CastToV1Type()) {
+                    THROW_ERROR_EXCEPTION(
+                        "\"type_v%v\" doesn't match \"type\"; \"type_v%v\": %Qv \"type\": %Qlv expected \"type\": %Qlv",
+                        setTypeVersion,
+                        setTypeVersion,
+                        *schema.LogicalType(),
+                        *logicalTypeV1,
+                        schema.CastToV1Type());
+                }
+            }
+        }
+
+        if (requiredV1 && setTypeVersion > 1 && *requiredV1 != schema.Required()) {
+            THROW_ERROR_EXCEPTION(
+                "\"type_v%v\" doesn't match \"required\"; \"type_v%v\": %Qv \"required\": %Qlv",
+                setTypeVersion,
+                setTypeVersion,
+                *schema.LogicalType(),
+                *requiredV1);
+        }
+
+        if (setTypeVersion == 0) {
+            THROW_ERROR_EXCEPTION("Column type is not specified");
+        }
+
+        if (*DetagLogicalType(schema.LogicalType()) == *SimpleLogicalType(ESimpleLogicalValueType::Any)) {
+            THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be \"required\"",
+                ESimpleLogicalValueType::Any);
+        }
+
+        // Lock
+        if (schema.Lock() && schema.Lock()->empty()) {
+            THROW_ERROR_EXCEPTION("Lock name cannot be empty");
+        }
+
+        // Group
+        if (schema.Group() && schema.Group()->empty()) {
+            THROW_ERROR_EXCEPTION("Group name cannot be empty");
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
+            schema.Name())
+            << ex;
+    }
+}
+
 struct TSerializableColumnSchema
     : public TYsonSerializableLite
     , private TColumnSchema
@@ -165,67 +236,12 @@ struct TSerializableColumnSchema
             .Default();
 
         RegisterPostprocessor([&] () {
-            // Name
-            if (Name().empty()) {
-                THROW_ERROR_EXCEPTION("Column name cannot be empty");
-            }
-
-            try {
-                int setTypeVersion = 0;
-                if (LogicalTypeV3_ && LogicalTypeV3_->LogicalType) {
-                    SetLogicalType(LogicalTypeV3_->LogicalType);
-                    setTypeVersion = 3;
-                }
-
-                if (LogicalTypeV1_) {
-                    if (setTypeVersion == 0) {
-                        SetLogicalType(MakeLogicalType(*LogicalTypeV1_, RequiredV1_.value_or(false)));
-                        setTypeVersion = 1;
-                    } else {
-                        if (*LogicalTypeV1_ != CastToV1Type()) {
-                            THROW_ERROR_EXCEPTION(
-                                "\"type_v%v\" doesn't match \"type\"; \"type_v%v\": %Qv \"type\": %Qlv expected \"type\": %Qlv",
-                                setTypeVersion,
-                                setTypeVersion,
-                                *LogicalType_,
-                                *LogicalTypeV1_,
-                                CastToV1Type());
-                        }
-                    }
-                }
-
-                if (RequiredV1_ && setTypeVersion > 1 && *RequiredV1_ != Required()) {
-                    THROW_ERROR_EXCEPTION(
-                        "\"type_v%v\" doesn't match \"required\"; \"type_v%v\": %Qv \"required\": %Qlv",
-                        setTypeVersion,
-                        setTypeVersion,
-                        *LogicalType_,
-                        *RequiredV1_);
-                }
-
-                if (setTypeVersion == 0) {
-                    THROW_ERROR_EXCEPTION("Column type is not specified");
-                }
-
-                if (*DetagLogicalType(LogicalType()) == *SimpleLogicalType(ESimpleLogicalValueType::Any)) {
-                    THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be \"required\"",
-                        ESimpleLogicalValueType::Any);
-                }
-
-                // Lock
-                if (Lock() && Lock()->empty()) {
-                    THROW_ERROR_EXCEPTION("Lock name cannot be empty");
-                }
-
-                // Group
-                if (Group() && Group()->empty()) {
-                    THROW_ERROR_EXCEPTION("Group name cannot be empty");
-                }
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
-                    Name())
-                    << ex;
-            }
+            RunColumnSchemaPostprocessor(
+                *this,
+                LogicalTypeV1_,
+                RequiredV1_,
+                LogicalTypeV3_ ? LogicalTypeV3_->LogicalType : nullptr
+            );
         });
     }
 
@@ -299,6 +315,51 @@ void Deserialize(TColumnSchema& schema, INodePtr node)
     TSerializableColumnSchema wrapper;
     Deserialize(static_cast<TYsonSerializableLite&>(wrapper), node);
     schema = wrapper.GetColumnSchema();
+}
+
+void Deserialize(TColumnSchema& schema, NYson::TYsonPullParserCursor* cursor)
+{
+    std::optional<ESimpleLogicalValueType> logicalTypeV1;
+    std::optional<bool> requiredV1;
+    TLogicalTypePtr logicalTypeV3;
+
+    cursor->ParseMap([&] (NYson::TYsonPullParserCursor* cursor) {
+        EnsureYsonToken("column schema attribute key", *cursor, EYsonItemType::StringValue);
+        auto key = (*cursor)->UncheckedAsString();
+        if (key == TStringBuf("name")) {
+            cursor->Next();
+            schema.SetName(ExtractTo<TString>(cursor));
+        } else if (key == TStringBuf("required")) {
+            cursor->Next();
+            requiredV1 = ExtractTo<bool>(cursor);
+        } else if (key == TStringBuf("type")) {
+            cursor->Next();
+            logicalTypeV1 = ExtractTo<ESimpleLogicalValueType>(cursor);
+        } else if (key == TStringBuf("type_v3")) {
+            cursor->Next();
+            DeserializeV3(logicalTypeV3, cursor);
+        } else if (key == TStringBuf("lock")) {
+            cursor->Next();
+            schema.SetLock(ExtractTo<std::optional<TString>>(cursor));
+        } else if (key == TStringBuf("expression")) {
+            cursor->Next();
+            schema.SetExpression(ExtractTo<std::optional<TString>>(cursor));
+        } else if (key == TStringBuf("aggregate")) {
+            cursor->Next();
+            schema.SetAggregate(ExtractTo<std::optional<TString>>(cursor));
+        } else if (key == TStringBuf("sort_order")) {
+            cursor->Next();
+            schema.SetSortOrder(ExtractTo<std::optional<ESortOrder>>(cursor));
+        } else if (key == TStringBuf("group")) {
+            cursor->Next();
+            schema.SetGroup(ExtractTo<std::optional<TString>>(cursor));
+        } else {
+            cursor->Next();
+            cursor->SkipComplexValue();
+        }
+    });
+
+    RunColumnSchemaPostprocessor(schema, logicalTypeV1, requiredV1, std::move(logicalTypeV3));
 }
 
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
@@ -1002,15 +1063,54 @@ void Deserialize(TTableSchema& schema, INodePtr node)
             ETableSchemaModification::None));
 }
 
+void Deserialize(TTableSchema& schema, NYson::TYsonPullParserCursor* cursor)
+{
+    bool strict = true;
+    bool uniqueKeys = false;
+    ETableSchemaModification modification = ETableSchemaModification::None;
+    std::vector<TColumnSchema> columns;
+
+    if ((*cursor)->GetType() == EYsonItemType::BeginAttributes) {
+        cursor->ParseAttributes([&] (TYsonPullParserCursor* cursor) {
+            EnsureYsonToken(TStringBuf("table schema attribute key"), *cursor, EYsonItemType::StringValue);
+            auto key = (*cursor)->UncheckedAsString();
+            if (key == TStringBuf("strict")) {
+                cursor->Next();
+                strict = ExtractTo<bool>(cursor);
+            } else if (key == TStringBuf("unique_keys")) {
+                cursor->Next();
+                uniqueKeys = ExtractTo<bool>(cursor);
+            } else if (key == TStringBuf("schema_modification")) {
+                cursor->Next();
+                modification = ExtractTo<ETableSchemaModification>(cursor);
+            } else {
+                cursor->Next();
+                cursor->SkipComplexValue();
+            }
+        });
+    }
+    EnsureYsonToken(TStringBuf("table schema"), *cursor, EYsonItemType::BeginList);
+    columns = ExtractTo<std::vector<TColumnSchema>>(cursor);
+    schema = TTableSchema(std::move(columns), strict, uniqueKeys, modification);
+}
+
 void Serialize(const TTableSchemaPtr& schema, IYsonConsumer* consumer)
 {
     Serialize(*schema, consumer);
 }
 
+
 void Deserialize(TTableSchemaPtr& schema, INodePtr node)
 {
     TTableSchema actualSchema;
     Deserialize(actualSchema, node);
+    schema = New<TTableSchema>(std::move(actualSchema));
+}
+
+void Deserialize(TTableSchemaPtr& schema, NYson::TYsonPullParserCursor* cursor)
+{
+    TTableSchema actualSchema;
+    Deserialize(actualSchema, cursor);
     schema = New<TTableSchema>(std::move(actualSchema));
 }
 

@@ -120,6 +120,7 @@ void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStri
 
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TColumnSchema& schema, NYTree::INodePtr node);
+void Deserialize(TColumnSchema& schema, NYson::TYsonPullParserCursor* cursor);
 
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema);
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
@@ -280,8 +281,11 @@ void DeserializeFromWireProto(TTableSchemaPtr* schema, const TString& serialized
 
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
+void Deserialize(TTableSchema& schema, NYson::TYsonPullParserCursor* cursor);
+
 void Serialize(const TTableSchemaPtr& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TTableSchemaPtr& schema, NYTree::INodePtr node);
+void Deserialize(TTableSchemaPtr& schema, NYson::TYsonPullParserCursor* cursor);
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema);
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema);

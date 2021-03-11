@@ -1,5 +1,6 @@
 #include "pull_parser_deserialize.h"
 
+#include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/string.h>
 
 namespace NYT::NYson {
@@ -18,6 +19,10 @@ void DeserializeInteger(T& value, TYsonPullParserCursor* cursor, TStringBuf type
         case EYsonItemType::Uint64Value:
             value = CheckedIntegralCast<T>((*cursor)->UncheckedAsUint64());
             cursor->Next();
+            break;
+        case EYsonItemType::BeginAttributes:
+            NDetail::SkipAttributes(cursor);
+            DeserializeInteger(value, cursor, typeName);
             break;
         default:
             ThrowUnexpectedYsonTokenException(
@@ -63,6 +68,10 @@ void Deserialize(double& value, TYsonPullParserCursor* cursor)
             value = (*cursor)->UncheckedAsDouble();
             cursor->Next();
             break;
+        case EYsonItemType::BeginAttributes:
+            NDetail::SkipAttributes(cursor);
+            Deserialize(value, cursor);
+            break;
         default:
             ThrowUnexpectedYsonTokenException(
                 "double",
@@ -74,6 +83,7 @@ void Deserialize(double& value, TYsonPullParserCursor* cursor)
 // TString.
 void Deserialize(TString& value, TYsonPullParserCursor* cursor)
 {
+    NDetail::MaybeSkipAttributes(cursor);
     EnsureYsonToken("string", *cursor, EYsonItemType::StringValue);
     value = (*cursor)->UncheckedAsString();
     cursor->Next();
@@ -91,6 +101,10 @@ void Deserialize(bool& value, TYsonPullParserCursor* cursor)
             value = ParseBool(TString((*cursor)->UncheckedAsString()));
             cursor->Next();
             break;
+        case EYsonItemType::BeginAttributes:
+            NDetail::SkipAttributes(cursor);
+            Deserialize(value, cursor);
+            break;
         default:
             ThrowUnexpectedYsonTokenException(
                 "bool",
@@ -102,6 +116,7 @@ void Deserialize(bool& value, TYsonPullParserCursor* cursor)
 // char
 void Deserialize(char& value, TYsonPullParserCursor* cursor)
 {
+    NDetail::MaybeSkipAttributes(cursor);
     EnsureYsonToken("char", *cursor, EYsonItemType::StringValue);
     auto stringValue = (*cursor)->UncheckedAsString();
     if (stringValue.size() != 1) {
@@ -122,6 +137,10 @@ void Deserialize(TDuration& value, TYsonPullParserCursor* cursor)
         case EYsonItemType::Uint64Value:
             value = TDuration::MilliSeconds((*cursor)->UncheckedAsUint64());
             cursor->Next();
+            break;
+        case EYsonItemType::BeginAttributes:
+            NDetail::SkipAttributes(cursor);
+            Deserialize(value, cursor);
             break;
         default:
             ThrowUnexpectedYsonTokenException(
@@ -147,6 +166,10 @@ void Deserialize(TInstant& value, TYsonPullParserCursor* cursor)
             value = TInstant::ParseIso8601((*cursor)->UncheckedAsString());
             cursor->Next();
             break;
+        case EYsonItemType::BeginAttributes:
+            NDetail::SkipAttributes(cursor);
+            Deserialize(value, cursor);
+            break;
         default:
             ThrowUnexpectedYsonTokenException(
                 "TInstant",
@@ -158,6 +181,7 @@ void Deserialize(TInstant& value, TYsonPullParserCursor* cursor)
 // TGuid.
 void Deserialize(TGuid& value, TYsonPullParserCursor* cursor)
 {
+    NDetail::MaybeSkipAttributes(cursor);
     EnsureYsonToken("GUID", *cursor, EYsonItemType::StringValue);
     value = TGuid::FromString((*cursor)->UncheckedAsString());
     cursor->Next();

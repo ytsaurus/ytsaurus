@@ -3,6 +3,11 @@
 #include <yt/yt/client/complex_types/named_structures_yson.h>
 #include <yt/yt/client/table_client/logical_type.h>
 
+#include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/parser.h>
+
+#include <util/stream/mem.h>
+
 namespace NYT::NComplexTypes {
 
 using namespace NYson;

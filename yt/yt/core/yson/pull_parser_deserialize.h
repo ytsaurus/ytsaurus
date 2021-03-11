@@ -8,6 +8,45 @@ namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+inline void SkipAttributes(TYsonPullParserCursor* cursor);
+inline void MaybeSkipAttributes(TYsonPullParserCursor* cursor);
+
+template <typename T, typename = void>
+struct TIsPullParserDeserializable
+    : std::false_type
+{ };
+
+template <typename T>
+struct TIsPullParserDeserializable<T, std::void_t<decltype(Deserialize(std::declval<T&>(), (NYson::TYsonPullParserCursor*)(nullptr)))>>
+    : std::true_type
+{ };
+
+template <typename T>
+struct TRemoveConst
+{
+    using Type = T;
+};
+
+template <typename K, typename V>
+struct TRemoveConst<std::pair<const K, V>>
+{
+    using Type = std::pair<K, V>;
+};
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename ...Ts>
+constexpr bool ArePullParserDeserializable()
+{
+    return (... && NDetail::TIsPullParserDeserializable<Ts>::value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // integers
 void Deserialize(signed char& value, TYsonPullParserCursor* cursor);
 void Deserialize(unsigned char& value, TYsonPullParserCursor* cursor);
@@ -43,32 +82,59 @@ void Deserialize(TGuid& value, TYsonPullParserCursor* cursor);
 
 // std::vector.
 template <class T, class A>
-void Deserialize(std::vector<T, A>& value, TYsonPullParserCursor* cursor);
+void Deserialize(
+    std::vector<T, A>& value,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<T>(), void*> = nullptr);
 
 // std::optional.
 template <class T>
-void Deserialize(std::optional<T>& value, TYsonPullParserCursor* cursor);
+void Deserialize(
+    std::optional<T>& value,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<T>(), void*> = nullptr);
 
 // Enum.
 template <class T>
-void Deserialize(T& value, TYsonPullParserCursor* cursor, std::enable_if_t<TEnumTraits<T>::IsEnum, void*> = nullptr);
+void Deserialize(
+    T& value,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<TEnumTraits<T>::IsEnum, void*> = nullptr);
 
 // SmallVector.
 template <class T, unsigned N>
-void Deserialize(SmallVector<T, N>& value, TYsonPullParserCursor* cursor);
+void Deserialize(
+    SmallVector<T, N>& value,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<T>(), void*> = nullptr);
 
+// std::pair.
 template <class F, class S>
-void Deserialize(std::pair<F, S>& value, TYsonPullParserCursor* cursor);
+void Deserialize(
+    std::pair<F, S>& value,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<F, S>(), void*> = nullptr);
 
+// std::array.
 template <class T, size_t N>
-void Deserialize(std::array<T, N>& value, TYsonPullParserCursor* cursor);
+void Deserialize(
+    std::array<T, N>& value,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<T>(), void*> = nullptr);
 
+// std::tuple.
 template <class... T>
-void Deserialize(std::tuple<T...>& value, TYsonPullParserCursor* cursor);
+void Deserialize(
+    std::tuple<T...>& value,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<T...>(), void*> = nullptr);
 
 // For any associative container.
 template <template<typename...> class C, class... T, class K = typename C<T...>::key_type>
-void Deserialize(C<T...>& value, TYsonPullParserCursor* cursor);
+void Deserialize(
+    C<T...>& value,
+    TYsonPullParserCursor* cursor,
+    std::enable_if_t<ArePullParserDeserializable<typename NDetail::TRemoveConst<typename C<T...>::value_type>::Type>(), void*> = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
