@@ -3,7 +3,7 @@
 #include "block.h"
 #include "block_id.h"
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/misc/ref.h>
 
@@ -11,7 +11,43 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A simple synchronous interface for caching chunk blocks.
+struct TCachedBlock
+{
+    TBlock Block;
+    std::optional<NNodeTrackerClient::TNodeDescriptor> Source;
+
+    TCachedBlock() = default;
+
+    explicit TCachedBlock(
+        TBlock block,
+        std::optional<NNodeTrackerClient::TNodeDescriptor> source = {});
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ICachedBlockCookie
+{
+    virtual ~ICachedBlockCookie() = default;
+
+    //! If true, block should be fetched and put into the cache via
+    //! #SetBlock call.
+    //! If false, block can be obtained via #GetBlockFuture call.
+    virtual bool IsActive() const = 0;
+
+    virtual TFuture<TCachedBlock> GetBlockFuture() const = 0;
+
+    virtual void SetBlock(TErrorOr<TCachedBlock> blockOrError) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<ICachedBlockCookie> CreateActiveCachedBlockCookie();
+
+std::unique_ptr<ICachedBlockCookie> CreatePresetCachedBlockCookie(TCachedBlock cachedBlock);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A simple asynchronous interface for caching chunk blocks.
 /*!
  *  \note
  *  Thread affinity: any
@@ -26,7 +62,7 @@ struct IBlockCache
      *  #sourceAddress is an address of peer from which the block was downloaded.
      *  If the block was not downloaded from another peer, it must be std::nullopt.
      */
-    virtual void Put(
+    virtual void PutBlock(
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
@@ -36,7 +72,12 @@ struct IBlockCache
     /*!
      *  If no such block is present, null block is returned.
      */
-    virtual TBlock Find(
+    virtual TCachedBlock FindBlock(
+        const TBlockId& id,
+        EBlockType type) = 0;
+
+    //! Returns a cookie for working with block in cache.
+    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
         const TBlockId& id,
         EBlockType type) = 0;
 

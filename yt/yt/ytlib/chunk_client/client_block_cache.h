@@ -8,9 +8,21 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBlockCacheEntry
+{
+    TBlockId BlockId;
+    EBlockType BlockType;
+    TCachedBlock Block;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IClientBlockCache
     : public IBlockCache
 {
+    //! Returns all the cached blocks with given types.
+    virtual std::vector<TBlockCacheEntry> GetCacheSnapshot(EBlockType blockTypes) const = 0;
+
     virtual void Reconfigure(const TBlockCacheDynamicConfigPtr& config) = 0;
 };
 

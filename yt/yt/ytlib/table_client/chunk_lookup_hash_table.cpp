@@ -73,7 +73,7 @@ public:
         , Blocks_(blocks)
     { }
 
-    virtual void Put(
+    virtual void PutBlock(
         const TBlockId& /*id*/,
         EBlockType /*type*/,
         const TBlock& /*block*/,
@@ -82,14 +82,24 @@ public:
         YT_ABORT();
     }
 
-    virtual TBlock Find(
+    virtual TCachedBlock FindBlock(
         const TBlockId& id,
         EBlockType type) override
     {
-        YT_ASSERT(type == EBlockType::UncompressedData);
+        YT_VERIFY(type == EBlockType::UncompressedData);
         return id.BlockIndex >= StartBlockIndex_ && id.BlockIndex < StartBlockIndex_ + static_cast<int>(Blocks_.size())
-            ? Blocks_[id.BlockIndex - StartBlockIndex_]
-            : TBlock();
+            ? TCachedBlock(Blocks_[id.BlockIndex - StartBlockIndex_])
+            : TCachedBlock();
+    }
+
+    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+        const TBlockId& id,
+        EBlockType type) override
+    {
+        YT_VERIFY(type == EBlockType::UncompressedData);
+        return id.BlockIndex >= StartBlockIndex_ && id.BlockIndex < StartBlockIndex_ + static_cast<int>(Blocks_.size())
+            ? CreatePresetCachedBlockCookie(TCachedBlock(Blocks_[id.BlockIndex - StartBlockIndex_]))
+            : CreateActiveCachedBlockCookie();
     }
 
     virtual EBlockType GetSupportedBlockTypes() const override
@@ -135,7 +145,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
     for (int blockIndex = startBlockIndex; blockIndex <= lastBlockIndex; ++blockIndex) {
         auto blockId = TBlockId(chunkMeta->GetChunkId(), blockIndex);
-        auto uncompressedBlock = blockCache->Find(blockId, EBlockType::UncompressedData);
+        auto uncompressedBlock = blockCache->FindBlock(blockId, EBlockType::UncompressedData).Block;
         if (!uncompressedBlock) {
             YT_LOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache (ChunkId: %v, BlockIndex: %v)",
                 chunkMeta->GetChunkId(),

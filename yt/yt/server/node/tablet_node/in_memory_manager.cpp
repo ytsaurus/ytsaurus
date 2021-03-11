@@ -379,7 +379,7 @@ private:
             }
         }
 
-        virtual void Put(
+        virtual void PutBlock(
             const TBlockId& id,
             EBlockType type,
             const TBlock& block,
@@ -426,9 +426,16 @@ private:
             YT_VERIFY(!data->ChunkMeta);
         }
 
-        virtual TBlock Find(const TBlockId& /*id*/, EBlockType /*type*/) override
+        virtual TCachedBlock FindBlock(const TBlockId& /* id */, EBlockType /* type */) override
         {
-            return TBlock();
+            return TCachedBlock();
+        }
+
+        virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+            const TBlockId& /* id */,
+            EBlockType /* type */)
+        {
+            return CreateActiveCachedBlockCookie();
         }
 
         virtual EBlockType GetSupportedBlockTypes() const override
@@ -791,7 +798,7 @@ public:
         , HeavyRpcTimeout_(heavyRpcTimeout)
     { }
 
-    virtual void Put(
+    virtual void PutBlock(
         const TBlockId& id,
         EBlockType type,
         const TBlock& data,
@@ -824,11 +831,18 @@ public:
         }
     }
 
-    virtual TBlock Find(
-        const TBlockId& /*id*/,
-        EBlockType /*type*/) override
+    virtual TCachedBlock FindBlock(
+        const TBlockId& /* id */,
+        EBlockType /* type */) override
     {
-        return TBlock();
+        return TCachedBlock();
+    }
+
+    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+        const TBlockId& /* id */,
+        EBlockType /* type */) override
+    {
+        return CreateActiveCachedBlockCookie();
     }
 
     virtual EBlockType GetSupportedBlockTypes() const override
@@ -984,18 +998,25 @@ class TDummyInMemoryBlockCache
     : public IRemoteInMemoryBlockCache
 {
 public:
-    virtual void Put(
+    virtual void PutBlock(
         const TBlockId& /*id*/,
         EBlockType /*type*/,
         const TBlock& /*data*/,
         const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
     { }
 
-    virtual TBlock Find(
-        const TBlockId& /*id*/,
-        EBlockType /*type*/) override
+    virtual TCachedBlock FindBlock(
+        const TBlockId& /* id */,
+        EBlockType /* type */) override
     {
-        return TBlock();
+        return TCachedBlock();
+    }
+
+    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+        const TBlockId& id,
+        EBlockType type) override
+    {
+        return CreateActiveCachedBlockCookie();
     }
 
     virtual EBlockType GetSupportedBlockTypes() const override

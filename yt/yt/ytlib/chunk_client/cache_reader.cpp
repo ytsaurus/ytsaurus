@@ -31,7 +31,7 @@ public:
         std::vector<TBlock> blocks;
         for (auto index : blockIndexes) {
             TBlockId blockId(ChunkId_, index);
-            auto block = BlockCache_->Find(blockId, EBlockType::CompressedData);
+            auto block = BlockCache_->FindBlock(blockId, EBlockType::CompressedData).Block;
             if (!block) {
                 return MakeFuture<std::vector<TBlock>>(TError("Block %v is not found in the compressed data cache", blockId));
             }
@@ -52,8 +52,8 @@ public:
         std::vector<TBlock> blocks;
         for (int index = 0; index < blockCount; ++index) {
             TBlockId blockId(ChunkId_, firstBlockIndex + index);
-            auto block = BlockCache_->Find(blockId, EBlockType::CompressedData);
-            if (!block) {
+            auto block = BlockCache_->FindBlock(blockId, EBlockType::CompressedData).Block;
+            if (block) {
                 return MakeFuture<std::vector<TBlock>>(TError("Block %v is not found in the compressed data cache", blockId));
             }
 

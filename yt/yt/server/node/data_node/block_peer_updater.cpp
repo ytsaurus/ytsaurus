@@ -7,6 +7,7 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -59,10 +60,17 @@ void TBlockPeerUpdater::Update()
 
     YT_LOG_INFO("Updating peer blocks");
 
-    auto blocks = Bootstrap_->GetChunkBlockManager()->GetAllBlocksWithSource();
+    const auto& clientBlockCache = Bootstrap_->GetClientBlockCache();
+    auto blockCacheSnapshot = clientBlockCache->GetCacheSnapshot(EBlockType::CompressedData);
+    std::vector<TBlockCacheEntry> cacheEntries;
+    for (const auto& cacheEntry : blockCacheSnapshot) {
+        if (cacheEntry.Block.Source) {
+            cacheEntries.push_back(cacheEntry);
+        }
+    }
 
     YT_LOG_INFO("Cached blocks snapshot captured (BlockCount: %v)",
-        blocks.size());
+        cacheEntries.size());
 
     auto expirationDeadline = GetPeerUpdateExpirationTime().ToDeadLine();
     auto localDescriptor = Bootstrap_
@@ -74,9 +82,10 @@ void TBlockPeerUpdater::Update()
         ->GetChannelFactory();
 
     THashMap<TString, TDataNodeServiceProxy::TReqUpdatePeerPtr> requests;
-    for (const auto& block : blocks) {
-        YT_VERIFY(block->Source());
-        const auto& sourceAddress = block->Source()->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
+    for (const auto& cacheEntry : cacheEntries) {
+        const auto& block = cacheEntry.Block;
+        YT_VERIFY(block.Source);
+        const auto& sourceAddress = block.Source->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
 
         auto it = requests.find(sourceAddress);
         if (it == requests.end()) {
@@ -90,7 +99,7 @@ void TBlockPeerUpdater::Update()
         request->set_peer_node_id(Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId());
         request->set_peer_expiration_deadline(ToProto<ui64>(expirationDeadline));
         auto* protoBlockId = request->add_block_ids();
-        const auto& blockId = block->GetKey();
+        const auto& blockId = cacheEntry.BlockId;
         ToProto(protoBlockId->mutable_chunk_id(), blockId.ChunkId);
         protoBlockId->set_block_index(blockId.BlockIndex);
     }
