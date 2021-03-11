@@ -2334,7 +2334,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Constructing fair share info for orchid");
+        YT_LOG_DEBUG("Constructing fair share info");
 
         auto buildOperationsInfo = [&] (TFluentMap fluent, const TNonOwningOperationElementMap::value_type& pair) {
             const auto& [operationId, element] = pair;
@@ -2402,6 +2402,7 @@ private:
                         fluent
                             .Item("fifo_sort_parameters").Value(pool->GetFifoSortParameters());
                     })
+                    .Item("abc").Value(pool->GetConfig()->Abc)
                     .Do(std::bind(buildCompositeElementInfo, pool, std::placeholders::_1))
                 .EndMap();
         };
