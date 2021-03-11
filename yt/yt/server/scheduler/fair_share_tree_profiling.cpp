@@ -223,9 +223,11 @@ void TFairShareTreeProfiler::RegisterPoolProfiler(const TString& poolName)
     TUnregisterOperationCounters counters;
     counters.BannedCounter = poolRegistry.Counter("/pools/banned_operation_count");
     for (auto state : TEnumTraits<EOperationState>::GetDomainValues()) {
-        counters.FinishedCounters[state] = poolRegistry
-            .WithTag("state", FormatEnum(state), -1)
-            .Counter("/pools/finished_operation_count");
+        if (IsOperationFinished(state)) {
+            counters.FinishedCounters[state] = poolRegistry
+                .WithTag("state", FormatEnum(state), -1)
+                .Counter("/pools/finished_operation_count");
+        }
     }
 
     auto insertResult = PoolNameToProfilingEntry_.emplace(
