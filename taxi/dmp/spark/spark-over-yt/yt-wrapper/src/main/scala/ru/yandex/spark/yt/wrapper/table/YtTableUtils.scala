@@ -63,12 +63,6 @@ trait YtTableUtils {
     new TableIterator(reader, timeout)
   }
 
-  def readTableArrowStreamStub(path: YPath, bufferSize: Int = 65536, timeout: Duration = 1 minute)
-                          (implicit yt: YtClient): InputStream = {
-    val stubStream = new FileInputStream("/Users/sashbel/Documents/arrow2")
-    new BufferedInputStream(stubStream, bufferSize)
-  }
-
   def readTableArrowStream(path: YPath, timeout: Duration = 1 minute)
                           (implicit yt: YtClient): YtArrowInputStream = {
     readTableArrowStream(path.toString, timeout)
