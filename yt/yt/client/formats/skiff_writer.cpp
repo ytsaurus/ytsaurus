@@ -24,6 +24,7 @@
 #include <util/stream/buffer.h>
 
 #include <functional>
+#include <utility>
 
 namespace NYT::NFormats {
 
@@ -138,7 +139,8 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
     if constexpr (wireType != EWireType::Yson32) {
         constexpr auto expectedValueType = WireTypeToValueType<wireType>();
         if (value.Type != expectedValueType) {
-            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Unexpected type of %Qv column: expected %Qlv, found %Qlv",
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow,
+                "Unexpected type of %Qv column: skiff format expected %Qlv, actual table type %Qlv",
                 context->NameTable->GetName(value.Id),
                 expectedValueType,
                 value.Type);
@@ -190,7 +192,8 @@ public:
             }
         }
         if (value.Type != ExpectedValueType) {
-            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Unexpected type of %Qv column: expected %Qlv, found %Qlv",
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow,
+                "Unexpected type of %Qv column: skiff format expected %Qlv, actual table type %Qlv",
                 context->NameTable->GetName(value.Id),
                 ExpectedValueType,
                 value.Type);
@@ -292,7 +295,7 @@ private:
 };
 
 TUnversionedValueToSkiffConverter CreateMissingCompositeValueConverter(TString name) {
-    return [name=name] (const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext*) {
+    return [name=std::move(name)] (const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext*) {
         if (value.Type != EValueType::Null) {
             THROW_ERROR_EXCEPTION("Cannot represent nonnull value of column %Qv absent in schema as composite skiff value",
                     name);
@@ -301,7 +304,19 @@ TUnversionedValueToSkiffConverter CreateMissingCompositeValueConverter(TString n
     };
 }
 
-TUnversionedValueToSkiffConverter CreateSimpleValueConverter(EWireType wireType, bool required)
+template <EValueType ExpectedValueType, typename TFunction>
+TUnversionedValueToSkiffConverter CreatePrimitiveValueConverter(
+    bool required,
+    TFunction function)
+{
+    if (required) {
+        return TPrimitiveConverterWrapper<ExpectedValueType, false, TFunction>(std::move(function));
+    } else {
+        return TPrimitiveConverterWrapper<ExpectedValueType, true, TFunction>(std::move(function));
+    }
+}
+
+TUnversionedValueToSkiffConverter CreatePrimitiveValueConverter(EWireType wireType, bool required)
 {
     switch (wireType) {
 #define CASE(t) \
@@ -324,14 +339,81 @@ TUnversionedValueToSkiffConverter CreateSimpleValueConverter(EWireType wireType,
     }
 }
 
+TUnversionedValueToSkiffConverter CreateSimpleValueConverter(
+    EWireType wireType,
+    bool required,
+    ESimpleLogicalValueType logicalType)
+{
+    switch (logicalType) {
+        case ESimpleLogicalValueType::Int8:
+        case ESimpleLogicalValueType::Int16:
+        case ESimpleLogicalValueType::Int32:
+        case ESimpleLogicalValueType::Int64:
+            CheckWireType(wireType, {EWireType::Int64});
+            return CreatePrimitiveValueConverter(wireType, required);
+
+        case ESimpleLogicalValueType::Uint8:
+        case ESimpleLogicalValueType::Uint16:
+        case ESimpleLogicalValueType::Uint32:
+        case ESimpleLogicalValueType::Uint64:
+            CheckWireType(wireType, {EWireType::Uint64});
+            return CreatePrimitiveValueConverter(wireType, required);
+
+        case ESimpleLogicalValueType::Float:
+        case ESimpleLogicalValueType::Double:
+            CheckWireType(wireType, {EWireType::Double});
+            return CreatePrimitiveValueConverter(wireType, required);
+
+        case ESimpleLogicalValueType::Boolean:
+            CheckWireType(wireType, {EWireType::Boolean});
+            return CreatePrimitiveValueConverter(wireType, required);
+
+        case ESimpleLogicalValueType::Utf8:
+        case ESimpleLogicalValueType::Json:
+        case ESimpleLogicalValueType::String:
+            CheckWireType(wireType, {EWireType::String32});
+            return CreatePrimitiveValueConverter(wireType, required);
+
+        case ESimpleLogicalValueType::Any:
+            CheckWireType(wireType, {
+                EWireType::Int64,
+                EWireType::Uint64,
+                EWireType::String32,
+                EWireType::Boolean,
+                EWireType::Double,
+                EWireType::Nothing,
+                EWireType::Yson32
+            });
+            return CreatePrimitiveValueConverter(wireType, required);
+
+        case ESimpleLogicalValueType::Null:
+        case ESimpleLogicalValueType::Void:
+            CheckWireType(wireType, {EWireType::Nothing});
+            return CreatePrimitiveValueConverter(wireType, required);
+
+        case ESimpleLogicalValueType::Date:
+        case ESimpleLogicalValueType::Datetime:
+        case ESimpleLogicalValueType::Timestamp:
+            CheckWireType(wireType, {EWireType::Uint64});
+            return CreatePrimitiveValueConverter(wireType, required);
+        case ESimpleLogicalValueType::Interval:
+            CheckWireType(wireType, {EWireType::Int64});
+            return CreatePrimitiveValueConverter(wireType, required);
+
+        case ESimpleLogicalValueType::Uuid:
+            CheckWireType(wireType, {EWireType::Uint128});
+            return CreatePrimitiveValueConverter<EValueType::String>(required, TUuidWriter());
+    }
+}
+
 TUnversionedValueToSkiffConverter CreateComplexValueConverter(
-    TComplexTypeFieldDescriptor descriptor,
+    const TComplexTypeFieldDescriptor& descriptor,
     const std::shared_ptr<TSkiffSchema>& skiffSchema,
     bool isSparse)
 {
     TYsonToSkiffConverterConfig config;
     config.AllowOmitTopLevelOptional = isSparse;
-    auto ysonToSkiff = CreateYsonToSkiffConverter(std::move(descriptor), skiffSchema, config);
+    auto ysonToSkiff = CreateYsonToSkiffConverter(descriptor, skiffSchema, config);
     return [ysonToSkiff=ysonToSkiff] (const TUnversionedValue& value, TCheckedInDebugSkiffWriter* skiffWriter, TWriteContext* context) {
         TMemoryInput input;
         if (value.Type == EValueType::Any || value.Type == EValueType::Composite) {
@@ -356,27 +438,22 @@ TUnversionedValueToSkiffConverter CreateDecimalValueConverter(
     const TFieldDescription& field,
     const TDecimalLogicalType& logicalType)
 {
-    bool isNullable = field.IsNullable();
+    bool isRequired = field.IsRequired();
     int precision = logicalType.GetPrecision();
     auto wireType = field.ValidatedSimplify();
     switch (wireType) {
-#define CASE(x) \
-        case x: \
-            do { \
-                if (isNullable) { \
-                    return TPrimitiveConverterWrapper<EValueType::String, true, TDecimalSkiffWriter<x>>( \
-                        TDecimalSkiffWriter<x>(precision) \
-                    ); \
-                } else { \
-                    return TPrimitiveConverterWrapper<EValueType::String, false, TDecimalSkiffWriter<x>>( \
-                        TDecimalSkiffWriter<x>(precision) \
-                    ); \
-                } \
-            } while (0)
-        CASE(EWireType::Int32);
-        CASE(EWireType::Int64);
-        CASE(EWireType::Int128);
-#undef CASE
+        case EWireType::Int32:
+            return CreatePrimitiveValueConverter<EValueType::String>(
+                isRequired,
+                TDecimalSkiffWriter<EWireType::Int32>(precision));
+        case EWireType::Int64:
+            return CreatePrimitiveValueConverter<EValueType::String>(
+                isRequired,
+                TDecimalSkiffWriter<EWireType::Int64>(precision));
+        case EWireType::Int128:
+            return CreatePrimitiveValueConverter<EValueType::String>(
+                isRequired,
+                TDecimalSkiffWriter<EWireType::Int128>(precision));
         default:
             CheckSkiffWireTypeForDecimal(precision, wireType);
             YT_ABORT();
@@ -389,7 +466,7 @@ struct TSkiffEncodingInfo
 {
     ESkiffWriterColumnType EncodingPart = ESkiffWriterColumnType::Unknown;
 
-    // Convereter is set only for sparse part.
+    // Converter is set only for sparse part.
     TUnversionedValueToSkiffConverter Converter;
 
     // FieldIndex is index of field inside skiff tuple for dense part of the row
@@ -550,7 +627,7 @@ public:
                 //      (runtime check is used in such cases).
                 if (!columnSchema) {
                     if (!skiffField.Simplify() && !skiffField.IsRequired()) {
-                        // NB. Special case, column is described in skiff schema as nonrequired complex field
+                        // NB. Special case, column is described in skiff schema as non required complex field
                         // but is missing in schema.
                         // We expect it to be missing in whole table and return corresponding converter.
                         return CreateMissingCompositeValueConverter(skiffField.Name());
@@ -565,7 +642,10 @@ public:
                 try {
                     switch (denullifiedLogicalType->GetMetatype()) {
                         case ELogicalMetatype::Simple:
-                            return CreateSimpleValueConverter(skiffField.ValidatedSimplify(), skiffField.IsRequired());
+                            return CreateSimpleValueConverter(
+                                skiffField.ValidatedSimplify(),
+                                skiffField.IsRequired(),
+                                denullifiedLogicalType->AsSimpleTypeRef().GetElement());
                         case ELogicalMetatype::Decimal:
                             return CreateDecimalValueConverter(skiffField, denullifiedLogicalType->AsDecimalTypeRef());
                         case ELogicalMetatype::Optional:
@@ -884,8 +964,6 @@ private:
     }
 
 private:
-    using TSkiffEncodingInfoList = std::vector<TSkiffEncodingInfo>;
-
     std::optional<NSkiff::TCheckedInDebugSkiffWriter> SkiffWriter_;
 
     std::vector<ui16> DenseIndexes_;

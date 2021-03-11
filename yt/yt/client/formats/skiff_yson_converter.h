@@ -53,6 +53,8 @@ struct TSimpleSkiffParser
     Y_FORCE_INLINE auto operator () (NSkiff::TCheckedInDebugSkiffParser* parser) const;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <NSkiff::EWireType SkiffWireType>
 class TDecimalSkiffParser
 {
@@ -81,7 +83,27 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUuidParser
+{
+public:
+    Y_FORCE_INLINE TStringBuf operator() (NSkiff::TCheckedInDebugSkiffParser* parser) const;
+
+private:
+    mutable ui64 Buffer_[2];
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUuidWriter
+{
+public:
+    Y_FORCE_INLINE void operator() (TStringBuf value, NSkiff::TCheckedInDebugSkiffWriter* writer) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void CheckSkiffWireTypeForDecimal(int precision, NSkiff::EWireType wireType);
+void CheckWireType(NSkiff::EWireType wireType, const std::initializer_list<NSkiff::EWireType>& expected);
 
 ////////////////////////////////////////////////////////////////////////////////
 

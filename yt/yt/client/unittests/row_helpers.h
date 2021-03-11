@@ -16,7 +16,12 @@ class TCollectingValueConsumer
 {
 public:
     explicit TCollectingValueConsumer(NTableClient::TTableSchemaPtr schema = New<NTableClient::TTableSchema>())
-        : Schema_(schema)
+        : Schema_(std::move(schema))
+    { }
+
+    explicit TCollectingValueConsumer(NTableClient::TNameTablePtr nameTable, NTableClient::TTableSchemaPtr schema = New<NTableClient::TTableSchema>())
+        : Schema_(std::move(schema))
+        , NameTable_(std::move(nameTable))
     { }
 
     virtual const NTableClient::TNameTablePtr& GetNameTable() const override
@@ -79,6 +84,10 @@ public:
         return RowList_.size();
     }
 
+    const std::vector<NTableClient::TUnversionedOwningRow>& GetRowList() const {
+        return RowList_;
+    }
+
 private:
     const NTableClient::TTableSchemaPtr Schema_;
     const NTableClient::TNameTablePtr NameTable_ = New<NTableClient::TNameTable>();
@@ -88,7 +97,33 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableField {
+public:
+    template <typename T>
+    TTableField(TString name, T value)
+        : Name_(std::move(name))
+        , Value_(std::move(value))
+    { }
+
+    template <>
+    TTableField(const TString name, TStringBuf value)
+        : Name_(std::move(name))
+        , Value_(TString(value))
+    { }
+
+    NTableClient::TUnversionedValue ToUnversionedValue(const NTableClient::TNameTablePtr& nameTable) const;
+
+private:
+    TString Name_;
+    std::variant<i64, ui64, double, bool, TString, nullptr_t> Value_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 NTableClient::TUnversionedOwningRow MakeRow(const std::vector<NTableClient::TUnversionedValue>& values);
+NTableClient::TUnversionedOwningRow MakeRow(
+    const NTableClient::TNameTablePtr& nameTable,
+    const std::initializer_list<TTableField>& values);
 
 i64 GetInt64(const NTableClient::TUnversionedValue& row);
 ui64 GetUint64(const NTableClient::TUnversionedValue& row);
@@ -98,6 +133,16 @@ TString GetString(const NTableClient::TUnversionedValue& row);
 NYTree::INodePtr GetAny(const NTableClient::TUnversionedValue& row);
 NYTree::INodePtr GetComposite(const NTableClient::TUnversionedValue& row);
 bool IsNull(const NTableClient::TUnversionedValue& row);
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTableClient
 
 ////////////////////////////////////////////////////////////////////////////////
 

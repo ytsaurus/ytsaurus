@@ -216,6 +216,7 @@ static TCompatibilityPair CheckTypeCompatibilitySimple(
         case ESimpleLogicalValueType::Timestamp:
         case ESimpleLogicalValueType::Interval:
         case ESimpleLogicalValueType::Json:
+        case ESimpleLogicalValueType::Uuid:
         case ESimpleLogicalValueType::Any: {
             const auto compatibility =
                 oldElement == newElement ? ESchemaCompatibility::FullyCompatible : ESchemaCompatibility::Incompatible;

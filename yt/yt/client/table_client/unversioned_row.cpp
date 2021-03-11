@@ -1143,6 +1143,7 @@ void ValidateValueType(
             CASE(ESimpleLogicalValueType::Timestamp)
             CASE(ESimpleLogicalValueType::Interval)
             CASE(ESimpleLogicalValueType::Json)
+            CASE(ESimpleLogicalValueType::Uuid)
 #undef CASE
         }
         YT_ABORT();

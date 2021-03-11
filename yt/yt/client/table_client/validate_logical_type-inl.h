@@ -197,6 +197,12 @@ void ValidateSimpleLogicalType(TStringBuf value)
                 EErrorCode::SchemaViolation,
                 "Not a valid utf8 string");
         }
+    } else if constexpr (type == ESimpleLogicalValueType::Uuid) {
+        if (value.size() != 16) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::SchemaViolation,
+                "Not a valid Uuid");
+        }
     } else {
         static_assert(type == ESimpleLogicalValueType::String, "Bad logical type");
     }
