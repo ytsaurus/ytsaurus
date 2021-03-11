@@ -250,7 +250,7 @@ std::shared_ptr<TSkiffSchema> ParseSchema(
             return it->second;
         } else if (parseInProgressNames->contains(name)) {
             THROW_ERROR_EXCEPTION(
-                "Type %Qv is recursive, recursive types are forbiden",
+                "Type %Qv is recursive, recursive types are forbidden",
                 name);
         } else {
             auto schemaFromRegistry = registry->FindChild(name);

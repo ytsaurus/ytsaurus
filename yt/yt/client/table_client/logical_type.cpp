@@ -827,6 +827,7 @@ void TDictLogicalType::ValidateNode(const TWalkContext&) const
                     case ESimpleLogicalValueType::Datetime:
                     case ESimpleLogicalValueType::Timestamp:
                     case ESimpleLogicalValueType::Interval:
+                    case ESimpleLogicalValueType::Uuid:
                         return;
                 }
                 YT_ABORT();
@@ -1386,6 +1387,8 @@ bool IsComparable(const TLogicalTypePtr& type)
 
                 case ESimpleLogicalValueType::Null:
                 case ESimpleLogicalValueType::Void:
+
+                case ESimpleLogicalValueType::Uuid:
                     return true;
 
                 case ESimpleLogicalValueType::Any:
@@ -1452,6 +1455,8 @@ std::pair<ESimpleLogicalValueType, TString> V3SimpleLogicalValueTypeEncoding[] =
     {ESimpleLogicalValueType::Interval,  "interval"},
 
     {ESimpleLogicalValueType::Void,      "void"},
+
+    {ESimpleLogicalValueType::Uuid,      "uuid"},
 };
 static_assert(std::size(V3SimpleLogicalValueTypeEncoding) == TEnumTraits<ESimpleLogicalValueType>::DomainSize);
 

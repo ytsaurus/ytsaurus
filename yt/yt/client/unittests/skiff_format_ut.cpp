@@ -1,6 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include "row_helpers.h"
+#include "logical_type_shortcuts.h"
 
 #include <yt/yt/client/formats/config.h>
 #include <yt/yt/client/formats/parser.h>
@@ -23,6 +24,7 @@
 #include <util/string/hex.h>
 
 namespace NYT {
+
 namespace {
 
 using namespace NFormats;
@@ -184,7 +186,7 @@ TEST(TSkiffSchemaParse, TestRecursiveTypesAreDisallowed)
                 .EndMap());
         ADD_FAILURE();
     } catch (const std::exception& e) {
-        EXPECT_THAT(e.what(), testing::HasSubstr("recursive types are forbiden"));
+        EXPECT_THAT(e.what(), testing::HasSubstr("recursive types are forbidden"));
     }
 }
 
@@ -678,6 +680,130 @@ TEST(TSkiffWriter, TestYsonWireType)
     checkedSkiffParser.ValidateFinished();
 }
 
+class TSkiffFormatUuidTestP : public ::testing::TestWithParam<std::tuple<
+    TNameTablePtr,
+    TTableSchemaPtr,
+    std::shared_ptr<TSkiffSchema>,
+    std::vector<TUnversionedOwningRow>,
+    TString
+>>
+{
+public:
+    static std::vector<ParamType> GetCases()
+    {
+        using namespace NLogicalTypeShortcuts;
+
+        auto nameTable = New<TNameTable>();
+        const auto uuidValue = TStringBuf("\xee\x1f\x37\x70" "\xb9\x93\x64\xb5" "\xe4\xdf\xe9\x03" "\x67\x5c\x30\x62");
+        const auto skiffUuidValue = TStringBuf("\x62\x30\x5c\x67" "\x03\xe9\xdf\xe4" "\xb5\x64\x93\xb9" "\x70\x37\x1f\xee");
+
+        auto requiredTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{TColumnSchema("uuid", Uuid())});
+        auto optionalTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{TColumnSchema("uuid", Optional(Uuid()))});
+
+        auto optionalSkiffSchema = CreateTupleSchema({
+            CreateVariant8Schema({
+                CreateSimpleTypeSchema(EWireType::Nothing),
+                CreateSimpleTypeSchema(EWireType::Uint128),
+            })->SetName("uuid"),
+        });
+
+        auto requiredSkiffSchema = CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::Uint128)->SetName("uuid"),
+        });
+
+        std::vector<ParamType> result;
+
+        result.emplace_back(
+            nameTable,
+            requiredTableSchema,
+            requiredSkiffSchema,
+            std::vector<TUnversionedOwningRow>{
+                MakeRow(nameTable, {{"uuid", uuidValue}}),
+            },
+            TString(2, '\0') + skiffUuidValue);
+
+        result.emplace_back(
+            nameTable,
+            optionalTableSchema,
+            requiredSkiffSchema,
+            std::vector<TUnversionedOwningRow>{
+                MakeRow(nameTable, {{"uuid", uuidValue}}),
+            },
+            TString(2, '\0') + skiffUuidValue);
+
+        result.emplace_back(
+            nameTable,
+            requiredTableSchema,
+            optionalSkiffSchema,
+            std::vector<TUnversionedOwningRow>{
+                MakeRow(nameTable, {{"uuid", uuidValue}}),
+            },
+            TString(2, '\0') + "\1" + skiffUuidValue);
+
+        result.emplace_back(
+            nameTable,
+            optionalTableSchema,
+            optionalSkiffSchema,
+            std::vector<TUnversionedOwningRow>{
+                MakeRow(nameTable, {{"uuid", uuidValue}}),
+            },
+            TString(2, '\0') + "\1" + skiffUuidValue);
+
+        return result;
+    }
+
+    static const std::vector<ParamType> Cases;
+};
+
+const std::vector<TSkiffFormatUuidTestP::ParamType> TSkiffFormatUuidTestP::Cases = TSkiffFormatUuidTestP::GetCases();
+
+INSTANTIATE_TEST_SUITE_P(
+    Cases,
+    TSkiffFormatUuidTestP,
+    ::testing::ValuesIn(TSkiffFormatUuidTestP::Cases));
+
+TEST_P(TSkiffFormatUuidTestP, Test)
+{
+    const auto& [nameTable, tableSchema, skiffSchema, rows, skiffString] = GetParam();
+
+    TStringStream result;
+    std::vector<TUnversionedRow> nonOwningRows;
+    for (const auto& row : rows) {
+        nonOwningRows.emplace_back(row);
+    }
+    auto skiffWriter = CreateSkiffWriter(skiffSchema, nameTable, &result, {tableSchema});
+    skiffWriter->Write(MakeRange(nonOwningRows));
+    skiffWriter->Close().Get().ThrowOnError();
+    ASSERT_EQ(result.Str(), skiffString);
+
+    TCollectingValueConsumer rowCollector(nameTable);
+    auto requiredParser = CreateParserForSkiff(skiffSchema, tableSchema, &rowCollector);
+    requiredParser->Read(result.Str());
+    requiredParser->Finish();
+    ASSERT_EQ(rowCollector.GetRowList(), rows);
+}
+
+TEST(TSkiffFormatUuidTest, TestError)
+{
+    using namespace NLogicalTypeShortcuts;
+
+    auto nameTable = New<TNameTable>();
+    auto tableSchema = New<TTableSchema>(
+        std::vector<TColumnSchema>{TColumnSchema("uuid", Optional(Uuid()))});
+
+    auto skiffSchema = CreateTupleSchema({
+        CreateSimpleTypeSchema(EWireType::Uint128)->SetName("uuid"),
+    });
+
+    TStringStream result;
+    auto skiffWriter = CreateSkiffWriter(skiffSchema, nameTable, &result, {tableSchema});
+    skiffWriter->Write({
+        MakeRow(nameTable, {{"uuid", nullptr}}),
+    });
+    EXPECT_THROW_WITH_SUBSTRING(skiffWriter->Close().Get().ThrowOnError(),
+        "Unexpected type");
+
+}
 
 class TSkiffWriterSingular
     : public ::testing::Test

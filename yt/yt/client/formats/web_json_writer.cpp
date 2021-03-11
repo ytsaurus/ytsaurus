@@ -5,7 +5,6 @@
 #include "helpers.h"
 #include "public.h"
 #include "schemaless_writer_adapter.h"
-#include "unversioned_value_yson_writer.h"
 #include "yql_yson_converter.h"
 
 #include <yt/yt/client/complex_types/named_structures_yson.h>
@@ -17,7 +16,6 @@
 #include <yt/yt/core/concurrency/async_stream.h>
 
 #include <yt/yt/core/yson/format.h>
-#include <yt/yt/core/yson/pull_parser.h>
 
 #include <yt/yt/core/json/json_writer.h>
 #include <yt/yt/core/json/config.h>
@@ -143,6 +141,8 @@ TStringBuf GetSimpleYqlTypeName(ESimpleLogicalValueType type)
             return TStringBuf("Timestamp");
         case ESimpleLogicalValueType::Interval:
             return TStringBuf("Interval");
+        case ESimpleLogicalValueType::Uuid:
+            return TStringBuf("Uuid");
         case ESimpleLogicalValueType::Null:
         case ESimpleLogicalValueType::Void:
             // This case must have been processed earlier.

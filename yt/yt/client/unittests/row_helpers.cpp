@@ -7,6 +7,30 @@ namespace NYT {
 
 using namespace NTableClient;
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::TUnversionedValue TTableField::ToUnversionedValue(const NTableClient::TNameTablePtr& nameTable) const
+{
+    const int valueId = nameTable->GetIdOrRegisterName(Name_);
+    return std::visit([valueId] (const auto& value) -> TUnversionedValue {
+        using T = std::decay_t<decltype(value)>;
+        if constexpr (std::is_same_v<T, i64>) {
+            return MakeUnversionedInt64Value(value, valueId);
+        } else if constexpr (std::is_same_v<T, ui64>) {
+            return MakeUnversionedUint64Value(value, valueId);
+        } else if constexpr (std::is_same_v<T, double>) {
+            return MakeUnversionedDoubleValue(value, valueId);
+        } else if constexpr (std::is_same_v<T, bool>) {
+            return MakeUnversionedBooleanValue(value, valueId);
+        } else if constexpr (std::is_same_v<T, TString>) {
+            return MakeUnversionedStringValue(value, valueId);
+        } else {
+            static_assert(std::is_same_v<T, std::nullptr_t>);
+            return MakeUnversionedSentinelValue(EValueType::Null, valueId);
+        }
+    }, Value_);
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 static void EnsureTypesMatch(EValueType expected, EValueType actual)
@@ -23,6 +47,17 @@ TUnversionedOwningRow MakeRow(const std::vector<TUnversionedValue>& values)
     TUnversionedOwningRowBuilder builder;
     for (const auto& v : values) {
         builder.AddValue(v);
+    }
+    return builder.FinishRow();
+}
+
+NTableClient::TUnversionedOwningRow MakeRow(
+    const NTableClient::TNameTablePtr& nameTable,
+    const std::initializer_list<TTableField>& values)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (const auto& v : values) {
+        builder.AddValue(v.ToUnversionedValue(nameTable));
     }
     return builder.FinishRow();
 }

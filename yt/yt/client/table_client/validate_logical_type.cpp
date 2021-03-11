@@ -202,6 +202,7 @@ private:
             CASE(ESimpleLogicalValueType::Timestamp)
             CASE(ESimpleLogicalValueType::Interval)
             CASE(ESimpleLogicalValueType::Void)
+            CASE(ESimpleLogicalValueType::Uuid)
 #undef CASE
         }
         YT_ABORT();

@@ -65,6 +65,8 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ESimpleLogicalValueType, ui32,
 
     ((Float)       (0x100d))
     ((Json)        (0x100e))
+
+    ((Uuid)        (0x100f))
 );
 
 inline bool IsIntegralTypeSigned(ESimpleLogicalValueType type)
@@ -108,6 +110,8 @@ inline bool IsStringLikeType(ESimpleLogicalValueType type)
         case ESimpleLogicalValueType::String:
         case ESimpleLogicalValueType::Any:
         case ESimpleLogicalValueType::Utf8:
+        case ESimpleLogicalValueType::Json:
+        case ESimpleLogicalValueType::Uuid:
             return true;
         default:
             return false;
@@ -180,6 +184,7 @@ inline constexpr EValueType GetPhysicalType(ESimpleLogicalValueType type)
 
         case ESimpleLogicalValueType::Utf8:
         case ESimpleLogicalValueType::Json:
+        case ESimpleLogicalValueType::Uuid:
             return EValueType::String;
         case ESimpleLogicalValueType::Date:
         case ESimpleLogicalValueType::Datetime:

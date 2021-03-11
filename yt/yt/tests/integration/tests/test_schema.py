@@ -469,6 +469,22 @@ class TestComplexTypes(YTEnvSetup):
         table.check_bad_value([encode_decimal("43.12", 3, 2)])
         table.check_bad_value([3.12])
 
+    @authors("ermolovd")
+    def test_uuid(self, optimize_for):
+        uuid = "\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xAA\xBB\xCC\xDD\xEE\xFF"
+        table = SingleColumnTable("uuid", optimize_for)
+        table.check_good_value(uuid)
+
+        table.check_bad_value("")
+        table.check_bad_value(uuid[:-1])
+        table.check_bad_value(uuid + "a")
+
+        table = SingleColumnTable(list_type("uuid"), optimize_for)
+        table.check_good_value([uuid])
+        table.check_bad_value([""])
+        table.check_bad_value([uuid[:-1]])
+        table.check_bad_value([uuid + "a"])
+
 
 @authors("ermolovd")
 class TestComplexTypesMisc(YTEnvSetup):

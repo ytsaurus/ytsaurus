@@ -1,5 +1,7 @@
 #pragma once
 
+#include <util/system/byteorder.h>
+
 #ifndef SKIFF_YSON_CONVERTER_INL_H_
 #error "Direct inclusion of this file is not allowed; include skiff_yson_converter.h"
 #endif
@@ -13,8 +15,20 @@ Y_FORCE_INLINE auto TSimpleSkiffParser<wireType>::operator () (NSkiff::TCheckedI
 {
     using namespace NSkiff;
 
-    if constexpr (wireType == EWireType::Int64) {
+    if constexpr (wireType == EWireType::Int8) {
+        return parser->ParseInt8();
+    } else if constexpr (wireType == EWireType::Int16) {
+        return parser->ParseInt16();
+    } else if constexpr (wireType == EWireType::Int32) {
+        return parser->ParseInt32();
+    } else if constexpr (wireType == EWireType::Int64) {
         return parser->ParseInt64();
+    } else if constexpr (wireType == EWireType::Uint8) {
+        return parser->ParseUint8();
+    } else if constexpr (wireType == EWireType::Uint16) {
+        return parser->ParseUint16();
+    } else if constexpr (wireType == EWireType::Uint32) {
+        return parser->ParseUint32();
     } else if constexpr (wireType == EWireType::Uint64) {
         return parser->ParseUint64();
     } else if constexpr (wireType == EWireType::Boolean) {
@@ -94,5 +108,28 @@ void TDecimalSkiffWriter<SkiffWireType>::operator()(TStringBuf value, NSkiff::TC
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TStringBuf TUuidParser::operator()(NSkiff::TCheckedInDebugSkiffParser* parser) const
+{
+    static_assert(sizeof(Buffer_) == 16);
+
+    auto value = parser->ParseUint128();
+    Buffer_[0] = HostToInet(value.High);
+    Buffer_[1] = HostToInet(value.Low);
+    return TStringBuf(reinterpret_cast<const char*>(Buffer_), sizeof(Buffer_));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUuidWriter::operator()(TStringBuf value, NSkiff::TCheckedInDebugSkiffWriter* writer) const
+{
+    if (value.size() != 16) {
+        THROW_ERROR_EXCEPTION("Internal error: bad size of uuid value; expected: %Qv, actual: %Qv",
+            16,
+            value.size());
+    }
+    const ui64* array = reinterpret_cast<const ui64*>(value.Data());
+    writer->WriteUint128(NSkiff::TUint128{InetToHost(array[1]), InetToHost(array[0])});
+}
 
 } // namespace NYT::NFormats
