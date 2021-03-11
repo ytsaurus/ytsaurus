@@ -71,7 +71,7 @@ EXPRESSIONLESS_SCHEMA = [
 
 
 class TestReplicatedDynamicTablesBase(DynamicTablesBase):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 8
     NUM_REMOTE_CLUSTERS = 1
 
     DELTA_NODE_CONFIG = {
