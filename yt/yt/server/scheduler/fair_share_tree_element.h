@@ -104,7 +104,7 @@ struct TFairSharePostUpdateContext
 
     TNonOwningOperationElementMap EnabledOperationIdToElement;
     TNonOwningOperationElementMap DisabledOperationIdToElement;
-    TNonOwningPoolMap PoolNameToElement;
+    TNonOwningPoolElementMap PoolNameToElement;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,7 +188,7 @@ private:
 
     DEFINE_BYREF_RW_PROPERTY(TScheduleJobsStatistics, SchedulingStatistics);
 
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TOperationElementPtr>, BadPackingOperations);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TSchedulerOperationElementPtr>, BadPackingOperations);
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<TStageState>, StageState);
 
@@ -200,7 +200,7 @@ public:
         bool enableSchedulingInfoLogging,
         const NLogging::TLogger& logger);
 
-    void PrepareForScheduling(const TRootElementPtr& rootElement);
+    void PrepareForScheduling(const TSchedulerRootElementPtr& rootElement);
 
     TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
@@ -265,7 +265,7 @@ protected:
     NFairShare::TSchedulableAttributes Attributes_;
 
     // Used everywhere.
-    TCompositeSchedulerElement* Parent_ = nullptr;
+    TSchedulerCompositeElement* Parent_ = nullptr;
 
     // Assigned in preupdate, used in fair share update.
     TJobResources TotalResourceLimits_;
@@ -293,7 +293,7 @@ class TSchedulerElement
 {
 public:
     //! Common interface.
-    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
+    virtual TSchedulerElementPtr Clone(TSchedulerCompositeElement* clonedParent) = 0;
 
     virtual TString GetTreeId() const;
 
@@ -302,8 +302,8 @@ public:
 
     virtual TString GetLoggingString() const;
 
-    TCompositeSchedulerElement* GetMutableParent();
-    const TCompositeSchedulerElement* GetParent() const;
+    TSchedulerCompositeElement* GetMutableParent();
+    const TSchedulerCompositeElement* GetParent() const;
 
     void InitAccumulatedResourceVolume(TResourceVolume resourceVolume);
 
@@ -406,7 +406,7 @@ protected:
         const NLogging::TLogger& logger);
     TSchedulerElement(
         const TSchedulerElement& other,
-        TCompositeSchedulerElement* clonedParent);
+        TSchedulerCompositeElement* clonedParent);
 
     ISchedulerStrategyHost* GetHost() const;
 
@@ -473,16 +473,16 @@ private:
     virtual std::optional<double> GetSpecifiedWeight() const = 0;
     int GetPendingJobCount() const;
 
-    friend class TCompositeSchedulerElement;
-    friend class TOperationElement;
-    friend class TPool;
+    friend class TSchedulerCompositeElement;
+    friend class TSchedulerOperationElement;
+    friend class TSchedulerPoolElement;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCompositeSchedulerElementFixedState
+class TSchedulerCompositeElementFixedState
 {
 public:
     // Used only in trunk version and profiling.
@@ -502,13 +502,13 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCompositeSchedulerElement
+class TSchedulerCompositeElement
     : public virtual NFairShare::TCompositeElement
     , public TSchedulerElement
-    , public TCompositeSchedulerElementFixedState
+    , public TSchedulerCompositeElementFixedState
 {
 public:
-    TCompositeSchedulerElement(
+    TSchedulerCompositeElement(
         ISchedulerStrategyHost* host,
         IFairShareTreeHost* treeHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
@@ -517,9 +517,9 @@ public:
         const TString& id,
         EResourceTreeElementKind elementKind,
         const NLogging::TLogger& logger);
-    TCompositeSchedulerElement(
-        const TCompositeSchedulerElement& other,
-        TCompositeSchedulerElement* clonedParent);
+    TSchedulerCompositeElement(
+        const TSchedulerCompositeElement& other,
+        TSchedulerCompositeElement* clonedParent);
 
     //! Common interface.
     void AddChild(TSchedulerElement* child, bool enabled = true);
@@ -645,8 +645,8 @@ protected:
 
 private:
     friend class TSchedulerElement;
-    friend class TOperationElement;
-    friend class TRootElement;
+    friend class TSchedulerOperationElement;
+    friend class TSchedulerRootElement;
 
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 
@@ -657,14 +657,14 @@ private:
     TSchedulerElement* GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCompositeSchedulerElement)
+DEFINE_REFCOUNTED_TYPE(TSchedulerCompositeElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPoolFixedState
+class TSchedulerPoolElementFixedState
 {
 protected:
-    explicit TPoolFixedState(TString id);
+    explicit TSchedulerPoolElementFixedState(TString id);
 
     const TString Id_;
 
@@ -679,13 +679,13 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPool
+class TSchedulerPoolElement
     : public NFairShare::TPool
-    , public TCompositeSchedulerElement
-    , public TPoolFixedState
+    , public TSchedulerCompositeElement
+    , public TSchedulerPoolElementFixedState
 {
 public:
-    TPool(
+    TSchedulerPoolElement(
         ISchedulerStrategyHost* host,
         IFairShareTreeHost* treeHost,
         const TString& id,
@@ -695,17 +695,17 @@ public:
         NProfiling::TTagId profilingTag,
         const TString& treeId,
         const NLogging::TLogger& logger);
-    TPool(
-        const TPool& other,
-        TCompositeSchedulerElement* clonedParent);
+    TSchedulerPoolElement(
+        const TSchedulerPoolElement& other,
+        TSchedulerCompositeElement* clonedParent);
 
     //! Common interface.
-    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+    virtual TSchedulerElementPtr Clone(TSchedulerCompositeElement* clonedParent) override;
 
     virtual TString GetId() const override;
 
-    void AttachParent(TCompositeSchedulerElement* newParent);
-    void ChangeParent(TCompositeSchedulerElement* newParent);
+    void AttachParent(TSchedulerCompositeElement* newParent);
+    void ChangeParent(TSchedulerCompositeElement* newParent);
     void DetachParent();
 
     virtual ESchedulableStatus GetStatus(bool atUpdate = true) const override;
@@ -787,11 +787,11 @@ private:
     void DoSetConfig(TPoolConfigPtr newConfig);
 };
 
-DEFINE_REFCOUNTED_TYPE(TPool)
+DEFINE_REFCOUNTED_TYPE(TSchedulerPoolElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationElementFixedState
+class TSchedulerOperationElementFixedState
 {
 public:
     // Used by trunk node.
@@ -801,7 +801,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<THashSet<TString>>, SpecifiedSchedulingSegmentDataCenters);
 
 protected:
-    TOperationElementFixedState(
+    TSchedulerOperationElementFixedState(
         IOperationStrategyHost* operation,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         TSchedulingTagFilter schedulingTagFilter);
@@ -845,11 +845,11 @@ DEFINE_ENUM(EOperationPreemptionStatus,
 
 using TPreemptionStatusStatisticsVector = TEnumIndexedVector<EOperationPreemptionStatus, int>;
 
-class TOperationElementSharedState
+class TSchedulerOperationElementSharedState
     : public TRefCounted
 {
 public:
-    TOperationElementSharedState(
+    TSchedulerOperationElementSharedState(
         int updatePreemptableJobsListLoggingPeriod,
         const NLogging::TLogger& logger);
 
@@ -864,7 +864,7 @@ public:
         double preemptionSatisfactionThreshold,
         double aggressivePreemptionSatisfactionThreshold,
         int* moveCount,
-        TOperationElement* operationElement);
+        TSchedulerOperationElement* operationElement);
 
     bool GetPreemptable() const;
     void SetPreemptable(bool value);
@@ -904,7 +904,7 @@ public:
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TFairShareStrategyPackingConfigPtr& config);
     bool CheckPacking(
-        const TOperationElement* operationElement,
+        const TSchedulerOperationElement* operationElement,
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TJobResourcesWithQuota& jobResources,
         const TJobResources& totalResourceLimits,
@@ -980,14 +980,14 @@ private:
     const TJobProperties* GetJobProperties(TJobId jobId) const;
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
+DEFINE_REFCOUNTED_TYPE(TSchedulerOperationElementSharedState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationElement
+class TSchedulerOperationElement
     : public NFairShare::TOperationElement
     , public TSchedulerElement
-    , public TOperationElementFixedState
+    , public TSchedulerOperationElementFixedState
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
@@ -995,7 +995,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 
 public:
-    TOperationElement(
+    TSchedulerOperationElement(
         TFairShareStrategyTreeConfigPtr treeConfig,
         TStrategyOperationSpecPtr spec,
         TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
@@ -1006,12 +1006,12 @@ public:
         IOperationStrategyHost* operation,
         const TString& treeId,
         const NLogging::TLogger& logger);
-    TOperationElement(
-        const TOperationElement& other,
-        TCompositeSchedulerElement* clonedParent);
+    TSchedulerOperationElement(
+        const TSchedulerOperationElement& other,
+        TSchedulerCompositeElement* clonedParent);
 
     //! Common interface.
-    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+    virtual TSchedulerElementPtr Clone(TSchedulerCompositeElement* clonedParent) override;
 
     virtual TString GetId() const override;
 
@@ -1041,10 +1041,10 @@ public:
     void MarkOperationRunningInPool();
     bool IsOperationRunningInPool() const;
 
-    void MarkPendingBy(TCompositeSchedulerElement* violatedPool);
+    void MarkPendingBy(TSchedulerCompositeElement* violatedPool);
 
-    void AttachParent(TCompositeSchedulerElement* newParent, int slotIndex);
-    void ChangeParent(TCompositeSchedulerElement* newParent, int slotIndex);
+    void AttachParent(TSchedulerCompositeElement* newParent, int slotIndex);
+    void ChangeParent(TSchedulerCompositeElement* newParent, int slotIndex);
     void DetachParent();
 
     //! Shared state interface.
@@ -1143,7 +1143,7 @@ private:
 
     virtual void DisableNonAliveElements() override;
 
-    const TOperationElementSharedStatePtr OperationElementSharedState_;
+    const TSchedulerOperationElementSharedStatePtr OperationElementSharedState_;
     const TFairShareStrategyOperationControllerPtr Controller_;
 
     //! Controller related methods.
@@ -1202,11 +1202,11 @@ private:
         const TJobResources& minNeededResources);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationElement)
+DEFINE_REFCOUNTED_TYPE(TSchedulerOperationElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRootElementFixedState
+class TSchedulerRootElementFixedState
 {
 public:
     // TODO(ignat): move it to TFairShareTreeSnapshotImpl.
@@ -1214,27 +1214,27 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, SchedulableElementCount);
 };
 
-class TRootElement
+class TSchedulerRootElement
     : public NFairShare::TRootElement
-    , public TCompositeSchedulerElement
-    , public TRootElementFixedState
+    , public TSchedulerCompositeElement
+    , public TSchedulerRootElementFixedState
 {
 public:
-    TRootElement(
+    TSchedulerRootElement(
         ISchedulerStrategyHost* host,
         IFairShareTreeHost* treeHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
         NProfiling::TTagId profilingTag,
         const TString& treeId,
         const NLogging::TLogger& logger);
-    TRootElement(const TRootElement& other);
+    TSchedulerRootElement(const TSchedulerRootElement& other);
 
     //! Common interface.
     virtual TString GetId() const override;
 
-    TRootElementPtr Clone();
+    TSchedulerRootElementPtr Clone();
 
-    virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+    virtual TSchedulerElementPtr Clone(TSchedulerCompositeElement* clonedParent) override;
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
     
@@ -1294,7 +1294,7 @@ private:
     void ManageSchedulingSegments(TManageTreeSchedulingSegmentsContext* manageSegmentsContext);
 };
 
-DEFINE_REFCOUNTED_TYPE(TRootElement)
+DEFINE_REFCOUNTED_TYPE(TSchedulerRootElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 

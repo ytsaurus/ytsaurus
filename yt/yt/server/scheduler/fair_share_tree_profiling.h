@@ -21,11 +21,11 @@ public:
     NProfiling::TProfiler GetRegistry() const;
 
     // Thread affinity: Control thread.
-    void ProfileOperationUnregistration(const TCompositeSchedulerElement* pool, EOperationState state);
+    void ProfileOperationUnregistration(const TSchedulerCompositeElement* pool, EOperationState state);
 
     // Thread affinity: Control thread.
-    void RegisterPool(const TCompositeSchedulerElementPtr& element);
-    void UnregisterPool(const TCompositeSchedulerElementPtr& element);
+    void RegisterPool(const TSchedulerCompositeElementPtr& element);
+    void UnregisterPool(const TSchedulerCompositeElementPtr& element);
 
     // Thread affinity: Profiler thread.
     void ProfileElements(const TFairShareTreeSnapshotImplPtr& treeSnapshot);
@@ -97,7 +97,7 @@ private:
     void ProfilePools(const TFairShareTreeSnapshotImplPtr& treeSnapshot);
 
     void ProfilePool(
-        const TCompositeSchedulerElement* element,
+        const TSchedulerCompositeElement* element,
         const TFairShareStrategyTreeConfigPtr& treeConfig,
         bool profilingCompatibilityEnabled,
         const NProfiling::TBufferedProducerPtr& producer);

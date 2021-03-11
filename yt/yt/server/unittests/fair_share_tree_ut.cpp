@@ -435,9 +435,9 @@ protected:
         return diskQuota;
     }
 
-    TRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* host)
+    TSchedulerRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* host)
     {
-        return New<TRootElement>(
+        return New<TSchedulerRootElement>(
             host,
             FairShareTreeHostMock_.Get(),
             TreeConfig_,
@@ -447,9 +447,9 @@ protected:
             SchedulerLogger);
     }
 
-    TPoolPtr CreateTestPool(ISchedulerStrategyHost* host, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
+    TSchedulerPoolElementPtr CreateTestPool(ISchedulerStrategyHost* host, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
     {
-        return New<TPool>(
+        return New<TSchedulerPoolElement>(
             host,
             FairShareTreeHostMock_.Get(),
             name,
@@ -489,10 +489,10 @@ protected:
         return CreateIntegralPoolConfig(EIntegralGuaranteeType::Relaxed, flowCpu, 0.0, strongGuaranteeCpu, weight);
     }
 
-    TOperationElementPtr CreateTestOperationElement(
+    TSchedulerOperationElementPtr CreateTestOperationElement(
         ISchedulerStrategyHost* host,
         IOperationStrategyHost* operation,
-        TCompositeSchedulerElement* parent,
+        TSchedulerCompositeElement* parent,
         TOperationFairShareTreeRuntimeParametersPtr operationOptions = nullptr)
     {
         auto operationController = New<TFairShareStrategyOperationController>(operation, SchedulerConfig_);
@@ -500,7 +500,7 @@ protected:
             operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
             operationOptions->Weight = 1.0;
         }
-        auto operationElement = New<TOperationElement>(
+        auto operationElement = New<TSchedulerOperationElement>(
             TreeConfig_,
             New<TStrategyOperationSpec>(),
             operationOptions,
@@ -517,10 +517,10 @@ protected:
         return operationElement;
     }
 
-    std::pair<TOperationElementPtr, TIntrusivePtr<TOperationStrategyHostMock>> CreateOperationWithJobs(
+    std::pair<TSchedulerOperationElementPtr, TIntrusivePtr<TOperationStrategyHostMock>> CreateOperationWithJobs(
         int jobCount,
         ISchedulerStrategyHost* host,
-        TCompositeSchedulerElement* parent)
+        TSchedulerCompositeElement* parent)
     {
         TJobResourcesWithQuota jobResources;
         jobResources.SetUserSlots(1);
@@ -546,8 +546,8 @@ protected:
     }
 
     void DoTestSchedule(
-        const TRootElementPtr& rootElement,
-        const TOperationElementPtr& operationElement,
+        const TSchedulerRootElementPtr& rootElement,
+        const TSchedulerOperationElementPtr& operationElement,
         const TExecNodePtr& execNode,
         const TSchedulerStrategyHostMock* host)
     {
@@ -579,7 +579,7 @@ protected:
 
     void DoFairShareUpdate(
         const ISchedulerStrategyHost* host,
-        const TRootElementPtr& rootElement,
+        const TSchedulerRootElementPtr& rootElement,
         TInstant now = TInstant(),
         std::optional<TInstant> previousUpdateTime = std::nullopt)
     {
@@ -617,11 +617,11 @@ TIntrusivePtr<TSchedulerStrategyHostMock> CreateHostWith10NodesAnd10Cpu()
     return New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
 }
 
-void ResetFairShareFunctionsRecursively(TCompositeSchedulerElement* compositeElement)
+void ResetFairShareFunctionsRecursively(TSchedulerCompositeElement* compositeElement)
 {
     compositeElement->ResetFairShareFunctions();
     for (const auto& child : compositeElement->GetEnabledChildren()) {
-        if (auto* childPool = dynamic_cast<TCompositeSchedulerElement*>(child.Get())) {
+        if (auto* childPool = dynamic_cast<TSchedulerCompositeElement*>(child.Get())) {
             ResetFairShareFunctionsRecursively(childPool);
         } else {
             child->ResetFairShareFunctions();
@@ -674,14 +674,14 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     poolD->AttachParent(rootElement.Get());
 
     std::array<TIntrusivePtr<TOperationStrategyHostMock>, OperationCount> operations;
-    std::array<TOperationElementPtr, OperationCount> operationElements;
+    std::array<TSchedulerOperationElementPtr, OperationCount> operationElements;
 
     for (auto& operation : operations) {
         operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
     }
 
     for (int i = 0; i < OperationCount; ++i) {
-        TCompositeSchedulerElement* parent = i < 2
+        TSchedulerCompositeElement* parent = i < 2
             ? poolA.Get()
             : poolC.Get();
 
@@ -983,7 +983,7 @@ TEST_F(TFairShareTreeTest, TestOperationCountLimits)
     auto host = New<TSchedulerStrategyHostMock>();
     auto rootElement = CreateTestRootElement(host.Get());
 
-    TPoolPtr pools[3];
+    TSchedulerPoolElementPtr pools[3];
     for (int i = 0; i < 3; ++i) {
         pools[i] = CreateTestPool(host.Get(), "pool" + ToString(i));
     }
@@ -2167,7 +2167,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
 
     // Create 5 operations.
     std::vector<TOperationStrategyHostMockPtr> operations(5);
-    std::vector<TOperationElementPtr> operationElements(5);
+    std::vector<TSchedulerOperationElementPtr> operationElements(5);
     for (int opIndex = 0; opIndex < 5; ++opIndex) {
 
         auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
