@@ -264,6 +264,7 @@ protected:
         const TChunkSpec& chunkSpec,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
+        const TComparator& chunkComparator,
         const TComparator& comparator,
         i64 rowIndex,
         int interruptDescriptorKeyLength) const
@@ -290,7 +291,7 @@ protected:
         TUnversionedOwningRow firstUnreadRow;
         TKey firstUnreadKey;
         if (!unreadRows.Empty()) {
-            firstUnreadKey = TKey::FromRowUnchecked(unreadRows[0], comparator.GetLength());
+            firstUnreadKey = TKey::FromRowUnchecked(unreadRows[0], chunkComparator.GetLength());
             // NB: checks after the first one are invalid unless
             // we read some data. Before we read anything, lowerKey may be
             // longer than firstUnreadKey.
@@ -831,6 +832,7 @@ TInterruptDescriptor THorizontalSchemalessRangeChunkReader::GetInterruptDescript
         ChunkSpec_,
         ReadRange_.LowerLimit(),
         ReadRange_.UpperLimit(),
+        ChunkComparator_,
         Comparator_,
         RowIndex_,
         InterruptDescriptorKeyLength_);
@@ -1167,6 +1169,7 @@ public:
             ChunkSpec_,
             LowerLimit_,
             UpperLimit_,
+            ChunkComparator_,
             Comparator_,
             RowIndex_,
             InterruptDescriptorKeyLength_);
