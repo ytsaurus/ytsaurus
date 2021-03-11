@@ -3,7 +3,8 @@
 #include <yt/yt/server/scheduler/resource_vector.h>
 #include <yt/yt/server/scheduler/resource_volume.h>
 
-#include <yt/yt/server/lib/scheduler/config.h>
+// Used for TResourceLimitsConfig.
+#include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources.h>
 
@@ -339,7 +340,6 @@ public:
 
 private:
     const TRootElementPtr RootElement_;
-    const NScheduler::TFairShareStrategyTreeConfigPtr TreeConfig_;
 
     void ConsumeAndRefillIntegralPools();
     void UpdateBurstPoolIntegralShares();
