@@ -385,13 +385,20 @@ private:
         const TConnectionOptions& options)
     {
         auto isRetriableError = BIND([options] (const TError& error) {
+            const auto* effectiveError = &error;
+            if (error.GetCode() == NObjectClient::EErrorCode::ForwardedRequestFailed &&
+                !error.InnerErrors().empty())
+            {
+                effectiveError = &error.InnerErrors().front();
+            }
+
             if (options.RetryRequestQueueSizeLimitExceeded &&
-                error.GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
+                effectiveError->GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
             {
                 return true;
             }
 
-            return IsRetriableError(error);
+            return IsRetriableError(*effectiveError);
         });
 
         auto channel = NHydra::CreatePeerChannel(config, channelFactory, kind);
