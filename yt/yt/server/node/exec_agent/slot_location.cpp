@@ -4,6 +4,7 @@
 #include "job_directory_manager.h"
 
 #include <yt/yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_agent/slot_location_builder.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -90,30 +91,19 @@ TFuture<void> TSlotLocation::Initialize()
             ValidateMinimumSpace();
 
             for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-                for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-                    auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-
-                    try {
-                        if (!NFS::Exists(sandboxPath)) {
-                            continue;
-                        }
-
-                        if (NFS::IsDirEmpty(sandboxPath)) {
-                            continue;
-                        }
-                    } catch (const std::exception& ex) {
-                        // In case of any errors (e.g. no permissions) we swallow exception and
-                        // fallback to removing slots.
+                auto slotLocationBuilderConfig = New<TSlotLocationBuilderConfig>();
+                slotLocationBuilderConfig->LocationPath = Config_->Path;
+                slotLocationBuilderConfig->NodeUid = getuid();
+                for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+                    auto slotConfig = New<TSlotConfig>();
+                    slotConfig->Index = slotIndex;
+                    if (!Bootstrap_->IsSimpleEnvironment()) {
+                        slotConfig->Uid = SlotIndexToUserId_(slotIndex);
                     }
-
-                    if (Bootstrap_->IsSimpleEnvironment()) {
-                        NFS::RemoveRecursive(sandboxPath);
-                    } else {
-                        RunTool<TRemoveDirAsRootTool>(sandboxPath);
-                    }
+                    slotLocationBuilderConfig->SlotConfigs.push_back(std::move(slotConfig));
                 }
 
-                CreateSandboxDirectories(slotIndex);
+                RunTool<TSlotLocationBuilderTool>(slotLocationBuilderConfig);
             }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to initialize slot location %v", Config_->Path)
@@ -574,7 +564,19 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
             }
 
             // Prepare slot for the next job.
-            CreateSandboxDirectories(slotIndex);
+            {
+                auto slotLocationBuilderConfig = New<TSlotLocationBuilderConfig>();
+                slotLocationBuilderConfig->LocationPath = Config_->Path;
+                slotLocationBuilderConfig->NodeUid = getuid();
+                auto slotConfig = New<TSlotConfig>();
+                slotConfig->Index = slotIndex;
+                if (!Bootstrap_->IsSimpleEnvironment()) {
+                    slotConfig->Uid = SlotIndexToUserId_(slotIndex);
+                }
+                slotLocationBuilderConfig->SlotConfigs.push_back(std::move(slotConfig));
+
+                RunTool<TSlotLocationBuilderTool>(slotLocationBuilderConfig);
+            }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean sandbox directories")
                 << ex;
@@ -804,7 +806,7 @@ void TSlotLocation::UpdateSlotLocationStatistics()
                 auto slotPath = GetSlotPath(slotIndex);
                 auto slotSpaceUsage = Bootstrap_->IsSimpleEnvironment()
                     ? NFS::GetDirectorySize(slotPath)
-                    : RunTool<TGetDirectorySizeAsRootTool>(slotPath); 
+                    : RunTool<TGetDirectorySizeAsRootTool>(slotPath);
                 slotLocationStatistics.add_slot_space_usages(slotSpaceUsage);
             }
         } catch (const std::exception& ex) {
@@ -836,50 +838,6 @@ NNodeTrackerClient::NProto::TSlotLocationStatistics TSlotLocation::GetSlotLocati
 {
     auto guard = ReaderGuard(SlotLocationStatisticsLock_);
     return SlotLocationStatistics_;
-}
-
-void TSlotLocation::CreateSandboxDirectories(int slotIndex)
-{
-    auto userId = SlotIndexToUserId_(slotIndex);
-
-    YT_LOG_DEBUG("Creating sandbox directories (SlotIndex: %v, UserId: %v)",
-        slotIndex,
-        userId);
-
-    auto slotPath = GetSlotPath(slotIndex);
-    try {
-        NFS::MakeDirRecursive(slotPath, 0755);
-
-        for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-            auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-            NFS::MakeDirRecursive(sandboxPath, 0700);
-        }
-
-        // Since we make slot user to be owner, but job proxy creates some files during job shell
-        // initialization we leave write access for everybody. Presumably this will not ruin job isolation.
-        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::Home), userId, 0777);
-
-        // Tmp is accessible for everyone.
-        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::Tmp), userId, 0777);
-
-        // CUDA library should have an access to cores directory to write GPU core dump into it.
-        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::Cores), userId, 0777);
-
-        // Pipes are accessible for everyone.
-        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::Pipes), userId, 0777);
-
-        // Node should have access to user sandbox during job preparation.
-        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::User), getuid(), 0755);
-        
-        // Process executor should have access to write logs before process start.
-        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::Logs), userId, 0755);
-    } catch (const std::exception& ex) {
-        auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to create sandbox directories for slot %v", slotPath)
-            << ex;
-        Disable(error);
-    }
-
-    YT_LOG_DEBUG("Sandbox directories created (SlotIndex: %v)", slotIndex);
 }
 
 void TSlotLocation::ChownChmod(

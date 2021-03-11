@@ -239,14 +239,9 @@ size_t GetCurrentThreadId()
 #endif
 }
 
-void ChownChmodDirectoriesRecursively(const TString& path, const std::optional<uid_t>& userId, const std::optional<int>& permissions)
+void ChownChmodDirectory(const TString& path, const std::optional<uid_t>& userId, const std::optional<int>& permissions)
 {
 #ifdef _unix_
-    for (const auto& directoryPath : NFS::EnumerateDirectories(path)) {
-        auto nestedPath = NFS::CombinePaths(path, directoryPath);
-        ChownChmodDirectoriesRecursively(nestedPath, userId, permissions);
-    }
-
     if (userId) {
         auto res = HandleEintr(::chown, path.data(), *userId, -1);
         if (res != 0) {
@@ -264,6 +259,20 @@ void ChownChmodDirectoriesRecursively(const TString& path, const std::optional<u
                 << TError::FromSystem();
         }
     }
+#else
+    YT_ABORT();
+#endif
+}
+
+void ChownChmodDirectoriesRecursively(const TString& path, const std::optional<uid_t>& userId, const std::optional<int>& permissions)
+{
+#ifdef _unix_
+    for (const auto& directoryPath : NFS::EnumerateDirectories(path)) {
+        auto nestedPath = NFS::CombinePaths(path, directoryPath);
+        ChownChmodDirectoriesRecursively(nestedPath, userId, permissions);
+    }
+
+    ChownChmodDirectory(path, userId, permissions);
 #else
     YT_ABORT();
 #endif

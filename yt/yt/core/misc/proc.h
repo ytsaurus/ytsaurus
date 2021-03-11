@@ -54,6 +54,11 @@ size_t GetCurrentProcessId();
 
 size_t GetCurrentThreadId();
 
+void ChownChmodDirectory(
+    const TString& path,
+    const std::optional<uid_t>& userId,
+    const std::optional<int>& permissions);
+
 void ChownChmodDirectoriesRecursively(
     const TString& path,
     const std::optional<uid_t>& userId,

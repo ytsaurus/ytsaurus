@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/lib/exec_agent/slot_location_builder.h>
+
 #include <yt/yt/ytlib/program/program.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
@@ -32,6 +34,10 @@ REGISTER_TOOL(TGetDirectorySizeAsRootTool)
 namespace NCGroup {
 REGISTER_TOOL(TKillProcessGroupTool)
 } // namespace NCGroup
+
+namespace NExecAgent {
+REGISTER_TOOL(TSlotLocationBuilderTool)
+} // namespace NExecAgent
 
 ////////////////////////////////////////////////////////////////////////////////
 
