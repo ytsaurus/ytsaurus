@@ -7,7 +7,7 @@ type (
 	Date uint64
 	// Datetime is YT type representing number of seconds since beginning of the unix epoch.
 	Datetime uint64
-	// Datetime is YT type representing number of microseconds since beginning of the unix epoch.
+	// Timestamp is YT type representing number of microseconds since beginning of the unix epoch.
 	Timestamp uint64
 
 	// Interval is YT type representing distance between two Timestamps-s in microseconds.

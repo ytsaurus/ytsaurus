@@ -76,7 +76,7 @@ const (
 	AggregateMax AggregateFunction = "max"
 )
 
-// Field specifies schema of a single column.
+// Column specifies schema of a single column.
 //
 // See https://wiki.yandex-team.ru/yt/userdoc/tables/#sxema
 type Column struct {
