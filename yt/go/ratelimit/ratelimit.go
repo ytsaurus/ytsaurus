@@ -97,7 +97,7 @@ func (l *Limiter) wakeupBlocked() {
 		l.mu.Lock()
 		l.check()
 
-		l.cleanup(nextWakeup)
+		l.cleanup(nextWakeup.Add(-l.interval))
 		for l.size < l.maxSize && !l.waiting.empty() {
 			first := l.waiting.next
 			close(first.wakeup)
