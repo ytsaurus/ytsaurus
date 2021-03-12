@@ -1,7 +1,6 @@
 package ru.yandex.yson;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 import javax.annotation.Nonnull;
 
@@ -41,21 +40,18 @@ public interface YsonConsumer {
      *
      * Argument is byte array since yson string is an arbitrary byte sequence.
      */
-    void onString(@Nonnull byte[] value);
-
-    default void onString(@Nonnull byte[] value, int offset, int length) {
-        onString(Arrays.copyOfRange(value, offset, offset + length));
-    }
+    void onString(@Nonnull byte[] value, int offset, int length);
 
     /**
-     * Convenience method equivalent to calling {@link #onString(byte[])} with utf-8 representation of java string.
+     * Convenience method equivalent to calling {@link #onString(byte[], int, int)} with utf-8 representation of java string.
      *
      * This is convenience method only.
      * Implementations shouldn't override this method or expect that it would be called.
-     * Many users of YsonConsumer interface call {@link #onString(byte[])} as it's more generic.
+     * Many users of YsonConsumer interface call {@link #onString(byte[], int, int)} as it's more generic.
      */
     default void onString(@Nonnull String value) {
-        onString(value.getBytes(StandardCharsets.UTF_8));
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        onString(bytes, 0, bytes.length);
     }
 
     /**
@@ -95,21 +91,20 @@ public interface YsonConsumer {
 
     /**
      * Called when map key or attribute key is encountered.
+     *
+     * Argument is byte array since yson map key is an arbitrary byte sequence.
      */
-    void onKeyedItem(@Nonnull byte[] value);
-
-    default void onKeyedItem(@Nonnull byte[] value, int offset, int length) {
-        onKeyedItem(Arrays.copyOfRange(value, offset, offset + length));
-    }
+    void onKeyedItem(@Nonnull byte[] value, int offset, int length);
 
     /**
-     * Convenience method equivalent to calling {@link #onKeyedItem(byte[])} with utf-8 representation of java string.
+     * Convenience method equivalent to calling {@link #onKeyedItem(byte[], int, int)} with utf-8 representation of java string.
      *
      * This is convenience method only.
      * Implementations shouldn't override this method or expect that it would be called.
-     * Many users of YsonConsumer interface call {@link #onKeyedItem(byte[])} as it's more generic.
+     * Many users of YsonConsumer interface call {@link #onKeyedItem(byte[], int, int)} as it's more generic.
      */
     default void onKeyedItem(@Nonnull String key) {
-        onKeyedItem(key.getBytes(StandardCharsets.UTF_8));
+        byte[] bytes = key.getBytes(StandardCharsets.UTF_8);
+        onKeyedItem(bytes, 0, bytes.length);
     }
 }

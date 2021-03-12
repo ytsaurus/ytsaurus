@@ -120,7 +120,7 @@ public class YsonBinaryWriterTest {
         assertThat(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     byte[] data = {0, 127, -8, -42};
-                    consumer.onString(data);
+                    consumer.onString(data, 0, data.length);
                     return null;
                 }),
                 is(new byte[]{1, 8, 0, 127, -8, -42})
@@ -227,7 +227,7 @@ public class YsonBinaryWriterTest {
                     consumer.onString("bar");
 
                     byte[] k2 = {-4, 62, 12};
-                    consumer.onKeyedItem(k2);
+                    consumer.onKeyedItem(k2, 0, k2.length);
                     consumer.onInteger(-5);
 
                     consumer.onEndMap();
@@ -365,7 +365,7 @@ public class YsonBinaryWriterTest {
                             case 5:
                                 byte[] b = new byte[rnd.nextInt(128)];
                                 rnd.nextBytes(b);
-                                consumer.onString(b);
+                                consumer.onString(b, 0, b.length);
                                 break;
                             default:
                                 throw new RuntimeException("unreachable");

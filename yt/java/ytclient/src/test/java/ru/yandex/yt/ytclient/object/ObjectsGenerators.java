@@ -172,7 +172,7 @@ public class ObjectsGenerators {
         public void generateNext(YTreeBuilder builder, Random random) {
             byte[] bytes = new byte[64];
             random.nextBytes(bytes);
-            builder.onString(bytes);
+            builder.onString(bytes, 0, bytes.length);
         }
     }
 

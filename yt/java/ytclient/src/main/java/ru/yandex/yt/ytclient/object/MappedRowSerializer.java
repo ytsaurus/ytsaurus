@@ -197,7 +197,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onString(String value) {
+        public void onString(@Nonnull String value) {
             current.onString(value);
         }
 
@@ -259,8 +259,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onKeyedItem(@Nonnull byte[] value) {
-            onKeyedItem(new String(value, StandardCharsets.UTF_8));
+        public void onKeyedItem(@Nonnull byte[] value, int offset, int length) {
+            onKeyedItem(new String(value, offset, length, StandardCharsets.UTF_8));
         }
 
         @Override
@@ -289,8 +289,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onString(@Nonnull byte[] bytes) {
-            current.onString(bytes);
+        public void onString(@Nonnull byte[] bytes, int offset, int length) {
+            current.onString(bytes, offset, length);
         }
     }
 
@@ -343,7 +343,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onString(String value) {
+        public void onString(@Nonnull String value) {
             if (currentColumn != null) {
                 this.onBytesDirect(value.getBytes(StandardCharsets.UTF_8));
             }
@@ -385,8 +385,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onKeyedItem(@Nonnull byte[] value) {
-            onKeyedItem(new String(value, StandardCharsets.UTF_8));
+        public void onKeyedItem(@Nonnull byte[] value, int offset, int length) {
+            onKeyedItem(new String(value, offset, length, StandardCharsets.UTF_8));
         }
 
         @Override
@@ -435,7 +435,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onString(@Nonnull byte[] bytes) {
+        public void onString(@Nonnull byte[] bytes, int offset, int length) {
             if (currentColumn != null) {
                 if (currentColumn.columnType == ColumnValueType.STRING) {
                     this.onBytesDirect(bytes);
@@ -448,7 +448,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
                     final ByteArrayOutputStream output = new ByteArrayOutputStream(bytes.length + 1 + 4);
 
                     try (ClosableYsonConsumer binarySerializer = YTreeBinarySerializer.getSerializer(output)) {
-                        binarySerializer.onString(bytes); // TODO: improve performance
+                        binarySerializer.onString(bytes, offset, length); // TODO: improve performance
                     }
                     this.onBytesDirect(output.toByteArray());
                 }

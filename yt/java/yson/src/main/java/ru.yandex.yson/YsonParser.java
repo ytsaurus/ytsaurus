@@ -167,9 +167,11 @@ public class YsonParser {
                     parseMapLikeImpl(YsonTags.END_MAP, consumer);
                     consumer.onEndMap();
                     return;
-                case '"':
-                    consumer.onString(readQuotedString());
+                case '"': {
+                    byte[] string = readQuotedString();
+                    consumer.onString(string, 0, string.length);
                     return;
+                }
                 case '%':
                     currentByte = tokenizer.readByte();
                     if (currentByte == 'n') {
@@ -205,7 +207,7 @@ public class YsonParser {
                     }
                     byte[] string = tryReadUnquotedString(currentByte);
                     if (string != null) {
-                        consumer.onString(string);
+                        consumer.onString(string, 0, string.length);
                         return;
                     } else if (tryConsumeTextNumber(currentByte, consumer)) {
                         return;
@@ -297,20 +299,23 @@ public class YsonParser {
                     readBinaryString(bufferReference);
                     consumer.onKeyedItem(bufferReference.buffer, bufferReference.offset, bufferReference.length);
                     return;
-                case '"':
-                    consumer.onKeyedItem(readQuotedString());
+                case '"': {
+                    byte[] string = readQuotedString();
+                    consumer.onKeyedItem(string, 0, string.length);
                     return;
-                default:
+                }
+                default: {
                     if (isSpace(currentByte)) {
                         currentByte = tokenizer.readByte();
                         continue;
                     }
                     byte[] string = tryReadUnquotedString(currentByte);
                     if (string != null) {
-                        consumer.onKeyedItem(string);
+                        consumer.onKeyedItem(string, 0, string.length);
                         return;
                     }
                     throw new YsonError(String.format("Expected key, found: %s byte", debugByteString(currentByte)));
+                }
             }
         }
     }

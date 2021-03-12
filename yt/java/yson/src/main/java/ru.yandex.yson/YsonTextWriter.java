@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.io.Writer;
+import java.util.Arrays;
 
 import javax.annotation.Nonnull;
 
@@ -74,9 +75,9 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     }
 
     @Override
-    public void onString(@Nonnull byte[] bytes) {
+    public void onString(@Nonnull byte[] bytes, int offset, int length) {
         write('"');
-        appendQuotedBytes(bytes);
+        appendQuotedBytes(Arrays.copyOfRange(bytes, offset, offset + length));
         write('"');
     }
 
@@ -131,13 +132,13 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     }
 
     @Override
-    public void onKeyedItem(@Nonnull byte[] key) {
+    public void onKeyedItem(@Nonnull byte[] key, int offset, int length) {
         if (firstItem) {
             firstItem = false;
         } else {
             write(YsonTags.ITEM_SEPARATOR);
         }
-        onString(key);
+        onString(key, offset, length);
         write(YsonTags.KEY_VALUE_SEPARATOR);
     }
 

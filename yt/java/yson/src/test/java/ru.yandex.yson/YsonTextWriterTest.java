@@ -109,7 +109,7 @@ public class YsonTextWriterTest {
         assertThat(
                 buildTextYson((YsonConsumer consumer) -> {
                     byte[] data = {0, 127, -8};
-                    consumer.onString(data);
+                    consumer.onString(data, 0, data.length);
                     return null;
                 }),
                 is("\"\\x00\\x7f\\xf8\"")
@@ -214,7 +214,7 @@ public class YsonTextWriterTest {
                     consumer.onString("bar");
 
                     byte[] k2 = {-4, 62, 12};
-                    consumer.onKeyedItem(k2);
+                    consumer.onKeyedItem(k2, 0, k2.length);
                     consumer.onInteger(-5);
 
                     consumer.onEndMap();

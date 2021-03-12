@@ -306,9 +306,11 @@ public class UnversionedValue implements YTreeConvertible {
             case BOOLEAN:
                 consumer.onBoolean(booleanValue());
                 break;
-            case STRING:
-                consumer.onString(bytesValue());
+            case STRING: {
+                byte[] bytes = bytesValue();
+                consumer.onString(bytes, 0, bytes.length);
                 break;
+            }
             case ANY: {
                 YTreeBinarySerializer.deserialize(new ByteArrayInputStream(bytesValue()), consumer);
                 break;
