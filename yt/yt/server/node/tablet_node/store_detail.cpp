@@ -384,7 +384,7 @@ public:
         }
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& id,
         EBlockType type) override
     {
@@ -394,7 +394,7 @@ public:
             YT_ASSERT(blockIndex >= 0 && blockIndex < ChunkData_->Blocks.size());
             return CreatePresetCachedBlockCookie(TCachedBlock(ChunkData_->Blocks[blockIndex]));
         } else {
-            return UnderlyingCache_->GetCachedBlockCookie(id, type);
+            return UnderlyingCache_->GetBlockCookie(id, type);
         }
     }
 

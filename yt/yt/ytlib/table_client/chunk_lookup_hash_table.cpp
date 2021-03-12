@@ -92,7 +92,7 @@ public:
             : TCachedBlock();
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& id,
         EBlockType type) override
     {
