@@ -158,6 +158,7 @@ DEFINE_ENUM(EMasterReign,
     ((ProxyRoles)                                                   (1511))  // gritukan
     ((ReconfigurableMasterSingletons)                               (1512))  // gritukan
     ((FixMasterMemoryCompats)                                       (1513))  // aleksandra-zh
+    ((PullParserDeserialization)                                    (1514))  // levysotsky
 );
 
 ////////////////////////////////////////////////////////////////////////////////
