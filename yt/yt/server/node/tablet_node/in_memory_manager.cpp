@@ -431,7 +431,7 @@ private:
             return TCachedBlock();
         }
 
-        virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+        virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
             const TBlockId& /* id */,
             EBlockType /* type */)
         {
@@ -838,7 +838,7 @@ public:
         return TCachedBlock();
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& /* id */,
         EBlockType /* type */) override
     {
@@ -1012,7 +1012,7 @@ public:
         return TCachedBlock();
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& id,
         EBlockType type) override
     {

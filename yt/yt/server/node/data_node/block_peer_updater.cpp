@@ -61,7 +61,7 @@ void TBlockPeerUpdater::Update()
     YT_LOG_INFO("Updating peer blocks");
 
     const auto& clientBlockCache = Bootstrap_->GetClientBlockCache();
-    auto blockCacheSnapshot = clientBlockCache->GetCacheSnapshot(EBlockType::CompressedData);
+    auto blockCacheSnapshot = clientBlockCache->GetSnapshot(EBlockType::CompressedData);
     std::vector<TBlockCacheEntry> cacheEntries;
     for (const auto& cacheEntry : blockCacheSnapshot) {
         if (cacheEntry.Block.Source) {

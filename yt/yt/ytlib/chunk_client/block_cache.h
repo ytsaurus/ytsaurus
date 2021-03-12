@@ -77,7 +77,7 @@ struct IBlockCache
         EBlockType type) = 0;
 
     //! Returns a cookie for working with block in cache.
-    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& id,
         EBlockType type) = 0;
 

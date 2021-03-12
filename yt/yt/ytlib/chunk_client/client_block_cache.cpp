@@ -150,7 +150,7 @@ public:
         }
     }
 
-    std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& id,
         EBlockType type)
     {
@@ -165,7 +165,7 @@ public:
         return std::make_unique<TCachedBlockCookie>(std::move(cookie));
     }
 
-    std::vector<TBlockCacheEntry> GetCacheSnapshot()
+    std::vector<TBlockCacheEntry> GetSnapshot()
     {
         auto entries = GetAll();
 
@@ -241,13 +241,13 @@ public:
         return cache ? cache->FindBlock(id) : TCachedBlock();
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& id,
         EBlockType type) override
     {
         const auto& cache = FindPerTypeCache(type);
         return cache
-            ? cache->GetCachedBlockCookie(id, type)
+            ? cache->GetBlockCookie(id, type)
             : CreateActiveCachedBlockCookie();
     }
 
@@ -256,12 +256,12 @@ public:
         return SupportedBlockTypes_;
     }
 
-    virtual std::vector<TBlockCacheEntry> GetCacheSnapshot(EBlockType blockTypes) const override
+    virtual std::vector<TBlockCacheEntry> GetSnapshot(EBlockType blockTypes) const override
     {
         std::vector<TBlockCacheEntry> snapshot;
         for (const auto& [blockType, cache] : PerTypeCaches_) {
             if (Any(blockType & blockTypes)) {
-                auto cacheSnapshot = cache->GetCacheSnapshot();
+                auto cacheSnapshot = cache->GetSnapshot();
                 snapshot.insert(snapshot.end(), cacheSnapshot.begin(), cacheSnapshot.end());
             }
         }
@@ -326,7 +326,7 @@ public:
         return TCachedBlock();
     }
 
-    virtual std::unique_ptr<ICachedBlockCookie> GetCachedBlockCookie(
+    virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const TBlockId& /* id */,
         EBlockType /* type */)
     {

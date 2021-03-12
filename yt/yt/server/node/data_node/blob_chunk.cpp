@@ -290,7 +290,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
             const auto& blockCache = Bootstrap_->GetBlockCache();
 
             auto blockId = TBlockId(Id_, entry.BlockIndex);
-            entry.Cookie = blockCache->GetCachedBlockCookie(blockId, EBlockType::CompressedData);
+            entry.Cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
 
             // Note that if the same block (currently not present in cache) is requested multiple times,
             // first occurrence getc Cached = false and is fetched from disk, while the rest gets
