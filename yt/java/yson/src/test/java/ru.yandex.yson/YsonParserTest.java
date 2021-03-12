@@ -439,8 +439,8 @@ class FragmentYsonTextWriter  implements ClosableYsonConsumer {
     }
 
     @Override
-    public void onString(@Nonnull byte[] value) {
-        underlying.onString(value);
+    public void onString(@Nonnull byte[] value, int offset, int length) {
+        underlying.onString(value, offset, length);
     }
 
     @Override
@@ -489,11 +489,11 @@ class FragmentYsonTextWriter  implements ClosableYsonConsumer {
     }
 
     @Override
-    public void onKeyedItem(@Nonnull byte[] value) {
+    public void onKeyedItem(@Nonnull byte[] value, int offset, int length) {
         if (depth == 0) {
             onNewItem();
         } else {
-            underlying.onKeyedItem(value);
+            underlying.onKeyedItem(value, offset, length);
         }
     }
 

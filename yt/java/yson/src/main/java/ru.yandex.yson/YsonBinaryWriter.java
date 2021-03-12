@@ -3,6 +3,7 @@ package ru.yandex.yson;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 
 import javax.annotation.Nonnull;
 
@@ -51,13 +52,14 @@ public class YsonBinaryWriter implements ClosableYsonConsumer {
     }
 
     @Override
-    public void onString(@Nonnull byte[] value) {
+    public void onString(@Nonnull byte[] value, int offset, int length) {
         try {
             flushIfNotAvailable(1 + VarintUtils.MAX_VARINT32_SIZE);
 
             buffer[position++] = YsonTags.BINARY_STRING;
-            writeSInt32Unchecked(value.length);
-            writeRawBytesChecked(value);
+            writeSInt32Unchecked(length);
+            // TODO: improve performance
+            writeRawBytesChecked(Arrays.copyOfRange(value, offset, offset + length));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -154,10 +156,10 @@ public class YsonBinaryWriter implements ClosableYsonConsumer {
     }
 
     @Override
-    public void onKeyedItem(@Nonnull byte[] key) {
+    public void onKeyedItem(@Nonnull byte[] key, int offset, int length) {
         try {
             writeItemSeparator();
-            onString(key);
+            onString(key, offset, length);
             writeByteChecked(YsonTags.KEY_VALUE_SEPARATOR);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
