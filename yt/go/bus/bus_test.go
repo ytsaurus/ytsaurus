@@ -43,6 +43,7 @@ func TestBusPingPong(t *testing.T) {
 		[]byte("ping"),
 		[]byte("pong"),
 		[]byte(""),
+		nil,
 	}
 
 	err = busA.Send(guid.New(), message, &busSendOptions{})
