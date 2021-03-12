@@ -27,12 +27,6 @@ void SetCurrentFiberId(TFiberId id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Thrown when a fiber is being terminated by an external event.
-class TFiberCanceledException
-{ };
-
-////////////////////////////////////////////////////////////////////////////////
-
 void PushContextHandler(std::function<void()> out, std::function<void()> in);
 void PopContextHandler();
 

@@ -28,6 +28,12 @@ namespace NConcurrency {
 // scheduler.h
 TCallback<void(const TError&)> GetCurrentFiberCanceler();
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Thrown when a fiber is being terminated by an external event.
+class TFiberCanceledException
+{ };
+
 } // namespace NConcurrency
 
 namespace NDetail {
@@ -683,6 +689,8 @@ void InterceptExceptions(const TPromise<T>& promise, const F& func)
         promise.Set(ex.Error());
     } catch (const std::exception& ex) {
         promise.Set(TError(ex));
+    } catch (NConcurrency::TFiberCanceledException& ) {
+        promise.Set(MakeAbandonedError());
     }
 }
 
