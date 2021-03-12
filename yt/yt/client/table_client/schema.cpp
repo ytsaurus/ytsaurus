@@ -141,11 +141,11 @@ ESimpleLogicalValueType TColumnSchema::CastToV1Type() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunColumnSchemaPostprocessor(
+static void RunColumnSchemaPostprocessor(
     TColumnSchema& schema,
     std::optional<ESimpleLogicalValueType> logicalTypeV1,
     std::optional<bool> requiredV1,
-    TLogicalTypePtr logicalTypeV3)
+    const TLogicalTypePtr& logicalTypeV3)
 {
     // Name
     if (schema.Name().empty()) {
@@ -359,7 +359,7 @@ void Deserialize(TColumnSchema& schema, NYson::TYsonPullParserCursor* cursor)
         }
     });
 
-    RunColumnSchemaPostprocessor(schema, logicalTypeV1, requiredV1, std::move(logicalTypeV3));
+    RunColumnSchemaPostprocessor(schema, logicalTypeV1, requiredV1, logicalTypeV3);
 }
 
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)

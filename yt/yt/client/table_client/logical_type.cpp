@@ -1665,7 +1665,7 @@ void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
                 wrapper.LogicalType = SimpleLogicalType(arg);
             } else {
                 static_assert(std::is_same_v<T, ELogicalMetatype> || std::is_same_v<T, TV3Variant>);
-                THROW_ERROR_EXCEPTION("Type %Qv must be represented by map not a string",
+                THROW_ERROR_EXCEPTION("Type %Qv must be represented by map, not a string",
                     typeNameString);
             }
         }, typeName);
@@ -1792,7 +1792,7 @@ void DeserializeV3(TLogicalTypePtr& type, NYson::TYsonPullParserCursor* cursor)
                 type = SimpleLogicalType(arg);
             } else {
                 static_assert(std::is_same_v<T, ELogicalMetatype> || std::is_same_v<T, TV3Variant>);
-                THROW_ERROR_EXCEPTION("Type %Qv must be represented by map not a string",
+                THROW_ERROR_EXCEPTION("Type %Qv must be represented by map, not a string",
                     typeNameString);
             }
         }, typeName);
