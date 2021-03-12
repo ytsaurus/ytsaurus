@@ -637,8 +637,11 @@ def enable_python_job_processing_for_standalone_binary():
     This function used as entry point if yt library built in python/program from arcadia.
     """
     global SINGLE_INDEPENDENT_BINARY_CASE
+    # Check whether we inside job or not.
     if os.environ.get("YT_FORBID_REQUESTS_FROM_JOB"):
-        if getattr(sys, "is_standalone_binary", False):
+        is_standalone_binary = SINGLE_INDEPENDENT_BINARY_CASE or \
+            (SINGLE_INDEPENDENT_BINARY_CASE is None and getattr(sys, "is_standalone_binary", False))
+        if is_standalone_binary:
             process_rows(sys.argv[1], sys.argv[2], start_time=None)
         else:
             run_py_runner()
