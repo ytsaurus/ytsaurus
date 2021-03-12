@@ -38,6 +38,7 @@ const (
 	packetFlagsRequestAcknowledgement = packetFlags(0x0001)
 
 	packetSignature = uint32(0x78616d4f)
+	nullPartSize    = uint32(0xffffffff)
 	maxPartSize     = 512 * 1024 * 1024
 	maxPartCount    = 64
 	fixHeaderSize   = 36
@@ -124,7 +125,11 @@ func newMessagePacket(id guid.GUID, data [][]byte, flags packetFlags, computeCRC
 	}
 
 	for i, p := range data {
-		varHdr.sizes[i] = uint32(len(p))
+		if p == nil {
+			varHdr.sizes[i] = nullPartSize
+		} else {
+			varHdr.sizes[i] = uint32(len(p))
+		}
 
 		if computeCRC {
 			varHdr.checksums[i] = crc64.Checksum(p)
@@ -309,15 +314,18 @@ func (c *Bus) receive(message io.Reader) (busMsg, error) {
 
 	parts := make([][]byte, fixHeader.partCount)
 	for i, partSize := range varHeader.sizes {
-		if partSize > maxPartSize {
-			return busMsg{}, fmt.Errorf("bus: part is to big, max %v, actual %v", maxPartSize, partSize)
-		}
+		var part []byte
+		if partSize != nullPartSize {
+			if partSize > maxPartSize {
+				return busMsg{}, fmt.Errorf("bus: part is to big, max %v, actual %v", maxPartSize, partSize)
+			}
 
-		part := make([]byte, partSize)
-		if _, err := io.ReadFull(message, part); err != nil {
-			return busMsg{}, err
+			part = make([]byte, partSize)
+			if _, err := io.ReadFull(message, part); err != nil {
+				return busMsg{}, err
+			}
+			parts[i] = part
 		}
-		parts[i] = part
 
 		if varHeader.checksums[i] != crc64.Checksum(part) {
 			return busMsg{}, fmt.Errorf("bus: part checksum mismatch")
