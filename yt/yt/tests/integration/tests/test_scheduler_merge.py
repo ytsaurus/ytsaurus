@@ -2438,3 +2438,25 @@ class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
             }
         }
     }
+
+    @authors("max42")
+    def test_tricky_teleport(self):
+        # YT-14485.
+        # This test fails in legacy implementation of sorted pool.
+
+        create("table", "//tmp/t_in", attributes={"schema": [
+            {"name": "k", "type": "int64", "sort_order": "ascending"}
+        ]})
+        create("table", "//tmp/t_out", attributes={"schema": [
+            {"name": "k", "type": "int64", "sort_order": "ascending"}
+        ]})
+        write_table("<append=%true>//tmp/t_in", [{"k": 0}, {"k": 2}])
+        write_table("<append=%true>//tmp/t_in", [{"k": 2}, {"k": 2}])
+        write_table("<append=%true>//tmp/t_in", [{"k": 2}, {"k": 4}])
+
+        merge(
+            in_=["//tmp/t_in", "//tmp/t_in"],
+            out="//tmp/t_out",
+            mode="sorted"
+        )
+        assert read_table("//tmp/t_out") == [{"k": 0}] * 2 + [{"k": 2}] * 8 + [{"k": 4}] * 2
