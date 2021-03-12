@@ -2302,11 +2302,11 @@ private:
         Results_[index] = result;
 
         int newIndex = CurrentIndex_++;
-        if (newIndex < Callbacks_.size()) {
+        if (newIndex < static_cast<ssize_t>(Callbacks_.size())) {
             RunCallback(newIndex);
         }
 
-        if (++FinishedCount_ == Callbacks_.size()) {
+        if (++FinishedCount_ == static_cast<ssize_t>(Callbacks_.size())) {
             Promise_.Set(Results_);
         }
     }
