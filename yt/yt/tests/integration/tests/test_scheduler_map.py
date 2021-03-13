@@ -1599,6 +1599,43 @@ done
 """
         )
 
+    @authors("gritukan")
+    def test_block_cache(self):
+        if self.Env.get_component_version("ytserver-job-proxy").abi <= (20, 3):
+            pytest.skip()
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (20, 3):
+            pytest.skip()
+
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", [{"x": i, "y": "A" * 10000} for i in range(100)])
+
+        input_tables = ["//tmp/in[#{}:#{}]".format(i, i + 1) for i in range(100)]
+
+        op = map(
+            in_=input_tables,
+            out="//tmp/out",
+            command="grep xx || true",
+            spec={
+                "job_count": 1,
+                "job_io": {
+                    "table_reader": {
+                        "use_async_block_cache": True,
+                    },
+                    "block_cache": {
+                        "compressed_data": {
+                            "capacity": 1024 ** 2
+                        },
+                    },
+                },
+            },
+        )
+        op.track()
+
+        statistics = get(op.get_path() + "/@progress/job_statistics")
+        read_from_disk = get_statistics(statistics, "chunk_reader_statistics.data_bytes_read_from_disk.$.completed.map.sum")
+        read_from_cache = get_statistics(statistics, "chunk_reader_statistics.data_bytes_read_from_cache.$.completed.map.sum")
+        assert read_from_cache == 99 * read_from_disk
 
 ##################################################################
 

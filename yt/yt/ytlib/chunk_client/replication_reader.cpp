@@ -1313,6 +1313,17 @@ private:
     //! Maps peer addresses to block indexes.
     THashMap<TString, THashSet<int>> PeerBlocksMap_;
 
+    struct TBlockWithCookie
+    {
+        int BlockIndex;
+        std::unique_ptr<ICachedBlockCookie> Cookie;
+
+        TBlockWithCookie(int blockIndex, std::unique_ptr<ICachedBlockCookie> cookie)
+            : BlockIndex(blockIndex)
+            , Cookie(std::move(cookie))
+        { }
+    };
+
     virtual bool IsCanceled() const override
     {
         return Promise_.IsCanceled();
@@ -1355,21 +1366,6 @@ private:
         }
 
         return false;
-    }
-
-    void FetchBlocksFromCache(const TReplicationReaderPtr& reader)
-    {
-        for (int blockIndex : BlockIndexes_) {
-            if (Blocks_.find(blockIndex) == Blocks_.end()) {
-                TBlockId blockId(ChunkId_, blockIndex);
-                auto block = reader->BlockCache_->FindBlock(blockId, EBlockType::CompressedData).Block;
-                if (block) {
-                    YT_LOG_DEBUG("Block is fetched from cache (Block: %v)", blockIndex);
-                    YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
-                    SessionOptions_.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
-                }
-            }
-        }
     }
 
     void RequestBlocks()
@@ -1432,12 +1428,80 @@ private:
             return;
         }
 
-        FetchBlocksFromCache(reader);
-
         auto blockIndexes = GetUnfetchedBlockIndexes();
         if (blockIndexes.empty()) {
             OnSessionSucceeded();
             return;
+        }
+
+        std::vector<TBlockWithCookie> cachedBlocks;
+        std::vector<TBlockWithCookie> uncachedBlocks;
+
+        const auto& blockCache = reader->BlockCache_;
+        for (int blockIndex : blockIndexes) {
+            TBlockId blockId(ChunkId_, blockIndex);
+            if (reader->Config_->UseAsyncBlockCache) {
+                auto cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
+                if (cookie->IsActive()) {
+                    uncachedBlocks.push_back(TBlockWithCookie(blockIndex, std::move(cookie)));
+                } else {
+                    cachedBlocks.push_back(TBlockWithCookie(blockIndex, std::move(cookie)));
+                }
+            } else {
+                auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData);
+                if (block.Block) {
+                    cachedBlocks.push_back(TBlockWithCookie(blockIndex, CreatePresetCachedBlockCookie(block)));
+                } else {
+                    uncachedBlocks.push_back(TBlockWithCookie(blockIndex, CreateActiveCachedBlockCookie()));
+                }
+            }
+        }
+
+        bool requestMoreBlocks = true;
+        if (!uncachedBlocks.empty()) {
+            requestMoreBlocks = FetchBlocksFromNodes(
+                reader,
+                uncachedBlocks);
+        }
+
+        for (const auto& block : cachedBlocks) {
+            int blockIndex = block.BlockIndex;
+            const auto& blockCookie = block.Cookie;
+
+            auto blockOrError = WaitFor(blockCookie->GetBlockFuture());
+            if (blockOrError.IsOK()) {
+                YT_LOG_DEBUG("Fetched block from block cache (BlockIndex: %v)",
+                    blockIndex);
+
+                const auto& block = blockOrError.Value().Block;
+                YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
+                SessionOptions_.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
+            }
+        }
+
+        if (requestMoreBlocks) {
+            RequestBlocks();
+        }
+    }
+
+    //! Fetches blocks from nodes and adds them to block cache via cookies.
+    //! Returns |True| if more blocks can be requested and |False| otherwise.
+    bool FetchBlocksFromNodes(
+        const TReplicationReaderPtr& reader,
+        const std::vector<TBlockWithCookie>& blocks)
+    {
+        auto cancelAll = [&] (const TError& error) {
+            for (const auto& block : blocks) {
+                // NB: Setting cookie twice is OK. Only the first value
+                // will be used.
+                block.Cookie->SetBlock(error);
+            }
+        };
+
+        std::vector<int> blockIndexes;
+        blockIndexes.reserve(blocks.size());
+        for (const auto& block : blocks) {
+            blockIndexes.push_back(block.BlockIndex);
         }
 
         TPeerList candidates;
@@ -1457,13 +1521,15 @@ private:
 
         if (candidates.empty()) {
             OnPassCompleted();
-            return;
+            cancelAll(TError("No peer candidates were found"));
+            return false;
         }
 
         // One extra request for actually getting blocks.
         // Hedging requests are disregarded.
         if (!SyncThrottle(reader->RpsThrottler_, 1 + candidates.size())) {
-            return;
+            cancelAll(TError("Failed to apply throttling in reader"));
+            return false;
         }
 
         auto peers = ProbeAndSelectBestPeers(
@@ -1479,8 +1545,8 @@ private:
             ReaderConfig_->BlockRpcHedgingDelay,
             ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging);
         if (!channel) {
-            RequestBlocks();
-            return;
+            cancelAll(TError("No peers were selected"));
+            return true;
         }
 
         if (!IsAddressLocal(peers[0].AddressWithNetwork.Address) && BytesThrottled_ == 0 && EstimatedSize_) {
@@ -1490,7 +1556,8 @@ private:
             // If estimated size was not given, we fallback to post-throttling on actual received size.
             BytesThrottled_ = *EstimatedSize_;
             if (!SyncThrottle(reader->BandwidthThrottler_, *EstimatedSize_)) {
-                return;
+                cancelAll(TError("Failed to apply throttling in reader"));
+                return false;
             }
         }
 
@@ -1520,12 +1587,13 @@ private:
         const auto& respondedPeer = backup ? peers[1] : peers[0];
 
         if (!rspOrError.IsOK()) {
+            auto wrappingError = TError("Error fetching blocks from node %v", respondedPeer.AddressWithNetwork);
             ProcessError(
                 rspOrError,
                 respondedPeer.AddressWithNetwork.Address,
-                TError("Error fetching blocks from node %v", respondedPeer.AddressWithNetwork));
-            RequestBlocks();
-            return;
+                wrappingError);
+            cancelAll(wrappingError << rspOrError);
+            return true;
         }
 
         const auto& rsp = rspOrError.Value();
@@ -1556,9 +1624,9 @@ private:
         int invalidBlockCount = 0;
         std::vector<int> receivedBlockIndexes;
 
-        auto blocks = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
-        for (int index = 0; index < blocks.size(); ++index) {
-            const auto& block = blocks[index];
+        auto response = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
+        for (int index = 0; index < response.size(); ++index) {
+            const auto& block = response[index];
             if (!block) {
                 continue;
             }
@@ -1582,7 +1650,8 @@ private:
                 ? std::optional<TNodeDescriptor>(GetPeerDescriptor(respondedPeer.AddressWithNetwork.Address))
                 : std::optional<TNodeDescriptor>(std::nullopt);
 
-            reader->BlockCache_->PutBlock(blockId, EBlockType::CompressedData, block, sourceDescriptor);
+            TCachedBlock cachedBlock(block, sourceDescriptor);
+            blocks[index].Cookie->SetBlock(cachedBlock);
 
             YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
             bytesReceived += block.Size();
@@ -1614,11 +1683,13 @@ private:
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
             if (!SyncThrottle(reader->BandwidthThrottler_, delta)) {
-                return;
+                cancelAll(TError("Failed to apply throttling in reader"));
+                return false;
             }
         }
 
-        RequestBlocks();
+        cancelAll(TError("Block was not sent by node"));
+        return true;
     }
 
     void OnSessionSucceeded()

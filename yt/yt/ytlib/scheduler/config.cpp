@@ -151,6 +151,9 @@ TJobIOConfig::TJobIOConfig()
         .Default(1)
         .GreaterThan(0);
 
+    RegisterParameter("block_cache", BlockCache)
+        .DefaultNew();
+
     RegisterParameter("testing_options", Testing)
         .DefaultNew();
 
