@@ -76,7 +76,9 @@ i64 GetInputIOMemorySize(
 
     i64 maxBufferSize = std::max(ioConfig->TableReader->MaxBufferSize, 2 * stat.MaxBlockSize);
 
-    return std::min(bufferSize, maxBufferSize) + stat.ChunkCount * ChunkSpecOverhead;
+    i64 blockCacheSize = ioConfig->BlockCache->CompressedData->Capacity + ioConfig->BlockCache->UncompressedData->Capacity;
+
+    return std::min(bufferSize, maxBufferSize) + stat.ChunkCount * ChunkSpecOverhead + blockCacheSize;
 }
 
 i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)

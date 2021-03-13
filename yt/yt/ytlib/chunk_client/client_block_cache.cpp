@@ -72,6 +72,10 @@ public:
 
     virtual void SetBlock(TErrorOr<TCachedBlock> blockOrError) override
     {
+        if (BlockSet_.exchange(true)) {
+            return;
+        }
+
         if (blockOrError.IsOK()) {
             const auto& block = blockOrError.Value();
             auto entry = New<TAsyncBlockCacheEntry>(Cookie_.GetKey(), block);
@@ -83,6 +87,7 @@ public:
 
 private:
     TAsyncCacheCookie Cookie_;
+    std::atomic<bool> BlockSet_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

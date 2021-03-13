@@ -424,6 +424,8 @@ public:
 
     int PipeIOPoolSize;
 
+    NChunkClient::TBlockCacheConfigPtr BlockCache;
+
     class TTestingOptions
         : public TYsonSerializable
     {

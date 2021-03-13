@@ -133,6 +133,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
 
+    NChunkClient::IBlockCachePtr ReaderBlockCache_;
 
     void SetJob(IJobPtr job);
     IJobPtr FindJob() const;

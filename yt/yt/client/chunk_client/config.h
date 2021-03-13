@@ -233,6 +233,10 @@ public:
     // COMPAT(babenko): replace with 'true' once all clusters support ProbeBlockSet
     bool EnableProbeBlockSet;
 
+    //! If |true| block cache will be accessed via asynchronous interface, if |false|
+    //! synchronous interface will be used.
+    bool UseAsyncBlockCache;
+
     TReplicationReaderConfig()
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
@@ -306,6 +310,8 @@ public:
             .Default(5);
         RegisterParameter("enable_probe_block_set", EnableProbeBlockSet)
             .Default(true);
+        RegisterParameter("use_async_block_cache", UseAsyncBlockCache)
+            .Default(false);
 
         RegisterPostprocessor([&] {
             // Seems unreasonable to make backoff greater than half of total session timeout.

@@ -48,6 +48,7 @@
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
@@ -319,6 +320,11 @@ void TJobProxy::RetrieveJobSpec()
             annotations.begin(),
             annotations.end());
     }
+
+    ReaderBlockCache_ = CreateClientBlockCache(
+        GetJobSpecHelper()->GetJobIOConfig()->BlockCache,
+        EBlockType::CompressedData | EBlockType::UncompressedData,
+        GetNullMemoryUsageTracker());
 }
 
 void TJobProxy::Run()
@@ -862,7 +868,7 @@ NApi::NNative::IClientPtr TJobProxy::GetClient() const
 
 IBlockCachePtr TJobProxy::GetReaderBlockCache() const
 {
-    return GetNullBlockCache();
+    return ReaderBlockCache_;
 }
 
 IBlockCachePtr TJobProxy::GetWriterBlockCache() const
