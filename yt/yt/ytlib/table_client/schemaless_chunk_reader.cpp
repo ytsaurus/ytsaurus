@@ -1043,6 +1043,8 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
         PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
     }
 
+    DataWeight_ += dataWeight;
+
     return success
         ? CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)))
         : nullptr;
