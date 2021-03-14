@@ -140,6 +140,10 @@ void TSolomonExporter::Register(const TString& prefix, const NHttp::IServerPtr& 
 
 void TSolomonExporter::Start()
 {
+    if (Config_->ThreadPoolSize > 0) {
+        ThreadPool_ = New<TThreadPool>(Config_->ThreadPoolSize, "SolomonExporter");
+    }
+
     Collector_ = BIND([this, thiz=MakeStrong(this)] {
         try {
             DoCollect();
@@ -161,6 +165,10 @@ void TSolomonExporter::Stop()
 
     if (Config_->EnableCoreProfilingCompatibility) {
         CoreProfilingPusher_->Stop();
+    }
+
+    if (ThreadPool_) {
+        ThreadPool_->Shutdown();
     }
 }
 
@@ -190,7 +198,7 @@ void TSolomonExporter::DoCollect()
         auto i = Registry_->IndexOf(Registry_->GetNextIteration());
         {
             TForbidContextSwitchGuard guard;
-            Registry_->Collect();
+            Registry_->Collect(ThreadPool_ ? ThreadPool_->GetInvoker() : GetSyncInvoker());
         }
 
         Window_.emplace_back(i, nextGridTime);

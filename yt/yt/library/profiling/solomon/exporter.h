@@ -3,6 +3,7 @@
 #include "public.h"
 #include "registry.h"
 
+#include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/actions/public.h>
@@ -44,6 +45,8 @@ struct TSolomonExporterConfig
 
     int WindowSize;
 
+    int ThreadPoolSize;
+
     bool ConvertCountersToRate;
 
     bool ExportSummary;
@@ -78,6 +81,9 @@ struct TSolomonExporterConfig
 
         RegisterParameter("window_size", WindowSize)
             .Default(12);
+
+        RegisterParameter("thread_pool_size", ThreadPoolSize)
+            .Default(0);
 
         RegisterParameter("convert_counters_to_rate", ConvertCountersToRate)
             .Default(true);
@@ -159,6 +165,8 @@ private:
     const TSolomonExporterConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const TSolomonRegistryPtr Registry_;
+    
+    NConcurrency::TThreadPoolPtr ThreadPool_;
 
     TFuture<void> Collector_;
     std::vector<std::pair<int, TInstant>> Window_;
