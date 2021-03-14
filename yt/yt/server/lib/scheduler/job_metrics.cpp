@@ -164,8 +164,8 @@ bool TJobMetrics::IsEmpty() const
 
 void TJobMetrics::Profile(NProfiling::ISensorWriter* writer) const
 {
+    // NB(renadeen): you cannot use EMetricType::Gauge here.
     for (auto metricName : TEnumTraits<EJobMetricName>::GetDomainValues()) {
-        // TODO(prime@): This makes no sense for most metric types.
         writer->AddCounter("/metrics/" + FormatEnum(metricName), Values_[metricName]);
     }
 
@@ -173,8 +173,7 @@ void TJobMetrics::Profile(NProfiling::ISensorWriter* writer) const
         if (jobMetriDescription.AggregateType != EAggregateType::Sum) {
             continue;
         }
-
-        writer->AddGauge("/metrics/" + jobMetriDescription.ProfilingName, value);
+        writer->AddCounter("/metrics/" + jobMetriDescription.ProfilingName, value);
     }
 }
 
@@ -183,7 +182,6 @@ void TJobMetrics::Profile(
     const TString& prefix,
     const NProfiling::TTagIdList& tagIds) const
 {
-    // NB(renadeen): you cannot use EMetricType::Gauge here.
     for (auto metricName : TEnumTraits<EJobMetricName>::GetDomainValues()) {
         auto profilingName = prefix + "/" + FormatEnum(metricName);
         accumulator.Add(profilingName, Values_[metricName], EMetricType::Counter, tagIds);
