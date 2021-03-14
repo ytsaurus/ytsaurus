@@ -201,7 +201,7 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
 
     for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
-        if (!entry.Cached) {
+        if (entry.Cookie) {
             entry.Cookie->SetBlock(error);
         }
     }
