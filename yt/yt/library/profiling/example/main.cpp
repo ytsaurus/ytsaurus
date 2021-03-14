@@ -67,6 +67,9 @@ int main(int argc, char* argv[])
         // Deprecated option. Enabled for testing.
         config->EnableCoreProfilingCompatibility = true;
 
+        // Offload sensor processing to the thread pool.
+        config->ThreadPoolSize = 16;
+
         auto exporter = New<TSolomonExporter>(config, actionQueue->GetInvoker());
         exporter->Register("/solomon", server);
         exporter->Start();

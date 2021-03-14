@@ -5,6 +5,8 @@
 #include "producer.h"
 #include "tag_registry.h"
 
+#include <yt/core/actions/invoker_util.h>
+
 #include <yt/yt/core/misc/lock_free.h>
 
 #include <yt/yt/core/concurrency/spinlock.h>
@@ -17,6 +19,16 @@
 #include <yt/yt/library/profiling/impl.h>
 
 namespace NYT::NProfiling {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSensorInfo
+{
+    TString Name;
+    int ObjectCount;
+    int CubeSize;
+    TError Error;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +106,7 @@ public:
 
     void SetWindowSize(int windowSize);
     void ProcessRegistrations();
-    void Collect();
+    void Collect(IInvokerPtr offloadInvoker = GetSyncInvoker());
     void ReadSensors(
         const TReadOptions& options,
         ::NMonitoring::IMetricConsumer* consumer) const;

@@ -17,7 +17,6 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSolomonRegistry::TSolomonRegistry()
-    : Producers_(&Tags_, Iteration_)
 { }
 
 template <class TBase, class TSimple, class TPerCpu, class TFn>
@@ -194,7 +193,7 @@ void TSolomonRegistry::RegisterProducer(
     const ISensorProducerPtr& producer)
 {
     DoRegister([this, prefix, tags, options, producer] () {
-        Producers_.AddProducer(New<TProducerState>(prefix, producer, options, Tags_.Encode(tags), tags));
+        Producers_.AddProducer(New<TProducerState>(prefix, tags, options, producer));
     });
 }
 
@@ -220,7 +219,6 @@ void TSolomonRegistry::SetWindowSize(int windowSize)
     }
 
     WindowSize_ = windowSize;
-    Producers_.SetWindowSize(windowSize);
 }
 
 int TSolomonRegistry::GetWindowSize() const
@@ -287,27 +285,41 @@ void TSolomonRegistry::Disable()
 void TSolomonRegistry::ProcessRegistrations()
 {
     GetWindowSize();
-    RegistrationCount_.Increment();
 
     RegistrationQueue_.DequeueAll(false, [this] (const std::function<void()>& fn) {
+        RegistrationCount_.Increment();
+
         fn();
 
         TagCount_.Update(Tags_.GetSize());
     });
 }
 
-void TSolomonRegistry::Collect()
+void TSolomonRegistry::Collect(IInvokerPtr offloadInvoker)
 {
-    i64 projectionCount = 0;
+    Producers_.Collect(MakeStrong(this), offloadInvoker);
+    ProcessRegistrations();
+
+    auto projectionCount = std::make_shared<std::atomic<int>>(0);
+
+    std::vector<TFuture<void>> offload;
     for (auto& [name, set] : Sensors_) {
-        auto start = TInstant::Now();
-        projectionCount += set.Collect();
-        SensorCollectDuration_.Record(TInstant::Now() - start);
+        auto future = BIND([sensorSet=&set, projectionCount, collectDuration=SensorCollectDuration_] {
+            auto start = TInstant::Now();
+            *projectionCount += sensorSet->Collect();
+            collectDuration.Record(TInstant::Now() - start);
+        })
+            .AsyncVia(offloadInvoker)
+            .Run();
+
+        offload.push_back(future);
     }
 
-    projectionCount += Producers_.Collect();
+    for (const auto& future : offload) {
+        future.Get();
+    }
 
-    ProjectionCount_.Update(projectionCount);
+    ProjectionCount_.Update(*projectionCount);
     Iteration_++;
 }
 
@@ -333,8 +345,6 @@ void TSolomonRegistry::ReadSensors(
         set.ReadSensors(name, readOptions, Tags_, consumer);
         ReadDuration_.Record(TInstant::Now() - start);
     }
-
-    Producers_.ReadSensors(readOptions, consumer);
 }
 
 void TSolomonRegistry::ReadRecentSensorValue(
@@ -357,8 +367,6 @@ void TSolomonRegistry::ReadRecentSensorValue(
             const auto& set = it->second;
             valuesRead += set.ReadSensorValues(*tagIds, index, options, fluent);
         }
-
-        valuesRead += Producers_.ReadSensorValues(name, *tagIds, index, options, fluent);
     }
 
     if (valuesRead == 0) {
@@ -379,7 +387,7 @@ void TSolomonRegistry::ReadRecentSensorValue(
 
 std::vector<TSensorInfo> TSolomonRegistry::ListSensors() const
 {
-    auto list = Producers_.ListSensors();
+    std::vector<TSensorInfo> list;
     for (const auto& [name, set] : Sensors_) {
         list.push_back(TSensorInfo{name, set.GetObjectCount(), set.GetCubeSize(), set.GetError()});
     }
@@ -409,8 +417,6 @@ void TSolomonRegistry::LegacyReadSensors()
     for (auto [name, set] : Sensors_) {
         set.LegacyReadSensors(name, &Tags_);
     }
-
-    Producers_.LegacyReadSensors();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
