@@ -394,6 +394,10 @@ void TSensorSet::OnError(TError error)
 
 void TSensorSet::InitializeType(int type)
 {
+    if (Options_.DisableProjections) {
+        return;
+    }
+
     if (Type_ && *Type_ != type) {
         OnError(TError("Conflicting sensor types")
             << TErrorAttribute("expected", *Type_)
