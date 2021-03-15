@@ -12,7 +12,7 @@ import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.system.SystemUtils
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector
 import ru.yandex.yt.ytclient.proxy.internal.{DiscoveryMethod, HostPort}
-import ru.yandex.yt.ytclient.proxy.{YtClient, YtCluster}
+import ru.yandex.yt.ytclient.proxy.{CompoundClient, YtClient, YtCluster}
 import ru.yandex.yt.ytclient.rpc.RpcOptions
 
 import scala.concurrent.duration.Duration
@@ -39,7 +39,7 @@ trait YtClientUtils {
   }
 
   private def createYtClient(id: String, timeout: Duration)
-                            (client: (DefaultBusConnector, RpcOptions) => YtClient): YtRpcClient = {
+                            (client: (DefaultBusConnector, RpcOptions) => CompoundClient): YtRpcClient = {
     val connector = new DefaultBusConnector(new NioEventLoopGroup(1), true)
       .setReadTimeout(toJavaDuration(timeout))
       .setWriteTimeout(toJavaDuration(timeout))
@@ -49,15 +49,8 @@ trait YtClientUtils {
       rpcOptions.setTimeouts(timeout)
 
       val yt = client(connector, rpcOptions)
-      try {
-        yt.waitProxies.join
-        log.info(s"YtClient $id created")
-        YtRpcClient(id, yt, connector)
-      } catch {
-        case e: Throwable =>
-          yt.close()
-          throw e
-      }
+      log.info(s"YtClient $id created")
+      YtRpcClient(id, yt, connector)
     } catch {
       case e: Throwable =>
         connector.close()
@@ -67,7 +60,7 @@ trait YtClientUtils {
 
   private def createYtClient(config: YtClientConfiguration,
                              connector: DefaultBusConnector,
-                             rpcOptions: RpcOptions): YtClient = {
+                             rpcOptions: RpcOptions): CompoundClient = {
     byopLocalEndpoint(config) match {
       case Some(byop) =>
         log.info(s"Create local BYOP client with config $byop")
@@ -126,7 +119,7 @@ trait YtClientUtils {
   private def createByopLocalProxyClient(connector: DefaultBusConnector,
                                          rpcOptions: RpcOptions,
                                          config: YtClientConfiguration,
-                                         byopEndpoint: HostAndPort): YtClient = {
+                                         byopEndpoint: HostAndPort): SingleProxyYtClient = {
     new SingleProxyYtClient(
       connector,
       config.rpcCredentials,
@@ -145,12 +138,25 @@ trait YtClientUtils {
       new JArrayList(),
       toOptional(config.proxyRole))
 
-    new YtClient(
+    val client = new YtClient(
       connector,
       cluster,
       config.rpcCredentials,
       rpcOptions
     )
+
+    initYtClient(client)
+  }
+
+  private def initYtClient(client: YtClient): YtClient = {
+    try {
+      client.waitProxies.join
+      client
+    } catch {
+      case e: Throwable =>
+        client.close()
+        throw e
+    }
   }
 
   private def createByopRemoteProxiesClient(connector: DefaultBusConnector,
@@ -165,12 +171,14 @@ trait YtClientUtils {
 
     rpcOptions.setPreferableDiscoveryMethod(DiscoveryMethod.HTTP)
 
-    new YtClient(
+    val client = new YtClient(
       connector,
       cluster,
       config.rpcCredentials,
       rpcOptions
     )
+
+    initYtClient(client)
   }
 
   def createHttpClient(config: YtClientConfiguration): Yt = {

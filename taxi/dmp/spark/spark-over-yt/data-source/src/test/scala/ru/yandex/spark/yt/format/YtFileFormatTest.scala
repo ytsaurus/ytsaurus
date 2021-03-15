@@ -23,7 +23,8 @@ import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils with MockitoSugar with TableDrivenPropertyChecks {
+class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
+  with TmpDir with TestUtils with MockitoSugar with TableDrivenPropertyChecks {
 
   import spark.implicits._
 

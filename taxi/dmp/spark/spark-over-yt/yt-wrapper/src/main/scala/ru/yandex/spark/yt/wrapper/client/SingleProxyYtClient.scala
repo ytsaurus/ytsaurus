@@ -1,14 +1,15 @@
 package ru.yandex.spark.yt.wrapper.client
 
-import java.util
+import java.net.InetSocketAddress
 import java.util.concurrent.CompletableFuture
 
+import com.google.protobuf.MessageLite
 import io.netty.channel.nio.NioEventLoopGroup
 import ru.yandex.spark.yt.wrapper.YtJavaConverters.toJavaDuration
 import ru.yandex.yt.ytclient.bus.{BusConnector, DefaultBusConnector}
-import ru.yandex.yt.ytclient.proxy.internal.{FailureDetectingRpcClient, HostPort, RpcClientFactory, RpcClientFactoryImpl}
-import ru.yandex.yt.ytclient.proxy.{YtClient, YtCluster}
-import ru.yandex.yt.ytclient.rpc.{RpcClient, RpcCompression, RpcCredentials, RpcError, RpcOptions}
+import ru.yandex.yt.ytclient.proxy.CompoundClient
+import ru.yandex.yt.ytclient.proxy.internal.HostPort
+import ru.yandex.yt.ytclient.rpc._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -16,17 +17,29 @@ import scala.language.postfixOps
 class SingleProxyYtClient(connector: BusConnector,
                           rpcCredentials: RpcCredentials,
                           rpcOptions: RpcOptions,
-                          address: HostPort) extends
-  YtClient(connector, new util.ArrayList[YtCluster](), "single_proxy", rpcCredentials, rpcOptions) {
+                          address: HostPort) extends CompoundClient(connector.executorService(), rpcOptions) {
 
-  private lazy val rpcClientFactory = new RpcClientFactoryImpl(connector, rpcCredentials, new RpcCompression)
-  private lazy val client = rpcClientFactory.create(address, "single_proxy")
+  private val client = SingleProxyYtClient.createClient(address, connector, rpcCredentials)
+  private val rpcClientPool = new RpcClientPool {
+    override def peekClient(completableFuture: CompletableFuture[_]): CompletableFuture[RpcClient] = {
+      CompletableFuture.completedFuture(client)
+    }
+  }
 
-  override def waitProxiesImpl(): CompletableFuture[Void] = CompletableFuture.completedFuture(null)
+  override def invoke[RequestType <: MessageLite.Builder, ResponseType]
+  (builder: RpcClientRequestBuilder[RequestType, ResponseType]): CompletableFuture[ResponseType] = {
+    builder.invokeVia(connector.executorService(), rpcClientPool)
+  }
 
-  override def selectDestinations(): util.List[RpcClient] = {
-    import scala.collection.JavaConverters._
-    Seq(client).asJava
+  override def startStream[RequestType <: MessageLite.Builder, ResponseType]
+  (builder: RpcClientRequestBuilder[RequestType, ResponseType],
+   consumer: RpcStreamConsumer): CompletableFuture[RpcClientStreamControl] = {
+    builder.startStream(connector.executorService(), rpcClientPool, consumer)
+  }
+
+
+  override def close(): Unit = {
+    client.close()
   }
 
   override def toString: String = {
@@ -45,5 +58,12 @@ object SingleProxyYtClient {
     rpcOptions.setTimeouts(300 seconds)
 
     new SingleProxyYtClient(connector, rpcCredentials, rpcOptions, HostPort.parse(address))
+  }
+
+  def createClient(address: HostPort,
+                   connector: BusConnector,
+                   rpcCredentials: RpcCredentials): RpcClient = {
+    new DefaultRpcBusClient(connector, new InetSocketAddress(address.getHost, address.getPort), "single_proxy")
+      .withTokenAuthentication(rpcCredentials)
   }
 }

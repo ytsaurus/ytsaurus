@@ -8,7 +8,7 @@ import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper._
 import ru.yandex.yt.rpcproxy.ETransactionType.TT_MASTER
 import ru.yandex.yt.ytclient.proxy.request.{GetLikeReq, MutateNode, TransactionalOptions, WriteFile}
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, ApiServiceTransactionOptions, YtClient}
+import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, ApiServiceTransactionOptions, CompoundClient}
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -22,12 +22,12 @@ trait YtTransactionUtils {
   private val log = LoggerFactory.getLogger(getClass)
 
   def createTransaction(timeout: JDuration, sticky: Boolean)
-                       (implicit yt: YtClient): ApiServiceTransaction = {
+                       (implicit yt: CompoundClient): ApiServiceTransaction = {
     createTransaction(None, toScalaDuration(timeout), sticky)
   }
 
   def createTransaction(parent: Option[String], timeout: Duration, sticky: Boolean = false)
-                       (implicit yt: YtClient): ApiServiceTransaction = {
+                       (implicit yt: CompoundClient): ApiServiceTransaction = {
     val options = new ApiServiceTransactionOptions(TT_MASTER)
       .setTimeout(toJavaDuration(timeout))
       .setSticky(sticky)
@@ -38,12 +38,12 @@ trait YtTransactionUtils {
     tr
   }
 
-  def abortTransaction(guid: String)(implicit yt: YtClient): Unit = {
-    yt.abortTransaction(GUID.valueOf(guid), true).join()
+  def abortTransaction(guid: String)(implicit yt: CompoundClient): Unit = {
+    yt.abortTransaction(GUID.valueOf(guid)).join()
   }
 
-  def commitTransaction(guid: String)(implicit yt: YtClient): Unit = {
-    yt.commitTransaction(GUID.valueOf(guid), true).join()
+  def commitTransaction(guid: String)(implicit yt: CompoundClient): Unit = {
+    yt.commitTransaction(GUID.valueOf(guid)).join()
   }
 
   type Cancellable[T] = (Promise[Unit], Future[T])
@@ -61,7 +61,7 @@ trait YtTransactionUtils {
   }
 
   def pingTransaction(tr: ApiServiceTransaction, interval: Duration)
-                     (implicit yt: YtClient, ec: ExecutionContext): Cancellable[Unit] = {
+                     (implicit yt: CompoundClient, ec: ExecutionContext): Cancellable[Unit] = {
     @tailrec
     def ping(cancel: Future[Unit], retry: Int): Unit = {
       try {

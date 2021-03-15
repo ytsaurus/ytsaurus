@@ -1,14 +1,15 @@
 package ru.yandex.spark.yt.wrapper.dyntable
 
 import java.io.ByteArrayOutputStream
+import java.time.{Duration => JDuration}
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
-import ru.yandex.yt.ytclient.proxy.YtClient
-import java.time.{Duration => JDuration}
+import ru.yandex.yt.ytclient.proxy.{CompoundClient, YtClient}
+import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys
 
 import scala.annotation.tailrec
 import scala.concurrent.TimeoutException
@@ -32,19 +33,19 @@ trait YtDynTableUtils {
     }
   }
 
-  def pivotKeysYson(path: String)(implicit yt: YtClient): Seq[YTreeNode] = {
+  def pivotKeysYson(path: String)(implicit yt: CompoundClient): Seq[YTreeNode] = {
     import scala.collection.JavaConverters._
     yt
-      .getTablePivotKeys(formatPath(path), toJavaDuration(5 minutes))
+      .getTablePivotKeys(new GetTablePivotKeys(formatPath(path)))
       .join()
       .asScala
   }
 
-  def pivotKeys(path: String)(implicit yt: YtClient): Seq[PivotKey] = {
+  def pivotKeys(path: String)(implicit yt: CompoundClient): Seq[PivotKey] = {
     pivotKeysYson(path).map(serialiseYson)
   }
 
-  def keyColumns(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Seq[String] = {
+  def keyColumns(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Seq[String] = {
     keyColumns(attribute(path, YtAttributes.sortedBy, transaction))
   }
 
@@ -57,21 +58,21 @@ trait YtDynTableUtils {
     keyColumns(attrs(YtAttributes.sortedBy))
   }
 
-  def mountTable(path: String)(implicit yt: YtClient): Unit = {
+  def mountTable(path: String)(implicit yt: CompoundClient): Unit = {
     yt.mountTable(formatPath(path)).join()
   }
 
-  def unmountTable(path: String)(implicit yt: YtClient): Unit = {
+  def unmountTable(path: String)(implicit yt: CompoundClient): Unit = {
     yt.unmountTable(formatPath(path)).join()
   }
 
   def waitState(path: String, state: TabletState, timeout: JDuration)
-               (implicit yt: YtClient): Unit = {
+               (implicit yt: CompoundClient): Unit = {
     waitState(path, state, toScalaDuration(timeout)).get
   }
 
   def waitState(path: String, state: TabletState, timeout: Duration)
-               (implicit yt: YtClient): Try[Unit] = {
+               (implicit yt: CompoundClient): Try[Unit] = {
     @tailrec
     def waitUnmount(timeoutMillis: Long): Try[Unit] = {
       tabletState(path) match {
@@ -86,11 +87,11 @@ trait YtDynTableUtils {
     waitUnmount(timeout.toMillis)
   }
 
-  def tabletState(path: String)(implicit yt: YtClient): TabletState = {
+  def tabletState(path: String)(implicit yt: CompoundClient): TabletState = {
     TabletState.fromString(attribute(formatPath(path), "tablet_state").stringValue())
   }
 
-  def remountTable(path: String)(implicit yt: YtClient): Unit = {
+  def remountTable(path: String)(implicit yt: CompoundClient): Unit = {
     yt.remountTable(formatPath(path)).join()
   }
 

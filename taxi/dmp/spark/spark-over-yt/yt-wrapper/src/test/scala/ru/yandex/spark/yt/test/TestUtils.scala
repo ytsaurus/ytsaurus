@@ -6,13 +6,14 @@ import java.nio.charset.StandardCharsets
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils
 import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeConsumer, YTreeTextSerializer}
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.misc.reflection.ClassX
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
+import ru.yandex.yson.YsonConsumer
 import ru.yandex.yt.ytclient.`object`.{WireRowDeserializer, WireValueDeserializer}
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.{ObjectType, WriteTable}
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
@@ -22,12 +23,12 @@ import scala.language.postfixOps
 
 trait TestUtils {
   def createEmptyTable(path: String, schema: TableSchema)
-                      (implicit yt: YtClient): Unit = {
+                      (implicit yt: CompoundClient): Unit = {
     import scala.collection.JavaConverters._
     yt.createNode(path, ObjectType.Table, Map("schema" -> schema.toYTree).asJava).join()
   }
 
-  def readTableAsYson(path: String, schema: TableSchema)(implicit yt: YtClient): Seq[YTreeNode] = {
+  def readTableAsYson(path: String, schema: TableSchema)(implicit yt: CompoundClient): Seq[YTreeNode] = {
     val deser = new WireRowDeserializer[YTreeNode] with WireValueDeserializer[Unit] {
       private var builder = new YTreeBuilder().beginMap()
 
@@ -37,6 +38,8 @@ trait TestUtils {
       }
 
       override def onCompleteRow(): YTreeNode = builder.endMap().build()
+
+      override def onNullRow(): YTreeNode = ???
 
       override def setId(i: Int): Unit = builder.key(schema.getColumnName(i))
 
@@ -64,17 +67,17 @@ trait TestUtils {
   def writeTableFromYson(rows: Seq[String], path: String, schema: TableSchema,
                          optimizeFor: OptimizeMode = OptimizeMode.Scan,
                          options: Map[String, YTreeNode] = Map.empty)
-                        (implicit yt: YtClient): Unit = {
+                        (implicit yt: CompoundClient): Unit = {
     writeTableFromYson(rows, path, schema.toYTree, schema, optimizeFor, options)
   }
 
   def writeTableFromYson(rows: Seq[String], path: String, schema: YTreeNode, physicalSchema: TableSchema,
                          optimizeFor: OptimizeMode, options: Map[String, YTreeNode])
-                        (implicit yt: YtClient): Unit = {
+                        (implicit yt: CompoundClient): Unit = {
     import scala.collection.JavaConverters._
 
     val serializer = new YTreeSerializer[String] {
-      override def serialize(obj: String, consumer: YTreeConsumer): Unit = {
+      override def serialize(obj: String, consumer: YsonConsumer): Unit = {
         val node = YTreeTextSerializer.deserialize(new ByteArrayInputStream(obj.getBytes(StandardCharsets.UTF_8)))
         YTreeNodeUtils.walk(node, consumer, false)
       }
@@ -99,7 +102,7 @@ trait TestUtils {
   }
 
   def writeFileFromStream(input: InputStream, path: String)
-                         (implicit yt: YtClient): Unit = {
+                         (implicit yt: CompoundClient): Unit = {
     YtWrapper.createFile(path)
     val out = YtWrapper.writeFile(path, 1 minute, None)
     try {
@@ -111,7 +114,7 @@ trait TestUtils {
   }
 
   def writeFileFromResource(inputPath: String, path: String)
-                           (implicit yt: YtClient): Unit = {
+                           (implicit yt: CompoundClient): Unit = {
     val in = getClass.getResourceAsStream(inputPath)
     try {
       writeFileFromStream(in, path)
@@ -120,7 +123,7 @@ trait TestUtils {
     }
   }
 
-  def writeComplexTable(path: String)(implicit yt: YtClient): Unit = {
+  def writeComplexTable(path: String)(implicit yt: CompoundClient): Unit = {
     val ytSchema = new TableSchema.Builder()
       .setUniqueKeys(false)
       .addValue("f1", ColumnValueType.ANY)

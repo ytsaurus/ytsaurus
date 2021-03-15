@@ -11,7 +11,7 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.cypress.PathType
 import ru.yandex.spark.yt.wrapper.table.TableType
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import scala.language.postfixOps
 
@@ -21,7 +21,7 @@ class YtTableFileSystem extends YtFileSystemBase {
 
   override def listStatus(f: Path): Array[FileStatus] = {
     log.debugLazy(s"List status $f")
-    implicit val ytClient: YtClient = yt
+    implicit val ytClient: CompoundClient = yt
     val path = ytPath(f)
 
     val transaction = GlobalTableSettings.getTransaction(path)
@@ -51,7 +51,7 @@ class YtTableFileSystem extends YtFileSystemBase {
                                      path: String,
                                      transaction: Option[String],
                                      attributes: Map[String, YTreeNode])
-                                    (implicit yt: YtClient): Array[FileStatus] = {
+                                    (implicit yt: CompoundClient): Array[FileStatus] = {
     val rowCount = YtWrapper.rowCount(attributes)
     val optimizeMode = YtWrapper.optimizeMode(attributes)
     val chunksCount = GlobalTableSettings.getFilesCount(path).getOrElse(YtWrapper.chunkCount(attributes))
@@ -76,7 +76,7 @@ class YtTableFileSystem extends YtFileSystemBase {
                                       path: String,
                                       transaction: Option[String],
                                       attributes: Map[String, YTreeNode])
-                                     (implicit yt: YtClient): Array[FileStatus] = {
+                                     (implicit yt: CompoundClient): Array[FileStatus] = {
     val pivotKeys = YtWrapper.pivotKeys(path) :+ YtWrapper.emptyPivotKey
     val keyColumns = YtWrapper.keyColumns(attributes)
     val result = new Array[FileStatus](pivotKeys.length - 1)
@@ -90,7 +90,7 @@ class YtTableFileSystem extends YtFileSystemBase {
 
   override def getFileStatus(f: Path): FileStatus = {
     log.debugLazy(s"Get file status $f")
-    implicit val ytClient: YtClient = yt
+    implicit val ytClient: CompoundClient = yt
     val path = ytPath(f)
     val transaction = GlobalTableSettings.getTransaction(path)
 

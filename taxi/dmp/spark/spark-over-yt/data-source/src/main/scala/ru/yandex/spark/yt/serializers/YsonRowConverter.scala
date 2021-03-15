@@ -12,9 +12,10 @@ import ru.yandex.inside.yt.kosher.impl.ytree.YTreeEntityNodeImpl
 import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeConsumer, YTreeTextSerializer, YsonTags}
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeTextSerializer, YsonTags}
 import ru.yandex.inside.yt.kosher.ytree.{YTreeBooleanNode, YTreeNode}
 import ru.yandex.misc.reflection.ClassX
+import ru.yandex.yson.YsonConsumer
 import ru.yandex.yt.ytclient.proxy.TableWriter
 
 import scala.annotation.tailrec
@@ -30,7 +31,7 @@ class YsonRowConverter(schema: StructType, skipNulls: Boolean) extends YTreeSeri
     field.metadata.contains("skipNulls") && field.metadata.getBoolean("skipNulls")
   }
 
-  override def serialize(row: Row, consumer: YTreeConsumer): Unit = {
+  override def serialize(row: Row, consumer: YsonConsumer): Unit = {
     consumer.onBeginMap()
     indexedFields.foreach { case (field, index) =>
       if (!skipNulls || !row.isNullAt(index)) {
@@ -41,7 +42,7 @@ class YsonRowConverter(schema: StructType, skipNulls: Boolean) extends YTreeSeri
     consumer.onEndMap()
   }
 
-  def serializeUnsafeRow(row: UnsafeRow, consumer: YTreeConsumer): Unit = {
+  def serializeUnsafeRow(row: UnsafeRow, consumer: YsonConsumer): Unit = {
     consumer.onBeginMap()
     indexedFields.foreach { case (field, index) =>
       if (!skipNulls || !row.isNullAt(index)) {
@@ -52,7 +53,7 @@ class YsonRowConverter(schema: StructType, skipNulls: Boolean) extends YTreeSeri
     consumer.onEndMap()
   }
 
-  def serializeInternalRow(row: InternalRow, consumer: YTreeConsumer): Unit = {
+  def serializeInternalRow(row: InternalRow, consumer: YsonConsumer): Unit = {
     consumer.onBeginMap()
     indexedFields.foreach { case (field, index) =>
       if (!skipNulls || !row.isNullAt(index)) {
@@ -174,7 +175,7 @@ object YsonRowConverter {
     }
   }
 
-  def serializeValue(value: Any, dataType: DataType, skipNulls: Boolean, consumer: YTreeConsumer): Unit = {
+  def serializeValue(value: Any, dataType: DataType, skipNulls: Boolean, consumer: YsonConsumer): Unit = {
     if (isNull(value)) {
       consumer.onEntity()
     } else {
@@ -188,7 +189,9 @@ object YsonRowConverter {
           }
         case BooleanType => consumer.onBoolean(value.asInstanceOf[Boolean])
         case DoubleType => consumer.onDouble(value.asInstanceOf[Double])
-        case BinaryType => consumer.onBytes(value.asInstanceOf[Array[Byte]])
+        case BinaryType =>
+          val bytes = value.asInstanceOf[Array[Byte]]
+          consumer.onString(bytes, 0, bytes.length)
         case ArrayType(elementType, _) =>
           consumer.onBeginList()
           val iterable: Iterable[Any] = value match {

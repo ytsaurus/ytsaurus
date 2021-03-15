@@ -4,7 +4,6 @@ import java.io.InputStream
 import java.util.concurrent.TimeUnit
 
 import ru.yandex.yt.ytclient.proxy.FileReader
-import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl
 
 import scala.concurrent.duration.Duration
 
@@ -66,11 +65,7 @@ class YtFileInputStream(reader: FileReader, timeout: Duration) extends InputStre
   override def close(): Unit = {
     if (!closed) {
       closed = true
-      if (reader.canRead) {
-        reader.asInstanceOf[FileReaderImpl].cancel()
-      } else {
-        reader.close().get(timeout.toMillis, TimeUnit.MILLISECONDS)
-      }
+      reader.close().get(timeout.toMillis, TimeUnit.MILLISECONDS)
     }
   }
 }

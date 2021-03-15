@@ -28,6 +28,10 @@ class ArrayAnyDeserializer(schema: StructType) extends WireRowDeserializer[Array
     _values
   }
 
+  override def onNullRow(): Array[Any] = {
+    throw new IllegalArgumentException("Null rows are not supported")
+  }
+
   override def setId(id: Int): Unit = {
     _index = id
   }

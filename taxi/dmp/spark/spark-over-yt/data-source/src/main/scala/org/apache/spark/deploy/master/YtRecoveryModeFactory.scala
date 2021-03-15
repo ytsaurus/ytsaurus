@@ -10,7 +10,7 @@ class YtRecoveryModeFactory(conf: SparkConf, serializer: Serializer)
   extends StandaloneRecoveryModeFactory(conf, serializer) {
 
   override def createPersistenceEngine(): PersistenceEngine = {
-    val yt: YtClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
+    val yt = YtClientProvider.ytClient(ytClientConfiguration(conf))
     new YtPersistenceEngine(conf.get("spark.deploy.yt.path"), serializer)(yt)
   }
 

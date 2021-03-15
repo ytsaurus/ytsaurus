@@ -10,14 +10,16 @@ import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
 
 class DynamicTableLocalTest extends FlatSpec with Matchers with LocalSpark with TmpDir {
+
   import spark.implicits._
+
   private val testData = (1 to 10).map(i => TestRow(i, i * 2, ('a'.toInt + i).toChar.toString))
 
   "YtFileFormat" should "read dynamic table" in {
@@ -39,8 +41,8 @@ class DynamicTableLocalTest extends FlatSpec with Matchers with LocalSpark with 
     }
 
     Logger.getRootLogger.setLevel(Level.OFF)
-    a [SparkException] should be thrownBy {
-      spark.read.yt((1 to tablesCount).map(i => s"$tmpPath/$i"):_*).show()
+    a[SparkException] should be thrownBy {
+      spark.read.yt((1 to tablesCount).map(i => s"$tmpPath/$i"): _*).show()
     }
     Logger.getRootLogger.setLevel(Level.WARN)
   }
@@ -68,7 +70,7 @@ class DynamicTableLocalTest extends FlatSpec with Matchers with LocalSpark with 
     s"echo $json" #| s"yt --proxy localhost:8000 insert-rows --format json $path" !
   }
 
-  def reshardTable(path: String, pivotKeys: Seq[String])(implicit yt: YtClient): Unit = {
+  def reshardTable(path: String, pivotKeys: Seq[String])(implicit yt: CompoundClient): Unit = {
     import scala.language.postfixOps
     import sys.process._
 

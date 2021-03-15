@@ -6,7 +6,7 @@ import io.circe.syntax._
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
 
 import scala.concurrent.duration._
@@ -45,7 +45,7 @@ trait DynTableTestUtils {
     s"echo $json" #| s"yt --proxy localhost:8000 insert-rows --format json $path" !
   }
 
-  def reshardTable(path: String, pivotKeys: Seq[String])(implicit yt: YtClient): Unit = {
+  def reshardTable(path: String, pivotKeys: Seq[String])(implicit yt: CompoundClient): Unit = {
     import scala.language.postfixOps
     import sys.process._
 

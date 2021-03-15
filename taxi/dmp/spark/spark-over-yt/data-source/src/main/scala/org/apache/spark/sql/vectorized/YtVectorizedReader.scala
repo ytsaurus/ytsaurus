@@ -6,7 +6,7 @@ import ru.yandex.spark.yt.format.YtInputSplit
 import ru.yandex.spark.yt.format.batch.{ArrowBatchReader, BatchReader, EmptyColumnsBatchReader, WireRowBatchReader}
 import ru.yandex.spark.yt.serializers.ArrayAnyDeserializer
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import scala.concurrent.duration.Duration
 
@@ -15,7 +15,7 @@ class YtVectorizedReader(split: YtInputSplit,
                          returnBatch: Boolean,
                          arrowEnabled: Boolean,
                          timeout: Duration)
-                        (implicit yt: YtClient) extends RecordReader[Void, Object] {
+                        (implicit yt: CompoundClient) extends RecordReader[Void, Object] {
   private var _batchIdx = 0
 
   private val batchReader: BatchReader = {

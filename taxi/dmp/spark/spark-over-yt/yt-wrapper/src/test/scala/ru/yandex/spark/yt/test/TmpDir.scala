@@ -6,7 +6,7 @@ import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, TestSuite}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 
 trait TmpDir extends BeforeAndAfterEach with BeforeAndAfterAll {
-  self: TestSuite with LocalYtClient =>
+  self: TestSuite with LocalYtClientCreator =>
 
   def testDir: String = s"//tmp/test-${self.getClass.getCanonicalName}"
   val tmpPath = s"$testDir/test-${UUID.randomUUID()}"

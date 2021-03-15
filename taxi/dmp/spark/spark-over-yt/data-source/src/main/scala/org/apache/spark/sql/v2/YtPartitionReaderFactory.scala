@@ -20,7 +20,7 @@ import ru.yandex.spark.yt.fs.YtClientProvider
 import ru.yandex.spark.yt.fs.conf._
 import ru.yandex.spark.yt.serializers.InternalRowDeserializer
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 case class YtPartitionReaderFactory(sqlConf: SQLConf,
                                     broadcastedConf: Broadcast[SerializableConfiguration],
@@ -59,7 +59,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   override def buildReader(file: PartitionedFile): PartitionReader[InternalRow] = {
     file match {
       case ypf: YtPartitionedFile =>
-        implicit val yt: YtClient = YtClientProvider.ytClient(ytClientConf)
+        implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConf)
         val split = createSplit(ypf)
 
         val reader = if (readBatch) {
@@ -84,7 +84,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   override def buildColumnarReader(file: PartitionedFile): PartitionReader[ColumnarBatch] = {
     file match {
       case ypf: YtPartitionedFile =>
-        implicit val yt: YtClient = YtClientProvider.ytClient(ytClientConf)
+        implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConf)
         val split = createSplit(ypf)
         val vectorizedReader = createVectorizedReader(split, returnBatch = true)
 
@@ -110,7 +110,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   }
 
   private def createRowBaseReader(split: YtInputSplit)
-                                 (implicit yt: YtClient): RecordReader[Void, InternalRow] = {
+                                 (implicit yt: CompoundClient): RecordReader[Void, InternalRow] = {
     val iter = YtWrapper.readTable(
       split.ytPath,
       InternalRowDeserializer.getOrCreate(resultSchema),
@@ -148,7 +148,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
 
   private def createVectorizedReader(split: YtInputSplit,
                                      returnBatch: Boolean)
-                                    (implicit yt: YtClient): YtVectorizedReader = {
+                                    (implicit yt: CompoundClient): YtVectorizedReader = {
     new YtVectorizedReader(
       split = split,
       batchMaxSize = batchMaxSize,

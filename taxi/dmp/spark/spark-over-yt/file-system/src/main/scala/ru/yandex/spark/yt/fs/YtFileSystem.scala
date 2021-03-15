@@ -8,7 +8,7 @@ import org.apache.hadoop.util.Progressable
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.cypress.PathType
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import scala.language.postfixOps
 
@@ -18,7 +18,7 @@ class YtFileSystem extends YtFileSystemBase {
 
   override def listStatus(f: Path): Array[FileStatus] = {
     log.debugLazy(s"List status $f")
-    implicit val ytClient: YtClient = yt
+    implicit val ytClient: CompoundClient = yt
     val path = ytPath(f)
     val pathType = YtWrapper.pathType(path)
 
@@ -31,7 +31,7 @@ class YtFileSystem extends YtFileSystemBase {
 
   override def getFileStatus(f: Path): FileStatus = {
     log.debugLazy(s"Get file status $f")
-    implicit val ytClient: YtClient = yt
+    implicit val ytClient: CompoundClient = yt
     val path = ytPath(f)
 
     if (!YtWrapper.exists(path)) {
@@ -54,7 +54,7 @@ class YtFileSystem extends YtFileSystemBase {
   }
 
   override def mkdirs(f: Path, permission: FsPermission): Boolean = {
-    implicit val ytClient: YtClient = yt
+    implicit val ytClient: CompoundClient = yt
     val path = ytPath(f)
     YtWrapper.createDir(path, ignoreExisting = true)
     true
