@@ -20,7 +20,7 @@ import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguratio
 import ru.yandex.spark.yt.fs.{YtClientProvider, YtPath}
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 class YtFileFormat extends FileFormat with DataSourceRegister with Serializable {
   override def inferSchema(sparkSession: SparkSession,
@@ -28,7 +28,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                            files: Seq[FileStatus]): Option[StructType] = {
     files.headOption.map { fileStatus =>
       val schemaHint = SchemaConverter.schemaHint(options)
-      implicit val client: YtClient = YtClientProvider.ytClient(ytClientConfiguration(sparkSession))
+      implicit val client: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(sparkSession))
       val path = fileStatus.getPath match {
         case ytPath: YtPath => ytPath.stringPath
         case p => YtPath.basePath(p)
@@ -69,7 +69,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     {
       case ypf: YtPartitionedFile =>
         val log = LoggerFactory.getLogger(getClass)
-        implicit val yt: YtClient = YtClientProvider.ytClient(ytClientConf)
+        implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConf)
         val split = YtInputSplit(ypf, requiredSchema)
         log.info(s"Reading ${split.ytPath}")
         log.info(s"Batch read enabled: $readBatch")

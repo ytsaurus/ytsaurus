@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.{CompoundClient, YtClient}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -24,6 +24,7 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
   private var _uri: URI = _
   private var _workingDirectory: Path = new Path("/")
   protected var _ytConf: YtClientConfiguration = _
+  protected lazy val yt: CompoundClient = YtClientProvider.ytClient(_ytConf, id)
 
   override def initialize(uri: URI, conf: Configuration): Unit = {
     super.initialize(uri, conf)
@@ -31,8 +32,6 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
     this._uri = uri
     this._ytConf = ytClientConfiguration(getConf, Option(uri.getAuthority).filter(_.nonEmpty))
   }
-
-  lazy val yt: YtClient = YtClientProvider.ytClient(_ytConf, id)
 
   override def getUri: URI = _uri
 
@@ -49,7 +48,7 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
 
     YtWrapper.createDir(ytPath(f.getParent), None, ignoreExisting = true)(yt)
 
-    def createFile(ytRpcClient: Option[YtRpcClient], ytClient: YtClient): FSDataOutputStream = {
+    def createFile(ytRpcClient: Option[YtRpcClient], ytClient: CompoundClient): FSDataOutputStream = {
       YtWrapper.createFile(path)(ytClient)
       statistics.incrementWriteOps(1)
       new FSDataOutputStream(YtWrapper.writeFile(path, 7 days, ytRpcClient, None)(ytClient), statistics)
@@ -92,7 +91,7 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
   }
 
   def listYtDirectory(f: Path, path: String, transaction: Option[String])
-                     (implicit yt: YtClient): Array[FileStatus] = {
+                     (implicit yt: CompoundClient): Array[FileStatus] = {
     YtWrapper.listDir(path, transaction).map(name => getFileStatus(new Path(f, name)))
   }
 

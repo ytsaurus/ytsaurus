@@ -4,7 +4,7 @@ import org.apache.spark.serializer.{DeserializationStream, SerializationStream, 
 import org.apache.spark.util.Utils
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -12,7 +12,7 @@ import scala.reflect.ClassTag
 
 class YtPersistenceEngine(baseDir: String,
                           serializer: Serializer)
-                         (implicit yt: YtClient) extends PersistenceEngine {
+                         (implicit yt: CompoundClient) extends PersistenceEngine {
   private val log = LoggerFactory.getLogger(getClass)
 
   YtWrapper.createDir(baseDir, ignoreExisting = true)

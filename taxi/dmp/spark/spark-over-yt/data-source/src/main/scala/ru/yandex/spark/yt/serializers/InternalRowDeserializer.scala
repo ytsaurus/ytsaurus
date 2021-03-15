@@ -33,6 +33,10 @@ class InternalRowDeserializer(schema: StructType) extends WireRowDeserializer[In
     new GenericInternalRow(_values)
   }
 
+  override def onNullRow(): InternalRow = {
+    throw new IllegalArgumentException("Null rows are not supported")
+  }
+
   override def setId(id: Int): Unit = {
     _index = id
   }

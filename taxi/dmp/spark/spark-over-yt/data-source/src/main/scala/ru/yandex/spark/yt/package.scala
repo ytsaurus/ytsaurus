@@ -8,10 +8,10 @@ import ru.yandex.spark.yt.fs.conf.ConfigEntry
 import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
 import ru.yandex.spark.yt.serializers.{SchemaConverter, YtLogicalType}
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 package object yt {
-  lazy val yt: YtClient = YtClientProvider.ytClient(ytClientConfiguration(SparkSession.getDefaultSession.get))
+  lazy val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(SparkSession.getDefaultSession.get))
 
   private def normalizePath(path: String): String = {
     if (path.startsWith("//")) path.drop(1) else path
@@ -95,7 +95,8 @@ package object yt {
 
     def selectAs[S](implicit encoder: Encoder[S]): Dataset[S] = {
       val names = encoder.schema.fieldNames
-      df.select(names.head, names.tail:_*).as[S]
+      df.select(names.head, names.tail: _*).as[S]
     }
   }
+
 }

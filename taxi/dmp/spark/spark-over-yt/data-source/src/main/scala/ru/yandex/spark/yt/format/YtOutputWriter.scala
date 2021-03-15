@@ -78,8 +78,8 @@ class YtOutputWriter(path: String,
   private def closeCurrentWriter(): Unit = {
     prevFuture.foreach(Await.result(_, timeout))
     val currentWriter = writers.head
-    writeFutures = currentWriter.readyEvent().thenCompose((unused) => {
-      currentWriter.close()
+    writeFutures = currentWriter.readyEvent().thenComposeAsync((unused) => {
+      currentWriter.close().thenAccept(unused => null)
     }) +: writeFutures
   }
 

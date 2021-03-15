@@ -16,7 +16,7 @@ object YtUtils {
                   files: Seq[FileStatus]): Option[StructType] = {
     files.headOption.map { fileStatus =>
       val schemaHint = SchemaConverter.schemaHint(parameters)
-      implicit val client: YtClient = YtClientProvider.ytClient(ytClientConfiguration(sparkSession))
+      implicit val client = YtClientProvider.ytClient(ytClientConfiguration(sparkSession))
       val path = fileStatus.getPath match {
         case ytPath: YtPath => ytPath.stringPath
         case p => YtPath.basePath(p)

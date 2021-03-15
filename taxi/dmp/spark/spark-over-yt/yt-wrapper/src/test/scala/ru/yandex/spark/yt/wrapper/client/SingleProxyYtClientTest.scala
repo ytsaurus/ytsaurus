@@ -3,10 +3,11 @@ package ru.yandex.spark.yt.wrapper.client
 import io.netty.channel.nio.NioEventLoopGroup
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
-import ru.yandex.spark.yt.test.{LocalYtClient, TestUtils, TmpDir}
+import ru.yandex.spark.yt.test.{LocalYtClient, LocalYtClientCreator, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtJavaConverters.toJavaDuration
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.internal.HostPort
 import ru.yandex.yt.ytclient.rpc.{RpcCredentials, RpcOptions}
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
@@ -14,16 +15,17 @@ import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalYtClient with TmpDir with TestUtils {
-  private val singleProxyYtClient = createClient("localhost:8002", new RpcCredentials("root", ""))
+class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalYtClientCreator with TmpDir with TestUtils {
 
-  "SingleProxyYtClient" should "list nodes" in {
+  override protected implicit val yt: CompoundClient = createClient("localhost:8002", new RpcCredentials("root", ""))
+
+  "SingleProxyYtClient" should "create and list nodes" in {
     YtWrapper.createDir(tmpPath)
     YtWrapper.createDir(s"$tmpPath/1")
     YtWrapper.createDir(s"$tmpPath/2")
     YtWrapper.createDir(s"$tmpPath/3")
 
-    val res = YtWrapper.listDir(tmpPath)(singleProxyYtClient)
+    val res = YtWrapper.listDir(tmpPath)
 
     res should contain theSameElementsAs Seq("1", "2", "3")
   }
@@ -39,8 +41,8 @@ class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalYtClient 
       """{"a"="BBB";"b"=456}"""
     )
 
-    writeTableFromYson(data, tmpPath, schema)(singleProxyYtClient)
-    val res = readTableAsYson(tmpPath, schema)(singleProxyYtClient).map(YTreeTextSerializer.serialize)
+    writeTableFromYson(data, tmpPath, schema)
+    val res = readTableAsYson(tmpPath, schema).map(YTreeTextSerializer.serialize)
 
     res should contain theSameElementsAs data
   }

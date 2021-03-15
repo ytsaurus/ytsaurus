@@ -9,7 +9,7 @@ import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguratio
 import ru.yandex.spark.yt.fs.YtClientProvider
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 object SessionUtils {
   private val log = LoggerFactory.getLogger(getClass)
@@ -20,7 +20,7 @@ object SessionUtils {
     "spark.yt.enablers" -> "spark.hadoop.yt.byop.enabled,spark.hadoop.yt.read.arrow.enabled,spark.hadoop.yt.profiling.enabled"
   )
 
-  private def parseRemoteConfig(path: String, yt: YtClient): Map[String, String] = {
+  private def parseRemoteConfig(path: String, yt: CompoundClient): Map[String, String] = {
     import scala.collection.JavaConverters._
     val remoteConfig = toOption(YtWrapper.readDocument(path)(yt).asMap().getO("spark_conf"))
     remoteConfig.map { config =>

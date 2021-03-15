@@ -9,9 +9,8 @@ services:
     volumes:
       - ${local_cypress}
     container_name: ${yt_container_name}
-#    entrypoint: /bin/bash
   ytfrontend:
-    image: ${thor_image}:${thor_version}
+    image: ${ui_image}:${ui_version}
     ports:
       - ${interface_port}:80
     environment:
@@ -20,4 +19,4 @@ services:
       - PROXY_INTERNAL=${yt_container_name}
     logging:
       driver: none
-    container_name: ${thor_container_name}
+    container_name: ${ui_container_name}

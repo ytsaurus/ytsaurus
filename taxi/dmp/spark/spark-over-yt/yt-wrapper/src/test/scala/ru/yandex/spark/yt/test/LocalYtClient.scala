@@ -1,17 +1,22 @@
 package ru.yandex.spark.yt.test
 
-import org.scalatest.{BeforeAndAfterAll, TestSuite}
+import org.scalatest.TestSuite
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.client.{ByopConfiguration, ByopRemoteConfiguration, EmptyWorkersListStrategy, YtClientConfiguration, YtRpcClient}
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.spark.yt.wrapper.client._
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-trait LocalYtClient {
+trait LocalYtClientCreator {
+  self: TestSuite =>
+  protected implicit val yt: CompoundClient
+}
+
+trait LocalYtClient extends LocalYtClientCreator {
   self: TestSuite =>
   protected lazy val ytClient: YtRpcClient = LocalYtClient.ytClient
-  protected implicit lazy val yt: YtClient = ytClient.yt
+  override protected implicit lazy val yt: CompoundClient = ytClient.yt
 }
 
 object LocalYtClient {

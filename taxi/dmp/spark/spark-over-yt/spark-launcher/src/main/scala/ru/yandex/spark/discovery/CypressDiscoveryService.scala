@@ -3,13 +3,13 @@ package ru.yandex.spark.discovery
 import com.google.common.net.HostAndPort
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.Try
 
-class CypressDiscoveryService(discoveryPath: String)(implicit yt: YtClient) extends DiscoveryService {
+class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient) extends DiscoveryService {
   private val log = LoggerFactory.getLogger(getClass)
 
   private def addressPath: String = s"$discoveryPath/spark_address"

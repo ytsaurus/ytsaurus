@@ -25,4 +25,8 @@ class YtFsInputStream(in: YtFileInputStream) extends FSInputStream {
   override def read(b: Array[Byte], off: Int, len: Int): Int = {
     in.read(b, off, len)
   }
+
+  override def close(): Unit = {
+    in.close()
+  }
 }
