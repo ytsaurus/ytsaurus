@@ -1452,32 +1452,17 @@ private:
                 if (block.Block) {
                     cachedBlocks.push_back(TBlockWithCookie(blockIndex, CreatePresetCachedBlockCookie(block)));
                 } else {
-                    uncachedBlocks.push_back(TBlockWithCookie(blockIndex, CreateActiveCachedBlockCookie()));
+                    uncachedBlocks.push_back(TBlockWithCookie(blockIndex, nullptr));
                 }
             }
         }
 
         bool requestMoreBlocks = true;
         if (!uncachedBlocks.empty()) {
-            requestMoreBlocks = FetchBlocksFromNodes(
-                reader,
-                uncachedBlocks);
+            requestMoreBlocks = FetchBlocksFromNodes(reader, uncachedBlocks);
         }
 
-        for (const auto& block : cachedBlocks) {
-            int blockIndex = block.BlockIndex;
-            const auto& blockCookie = block.Cookie;
-
-            auto blockOrError = WaitFor(blockCookie->GetBlockFuture());
-            if (blockOrError.IsOK()) {
-                YT_LOG_DEBUG("Fetched block from block cache (BlockIndex: %v)",
-                    blockIndex);
-
-                const auto& block = blockOrError.Value().Block;
-                YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
-                SessionOptions_.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
-            }
-        }
+        FetchBlocksFromCache(reader, cachedBlocks);
 
         if (requestMoreBlocks) {
             RequestBlocks();
@@ -1494,7 +1479,10 @@ private:
             for (const auto& block : blocks) {
                 // NB: Setting cookie twice is OK. Only the first value
                 // will be used.
-                block.Cookie->SetBlock(error);
+                const auto& cookie = block.Cookie;
+                if (cookie) {
+                    cookie->SetBlock(error);
+                }
             }
         };
 
@@ -1650,8 +1638,13 @@ private:
                 ? std::optional<TNodeDescriptor>(GetPeerDescriptor(respondedPeer.AddressWithNetwork.Address))
                 : std::optional<TNodeDescriptor>(std::nullopt);
 
-            TCachedBlock cachedBlock(block, sourceDescriptor);
-            blocks[index].Cookie->SetBlock(cachedBlock);
+            auto& cookie = blocks[index].Cookie;
+            if (cookie) {
+                TCachedBlock cachedBlock(block, sourceDescriptor);
+                cookie->SetBlock(cachedBlock);
+            } else {
+                reader->BlockCache_->PutBlock(blockId, EBlockType::CompressedData, block, sourceDescriptor);
+            }
 
             YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
             bytesReceived += block.Size();
@@ -1690,6 +1683,33 @@ private:
 
         cancelAll(TError("Block was not sent by node"));
         return true;
+    }
+
+    void FetchBlocksFromCache(
+        const TReplicationReaderPtr& reader,
+        const std::vector<TBlockWithCookie>& blocks)
+    {
+        std::vector<TFuture<TCachedBlock>> cachedBlockFutures;
+        cachedBlockFutures.reserve(blocks.size());
+        for (const auto& block : blocks) {
+            cachedBlockFutures.push_back(block.Cookie->GetBlockFuture());
+        }
+        auto cachedBlocks = WaitFor(AllSet(cachedBlockFutures))
+            .ValueOrThrow();
+        YT_VERIFY(cachedBlocks.size() == blocks.size());
+
+        for (int index = 0; index < blocks.size(); ++index) {
+            int blockIndex = blocks[index].BlockIndex;
+            const auto& blockOrError = cachedBlocks[index];
+            if (blockOrError.IsOK()) {
+                YT_LOG_DEBUG("Fetched block from block cache (BlockIndex: %v)",
+                    blockIndex);
+
+                const auto& block = blockOrError.Value().Block;
+                YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
+                SessionOptions_.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
+            }
+        }
     }
 
     void OnSessionSucceeded()

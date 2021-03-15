@@ -53,7 +53,7 @@ public:
         for (int index = 0; index < blockCount; ++index) {
             TBlockId blockId(ChunkId_, firstBlockIndex + index);
             auto block = BlockCache_->FindBlock(blockId, EBlockType::CompressedData).Block;
-            if (block) {
+            if (!block) {
                 return MakeFuture<std::vector<TBlock>>(TError("Block %v is not found in the compressed data cache", blockId));
             }
 
