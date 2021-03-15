@@ -6,12 +6,11 @@ import yt.wrapper
 import json
 import argparse
 import collections
-import datetime
 import hashlib
+import itertools
 import logging
 import os
 import subprocess
-import sys
 import tempfile
 import shutil
 
@@ -37,20 +36,19 @@ def including_xrange(i, j):
 
 
 def get_codec_list():
-    return (
+    return itertools.chain.from_iterable([
         [
             "snappy",
             "lz4",
             "lz4_high_compression",
             "quick_lz",
-            "zstd_legacy",
-        ]
-        + ["brotli_{0}".format(i) for i in including_xrange(1, 11)]
-        + ["bzip2_{0}".format(i) for i in including_xrange(1, 9)]
-        + ["lzma_{0}".format(i) for i in including_xrange(0, 9)]
-        + ["zlib_{0}".format(i) for i in including_xrange(1, 9)]
-        + ["zstd_{0}".format(i) for i in including_xrange(1, 21)]
-    )
+        ],
+        ["brotli_{0}".format(i) for i in including_xrange(1, 11)],
+        ["bzip2_{0}".format(i) for i in including_xrange(1, 9)],
+        ["lzma_{0}".format(i) for i in including_xrange(0, 9)],
+        ["zlib_{0}".format(i) for i in including_xrange(1, 9)],
+        ["zstd_{0}".format(i) for i in including_xrange(1, 21)],
+    ])
 
 
 def get_input_file_info_list():
@@ -150,7 +148,7 @@ def exit_with_error(error):
 
 def main():
     argument_parser = argparse.ArgumentParser(description=USAGE, formatter_class=argparse.RawDescriptionHelpFormatter)
-    args = argument_parser.parse_args()
+    argument_parser.parse_args()
 
     yt.wrapper.config.set_proxy(PROXY)
 
@@ -168,7 +166,7 @@ def main():
     for input_file_info in get_input_file_info_list():
         testset = input_file_info.testset
         if testset in result_info["testsets"]:
-            raise RuntimeError, "duplicating testset: {0}".format(testset)
+            raise RuntimeError("Duplicating testset: {0}".format(testset))
         result_info["testsets"][testset] = save_testset(input_file_info, destination_directory)
 
     with open(get_testcases_file(destination_directory), "w") as testcases_file:

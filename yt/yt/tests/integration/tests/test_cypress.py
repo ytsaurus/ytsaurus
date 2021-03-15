@@ -3237,22 +3237,13 @@ class TestCypress(YTEnvSetup):
 
     @authors("ignat")
     def test_deprecated_compression_codec(self):
-        with pytest.raises(YtError):
-            create("table", "//tmp/t1", attributes={"compression_codec": "zstd_legacy"})
-
         create("table", "//tmp/t1")
-        with pytest.raises(YtError):
-            set("//tmp/t1/@compression_codec", "zstd_legacy")
         with pytest.raises(YtError):
             set("//tmp/t1/@compression_codec", "gzip_normal")
         remove("//tmp/t1")
 
         with _set_sys_config("/chunk_manager/deprecated_codec_ids", []):
-            create("table", "//tmp/t1", attributes={"compression_codec": "zstd_legacy"})
-            remove("//tmp/t1")
-
             create("table", "//tmp/t1")
-            set("//tmp/t1/@compression_codec", "zstd_legacy")
             remove("//tmp/t1")
 
         with _set_sys_config("/chunk_manager/deprecated_codec_name_to_alias", {}):
