@@ -66,6 +66,28 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
         return std::tie(lhs.DirName, lhs.BaseName) < std::tie(rhs.DirName, rhs.BaseName);
     });
 
+    Attributes_.resize(Entries_.size());
+    DeduplicationReferenceTableIndices_.resize(Entries_.size(), -1);
+
+    // Deduplicate entries using manual unique-like procedure. For each dropped entry keep index
+    // of a reference table to copy attributes from when we finish fetching.
+    // [beginIndex, endIndex) is a half-interval of tables with same <DirName, BaseName> tuple
+    // uniqueIndex points to the position of first unfilled element (similar to standard unique procedure).
+    size_t uniqueIndex = 0;
+    for (size_t beginIndex = 0, endIndex = 0; beginIndex != Entries_.size(); beginIndex = endIndex) {
+        endIndex = beginIndex + 1;
+        while (
+            endIndex != Entries_.size() &&
+            std::tie(Entries_[beginIndex].DirName, Entries_[beginIndex].BaseName) ==
+            std::tie(Entries_[endIndex].DirName, Entries_[endIndex].BaseName))
+        {
+            DeduplicationReferenceTableIndices_[Entries_[endIndex].Index] = Entries_[beginIndex].Index;
+            ++endIndex;
+        }
+        Entries_[uniqueIndex++] = std::move(Entries_[beginIndex]);
+    }
+    Entries_.resize(uniqueIndex);
+
     for (size_t beginIndex = 0, endIndex = 0; beginIndex != Entries_.size(); beginIndex = endIndex) {
         // Extract contiguous run of entries in same directory.
         endIndex = beginIndex + 1;
@@ -305,13 +327,18 @@ void TBatchAttributeFetcher::FetchSymlinks()
 void TBatchAttributeFetcher::FillResult()
 {
     // Move results to the public field.
-    Attributes_.resize(Entries_.size());
     for (auto& entry : Entries_) {
         if (!entry.Error.IsOK()) {
             Attributes_[entry.Index] = std::move(entry.Error);
         } else {
             YT_VERIFY(entry.Attributes);
             Attributes_[entry.Index] = std::move(entry.Attributes);
+        }
+    }
+    for (size_t index = 0; index < Attributes_.size(); ++index) {
+        auto referenceTableIndex = DeduplicationReferenceTableIndices_[index];
+        if (referenceTableIndex != -1) {
+            Attributes_[index] = Attributes_[referenceTableIndex];
         }
     }
 }
