@@ -134,6 +134,7 @@ struct TSensorOptions
     bool Hot = false;
     bool DisableSensorsRename = false;
     bool DisableDefault = false;
+    bool DisableProjections = false;
 
     TDuration HistogramMin;
     TDuration HistogramMax;

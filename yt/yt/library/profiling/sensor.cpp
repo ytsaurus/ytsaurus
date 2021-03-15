@@ -147,6 +147,7 @@ bool TSensorOptions::operator == (const TSensorOptions& other) const
         Hot == other.Hot &&
         DisableSensorsRename == other.DisableSensorsRename &&
         DisableDefault == other.DisableDefault &&
+        DisableProjections == other.DisableProjections &&
         HistogramMin == other.HistogramMin &&
         HistogramMax == other.HistogramMax &&
         HistogramBounds == other.HistogramBounds;
@@ -289,7 +290,11 @@ TProfiler TProfiler::WithProjectionsDisabled() const
 
     auto allTags = Tags_;
     allTags.SetEnabled(false);
-    return TProfiler(Prefix_, Namespace_, allTags, Impl_, Options_);
+
+    auto opts = Options_;
+    opts.DisableProjections = true;
+
+    return TProfiler(Prefix_, Namespace_, allTags, Impl_, opts);
 }
 
 TProfiler TProfiler::WithRenameDisabled() const

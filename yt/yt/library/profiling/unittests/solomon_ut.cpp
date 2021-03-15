@@ -526,7 +526,7 @@ TEST(TSolomonRegistry, DisableProjections)
 
     {
         TWithTagGuard guard(&p0->Buffer, TTag{"mode", "sum"});
-        p0->Buffer.AddGauge("/g", 10);
+        p0->Buffer.AddGauge("", 10);
     }
 
     {
@@ -543,7 +543,7 @@ TEST(TSolomonRegistry, DisableProjections)
 
     auto result = CollectSensors(impl);
     ASSERT_EQ(1u, result.Gauges.size());
-    ASSERT_EQ(10.0, result.Gauges["yt.d.bigb.g{mode=sum}"]);
+    ASSERT_EQ(10.0, result.Gauges["yt.d.bigb{mode=sum}"]);
 
     ASSERT_EQ(2u, result.Counters.size());
     ASSERT_EQ(20, result.Counters["yt.d.bigb{mode=percentile;p=50}"]);
