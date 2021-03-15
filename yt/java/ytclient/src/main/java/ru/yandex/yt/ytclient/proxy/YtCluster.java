@@ -38,6 +38,19 @@ public class YtCluster {
     }
 
     static String getFqdn(String name) {
+        if(name.startsWith("[")) {
+            return getFqdnFromBracketed(name);
+        } else {
+            return getFqdnFromUnbracketed(name);
+        }
+    }
+
+    private static String getFqdnFromBracketed(String name) {
+        int index = name.indexOf("]");
+        return name.substring(1, index);
+    }
+
+    private static String getFqdnFromUnbracketed(String name) {
         int index = name.indexOf(":");
         if (index < 0) {
             if (name.contains(".")) {
@@ -82,6 +95,18 @@ public class YtCluster {
         } else {
             return name + ".yt.yandex.net";
         }
+    }
+
+    public String getClusterUrl() {
+        // "[]:12345" requires 8 extra bytes.
+        StringBuilder builder = new StringBuilder(balancerFqdn.length() + 8);
+        if (balancerFqdn.indexOf(':') >= 0) {
+            builder.append('[').append(balancerFqdn).append(']');
+        } else {
+            builder.append(balancerFqdn);
+        }
+        builder.append(':').append(httpPort);
+        return builder.toString();
     }
 
     // This option is set to true only in tests.
