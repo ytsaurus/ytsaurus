@@ -498,7 +498,7 @@ public class YtClient extends CompoundClient {
                                 dataCenterName,
                                 entry.addresses,
                                 entry.proxyRole.orElse(proxyRole),
-                                String.format("%s:%d", entry.balancerFqdn, entry.httpPort),
+                                entry.getClusterUrl(),
                                 connector,
                                 options,
                                 credentials,
