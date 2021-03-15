@@ -1127,6 +1127,9 @@ public:
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TMediumUpdaterDynamicConfigPtr MediumUpdater;
 
+    //! Prepared chunk readers are kept open during this period of time after the last use.
+    TDuration ChunkReaderRetentionTimeout;
+
     TDataNodeDynamicConfig()
     {
         RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
@@ -1161,6 +1164,9 @@ public:
             .DefaultNew();
         RegisterParameter("medium_updater", MediumUpdater)
             .DefaultNew();
+
+        RegisterParameter("chunk_reader_retention_timeout", ChunkReaderRetentionTimeout)
+            .Default(TDuration::Minutes(1));
     }
 };
 

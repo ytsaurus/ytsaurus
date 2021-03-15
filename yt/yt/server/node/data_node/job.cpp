@@ -537,7 +537,7 @@ private:
 
         if (!replicas.empty()) {
             const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
-            auto peerList = blockPeerTable->FindOrCreatePeerList(chunkId, true);
+            auto peerList = blockPeerTable->GetOrCreatePeerList(chunkId);
             for (auto replica : replicas) {
                 auto nodeId = replica.GetNodeId();
                 peerList->AddPeer(nodeId, replicasExpirationDeadline);

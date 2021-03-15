@@ -39,6 +39,10 @@ public:
         int blockCount,
         const TBlockReadOptions& options) override;
 
+    virtual NChunkClient::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const NChunkClient::TChunkFragmentDescriptor& fragmentDescriptor,
+        TSharedMutableRef data) override;
+
     i64 GetFlushedRowCount() const;
     void UpdateFlushedRowCount(i64 rowCount);
 
@@ -55,7 +59,7 @@ private:
 
     std::atomic<i64> FlushedRowCount_ = 0;
     std::atomic<i64> DataSize_ = 0;
-    
+
     std::atomic<bool> Sealed_ = false;
 
     struct TReadBlockRangeSession

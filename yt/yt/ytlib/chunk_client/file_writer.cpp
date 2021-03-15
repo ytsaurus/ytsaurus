@@ -68,7 +68,7 @@ void TFileWriter::TryLockDataFile(TPromise<void> promise)
     TDelayedExecutor::Submit(
         BIND(&TFileWriter::TryLockDataFile, MakeStrong(this), promise),
         TDuration::MilliSeconds(10),
-        IOEngine_->GetWritePoolInvoker());
+        IOEngine_->GetAuxPoolInvoker());
 }
 
 TFuture<void> TFileWriter::Open()
@@ -86,7 +86,7 @@ TFuture<void> TFileWriter::Open()
             auto promise = NewPromise<void>();
             TryLockDataFile(promise);
             return promise.ToFuture();
-        }).AsyncVia(IOEngine_->GetWritePoolInvoker()))
+        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
         .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             YT_VERIFY(State_.load() == EState::Opening);
 
@@ -129,7 +129,12 @@ bool TFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
         data.push_back(block.Data);
     }
 
-    ReadyEvent_ = IOEngine_->Pwritev(DataFile_, data, startOffset)
+    ReadyEvent_ =
+        IOEngine_->WriteVectorized(IIOEngine::TVectorizedWriteRequest{
+            *DataFile_,
+            startOffset,
+            std::move(data)
+        })
         .Apply(BIND([=, this_ = MakeStrong(this), newDataSize = currentOffset] (const TError& error) {
             YT_VERIFY(State_.load() == EState::WritingBlocks);
 
@@ -160,7 +165,7 @@ TFuture<void> TFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
     YT_VERIFY(State_.exchange(EState::Closing) == EState::Ready);
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
-    return IOEngine_->Close(DataFile_, DataSize_, SyncOnClose_)
+    return IOEngine_->Close(std::move(DataFile_), DataSize_, SyncOnClose_)
         .Apply(BIND([=, _this = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Closing);
 
@@ -191,8 +196,13 @@ TFuture<void> TFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
             ::memcpy(buffer.Begin(), &header, sizeof(header));
             ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
 
-            return IOEngine_->Pwrite(chunkMetaFile, buffer, 0)
-                .Apply(BIND(&IIOEngine::Close, IOEngine_, chunkMetaFile, MetaDataSize_, SyncOnClose_));
+            return
+                IOEngine_->Write(IIOEngine::TWriteRequest{
+                    *chunkMetaFile,
+                    0,
+                    buffer
+                })
+                .Apply(BIND(&IIOEngine::Close, IOEngine_, std::move(chunkMetaFile), MetaDataSize_, SyncOnClose_));
         }))
         .Apply(BIND([=, _this = MakeStrong(this)] () {
             YT_VERIFY(State_.load() == EState::Closing);
@@ -205,7 +215,7 @@ TFuture<void> TFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
             }
 
             return IOEngine_->FlushDirectory(NFS::GetDirectoryName(FileName_));
-        }).AsyncVia(IOEngine_->GetWritePoolInvoker()))
+        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
         .Apply(BIND([this, _this = MakeStrong(this)] (const TError& error) {
             YT_VERIFY(State_.load() == EState::Closing);
 
@@ -255,7 +265,7 @@ TFuture<void> TFileWriter::Abort()
 
             State_.store(EState::Aborted);
         })
-        .AsyncVia(IOEngine_->GetWritePoolInvoker())
+        .AsyncVia(IOEngine_->GetAuxPoolInvoker())
         .Run();
 }
 

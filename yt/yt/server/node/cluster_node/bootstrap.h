@@ -89,7 +89,7 @@ public:
     const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const;
     const NDataNode::TChunkStorePtr& GetChunkStore() const;
     const NDataNode::TChunkCachePtr& GetChunkCache() const;
-    const NDataNode::TChunkRegistryPtr& GetChunkRegistry() const;
+    const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const;
     const NDataNode::TSessionManagerPtr& GetSessionManager() const;
     const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const;
     const NDataNode::IChunkBlockManagerPtr& GetChunkBlockManager() const;
@@ -180,7 +180,7 @@ private:
     NExecAgent::TSchedulerConnectorPtr SchedulerConnector_;
     NDataNode::TChunkStorePtr ChunkStore_;
     NDataNode::TChunkCachePtr ChunkCache_;
-    NDataNode::TChunkRegistryPtr ChunkRegistry_;
+    NDataNode::IChunkRegistryPtr ChunkRegistry_;
     NDataNode::TSessionManagerPtr SessionManager_;
     NDataNode::IChunkMetaManagerPtr ChunkMetaManager_;
     NDataNode::IChunkBlockManagerPtr ChunkBlockManager_;

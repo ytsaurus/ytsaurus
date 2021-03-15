@@ -8,6 +8,7 @@
 
 namespace NYT::NHydra {
 
+using namespace NChunkClient;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +95,7 @@ TIndexBucket::TIndexBucket(size_t capacity, i64 alignment, i64 offset)
 
 TFuture<void> TIndexBucket::Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& ioEngine) const
 {
-    return ioEngine->Pwrite(file, Data_, Offset_);
+    return ioEngine->Write(IIOEngine::TWriteRequest{*file, Offset_, Data_});
 }
 
 void TIndexBucket::Push(const TChangelogIndexRecord& record)
@@ -405,7 +406,7 @@ TFuture<void> TAsyncFileChangelogIndex::FlushData()
         asyncResults.reserve(2);
         asyncResults.push_back(FlushDirtyBuckets());
         if (EnableSync_) {
-            asyncResults.push_back(IOEngine_->FlushData(IndexFile_).As<void>());
+            asyncResults.push_back(IOEngine_->FlushData(*IndexFile_));
         }
         return AllSucceeded(asyncResults);
     } else {

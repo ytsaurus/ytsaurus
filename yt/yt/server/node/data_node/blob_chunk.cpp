@@ -158,22 +158,97 @@ bool TBlobChunkBase::IsFatalError(const TError& error)
 NChunkClient::TFileReaderPtr TBlobChunkBase::GetReader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YT_VERIFY(ReadLockCounter_.load() > 0);
 
     {
-        auto guard = Guard(CachedReaderSpinLock_);
-        auto reader = CachedWeakReader_.Lock();
-        if (reader) {
+        auto guard = ReaderGuard(LifetimeLock_);
+        if (auto reader = CachedWeakReader_.Lock()) {
             return reader;
         }
     }
 
+    const auto& readerCache = Bootstrap_->GetBlobReaderCache();
+    auto reader = readerCache->GetReader(this);
+
     {
-        const auto& readerCache = Bootstrap_->GetBlobReaderCache();
-        auto reader = readerCache->GetReader(this);
-        auto guard = Guard(CachedReaderSpinLock_);
+        auto guard = WriterGuard(LifetimeLock_);
         CachedWeakReader_ = reader;
         return reader;
     }
+}
+
+TFuture<void> TBlobChunkBase::PrepareReader(TReaderGuard& readerGuard)
+{
+    VERIFY_READER_SPINLOCK_AFFINITY(LifetimeLock_);
+    YT_ASSERT(ReadLockCounter_.load() > 0);
+
+    if (PreparedReader_) {
+        return {};
+    }
+
+    auto reader = CachedWeakReader_.Lock();
+    if (reader && !reader->PrepareToReadChunkFragments()) {
+        PreparedReader_ = std::move(reader);
+        return {};
+    }
+
+    readerGuard.Release();
+
+    if (!reader) {
+        const auto& readerCache = Bootstrap_->GetBlobReaderCache();
+        reader = readerCache->GetReader(this);
+    }
+
+    auto prepareFuture = reader->PrepareToReadChunkFragments();
+
+    auto writerGuard = WriterGuard(LifetimeLock_);
+
+    YT_VERIFY(ReadLockCounter_.load() > 0);
+
+    CachedWeakReader_ = reader;
+
+    if (!prepareFuture) {
+        PreparedReader_ = std::move(reader);
+    }
+
+    if (PreparedReader_) {
+        return {};
+    }
+
+    writerGuard.Release();
+
+    return prepareFuture
+        .Apply(BIND([=, this_ = MakeStrong(this)] {
+            auto writerGuard = WriterGuard(LifetimeLock_);
+
+            if (ReadLockCounter_.load() == 0 || PreparedReader_) {
+                return;
+            }
+
+            PreparedReader_ = reader;
+
+            YT_LOG_DEBUG("Chunk reader prepared (ChunkId: %v, LocationId: %v)",
+                Id_,
+                Location_->GetId());
+        }).AsyncVia(Bootstrap_->GetStorageLightInvoker()));
+}
+
+void TBlobChunkBase::ReleaseReader(TWriterGuard& writerGuard)
+{
+    VERIFY_WRITER_SPINLOCK_AFFINITY(LifetimeLock_);
+    YT_VERIFY(ReadLockCounter_.load() == 0);
+
+    if (!PreparedReader_) {
+        return;
+    }
+
+    auto reader = std::move(PreparedReader_);
+
+    writerGuard.Release();
+
+    YT_LOG_DEBUG("Chunk reader released (ChunkId: %v, LocationId: %v)",
+        Id_,
+        Location_->GetId());
 }
 
 void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
@@ -716,9 +791,19 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockRange(
     return ReadBlockSet(blockIndexes, options);
 }
 
+IIOEngine::TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
+    const TChunkFragmentDescriptor& fragmentDescriptor,
+    TSharedMutableRef data)
+{
+    YT_ASSERT(ReadLockCounter_.load() > 0);
+    YT_ASSERT(PreparedReader_);
+
+    return PreparedReader_->MakeChunkFragmentReadRequest(fragmentDescriptor, std::move(data));
+}
+
 void TBlobChunkBase::SyncRemove(bool force)
 {
-    VERIFY_INVOKER_AFFINITY(Location_->GetWritePoolInvoker());
+    VERIFY_INVOKER_AFFINITY(Location_->GetAuxPoolInvoker());
 
     const auto& readerCache = Bootstrap_->GetBlobReaderCache();
     readerCache->EvictReader(this);
@@ -731,7 +816,7 @@ TFuture<void> TBlobChunkBase::AsyncRemove()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return BIND(&TBlobChunkBase::SyncRemove, MakeStrong(this), false)
-        .AsyncVia(Location_->GetWritePoolInvoker())
+        .AsyncVia(Location_->GetAuxPoolInvoker())
         .Run();
 }
 

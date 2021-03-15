@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/concurrency/spinlock.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,7 +45,7 @@ public:
     virtual int GetVersion() const override;
     virtual int IncrementVersion() override;
 
-    virtual void AcquireReadLock() override;
+    virtual TFuture<void> AcquireReadLock() override;
     virtual void ReleaseReadLock() override;
 
     virtual void AcquireUpdateLock() override;
@@ -52,6 +54,8 @@ public:
     virtual TFuture<void> ScheduleRemove() override;
     virtual bool IsRemoveScheduled() const override;
 
+    virtual void TrySweepReader() override;
+
 protected:
     NClusterNode::TBootstrap* const Bootstrap_;
     const TLocationPtr Location_;
@@ -59,12 +63,16 @@ protected:
 
     std::atomic<int> Version_ = 0;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
-    TFuture<void> RemovedFuture_;  // if not null then remove is scheduled
-    TPromise<void> RemovedPromise_;
-    int ReadLockCounter_ = 0;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, LifetimeLock_);
+    std::atomic<int> ReadLockCounter_ = 0;
     int UpdateLockCounter_ = 0;
-    bool Removing_ = false;
+    TFuture<void> RemovedFuture_;
+    TPromise<void> RemovedPromise_;
+    std::atomic<bool> RemoveScheduled_ = false;
+    std::atomic<bool> Removing_ = false;
+    // Incremented by 2 on each read lock acquisition since last sweep scheduling.
+    // The lowest bit indicates if sweep has been scheduled.
+    std::atomic<ui64> ReaderSweepLatch_ = 0;
 
 
     struct TReadSessionBase
@@ -93,6 +101,11 @@ protected:
 
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;
+
+    using TReaderGuard = NConcurrency::TSpinlockReaderGuard<NConcurrency::TReaderWriterSpinLock>;
+    using TWriterGuard = NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>;
+    virtual TFuture<void> PrepareReader(TReaderGuard& readerGuard);
+    virtual void ReleaseReader(TWriterGuard& writerGuard);
 
     static NChunkClient::TRefCountedChunkMetaPtr FilterMeta(
         NChunkClient::TRefCountedChunkMetaPtr meta,

@@ -101,22 +101,32 @@ TBlockPeerTable::TBlockPeerTable(TBootstrap* bootstrap)
     SweepExecutor_->Start();
 }
 
-TCachedPeerListPtr TBlockPeerTable::FindOrCreatePeerList(const TBlockId& blockId, bool insert)
+TCachedPeerListPtr TBlockPeerTable::FindPeerList(const TBlockId& blockId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    {
-        auto guard = ReaderGuard(Lock_);
-        auto it = BlockIdToPeerList_.find(blockId);
-        if (it != BlockIdToPeerList_.end()) {
-            return it->second;
-        }
+    auto guard = ReaderGuard(Lock_);
+    auto it = BlockIdToPeerList_.find(blockId);
+    return it == BlockIdToPeerList_.end() ? nullptr : it->second;
+}
+
+TCachedPeerListPtr TBlockPeerTable::FindPeerList(TChunkId chunkId)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return FindPeerList(TBlockId(chunkId, AllBlocksIndex));
+}
+
+TCachedPeerListPtr TBlockPeerTable::GetOrCreatePeerList(const TBlockId& blockId)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    // Fast path.
+    if (auto peerList = FindPeerList(blockId)) {
+        return peerList;
     }
 
-    if (!insert) {
-        return nullptr;
-    }
-
+    // Slow path.
     {
         auto guard = WriterGuard(Lock_);
         auto it = BlockIdToPeerList_.find(blockId);
@@ -127,11 +137,11 @@ TCachedPeerListPtr TBlockPeerTable::FindOrCreatePeerList(const TBlockId& blockId
     }
 }
 
-TCachedPeerListPtr TBlockPeerTable::FindOrCreatePeerList(TChunkId chunkId, bool insert)
+TCachedPeerListPtr TBlockPeerTable::GetOrCreatePeerList(TChunkId chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return FindOrCreatePeerList(TBlockId(chunkId, AllBlocksIndex), insert);
+    return GetOrCreatePeerList(TBlockId(chunkId, AllBlocksIndex));
 }
 
 void TBlockPeerTable::OnSweep()

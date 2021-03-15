@@ -25,6 +25,7 @@
 namespace NYT::NHydra {
 
 using namespace NHydra::NProto;
+using namespace NChunkClient;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -268,11 +269,12 @@ public:
 
         try {
             if (Config_->EnableSync) {
-                std::vector<TFuture<void>> futures;
-                futures.reserve(2);
-                futures.push_back(IndexFile_.FlushData());
-                futures.push_back(IOEngine_->FlushData(DataFile_).As<void>());
-                WaitFor(AllSucceeded(futures)).ThrowOnError();
+                std::vector<TFuture<void>> futures{
+                    IndexFile_.FlushData(),
+                    IOEngine_->FlushData(*DataFile_)
+                };
+                WaitFor(AllSucceeded(std::move(futures)))
+                    .ThrowOnError();
             }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error flushing changelog");
@@ -339,7 +341,7 @@ public:
 
         YT_LOG_DEBUG("Started preallocating changelog");
 
-        WaitFor(IOEngine_->Fallocate(DataFile_, size))
+        WaitFor(IOEngine_->Fallocate(*DataFile_, size))
             .ThrowOnError();
 
         YT_LOG_DEBUG("Finished preallocating changelog");
@@ -528,16 +530,16 @@ private:
     void DoUpdateLogHeader()
     {
         NFS::ExpectIOErrors([&] {
-            WaitFor(IOEngine_->FlushData(DataFile_))
+            WaitFor(IOEngine_->FlushData(*DataFile_))
                 .ThrowOnError();
 
             auto header = MakeChangelogHeader<T>();
             auto data = TAsyncFileChangelogIndex::AllocateAligned(header.FirstRecordOffset, true, Alignment);
             ::memcpy(data.Begin(), &header, sizeof(header));
 
-            WaitFor(IOEngine_->Pwrite(DataFile_, data, 0))
+            WaitFor(IOEngine_->Write(IIOEngine::TWriteRequest{*DataFile_, 0, std::move(data)}))
                 .ThrowOnError();
-            WaitFor(IOEngine_->FlushData(DataFile_))
+            WaitFor(IOEngine_->FlushData(*DataFile_))
                 .ThrowOnError();
         });
     }
@@ -577,8 +579,12 @@ private:
         result.UpperBound.FilePosition = CurrentFilePosition_;
         IndexFile_.Search(&result.LowerBound, &result.UpperBound, firstRecordId, lastRecordId, maxBytes);
 
-        result.Blob = WaitFor(IOEngine_->Pread(DataFile_, result.GetLength(), result.GetStartPosition()))
-            .ValueOrThrow();
+        struct TEnvelopeBufferTag
+        { };
+        result.Blob = TSharedMutableRef::Allocate<TEnvelopeBufferTag>(result.GetLength(), false);
+
+        WaitFor(IOEngine_->Read(IIOEngine::TReadRequest{*DataFile_, result.GetStartPosition(), result.Blob}))
+            .ThrowOnError();
 
         YT_VERIFY(result.Blob.Size() == result.GetLength());
 
@@ -896,7 +902,7 @@ private:
             TSharedRef data(AppendOutput_.Blob().Begin(), AppendOutput_.Size(), MakeStrong(this));
 
             // Write blob to file.
-            WaitFor(IOEngine_->Pwrite(DataFile_, data, CurrentFilePosition_))
+            WaitFor(IOEngine_->Write(IIOEngine::TWriteRequest{*DataFile_, CurrentFilePosition_, std::move(data)}))
                 .ThrowOnError();
 
             // Process written records (update index etc).

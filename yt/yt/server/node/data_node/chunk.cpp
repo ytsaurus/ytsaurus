@@ -31,8 +31,11 @@ TJournalChunkPtr IChunk::AsJournalChunk()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReadGuard::TChunkReadGuard(IChunkPtr chunk)
+TChunkReadGuard::TChunkReadGuard(
+    IChunkPtr chunk,
+    TFuture<void> readerPreparedFuture)
     : Chunk_(std::move(chunk))
+    , ReaderPreparedFuture_(std::move(readerPreparedFuture))
 { }
 
 TChunkReadGuard::~TChunkReadGuard()
@@ -47,10 +50,30 @@ TChunkReadGuard::operator bool() const
     return Chunk_.operator bool();
 }
 
+const IChunkPtr& TChunkReadGuard::GetChunk() const
+{
+    return Chunk_;
+}
+
+const TFuture<void>& TChunkReadGuard::GetReaderPreparedFuture() const
+{
+    return ReaderPreparedFuture_;
+}
+
 TChunkReadGuard TChunkReadGuard::Acquire(IChunkPtr chunk)
 {
-    chunk->AcquireReadLock();
-    return TChunkReadGuard(std::move(chunk));
+    auto readerPreparedFuture = chunk->AcquireReadLock();
+    return TChunkReadGuard(std::move(chunk), std::move(readerPreparedFuture));
+}
+
+TChunkReadGuard TChunkReadGuard::TryAcquire(IChunkPtr chunk)
+{
+    // TODO(babenko): avoid exceptions here
+    try {
+        return Acquire(std::move(chunk));
+    } catch (const std::exception&) {
+        return {};
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

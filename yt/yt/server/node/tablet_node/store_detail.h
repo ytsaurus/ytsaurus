@@ -178,7 +178,7 @@ public:
         TTimestamp chunkTimestamp,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
-        NDataNode::TChunkRegistryPtr chunkRegistry,
+        NDataNode::IChunkRegistryPtr chunkRegistry,
         NDataNode::IChunkBlockManagerPtr chunkBlockManager,
         IVersionedChunkMetaManagerPtr chunkMetaManager,
         NApi::NNative::IClientPtr client,
@@ -243,7 +243,7 @@ public:
 
 protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
-    const NDataNode::TChunkRegistryPtr ChunkRegistry_;
+    const NDataNode::IChunkRegistryPtr ChunkRegistry_;
     const NDataNode::IChunkBlockManagerPtr ChunkBlockManager_;
     const IVersionedChunkMetaManagerPtr ChunkMetaManager_;
     const NApi::NNative::IClientPtr Client_;

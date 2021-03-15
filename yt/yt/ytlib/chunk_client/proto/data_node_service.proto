@@ -214,9 +214,10 @@ message TRspGetBlockRange
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetBlockFragmentSet
+message TReqGetChunkFragmentSet
 {
-    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 1;
+    required NYT.NProto.TGuid read_session_id = 1;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 2;
 
     message TSubrequest
     {
@@ -224,19 +225,19 @@ message TReqGetBlockFragmentSet
 
         message TFragment
         {
-            required int32 block_index = 1;
-            // If offset and length are omitted then the whole block is requested.
-            optional int32 offset = 2;
-            optional int32 length = 3;
+            // Chunk-wise offset.
+            required int64 offset = 1;
+            // Length of the fragment.
+            required int32 length = 2;
         }
 
         repeated TFragment fragments = 2;
     }
 
-    repeated TSubrequest subrequests = 2;
+    repeated TSubrequest subrequests = 3;
 }
 
-message TRspGetBlockFragmentSet
+message TRspGetChunkFragmentSet
 {
     message TSubresponse
     {

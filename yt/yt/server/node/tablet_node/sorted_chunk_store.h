@@ -29,7 +29,7 @@ public:
         TTimestamp chunkTimestamp,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,
-        NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
+        NDataNode::IChunkRegistryPtr chunkRegistry = nullptr,
         NDataNode::IChunkBlockManagerPtr chunkBlockManager = nullptr,
         IVersionedChunkMetaManagerPtr chunkMetaManager = nullptr,
         NApi::NNative::IClientPtr client = nullptr,

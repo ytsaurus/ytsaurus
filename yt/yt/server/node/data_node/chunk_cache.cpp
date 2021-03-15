@@ -289,7 +289,7 @@ public:
 
             futures.push_back(
                 BIND(&TImpl::InitializeLocation, MakeStrong(this))
-                    .AsyncVia(location->GetWritePoolInvoker())
+                    .AsyncVia(location->GetAuxPoolInvoker())
                     .Run(location));
 
             Locations_.push_back(location);
@@ -423,7 +423,7 @@ private:
 
     void InitializeLocation(const TCacheLocationPtr& location)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         auto descriptors = location->Scan();
         for (const auto& descriptor : descriptors) {
@@ -517,7 +517,7 @@ private:
 
         TSessionCounterGuard guard(location);
 
-        auto invoker = CreateSerializedInvoker(location->GetWritePoolInvoker());
+        auto invoker = CreateSerializedInvoker(location->GetAuxPoolInvoker());
         invoker->Invoke(BIND(
             downloader,
             MakeStrong(this),
@@ -554,7 +554,7 @@ private:
         }
 
         YT_LOG_INFO("Scheduling cached chunk validation");
-        location->GetWritePoolInvoker()->Invoke(BIND(
+        location->GetAuxPoolInvoker()->Invoke(BIND(
             &TImpl::DoValidateChunk,
             MakeStrong(this),
             Passed(std::move(cookie)),
@@ -578,7 +578,7 @@ private:
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
 
-        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         try {
             YT_LOG_INFO("Chunk validation started");
@@ -661,7 +661,7 @@ private:
         location->UpdateChunkCount(-1);
         location->UpdateUsedSpace(-descriptor.DiskSpace);
 
-        location->GetWritePoolInvoker()->Invoke(BIND(
+        location->GetAuxPoolInvoker()->Invoke(BIND(
             &TCacheLocation::RemoveChunkFilesPermanently,
             location,
             descriptor.Id));
@@ -691,7 +691,7 @@ private:
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         auto chunkId = descriptor.Id;
 
@@ -865,7 +865,7 @@ private:
         TInsertCookie cookie,
         const TTrafficMeterPtr& trafficMeter)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
@@ -996,7 +996,7 @@ private:
         TInsertCookie cookie,
         const TTrafficMeterPtr& trafficMeter)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         try {
             auto producer = MakeFileProducer(
@@ -1069,7 +1069,7 @@ private:
         TInsertCookie cookie,
         const TTrafficMeterPtr& trafficMeter)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         try {
             auto producer = MakeTableProducer(
@@ -1192,7 +1192,7 @@ private:
         TChunkId chunkId,
         const std::function<void(IOutputStream*)>& producer)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         YT_LOG_INFO("Producing artifact file (ChunkId: %v, Location: %v)",
             chunkId,
@@ -1255,7 +1255,7 @@ private:
         const TCacheLocationPtr& location,
         TChunkId chunkId)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         if (!IsArtifactChunkId(chunkId)) {
             return TArtifactKey(chunkId);

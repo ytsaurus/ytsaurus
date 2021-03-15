@@ -66,7 +66,6 @@ struct TLocationPerformanceCounters
 
     NProfiling::TEventTimer PutBlocksWallTime;
     NProfiling::TEventTimer BlobChunkMetaReadTime;
-    NProfiling::TEventTimer BlobChunkReaderOpenTime;
 
     NProfiling::TEventTimer BlobChunkWriterOpenTime;
     NProfiling::TEventTimer BlobChunkWriterAbortTime;
@@ -151,8 +150,8 @@ public:
     //! in order to join them together during read coalescing.
     i64 GetCoalescedReadMaxGapSize() const;
 
-    //! Returns an invoker for various write IO activities.
-    const IInvokerPtr& GetWritePoolInvoker();
+    //! Returns an invoker for various auxiliarly IO activities.
+    const IInvokerPtr& GetAuxPoolInvoker();
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     /*!

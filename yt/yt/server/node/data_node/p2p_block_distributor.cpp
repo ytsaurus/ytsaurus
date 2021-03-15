@@ -213,7 +213,7 @@ void TP2PBlockDistributor::DistributeBlocks()
         ->GetNativeConnection()
         ->GetChannelFactory();
 
-    const auto& peerBlockTable = Bootstrap_->GetBlockPeerTable();
+    const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
 
     // Filter nodes that are not local and that are allowed by node tag filter.
     auto nodes = Bootstrap_->GetNodeDirectory()->GetAllDescriptors();
@@ -231,7 +231,7 @@ void TP2PBlockDistributor::DistributeBlocks()
         const auto& reqTemplate = reqTemplates[index];
         auto& chunk = DistributionHistory_[blockId.ChunkId];
 
-        auto peerList = peerBlockTable->FindOrCreatePeerList(blockId, true);
+        auto peerList = blockPeerTable->GetOrCreatePeerList(blockId);
 
         auto destinationNodes = ChooseDestinationNodes(nodeSet, nodes, peerList, &chunk.Nodes);
         if (destinationNodes.empty()) {
@@ -482,8 +482,8 @@ void TP2PBlockDistributor::OnBlockDistributed(
         expirationDeadline,
         size);
 
-    const auto& peerBlockTable = Bootstrap_->GetBlockPeerTable();
-    auto peerList = peerBlockTable->FindOrCreatePeerList(blockId, true);
+    const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
+    auto peerList = blockPeerTable->GetOrCreatePeerList(blockId);
     peerList->AddPeer(nodeId, expirationDeadline);
 
     DistributedBytes_ += size;

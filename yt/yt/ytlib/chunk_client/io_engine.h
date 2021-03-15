@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/core/actions/future.h>
+
 #include <yt/yt/core/misc/ref.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -18,28 +19,49 @@ namespace NYT::NChunkClient {
 struct IIOEngine
     : public TRefCounted
 {
-    virtual TFuture<TSharedMutableRef> Pread(
-        const std::shared_ptr<TFileHandle>& handle,
-        i64 size,
-        i64 offset,
+    struct TReadRequest
+    {
+        FHANDLE Handle;
+        i64 Offset;
+        TSharedMutableRef Data;
+    };
+
+    struct TWriteRequest
+    {
+        FHANDLE Handle;
+        i64 Offset;
+        TSharedRef Data;
+    };
+
+    struct TVectorizedWriteRequest
+    {
+        FHANDLE Handle;
+        i64 Offset;
+        std::vector<TSharedRef> Data;
+    };
+
+    virtual TFuture<void> Read(
+        const TReadRequest& request,
+        i64 priority = std::numeric_limits<i64>::max()) = 0;
+    virtual TFuture<void> ReadMany(
+        const std::vector<TReadRequest>& requests,
+        i64 priority = std::numeric_limits<i64>::max()) = 0;
+    virtual TFuture<TSharedMutableRef> ReadAll(
+        const TString& fileName,
         i64 priority = std::numeric_limits<i64>::max()) = 0;
 
-    virtual TFuture<void> Pwrite(
-        const std::shared_ptr<TFileHandle>& handle,
-        const TSharedRef& data,
-        i64 offset,
+    virtual TFuture<void> Write(
+        const TWriteRequest& request,
         i64 priority = std::numeric_limits<i64>::max()) = 0;
-    virtual TFuture<void> Pwritev(
-        const std::shared_ptr<TFileHandle>& handle,
-        const std::vector<TSharedRef>& data,
-        i64 offset,
+    virtual TFuture<void> WriteVectorized(
+        const TVectorizedWriteRequest& request,
         i64 priority = std::numeric_limits<i64>::max()) = 0;
 
-    virtual TFuture<bool> FlushData(
-        const std::shared_ptr<TFileHandle>& handle,
+    virtual TFuture<void> FlushData(
+        FHANDLE handle,
         i64 priority = std::numeric_limits<i64>::max()) = 0;
-    virtual TFuture<bool> Flush(
-        const std::shared_ptr<TFileHandle>& handle,
+    virtual TFuture<void> Flush(
+        FHANDLE hand1le,
         i64 priority = std::numeric_limits<i64>::max()) = 0;
 
     virtual TFuture<std::shared_ptr<TFileHandle>> Open(
@@ -49,23 +71,19 @@ struct IIOEngine
         i64 priority = std::numeric_limits<i64>::max()) = 0;
 
     virtual TFuture<void> Close(
-        const std::shared_ptr<TFileHandle>& handle,
+        std::shared_ptr<TFileHandle> handle,
         i64 newSize = -1,
         bool flush = false) = 0;
 
     virtual TFuture<void> FlushDirectory(const TString& path) = 0;
 
-    virtual TFuture<TSharedMutableRef> ReadAll(
-        const TString& fileName,
-        i64 priority = std::numeric_limits<i64>::max()) = 0;
-
     virtual bool IsSick() const = 0;
 
     virtual TFuture<void> Fallocate(
-        const std::shared_ptr<TFileHandle>& handle,
+        FHANDLE handle,
         i64 newSize) = 0;
 
-    virtual const IInvokerPtr& GetWritePoolInvoker() = 0;
+    virtual const IInvokerPtr& GetAuxPoolInvoker() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)
