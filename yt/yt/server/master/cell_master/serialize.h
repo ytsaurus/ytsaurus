@@ -159,6 +159,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReconfigurableMasterSingletons)                               (1512))  // gritukan
     ((FixMasterMemoryCompats)                                       (1513))  // aleksandra-zh
     ((PullParserDeserialization)                                    (1514))  // levysotsky
+    ((UuidType)                                                     (1515))  // ermolovd
 );
 
 ////////////////////////////////////////////////////////////////////////////////
