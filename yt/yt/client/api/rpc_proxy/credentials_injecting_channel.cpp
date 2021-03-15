@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/rpc/client.h>
 #include <yt/yt/core/rpc/channel_detail.h>
-#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 namespace NYT::NApi::NRpcProxy {
 

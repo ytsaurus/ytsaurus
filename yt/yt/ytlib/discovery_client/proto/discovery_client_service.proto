@@ -1,6 +1,6 @@
 package NYT.NDiscoveryClient.NProto;
 
-import "yt/core/ytree/proto/attributes.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

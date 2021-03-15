@@ -5,11 +5,10 @@ option java_multiple_files = true;
 
 option go_package = "a.yandex-team.ru/yt/go/proto/core/rpc";
 
-option python_package = "yt_proto.yt.core.rpc.proto";
 
-import "yt/core/misc/proto/guid.proto";
-import "yt/core/misc/proto/error.proto";
-import "yt/core/tracing/proto/tracing_ext.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/tracing/proto/tracing_ext.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

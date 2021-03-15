@@ -1,6 +1,6 @@
 package NYT.NYson.NProto;
 
-import "yt/core/yson/proto/protobuf_interop.proto";
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
 
 option (NYT.NYson.NProto.derive_underscore_case_names) = true;
 

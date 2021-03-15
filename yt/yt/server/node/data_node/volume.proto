@@ -1,6 +1,6 @@
 package NYT.NDataNode.NProto;
 
-import "yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt/server/node/data_node/artifact.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

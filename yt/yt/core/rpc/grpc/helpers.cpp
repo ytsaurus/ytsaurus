@@ -4,8 +4,8 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 
-#include <yt/yt/core/misc/proto/protobuf_helpers.pb.h>
-#include <yt/yt/core/misc/proto/error.pb.h>
+#include <yt/yt_proto/yt/core/misc/proto/protobuf_helpers.pb.h>
+#include <yt/yt_proto/yt/core/misc/proto/error.pb.h>
 
 #include <yt/yt/core/ytree/node.h>
 

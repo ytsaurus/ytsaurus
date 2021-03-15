@@ -24,7 +24,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

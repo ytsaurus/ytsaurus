@@ -8,9 +8,9 @@ option go_package = "a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy";
 
 option python_package = "yt_proto.yt.client.api.rpc_proxy.proto";
 
-import "yt/core/misc/proto/guid.proto";
-import "yt/core/misc/proto/error.proto";
-import "yt/core/ytree/proto/attributes.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt/client/hive/proto/timestamp_map.proto";
 import "yt/client/chunk_client/proto/data_statistics.proto";
 

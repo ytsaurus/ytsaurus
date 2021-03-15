@@ -10,7 +10,7 @@
 #include <yt/yt/core/misc/ref.h>
 
 #include <yt/yt/core/rpc/public.h>
-#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/yt/core/actions/bind.h>
 

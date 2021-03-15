@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/yson/public.h>
 
-#include <yt/yt/core/ytree/proto/attributes.pb.h>
+#include <yt/yt_proto/yt/core/ytree/proto/attributes.pb.h>
 
 namespace NYT::NYTree {
 

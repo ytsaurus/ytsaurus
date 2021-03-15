@@ -32,9 +32,9 @@
 #include <yt/yt/core/misc/farm_hash.h>
 #include <yt/yt/core/misc/string.h>
 
-#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/yt/core/ytree/proto/ypath.pb.h>
+#include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
 
 #include <yt/yt/core/yson/string.h>
 

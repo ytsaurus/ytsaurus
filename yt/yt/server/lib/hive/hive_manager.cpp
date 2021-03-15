@@ -24,7 +24,7 @@
 
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 #include <yt/yt/core/rpc/server.h>
 #include <yt/yt/core/rpc/service_detail.h>
 

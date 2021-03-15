@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <atomic>
 

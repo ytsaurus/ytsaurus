@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/proto/guid.pb.h>
+#include <yt/yt_proto/yt/core/misc/proto/guid.pb.h>
 
 #include <yt/yt/core/yson/protobuf_interop.h>
 

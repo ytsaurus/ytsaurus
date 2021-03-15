@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/rpc/server_detail.h>
 #include <yt/yt/core/rpc/message.h>
-#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/yt/core/bus/bus.h>
 

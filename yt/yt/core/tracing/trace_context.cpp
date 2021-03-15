@@ -7,7 +7,7 @@
 #include <yt/yt/core/misc/shutdown.h>
 #include <yt/yt/core/misc/singleton.h>
 
-#include <yt/yt/core/tracing/proto/tracing_ext.pb.h>
+#include <yt/yt_proto/yt/core/tracing/proto/tracing_ext.pb.h>
 
 #include <yt/yt/library/tracing/tracer.h>
 

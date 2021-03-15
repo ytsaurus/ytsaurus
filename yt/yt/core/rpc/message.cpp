@@ -5,7 +5,7 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/yt/core/ytalloc/memory_zone.h>
 

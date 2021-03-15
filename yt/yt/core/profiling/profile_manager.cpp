@@ -24,7 +24,7 @@
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 
-#include <yt/yt/core/profiling/proto/profiling.pb.h>
+#include <yt/yt_proto/yt/core/profiling/proto/profiling.pb.h>
 
 #include <util/generic/iterator_range.h>
 

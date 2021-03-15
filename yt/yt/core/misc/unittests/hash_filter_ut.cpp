@@ -1,7 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/bloom_filter.h>
-#include <yt/yt/core/misc/proto/bloom_filter.pb.h>
+#include <yt/yt_proto/yt/core/misc/proto/bloom_filter.pb.h>
 #include <yt/yt/core/misc/farm_hash.h>
 
 #include <random>

@@ -1,9 +1,9 @@
 package NYT.NYson.NProto;
 
-import "yt/core/misc/proto/guid.proto";
-import "yt/core/misc/proto/protobuf_helpers.proto";
-import "yt/core/yson/proto/protobuf_interop.proto";
-import "yt/core/ytree/proto/attributes.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/protobuf_helpers.proto";
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 enum EColor
 {

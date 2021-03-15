@@ -3,20 +3,15 @@ package NYT.NProto;
 option java_package = "ru.yandex.yt";
 option java_multiple_files = true;
 
-option python_package = "yt_proto.yt.core.misc.proto";
 
 option go_package = "a.yandex-team.ru/yt/go/proto/core/misc";
 
-import "yt/core/ytree/proto/attributes.proto";
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TError
+message TGuid
 {
-    required int32 code = 1;
-    optional string message = 2;
-    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 3;
-    repeated TError inner_errors = 4;
+    required fixed64 first = 1;
+    required fixed64 second = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

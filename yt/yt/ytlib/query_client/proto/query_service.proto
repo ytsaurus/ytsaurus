@@ -7,9 +7,9 @@ import "yt/client/chunk_client/proto/read_limit.proto";
 import "yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt/ytlib/query_client/proto/query.proto";
 import "yt/ytlib/query_client/proto/functions_cache.proto";
-import "yt/core/rpc/proto/rpc.proto";
-import "yt/core/misc/proto/guid.proto";
-import "yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/rpc/proto/rpc.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
