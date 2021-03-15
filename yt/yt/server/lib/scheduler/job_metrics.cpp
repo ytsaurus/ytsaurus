@@ -252,6 +252,32 @@ bool Dominates(const TJobMetrics& lhs, const TJobMetrics& rhs)
     return true;
 }
 
+TJobMetrics Max(const TJobMetrics& lhs, const TJobMetrics& rhs)
+{
+    TJobMetrics result;
+    for (auto metricName : TEnumTraits<EJobMetricName>::GetDomainValues()) {
+        result.Values()[metricName] = std::max(lhs.Values()[metricName], rhs.Values()[metricName]);
+    }
+
+    for (const auto& [jobMetriDescription, rhsValue] : rhs.CustomValues()) {
+        auto lhsIt = lhs.CustomValues().find(jobMetriDescription);
+        if (lhs.CustomValues().find(jobMetriDescription) == lhs.CustomValues().end()) {
+            result.CustomValues()[jobMetriDescription] = rhsValue;
+        } else {
+            result.CustomValues()[jobMetriDescription] = std::max(lhsIt->second, rhsValue);
+        }
+    }
+    for (const auto& [jobMetriDescription, lhsValue] : lhs.CustomValues()) {
+        auto rhsIt = rhs.CustomValues().find(jobMetriDescription);
+        if (rhs.CustomValues().find(jobMetriDescription) == rhs.CustomValues().end()) {
+            result.CustomValues()[jobMetriDescription] = lhsValue;
+        } else {
+            result.CustomValues()[jobMetriDescription] = std::max(rhsIt->second, lhsValue);
+        }
+    }
+    return result;
+}
+
 void ToProto(NControllerAgent::NProto::TJobMetrics* protoJobMetrics, const NScheduler::TJobMetrics& jobMetrics)
 {
     ToProto(protoJobMetrics->mutable_values(), jobMetrics.Values());
@@ -274,6 +300,28 @@ void FromProto(NScheduler::TJobMetrics* jobMetrics, const NControllerAgent::NPro
         TCustomJobMetricDescription customJobMetric{customValueProto.statistics_path(), customValueProto.profiling_name()};
         (*jobMetrics).CustomValues().emplace(std::move(customJobMetric), customValueProto.value());
     }
+}
+
+void Serialize(const TJobMetrics& jobMetrics, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginList()
+            .DoFor(TEnumTraits<EJobMetricName>::GetDomainValues(), [&] (TFluentList fluent, EJobMetricName name) {
+                fluent.Item()
+                    .BeginMap()
+                        .Item("name").Value(FormatEnum(name))
+                        .Item("value").Value(jobMetrics.Values()[name])
+                    .EndMap();
+            })
+            .DoFor(jobMetrics.CustomValues(), [&] (TFluentList fluent, const std::pair<TCustomJobMetricDescription, i64>& pair) {
+                const auto& [jobMetricDescription, value] = pair;
+                fluent.Item()
+                    .BeginMap()
+                        .Item("statistics_path").Value(jobMetricDescription.StatisticsPath)
+                        .Item("value").Value(value)
+                    .EndMap();
+            })
+        .EndList();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
