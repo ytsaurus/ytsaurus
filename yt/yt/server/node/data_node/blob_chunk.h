@@ -42,6 +42,10 @@ public:
         int blockCount,
         const TBlockReadOptions& options);
 
+    virtual NChunkClient::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const NChunkClient::TChunkFragmentDescriptor& fragmentDescriptor,
+        TSharedMutableRef data) override;
+
     virtual void SyncRemove(bool force) override;
 
     NChunkClient::TRefCountedBlocksExtPtr FindCachedBlocksExt();
@@ -88,13 +92,17 @@ private:
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, BlocksExtLock_);
     TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, CachedReaderSpinLock_);
+    // Protected by LifetimeLock_.
     TWeakPtr<NChunkClient::TFileReader> CachedWeakReader_;
+    NChunkClient::TFileReaderPtr PreparedReader_;
 
     //! Returns true if location must be disabled.
     static bool IsFatalError(const TError& error);
 
     NChunkClient::TFileReaderPtr GetReader();
+
+    virtual TFuture<void> PrepareReader(TReaderGuard& readerGuard) override;
+    virtual void ReleaseReader(TWriterGuard& writerGuard) override;
 
     void CompleteSession(const TIntrusivePtr<TReadBlockSetSession>& session);
     static void FailSession(const TIntrusivePtr<TReadBlockSetSession>& session, const TError& error);

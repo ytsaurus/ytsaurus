@@ -190,6 +190,13 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
     return session->Promise;
 }
 
+IIOEngine::TReadRequest TJournalChunk::MakeChunkFragmentReadRequest(
+    const TChunkFragmentDescriptor& /* fragmentDescriptor */,
+    TSharedMutableRef /* data */)
+{
+    THROW_ERROR_EXCEPTION("Journal chunks do not support reading fragments");
+}
+
 void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 {
     const auto& config = Bootstrap_->GetConfig()->DataNode;

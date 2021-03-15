@@ -10,30 +10,33 @@ namespace NYT::NDataNode {
 
 //! A facade for locating chunks.
 /*!
- *  Uploaded chunks can be registered either at TChunkStore or at TChunkCache.
+ *  Chunks stored at node can be registered either in TChunkStore or in TChunkCache.
  *  This class provides a single entry point for locating these chunks.
  *
  *  \note
  *  Thread affinity: any
  */
-class TChunkRegistry
+struct IChunkRegistry
     : public TRefCounted
 {
-public:
-    explicit TChunkRegistry(NClusterNode::TBootstrap* bootstrap);
-
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
-    IChunkPtr FindChunk(TChunkId chunkId, int mediumIndex = NChunkClient::AllMediaIndex);
+    virtual IChunkPtr FindChunk(
+        TChunkId chunkId,
+        int mediumIndex = NChunkClient::AllMediaIndex) = 0;
 
     //! Finds chunk by id. Throws if no chunk exists.
-    IChunkPtr GetChunkOrThrow(TChunkId chunkId, int mediumIndex = NChunkClient::AllMediaIndex);
+    virtual IChunkPtr GetChunkOrThrow(
+        TChunkId chunkId,
+        int mediumIndex = NChunkClient::AllMediaIndex) = 0;
 
-private:
-    NClusterNode::TBootstrap* const Bootstrap_;
-
+    //! Schedules calling #IChunk::TrySweepReader after a configured period of time
+    //! (see #TDataNodeDynamicConfig::ChunkReaderRetentionTimeout).
+    virtual void ScheduleChunkReaderSweep(IChunkPtr chunk) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkRegistry)
+DEFINE_REFCOUNTED_TYPE(IChunkRegistry)
+
+IChunkRegistryPtr CreateChunkRegistry(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

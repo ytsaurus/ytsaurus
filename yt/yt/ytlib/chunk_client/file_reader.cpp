@@ -1,8 +1,8 @@
 #include "file_reader.h"
+#include "chunk_reader.h"
 #include "chunk_meta_extensions.h"
 #include "format.h"
 #include "chunk_reader_statistics.h"
-#include "io_engine.h"
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/fs.h>
@@ -11,11 +11,17 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NYTAlloc;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,14 +52,14 @@ void ReadHeader(
 } // namespace
 
 TFileReader::TFileReader(
-    const IIOEnginePtr& ioEngine,
+    IIOEnginePtr ioEngine,
     TChunkId chunkId,
-    const TString& fileName,
+    TString fileName,
     bool validateBlocksChecksums,
     IBlocksExtCache* blocksExtCache)
-    : IOEngine_(ioEngine)
+    : IOEngine_(std::move(ioEngine))
     , ChunkId_(chunkId)
-    , FileName_(fileName)
+    , FileName_(std::move(fileName))
     , ValidateBlockChecksums_(validateBlocksChecksums)
     , BlocksExtCache_(std::move(blocksExtCache))
 { }
@@ -139,40 +145,39 @@ TChunkId TFileReader::GetChunkId() const
     return ChunkId_;
 }
 
-TInstant TFileReader::GetLastFailureTime() const
+TFuture<void> TFileReader::PrepareToReadChunkFragments()
 {
-    return TInstant();
+    // Fast path.
+    if (DataFileOpened_.load()) {
+        return {};
+    }
+
+    // Slow path.
+    return OpenDataFile().AsVoid();
 }
 
-void TFileReader::SetSlownessChecker(TCallback<TError(i64, TDuration)>)
+IIOEngine::TReadRequest TFileReader::MakeChunkFragmentReadRequest(
+    const TChunkFragmentDescriptor& fragmentDescriptor,
+    TSharedMutableRef data)
 {
-    YT_UNIMPLEMENTED();
+    YT_ASSERT(DataFileOpened_.load());
+    YT_ASSERT(fragmentDescriptor.Length == data.Size());
+
+    return IIOEngine::TReadRequest{
+        *DataFile_,
+        fragmentDescriptor.Offset,
+        std::move(data)
+    };
 }
 
-void TFileReader::DumpBrokenBlock(
-    int blockIndex,
-    const TBlockInfo& blockInfo,
-    TRef block) const
-{
-    auto fileName = FileName_ + ".broken." +
-        ToString(blockIndex) + "." +
-        ToString(blockInfo.offset()) + "." +
-        ToString(blockInfo.size()) + "." +
-        ToString(blockInfo.checksum());
-
-    TFile file(fileName, CreateAlways | WrOnly);
-    file.Write(block.Begin(), block.Size());
-    file.Flush();
-}
-
-std::vector<TBlock> TFileReader::OnDataBlock(
+std::vector<TBlock> TFileReader::OnBlocksRead(
     const TClientBlockReadOptions& options,
     int firstBlockIndex,
     int blockCount,
     const TRefCountedBlocksExtPtr& blocksExt,
-    const TSharedMutableRef& data)
+    const TSharedMutableRef& buffer)
 {
-    options.ChunkReaderStatistics->DataBytesReadFromDisk += data.Size();
+    options.ChunkReaderStatistics->DataBytesReadFromDisk += buffer.Size();
     const auto& firstBlockInfo = blocksExt->blocks(firstBlockIndex);
 
     std::vector<TBlock> blocks;
@@ -181,7 +186,7 @@ std::vector<TBlock> TFileReader::OnDataBlock(
     for (int localIndex = 0; localIndex < blockCount; ++localIndex) {
         int blockIndex = firstBlockIndex + localIndex;
         const auto& blockInfo = blocksExt->blocks(blockIndex);
-        auto block = data.Slice(
+        auto block = buffer.Slice(
             blockInfo.offset() - firstBlockInfo.offset(),
             blockInfo.offset() - firstBlockInfo.offset() + blockInfo.size());
         if (ValidateBlockChecksums_) {
@@ -257,31 +262,54 @@ TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
     const auto& lastBlockInfo = blocksExt->blocks(lastBlockIndex);
     i64 totalSize = lastBlockInfo.offset() + lastBlockInfo.size() - firstBlockInfo.offset();
 
-    TMemoryZoneGuard guard(EMemoryZone::Undumpable);
-    return IOEngine_->Pread(
-         dataFile,
-        totalSize,
-        firstBlockInfo.offset(),
+    TSharedMutableRef buffer;
+    {
+        TMemoryZoneGuard guard(EMemoryZone::Undumpable);
+        struct TFileReaderBufferTag
+        { };
+        buffer = TSharedMutableRef::Allocate<TFileReaderBufferTag>(totalSize, false);
+    }
+
+    return IOEngine_->Read(
+        IIOEngine::TReadRequest{
+            *dataFile,
+            firstBlockInfo.offset(),
+            buffer
+        },
         options.WorkloadDescriptor.GetPriority())
-        .Apply(BIND(&TFileReader::OnDataBlock, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt));
+        .Apply(BIND(&TFileReader::OnBlocksRead, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt, buffer));
 }
 
-void TFileReader::DumpBrokenMeta(TRef block) const
+TFuture<TRefCountedChunkMetaPtr> TFileReader::DoReadMeta(
+    const TClientBlockReadOptions& options,
+    std::optional<int> partitionTag,
+    const std::optional<std::vector<int>>& extensionTags)
 {
-    auto fileName = FileName_ + ".broken.meta";
-    TFile file(fileName, CreateAlways | WrOnly);
-    file.Write(block.Begin(), block.Size());
-    file.Flush();
+    // Partition tag filtering not implemented here
+    // because there is no practical need.
+    // Implement when necessary.
+    YT_VERIFY(!partitionTag);
+
+    auto metaFileName = FileName_ + ChunkMetaSuffix;
+
+    YT_LOG_DEBUG("Started reading chunk meta file (FileName: %v)",
+        metaFileName);
+
+    return IOEngine_->ReadAll(metaFileName)
+        .Apply(BIND(&TFileReader::OnMetaRead, MakeStrong(this), metaFileName, options.ChunkReaderStatistics));
 }
 
-TRefCountedChunkMetaPtr TFileReader::OnMetaDataBlock(
+TRefCountedChunkMetaPtr TFileReader::OnMetaRead(
     const TString& metaFileName,
     TChunkReaderStatisticsPtr chunkReaderStatistics,
     const TSharedMutableRef& metaFileBlob)
 {
+    YT_LOG_DEBUG("Finished reading chunk meta file (FileName: %v)",
+        FileName_);
+
     if (metaFileBlob.Size() < sizeof (TChunkMetaHeaderBase)) {
         THROW_ERROR_EXCEPTION("Chunk meta file %v is too short: at least %v bytes expected",
-            FileName_,
+            metaFileName,
             sizeof (TChunkMetaHeaderBase));
     }
 
@@ -306,7 +334,7 @@ TRefCountedChunkMetaPtr TFileReader::OnMetaDataBlock(
                 NChunkClient::EErrorCode::IncorrectChunkFileHeaderSignature,
                 "Incorrect header signature %llx in chunk meta file %v",
                 metaHeaderBase->Signature,
-                FileName_);
+                metaFileName);
     }
 
     auto checksum = GetChecksum(metaBlob);
@@ -337,31 +365,54 @@ TRefCountedChunkMetaPtr TFileReader::OnMetaDataBlock(
     return New<TRefCountedChunkMeta>(std::move(meta));
 }
 
-TFuture<TRefCountedChunkMetaPtr> TFileReader::DoReadMeta(
-    const TClientBlockReadOptions& options,
-    std::optional<int> partitionTag,
-    const std::optional<std::vector<int>>& extensionTags)
-{
-    // Partition tag filtering not implemented here
-    // because there is no practical need.
-    // Implement when necessary.
-    YT_VERIFY(!partitionTag);
-
-    auto metaFileName = FileName_ + ChunkMetaSuffix;
-    auto chunkReaderStatistics = options.ChunkReaderStatistics;
-
-    return IOEngine_->ReadAll(metaFileName)
-        .Apply(BIND(&TFileReader::OnMetaDataBlock, MakeStrong(this), metaFileName, chunkReaderStatistics));
-}
-
 TFuture<std::shared_ptr<TFileHandle>> TFileReader::OpenDataFile()
 {
     auto guard = Guard(DataFileLock_);
-    if (!AsyncDataFile_) {
-        AsyncDataFile_ = IOEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec)
-            .ToUncancelable();
+    if (!DataFileFuture_) {
+        YT_LOG_DEBUG("Started opening chunk data file (FileName: %v)",
+            FileName_);
+
+        DataFileFuture_ = IOEngine_->Open(FileName_, OpenExisting | RdOnly | CloseOnExec)
+            .ToUncancelable()
+            .Apply(BIND(&TFileReader::OnDataFileOpened, MakeStrong(this)));
     }
-    return AsyncDataFile_;
+    return DataFileFuture_;
+}
+
+std::shared_ptr<TFileHandle> TFileReader::OnDataFileOpened(const std::shared_ptr<TFileHandle>& file)
+{
+    YT_LOG_DEBUG("Finished opening chunk data file (FileName: %v)",
+        FileName_);
+
+    DataFile_ = file;
+    DataFileOpened_.store(true);
+
+    return file;
+}
+
+void TFileReader::DumpBrokenMeta(TRef block) const
+{
+    auto fileName = FileName_ + ".broken.meta";
+    TFile file(fileName, CreateAlways | WrOnly);
+    file.Write(block.Begin(), block.Size());
+    file.Flush();
+}
+
+void TFileReader::DumpBrokenBlock(
+    int blockIndex,
+    const TBlockInfo& blockInfo,
+    TRef block) const
+{
+    auto fileName = Format("%v.broken.%v.%v.%v.%v",
+        FileName_,
+        blockIndex,
+        blockInfo.offset(),
+        blockInfo.size(),
+        blockInfo.checksum());
+
+    TFile file(fileName, CreateAlways | WrOnly);
+    file.Write(block.Begin(), block.Size());
+    file.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

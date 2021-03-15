@@ -88,7 +88,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     const auto& config = Bootstrap_->GetConfig()->ResourceLimits;
-    const auto& dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
+    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
 
     auto getMemoryLimit = [&] (EMemoryCategory category) {
         auto memoryLimit = dynamicConfig->MemoryLimits[category];

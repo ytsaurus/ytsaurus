@@ -63,7 +63,7 @@ void TChunkStore::Initialize()
 
         futures.push_back(
             BIND(&TChunkStore::InitializeLocation, MakeStrong(this))
-                .AsyncVia(location->GetWritePoolInvoker())
+                .AsyncVia(location->GetAuxPoolInvoker())
                 .Run(location));
 
         Locations_.push_back(location);
@@ -80,7 +80,7 @@ void TChunkStore::Initialize()
 
 void TChunkStore::InitializeLocation(const TStoreLocationPtr& location)
 {
-    VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+    VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
     auto descriptors = location->Scan();
     for (const auto& descriptor : descriptors) {
@@ -228,7 +228,7 @@ TChunkStore::TChunkEntry TChunkStore::DoEraseChunk(const IChunkPtr& chunk)
 
 void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
 {
-    VERIFY_INVOKER_AFFINITY(chunk->GetLocation()->GetWritePoolInvoker());
+    VERIFY_INVOKER_AFFINITY(chunk->GetLocation()->GetAuxPoolInvoker());
 
     IChunkPtr oldChunk;
     {

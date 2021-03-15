@@ -141,6 +141,9 @@ public:
             .SetCancelable(true)
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkFragmentSet)
+            .SetQueueSizeLimit(100000)
+            .SetConcurrencyLimit(100000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows)
             .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
             .SetCancelable(true)
@@ -409,10 +412,12 @@ private:
         const auto* request = &context->Request();
         auto* response = &context->Response();
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        const auto& peerBlockTable = Bootstrap_->GetBlockPeerTable();
+        const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
         for (int blockIndex : request->block_indexes()) {
             auto blockId = TBlockId(chunkId, blockIndex);
-            auto peerList = peerBlockTable->FindOrCreatePeerList(blockId, requesterNodeId != InvalidNodeId);
+            auto peerList = requesterNodeId == InvalidNodeId
+                ? blockPeerTable->FindPeerList(blockId)
+                : blockPeerTable->GetOrCreatePeerList(blockId);
             if (peerList) {
                 if (auto peers = peerList->GetPeers(); !peers.empty()) {
                     auto* peerDescriptor = response->add_peer_descriptors();
@@ -431,7 +436,7 @@ private:
             }
         }
         if (context->IsClientFeatureSupported(EChunkClientFeature::AllBlocksIndex)) {
-            if (auto peerList = peerBlockTable->FindOrCreatePeerList(chunkId, false)) {
+            if (auto peerList = blockPeerTable->FindPeerList(chunkId)) {
                 if (auto peers = peerList->GetPeers(); !peers.empty()) {
                     auto* peerDescriptor = response->add_peer_descriptors();
                     peerDescriptor->set_block_index(AllBlocksIndex);
@@ -474,11 +479,10 @@ private:
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
 
-        const auto& throttler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
-        i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
+        const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
-
         response->set_net_queue_size(netQueueSize);
 
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
@@ -523,6 +527,7 @@ private:
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
+
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
 
@@ -541,18 +546,16 @@ private:
             location->GetPerformanceCounters().ThrottleRead();
         }
 
-        const auto& throttler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
-        i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
+        const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
-
         response->set_net_queue_size(netQueueSize);
 
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
         if (netThrottling) {
-            Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
-                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+            IncrementReadThrottlingCounter(context);
         }
 
         bool hasRequester = request->has_peer_node_id() && request->has_peer_expiration_deadline();
@@ -628,7 +631,7 @@ private:
         // to be delivered immediately.
         if (blocksSize > 0) {
             context->SetComplete();
-            context->ReplyFrom(throttler->Throttle(blocksSize));
+            context->ReplyFrom(netThrottler->Throttle(blocksSize));
         } else {
             context->Reply();
         }
@@ -672,18 +675,16 @@ private:
             location->GetPerformanceCounters().ThrottleRead();
         }
 
-        const auto& throttler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
-        i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
+        const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
-
         response->set_net_queue_size(netQueueSize);
 
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
         if (netThrottling) {
-            Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
-                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+            IncrementReadThrottlingCounter(context);
         }
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
@@ -735,9 +736,185 @@ private:
         // to be delivered immediately.
         if (blocksSize > 0) {
             context->SetComplete();
-            context->ReplyFrom(throttler->Throttle(blocksSize));
+            context->ReplyFrom(netThrottler->Throttle(blocksSize));
         } else {
             context->Reply();
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkFragmentSet)
+    {
+        auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+
+        int totalFragmentCount = 0;
+        i64 totalFragmentSize = 0;
+        for (const auto& subrequest : request->subrequests()) {
+            for (const auto& fragment : subrequest.fragments()) {
+                totalFragmentCount += 1;
+                totalFragmentSize += fragment.length();
+            }
+        }
+
+        context->SetRequestInfo("ReadSessionId: %v, Workload: %v, SubrequestCount: %v, FragmentsSize: %v/%v",
+            readSessionId,
+            workloadDescriptor,
+            request->subrequests_size(),
+            totalFragmentSize,
+            totalFragmentCount);
+
+        ValidateConnected();
+
+        const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
+        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
+        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
+        bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
+        if (netThrottling) {
+            IncrementReadThrottlingCounter(context);
+            response->set_net_throttling(true);
+        }
+
+        struct TChunkFragmentBuffer
+        { };
+        auto fragmentBuffer = TSharedMutableRef::Allocate<TChunkFragmentBuffer>(totalFragmentSize, false);
+
+        std::vector<TSharedMutableRef> fragments;
+        fragments.reserve(totalFragmentCount);
+
+        {
+            i64 fragmentOffset = 0;
+            for (const auto& subrequest : request->subrequests()) {
+                for (const auto& fragment : subrequest.fragments()) {
+                    fragments.push_back(fragmentBuffer.Slice(fragmentOffset, fragmentOffset + fragment.length()));
+                    fragmentOffset += fragment.length();
+                }
+            }
+        }
+
+        std::vector<TChunkReadGuard> chunkReadGuards;
+        chunkReadGuards.reserve(request->subrequests_size());
+
+        std::vector<TFuture<void>> prepareReaderFutures;
+        prepareReaderFutures.reserve(request->subrequests_size());
+
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
+        {
+            int fragmentIndex = 0;
+            for (const auto& subrequest : request->subrequests()) {
+                auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+                auto chunk = chunkRegistry->FindChunk(chunkId);
+
+                auto* subresponse = response->add_subresponses();
+
+                if (auto peerList = blockPeerTable->FindPeerList(chunkId)) {
+                    if (auto peers = peerList->GetPeers(); !peers.empty()) {
+                        auto* peerDescriptor = subresponse->add_peer_descriptors();
+                        peerDescriptor->set_block_index(AllBlocksIndex);
+                        for (auto peer : peers) {
+                            peerDescriptor->add_node_ids(peer);
+                        }
+                    }
+                }
+
+                bool chunkAvailable = false;
+                if (chunk) {
+                    if (auto guard = TChunkReadGuard::TryAcquire(chunk)) {
+                        subresponse->set_has_complete_chunk(true);
+                        if (auto future = guard.GetReaderPreparedFuture()) {
+                            YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
+                                chunk->GetId());
+                            prepareReaderFutures.push_back(std::move(future));
+                        }
+                        chunkReadGuards.push_back(std::move(guard));
+                        chunkAvailable = true;
+                    }
+                }
+
+                if (!chunkAvailable) {
+                    chunkReadGuards.push_back(TChunkReadGuard());
+                }
+
+                subresponse->set_has_complete_chunk(chunkAvailable);
+
+                for (int index = 0; index < subrequest.fragments_size(); ++index) {
+                    response->Attachments().push_back(chunkAvailable ? fragments[fragmentIndex] : TSharedRef());
+                    ++fragmentIndex;
+                }
+            }
+        }
+
+        auto afterReadersPrepared =
+            [
+                =,
+                this_ = MakeStrong(this),
+                fragments = std::move(fragments),
+                chunkReadGuards = std::move(chunkReadGuards)
+            ] (const TError& error) {
+                if (!error.IsOK()) {
+                    context->Reply(error);
+                    return;
+                }
+
+                THashMap<TLocation*, std::vector<IIOEngine::TReadRequest>> locationToReadRequests;
+                {
+                    int fragmentIndex = 0;
+                    for (int subrequestIndex = 0; subrequestIndex < request->subrequests_size(); ++subrequestIndex) {
+                        const auto& subrequest = request->subrequests(subrequestIndex);
+                        const auto& chunkReadGuard = chunkReadGuards[subrequestIndex];
+                        const auto& chunk = chunkReadGuard.GetChunk();
+                        if (!chunk) {
+                            fragmentIndex += subrequest.fragments_size();
+                            continue;
+                        }
+
+                        auto* location = chunk->GetLocation().Get();
+                        auto& readRequests = locationToReadRequests[location];
+
+                        for (const auto& fragment : subrequest.fragments()) {
+                            auto readRequest = chunk->MakeChunkFragmentReadRequest(
+                                TChunkFragmentDescriptor{
+                                    fragment.offset(),
+                                    fragment.length()
+                                },
+                                fragments[fragmentIndex++]);
+                            readRequests.push_back(std::move(readRequest));
+                        }
+                    }
+                }
+
+                std::vector<TFuture<void>> readFutures;
+                readFutures.reserve(locationToReadRequests.size());
+
+                for (const auto& [location, readRequests] : locationToReadRequests) {
+                    YT_LOG_DEBUG("Reading block fragments (LocationId: %v, FragmentCount: %v)",
+                        location->GetId(),
+                        readRequests.size());
+                    const auto& ioEngine = location->GetIOEngine();
+                    readFutures.push_back(ioEngine->ReadMany(readRequests));
+                }
+
+                AllSucceeded(std::move(readFutures))
+                    .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                        if (!error.IsOK()) {
+                            context->Reply(error);
+                            return;
+                        }
+
+                        // TODO(babenko): fill chunk_reader_statistics
+
+                        context->SetComplete();
+                        context->ReplyFrom(netThrottler->Throttle(totalFragmentSize));
+                    }));
+            };
+
+        if (prepareReaderFutures.empty()) {
+            afterReadersPrepared(TError());
+        } else {
+            AllSucceeded(std::move(prepareReaderFutures))
+                .Subscribe(BIND(std::move(afterReadersPrepared))
+                    .Via(Bootstrap_->GetStorageHeavyInvoker()));
         }
     }
 
@@ -758,11 +935,11 @@ private:
 
         ValidateConnected();
 
-        auto chunk = Bootstrap_->GetChunkRegistry()->GetChunkOrThrow(chunkId);
-        YT_VERIFY(chunk->GetId() == chunkId);
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
         // NB: Heating table schema caches up is of higher priority than advisory throttling.
-        auto schemaData = request->schema_data();
+        const auto& schemaData = request->schema_data();
         auto [tableSchema, schemaRequested] = TLookupSession::FindTableSchema(
             chunkId,
             readSessionId,
@@ -803,12 +980,11 @@ private:
         response->set_net_throttling(netThrottling);
         response->set_net_queue_size(netQueueSize);
         if (netThrottling) {
-            Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
-                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+            IncrementReadThrottlingCounter(context);
         }
 
         if (rejectIfThrottling && (diskThrottling || netThrottling)) {
-            YT_LOG_DEBUG("Lookup session rejects to start due to throttling "
+            YT_LOG_DEBUG("Rows lookup failed to start due to net throttling "
                 "(ChunkId: %v, ReadSessionId: %v, DiskThrottling: %v, DiskQueueSize: %v, NetThrottling: %v, NetQueueSize: %v)",
                 chunkId,
                 readSessionId,
@@ -870,15 +1046,14 @@ private:
                         // NB: Flow of lookups may be dense enough, so upon start of throttling
                         // we will come up with few throttled lookups on the data node. We would like to avoid this.
                         // This may be even more painful when peer probing is disabled.
-                        YT_LOG_DEBUG("Lookup session rejects to finish due to throttling "
+                        YT_LOG_DEBUG("Rows lookup failed to finish due to net throttling "
                             "(ChunkId: %v, ReadSessionId: %v, NetThrottling: %v, NetQueueSize: %v)",
                             chunkId,
                             readSessionId,
                             netThrottling,
                             netQueueSize);
 
-                        Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
-                            context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+                        IncrementReadThrottlingCounter(context);
 
                         response->set_fetched_rows(false);
                         response->set_rejected_due_to_throttling(true);
@@ -894,9 +1069,10 @@ private:
                 response->set_fetched_rows(true);
                 ToProto(response->mutable_chunk_reader_statistics(), lookupSession->GetChunkReaderStatistics());
 
-                const auto& throttler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
                 context->SetComplete();
-                return throttler->Throttle(GetByteSize(response->Attachments()));
+
+                const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+                return netThrottler->Throttle(GetByteSize(response->Attachments()));
             })));
     }
 
@@ -921,9 +1097,9 @@ private:
         ValidateConnected();
 
         if (request->enable_throttling() && context->GetBusStatistics().PendingOutBytes > Config_->NetOutThrottlingLimit) {
+            IncrementReadThrottlingCounter(context);
+
             response->set_net_throttling(true);
-            Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
-                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
             context->Reply();
             return;
         }
@@ -1482,10 +1658,10 @@ private:
             expirationDeadline,
             request->block_ids_size());
 
-        const auto& peerBlockTable = Bootstrap_->GetBlockPeerTable();
+        const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
         for (const auto& protoBlockId : request->block_ids()) {
             auto blockId = FromProto<TBlockId>(protoBlockId);
-            auto peerList = peerBlockTable->FindOrCreatePeerList(blockId, true);
+            auto peerList = blockPeerTable->GetOrCreatePeerList(blockId);
             peerList->AddPeer(request->peer_node_id(), expirationDeadline);
         }
 
@@ -1530,6 +1706,13 @@ private:
             return nullptr;
         }
         return chunk->GetLocation()->GetOutThrottler(workloadDescriptor);
+    }
+
+    template <class TContextPtr>
+    void IncrementReadThrottlingCounter(const TContextPtr& context)
+    {
+        Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
+            context->GetEndpointAttributes().Get("network", DefaultNetworkName));
     }
 };
 

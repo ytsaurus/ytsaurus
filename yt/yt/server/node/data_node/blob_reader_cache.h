@@ -11,17 +11,16 @@ namespace NYT::NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages cached blob chunk readers.
+/*!
+ *  \note
+ *  Thread affinity: any
+ */
 struct IBlobReaderCache
     : public virtual TRefCounted
 {
     //! Returns a (cached) blob chunk reader.
     /*!
-     *  This call is thread-safe but may block since it actually opens the file.
-     *  A rule of thumb is to invoke it from IO thread only.
-     *
-     *  The returned reader is already open.
-     *
-     *  This method throws on failure.
+     *  The reader becomes open on first use.
      */
     virtual NChunkClient::TFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk) = 0;
 

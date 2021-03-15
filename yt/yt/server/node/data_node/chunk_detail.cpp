@@ -3,6 +3,7 @@
 #include "location.h"
 #include "session_manager.h"
 #include "chunk_meta_manager.h"
+#include "chunk_registry.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
@@ -75,25 +76,30 @@ int TChunkBase::IncrementVersion()
     return ++Version_;
 }
 
-void TChunkBase::AcquireReadLock()
+TFuture<void> TChunkBase::AcquireReadLock()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     int lockCount;
+    TFuture<void> result;
     {
-        auto guard = Guard(SpinLock_);
-        if (RemovedFuture_) {
+        auto guard = ReaderGuard(LifetimeLock_);
+        if (RemoveScheduled_.load()) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchChunk,
                 "Cannot read chunk %v since it is scheduled for removal",
                 Id_);
         }
+        ReaderSweepLatch_ += 2;
         lockCount = ++ReadLockCounter_;
+        result = PrepareReader(guard);
     }
 
     YT_LOG_TRACE("Chunk read lock acquired (ChunkId: %v, LockCount: %v)",
         Id_,
         lockCount);
+
+    return result;
 }
 
 void TChunkBase::ReleaseReadLock()
@@ -101,19 +107,28 @@ void TChunkBase::ReleaseReadLock()
     VERIFY_THREAD_AFFINITY_ANY();
 
     bool removeNow = false;
+    bool scheduleReaderSweep = false;
     int lockCount;
     {
-        auto guard = Guard(SpinLock_);
+        auto guard = ReaderGuard(LifetimeLock_);
         lockCount = --ReadLockCounter_;
         YT_VERIFY(lockCount >= 0);
-        if (ReadLockCounter_ == 0 && UpdateLockCounter_ == 0 && !Removing_ && RemovedFuture_) {
-            removeNow = Removing_ = true;
+        if (lockCount == 0) {
+            if (UpdateLockCounter_ == 0 && RemoveScheduled_.load()) {
+                removeNow = !Removing_.exchange(true);
+            }
+            scheduleReaderSweep = (ReaderSweepLatch_.exchange(1) & 1) == 0;
         }
     }
 
     YT_LOG_TRACE("Chunk read lock released (ChunkId: %v, LockCount: %v)",
         Id_,
         lockCount);
+
+    if (scheduleReaderSweep) {
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        chunkRegistry->ScheduleChunkReaderSweep(this);
+    }
 
     if (removeNow) {
         StartAsyncRemove();
@@ -125,8 +140,8 @@ void TChunkBase::AcquireUpdateLock()
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
-        auto guard = Guard(SpinLock_);
-        if (RemovedFuture_) {
+        auto guard = WriterGuard(LifetimeLock_);
+        if (RemoveScheduled_.load()) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchChunk,
                 "Cannot acquire update lock for chunk %v since it is scheduled for removal",
@@ -151,10 +166,10 @@ void TChunkBase::ReleaseUpdateLock()
 
     bool removeNow = false;
     {
-        auto guard = Guard(SpinLock_);
+        auto guard = WriterGuard(LifetimeLock_);
         YT_VERIFY(--UpdateLockCounter_ == 0);
-        if (ReadLockCounter_ == 0 && !Removing_ && RemovedFuture_) {
-            removeNow = Removing_ = true;
+        if (ReadLockCounter_.load() == 0 && RemoveScheduled_.load()) {
+            removeNow = !Removing_.exchange(true);;
         }
     }
 
@@ -175,17 +190,18 @@ TFuture<void> TChunkBase::ScheduleRemove()
 
     bool removeNow = false;
     {
-        auto guard = Guard(SpinLock_);
-        if (RemovedFuture_) {
+        auto guard = WriterGuard(LifetimeLock_);
+        if (RemoveScheduled_.load()) {
             return RemovedFuture_;
         }
 
         RemovedPromise_ = NewPromise<void>();
         // NB: Ignore client attempts to cancel the removal process.
         RemovedFuture_ = RemovedPromise_.ToFuture().ToUncancelable();
+        RemoveScheduled_.store(true);
 
-        if (ReadLockCounter_ == 0 && UpdateLockCounter_ == 0 && !Removing_) {
-            removeNow = Removing_ = true;
+        if (ReadLockCounter_.load() == 0 && UpdateLockCounter_ == 0) {
+            removeNow = !Removing_.exchange(true);
         }
     }
 
@@ -200,16 +216,54 @@ bool TChunkBase::IsRemoveScheduled() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = Guard(SpinLock_);
-    return RemovedFuture_.operator bool();
+    return RemoveScheduled_.load();
+}
+
+void TChunkBase::TrySweepReader()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = WriterGuard(LifetimeLock_);
+
+    auto readerSweepLatch = ReaderSweepLatch_.load();
+    YT_VERIFY((readerSweepLatch & 1) != 0);
+
+    if (ReadLockCounter_.load() > 0) {
+        // Sweep will be re-scheduled when the last reader leases the lock.
+        ReaderSweepLatch_.store(readerSweepLatch & ~1);
+        return;
+    }
+
+    if (readerSweepLatch != 1) {
+        guard.Release();
+        // Re-schedule the sweep right away.
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        chunkRegistry->ScheduleChunkReaderSweep(this);
+        return;
+    }
+
+    ReleaseReader(guard);
 }
 
 void TChunkBase::StartAsyncRemove()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    {
+        auto guard = WriterGuard(LifetimeLock_);
+        ReleaseReader(guard);
+    }
+
     RemovedPromise_.SetFrom(AsyncRemove());
 }
+
+TFuture<void> TChunkBase::PrepareReader(TReaderGuard& /* readerGuard */)
+{
+    return {};
+}
+
+void TChunkBase::ReleaseReader(TWriterGuard& /* writerGuard */)
+{ }
 
 TRefCountedChunkMetaPtr TChunkBase::FilterMeta(
     TRefCountedChunkMetaPtr meta,

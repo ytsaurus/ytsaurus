@@ -45,6 +45,8 @@ class TReqGetChunkMeta;
 
 struct TBlock;
 
+struct TChunkFragmentDescriptor;
+
 constexpr int AllBlocksIndex = -1;
 
 using TMediumId = NObjectClient::TObjectId;

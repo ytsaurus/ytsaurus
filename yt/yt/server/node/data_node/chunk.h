@@ -4,6 +4,7 @@
 
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/io_engine.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -78,16 +79,29 @@ struct IChunk
         int blockCount,
         const TBlockReadOptions& options) = 0;
 
-    //! Tries to acquire a read lock; throws on failure.
+    //! Prepares a block fragment read request to be passed to IIOEngine.
     /*!
-     *  Succeeds if removal is not scheduled yet.
-     *  Concurrent update locks do not interfere with read locks.
-     *  Returns |true| on success, |false| on failure.
+     *  A read lock must be acquired prior to this call and the underlying reader must be prepared.
      *
      *  \note
      *  Thread affinity: any
      */
-    virtual void AcquireReadLock() = 0;
+    virtual NChunkClient::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const NChunkClient::TChunkFragmentDescriptor& fragmentDescriptor,
+        TSharedMutableRef data) = 0;
+
+    //! Tries to acquire a read lock; throws on failure.
+    /*!
+     *  Succeeds if removal is not scheduled yet.
+     *  Concurrent update locks do not interfere with read locks.
+     *
+     *  If null future is returned then the underlying reader is already open and prepared (this is the fast path).
+     *  Otherwise the caller must wait for the returned future to become set to access the underlying reader.
+     *
+     *  \note
+     *  Thread affinity: any
+     */
+    virtual TFuture<void> AcquireReadLock() = 0;
 
     //! Releases an earlier acquired read lock, decrements the lock counter.
     /*!
@@ -118,7 +132,7 @@ struct IChunk
      *  Thread affinity: any
      */
     virtual void ReleaseUpdateLock() = 0;
- 
+
     //! Marks the chunk as pending for removal.
     /*!
      *  After this call, no new read locks can be taken.
@@ -140,6 +154,9 @@ struct IChunk
      *  If #force is |true| then the files are just removed; otherwise these are move to the trash.
      */
     virtual void SyncRemove(bool force) = 0;
+
+    //! See IChunkRegistry::ScheduleChunkReaderSweep.
+    virtual void TrySweepReader() = 0;
 
     //! Returns the object type extracted from chunk id.
     NObjectClient::EObjectType GetType() const;
@@ -167,11 +184,18 @@ public:
     explicit operator bool() const;
 
     static TChunkReadGuard Acquire(IChunkPtr chunk);
+    static TChunkReadGuard TryAcquire(IChunkPtr chunk);
+
+    const IChunkPtr& GetChunk() const;
+    const TFuture<void>& GetReaderPreparedFuture() const;
 
 private:
-    explicit TChunkReadGuard(IChunkPtr chunk);
+    TChunkReadGuard(
+        IChunkPtr chunk,
+        TFuture<void> readerPreparedFuture);
 
     IChunkPtr Chunk_;
+    TFuture<void> ReaderPreparedFuture_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

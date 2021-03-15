@@ -76,8 +76,6 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
     PutBlocksWallTime = profiler.Timer("/put_blocks_wall_time");
     BlobChunkMetaReadTime = profiler.Timer("/blob_chunk_meta_read_time");
 
-    BlobChunkReaderOpenTime = profiler.Timer("/blob_chunk_reader_open_time");
-
     BlobChunkWriterOpenTime = profiler.Timer("/blob_chunk_writer_open_time");
     BlobChunkWriterAbortTime = profiler.Timer("/blob_chunk_writer_abort_time");
     BlobChunkWriterCloseTime = profiler.Timer("/blob_chunk_writer_close_time");
@@ -172,7 +170,7 @@ TLocation::TLocation(
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
         GetPath(),
-        GetWritePoolInvoker(),
+        GetAuxPoolInvoker(),
         DataNodeLogger,
         Profiler_);
 }
@@ -255,11 +253,11 @@ i64 TLocation::GetCoalescedReadMaxGapSize() const
     return Config_->CoalescedReadMaxGapSize;
 }
 
-const IInvokerPtr& TLocation::GetWritePoolInvoker()
+const IInvokerPtr& TLocation::GetAuxPoolInvoker()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return IOEngine_->GetWritePoolInvoker();
+    return IOEngine_->GetAuxPoolInvoker();
 }
 
 std::vector<TChunkDescriptor> TLocation::Scan()

@@ -5,55 +5,118 @@
 #include "location.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
 namespace NYT::NDataNode {
 
+using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkRegistry::TChunkRegistry(TBootstrap* bootstrap)
-    : Bootstrap_(bootstrap)
-{ }
-
-IChunkPtr TChunkRegistry::FindChunk(TChunkId chunkId, int mediumIndex)
+class TChunkRegistry
+    : public IChunkRegistry
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
-    auto storedChunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId, mediumIndex);
-    if (storedChunk) {
-        return storedChunk;
+public:
+    explicit TChunkRegistry(TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+        , ChunkReaderSweepExecutor_(New<TPeriodicExecutor>(
+            Bootstrap_->GetStorageHeavyInvoker(),
+            BIND(&TChunkRegistry::OnChunkReaderSweep, MakeWeak(this)),
+            ChunkReaderSweepPeriod))
+    {
+        ChunkReaderSweepExecutor_->Start();
     }
 
-    if (mediumIndex != AllMediaIndex) {
+    virtual IChunkPtr FindChunk(
+        TChunkId chunkId,
+        int mediumIndex) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
+        if (auto storedChunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId, mediumIndex)) {
+            return storedChunk;
+        }
+
+        if (mediumIndex != AllMediaIndex) {
+            return nullptr;
+        }
+
+        if (auto cachedChunk = Bootstrap_->GetChunkCache()->FindChunk(chunkId)) {
+            return cachedChunk;
+        }
+
         return nullptr;
     }
 
-    auto cachedChunk = Bootstrap_->GetChunkCache()->FindChunk(chunkId);
-    if (cachedChunk) {
-        return cachedChunk;
+    virtual IChunkPtr GetChunkOrThrow(
+        TChunkId chunkId,
+        int mediumIndex) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto chunk = FindChunk(chunkId, mediumIndex);
+        if (!chunk) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::NoSuchChunk,
+                "No such chunk %v",
+                chunkId);
+        }
+
+        return chunk;
     }
 
-    return nullptr;
-}
+    virtual void ScheduleChunkReaderSweep(IChunkPtr chunk) override
+    {
+        auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+        ChunkReaderSweepStack_.Enqueue({
+            .Chunk = std::move(chunk),
+            .Deadline = TInstant::Now() + dynamicConfig->DataNode->ChunkReaderRetentionTimeout
+        });
+    }
 
-IChunkPtr TChunkRegistry::GetChunkOrThrow(TChunkId chunkId, int mediumIndex)
+private:
+    TBootstrap* const Bootstrap_;
+    const TPeriodicExecutorPtr ChunkReaderSweepExecutor_;
+
+    struct TChunkReaderSweepEntry
+    {
+        IChunkPtr Chunk;
+        TInstant Deadline;
+    };
+
+    TMultipleProducerSingleConsumerLockFreeStack<TChunkReaderSweepEntry> ChunkReaderSweepStack_;
+    TRingQueue<TChunkReaderSweepEntry> ChunkReaderSweepQueue_;
+
+    static constexpr auto ChunkReaderSweepPeriod = TDuration::Seconds(1);
+
+    void OnChunkReaderSweep()
+    {
+        ChunkReaderSweepStack_.DequeueAll(true, [&] (auto&& entry) {
+            ChunkReaderSweepQueue_.push(std::move(entry));
+        });
+
+        auto now = TInstant::Now();
+        while (!ChunkReaderSweepQueue_.empty() && ChunkReaderSweepQueue_.front().Deadline < now) {
+            ChunkReaderSweepQueue_.front().Chunk->TrySweepReader();
+            ChunkReaderSweepQueue_.pop();
+        }
+    }
+};
+
+IChunkRegistryPtr CreateChunkRegistry(TBootstrap* bootstrap)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto chunk = FindChunk(chunkId, mediumIndex);
-    if (!chunk) {
-        THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::NoSuchChunk,
-            "No such chunk %v",
-            chunkId);
-    }
-
-    return chunk;
+    return New<TChunkRegistry>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

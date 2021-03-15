@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/chunk_client/erasure_writer.h>
 #include <yt/yt/ytlib/chunk_client/erasure_reader.h>
 #include <yt/yt/ytlib/chunk_client/file_reader.h>
+#include <yt/yt/ytlib/chunk_client/file_reader_adapter.h>
 #include <yt/yt/ytlib/chunk_client/file_writer.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -31,39 +32,31 @@ namespace {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
-using ::ToString;
 
-class TTestingFileReader
-    : public TFileReader
+
+class TFailingFileReaderAdapter
+    : public IChunkReaderAllowingRepair
 {
 public:
-    TTestingFileReader(
-        const IIOEnginePtr& ioEngine,
-        TChunkId chunkId,
-        const TString& fileName,
-        bool validateBlocksChecksums = true)
-        : TFileReader(ioEngine, chunkId, fileName, validateBlocksChecksums)
-    { }
-
-    virtual void SetSlownessChecker(TCallback<TError(i64, TDuration)>) override
-    { }
-};
-
-class TFailingFileReader
-    : public TFileReader
-{
-public:
-    TFailingFileReader(
-        const IIOEnginePtr& ioEngine,
-        TChunkId chunkId,
-        const TString& fileName,
-        int period = 5,
-        bool validateBlocksChecksums = true)
-        : TFileReader(ioEngine, chunkId, fileName, validateBlocksChecksums)
+    TFailingFileReaderAdapter(
+        TFileReaderPtr underlying,
+        int period = 5)
+        : Underlying_(std::move(underlying))
         , Period_(period)
-        , Counter_(0)
-        , LastFailureTime_(TInstant())
     { }
+
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+        const TClientBlockReadOptions& options,
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags) override
+    {
+        return Underlying_->GetMeta(options, partitionTag, extensionTags);
+    }
+
+    virtual TChunkId GetChunkId() const override
+    {
+        return Underlying_->GetChunkId();
+    }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientBlockReadOptions& options,
@@ -73,7 +66,7 @@ public:
         if (TryFail()) {
             return MakeFuture(MakeError());
         }
-        return TFileReader::ReadBlocks(options, blockIndexes, estimatedSize);
+        return Underlying_->ReadBlocks(options, blockIndexes, estimatedSize);
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
@@ -85,7 +78,7 @@ public:
         if (TryFail()) {
             return MakeFuture(MakeError());
         }
-        return TFileReader::ReadBlocks(options, firstBlockIndex, blockCount, estimatedSize);
+        return Underlying_->ReadBlocks(options, firstBlockIndex, blockCount, estimatedSize);
     }
 
     virtual TInstant GetLastFailureTime() const override
@@ -97,10 +90,11 @@ public:
     { }
 
 private:
-    int Period_;
-    int Counter_;
+    const TFileReaderPtr Underlying_;
+    const int Period_;
 
-    std::atomic<TInstant> LastFailureTime_ = TInstant();
+    int Counter_ = 0;
+    std::atomic<TInstant> LastFailureTime_ = {};
 
     bool TryFail()
     {
@@ -111,7 +105,7 @@ private:
         return LastFailureTime_.load() != TInstant();
     }
 
-    TErrorOr<std::vector<TBlock>> MakeError()
+    static TErrorOr<std::vector<TBlock>> MakeError()
     {
         return TError("Shit happens");
     }
@@ -237,7 +231,7 @@ public:
         int erasureWindowSize = 64,
         bool storeBlockChecksums = false)
     {
-        auto config = NYT::New<TErasureWriterConfig>();
+        auto config = New<TErasureWriterConfig>();
         config->ErasureWindowSize = erasureWindowSize;
         config->ErasureStoreOriginalBlockChecksums = storeBlockChecksums;
 
@@ -245,7 +239,7 @@ public:
         auto ioEngine = CreateIOEngine(NChunkClient::EIOEngineType::ThreadPool, NYTree::INodePtr());
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
-            writers.push_back(NYT::New<TFileWriter>(ioEngine, NullChunkId, filename));
+            writers.push_back(New<TFileWriter>(ioEngine, NullChunkId, filename));
         }
 
         auto meta = New<TDeferredChunkMeta>();
@@ -294,10 +288,10 @@ public:
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
             if (repairWriters && erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
-                repairWriters->push_back(NYT::New<TFileWriter>(ioEngine, NullChunkId, filename));
+                repairWriters->push_back(New<TFileWriter>(ioEngine, NullChunkId, filename));
             }
             if (repairReaders && repairIndicesSet.find(i) != repairIndicesSet.end()) {
-                auto reader = NYT::New<TTestingFileReader>(ioEngine, NullChunkId, filename);
+                auto reader = CreateFileReaderAdapter(New<TFileReader>(ioEngine, NullChunkId, filename));
                 repairReaders->push_back(reader);
             }
 
@@ -305,7 +299,7 @@ public:
                 erasedIndicesSet.find(i) == erasedIndicesSet.end() &&
                 (i < codec->GetDataPartCount() || repairIndicesSet.find(i) != repairIndicesSet.end()))
             {
-                auto reader = NYT::New<TTestingFileReader>(ioEngine, NullChunkId, filename);
+                auto reader = CreateFileReaderAdapter(New<TFileReader>(ioEngine, NullChunkId, filename));
                 allReaders->push_back(reader);
             }
         }
@@ -318,7 +312,7 @@ public:
         readers.reserve(partCount);
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
-            auto reader = NYT::New<TTestingFileReader>(ioEngine, NullChunkId, filename);
+            auto reader = CreateFileReaderAdapter(New<TFileReader>(ioEngine, NullChunkId, filename));
             readers.push_back(reader);
         }
         return readers;
@@ -437,9 +431,9 @@ public:
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
             if (failingTimes[i] == 0) {
-                readers.push_back(NYT::New<TTestingFileReader>(ioEngine, NullChunkId, filename));
+                readers.push_back(CreateFileReaderAdapter(New<TFileReader>(ioEngine, NullChunkId, filename)));
             } else {
-                readers.push_back(NYT::New<TFailingFileReader>(ioEngine, NullChunkId, filename, failingTimes[i]));
+                readers.push_back(New<TFailingFileReaderAdapter>(New<TFileReader>(ioEngine, NullChunkId, filename), failingTimes[i]));
             }
         }
         return readers;

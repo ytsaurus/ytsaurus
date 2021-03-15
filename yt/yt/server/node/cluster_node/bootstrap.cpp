@@ -393,7 +393,7 @@ void TBootstrap::DoInitialize()
 
     JournalDispatcher_ = CreateJournalDispatcher(this);
 
-    ChunkRegistry_ = New<TChunkRegistry>(this);
+    ChunkRegistry_ = CreateChunkRegistry(this);
 
     ChunkMetaManager_ = CreateChunkMetaManager(this);
 
@@ -1054,7 +1054,7 @@ const TNodeMemoryTrackerPtr& TBootstrap::GetMemoryUsageTracker() const
     return MemoryUsageTracker_;
 }
 
-const TChunkRegistryPtr& TBootstrap::GetChunkRegistry() const
+const IChunkRegistryPtr& TBootstrap::GetChunkRegistry() const
 {
     return ChunkRegistry_;
 }
