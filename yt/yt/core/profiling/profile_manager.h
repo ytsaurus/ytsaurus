@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/yt/core/profiling/proto/profiling.pb.h>
+#include <yt/yt_proto/yt/core/profiling/proto/profiling.pb.h>
 
 namespace NYT::NProfiling {
 

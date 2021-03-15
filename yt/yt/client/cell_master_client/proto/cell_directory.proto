@@ -2,7 +2,7 @@ package NYT.NCellMasterClient.NProto;
 
 option python_package = "yt_proto.yt.client.cell_master.proto";
 
-import "yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

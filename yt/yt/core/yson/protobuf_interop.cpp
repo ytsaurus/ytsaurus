@@ -1,6 +1,6 @@
 #include "protobuf_interop.h"
 
-#include <yt/yt/core/yson/proto/protobuf_interop.pb.h>
+#include <yt/yt_proto/yt/core/yson/proto/protobuf_interop.pb.h>
 
 #include <yt/yt/core/yson/consumer.h>
 #include <yt/yt/core/yson/writer.h>
@@ -24,7 +24,7 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/fork_aware_spinlock.h>
 
-#include <yt/yt/core/ytree/proto/attributes.pb.h>
+#include <yt/yt_proto/yt/core/ytree/proto/attributes.pb.h>
 
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/dynamic_message.h>

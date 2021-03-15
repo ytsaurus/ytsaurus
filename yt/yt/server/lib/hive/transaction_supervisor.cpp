@@ -37,7 +37,7 @@
 
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/response_keeper.h>
-#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 #include <yt/yt/core/rpc/server.h>
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/authentication_identity.h>

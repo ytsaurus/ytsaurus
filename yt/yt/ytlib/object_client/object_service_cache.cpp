@@ -16,7 +16,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/ytree/proto/ypath.pb.h>
+#include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT::NObjectClient {
 

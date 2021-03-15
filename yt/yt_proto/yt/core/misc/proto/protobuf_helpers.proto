@@ -3,7 +3,6 @@ package NYT.NProto;
 option java_package = "ru.yandex.yt";
 option java_multiple_files = true;
 
-option python_package = "yt_proto.yt.core.misc.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

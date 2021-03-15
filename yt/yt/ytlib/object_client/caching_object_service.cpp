@@ -22,7 +22,7 @@
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/throttling_channel.h>
 
-#include <yt/yt/core/ytree/proto/ypath.pb.h>
+#include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT::NObjectClient {
 

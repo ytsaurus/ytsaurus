@@ -3,7 +3,7 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/proto/error.pb.h>
+#include <yt/yt_proto/yt/core/misc/proto/error.pb.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/proc.h>
 

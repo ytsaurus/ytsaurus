@@ -1,10 +1,10 @@
 package NYT.NNodeTrackerClient.NProto;
 
-import "yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
 
 option python_package = "yt_proto.yt.client.node_tracker_client.proto";
 
-import "yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

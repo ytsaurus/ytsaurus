@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/crypto/proto/crypto.pb.h>
+#include <yt/yt_proto/yt/core/crypto/proto/crypto.pb.h>
 #include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/serialize.h>
 

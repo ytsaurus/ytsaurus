@@ -9,7 +9,7 @@
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/yt/core/rpc/proto/rpc.pb.h>
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <atomic>
 

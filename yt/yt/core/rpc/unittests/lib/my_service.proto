@@ -1,6 +1,6 @@
 package NMyRpc;
 
-import "yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
 
 option go_package = "a.yandex-team.ru/yt/go/proto/core/rpc/unittests;myservice";
 

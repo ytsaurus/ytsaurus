@@ -1,11 +1,10 @@
 package NYT.NTracing.NProto;
 
-import "yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
 
 option java_package = "ru.yandex.yt.tracing";
 option java_multiple_files = true;
 
-option python_package = "yt_proto.yt.core.tracing.proto";
 option go_package = "a.yandex-team.ru/yt/go/proto/core/tracing";
 
 ////////////////////////////////////////////////////////////////////////////////

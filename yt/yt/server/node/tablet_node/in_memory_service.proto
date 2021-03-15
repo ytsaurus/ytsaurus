@@ -1,6 +1,6 @@
 package NYT.NTabletNode.NProto;
 
-import "yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt/ytlib/chunk_client/proto/block_id.proto";
 

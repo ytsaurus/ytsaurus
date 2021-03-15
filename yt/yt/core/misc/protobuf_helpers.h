@@ -13,8 +13,8 @@
 
 #include <yt/yt/core/misc/defines.h>
 
-#include <yt/yt/core/misc/proto/guid.pb.h>
-#include <yt/yt/core/misc/proto/protobuf_helpers.pb.h>
+#include <yt/yt_proto/yt/core/misc/proto/guid.pb.h>
+#include <yt/yt_proto/yt/core/misc/proto/protobuf_helpers.pb.h>
 
 #include <google/protobuf/message.h>
 #include <google/protobuf/repeated_field.h>
