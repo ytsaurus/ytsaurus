@@ -6,7 +6,6 @@
 #include "snappy.h"
 #include "zlib.h"
 #include "zstd.h"
-#include "zstd_legacy.h"
 #include "brotli.h"
 
 namespace NYT::NCompression {
@@ -233,26 +232,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TZstdLegacyCodec
-    : public TCodecBase<TZstdLegacyCodec>
-{
-public:
-    void DoCompress(StreamSource* source, TBlob* output)
-    {
-        NCompression::ZstdLegacyCompress(source, output);
-    }
-
-    void DoDecompress(StreamSource* source, TBlob* output)
-    {
-        NCompression::ZstdLegacyDecompress(source, output);
-    }
-
-    virtual ECodec GetId() const override
-    {
-        return ECodec::Zstd;
-    }
-};
-
 class TZstdCodec
     : public TCodecBase<TZstdCodec>
 {
@@ -425,12 +404,6 @@ ICodec* GetCodec(ECodec id)
             return &result;
         }
 
-        case ECodec::ZstdLegacy: {
-            static TZstdLegacyCodec result;
-            return &result;
-        }
-
-
 #define CASE(param)                                                 \
     case ECodec::PP_CONCAT(CODEC, PP_CONCAT(_, param)): {           \
         static PP_CONCAT(T, PP_CONCAT(CODEC, Codec)) result(param); \
@@ -468,7 +441,7 @@ ICodec* GetCodec(ECodec id)
 
 THashSet<ECodec> GetDeprecatedCodecIds()
 {
-    return {ECodec::ZstdLegacy};
+    return {};
 }
 
 THashMap<TString, TString> GetDeprecatedCodecNameToAlias()
