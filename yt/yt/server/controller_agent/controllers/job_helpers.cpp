@@ -172,14 +172,16 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     return briefStatistics;
 }
 
-void ParseStatistics(TJobSummary* jobSummary, TInstant startTime, const TYsonString& lastObservedStatisticsYson)
+void ParseStatistics(
+    TJobSummary* jobSummary,
+    TInstant startTime,
+    TInstant lastUpdateTime,
+    const TYsonString& lastObservedStatisticsYson)
 {
-    if (!jobSummary->StatisticsYson) {
-        jobSummary->StatisticsYson = lastObservedStatisticsYson;
-    }
-
     auto& statistics = jobSummary->Statistics;
-    const auto& statisticsYson = jobSummary->StatisticsYson;
+    const auto& statisticsYson = jobSummary->StatisticsYson
+        ? jobSummary->StatisticsYson
+        : lastObservedStatisticsYson;
     if (statisticsYson) {
         statistics = ConvertTo<TStatistics>(statisticsYson);
         // NB: we should remove timestamp from the statistics as it becomes a YSON-attribute
@@ -190,7 +192,7 @@ void ParseStatistics(TJobSummary* jobSummary, TInstant startTime, const TYsonStr
     }
 
     {
-        auto endTime = jobSummary->FinishTime ? *jobSummary->FinishTime : TInstant::Now();
+        auto endTime = std::max(jobSummary->FinishTime ? *jobSummary->FinishTime : TInstant::Now(), lastUpdateTime);
         auto duration = endTime - startTime;
         statistics->AddSample("/time/total", duration.MilliSeconds());
     }
@@ -207,6 +209,8 @@ void ParseStatistics(TJobSummary* jobSummary, TInstant startTime, const TYsonStr
     if (jobSummary->ExecDuration) {
         statistics->AddSample("/time/exec", jobSummary->ExecDuration->MilliSeconds());
     }
+
+    jobSummary->StatisticsYson = ConvertToYsonString(statistics);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

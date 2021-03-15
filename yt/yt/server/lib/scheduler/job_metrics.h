@@ -125,9 +125,12 @@ TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs);
 TJobMetrics operator-(const TJobMetrics& lhs, const TJobMetrics& rhs);
 
 bool Dominates(const TJobMetrics& lhs, const TJobMetrics& rhs);
+TJobMetrics Max(const TJobMetrics& lhs, const TJobMetrics& rhs);
 
 void ToProto(NControllerAgent::NProto::TJobMetrics* protoJobMetrics, const NScheduler::TJobMetrics& jobMetrics);
 void FromProto(NScheduler::TJobMetrics* jobMetrics, const NControllerAgent::NProto::TJobMetrics& protoJobMetrics);
+
+void Serialize(const TJobMetrics& jobMetrics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

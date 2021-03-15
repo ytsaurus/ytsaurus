@@ -53,7 +53,11 @@ bool CheckJobActivity(
     EJobType jobType);
 
 // Performs statistics parsing and put it inside jobSummary.
-void ParseStatistics(TJobSummary* jobSummary, TInstant startTime, const NYson::TYsonString& lastObservedStatisticsYson = NYson::TYsonString());
+void ParseStatistics(
+    TJobSummary* jobSummary,
+    TInstant startTime,
+    TInstant lastUpdateTime,
+    const NYson::TYsonString& lastObservedStatisticsYson = NYson::TYsonString());
 
 ////////////////////////////////////////////////////////////////////////////////
 

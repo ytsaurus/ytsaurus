@@ -20,6 +20,8 @@ using namespace NChunkPools;
 using namespace NJobTrackerClient;
 using namespace NProfiling;
 using namespace NScheduler;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,8 +63,10 @@ TJoblet::TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& tre
     , OutputCookie(IChunkPoolOutput::NullCookie)
 { }
 
-TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary)
+TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool* monotonicityViolated)
 {
+    const auto Logger = ControllerLogger.WithTag("JobId: %v", JobId);
+
     // Statistics is always presented in job summary.
     // Therefore looking at StatisticsYson is the only way to check that
     // job has actual non-zero statistics received from node.
@@ -71,13 +75,24 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary)
         return TJobMetrics();
     }
 
-    const auto jobMetrics = TJobMetrics::FromJobStatistics(
+    const auto newJobMetrics = TJobMetrics::FromJobStatistics(
         *jobSummary.Statistics,
         jobSummary.State,
         Task->GetTaskHost()->GetConfig()->CustomJobMetrics);
 
-    auto delta = jobMetrics - JobMetrics;
-    JobMetrics = jobMetrics;
+    if (!(*monotonicityViolated) && !Dominates(newJobMetrics, JobMetrics)) {
+        YT_LOG_WARNING("Job metrics monotonicity violated (Previous: %v, Current: %v)",
+            ConvertToYsonString(JobMetrics, EYsonFormat::Text),
+            ConvertToYsonString(newJobMetrics, EYsonFormat::Text));
+        *monotonicityViolated = true;
+    }
+
+    auto updatedJobMetrics = Max(newJobMetrics, JobMetrics);
+
+    auto delta = updatedJobMetrics - JobMetrics;
+    YT_VERIFY(Dominates(delta, TJobMetrics()));
+    JobMetrics = updatedJobMetrics;
+
     return delta;
 }
 

@@ -44,6 +44,7 @@ struct TJobInfoBase
 
     TInstant StartTime;
     TInstant FinishTime;
+    TInstant LastUpdateTime = TInstant();
 
     TString Account;
     bool Suspicious = false;
@@ -118,6 +119,7 @@ public:
     NChunkClient::TChunkListId CoreTableChunkListId;
 
     NScheduler::TJobMetrics JobMetrics;
+    bool JobMetricsMonotonicityViolated = false;
 
     std::optional<TDuration> JobSpeculationTimeout;
 
@@ -128,7 +130,7 @@ public:
 
     virtual void Persist(const TPersistenceContext& context) override;
 
-    NScheduler::TJobMetrics UpdateJobMetrics(const TJobSummary& jobSummary);
+    NScheduler::TJobMetrics UpdateJobMetrics(const TJobSummary& jobSummary, bool* monotonicityViolated);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)

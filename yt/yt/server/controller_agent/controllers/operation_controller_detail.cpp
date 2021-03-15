@@ -2671,7 +2671,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         ExtractInterruptDescriptor(*jobSummary, joblet);
     }
 
-    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->StatisticsYson);
+    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
 
     const auto& statistics = *jobSummary->Statistics;
 
@@ -2761,7 +2761,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     auto error = FromProto<TError>(result.error());
 
-    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->StatisticsYson);
+    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
 
     FinalizeJoblet(joblet, jobSummary.get());
     LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
@@ -2849,7 +2849,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     auto joblet = GetJoblet(jobId);
 
-    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->StatisticsYson);
+    ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
     const auto& statistics = *jobSummary->Statistics;
 
     if (abortReason == EAbortReason::ResourceOverdraft) {
@@ -2962,8 +2962,9 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     joblet->StderrSize = jobSummary->StderrSize;
 
     if (jobSummary->StatisticsYson) {
+        ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime);
         joblet->StatisticsYson = jobSummary->StatisticsYson;
-        ParseStatistics(jobSummary.get(), joblet->StartTime);
+        joblet->LastUpdateTime = TInstant::Now();
 
         UpdateJobMetrics(joblet, *jobSummary);
     }
@@ -8143,7 +8144,7 @@ void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const 
 {
     YT_LOG_TRACE("Updating job metrics (JobId: %v)", joblet->JobId);
 
-    auto delta = joblet->UpdateJobMetrics(jobSummary);
+    auto delta = joblet->UpdateJobMetrics(jobSummary, &(joblet->JobMetricsMonotonicityViolated));
     {
         auto guard = Guard(JobMetricsDeltaPerTreeLock_);
 
