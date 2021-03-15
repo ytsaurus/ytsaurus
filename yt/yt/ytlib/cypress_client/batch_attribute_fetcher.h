@@ -71,6 +71,10 @@ private:
 
     NLogging::TLogger Logger;
 
+    //! Used to deal with duplicating tables, mapping from duplicating table index into index of
+    //! a table to copy attributes from.
+    std::vector<int> DeduplicationReferenceTableIndices_;
+
     void SetupBatchRequest(const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& batchReq);
     void SetupYPathRequest(const NYTree::TYPathRequestPtr& req);
 

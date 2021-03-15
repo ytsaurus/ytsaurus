@@ -1,5 +1,5 @@
 from yt_commands import (create, authors, write_table, insert_rows, get, sync_reshard_table, sync_mount_table,
-                         read_table, get_singular_chunk_id)
+                         read_table, get_singular_chunk_id, copy)
 
 from base import ClickHouseTestBase, Clique
 
@@ -541,3 +541,16 @@ class TestInputFetching(ClickHouseTestBase):
                 ):
                     check_complex(lower_limit, upper_limit)
                     check_complex(upper_limit, lower_limit)
+
+    @authors("max42")
+    def test_duplicating_tables(self):
+        create("map_node", "//tmp/d")
+        create("table", "//tmp/d/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/d/t1", [{"a": 1}])
+        with Clique(1) as clique:
+            assert clique.make_query("select * from concatYtTables(`//tmp/d/t1`, `//tmp/d/t1`)") == [{"a": 1}] * 2
+        copy("//tmp/d/t1", "//tmp/d/t2")
+        with Clique(1) as clique:
+            assert clique.make_query("select * from concatYtTables(`//tmp/d/t1`, `//tmp/d/t1`)") == [{"a": 1}] * 2
+            assert clique.make_query("select * from concatYtTables(`//tmp/d/t1`, `//tmp/d/t1`, `//tmp/d/t2`, "
+                                     "`//tmp/d/t2`, `//tmp/d/t2`)") == [{"a": 1}] * 5
