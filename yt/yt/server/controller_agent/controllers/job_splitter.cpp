@@ -146,7 +146,7 @@ public:
     virtual void OnJobCompleted(const TCompletedJobSummary& summary) override
     {
         OnJobFinished(summary);
-        SuccessJobPrepareDurationSum_ += summary.PrepareDuration.value_or(TDuration());
+        SuccessJobPrepareDurationSum_ += summary.TimeStatistics.PrepareDuration.value_or(TDuration());
         ++SuccessJobCount_;
     }
 
@@ -162,14 +162,14 @@ public:
             return 1;
         }
 
-        double execDuration = summary.ExecDuration.value_or(TDuration()).SecondsFloat();
+        double execDuration = summary.TimeStatistics.ExecDuration.value_or(TDuration()).SecondsFloat();
         YT_VERIFY(summary.Statistics);
         i64 processedRowCount = GetNumericValue(*summary.Statistics, "/data/input/row_count");
         if (unreadRowCount <= 1 || processedRowCount == 0 || execDuration == 0.0) {
             return 1;
         }
-        double prepareDuration = summary.PrepareDuration.value_or(TDuration()).SecondsFloat() -
-            summary.DownloadDuration.value_or(TDuration()).SecondsFloat();
+        double prepareDuration = summary.TimeStatistics.PrepareDuration.value_or(TDuration()).SecondsFloat() -
+            summary.TimeStatistics.ArtifactsDownloadDuration.value_or(TDuration()).SecondsFloat();
         double expectedExecDuration = execDuration / processedRowCount * unreadRowCount;
 
         auto getMedianCompletionDuration = [&] () {
@@ -369,16 +369,16 @@ private:
 
         void UpdateCompletionTime(TJobTimeTracker* jobTimeTracker, const TJobSummary& summary)
         {
-            PrepareDuration_ = summary.PrepareDuration.value_or(TDuration());
-            auto downloadDuration = summary.DownloadDuration.value_or(TDuration());
+            PrepareDuration_ = summary.TimeStatistics.PrepareDuration.value_or(TDuration());
+            auto downloadDuration = summary.TimeStatistics.ArtifactsDownloadDuration.value_or(TDuration());
             PrepareWithoutDownloadDuration_ = PrepareDuration_ >= downloadDuration
                 ? PrepareDuration_ - downloadDuration
                 : TDuration();
-            if (!summary.ExecDuration) {
+            if (!summary.TimeStatistics.ExecDuration) {
                 return;
             }
 
-            ExecDuration_ = summary.ExecDuration.value_or(TDuration());
+            ExecDuration_ = summary.TimeStatistics.ExecDuration.value_or(TDuration());
             YT_VERIFY(summary.Statistics);
 
             RowCount_ = FindNumericValue(*summary.Statistics, "/data/input/row_count").value_or(0);

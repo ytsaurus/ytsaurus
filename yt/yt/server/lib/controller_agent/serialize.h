@@ -18,6 +18,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SimplifyForeignDataProcessing)        (300504))
     ((AutoMergePendingJobCount)             (300505))
     ((NoOrderedDynamicStoreInterrupts)      (300506))
+    // 21.2 start here
+    ((TimeStatistics)                       (300601))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

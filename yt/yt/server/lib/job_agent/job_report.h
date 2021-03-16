@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
+
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/core_dump/proto/core_info.pb.h>
@@ -18,6 +20,29 @@
 #include <yt/yt/core/misc/property.h>
 
 namespace NYT::NJobAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTimeStatistics
+{
+    std::optional<TDuration> PrepareDuration;
+    std::optional<TDuration> ArtifactsDownloadDuration;
+    std::optional<TDuration> PrepareRootFSDuration;
+    std::optional<TDuration> ExecDuration;
+
+    void Persist(const TStreamPersistenceContext& context);
+
+    void AddSamplesTo(TStatistics* statistics) const;
+};
+
+void ToProto(
+    NJobTrackerClient::NProto::TTimeStatistics* timeStatisticsProto,
+    const TTimeStatistics& timeStatistics);
+void FromProto(
+    TTimeStatistics* timeStatistics,
+    const NJobTrackerClient::NProto::TTimeStatistics& timeStatisticsProto);
+
+void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

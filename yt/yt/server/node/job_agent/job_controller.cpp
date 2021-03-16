@@ -57,7 +57,6 @@ namespace NYT::NJobAgent {
 using namespace NRpc;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
-using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NYson;
 using namespace NYTree;
@@ -70,6 +69,12 @@ using namespace NNet;
 using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobSpec;
 using NJobTrackerClient::NProto::TJobStatus;
+using NNodeTrackerClient::NProto::TNodeResources;
+using NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides;
+using NNodeTrackerClient::NProto::TDiskResources;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 using std::placeholders::_1;
 

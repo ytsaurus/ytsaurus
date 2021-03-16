@@ -196,19 +196,7 @@ void ParseStatistics(
         auto duration = endTime - startTime;
         statistics->AddSample("/time/total", duration.MilliSeconds());
     }
-
-    if (jobSummary->PrepareDuration) {
-        statistics->AddSample("/time/prepare", jobSummary->PrepareDuration->MilliSeconds());
-    }
-    if (jobSummary->DownloadDuration) {
-        statistics->AddSample("/time/artifacts_download", jobSummary->DownloadDuration->MilliSeconds());
-    }
-    if (jobSummary->PrepareRootFSDuration) {
-        statistics->AddSample("/time/prepare_root_fs", jobSummary->PrepareRootFSDuration->MilliSeconds());
-    }
-    if (jobSummary->ExecDuration) {
-        statistics->AddSample("/time/exec", jobSummary->ExecDuration->MilliSeconds());
-    }
+    jobSummary->TimeStatistics.AddSamplesTo(&statistics.value());
 
     jobSummary->StatisticsYson = ConvertToYsonString(statistics);
 }

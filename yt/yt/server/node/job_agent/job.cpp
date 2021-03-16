@@ -15,22 +15,7 @@ void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, IJobPtr job
     jobStatus->set_state(static_cast<int>(job->GetState()));
     jobStatus->set_phase(static_cast<int>(job->GetPhase()));
     jobStatus->set_progress(job->GetProgress());
-    auto prepareDuration = job->GetPrepareDuration();
-    if (prepareDuration) {
-        jobStatus->set_prepare_duration(ToProto<i64>(*prepareDuration));
-    }
-    auto downloadDuration = job->GetDownloadDuration();
-    if (downloadDuration) {
-        jobStatus->set_download_duration(ToProto<i64>(*downloadDuration));
-    }
-    auto prepareRootFSDuration = job->GetPrepareRootFSDuration();
-    if (prepareRootFSDuration) {
-        jobStatus->set_prepare_root_fs_duration(ToProto<i64>(*prepareRootFSDuration));
-    }
-    auto execDuration = job->GetExecDuration();
-    if (execDuration) {
-        jobStatus->set_exec_duration(ToProto<i64>(*execDuration));
-    }
+    ToProto(jobStatus->mutable_time_statistics(), job->GetTimeStatistics());
     auto stderrSize = job->GetStderrSize();
     if (stderrSize > 0) {
         jobStatus->set_stderr_size(stderrSize);

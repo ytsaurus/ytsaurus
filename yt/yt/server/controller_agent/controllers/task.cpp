@@ -943,7 +943,7 @@ void TTask::OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary
     auto jobId = joblet->JobId;
 
     if (joblet->JobSpeculationTimeout &&
-        jobSummary.PrepareDuration.value_or(TDuration()) + jobSummary.ExecDuration.value_or(TDuration()) >= joblet->JobSpeculationTimeout)
+        jobSummary.TimeStatistics.PrepareDuration.value_or(TDuration()) + jobSummary.TimeStatistics.ExecDuration.value_or(TDuration()) >= joblet->JobSpeculationTimeout)
     {
         YT_LOG_DEBUG("Speculation timeout expired; trying to launch speculative job (ExpiredJobId: %v)", jobId);
         if (TryRegisterSpeculativeJob(joblet)) {

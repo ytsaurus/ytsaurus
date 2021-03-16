@@ -367,56 +367,52 @@ public:
         return StartTime_;
     }
 
-    virtual std::optional<TDuration> GetPrepareDuration() const override
+    virtual NJobAgent::TTimeStatistics GetTimeStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        if (!PrepareTime_) {
-            return std::nullopt;
-        } else if (!ExecTime_) {
-            return TInstant::Now() - *PrepareTime_;
-        } else {
-            return *ExecTime_ - *PrepareTime_;
-        }
-    }
+        auto getPrepareDuration = [&] () -> std::optional<TDuration> {
+            if (!PrepareTime_) {
+                return std::nullopt;
+            } else if (!ExecTime_) {
+                return TInstant::Now() - *PrepareTime_;
+            } else {
+                return *ExecTime_ - *PrepareTime_;
+            }
+        };
+        auto getPrepareRootFSDuration = [&] () -> std::optional<TDuration> {
+            if (!StartPrepareVolumeTime_) {
+                return std::nullopt;
+            } else if (!FinishPrepareVolumeTime_) {
+                return TInstant::Now() - *StartPrepareVolumeTime_;
+            } else {
+                return *FinishPrepareVolumeTime_ - *StartPrepareVolumeTime_;
+            }
+        };
+        auto getArtifactsDownloadDuration = [&] () -> std::optional<TDuration> {
+            if (!PrepareTime_) {
+                return std::nullopt;
+            } else if (!CopyTime_) {
+                return TInstant::Now() - *PrepareTime_;
+            } else {
+                return *CopyTime_ - *PrepareTime_;
+            }
+        };
+        auto getExecDuration = [&] () -> std::optional<TDuration> {
+            if (!ExecTime_) {
+                return std::nullopt;
+            } else if (!FinishTime_) {
+                return TInstant::Now() - *ExecTime_;
+            } else {
+                return *FinishTime_ - *ExecTime_;
+            }
+        };
 
-    virtual std::optional<TDuration> GetPrepareRootFSDuration() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        if (!StartPrepareVolumeTime_) {
-            return std::nullopt;
-        } else if (!FinishPrepareVolumeTime_) {
-            return TInstant::Now() - *StartPrepareVolumeTime_;
-        } else {
-            return *FinishPrepareVolumeTime_ - *StartPrepareVolumeTime_;
-        }
-    }
-
-    virtual std::optional<TDuration> GetDownloadDuration() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        if (!PrepareTime_) {
-            return std::nullopt;
-        } else if (!CopyTime_) {
-            return TInstant::Now() - *PrepareTime_;
-        } else {
-            return *CopyTime_ - *PrepareTime_;
-        }
-    }
-
-    virtual std::optional<TDuration> GetExecDuration() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        if (!ExecTime_) {
-            return std::nullopt;
-        } else if (!FinishTime_) {
-            return TInstant::Now() - *ExecTime_;
-        } else {
-            return *FinishTime_ - *ExecTime_;
-        }
+        return NJobAgent::TTimeStatistics{
+            .PrepareDuration = getPrepareDuration(),
+            .ArtifactsDownloadDuration = getArtifactsDownloadDuration(),
+            .PrepareRootFSDuration = getPrepareRootFSDuration(),
+            .ExecDuration = getExecDuration()};
     }
 
     virtual EJobPhase GetPhase() const override
@@ -535,7 +531,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        return Statistics_;
+        return StatisticsYson_;
     }
 
     virtual TInstant GetStatisticsLastSendTime() const override
@@ -552,19 +548,22 @@ public:
         StatisticsLastSendTime_ = TInstant::Now();
     }
 
-    virtual void SetStatistics(const TYsonString& statistics) override
+    virtual void SetStatistics(const TYsonString& statisticsYson) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingProxy) {
+            auto statistics = ConvertTo<TStatistics>(statisticsYson);
+            GetTimeStatistics().AddSamplesTo(&statistics);
+
             if (!GpuSlots_.empty()) {
-                auto enrichedStatistics = EnrichStatisticsWithGpuInfo(statistics);
-                Statistics_ = enrichedStatistics;
-            } else {
-                Statistics_ = statistics;
+                EnrichStatisticsWithGpuInfo(&statistics);
             }
+
+            StatisticsYson_ = ConvertToYsonString(statistics);
+
             ReportStatistics(MakeDefaultJobStatistics()
-                .Statistics(Statistics_));
+                .Statistics(StatisticsYson_));
 
             if (UserJobSensorProducer_) {
                 TSensorBuffer userJobSensors;
@@ -784,7 +783,7 @@ private:
     std::optional<TJobProfile> Profile_;
     TCoreInfos CoreInfos_;
 
-    TYsonString Statistics_ = TYsonString(TStringBuf("{}"));
+    TYsonString StatisticsYson_ = TYsonString(TStringBuf("{}"));
     TInstant StatisticsLastSendTime_ = TInstant::Now();
 
     TBufferedProducerPtr UserJobSensorProducer_;
@@ -1269,9 +1268,9 @@ private:
         YT_VERIFY(JobResult_);
 
         // Copy info from traffic meter to statistics.
-        auto deserializedStatistics = ConvertTo<TStatistics>(Statistics_);
-        FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, deserializedStatistics, TrafficMeter_);
-        Statistics_ = ConvertToYsonString(deserializedStatistics);
+        auto statistics = ConvertTo<TStatistics>(StatisticsYson_);
+        FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, statistics, TrafficMeter_);
+        StatisticsYson_ = ConvertToYsonString(statistics);
 
         auto error = FromProto<TError>(JobResult_->error());
 
@@ -1909,11 +1908,9 @@ private:
             error.FindMatching(EErrorCode::TmpfsOverflow);
     }
 
-    TYsonString EnrichStatisticsWithGpuInfo(const TYsonString& statisticsYson)
+    void EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-
-        auto statistics = ConvertTo<TStatistics>(statisticsYson);
 
         i64 totalUtilizationGpu = 0;
         i64 totalUtilizationMemory = 0;
@@ -1962,14 +1959,12 @@ private:
             totalUtilizationClocksSm += slotStatistics.CumulativeUtilizationClocksSm;
         }
 
-        statistics.AddSample("/user_job/gpu/utilization_gpu", totalUtilizationGpu);
-        statistics.AddSample("/user_job/gpu/utilization_memory", totalUtilizationMemory);
-        statistics.AddSample("/user_job/gpu/utilization_power", totalUtilizationPower);
-        statistics.AddSample("/user_job/gpu/utilization_clocks_sm", totalUtilizationClocksSm);
-        statistics.AddSample("/user_job/gpu/load", totalLoad);
-        statistics.AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
-
-        return ConvertToYsonString(statistics);
+        statistics->AddSample("/user_job/gpu/utilization_gpu", totalUtilizationGpu);
+        statistics->AddSample("/user_job/gpu/utilization_memory", totalUtilizationMemory);
+        statistics->AddSample("/user_job/gpu/utilization_power", totalUtilizationPower);
+        statistics->AddSample("/user_job/gpu/utilization_clocks_sm", totalUtilizationClocksSm);
+        statistics->AddSample("/user_job/gpu/load", totalLoad);
+        statistics->AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
     }
 
     std::vector<TShellCommandConfigPtr> GetSetupCommands()
@@ -2104,7 +2099,7 @@ private:
 
         IMapNodePtr statisticsNode;
         try {
-            statisticsNode = ConvertTo<IMapNodePtr>(Statistics_);
+            statisticsNode = ConvertTo<IMapNodePtr>(StatisticsYson_);
         } catch (const TErrorException& ex) {
             YT_LOG_WARNING(ex, "Failed to convert statistics to map node (JobId: %v, OperationId: %v)",
                 GetId(),
