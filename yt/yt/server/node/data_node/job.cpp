@@ -298,32 +298,9 @@ public:
         return StartTime_;
     }
 
-    virtual std::optional<TDuration> GetPrepareDuration() const override
+    virtual NJobAgent::TTimeStatistics GetTimeStatistics() const override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return std::nullopt;
-    }
-
-    virtual std::optional<TDuration> GetPrepareRootFSDuration() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return std::nullopt;
-    }
-
-    virtual std::optional<TDuration> GetDownloadDuration() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return std::nullopt;
-    }
-
-    virtual std::optional<TDuration> GetExecDuration() const override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return std::nullopt;
+        return NJobAgent::TTimeStatistics{};
     }
 
     virtual TInstant GetStatisticsLastSendTime() const override

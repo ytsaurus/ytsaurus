@@ -29,7 +29,7 @@ TJobSummary CreateOneRowProgressJobSummary(TJobId jobId, bool isSlow = false)
 {
     TJobSummary jobSummary;
     jobSummary.Id = jobId;
-    jobSummary.ExecDuration = TDuration::Seconds(isSlow ? 100 : 1);
+    jobSummary.TimeStatistics.ExecDuration = TDuration::Seconds(isSlow ? 100 : 1);
     jobSummary.Statistics.emplace();
     jobSummary.Statistics->AddSample("/data/input/row_count", 1);
     return jobSummary;
@@ -39,8 +39,8 @@ TJobSummary CreateNoProgressJobSummary(TJobId jobId)
 {
     TJobSummary jobSummary;
     jobSummary.Id = jobId;
-    jobSummary.PrepareDuration = TDuration::Seconds(100);
-    jobSummary.ExecDuration = TDuration::Seconds(0);
+    jobSummary.TimeStatistics.PrepareDuration = TDuration::Seconds(100);
+    jobSummary.TimeStatistics.ExecDuration = TDuration::Seconds(0);
     jobSummary.Statistics.emplace();
     jobSummary.Statistics->AddSample("/data/input/row_count", 0);
     return jobSummary;
@@ -50,7 +50,7 @@ TCompletedJobSummary CreateCompletedJobSummary(TJobId jobId, TDuration prepareDu
 {
     TCompletedJobSummary completedJobSummary;
     completedJobSummary.Id = jobId;
-    completedJobSummary.PrepareDuration = prepareDuration;
+    completedJobSummary.TimeStatistics.PrepareDuration = prepareDuration;
     return completedJobSummary;
 }
 

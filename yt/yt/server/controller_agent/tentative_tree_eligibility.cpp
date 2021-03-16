@@ -147,7 +147,7 @@ void TTentativeTreeEligibility::UpdateDurations(
     const TString& treeId,
     bool tentative)
 {
-    auto totalDuration = jobSummary.PrepareDuration.value_or(TDuration()) + jobSummary.ExecDuration.value_or(TDuration());
+    auto totalDuration = jobSummary.TimeStatistics.PrepareDuration.value_or(TDuration()) + jobSummary.TimeStatistics.ExecDuration.value_or(TDuration());
     auto& durationSummary = tentative ? Durations_[treeId] : NonTentativeTreeDuration_;
     durationSummary.AddSample(totalDuration);
 }

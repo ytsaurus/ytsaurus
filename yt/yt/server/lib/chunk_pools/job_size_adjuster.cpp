@@ -30,8 +30,8 @@ public:
             YT_VERIFY(summary.Statistics);
             UpdateStatistics(
                 GetNumericValue(*summary.Statistics, "/data/input/data_weight"),
-                summary.PrepareDuration.value_or(TDuration()) - summary.DownloadDuration.value_or(TDuration()),
-                summary.ExecDuration.value_or(TDuration()));
+                summary.TimeStatistics.PrepareDuration.value_or(TDuration()) - summary.TimeStatistics.ArtifactsDownloadDuration.value_or(TDuration()),
+                summary.TimeStatistics.ExecDuration.value_or(TDuration()));
         }
     }
 

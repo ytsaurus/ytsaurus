@@ -77,7 +77,6 @@ protected:
         if (HandlePdeathsigOptions()) {
             return;
         }
-
         if (HandleConfigOptions()) {
             return;
         }

@@ -6,11 +6,16 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/misc/statistics.h>
+
 namespace NYT::NJobAgent {
 
 using namespace NYTree;
 using namespace NYson;
 using namespace NCoreDump;
+
+using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +56,90 @@ size_t EstimateSizes(T&& t, U&& ... u)
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTimeStatistics::Persist(const TStreamPersistenceContext& context)
+{
+    using namespace NYT::NJobAgent;
+    using NYT::Persist;
+
+    Persist(context, PrepareDuration);
+    Persist(context, ArtifactsDownloadDuration);
+    Persist(context, PrepareRootFSDuration);
+    Persist(context, ExecDuration);
+}
+
+void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
+{
+    if (PrepareDuration) {
+        statistics->AddSample("/time/prepare", PrepareDuration->MilliSeconds());
+    }
+    if (ArtifactsDownloadDuration) {
+        statistics->AddSample("/time/artifacts_download", ArtifactsDownloadDuration->MilliSeconds());
+    }
+    if (PrepareRootFSDuration) {
+        statistics->AddSample("/time/prepare_root_fs", PrepareRootFSDuration->MilliSeconds());
+    }
+    if (ExecDuration) {
+        statistics->AddSample("/time/exec", ExecDuration->MilliSeconds());
+    }
+}
+
+void ToProto(
+    NJobTrackerClient::NProto::TTimeStatistics* timeStatisticsProto,
+    const TTimeStatistics& timeStatistics)
+{
+    if (timeStatistics.PrepareDuration) {
+        timeStatisticsProto->set_prepare_duration(ToProto<i64>(*timeStatistics.PrepareDuration));
+    }
+    if (timeStatistics.ArtifactsDownloadDuration) {
+        timeStatisticsProto->set_artifacts_download_duration(ToProto<i64>(*timeStatistics.ArtifactsDownloadDuration));
+    }
+    if (timeStatistics.PrepareRootFSDuration) {
+        timeStatisticsProto->set_prepare_root_fs_duration(ToProto<i64>(*timeStatistics.PrepareRootFSDuration));
+    }
+    if (timeStatistics.ExecDuration) {
+        timeStatisticsProto->set_exec_duration(ToProto<i64>(*timeStatistics.ExecDuration));
+    }
+}
+
+void FromProto(
+    TTimeStatistics* timeStatistics,
+    const NJobTrackerClient::NProto::TTimeStatistics& timeStatisticsProto)
+{
+    if (timeStatisticsProto.has_prepare_duration()) {
+        timeStatistics->PrepareDuration = FromProto<TDuration>(timeStatisticsProto.prepare_duration());
+    }
+    if (timeStatisticsProto.has_artifacts_download_duration()) {
+        timeStatistics->ArtifactsDownloadDuration = FromProto<TDuration>(timeStatisticsProto.artifacts_download_duration());
+    }
+    if (timeStatisticsProto.has_prepare_root_fs_duration()) {
+        timeStatistics->PrepareRootFSDuration = FromProto<TDuration>(timeStatisticsProto.prepare_root_fs_duration());
+    }
+    if (timeStatisticsProto.has_exec_duration()) {
+        timeStatistics->ExecDuration = FromProto<TDuration>(timeStatisticsProto.exec_duration());
+    }
+}
+
+void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .DoIf(static_cast<bool>(timeStatistics.PrepareDuration), [&] (auto fluent) {
+                fluent.Item("prepare").Value(*timeStatistics.PrepareDuration);
+            })
+            .DoIf(static_cast<bool>(timeStatistics.ArtifactsDownloadDuration), [&] (auto fluent) {
+                fluent.Item("artifacts_download").Value(*timeStatistics.ArtifactsDownloadDuration);
+            })
+            .DoIf(static_cast<bool>(timeStatistics.PrepareRootFSDuration), [&] (auto fluent) {
+                fluent.Item("prepare_root_fs").Value(*timeStatistics.PrepareRootFSDuration);
+            })
+            .DoIf(static_cast<bool>(timeStatistics.ExecDuration), [&] (auto fluent) {
+                fluent.Item("exec").Value(*timeStatistics.ExecDuration);
+            })
+        .EndMap();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -276,9 +365,11 @@ TJobReport TJobReport::ExtractProfile() const
 
 bool TJobReport::IsEmpty() const
 {
-    return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ ||
-             Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ ||
-             CoreInfos_ || HasCompetitors_ || MonitoringDescriptor_);
+    bool somethingSpecified = 
+        Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ ||
+        Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ ||
+        CoreInfos_ || HasCompetitors_ || MonitoringDescriptor_ || ExecAttributes_;
+    return !somethingSpecified;
 }
 
 TControllerJobReport TControllerJobReport::OperationId(NJobTrackerClient::TOperationId operationId)

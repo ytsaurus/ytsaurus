@@ -32,6 +32,14 @@ message TReleaseJobFlags
     required bool archive_profile = 4;
 };
 
+message TTimeStatistics
+{
+    optional int64 prepare_duration = 1;
+    optional int64 exec_duration = 2;
+    optional int64 artifacts_download_duration = 3;
+    optional int64 prepare_root_fs_duration = 4;
+};
+
 // Describes the current job status.
 message TJobStatus
 {
@@ -44,11 +52,15 @@ message TJobStatus
     optional TJobResult result = 7;
     optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 8;
     optional string statistics = 9;
+    optional int64 stderr_size = 13;
+
+    // COMPAT(ignat)
     optional int64 prepare_duration = 10;
     optional int64 exec_duration = 11;
     optional int64 download_duration = 12;
     optional int64 prepare_root_fs_duration = 14;
-    optional int64 stderr_size = 13;
+
+    optional TTimeStatistics time_statistics = 15;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

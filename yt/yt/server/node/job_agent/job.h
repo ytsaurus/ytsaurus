@@ -84,10 +84,7 @@ struct IJob
     virtual void OnJobPrepared() = 0;
 
     virtual TInstant GetStartTime() const = 0;
-    virtual std::optional<TDuration> GetPrepareDuration() const = 0;
-    virtual std::optional<TDuration> GetDownloadDuration() const = 0;
-    virtual std::optional<TDuration> GetPrepareRootFSDuration() const = 0;
-    virtual std::optional<TDuration> GetExecDuration() const = 0;
+    virtual NJobAgent::TTimeStatistics GetTimeStatistics() const = 0;
 
     virtual TInstant GetStatisticsLastSendTime() const = 0;
     virtual void ResetStatisticsLastSendTime() = 0;

@@ -6,6 +6,8 @@
 #include <yt/yt/server/lib/scheduler/public.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
 
+#include <yt/yt/server/lib/job_agent/job_report.h>
+
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -41,10 +43,7 @@ struct TJobSummary
     EJobPhase Phase = EJobPhase::Missing;
 
     std::optional<TInstant> FinishTime;
-    std::optional<TDuration> PrepareDuration;
-    std::optional<TDuration> DownloadDuration;
-    std::optional<TDuration> ExecDuration;
-    std::optional<TDuration> PrepareRootFSDuration;
+    NJobAgent::TTimeStatistics TimeStatistics;
 
     // NB: The Statistics field will be set inside the controller in ParseStatistics().
     std::optional<TStatistics> Statistics;

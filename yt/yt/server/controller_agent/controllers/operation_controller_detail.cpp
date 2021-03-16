@@ -2681,8 +2681,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     FinalizeJoblet(joblet, jobSummary.get());
     LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
 
-    UpdateJobStatistics(joblet, *jobSummary);
     UpdateJobMetrics(joblet, *jobSummary);
+    UpdateJobStatistics(joblet, *jobSummary);
 
     auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
     for (const auto& treeId : taskResult.NewlyBannedTrees) {
@@ -2690,7 +2690,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
 
     if (!abandoned) {
-        if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation || jobSummary->ExecDuration.value_or(TDuration()) > Config->MinJobDurationToArchiveJobSpec) &&
+        if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation ||
+            jobSummary->TimeStatistics.ExecDuration.value_or(TDuration()) > Config->MinJobDurationToArchiveJobSpec) &&
            JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
         {
             ++JobSpecCompletedArchiveCount_;
@@ -8129,11 +8130,6 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, con
 
     // NB: There is a copy happening here that can be eliminated.
     auto statistics = *jobSummary.Statistics;
-    YT_LOG_TRACE("Job data statistics (JobId: %v, Input: %v, Output: %v)",
-        jobSummary.Id,
-        GetTotalInputDataStatistics(statistics),
-        GetTotalOutputDataStatistics(statistics));
-
     auto statisticsState = GetStatisticsJobState(joblet, jobSummary.State);
     auto statisticsSuffix = GetStatisticsSuffix(joblet->Task, statisticsState);
     statistics.AddSuffixToNames(statisticsSuffix);
