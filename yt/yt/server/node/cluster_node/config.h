@@ -491,6 +491,9 @@ public:
     //! Master connector config.
     TMasterConnectorConfigPtr MasterConnector;
 
+    //! Is used to configure relative network throttler limits.
+    i64 NetworkBandwidth;
+
     TClusterNodeConfig()
     {
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
@@ -555,6 +558,9 @@ public:
 
         RegisterParameter("master_connector", MasterConnector)
             .DefaultNew();
+
+        RegisterParameter("network_bandwidth", NetworkBandwidth)
+            .Default(1250000000);
 
         RegisterPostprocessor([&] {
             NNodeTrackerClient::ValidateNodeTags(Tags);
