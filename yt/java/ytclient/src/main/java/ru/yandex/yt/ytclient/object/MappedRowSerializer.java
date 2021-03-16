@@ -11,26 +11,9 @@ import javax.annotation.Nonnull;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeDateSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeBytesToStringSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeNullSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionalSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeBooleanSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeDoubleSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeDurationSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeEnumSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeFloatSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeInstantSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeIntEnumSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeIntegerSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeJavaInstantSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeLocalDateTimeSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeLongSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeOffsetDateTimeSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringEnumSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeUnsignedLongSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
 import ru.yandex.yson.ClosableYsonConsumer;
@@ -104,25 +87,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     }
 
     static ColumnValueType asType(YTreeSerializer<?> serializer) {
-        if (serializer instanceof YTreeIntegerSerializer || serializer instanceof YTreeLongSerializer ||
-                serializer instanceof YTreeIntEnumSerializer || serializer instanceof YTreeInstantSerializer ||
-                serializer instanceof YTreeDurationSerializer || serializer instanceof YTreeJavaInstantSerializer ||
-                serializer instanceof YTreeOffsetDateTimeSerializer) {
-            return ColumnValueType.INT64;
-        } else if (serializer instanceof YTreeDoubleSerializer || serializer instanceof YTreeFloatSerializer) {
-            return ColumnValueType.DOUBLE;
-        } else if (serializer instanceof YTreeUnsignedLongSerializer) {
-            return ColumnValueType.UINT64;
-        } else if (serializer instanceof YTreeBooleanSerializer) {
-            return ColumnValueType.BOOLEAN;
-        } else if (serializer instanceof YTreeStringEnumSerializer || serializer instanceof YTreeStringSerializer
-                || serializer instanceof YTreeEnumSerializer || serializer instanceof AbstractYTreeDateSerializer
-                || serializer instanceof YTreeLocalDateTimeSerializer
-                || serializer instanceof YTreeBytesToStringSerializer) {
-            return ColumnValueType.STRING;
-        } else {
-            return ColumnValueType.ANY;
-        }
+        return serializer.getColumnValueType();
     }
 
     private static void asTableSchema(TableSchema.Builder builder, Collection<YTreeObjectField<?>> fields) {
