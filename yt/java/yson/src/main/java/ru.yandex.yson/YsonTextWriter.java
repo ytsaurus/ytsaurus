@@ -7,8 +7,6 @@ import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.util.Arrays;
 
-import javax.annotation.Nonnull;
-
 /**
  * Writer that generates text yson.
  *
@@ -18,15 +16,15 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     private final Writer writer;
     private boolean firstItem = false;
 
-    public YsonTextWriter(@Nonnull StringBuilder builder) {
+    public YsonTextWriter(StringBuilder builder) {
         this(new StringBuilderWriterAdapter(builder));
     }
 
-    public YsonTextWriter(@Nonnull Writer writer) {
+    public YsonTextWriter(Writer writer) {
         this.writer = writer;
     }
 
-    public YsonTextWriter(@Nonnull OutputStream output) {
+    public YsonTextWriter(OutputStream output) {
         this(new OutputStreamWriter(output));
     }
 
@@ -75,7 +73,7 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     }
 
     @Override
-    public void onString(@Nonnull byte[] bytes, int offset, int length) {
+    public void onString(byte[] bytes, int offset, int length) {
         write('"');
         appendQuotedBytes(Arrays.copyOfRange(bytes, offset, offset + length));
         write('"');
@@ -132,7 +130,7 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     }
 
     @Override
-    public void onKeyedItem(@Nonnull byte[] key, int offset, int length) {
+    public void onKeyedItem(byte[] key, int offset, int length) {
         if (firstItem) {
             firstItem = false;
         } else {
@@ -176,7 +174,7 @@ public class YsonTextWriter implements ClosableYsonConsumer {
         }
 
         @Override
-        public void write(@Nonnull char[] chars, int i, int i1) {
+        public void write(char[] chars, int i, int i1) {
             builder.append(chars, i, i1);
         }
 
