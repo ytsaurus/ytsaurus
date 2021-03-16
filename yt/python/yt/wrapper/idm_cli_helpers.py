@@ -137,11 +137,16 @@ class ObjectIdmSnapshot(object):
         self.responsibles = extract_roles(responsibles.get("responsible", []))
         self.read_approvers = extract_roles(responsibles.get("read_approvers", []))
         self.auditors = extract_roles(responsibles.get("auditors", []))
-        self.disable_responsible_inheritance = responsibles.get("disable_inheritance", False)
         self.require_boss_approval = responsibles.get("require_boss_approval", False)
 
         roles = idm_client.get_acl(**object_id)
-        self.inherit_acl = roles.get("acl", {}).get("inherit_acl", False)
+
+        if "path" in object_id:
+            self.disable_responsible_inheritance = responsibles.get("disable_inheritance", False)
+            self.inherit_acl = roles.get("acl", {}).get("inherit_acl", False)
+        else:
+            self.disable_responsible_inheritance = None
+            self.inherit_acl = None
 
         self.roles = list(map(Role, roles.get("roles", [])))
         self._new_roles = []
@@ -240,18 +245,24 @@ class ObjectIdmSnapshot(object):
 
     def commit(self):
         subjects_to_json = lambda subjects: [subj.to_json_type() for subj in subjects]
-        self.idm_client.set_responsible(
+
+        responsible_params = dict(
             version=self.version,
             responsible=dict(
                 responsible=subjects_to_json(self.responsibles),
                 read_approvers=subjects_to_json(self.read_approvers),
                 auditors=subjects_to_json(self.auditors),
                 require_boss_approval=self.require_boss_approval,
-                disable_inheritance=self.disable_responsible_inheritance,
             ),
-            inherit_acl=self.inherit_acl,
             **self.object_id
         )
+        if self.disable_responsible_inheritance is not None:
+            responsible_params["responsible"]["disable_inheritance"] = self.disable_responsible_inheritance
+        if self.inherit_acl is not None:
+            responsible_params["inherit_acl"] = self.inherit_acl
+
+        self.idm_client.set_responsible(**responsible_params)
+
         if self._new_roles:
             comment_to_roles = {}
             for role in self._new_roles:
@@ -284,7 +295,8 @@ def pretty_print_idm_info(object_idm_snapshot, indent=0, immediate=False):
     print_aligned("Auditors:", preprocess_subjects(object_idm_snapshot.auditors), indent)
     print_aligned("Inherit responsibles:", (not object_idm_snapshot.disable_responsible_inheritance), indent)
     print_aligned("Boss approval required:", object_idm_snapshot.require_boss_approval, indent)
-    print_aligned("Inherit ACL:", object_idm_snapshot.inherit_acl, indent)
+    if object_idm_snapshot.inherit_acl is not None:
+        print_aligned("Inherit ACL:", object_idm_snapshot.inherit_acl, indent)
 
     print_indented("ACL roles:", indent)
     for role in object_idm_snapshot.effective_roles():
@@ -295,11 +307,17 @@ def subjects_from_string(subjects):
     return [Subject.from_string(subj) for subj in subjects]
 
 def apply_flags(object_idm_snapshot, args):
-    if isinstance(getattr(args, "inherit_acl", None), bool):
+    if (
+        object_idm_snapshot.inherit_acl is not None
+        and getattr(args, "inherit_acl", None) is not None
+    ):
         object_idm_snapshot.inherit_acl = args.inherit_acl
-    if isinstance(getattr(args, "inherit_responsibles", None), bool):
+    if (
+        object_idm_snapshot.disable_responsible_inheritance is not None
+        and getattr(args, "inherit_responsibles", None) is not None
+    ):
         object_idm_snapshot.disable_responsible_inheritance = not args.inherit_responsibles
-    if isinstance(getattr(args, "boss_approval", None), bool):
+    if getattr(args, "boss_approval", None) is not None:
         object_idm_snapshot.require_boss_approval = args.boss_approval
 
 @contextmanager
