@@ -2053,6 +2053,8 @@ private:
                 "/node_count",
                 NodeListPerRole_[nodeRole].Nodes().size());
         }
+
+        BufferedProducer_->Update(buffer);
     }
 
 

@@ -302,7 +302,7 @@ void TSolomonRegistry::Collect(IInvokerPtr offloadInvoker)
 
     auto projectionCount = std::make_shared<std::atomic<int>>(0);
 
-    std::vector<TFuture<void>> offload;
+    std::vector<TFuture<void>> offloadFutures;
     for (auto& [name, set] : Sensors_) {
         auto future = BIND([sensorSet=&set, projectionCount, collectDuration=SensorCollectDuration_] {
             auto start = TInstant::Now();
@@ -312,10 +312,11 @@ void TSolomonRegistry::Collect(IInvokerPtr offloadInvoker)
             .AsyncVia(offloadInvoker)
             .Run();
 
-        offload.push_back(future);
+        offloadFutures.push_back(future);
     }
 
-    for (const auto& future : offload) {
+    // Use blocking Get(), because we want to lock current thread while data structure is updating.
+    for (const auto& future : offloadFutures) {
         future.Get();
     }
 

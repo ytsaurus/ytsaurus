@@ -98,7 +98,7 @@ void TProducerSet::AddProducer(TProducerStatePtr state)
 
 void TProducerSet::Collect(IRegistryImplPtr profiler, IInvokerPtr invoker)
 {
-    std::vector<TFuture<void>> offload;
+    std::vector<TFuture<void>> offloadFutures;
     std::deque<TProducerStatePtr> toRemove;
     for (const auto& producer : Producers_) {
         auto owner = producer->Producer.Lock();
@@ -124,10 +124,11 @@ void TProducerSet::Collect(IRegistryImplPtr profiler, IInvokerPtr invoker)
             .AsyncVia(invoker)
             .Run();
 
-        offload.push_back(future);
+        offloadFutures.push_back(future);
     }
 
-    for (auto& future : offload) {
+    // Use blocking Get(), because we want to lock current thread while data structure is updating.
+    for (auto& future : offloadFutures) {
         future.Get();
     }
 

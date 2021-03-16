@@ -45,7 +45,7 @@ struct TSolomonExporterConfig
 
     int WindowSize;
 
-    int ThreadPoolSize;
+    std::optional<int> ThreadPoolSize;
 
     bool ConvertCountersToRate;
 
@@ -83,7 +83,7 @@ struct TSolomonExporterConfig
             .Default(12);
 
         RegisterParameter("thread_pool_size", ThreadPoolSize)
-            .Default(0);
+            .Default();
 
         RegisterParameter("convert_counters_to_rate", ConvertCountersToRate)
             .Default(true);
