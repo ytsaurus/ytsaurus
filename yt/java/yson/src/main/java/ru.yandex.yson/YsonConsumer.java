@@ -2,8 +2,6 @@ package ru.yandex.yson;
 
 import java.nio.charset.StandardCharsets;
 
-import javax.annotation.Nonnull;
-
 /**
  * Interface for handling events emitted by yson parser.
  */
@@ -40,7 +38,7 @@ public interface YsonConsumer {
      *
      * Argument is byte array since yson string is an arbitrary byte sequence.
      */
-    void onString(@Nonnull byte[] value, int offset, int length);
+    void onString(byte[] value, int offset, int length);
 
     /**
      * Convenience method equivalent to calling {@link #onString(byte[], int, int)} with utf-8 representation of java string.
@@ -49,7 +47,7 @@ public interface YsonConsumer {
      * Implementations shouldn't override this method or expect that it would be called.
      * Many users of YsonConsumer interface call {@link #onString(byte[], int, int)} as it's more generic.
      */
-    default void onString(@Nonnull String value) {
+    default void onString(String value) {
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
         onString(bytes, 0, bytes.length);
     }
@@ -94,7 +92,7 @@ public interface YsonConsumer {
      *
      * Argument is byte array since yson map key is an arbitrary byte sequence.
      */
-    void onKeyedItem(@Nonnull byte[] value, int offset, int length);
+    void onKeyedItem(byte[] value, int offset, int length);
 
     /**
      * Convenience method equivalent to calling {@link #onKeyedItem(byte[], int, int)} with utf-8 representation of java string.
@@ -103,8 +101,16 @@ public interface YsonConsumer {
      * Implementations shouldn't override this method or expect that it would be called.
      * Many users of YsonConsumer interface call {@link #onKeyedItem(byte[], int, int)} as it's more generic.
      */
-    default void onKeyedItem(@Nonnull String key) {
+    default void onKeyedItem(String key) {
         byte[] bytes = key.getBytes(StandardCharsets.UTF_8);
         onKeyedItem(bytes, 0, bytes.length);
+    }
+
+    static void onKeyedItem(YsonConsumer ysonConsumer, byte[] value) {
+        ysonConsumer.onKeyedItem(value, 0, value.length);
+    }
+
+    static void onString(YsonConsumer ysonConsumer, byte[] value) {
+        ysonConsumer.onString(value, 0, value.length);
     }
 }

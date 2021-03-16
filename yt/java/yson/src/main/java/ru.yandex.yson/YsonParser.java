@@ -6,7 +6,6 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
@@ -613,26 +612,24 @@ public class YsonParser {
 }
 
 class BufferReference {
-    public byte[] buffer = null;
+    private static final byte[] emptyBuffer = new byte[]{};
+
+    public byte[] buffer = emptyBuffer;
     public int length = 0;
     public int offset = 0;
 }
 
-enum SequenceParseResult {
-    Parsed,
-    EndOfStream,
-    EndOfSequence,
-}
-
 class YsonTokenizer {
     static public final int END_OF_STREAM = Integer.MAX_VALUE;
+    static private final byte[] emptyBuffer = new byte[]{};
+
     private final ZeroCopyInput underlying;
     private final BufferReference tmp = new BufferReference();
 
-    private byte[] buffer;
+    private byte[] buffer = emptyBuffer;
     private int bufferOffset = 0;
     private int bufferLength = 0;
-    private byte[] largeStringBuffer;
+    private byte[] largeStringBuffer = emptyBuffer;
 
     public YsonTokenizer(ZeroCopyInput underlying) {
         this.underlying = underlying;
@@ -670,7 +667,7 @@ class YsonTokenizer {
             out.length = length;
             bufferOffset += length;
         } else {
-            if (largeStringBuffer == null || largeStringBuffer.length < length) {
+            if (largeStringBuffer.length < length) {
                 largeStringBuffer = new byte[length];
             }
             int pos = 0;
@@ -787,7 +784,7 @@ class YsonTokenizer {
 }
 
 interface ZeroCopyInput {
-    boolean next(@Nonnull BufferReference out);
+    boolean next(BufferReference out);
 }
 
 class BufferedStreamZeroCopyInput implements ZeroCopyInput {
@@ -807,7 +804,7 @@ class BufferedStreamZeroCopyInput implements ZeroCopyInput {
     }
 
     @Override
-    public boolean next(@Nonnull BufferReference out) {
+    public boolean next(BufferReference out) {
         try {
             int totalRead = 0;
             while (totalRead < buffer.length) {
@@ -831,18 +828,18 @@ class BufferedStreamZeroCopyInput implements ZeroCopyInput {
 }
 
 class ByteZeroCopyInput implements ZeroCopyInput {
-    byte[] buffer;
+    @Nullable byte[] buffer;
     int offset;
     int length;
 
-    public ByteZeroCopyInput(byte[] buffer, int offset, int length) {
+    public ByteZeroCopyInput(@Nullable byte[] buffer, int offset, int length) {
         this.buffer = buffer;
         this.offset = offset;
         this.length = length;
     }
 
     @Override
-    public boolean next(@Nonnull BufferReference out) {
+    public boolean next(BufferReference out) {
         if (buffer == null) {
             return false;
         } else if (length == 0) {

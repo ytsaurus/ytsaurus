@@ -5,8 +5,6 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 
-import javax.annotation.Nonnull;
-
 /**
  * Writer that generates binary yson.
  *
@@ -25,11 +23,11 @@ public class YsonBinaryWriter implements ClosableYsonConsumer {
     private boolean firstItem = true;
 
     @SuppressWarnings("unused")
-    public YsonBinaryWriter(@Nonnull OutputStream output) {
+    public YsonBinaryWriter(OutputStream output) {
         this(output, DEFAULT_BUFFER_SIZE);
     }
 
-    public YsonBinaryWriter(@Nonnull OutputStream output, int bufferSize) {
+    public YsonBinaryWriter(OutputStream output, int bufferSize) {
         this.output = output;
 
         // We want buffer to be able to store at least yson tag and varint of maximum size (10 bytes)
@@ -52,7 +50,7 @@ public class YsonBinaryWriter implements ClosableYsonConsumer {
     }
 
     @Override
-    public void onString(@Nonnull byte[] value, int offset, int length) {
+    public void onString(byte[] value, int offset, int length) {
         try {
             flushIfNotAvailable(1 + VarintUtils.MAX_VARINT32_SIZE);
 
@@ -156,7 +154,7 @@ public class YsonBinaryWriter implements ClosableYsonConsumer {
     }
 
     @Override
-    public void onKeyedItem(@Nonnull byte[] key, int offset, int length) {
+    public void onKeyedItem(byte[] key, int offset, int length) {
         try {
             writeItemSeparator();
             onString(key, offset, length);
