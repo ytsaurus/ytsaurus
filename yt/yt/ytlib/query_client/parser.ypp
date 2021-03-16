@@ -17,7 +17,7 @@
 %parse-param {const TString& source}
 
 %code requires {
-    #include <yt/ytlib/query_client/ast.h>
+    #include <yt/yt/ytlib/query_client/ast.h>
 
     namespace NYT { namespace NQueryClient { namespace NAst {
         using namespace NTableClient;
@@ -28,7 +28,7 @@
 }
 
 %code {
-    #include <yt/ytlib/query_client/lexer.h>
+    #include <yt/yt/ytlib/query_client/lexer.h>
 
     #define yt_ql_yylex lexer.GetNextToken
 
@@ -710,7 +710,7 @@ const-range-list
 
 %%
 
-#include <yt/core/misc/format.h>
+#include <yt/yt/core/misc/format.h>
 
 namespace NYT {
 namespace NQueryClient {

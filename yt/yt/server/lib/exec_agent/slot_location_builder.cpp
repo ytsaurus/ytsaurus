@@ -1,9 +1,9 @@
 #include "slot_location_builder.h"
 
-#include <yt/server/lib/exec_agent/public.h>
+#include <yt/yt/server/lib/exec_agent/public.h>
 
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <util/system/fs.h>
 

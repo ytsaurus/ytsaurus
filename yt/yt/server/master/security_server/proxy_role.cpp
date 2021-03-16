@@ -1,6 +1,6 @@
 #include "proxy_role.h"
 
-#include <yt/server/master/cell_master/serialize.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 namespace NYT::NSecurityServer {
 

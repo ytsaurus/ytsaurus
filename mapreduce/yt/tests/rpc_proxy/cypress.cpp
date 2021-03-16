@@ -1,14 +1,14 @@
 #include <library/cpp/testing/unittest/registar.h>
 #include <util/system/env.h>
 
-#include <yt/client/api/client.h>
+#include <yt/yt/client/api/client.h>
 
-#include <yt/client/api/rpc_proxy/config.h>
-#include <yt/client/api/rpc_proxy/connection.h>
+#include <yt/yt/client/api/rpc_proxy/config.h>
+#include <yt/yt/client/api/rpc_proxy/connection.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/core/net/address.h>
+#include <yt/yt/core/net/address.h>
 
 using namespace NYT;
 using namespace NYT::NApi;

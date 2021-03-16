@@ -2,7 +2,7 @@
 
 #include "invoker_queue.h"
 
-#include <yt/core/actions/invoker_detail.h>
+#include <yt/yt/core/actions/invoker_detail.h>
 
 namespace NYT::NConcurrency {
 

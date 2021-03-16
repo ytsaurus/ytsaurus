@@ -5,7 +5,7 @@
 #include "producer.h"
 #include "tag_registry.h"
 
-#include <yt/core/actions/invoker_util.h>
+#include <yt/yt/core/actions/invoker_util.h>
 
 #include <yt/yt/core/misc/lock_free.h>
 

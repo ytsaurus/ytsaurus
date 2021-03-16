@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
-#include <yt/core/misc/error.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 

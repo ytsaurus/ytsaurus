@@ -1,5 +1,7 @@
 #pragma once
-#include "yt/core/misc/error.h"
+
+#include <yt/yt/core/misc/error.h>
+
 #ifndef PULL_PARSER_DESERIALIZE_INL_H_
 #error "Direct inclusion of this file is not allowed, include pull_parser_deserialize.h"
 // For the sake of sane code completion.

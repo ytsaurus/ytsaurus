@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/misc/hash.h>
 
-#include <yt/core/profiling/timing.h>
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NTabletClient {
 

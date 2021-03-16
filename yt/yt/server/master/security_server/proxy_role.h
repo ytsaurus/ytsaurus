@@ -3,7 +3,7 @@
 #include "acl.h"
 #include "public.h"
 
-#include <yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/object.h>
 
 namespace NYT::NSecurityServer {
 
