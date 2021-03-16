@@ -8,14 +8,14 @@
 #include "yt/yt/tests/cpp/api_test_base.h"
 #include "yt/yt/tests/cpp/modify_rows_test.h"
 
-#include <yt/client/api/client.h>
-#include <yt/client/api/rowset.h>
-#include <yt/client/api/transaction.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/transaction.h>
 
-#include <yt/client/api/rpc_proxy/helpers.h>
+#include <yt/yt/client/api/rpc_proxy/helpers.h>
 
-#include <yt/client/object_client/public.h>
-#include <yt/client/object_client/helpers.h>
+#include <yt/yt/client/object_client/public.h>
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 

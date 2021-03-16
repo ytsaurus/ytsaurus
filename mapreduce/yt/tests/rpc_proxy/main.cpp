@@ -1,7 +1,7 @@
 #include <library/cpp/testing/unittest/utmain.h>
 
-#include <yt/core/misc/shutdown.h>
-#include <yt/core/misc/finally.h>
+#include <yt/yt/core/misc/shutdown.h>
+#include <yt/yt/core/misc/finally.h>
 
 using namespace NYT;
 

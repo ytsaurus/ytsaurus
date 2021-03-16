@@ -1,6 +1,6 @@
-#include <yt/build/build.h>
+#include <yt/yt/build/build.h>
 
-#include <yt/build/ya_version.h>
+#include <yt/yt/build/ya_version.h>
 
 #include <util/system/compiler.h>
 
