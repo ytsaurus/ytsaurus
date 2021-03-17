@@ -461,6 +461,36 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     )
   }
 
+  it should "read arrow when schema was changed" in {
+    val newSchema = new TableSchema.Builder()
+      .setUniqueKeys(false)
+      .addAll(atomicSchema.getColumns)
+      .addValue("d", ColumnValueType.STRING)
+      .build()
+    YtWrapper.createDir(tmpPath)
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}""",
+      """{a = 2; b = "b"; c = 0.5}"""
+    ), s"$tmpPath/in", atomicSchema)
+    YtWrapper.createTable(
+      s"$tmpPath/out",
+      Map(
+        "schema" -> newSchema.toYTree,
+        "optimize_for" -> YTree.stringNode(OptimizeMode.Scan.name)
+      ),
+      transaction = None
+    )
+    YtWrapper.mergeTables(tmpPath, s"$tmpPath/out", sorted = false)
+
+    val df = spark.read.enableArrow.yt(s"$tmpPath/out")
+
+    df.columns should contain theSameElementsAs Seq("a", "b", "c", "d")
+    df.select("a", "b", "c", "d").collect() should contain theSameElementsAs Seq(
+      Row(1, "a", 0.3, null),
+      Row(2, "b", 0.5, null)
+    )
+  }
+
   it should "read big csv" in {
     writeFileFromResource("test.csv", tmpPath)
     spark.read.csv(s"yt:/$tmpPath").count() shouldEqual 100000

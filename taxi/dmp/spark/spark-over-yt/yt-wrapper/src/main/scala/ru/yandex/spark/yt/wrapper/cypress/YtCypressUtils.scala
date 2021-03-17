@@ -87,6 +87,13 @@ trait YtCypressUtils {
     filteredMap.toMap
   }
 
+  def setAttribute(path: String, attrName: String, attrValue: YTreeNode, transaction: Option[String] = None)
+                  (implicit yt: CompoundClient): Unit = {
+    val request = new SetNode(YPath.simple(s"${formatPath(path)}/@$attrName"), attrValue)
+      .optionalTransaction(transaction)
+    yt.setNode(request).join()
+  }
+
   def rename(src: String, dst: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Unit = {
     val request = new MoveNode(formatPath(src), formatPath(dst)).optionalTransaction(transaction)
     yt.moveNode(request).join()
