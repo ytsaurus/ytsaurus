@@ -22,12 +22,6 @@ class TNode;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-enum class EFrameType
-{
-    Data = 0x01,
-    KeepAlive = 0x02,
-};
-
 class THttpHeader
 {
 public:
@@ -59,9 +53,6 @@ public:
     TString GetHeader(const TString& hostName, const TString& requestId, bool includeParameters = true) const;
 
     const TString& GetMethod() const;
-
-private:
-    bool ShouldAcceptFraming() const;
 
 private:
     const TString Method;
@@ -159,9 +150,6 @@ protected:
 private:
     void CheckTrailers(const THttpHeaders& trailers);
     TMaybe<TErrorResponse> ParseError(const THttpHeaders& headers);
-    size_t UnframeRead(void* buf, size_t len);
-    size_t UnframeSkip(size_t len);
-    bool RefreshFrameIfNecessary();
 
 private:
     THttpInput HttpInput_;
@@ -170,8 +158,6 @@ private:
     int HttpCode_ = 0;
     TMaybe<TErrorResponse> ErrorResponse_;
     bool IsExhausted_ = false;
-    const bool Unframe_;
-    size_t RemainingFrameSize_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
