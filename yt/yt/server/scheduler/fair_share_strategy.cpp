@@ -236,7 +236,7 @@ public:
         const auto& state = GetOperationState(operationId);
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             if (auto tree = GetTree(treeId);
-                tree->HasRunningOperation(operationId))
+                tree->HasOperation(operationId))
             {
                 tree->DisableOperation(state);
             }

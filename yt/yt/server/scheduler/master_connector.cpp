@@ -944,6 +944,7 @@ private:
                 "erased_trees",
                 "banned",
                 "initial_aggregated_min_needed_resources",
+                "registration_index",
             };
             const int operationsCount = static_cast<int>(OperationIds_.size());
 
@@ -1061,7 +1062,10 @@ private:
                 Result_.Operations.begin(),
                 Result_.Operations.end(),
                 [] (const TOperationPtr& lhs, const TOperationPtr& rhs) {
-                    return static_cast<int>(lhs->GetState()) > static_cast<int>(rhs->GetState());
+                    if (lhs->GetState() != rhs->GetState()) {
+                        return static_cast<int>(lhs->GetState()) > static_cast<int>(rhs->GetState());
+                    }
+                    return lhs->RegistrationIndex() < rhs->RegistrationIndex();
                 });
 
             YT_LOG_INFO("Operation objects created from attributes");
@@ -1122,7 +1126,9 @@ private:
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
                 attributes.Get<bool>("suspended", false),
-                attributes.Find<TJobResources>("initial_aggregated_min_needed_resources"));
+                attributes.Find<TJobResources>("initial_aggregated_min_needed_resources"),
+                attributes.Get<int>("registration_index", 0));
+
 
             operation->SetShouldFlushAcl(true);
 

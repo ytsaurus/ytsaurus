@@ -142,7 +142,8 @@ TOperation::TOperation(
     EOperationState state,
     const std::vector<TOperationEvent>& events,
     bool suspended,
-    const std::optional<TJobResources>& initialAggregatedMinNeededResources)
+    const std::optional<TJobResources>& initialAggregatedMinNeededResources,
+    int registrationIndex)
     : MutationId_(mutationId)
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
@@ -154,6 +155,7 @@ TOperation::TOperation(
     , BaseAcl_(std::move(baseAcl))
     , InitialAggregatedMinNeededResources_(initialAggregatedMinNeededResources)
     , ExperimentAssignments_(std::move(experimentAssignments))
+    , RegistrationIndex_(registrationIndex)
     , Id_(id)
     , Type_(type)
     , StartTime_(startTime)

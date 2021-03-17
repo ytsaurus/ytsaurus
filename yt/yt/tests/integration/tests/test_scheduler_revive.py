@@ -1197,6 +1197,94 @@ class TestJobRevival(TestJobRevivalBase):
 
         op.track()
 
+    @authors("ignat")
+    def test_revival_of_pending_operation(self):
+        def get_job_nodes(op):
+            jobs_path = op.get_path() + "/controller_orchid/running_jobs"
+            try:
+                jobs = ls(jobs_path)
+            except YtError:
+                return []
+
+            result = []
+            for job_id in jobs:
+                try:
+                    job_node = get("{0}/{1}".format(jobs_path, job_id))["address"]
+                except YtError:
+                    continue  # The job has already completed, Orchid is lagging.
+
+                result.append((job_id, job_node))
+            return result
+
+        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+
+        nodes = ls("//sys/cluster_nodes")
+        set("//sys/cluster_nodes/" + nodes[0] + "/@user_tags/end", "other")
+
+        create_pool_tree("other", config={"nodes_filter": "other"})
+        create_pool("my_pool", pool_tree="other")
+
+        create_pool("my_pool", pool_tree="default")
+        set("//sys/pool_trees/default/my_pool/@max_running_operation_count", 2)
+        set("//sys/pool_trees/default/my_pool/@max_operation_count", 2)
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        row_count = 20
+        for i in range(row_count):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        op = map(
+            track=False,
+            command=with_breakpoint("BREAKPOINT"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "pool_trees": ["default", "other"],
+                "pool": "my_pool",
+                "data_size_per_job": 1,
+            },
+        )
+
+        job_ids = wait_breakpoint(job_count=15)
+
+        assert len(job_ids) == 15
+        assert op.get_job_count("running") == 15
+
+        op.wait_for_fresh_snapshot()
+
+        create("table", "//tmp/t_out_concurrent")
+        concurrent_op = map(
+            track=False,
+            command="sleep 1000",
+            in_="//tmp/t_in",
+            out="//tmp/t_out_concurrent",
+            spec={
+                "pool_trees": ["default"],
+                "pool": "my_pool",
+            },
+        )
+
+        wait(lambda: concurrent_op.get_state() == "running")
+
+        set(concurrent_op.get_path() + "/@registration_index", 1)
+        set(op.get_path() + "/@registration_index", 2)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            set("//sys/pool_trees/default/my_pool/@max_running_operation_count", 1)
+
+        wait(lambda: concurrent_op.get_state() == "running")
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        wait(lambda: concurrent_op.get_state() == "running")
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        wait(lambda: concurrent_op.get_state() == "running")
 
 ##################################################################
 
