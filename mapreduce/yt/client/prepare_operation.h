@@ -13,8 +13,15 @@ class TOperationPreparationContext
 {
 public:
     TOperationPreparationContext(
-        TStructuredJobTableList structuredInputs,
-        TStructuredJobTableList structuredOutputs,
+        const TStructuredJobTableList& structuredInputs,
+        const TStructuredJobTableList& structuredOutputs,
+        const TAuth& auth,
+        const IClientRetryPolicyPtr& retryPolicy,
+        TTransactionId transactionId);
+
+    TOperationPreparationContext(
+        TVector<TRichYPath> inputs,
+        TVector<TRichYPath> outputs,
         const TAuth& auth,
         const IClientRetryPolicyPtr& retryPolicy,
         TTransactionId transactionId);
@@ -29,8 +36,8 @@ public:
     TMaybe<TYPath> GetOutputPath(int index) const override;
 
 private:
-    TStructuredJobTableList Inputs_;
-    TStructuredJobTableList Outputs_;
+    TVector<TMaybe<TRichYPath>> Inputs_;
+    TVector<TMaybe<TRichYPath>> Outputs_;
     const TAuth& Auth_;
     const IClientRetryPolicyPtr RetryPolicy_;
     TTransactionId TransactionId_;
@@ -67,11 +74,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TTables>
 TVector<TTableSchema> PrepareOperation(
     const IJob& job,
     const IOperationPreparationContext& context,
-    TStructuredJobTableList* inputs,
-    TStructuredJobTableList* outputs,
+    TTables* inputsPtr,
+    TTables* outputsPtr,
     TUserJobFormatHints& hints);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -14,11 +14,26 @@
 
 #include <library/cpp/testing/unittest/registar.h>
 
+#include <library/cpp/yson/node/node_io.h>
+
 using namespace NYT;
 using namespace NYT::NTesting;
 
 namespace NYdlRows = mapreduce::yt::tests::native::ydl_lib::row;
 namespace NYdlAllTypes = mapreduce::yt::tests::native::ydl_lib::all_types;
+
+void InferringNodeMapperPrepareOperation(
+    const IOperationPreparationContext& context,
+    TJobOperationPreparer& builder)
+{
+    for (int i = 0; i < context.GetInputCount(); ++i) {
+        auto schema = context.GetInputSchema(i);
+        schema.AddColumn(TColumnSchema().Name("even").Type(EValueType::VT_INT64));
+        builder.OutputSchema(2 * i, schema);
+        schema.MutableColumns().back() = TColumnSchema().Name("odd").Type(EValueType::VT_INT64);
+        builder.OutputSchema(2 * i + 1, schema);
+    }
+}
 
 // This mapper maps `n` input tables to `2n` output tables.
 // First `n` tables are duplicated into outputs `0,2,...,2n-2` and `1,3,...,2n-1`,
@@ -40,16 +55,49 @@ public:
 
     void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& builder) const override
     {
-        for (int i = 0; i < context.GetInputCount(); ++i) {
-            auto schema = context.GetInputSchema(i);
-            schema.AddColumn(TColumnSchema().Name("even").Type(EValueType::VT_INT64));
-            builder.OutputSchema(2 * i, schema);
-            schema.MutableColumns().back() = TColumnSchema().Name("odd").Type(EValueType::VT_INT64);
-            builder.OutputSchema(2 * i + 1, schema);
-        }
+        InferringNodeMapperPrepareOperation(context, builder);
     }
 };
 REGISTER_MAPPER(TInferringNodeMapper);
+
+// This mapper maps `n` input tables to `2n` output tables.
+// First `n` tables are duplicated into outputs `0,2,...,2n-2` and `1,3,...,2n-1`,
+// adding "int64" columns "even" and "odd" to schemas correspondingly.
+class TInferringRawMapper : public IRawJob
+{
+public:
+    void Do(const TRawJobContext& context) override
+    {
+        TIFStream input(context.GetInputFile());
+        TVector<THolder<TOFStream>> outputs;
+        for (const auto& output : context.GetOutputFileList()) {
+            outputs.push_back(MakeHolder<TOFStream>(output));
+        }
+        auto rows = NodeFromYsonStream(&input, EYsonType::YT_LIST_FRAGMENT);
+        int tableIndex = 0;
+        for (const auto& row : rows.AsList()) {
+            if (row.IsNull()) {
+                auto tableIndexNode = row.GetAttributes()["table_index"];
+                if (!tableIndexNode.IsUndefined()) {
+                    tableIndex = tableIndexNode.AsInt64();
+                }
+                continue;
+            }
+            auto even = row;
+            auto odd = even;
+            even["even"] = 100;
+            odd["odd"] = 101;
+            NodeToYsonStream(even, outputs[2 * tableIndex].Get());
+            NodeToYsonStream(odd, outputs[2 * tableIndex + 1].Get());
+        }
+    }
+
+    void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& builder) const override
+    {
+        InferringNodeMapperPrepareOperation(context, builder);
+    }
+};
+REGISTER_RAW_JOB(TInferringRawMapper);
 
 // This mapper sends all the input rows into the 0-th output stream.
 // Moreover, a row from i-th table is sent to (i + 1)-th output stream.
@@ -274,7 +322,7 @@ REGISTER_REDUCER(TReducerCount);
 
 Y_UNIT_TEST_SUITE(PrepareOperation)
 {
-    Y_UNIT_TEST(Map)
+    void TestMap(bool raw)
     {
         TTestFixture fixture;
         auto client = fixture.GetClient();
@@ -296,17 +344,28 @@ Y_UNIT_TEST_SUITE(PrepareOperation)
             writer->Finish();
         }
 
-        TMapOperationSpec spec;
-        spec.AddInput<TNode>(someTable);
-        spec.AddInput<TNode>(otherTable);
-
         TVector<TYPath> outTables;
         for (int i = 0; i < 4; ++i) {
             outTables.push_back(workingDir + "/out_table_" + ToString(i));
-            spec.AddOutput<TNode>(outTables.back());
         }
-
-        client->Map(spec, new TInferringNodeMapper());
+        if (raw) {
+            auto spec = TRawMapOperationSpec()
+                .Format(TFormat::YsonBinary())
+                .AddInput(someTable)
+                .AddInput(otherTable);
+            for (const auto& outTable : outTables) {
+                spec.AddOutput(outTable);
+            }
+            client->RawMap(spec, new TInferringRawMapper());
+        } else {
+            auto spec = TMapOperationSpec()
+                .AddInput<TNode>(someTable)
+                .AddInput<TNode>(otherTable);
+            for (const auto& outTable : outTables) {
+                spec.AddOutput<TNode>(outTable);
+            }
+            client->Map(spec, new TInferringNodeMapper());
+        }
 
         TVector<TTableSchema> outSchemas;
         for (const auto& path : outTables) {
@@ -328,6 +387,16 @@ Y_UNIT_TEST_SUITE(PrepareOperation)
             UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns()[1].Name(), (i % 2 == 0) ? "even" : "odd");
             UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns()[1].Type(), EValueType::VT_INT64);
         }
+    }
+
+    Y_UNIT_TEST(Map)
+    {
+        TestMap(/* raw */ false);
+    }
+
+    Y_UNIT_TEST(RawMap)
+    {
+        TestMap(/* raw */ true);
     }
 
     Y_UNIT_TEST(MapReduce)
