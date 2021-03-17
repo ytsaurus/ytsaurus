@@ -1,6 +1,7 @@
 package ru.yandex.spark.yt.test
 
 import org.scalatest.TestSuite
+import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client._
 import ru.yandex.yt.ytclient.proxy.CompoundClient
@@ -17,6 +18,7 @@ trait LocalYtClient extends LocalYtClientCreator {
   self: TestSuite =>
   protected lazy val ytClient: YtRpcClient = LocalYtClient.ytClient
   override protected implicit lazy val yt: CompoundClient = ytClient.yt
+  protected implicit lazy val ytHttp: Yt = LocalYtClient.ytHttpClient
 }
 
 object LocalYtClient {
@@ -35,4 +37,6 @@ object LocalYtClient {
   )
 
   lazy val ytClient: YtRpcClient = YtWrapper.createRpcClient("test", conf)
+
+  lazy val ytHttpClient: Yt = YtWrapper.createHttpClient(conf)
 }

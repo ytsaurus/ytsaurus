@@ -351,6 +351,10 @@ class ArrowColumnVector(dataType: IndexedDataType,
 }
 
 object ArrowColumnVector {
+  def nullVector(dataType: IndexedDataType): ArrowColumnVector = {
+    new ArrowColumnVector(dataType, null, None, isNullVector = true)
+  }
+
   def dataType(vector: ValueVector, dictionary: Option[Dictionary]): DataType = {
     val arrowField = dictionary.map(_.getVector.getField).getOrElse(vector.getField)
     ArrowUtils.fromArrowField(arrowField)
