@@ -88,6 +88,13 @@ protected:
     }
 };
 
+TEST_F(TDefaultTvmTest, FetchesSelfId)
+{
+    auto service = CreateDefaultTvmService();
+    auto result = service->GetSelfTvmId();
+    EXPECT_EQ(100500, result);
+}
+
 TEST_F(TDefaultTvmTest, FetchesServiceTicket)
 {
     auto service = CreateDefaultTvmService();

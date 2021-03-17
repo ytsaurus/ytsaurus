@@ -82,6 +82,11 @@ public:
         }
     }
 
+    virtual ui32 GetSelfTvmId() override
+    {
+        return Config_->ClientSelfId;
+    }
+
     TString GetServiceTicket(const TString& serviceId) override
     {
         if (!Config_->ClientEnableServiceTicketFetching) {

@@ -47,6 +47,11 @@ public:
         return AllSet(asyncResults);
     }
 
+    virtual TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
+    {
+        return Underlying_->GetDelegationToken(std::move(request));
+    }
+
 private:
     const ISecretVaultServicePtr Underlying_;
 
