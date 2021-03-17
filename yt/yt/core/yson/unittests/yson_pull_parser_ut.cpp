@@ -1116,6 +1116,22 @@ TEST(TYsonPullParserCursorTest, TestParseCompoundBasicCases)
     }
 }
 
+TEST(TYsonPullParserCursorTest, TestParseBoolAndNan)
+{
+    {
+        TStringBuf input = "%nan";
+        auto cursor = TStringBufCursor(input);
+        EXPECT_EQ(cursor.GetCurrent().GetType(), EYsonItemType::DoubleValue);
+        EXPECT_TRUE(std::isnan(cursor.GetCurrent().UncheckedAsDouble()));
+    }
+    {
+        TStringBuf input = "%true";
+        auto cursor = TStringBufCursor(input);
+        EXPECT_EQ(cursor.GetCurrent().GetType(), EYsonItemType::BooleanValue);
+        EXPECT_TRUE(cursor.GetCurrent().UncheckedAsBoolean());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
