@@ -73,9 +73,9 @@ def _with_object_id(func):
 
 def _with_optional_object_id(func):
     def wrapper(client, path=None, account=None, pool=None, group=None, tablet_cell_bundle=None,
-                pool_tree=None, network_project=None, rpc_proxy_role=None, *args, **kwargs):
-        if any(path, account, pool, group, tablet_cell_bundle, pool_tree, network_project,
-               rpc_proxy_role, http_proxy_role):
+                pool_tree=None, network_project=None, rpc_proxy_role=None, http_proxy_role=None, *args, **kwargs):
+        if any((path, account, pool, group, tablet_cell_bundle, pool_tree, network_project,
+               rpc_proxy_role, http_proxy_role)):
             object_id = _get_object_id(path, account, pool, group, tablet_cell_bundle, pool_tree,
                                        network_project, rpc_proxy_role, http_proxy_role)
         else:
