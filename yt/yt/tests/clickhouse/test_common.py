@@ -134,7 +134,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch={"clickhouse": {"timezone": "America/Los_Angeles"}}) as clique:
             assert clique.make_query("select timezone()") == [{"timezone()": "America/Los_Angeles"}]
             assert clique.make_query('select date_time from "//tmp/test_table"') == [
-                {"date_time": "1970-01-01 09:01:40"}
+                {"date_time": "1969-12-31 16:01:40"}
             ]
 
     @authors("evgenstf")
