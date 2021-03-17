@@ -137,12 +137,12 @@ class ObjectIdmSnapshot(object):
         self.responsibles = extract_roles(responsibles.get("responsible", []))
         self.read_approvers = extract_roles(responsibles.get("read_approvers", []))
         self.auditors = extract_roles(responsibles.get("auditors", []))
-        self.require_boss_approval = responsibles.get("require_boss_approval", False)
+        self.require_boss_approval = bool(responsibles.get("require_boss_approval", False))
 
         roles = idm_client.get_acl(**object_id)
 
         if "path" in object_id:
-            self.disable_responsible_inheritance = responsibles.get("disable_inheritance", False)
+            self.disable_responsible_inheritance = bool(responsibles.get("disable_inheritance", False))
             self.inherit_acl = roles.get("acl", {}).get("inherit_acl", False)
         else:
             self.disable_responsible_inheritance = None

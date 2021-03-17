@@ -1604,7 +1604,7 @@ def add_idm_request_or_revoke_parser(parser):
     # Flags definition
     inherit_acl_group = parser.add_mutually_exclusive_group(required=False)
     inherit_acl_group.add_argument(
-        "--set-inherit-acl", action="store_true", dest="inherit_acl",
+        "--set-inherit-acl", action="store_true", dest="inherit_acl", default=None,
         help="Enable ACL inheritance")
     inherit_acl_group.add_argument(
         "--unset-inherit-acl", action="store_false", dest="inherit_acl",
@@ -1612,7 +1612,7 @@ def add_idm_request_or_revoke_parser(parser):
 
     inherit_resps_group = parser.add_mutually_exclusive_group(required=False)
     inherit_resps_group.add_argument(
-        "--set-inherit-responsibles", action="store_true", dest="inherit_responsibles",
+        "--set-inherit-responsibles", action="store_true", dest="inherit_responsibles", default=None,
         help="Enable inheritance responsibles, read apporvers, auditors, boss_approval")
     inherit_resps_group.add_argument(
         "--unset-inherit-responsibles", action="store_false", dest="inherit_responsibles",
@@ -1620,7 +1620,7 @@ def add_idm_request_or_revoke_parser(parser):
 
     boss_approval_group = parser.add_mutually_exclusive_group(required=False)
     boss_approval_group.add_argument(
-        "--set-boss-approval", action="store_true", dest="boss_approval",
+        "--set-boss-approval", action="store_true", dest="boss_approval", default=None,
         help="Enable boss approval requirement for personal roles")
     boss_approval_group.add_argument(
         "--unset-boss-approval", action="store_false", dest="boss_approval",
