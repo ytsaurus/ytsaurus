@@ -217,6 +217,13 @@ void TConfig::Reset()
     ConnectionPoolSize = GetInt("YT_CONNECTION_POOL_SIZE", 16);
 
     TraceHttpRequestsMode = FromString<ETraceHttpRequestsMode>(to_lower(GetEnv("YT_TRACE_HTTP_REQUESTS", "never")));
+
+    CommandsWithFraming = {
+        "read_table",
+        "get_table_columnar_statistics",
+        "get_job_input",
+        "concatenate",
+    };
 }
 
 TConfig::TConfig()
