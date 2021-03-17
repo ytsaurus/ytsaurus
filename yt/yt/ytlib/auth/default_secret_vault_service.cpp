@@ -72,6 +72,24 @@ public:
             .Run();
     }
 
+    virtual TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
+    {
+        if (request.Signature.empty() || request.SecretId.empty() || request.UserTicket.empty()) {
+            return MakeFuture<TString>(TError(
+                "Invalid call for delegation token with signature %Qv, secret id %Qv "
+                "and user ticket length %v",
+                request.Signature,
+                request.SecretId,
+                request.UserTicket.size()));
+        }
+
+        return BIND(&TDefaultSecretVaultService::DoGetDelegationToken,
+            MakeStrong(this),
+            std::move(request))
+            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
+            .Run();
+    }
+
 private:
     const TDefaultSecretVaultServiceConfigPtr Config_;
     const ITvmServicePtr TvmService_;
@@ -92,7 +110,7 @@ private:
     std::vector<TErrorOrSecretSubresponse> DoGetSecrets(
         const std::vector<TSecretSubrequest>& subrequests)
     {
-        auto callId = TGuid::Create();
+        const auto callId = TGuid::Create();
 
         YT_LOG_DEBUG("Retrieving secrets from Vault (Count: %v, CallId: %v)",
             subrequests.size(),
@@ -102,65 +120,28 @@ private:
         SubrequestCountCounter_.Increment(subrequests.size());
         SubrequestsPerCallGauge_.Update(subrequests.size());
 
-        auto url = Format("%v://%v:%v/1/tokens/",
-            Config_->Secure ? "https" : "http",
-            Config_->Host,
-            Config_->Port);
-        if (!Config_->Consumer.empty()) {
-            url += "?consumer=" + Config_->Consumer;
-        }
-
-        auto vaultTicket = TvmService_->GetServiceTicket(Config_->VaultServiceId);
-        auto body = MakeRequestBody(vaultTicket, subrequests);
-        static const auto Headers = MakeRequestHeaders();
-
-        NProfiling::TWallTimer timer;
-        auto rspOrError = WaitFor(HttpClient_->Post(url, body, Headers)
-            .WithTimeout(Config_->RequestTimeout));
-        CallTimer_.Record(timer.GetElapsedTime());
-
-        auto onError = [&] (TError error) {
-            error.Attributes().Set("call_id", callId);
-            FailedCallCountCounter_.Increment();
-            YT_LOG_DEBUG(error);
-            THROW_ERROR(error);
-        };
-
-        if (!rspOrError.IsOK()) {
-            onError(TError("Vault call failed")
-                << rspOrError);
-        }
-
-        const auto& rsp = rspOrError.Value();
-        if (rsp->GetStatusCode() != EStatusCode::OK) {
-            onError(TError("Vault call returned HTTP status code %v",
-                static_cast<int>(rsp->GetStatusCode())));
-        }
-
-        IMapNodePtr rootNode;
         try {
-            auto body = rsp->ReadAll();
-            rootNode = ParseVaultResponse(body);
-        } catch (const std::exception& ex) {
-            onError(TError(
-                ESecretVaultErrorCode::MalformedResponse,
-                "Error parsing Vault response")
-                << ex);
-        }
+            const auto url = MakeRequestUrl("/1/tokens/", true);
+            const auto headers = MakeRequestHeaders();
+            const auto vaultTicket = TvmService_->GetServiceTicket(Config_->VaultServiceId);
+            const auto body = MakeGetSecretsRequestBody(vaultTicket, subrequests);
 
-        auto responseStatusString = GetStatusStringFromResponse(rootNode);
-        auto responseStatus = ParseStatus(responseStatusString);
-        if (responseStatus == ESecretVaultResponseStatus::Error) {
-            onError(GetErrorFromResponse(rootNode, responseStatusString));
-        }
-        if (responseStatus != ESecretVaultResponseStatus::OK) {
-            // NB! Vault API is not supposed to return other statuses (e.g. warning) at the top-level.
-            onError(MakeUnexpectedStatusError(responseStatusString));
-        }
+            const auto responseBody = HttpPost(url, body, headers);
+            const auto response = ParseVaultResponse(responseBody);
 
-        std::vector<TErrorOrSecretSubresponse> subresponses;
-        try {
-            auto secretsNode = rootNode->GetChildOrThrow("secrets")->AsList();
+            auto responseStatusString = GetStatusStringFromResponse(response);
+            auto responseStatus = ParseStatus(responseStatusString);
+            if (responseStatus == ESecretVaultResponseStatus::Error) {
+                THROW_ERROR GetErrorFromResponse(response, responseStatusString);
+            }
+            if (responseStatus != ESecretVaultResponseStatus::OK) {
+                // NB! Vault API is not supposed to return other statuses (e.g. warning) at the top-level.
+                THROW_ERROR MakeUnexpectedStatusError(responseStatusString);
+            }
+
+            std::vector<TErrorOrSecretSubresponse> subresponses;
+
+            auto secretsNode = response->GetChildOrThrow("secrets")->AsList();
 
             int successCount = 0;
             int warningCount = 0;
@@ -177,7 +158,9 @@ private:
                     // NB! Warning status is supposed to contain valid data so we proceed parsing the response.
                     ++warningCount;
                     auto warningMessage = GetWarningMessageFromResponse(secretMapNode);
-                    YT_LOG_DEBUG("Received warning status in subresponse from Vault (CallId: %v, SubresponseIndex: %v, WarningMessage: %Qv)",
+                    YT_LOG_DEBUG(
+                        "Received warning status in subresponse from Vault "
+                        "(CallId: %v, SubresponseIndex: %v, WarningMessage: %Qv)",
                         callId,
                         subresponseIndex,
                         warningMessage);
@@ -188,8 +171,7 @@ private:
                     ++errorCount;
                     continue;
                 } else {
-                    subresponses.push_back(MakeUnexpectedStatusError(
-                        subresponseStatusString));
+                    subresponses.push_back(MakeUnexpectedStatusError(subresponseStatusString));
                     ++errorCount;
                     continue;
                 }
@@ -214,56 +196,166 @@ private:
             WarningSubrequestCountCounter_.Increment(warningCount);
             FailedSubrequestCountCounter_.Increment(errorCount);
 
-            YT_LOG_DEBUG("Secrets retrieved from Vault (CallId: %v, SuccessCount: %v, WarningCount: %v, ErrorCount: %v)",
+            YT_LOG_DEBUG(
+                "Secrets retrieved from Vault "
+                "(CallId: %v, SuccessCount: %v, WarningCount: %v, ErrorCount: %v)",
                 callId,
                 successCount,
                 warningCount,
                 errorCount);
+            return subresponses;
         } catch (const std::exception& ex) {
-            onError(TError(
-                ESecretVaultErrorCode::MalformedResponse,
-                "Error parsing Vault response")
-                << ex);
+            FailedCallCountCounter_.Increment();
+            auto error = TError(ex).Wrap("Failed to get secrets from Vault");
+            error.Attributes().Set("call_id", callId);
+            YT_LOG_DEBUG(error);
+            THROW_ERROR error;
         }
-        return subresponses;
     }
 
-    IMapNodePtr ParseVaultResponse(const TSharedRef& body)
+    TString DoGetDelegationToken(TDelegationTokenRequest request)
     {
-        TMemoryInput stream(body.Begin(), body.Size());
-        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-        auto jsonConfig = New<TJsonFormatConfig>();
-        jsonConfig->EncodeUtf8 = false;
-        ParseJson(&stream, builder.get(), jsonConfig);
-        return builder->EndTree()->AsMap();
+        const auto callId = TGuid::Create();
+
+        YT_LOG_DEBUG(
+            "Retrieving delegation token from Vault (SecretId: %v, Signature: %v, CallId: %v)",
+            request.SecretId,
+            request.Signature, // signatures are not secret; tokens are
+            callId);
+
+        CallCountCounter_.Increment();
+
+        try {
+            const auto url = MakeRequestUrl(Format("/1/secrets/%v/tokens/", request.SecretId), false);
+            const auto headers = MakeRequestHeaders(request.UserTicket);
+            const auto body = MakeGetDelegationTokenRequestBody(request);
+
+            const auto responseBody = HttpPost(url, body, headers);
+            const auto response = ParseVaultResponse(responseBody);
+
+            auto responseStatusString = GetStatusStringFromResponse(response);
+            auto responseStatus = ParseStatus(responseStatusString);
+            if (responseStatus == ESecretVaultResponseStatus::Error) {
+                THROW_ERROR GetErrorFromResponse(response, responseStatusString);
+            }
+            if (responseStatus == ESecretVaultResponseStatus::Unknown) {
+                THROW_ERROR MakeUnexpectedStatusError(responseStatusString);
+            }
+            if (responseStatus == ESecretVaultResponseStatus::Warning) {
+                WarningSubrequestCountCounter_.Increment();
+                YT_LOG_WARNING("Received warning message from Vault: %v",
+                    GetWarningMessageFromResponse(response));
+            }
+
+            return response->GetChildOrThrow("token")->GetValue<TString>();
+        } catch (const std::exception& ex) {
+            FailedCallCountCounter_.Increment();
+            auto error = TError(ex).Wrap("Failed to get delegation token from Vault");
+            error.Attributes().Set("call_id", callId);
+            YT_LOG_DEBUG(error);
+            THROW_ERROR error;
+        }
     }
 
-    static ESecretVaultErrorCode ParseErrorCode(TStringBuf codeString)
+    TString MakeRequestUrl(TStringBuf path, bool addConsumer) const
     {
-        // TODO(babenko): add link to doc
-        if (codeString == "nonexistent_entity_error") {
-            return ESecretVaultErrorCode::NonexistentEntityError;
-        } else if (codeString == "delegation_access_error") {
-            return ESecretVaultErrorCode::DelegationAccessError;
-        } else if (codeString == "delegation_token_revoked") {
-            return ESecretVaultErrorCode::DelegationTokenRevoked;
-        } else {
-            return ESecretVaultErrorCode::UnknownError;
+        auto url = Format("%v://%v:%v%v",
+            Config_->Secure ? "https" : "http",
+            Config_->Host,
+            Config_->Port,
+            path);
+        if (addConsumer && !Config_->Consumer.empty()) {
+            url = Format("%v?consumer=%v", url, Config_->Consumer);
+        }
+        return url;
+    }
+
+    static THeadersPtr MakeRequestHeaders(TString userTicket = {})
+    {
+        auto headers = New<THeaders>();
+        headers->Add("Content-Type", "application/json");
+        if (!userTicket.empty()) {
+            headers->Add("X-Ya-User-Ticket", userTicket);
+        }
+        return headers;
+    }
+
+    TSharedRef MakeGetSecretsRequestBody(
+        const TString& vaultTicket,
+        const std::vector<TSecretSubrequest>& subrequests)
+    {
+        TString body;
+        TStringOutput stream(body);
+        auto jsonWriter = CreateJsonConsumer(&stream);
+        BuildYsonFluently(jsonWriter.get())
+            .BeginMap()
+                .Item("tokenized_requests").DoListFor(subrequests,
+                    [&] (auto fluent, const auto& subrequest) {
+                        fluent
+                            .Item().BeginMap()
+                                .Item("service_ticket").Value(vaultTicket)
+                                .Item("token").Value(subrequest.DelegationToken)
+                                .Item("signature").Value(subrequest.Signature)
+                                .Item("secret_uuid").Value(subrequest.SecretId)
+                                .Item("secret_version").Value(subrequest.SecretVersion)
+                            .EndMap();
+                    })
+            .EndMap();
+        jsonWriter->Flush();
+        return TSharedRef::FromString(std::move(body));
+    }
+
+    TSharedRef MakeGetDelegationTokenRequestBody(const TDelegationTokenRequest& request)
+    {
+        auto body = Format("signature=%Qv&tvm_client_id=%v",
+            request.Signature,
+            TvmService_->GetSelfTvmId());
+        if (!request.Comment.empty()) {
+            body = Format("%v&comment=%Qv", body, request.Comment);
+        }
+        return TSharedRef::FromString(std::move(body));
+    }
+
+    TSharedRef HttpPost(
+        const TString& url,
+        const TSharedRef& body,
+        const THeadersPtr& headers)
+    {
+        NProfiling::TWallTimer timer;
+        auto rspOrError = WaitFor(HttpClient_->Post(url, body, headers)
+            .WithTimeout(Config_->RequestTimeout));
+        CallTimer_.Record(timer.GetElapsedTime());
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Vault call failed");
+
+        const auto& rsp = rspOrError.Value();
+        if (rsp->GetStatusCode() != EStatusCode::OK) {
+            THROW_ERROR_EXCEPTION("Vault call returned HTTP status code %v",
+                static_cast<int>(rsp->GetStatusCode()));
+        }
+
+        return rsp->ReadAll();
+    }
+
+    static IMapNodePtr ParseVaultResponse(const TSharedRef& body)
+    {
+        try {
+            TMemoryInput stream(body.Begin(), body.Size());
+            auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+            auto jsonConfig = New<TJsonFormatConfig>();
+            jsonConfig->EncodeUtf8 = false;
+            ParseJson(&stream, builder.get(), jsonConfig);
+            return builder->EndTree()->AsMap();
+        } catch (const std::exception& ex) {
+            THROW_ERROR TError(ESecretVaultErrorCode::MalformedResponse,
+                "Error parsing Vault response")
+                << ex;
         }
     }
 
     static TString GetStatusStringFromResponse(const IMapNodePtr& node)
     {
-        static const TString StatusKey("status");
-        return node->GetChildOrThrow(StatusKey)->GetValue<TString>();
-    }
-
-    static TError MakeUnexpectedStatusError(const TString& statusString)
-    {
-        return TError(
-            ESecretVaultErrorCode::UnexpectedStatus,
-            "Received unexpected status from Vault")
-            << TErrorAttribute("status", statusString);
+        return node->GetChildOrThrow("status")->GetValue<TString>();
     }
 
     static ESecretVaultResponseStatus ParseStatus(const TString& statusString)
@@ -279,21 +371,12 @@ private:
         }
     }
 
-    static TString GetWarningMessageFromResponse(const IMapNodePtr& node)
-    {
-        static const TString WarningMessageKey("warning_message");
-        auto warningMessageNode = node->FindChild(WarningMessageKey);
-        return warningMessageNode ? warningMessageNode->GetValue<TString>() : "Vault warning";
-    }
-
     static TError GetErrorFromResponse(const IMapNodePtr& node, const TString& statusString)
     {
-        static const TString CodeKey("code");
-        auto codeString = node->GetChildOrThrow(CodeKey)->GetValue<TString>();
+        auto codeString = node->GetChildOrThrow("code")->GetValue<TString>();
         auto code = ParseErrorCode(codeString);
 
-        static const TString MessageKey("message");
-        auto messageNode = node->FindChild(MessageKey);
+        auto messageNode = node->FindChild("message");
         return TError(
             code,
             messageNode ? messageNode->GetValue<TString>() : "Vault error")
@@ -301,33 +384,32 @@ private:
             << TErrorAttribute("code", codeString);
     }
 
-    static THeadersPtr MakeRequestHeaders()
+    static ESecretVaultErrorCode ParseErrorCode(TStringBuf codeString)
     {
-        auto headers = New<THeaders>();
-        headers->Add("Content-Type", "application/json");
-        return headers;
+        // https://vault-api.passport.yandex.net/docs/#api
+        if (codeString == "nonexistent_entity_error") {
+            return ESecretVaultErrorCode::NonexistentEntityError;
+        } else if (codeString == "delegation_access_error") {
+            return ESecretVaultErrorCode::DelegationAccessError;
+        } else if (codeString == "delegation_token_revoked") {
+            return ESecretVaultErrorCode::DelegationTokenRevoked;
+        } else {
+            return ESecretVaultErrorCode::UnknownError;
+        }
     }
 
-    TSharedRef MakeRequestBody(const TString& vaultTicket, const std::vector<TSecretSubrequest>& subrequests)
+    static TError MakeUnexpectedStatusError(const TString& statusString)
     {
-        TString body;
-        TStringOutput stream(body);
-        auto jsonWriter = CreateJsonConsumer(&stream);
-        BuildYsonFluently(jsonWriter.get())
-            .BeginMap()
-                .Item("tokenized_requests").DoListFor(subrequests, [&] (auto fluent, const auto& subrequest) {
-                    fluent
-                        .Item().BeginMap()
-                            .Item("service_ticket").Value(vaultTicket)
-                            .Item("token").Value(subrequest.DelegationToken)
-                            .Item("signature").Value(subrequest.Signature)
-                            .Item("secret_uuid").Value(subrequest.SecretId)
-                            .Item("secret_version").Value(subrequest.SecretVersion)
-                        .EndMap();
-                })
-            .EndMap();
-        jsonWriter->Flush();
-        return TSharedRef::FromString(std::move(body));
+        return TError(
+            ESecretVaultErrorCode::UnexpectedStatus,
+            "Received unexpected status from Vault")
+            << TErrorAttribute("status", statusString);
+    }
+
+    static TString GetWarningMessageFromResponse(const IMapNodePtr& node)
+    {
+        auto warningMessageNode = node->FindChild("warning_message");
+        return warningMessageNode ? warningMessageNode->GetValue<TString>() : "Vault warning";
     }
 }; // TDefaultSecretVaultService
 

@@ -50,6 +50,11 @@ public:
         return AllSet(asyncResults);
     }
 
+    virtual TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
+    {
+        return Underlying_->GetDelegationToken(std::move(request));
+    }
+
 private:
     const TBatchingSecretVaultServiceConfigPtr Config_;
     const ISecretVaultServicePtr Underlying_;

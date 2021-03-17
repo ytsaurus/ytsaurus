@@ -8,6 +8,7 @@ class TMockTvmService
     : public ITvmService
 {
 public:
+    MOCK_METHOD0(GetSelfTvmId, ui32());
     MOCK_METHOD1(GetServiceTicket, TString(const TString&));
     MOCK_METHOD1(ParseUserTicket, TParsedTicket(const TString&));
 };

@@ -54,6 +54,16 @@ struct ISecretVaultService
 
     virtual TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(
         const std::vector<TSecretSubrequest>& subrequests) = 0;
+
+    struct TDelegationTokenRequest
+    {
+        TString UserTicket;
+        TString SecretId;
+        TString Signature;
+        TString Comment;
+    };
+
+    virtual TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecretVaultService)
