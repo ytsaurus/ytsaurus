@@ -335,6 +335,15 @@ class OperationsTrackerPool(OperationsTrackerBase):
     THREAD_CLASS = _OperationsTrackingPoolThread
 
     def __init__(self, pool_size, enable_optimizations=True, client=None, **kwargs):
+        """Create an OperationsTrackerPool.
+
+        :param int pool_size: maximum number of concurrently running operation 
+        :param bool enable_optimizations: enable optimizations when starting operations \
+        (see :func: `run_operation <yt.wrapper.run_operation_commands.run_operation>`)
+        :param int poll_period: period of operation state polling (in ms). \
+        This parameter may be tuned by the tracker itself. The more operations -- the less `poll_period` is.
+        """
+       
         super(OperationsTrackerPool, self).__init__(**kwargs)
         self._tracking_thread.set_pool_size(pool_size)
 

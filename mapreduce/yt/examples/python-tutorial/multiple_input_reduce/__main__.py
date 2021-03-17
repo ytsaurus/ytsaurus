@@ -30,6 +30,7 @@ def filter_robots_reducer(key, input_row_iterator, context):
     if is_robot:
         yield login_row
 
+
 if __name__ == "__main__":
     yt.wrapper.config.set_proxy("freud")
 
@@ -38,24 +39,23 @@ if __name__ == "__main__":
     output_table = "//tmp/" + getpass.getuser() + "-pytutorial-robots"
 
     yt.wrapper.run_sort(
-        source_table="//home/ermolovd/yt-tutorial/staff_unsorted",
-        destination_table=sorted_staff_table,
-        sort_by=["uid"])
+        source_table="//home/ermolovd/yt-tutorial/staff_unsorted", destination_table=sorted_staff_table, sort_by=["uid"]
+    )
 
     yt.wrapper.run_sort(
         source_table="//home/ermolovd/yt-tutorial/is_robot_unsorted",
         destination_table=sorted_is_robot_table,
-        sort_by=["uid"])
+        sort_by=["uid"],
+    )
 
     yt.wrapper.run_reduce(
         filter_robots_reducer,
-
         # В source_table мы указываем список из двух таблиц.
         # Внутри редьюсера table_index для записи будет равен индексу соответсвующей таблицы внутри этого списка.
         # 0 для записей из sorted_staff_table, 1 для записей из sorted_is_robot_table.
         source_table=[sorted_staff_table, sorted_is_robot_table],
-
         destination_table=output_table,
-        reduce_by=["uid"])
+        reduce_by=["uid"],
+    )
 
     print("Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path={0}".format(output_table))

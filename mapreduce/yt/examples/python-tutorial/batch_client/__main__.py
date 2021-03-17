@@ -38,5 +38,5 @@ if __name__ == "__main__":
         # Если запустить этот скрипт два раза подряд, то во второй раз создание таблицы завершится с ошибкой,
         # что таблица уже существует.
         print "Cannot create table {table} error: {error}.".format(
-            table=output_table_name,
-            error=create_result.get_error())
+            table=output_table_name, error=create_result.get_error()
+        )
