@@ -1071,8 +1071,17 @@ def run(client, args):
 
     client.config['pickling']['module_filter'] = lambda module: 'hashlib' not in getattr(module, '__name__', '')
 
+    one_day = 1000 * 3600 * 24
+    one_week = one_day * 7
+    one_month = one_day * 30
+    two_years = one_month * 12 * 2
     if client.exists(archive_path):
         current_version = client.get("{0}/@".format(archive_path)).get("version", INITIAL_VERSION)
+        unmount_table(client, DEFAULT_ARCHIVE_PATH + "/operation_ids")
+        client.set(DEFAULT_ARCHIVE_PATH + "/operation_ids/@tablet_cell_bundle", SYS_BUNDLE_NAME)
+        set_table_ttl(client, DEFAULT_ARCHIVE_PATH + "/operation_ids", ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
+        mount_table(client, DEFAULT_ARCHIVE_PATH + "/operation_ids")
+        return
     else:
         _initialize_archive(client, archive_path=archive_path)
         current_version = INITIAL_VERSION

@@ -12,19 +12,48 @@ namespace NYT::NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationPreparationContext::TOperationPreparationContext(
-    TStructuredJobTableList structuredInputs,
-    TStructuredJobTableList structuredOutputs,
+    const TStructuredJobTableList& structuredInputs,
+    const TStructuredJobTableList& structuredOutputs,
     const TAuth& auth,
     const IClientRetryPolicyPtr& retryPolicy,
     TTransactionId transactionId)
-    : Inputs_(std::move(structuredInputs))
-    , Outputs_(std::move(structuredOutputs))
-    , Auth_(auth)
+    : Auth_(auth)
     , RetryPolicy_(retryPolicy)
     , TransactionId_(transactionId)
-    , InputSchemas_(Inputs_.size())
-    , InputSchemasLoaded_(Inputs_.size(), false)
-{ }
+    , InputSchemas_(structuredInputs.size())
+    , InputSchemasLoaded_(structuredInputs.size(), false)
+{
+    Inputs_.reserve(structuredInputs.size());
+    for (const auto& input : structuredInputs) {
+        Inputs_.push_back(input.RichYPath);
+    }
+    Outputs_.reserve(structuredOutputs.size());
+    for (const auto& output : structuredOutputs) {
+        Outputs_.push_back(output.RichYPath);
+    }
+}
+
+TOperationPreparationContext::TOperationPreparationContext(
+    TVector<TRichYPath> inputs,
+    TVector<TRichYPath> outputs,
+    const TAuth& auth,
+    const IClientRetryPolicyPtr& retryPolicy,
+    TTransactionId transactionId)
+    : Auth_(auth)
+    , RetryPolicy_(retryPolicy)
+    , TransactionId_(transactionId)
+    , InputSchemas_(inputs.size())
+    , InputSchemasLoaded_(inputs.size(), false)
+{
+    Inputs_.reserve(inputs.size());
+    for (auto& input : inputs) {
+        Inputs_.push_back(std::move(input));
+    }
+    Outputs_.reserve(outputs.size());
+    for (const auto& output : outputs) {
+        Outputs_.push_back(std::move(output));
+    }
+}
 
 int TOperationPreparationContext::GetInputCount() const
 {
@@ -45,9 +74,8 @@ const TVector<TTableSchema>& TOperationPreparationContext::GetInputSchemas() con
             schemaFutures.emplace_back();
             continue;
         }
-        const auto& maybePath = Inputs_[tableIndex].RichYPath;
-        Y_VERIFY(maybePath);
-        schemaFutures.push_back(batch.Get(TransactionId_, maybePath->Path_ + "/@schema", TGetOptions{}));
+        Y_VERIFY(Inputs_[tableIndex]);
+        schemaFutures.push_back(batch.Get(TransactionId_, Inputs_[tableIndex]->Path_ + "/@schema", TGetOptions{}));
     }
 
     NRawClient::ExecuteBatch(
@@ -68,12 +96,12 @@ const TTableSchema& TOperationPreparationContext::GetInputSchema(int index) cons
 {
     auto& schema = InputSchemas_[index];
     if (!InputSchemasLoaded_[index]) {
-        Y_VERIFY(Inputs_[index].RichYPath);
+        Y_VERIFY(Inputs_[index]);
         auto schemaNode = NRawClient::Get(
             RetryPolicy_->CreatePolicyForGenericRequest(),
             Auth_,
             TransactionId_,
-            Inputs_[index].RichYPath->Path_ + "/@schema");
+            Inputs_[index]->Path_ + "/@schema");
         Deserialize(schema, schemaNode);
     }
     return schema;
@@ -82,8 +110,8 @@ const TTableSchema& TOperationPreparationContext::GetInputSchema(int index) cons
 TMaybe<TYPath> TOperationPreparationContext::GetInputPath(int index) const
 {
     Y_VERIFY(index < static_cast<int>(Inputs_.size()));
-    if (Inputs_[index].RichYPath) {
-        return Inputs_[index].RichYPath->Path_;
+    if (Inputs_[index]) {
+        return Inputs_[index]->Path_;
     }
     return Nothing();
 }
@@ -91,8 +119,8 @@ TMaybe<TYPath> TOperationPreparationContext::GetInputPath(int index) const
 TMaybe<TYPath> TOperationPreparationContext::GetOutputPath(int index) const
 {
     Y_VERIFY(index < static_cast<int>(Outputs_.size()));
-    if (Outputs_[index].RichYPath) {
-        return Outputs_[index].RichYPath->Path_;
+    if (Outputs_[index]) {
+        return Outputs_[index]->Path_;
     }
     return Nothing();
 }
@@ -151,44 +179,67 @@ TMaybe<TYPath> TSpeculativeOperationPreparationContext::GetOutputPath(int index)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static void FixInputTable(TRichYPath& table, int index, const TJobOperationPreparer& preparer)
+{
+    const auto& columnRenamings = preparer.GetInputColumnRenamings();
+    const auto& columnFilters = preparer.GetInputColumnFilters();
+
+    if (!columnRenamings[index].empty()) {
+        table.RenameColumns(columnRenamings[index]);
+    }
+    if (columnFilters[index]) {
+        table.Columns(*columnFilters[index]);
+    }
+}
+
+static void FixInputTable(TStructuredJobTable& table, int index, const TJobOperationPreparer& preparer)
+{
+    const auto& inputDescriptions = preparer.GetInputDescriptions();
+
+    Y_VERIFY(table.RichYPath);
+    if (inputDescriptions[index] && HoldsAlternative<TUnspecifiedTableStructure>(table.Description)) {
+        table.Description = *inputDescriptions[index];
+    }
+    FixInputTable(*table.RichYPath, index, preparer);
+}
+
+static void FixOutputTable(TRichYPath& /* table */, int /* index */, const TJobOperationPreparer& /* preparer */)
+{ }
+
+static void FixOutputTable(TStructuredJobTable& table, int index, const TJobOperationPreparer& preparer)
+{
+    const auto& outputDescriptions = preparer.GetOutputDescriptions();
+
+    Y_VERIFY(table.RichYPath);
+    if (outputDescriptions[index] && HoldsAlternative<TUnspecifiedTableStructure>(table.Description)) {
+        table.Description = *outputDescriptions[index];
+    }
+    FixOutputTable(*table.RichYPath, index, preparer);
+}
+
+template <typename TTables>
 TVector<TTableSchema> PrepareOperation(
     const IJob& job,
     const IOperationPreparationContext& context,
-    TStructuredJobTableList* inputsPtr,
-    TStructuredJobTableList* outputsPtr,
+    TTables* inputsPtr,
+    TTables* outputsPtr,
     TUserJobFormatHints& hints)
 {
     TJobOperationPreparer preparer(context);
     job.PrepareOperation(context, preparer);
     preparer.Finish();
 
-    const auto& inputDescriptions = preparer.GetInputDescriptions();
-    const auto& columnRenamings = preparer.GetInputColumnRenamings();
-    const auto& columnFilters = preparer.GetInputColumnFilters();
     if (inputsPtr) {
         auto& inputs = *inputsPtr;
         for (int i = 0; i < static_cast<int>(inputs.size()); ++i) {
-            Y_VERIFY(inputs[i].RichYPath);
-            if (inputDescriptions[i] && HoldsAlternative<TUnspecifiedTableStructure>(inputs[i].Description)) {
-                inputs[i].Description = *inputDescriptions[i];
-            }
-            if (!columnRenamings[i].empty()) {
-                inputs[i].RichYPath->RenameColumns(columnRenamings[i]);
-            }
-            if (columnFilters[i]) {
-                inputs[i].RichYPath->Columns(*columnFilters[i]);
-            }
+            FixInputTable(inputs[i], i, preparer);
         }
     }
 
     if (outputsPtr) {
         auto& outputs = *outputsPtr;
-        const auto& outputDescriptions = preparer.GetOutputDescriptions();
         for (int i = 0; i < static_cast<int>(outputs.size()); ++i) {
-            Y_VERIFY(outputs[i].RichYPath);
-            if (outputDescriptions[i] && HoldsAlternative<TUnspecifiedTableStructure>(outputs[i].Description)) {
-                outputs[i].Description = *outputDescriptions[i];
-            }
+            FixOutputTable(outputs[i], i, preparer);
         }
     }
 
@@ -209,6 +260,22 @@ TVector<TTableSchema> PrepareOperation(
 
     return preparer.GetOutputSchemas();
 }
+
+template
+TVector<TTableSchema> PrepareOperation<TStructuredJobTableList>(
+    const IJob& job,
+    const IOperationPreparationContext& context,
+    TStructuredJobTableList* inputsPtr,
+    TStructuredJobTableList* outputsPtr,
+    TUserJobFormatHints& hints);
+
+template
+TVector<TTableSchema> PrepareOperation<TVector<TRichYPath>>(
+    const IJob& job,
+    const IOperationPreparationContext& context,
+    TVector<TRichYPath>* inputsPtr,
+    TVector<TRichYPath>* outputsPtr,
+    TUserJobFormatHints& hints);
 
 ////////////////////////////////////////////////////////////////////////////////
 

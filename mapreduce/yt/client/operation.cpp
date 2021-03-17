@@ -206,7 +206,7 @@ ENodeReaderFormat NodeReaderFormatFromHintAndGlobalConfig(const TUserJobFormatHi
 template <class TSpec>
 const TVector<TStructuredTablePath>& GetStructuredInputs(const TSpec& spec)
 {
-    if constexpr (std::is_same<TSpec, TVanillaTask>::value) {
+    if constexpr (std::is_same_v<TSpec, TVanillaTask>) {
         static const TVector<TStructuredTablePath> empty;
         return empty;
     } else {
@@ -223,7 +223,7 @@ const TVector<TStructuredTablePath>& GetStructuredOutputs(const TSpec& spec)
 template <class TSpec>
 const TMaybe<TFormatHints>& GetInputFormatHints(const TSpec& spec)
 {
-    if constexpr (std::is_same<TSpec, TVanillaTask>::value) {
+    if constexpr (std::is_same_v<TSpec, TVanillaTask>) {
         static const TMaybe<TFormatHints> empty = Nothing();
         return empty;
     } else {
@@ -411,6 +411,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
 
 template <class T>
 TSimpleOperationIo CreateSimpleOperationIo(
+    const IJob& job,
     const TOperationPreparer& preparer,
     const TSimpleRawOperationIoSpec<T>& spec)
 {
@@ -424,12 +425,36 @@ TSimpleOperationIo CreateSimpleOperationIo(
         }
     };
 
-    VerifyHasElements(spec.GetInputs(), "input");
-    VerifyHasElements(spec.GetOutputs(), "output");
+    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetInputs());
+    auto outputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetOutputs());
+
+    VerifyHasElements(inputs, "input");
+    VerifyHasElements(outputs, "output");
+
+    TUserJobFormatHints hints;
+
+    auto outputSchemas = PrepareOperation(
+        job,
+        TOperationPreparationContext(
+            inputs,
+            outputs,
+            preparer.GetAuth(),
+            preparer.GetClientRetryPolicy(),
+            preparer.GetTransactionId()),
+        &inputs,
+        &outputs,
+        hints);
+
+    Y_VERIFY(outputs.size() == outputSchemas.size());
+    for (int i = 0; i < static_cast<int>(outputs.size()); ++i) {
+        if (!outputs[i].Schema_ && !outputSchemas[i].Columns().empty()) {
+            outputs[i].Schema_ = outputSchemas[i];
+        }
+    }
 
     return TSimpleOperationIo {
-        CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetInputs()),
-        CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetOutputs()),
+        inputs,
+        outputs,
 
         getFormatOrDefault(spec.InputFormat_, "input"),
         getFormatOrDefault(spec.OutputFormat_, "output"),
@@ -1508,7 +1533,7 @@ TOperationId ExecuteRawMap(
         preparer.GetPreparationId().c_str());
     return DoExecuteMap(
         preparer,
-        CreateSimpleOperationIo(preparer, spec),
+        CreateSimpleOperationIo(mapper, preparer, spec),
         spec,
         mapper,
         options);
@@ -1613,7 +1638,7 @@ TOperationId ExecuteRawReduce(
         preparer.GetPreparationId().c_str());
     return DoExecuteReduce(
         preparer,
-        CreateSimpleOperationIo(preparer, spec),
+        CreateSimpleOperationIo(reducer, preparer, spec),
         spec,
         reducer,
         options);
@@ -1711,7 +1736,7 @@ TOperationId ExecuteRawJoinReduce(
         preparer.GetPreparationId().c_str());
     return DoExecuteJoinReduce(
         preparer,
-        CreateSimpleOperationIo(preparer, spec),
+        CreateSimpleOperationIo(reducer, preparer, spec),
         spec,
         reducer,
         options);
@@ -1925,7 +1950,7 @@ TOperationId ExecuteMapReduce(
 
         auto hints = spec.MapperFormatHints_;
 
-        auto mapperInferenceResult = PrepareOperation(
+        auto mapperInferenceResult = PrepareOperation<TStructuredJobTableList>(
             *mapper,
             TOperationPreparationContext(
                 structuredInputs,
@@ -1994,7 +2019,7 @@ TOperationId ExecuteMapReduce(
         auto hints = spec.ReduceCombinerFormatHints_;
 
         if (isFirstStep) {
-            currentInferenceResult = PrepareOperation(
+            currentInferenceResult = PrepareOperation<TStructuredJobTableList>(
                 *reduceCombiner,
                 TOperationPreparationContext(
                     inputs,
@@ -2006,7 +2031,7 @@ TOperationId ExecuteMapReduce(
                 /* outputs */ nullptr,
                 hints);
         } else {
-            currentInferenceResult = PrepareOperation(
+            currentInferenceResult = PrepareOperation<TStructuredJobTableList>(
                 *reduceCombiner,
                 TSpeculativeOperationPreparationContext(
                     currentInferenceResult,
@@ -2071,7 +2096,7 @@ TOperationId ExecuteMapReduce(
             &structuredOutputs,
             hints);
     } else {
-        reducerInferenceResult = PrepareOperation(
+        reducerInferenceResult = PrepareOperation<TStructuredJobTableList>(
             reducer,
             TSpeculativeOperationPreparationContext(
                 currentInferenceResult,
