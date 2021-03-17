@@ -262,6 +262,9 @@ public:
 
     //! List of assigned experiments.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TExperimentAssignmentPtr>, ExperimentAssignments);
+    
+    //! Index of operation to fix order of registration at master connector.
+    DEFINE_BYREF_RO_PROPERTY(int, RegistrationIndex, 0);
 
 public:
     //! Returns operation id.
@@ -379,7 +382,8 @@ public:
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
         bool suspended = false,
-        const std::optional<TJobResources>& initialAggregatedMinNeededResources = {});
+        const std::optional<TJobResources>& initialAggregatedMinNeededResources = {},
+        int registrationIndex = 0);
 
 private:
     const TOperationId Id_;
