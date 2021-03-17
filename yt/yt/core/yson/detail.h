@@ -648,6 +648,8 @@ public:
     template <bool AllowFinish>
     double ReadNanOrInf()
     {
+        Buffer_.clear();
+
         static const TStringBuf nanString = "nan";
         static const TStringBuf infString = "inf";
         static const TStringBuf plusInfString = "+inf";
@@ -655,8 +657,9 @@ public:
 
         TStringBuf expectedString;
         double expectedValue;
-        char ch = TBaseStream::template GetChar<AllowFinish>();
-        switch (ch) {
+        PushBack(TBaseStream::template GetChar<AllowFinish>());
+        TBaseStream::Advance(1);
+        switch (Buffer_.back()) {
             case '+':
                 expectedString = plusInfString;
                 expectedValue = std::numeric_limits<double>::infinity();
@@ -675,18 +678,18 @@ public:
                 break;
             default:
                 THROW_ERROR_EXCEPTION("Incorrect %%-literal prefix: %Qc",
-                    ch);
+                    Buffer_.back());
         }
 
-        for (int i = 0; i < static_cast<int>(expectedString.size()); ++i) {
-            if (expectedString[i] != ch) {
+        for (int i = 1; i < static_cast<int>(expectedString.size()); ++i) {
+            PushBack(TBaseStream::template GetChar<AllowFinish>());
+            TBaseStream::Advance(1);
+            if (Buffer_.back() != expectedString[i]) {
                 THROW_ERROR_EXCEPTION("Incorrect %%-literal prefix \"%v%c\", expected %Qv",
                     expectedString.SubStr(0, i),
-                    ch,
+                    Buffer_.back(),
                     expectedString);
             }
-            TBaseStream::Advance(1);
-            ch = TBaseStream::template GetChar<AllowFinish>();
         }
 
         return expectedValue;
