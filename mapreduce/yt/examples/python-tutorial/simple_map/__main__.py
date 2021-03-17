@@ -27,8 +27,7 @@ if __name__ == "__main__":
     output_table = "//tmp/" + getpass.getuser() + "-pytutorial-emails"
 
     yt.wrapper.run_map(
-        compute_emails_mapper,
-        source_table="//home/ermolovd/yt-tutorial/staff_unsorted",
-        destination_table=output_table)
+        compute_emails_mapper, source_table="//home/ermolovd/yt-tutorial/staff_unsorted", destination_table=output_table
+    )
 
     print("Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path={0}".format(output_table))

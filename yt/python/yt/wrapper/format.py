@@ -256,6 +256,8 @@ class Format(object):
     def load_row(self, stream, raw=None):
         """Reads bytes from the binary stream, parses (optionally) and returns one row.
 
+        :param bool raw: if `True`, don't perform parsing, iterate unparsed rows instead.
+
         :return: parsed row.
         :rtype: dict or :class:`Record <yt.wrapper.yamr_record.Record>`. \
         If stream is empty - `None`. If `raw` is `True` - bytes.
@@ -264,7 +266,10 @@ class Format(object):
 
     @abstractmethod
     def load_rows(self, stream, raw=None):
-        """Reads bytes from the stream, parses, processes input table switcher and yields all rows."""
+        """Reads bytes from the stream, parses, processes input table switcher and yields all rows.
+        
+        :param bool raw: if `True`, don't perform parsing, iterate unparsed rows instead.
+        """
         pass
 
     def dump_row(self, row, stream, raw=None):

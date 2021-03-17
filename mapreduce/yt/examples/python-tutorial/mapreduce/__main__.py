@@ -25,6 +25,7 @@ def count_names_reducer(key, input_row_iterator):
 
     yield {"name": name, "count": count}
 
+
 if __name__ == "__main__":
     yt.wrapper.config.set_proxy("freud")
 
@@ -38,6 +39,7 @@ if __name__ == "__main__":
         count_names_reducer,
         source_table="//home/ermolovd/yt-tutorial/staff_unsorted",
         destination_table=output_table,
-        reduce_by=["name"])
+        reduce_by=["name"],
+    )
 
     print("Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path={0}".format(output_table))

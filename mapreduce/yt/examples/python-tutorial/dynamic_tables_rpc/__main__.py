@@ -12,7 +12,7 @@ if __name__ == "__main__":
     schema = [
         {"name": "x", "type": "int64", "sort_order": "ascending"},
         {"name": "y", "type": "int64"},
-        {"name": "z", "type": "int64"}
+        {"name": "z", "type": "int64"},
     ]
     table = "//tmp/" + getpass.getuser() + "-pytutorial-dynamic-tables-rpc"
     client.create("table", table, force=True, attributes={"schema": schema, "dynamic": True})

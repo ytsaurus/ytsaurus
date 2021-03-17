@@ -57,7 +57,7 @@ if TYPE is None:
 
 from .yson_types import (YsonString, YsonUnicode, YsonInt64, YsonUint64, YsonDouble,
                          YsonBoolean, YsonList, YsonMap, YsonEntity, YsonType, YsonStringProxy,
-                         is_unicode, get_bytes)
+                         is_unicode, get_bytes, make_byte_key)
 
 from .convert import to_yson_type, yson_to_json, json_to_yson
 from .common import YsonError

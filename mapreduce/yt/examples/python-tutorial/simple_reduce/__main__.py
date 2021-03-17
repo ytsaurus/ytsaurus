@@ -21,6 +21,7 @@ def count_names_reducer(key, input_row_iterator):
 
     yield {"name": name, "count": count}
 
+
 if __name__ == "__main__":
     yt.wrapper.config.set_proxy("freud")
 
@@ -28,14 +29,11 @@ if __name__ == "__main__":
     output_table = "//tmp/" + getpass.getuser() + "-pytutorial-name-stat"
 
     yt.wrapper.run_sort(
-        source_table="//home/ermolovd/yt-tutorial/staff_unsorted",
-        destination_table=sorted_tmp_table,
-        sort_by=["name"])
+        source_table="//home/ermolovd/yt-tutorial/staff_unsorted", destination_table=sorted_tmp_table, sort_by=["name"]
+    )
 
     yt.wrapper.run_reduce(
-        count_names_reducer,
-        source_table=sorted_tmp_table,
-        destination_table=output_table,
-        reduce_by=["name"])
+        count_names_reducer, source_table=sorted_tmp_table, destination_table=output_table, reduce_by=["name"]
+    )
 
     print("Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path={0}".format(output_table))
