@@ -3,7 +3,6 @@
 #include <util/network/pair.h>
 #include <util/network/poller.h>
 #include <util/network/sock.h>
-#include <util/string/builder.h>
 #include <util/system/thread.h>
 #include <util/thread/pool.h>
 
@@ -79,12 +78,7 @@ void TSimpleServer::Stop()
     ThreadPool.Destroy();
 }
 
-int TSimpleServer::GetPort() const
-{
+int TSimpleServer::GetPort() const {
     return Port;
 }
 
-TString TSimpleServer::GetAddress() const
-{
-    return TStringBuilder() << "localhost:" << Port;
-}

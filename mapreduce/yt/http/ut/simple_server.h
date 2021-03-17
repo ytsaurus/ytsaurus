@@ -22,7 +22,6 @@ public:
     void Stop();
 
     int GetPort() const;
-    TString GetAddress() const;
 
 private:
     const int Port;
