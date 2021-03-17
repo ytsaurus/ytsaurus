@@ -15,12 +15,16 @@
 #include <library/cpp/string_utils/quote/quote.h>
 
 #include <util/generic/singleton.h>
+#include <util/generic/algorithm.h>
 
 #include <util/stream/mem.h>
+
 #include <util/string/builder.h>
 #include <util/string/cast.h>
 #include <util/string/escape.h>
 #include <util/string/printf.h>
+
+#include <util/system/byteorder.h>
 #include <util/system/getpid.h>
 
 #include <exception>
@@ -321,6 +325,11 @@ TString THttpHeader::GetUrl() const
     return url.Str();
 }
 
+bool THttpHeader::ShouldAcceptFraming() const
+{
+    return TConfig::Get()->CommandsWithFraming.contains(Command);
+}
+
 TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId, bool includeParameters) const
 {
     TStringStream header;
@@ -376,7 +385,12 @@ TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId
         printYTHeader("X-YT-Parameters", NodeToYsonString(Parameters));
     }
 
+    if (ShouldAcceptFraming()) {
+        header << "X-YT-Accept-Framing: 1\r\n";
+    }
+
     header << "\r\n";
+
     return header.Str();
 }
 
@@ -662,6 +676,7 @@ THttpResponse::THttpResponse(
     : HttpInput_(socketStream)
     , RequestId_(requestId)
     , HostName_(GetProxyName(HttpInput_).GetOrElse(hostName))
+    , Unframe_(HttpInput_.Headers().HasHeader("X-YT-Framing"))
 {
     HttpCode_ = ParseHttpRetCode(HttpInput_.FirstLine());
     if (HttpCode_ == 200 || HttpCode_ == 202) {
@@ -762,7 +777,12 @@ TMaybe<TErrorResponse> THttpResponse::ParseError(const THttpHeaders& headers)
 
 size_t THttpResponse::DoRead(void* buf, size_t len)
 {
-    size_t read = HttpInput_.Read(buf, len);
+    size_t read;
+    if (Unframe_) {
+        read = UnframeRead(buf, len);
+    } else {
+        read = HttpInput_.Read(buf, len);
+    }
     if (read == 0 && len != 0) {
         // THttpInput MUST return defined (but may be empty)
         // trailers when it is exhausted.
@@ -776,7 +796,12 @@ size_t THttpResponse::DoRead(void* buf, size_t len)
 
 size_t THttpResponse::DoSkip(size_t len)
 {
-    size_t skipped = HttpInput_.Skip(len);
+    size_t skipped;
+    if (Unframe_) {
+        skipped = UnframeSkip(len);
+    } else {
+        skipped = HttpInput_.Skip(len);
+    }
     if (skipped == 0 && len != 0) {
         // THttpInput MUST return defined (but may be empty)
         // trailers when it is exhausted.
@@ -797,6 +822,59 @@ void THttpResponse::CheckTrailers(const THttpHeaders& trailers)
             errorResponse.GetRef().what());
         ythrow errorResponse.GetRef();
     }
+}
+
+static ui32 ReadDataFrameSize(THttpInput* stream)
+{
+    ui32 littleEndianSize;
+    auto read = stream->Load(&littleEndianSize, sizeof(littleEndianSize));
+    if (read < sizeof(littleEndianSize)) {
+        ythrow yexception() << "Bad data frame header: " <<
+            "expected " << sizeof(littleEndianSize) << " bytes, got " << read;
+    }
+    return LittleToHost(littleEndianSize);
+}
+
+bool THttpResponse::RefreshFrameIfNecessary()
+{
+    while (RemainingFrameSize_ == 0) {
+        ui8 frameTypeByte;
+        auto read = HttpInput_.Read(&frameTypeByte, sizeof(frameTypeByte));
+        if (read == 0) {
+            return false;
+        }
+        auto frameType = static_cast<EFrameType>(frameTypeByte);
+        switch (frameType) {
+            case EFrameType::KeepAlive:
+                break;
+            case EFrameType::Data:
+                RemainingFrameSize_ = ReadDataFrameSize(&HttpInput_);
+                break;
+            default:
+                ythrow yexception() << "Bad frame type " << static_cast<int>(frameTypeByte);
+        }
+    }
+    return true;
+}
+
+size_t THttpResponse::UnframeRead(void* buf, size_t len)
+{
+    if (!RefreshFrameIfNecessary()) {
+        return 0;
+    }
+    auto read = HttpInput_.Read(buf, Min(len, RemainingFrameSize_));
+    RemainingFrameSize_ -= read;
+    return read;
+}
+
+size_t THttpResponse::UnframeSkip(size_t len)
+{
+    if (!RefreshFrameIfNecessary()) {
+        return 0;
+    }
+    auto skipped = HttpInput_.Skip(Min(len, RemainingFrameSize_));
+    RemainingFrameSize_ -= skipped;
+    return skipped;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

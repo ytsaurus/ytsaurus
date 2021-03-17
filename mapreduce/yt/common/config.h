@@ -4,6 +4,8 @@
 #include <mapreduce/yt/interface/common.h>
 
 #include <util/generic/string.h>
+#include <util/generic/hash_set.h>
+
 #include <util/datetime/base.h>
 
 namespace NYT {
@@ -121,6 +123,10 @@ struct TConfig
     ETraceHttpRequestsMode TraceHttpRequestsMode = ETraceHttpRequestsMode::Never;
 
     TString SkynetApiHost;
+
+    // Framing settings
+    // (cf. https://yt.yandex-team.ru/docs/description/proxy/http_proxy_reference#framing).
+    THashSet<TString> CommandsWithFraming;
 
     static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);
