@@ -452,7 +452,6 @@ const TJobResources& TSchedulerElement::GetResourceDemand() const
 const TJobResources& TSchedulerElement::GetResourceUsageAtUpdate() const
 {
     return ResourceUsageAtUpdate_;
-
 }
 
 const TJobResources& TSchedulerElement::GetResourceLimits() const

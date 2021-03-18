@@ -2286,6 +2286,13 @@ class TestResourceMetering(YTEnvSetup):
             "resource_metering_period": 1000,
         }
     }
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {"user_slots": 3, "cpu": 3}
+            }
+        }
+    }
 
     @classmethod
     def setup_class(cls):
@@ -2303,7 +2310,7 @@ class TestResourceMetering(YTEnvSetup):
         set("//sys/pool_trees/yggdrasil/@config/nodes_filter", "other")
 
         nodes = ls("//sys/cluster_nodes")
-        for node in nodes[:3]:
+        for node in nodes[:4]:
             set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
 
         create_pool(
@@ -2320,7 +2327,7 @@ class TestResourceMetering(YTEnvSetup):
             pool_tree="yggdrasil",
             attributes={
                 "strong_guarantee_resources": {"cpu": 3},
-                "abc": {"id": 1, "slug": "pixies", "name": "pixies"},
+                "abc": {"id": 1, "slug": "pixies", "name": "Pixies"},
             },
             wait_for_orchid=False,
         )
@@ -2330,14 +2337,14 @@ class TestResourceMetering(YTEnvSetup):
             pool_tree="yggdrasil",
             attributes={
                 "strong_guarantee_resources": {"cpu": 1},
-                "abc": {"id": 2, "slug": "francis", "name": "pixies"},
+                "abc": {"id": 2, "slug": "francis", "name": "Francis"},
             },
             parent_name="pixies",
             wait_for_orchid=False,
         )
 
         create_pool(
-            "integral",
+            "nidhogg",
             pool_tree="yggdrasil",
             attributes={
                 "integral_guarantees": {
@@ -2345,21 +2352,43 @@ class TestResourceMetering(YTEnvSetup):
                     "resource_flow": {"cpu": 5},
                     "burst_guarantee_resources": {"cpu": 6},
                 },
-                "abc": {"id": 3, "slug": "francis", "name": "integral"},
+                "abc": {"id": 3, "slug": "nidhogg", "name": "Nidhogg"},
             },
-            wait_for_orchid=False,
+            # Intentionally wait for pool creation.
+            wait_for_orchid=True,
         )
+
+        op1 = run_test_vanilla("sleep 1000", job_count=2, spec={"pool": "francis", "pool_trees": ["yggdrasil"]})
+        op2 = run_test_vanilla("sleep 1000", job_count=1, spec={"pool": "nidhogg", "pool_trees": ["yggdrasil"]})
+
+        wait(lambda: op1.get_job_count("running") == 2)
+        wait(lambda: op2.get_job_count("running") == 1)
 
         root_key = (42, "yggdrasil", "<Root>")
 
         desired_metering_data = {
-            root_key: {"strong_guarantee_resources/cpu": 4},
-            (1, "yggdrasil", "pixies"): {"strong_guarantee_resources/cpu": 2},
-            (2, "yggdrasil", "francis"): {"strong_guarantee_resources/cpu": 1},
-            (3, "yggdrasil", "integral"): {
+            root_key: {
+                "strong_guarantee_resources/cpu": 4,
+                "resource_flow/cpu": 0,
+                "burst_guarantee_resources/cpu": 0,
+                "allocated_resources/cpu": 0,
+            },
+            (1, "yggdrasil", "pixies"): {
+                "strong_guarantee_resources/cpu": 2,
+                "resource_flow/cpu": 0,
+                "burst_guarantee_resources/cpu": 0,
+                "allocated_resources/cpu": 0},
+            (2, "yggdrasil", "francis"): {
+                "strong_guarantee_resources/cpu": 1,
+                "resource_flow/cpu": 0,
+                "burst_guarantee_resources/cpu": 0,
+                "allocated_resources/cpu": 2,
+            },
+            (3, "yggdrasil", "nidhogg"): {
                 "strong_guarantee_resources/cpu": 0,
                 "resource_flow/cpu": 5,
                 "burst_guarantee_resources/cpu": 6,
+                "allocated_resources/cpu": 1,
             },
         }
 
@@ -2388,12 +2417,16 @@ class TestResourceMetering(YTEnvSetup):
                 last_reports[key] = entry["tags"]
 
             if root_key not in last_reports:
+                print_debug("Root key is missing")
                 return False
 
             for key, desired_data in desired_metering_data.items():
                 for resource_key, desired_value in desired_data.items():
                     observed_value = get_by_composite_key(last_reports.get(key, {}), resource_key.split("/"), default=0)
                     if int(observed_value) != desired_value:
+                        print_debug(
+                            "Value mismatch (abc_key: {}, resource_key: {}, observed: {}, desired: {})"
+                            .format(key, resource_key, int(observed_value), desired_value))
                         return False
 
             return True
