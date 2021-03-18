@@ -59,68 +59,6 @@ bool IsSpecEntry(const TJobReport& stat)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TArchiveReporterConfigPtr MakeCommonJobConfig(const TJobReporterConfigPtr& reporterConfig)
-{
-    auto config = New<TArchiveReporterConfig>();
-    config->Enabled = reporterConfig->Enabled;
-    config->ReportingPeriod = reporterConfig->ReportingPeriod;
-    config->MinRepeatDelay = reporterConfig->MinRepeatDelay;
-    config->MaxRepeatDelay = reporterConfig->MaxRepeatDelay;
-    config->MaxItemsInBatch = reporterConfig->MaxItemsInBatch;
-    return config;
-}
-
-TArchiveReporterConfigPtr MakeJobArchiveReporterConfig(const TJobReporterConfigPtr& reporterConfig)
-{
-    auto config = MakeCommonJobConfig(reporterConfig);
-    config->MaxInProgressDataSize = reporterConfig->MaxInProgressJobDataSize;
-    config->Path = GetOperationsArchiveJobsPath();
-    return config;
-}
-
-TArchiveReporterConfigPtr MakeOperationIdArchiveReporterConfig(const TJobReporterConfigPtr& reporterConfig)
-{
-    auto config = MakeCommonJobConfig(reporterConfig);
-    config->MaxInProgressDataSize = reporterConfig->MaxInProgressOperationIdDataSize;
-    config->Path = GetOperationsArchiveOperationIdsPath();
-    return config;
-}
-
-TArchiveReporterConfigPtr MakeJobSpecArchiveReporterConfig(const TJobReporterConfigPtr& reporterConfig)
-{
-    auto config = MakeCommonJobConfig(reporterConfig);
-    config->MaxInProgressDataSize = reporterConfig->MaxInProgressJobSpecDataSize;
-    config->Path = GetOperationsArchiveJobSpecsPath();
-    return config;
-}
-
-TArchiveReporterConfigPtr MakeJobStderrArchiveReporterConfig(const TJobReporterConfigPtr& reporterConfig)
-{
-    auto config = MakeCommonJobConfig(reporterConfig);
-    config->MaxInProgressDataSize = reporterConfig->MaxInProgressJobStderrDataSize;
-    config->Path = GetOperationsArchiveJobStderrsPath();
-    return config;
-}
-
-TArchiveReporterConfigPtr MakeJobFailContextArchiveReporterConfig(const TJobReporterConfigPtr& reporterConfig)
-{
-    auto config = MakeCommonJobConfig(reporterConfig);
-    config->MaxInProgressDataSize = reporterConfig->MaxInProgressJobFailContextDataSize;
-    config->Path = GetOperationsArchiveJobFailContextsPath();
-    return config;
-}
-
-TArchiveReporterConfigPtr MakeJobProfileArchiveReporterConfig(const TJobReporterConfigPtr& reporterConfig)
-{
-    auto config = MakeCommonJobConfig(reporterConfig);
-    // TODO(dakovalkov): Why we use JobStderr here?
-    config->MaxInProgressDataSize = reporterConfig->MaxInProgressJobStderrDataSize;
-    config->Path = GetOperationsArchiveJobProfilesPath();
-    return config;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJobRowlet
     : public IArchiveRowlet
 {
@@ -449,7 +387,8 @@ public:
         , JobHandler_(
             New<TArchiveReporter>(
                 Version_,
-                MakeJobArchiveReporterConfig(Config_),
+                Config_,
+                Config_->JobHandler,
                 TJobTableDescriptor::Get().NameTable,
                 "jobs",
                 Client_,
@@ -458,7 +397,8 @@ public:
         , OperationIdHandler_(
             New<TArchiveReporter>(
                 Version_,
-                MakeOperationIdArchiveReporterConfig(Config_),
+                Config_,
+                Config_->OperationIdHandler,
                 TOperationIdTableDescriptor::Get().NameTable,
                 "operation_ids",
                 Client_,
@@ -467,7 +407,8 @@ public:
         , JobSpecHandler_(
             New<TArchiveReporter>(
                 Version_,
-                MakeJobSpecArchiveReporterConfig(Config_),
+                Config_,
+                Config_->JobSpecHandler,
                 TJobSpecTableDescriptor::Get().NameTable,
                 "job_specs",
                 Client_,
@@ -476,7 +417,8 @@ public:
         , JobStderrHandler_(
             New<TArchiveReporter>(
                 Version_,
-                MakeJobStderrArchiveReporterConfig(Config_),
+                Config_,
+                Config_->JobStderrHandler,
                 TJobStderrTableDescriptor::Get().NameTable,
                 "stderrs",
                 Client_,
@@ -485,7 +427,8 @@ public:
         , JobFailContextHandler_(
             New<TArchiveReporter>(
                 Version_,
-                MakeJobFailContextArchiveReporterConfig(Config_),
+                Config_,
+                Config_->JobFailContextHandler,
                 TJobFailContextTableDescriptor::Get().NameTable,
                 "fail_contexts",
                 Client_,
@@ -494,7 +437,8 @@ public:
         , JobProfileHandler_(
             New<TArchiveReporter>(
                 Version_,
-                MakeJobProfileArchiveReporterConfig(Config_),
+                Config_,
+                Config_->JobProfileHandler,
                 TJobProfileTableDescriptor::Get().NameTable,
                 "profiles",
                 Client_,

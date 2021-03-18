@@ -19,6 +19,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/statistics.h>
+
 #include <Interpreters/Context.h>
 
 namespace NYT::NClickHouseServer {
@@ -62,15 +64,25 @@ public:
     TString Query;
     TString CurrentUser;
     TString CurrentAddress;
-    std::optional<TString> InitialUser;
-    std::optional<TString> InitialAddress;
-    std::optional<TQueryId> InitialQueryId;
+    TString InitialUser;
+    TString InitialAddress;
+    TQueryId InitialQueryId;
+    std::optional<TQueryId> ParentQueryId;
     //! Text of the initial query. Used for better debugging.
     std::optional<TString> InitialQuery;
     EInterface Interface;
-    TString ClientHostName;
     std::optional<TString> HttpUserAgent;
     std::optional<TString> DataLensRequestId;
+    
+    // Fields for a statistics reporter.
+    std::vector<TString> SelectQueries;
+    std::vector<TString> SecondaryQueryIds;
+    //! Statistics for 'simple' query.
+    TStatistics InstanceStatistics;
+    //! Aggregated statistics from all subquery. InstanceStatistics is merged in the end of the query.
+    TStatistics AggregatedStatistics;
+    //! Index of this select in the parent query (=Storage index).
+    int SelectQueryIndex;
 
     NTableClient::TRowBufferPtr RowBuffer;
 
@@ -81,7 +93,8 @@ public:
         const DB::Context& context,
         TQueryId queryId,
         NTracing::TTraceContextPtr traceContext,
-        std::optional<TString> dataLensRequestId);
+        std::optional<TString> dataLensRequestId,
+        const TSubqueryHeaderPtr& subqueryHeader);
 
     ~TQueryContext();
 
@@ -91,11 +104,18 @@ public:
 
     EQueryPhase GetQueryPhase() const;
 
+    // TODO(dakovalkov): Move here logic from destructor?
+    void Finish();
+
+    TInstant GetStartTime() const;
+    TInstant GetFinishTime() const;
+
     TStorageContext* FindStorageContext(const DB::IStorage* storage);
     TStorageContext* GetOrRegisterStorageContext(const DB::IStorage* storage, const DB::Context& context);
 
 private:
     TInstant StartTime_;
+    TInstant FinishTime_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, PhaseLock_);
     std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
@@ -124,7 +144,8 @@ void SetupHostContext(
     DB::Context& context,
     TQueryId queryId,
     NTracing::TTraceContextPtr traceContext,
-    std::optional<TString> dataLensRequestId = std::nullopt);
+    std::optional<TString> dataLensRequestId = std::nullopt,
+    const TSubqueryHeaderPtr& subqueryHeader = nullptr);
 
 TQueryContext* GetQueryContext(const DB::Context& context);
 

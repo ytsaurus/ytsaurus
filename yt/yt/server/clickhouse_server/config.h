@@ -214,6 +214,23 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQueryStatisticsReporterConfig
+    : public TArchiveReporterConfig
+{
+public:
+    TArchiveHandlerConfigPtr DistributedQueriesHandler;
+    TArchiveHandlerConfigPtr SecondaryQueriesHandler;
+    TArchiveHandlerConfigPtr AncestorQueryIdsHandler;
+
+    TString User;
+
+    TQueryStatisticsReporterConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryStatisticsReporterConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYtConfig
     : public NYTree::TYsonSerializable
 {
@@ -289,6 +306,8 @@ public:
     TQuerySettingsPtr QuerySettings;
 
     NTableClient::TTableReaderConfigPtr TableReader;
+
+    TQueryStatisticsReporterConfigPtr QueryStatisticsReporter;
 
     TYtConfig();
 };

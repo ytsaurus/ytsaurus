@@ -77,6 +77,9 @@ DECLARE_REFCOUNTED_CLASS(TCompositeSettings);
 DECLARE_REFCOUNTED_CLASS(TDynamicTableSettings);
 DECLARE_REFCOUNTED_CLASS(TTestingSettings);
 DECLARE_REFCOUNTED_CLASS(TClickHouseIndex);
+DECLARE_REFCOUNTED_CLASS(TQueryStatisticsReporter);
+DECLARE_REFCOUNTED_CLASS(TQueryStatisticsReporterConfig);
+DECLARE_REFCOUNTED_CLASS(TSubqueryHeader);
 
 struct TValue;
 class TSubquerySpec;

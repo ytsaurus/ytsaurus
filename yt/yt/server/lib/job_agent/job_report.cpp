@@ -1,5 +1,7 @@
 #include "job_report.h"
 
+#include "estimate_size_helpers.h"
+
 #include <yt/yt/server/lib/core_dump/helpers.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
@@ -16,46 +18,6 @@ using namespace NCoreDump;
 
 using NYT::ToProto;
 using NYT::FromProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-constexpr size_t EstimatedValueSize = 16;
-
-size_t EstimateSize(const TString& s)
-{
-    return EstimatedValueSize + s.size();
-}
-
-size_t EstimateSize(i64)
-{
-    return EstimatedValueSize;
-}
-
-size_t EstimateSize(TGuid id)
-{
-    return id.IsEmpty() ? 0 : EstimatedValueSize * 2;
-}
-
-template <typename T>
-size_t EstimateSize(const std::optional<T>& v)
-{
-    return v ? EstimateSize(*v) : 0;
-}
-
-size_t EstimateSizes()
-{
-    return 0;
-}
-
-template <typename T, typename... U>
-size_t EstimateSizes(T&& t, U&& ... u)
-{
-    return EstimateSize(std::forward<T>(t)) + EstimateSizes(std::forward<U>(u)...);
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

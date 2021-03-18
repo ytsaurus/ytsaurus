@@ -107,6 +107,9 @@ DEFINE_REFCOUNTED_TYPE(TFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Part of the ArchiveReporter configuration with common options.
+//! Options which are supposed to be changed independently for every archive table
+//! are listed in TArchiveHandlerConfig.
 class TArchiveReporterConfig
     : public NYTree::TYsonSerializable
 {
@@ -115,9 +118,7 @@ public:
     TDuration ReportingPeriod;
     TDuration MinRepeatDelay;
     TDuration MaxRepeatDelay;
-    int MaxInProgressDataSize;
     int MaxItemsInBatch;
-    TString Path;
 
     TArchiveReporterConfig()
     {
@@ -129,15 +130,33 @@ public:
             .Default(TDuration::Seconds(10));
         RegisterParameter("max_repeat_delay", MaxRepeatDelay)
             .Default(TDuration::Minutes(5));
-        RegisterParameter("max_in_progress_data_size", MaxInProgressDataSize)
-            .Default(250_MB);
         RegisterParameter("max_items_in_batch", MaxItemsInBatch)
             .Default(1000);
-        RegisterParameter("path", Path);
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TArchiveReporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Part of the ArchiveReporter configuration with unique per-table options.
+class TArchiveHandlerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int MaxInProgressDataSize;
+    TString Path;
+
+    TArchiveHandlerConfig()
+    {
+        RegisterParameter("max_in_progress_data_size", MaxInProgressDataSize)
+            .Default(250_MB);
+        RegisterParameter("path", Path)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TArchiveHandlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

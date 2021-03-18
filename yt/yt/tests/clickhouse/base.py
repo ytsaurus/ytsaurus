@@ -445,6 +445,9 @@ class Clique(object):
             abort_job(job)
         wait(lambda: self.get_active_instance_count() == size)
 
+    def get_clique_id(self):
+        return self.op.id
+
 
 class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1

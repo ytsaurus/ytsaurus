@@ -36,7 +36,6 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
             inputDataSliceDescriptors);
     }
 
-    ToProto(protoSpec->mutable_initial_query_id(), spec.InitialQueryId);
     ToProto(protoSpec->mutable_read_schema(), spec.ReadSchema);
 
     protoSpec->set_subquery_index(spec.SubqueryIndex);
@@ -60,7 +59,6 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
             inputSpec.virtual_row_index_per_data_slice());
     }
 
-    FromProto(&spec->InitialQueryId, protoSpec.initial_query_id());
     FromProto(&spec->ReadSchema, protoSpec.read_schema());
 
     spec->SubqueryIndex = protoSpec.subquery_index();

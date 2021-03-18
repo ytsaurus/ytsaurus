@@ -11,7 +11,6 @@ message TSubquerySpec
 {
     required NChunkClient.NProto.TDataSourceDirectoryExt data_source_directory = 1;
     repeated NScheduler.NProto.TTableInputSpec input_specs = 2;
-    optional NYT.NProto.TGuid initial_query_id = 4;
     optional NYT.NTableClient.NProto.TTableSchemaExt read_schema = 6;
     optional int64 subquery_index = 8;
     optional int64 table_index = 9;

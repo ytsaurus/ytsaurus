@@ -101,19 +101,21 @@ public:
 
     TImpl(
         TArchiveVersionHolderPtr version,
-        TArchiveReporterConfigPtr config,
+        TArchiveReporterConfigPtr reporterConfig,
+        TArchiveHandlerConfigPtr handlerConfig,
         TNameTablePtr nameTable,
         TString reporterName,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
         const TProfiler& profiler)
         : Logger(NYT::NDetail::ArchiveReporterLogger.WithTag("ReporterName: %v", std::move(reporterName)))
-        , Config_(std::move(config))
+        , ReporterConfig_(std::move(reporterConfig))
+        , HandlerConfig_(std::move(handlerConfig))
         , NameTable_(std::move(nameTable))
         , Version_(std::move(version))
         , Client_(std::move(client))
-        , Limiter_(Config_->MaxInProgressDataSize)
-        , Batcher_(New<TNonblockingBatch<std::unique_ptr<IArchiveRowlet>>>(Config_->MaxItemsInBatch, Config_->ReportingPeriod))
+        , Limiter_(HandlerConfig_->MaxInProgressDataSize)
+        , Batcher_(New<TNonblockingBatch<std::unique_ptr<IArchiveRowlet>>>(ReporterConfig_->MaxItemsInBatch, ReporterConfig_->ReportingPeriod))
         , EnqueuedCounter_(profiler.Counter("/enqueued"))
         , DequeuedCounter_(profiler.Counter("/dequeued"))
         , DroppedCounter_(profiler.Counter("/dropped"))
@@ -127,6 +129,7 @@ public:
             .Via(invoker)
             .Run();
         EnableSemaphore_->Acquire();
+        SetEnabled(ReporterConfig_->Enabled);
     }
 
     void Enqueue(std::unique_ptr<IArchiveRowlet> rowStub)
@@ -165,7 +168,8 @@ public:
 
 private:
     TLogger Logger;
-    const TArchiveReporterConfigPtr Config_;
+    const TArchiveReporterConfigPtr ReporterConfig_;
+    const TArchiveHandlerConfigPtr HandlerConfig_;
     TNameTablePtr NameTable_;
     const TArchiveVersionHolderPtr Version_;
     const NNative::IClientPtr Client_;
@@ -207,7 +211,7 @@ private:
 
     void WriteBatchWithExpBackoff(const TBatch& batch)
     {
-        auto delay = Config_->MinRepeatDelay;
+        auto delay = ReporterConfig_->MinRepeatDelay;
         while (IsEnabled()) {
             auto dropped = DroppedCount_.exchange(0);
             if (dropped) {
@@ -230,8 +234,8 @@ private:
             }
             TDelayedExecutor::WaitForDuration(RandomDuration(delay));
             delay *= 2;
-            if (delay > Config_->MaxRepeatDelay) {
-                delay = Config_->MaxRepeatDelay;
+            if (delay > ReporterConfig_->MaxRepeatDelay) {
+                delay = ReporterConfig_->MaxRepeatDelay;
             }
         }
     }
@@ -283,7 +287,7 @@ private:
         }
 
         transaction.WriteRows(
-            Config_->Path,
+            HandlerConfig_->Path,
             NameTable_,
             MakeSharedRange(std::move(rows), std::move(owningRows)));
 
@@ -350,7 +354,8 @@ private:
 
 TArchiveReporter::TArchiveReporter(
     TArchiveVersionHolderPtr version,
-    TArchiveReporterConfigPtr config,
+    TArchiveReporterConfigPtr reporterConfig,
+    TArchiveHandlerConfigPtr handlerConfig,
     TNameTablePtr nameTable,
     TString reporterName,
     NNative::IClientPtr client,
@@ -358,7 +363,8 @@ TArchiveReporter::TArchiveReporter(
     const TProfiler& profiler)
     : Impl_(New<TImpl>(
         std::move(version),
-        std::move(config),
+        std::move(reporterConfig),
+        std::move(handlerConfig),
         std::move(nameTable),
         std::move(reporterName),
         std::move(client),
