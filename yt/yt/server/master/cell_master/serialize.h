@@ -160,6 +160,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixMasterMemoryCompats)                                       (1513))  // aleksandra-zh
     ((PullParserDeserialization)                                    (1514))  // levysotsky
     ((UuidType)                                                     (1515))  // ermolovd
+    ((MoveTableStatisticsGossipToTableManager)                      (1516))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

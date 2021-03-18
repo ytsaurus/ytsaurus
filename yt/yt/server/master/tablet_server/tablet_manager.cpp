@@ -61,6 +61,7 @@
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/master/table_server/shared_table_schema.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -84,10 +85,8 @@
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/random_access_queue.h>
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
@@ -185,10 +184,6 @@ public:
         , TabletBalancer_(New<TTabletBalancer>(Bootstrap_))
         , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Bootstrap_))
         , TabletActionManager_(New<TTabletActionManager>(Bootstrap_))
-        , TableStatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
-            New<TThroughputThrottlerConfig>(),
-            TabletServerLogger,
-            TabletServerProfiler.WithPrefix("/table_statistics_gossip_throttler")))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
@@ -224,8 +219,6 @@ public:
         RegisterMethod(BIND(&TImpl::HydraDestroyTabletActions, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraKickOrphanedTabletActions, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTabletCellStatistics, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSendTableStatisticsUpdates, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateTableStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateUpstreamTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraAllocateDynamicStore, Unretained(this)));
@@ -2351,19 +2344,6 @@ public:
         objectManager->RefObject(newBundle);
     }
 
-    void SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
-    {
-        if (chunkOwner->IsNative()) {
-            return;
-        }
-
-        YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
-        auto* table = chunkOwner->As<TTableNode>();
-        YT_VERIFY(table->IsDynamic());
-
-        SendTableStatisticsUpdates(table);
-    }
-
     void RecomputeTabletCellStatistics(TCellBase* cellBase)
     {
         if (!IsObjectAlive(cellBase) || cellBase->GetType() != EObjectType::TabletCell) {
@@ -2405,52 +2385,9 @@ private:
     TEntityMap<TTableReplica> TableReplicaMap_;
     TEntityMap<TTabletAction> TabletActionMap_;
 
-    struct TTableStatisticsUpdateRequest
-    {
-        bool UpdateDataStatistics;
-        bool UpdateTabletResourceUsage;
-        bool UpdateModificationTime;
-        bool UpdateAccessTime;
-
-        void Persist(const NCellMaster::TPersistenceContext& context)
-        {
-            using NYT::Persist;
-
-            // COMPAT(savrus)
-            if (context.GetVersion() <= EMasterReign::TruncateJournals ||
-                context.GetVersion() >= EMasterReign::TuneTabletStatisticsUpdate_20_2)
-            {
-                Persist(context, UpdateDataStatistics);
-                Persist(context, UpdateTabletResourceUsage);
-                Persist(context, UpdateModificationTime);
-                Persist(context, UpdateAccessTime);
-            } else {
-                std::optional<TDataStatistics> dataStatistics;
-                std::optional<TClusterResources> tabletResourceUsage;
-                std::optional<TInstant> modificationTime;
-                std::optional<TInstant> accessTime;
-
-                Persist(context, dataStatistics);
-                Persist(context, tabletResourceUsage);
-                Persist(context, modificationTime);
-                Persist(context, accessTime);
-
-                UpdateDataStatistics = dataStatistics.has_value();
-                UpdateTabletResourceUsage = tabletResourceUsage.has_value();
-                UpdateModificationTime = modificationTime.has_value();
-                UpdateAccessTime = accessTime.has_value();
-            }
-        }
-    };
-
-    TRandomAccessQueue<TTableId, TTableStatisticsUpdateRequest> TabletStatistisUpdateRequests_;
-
     TPeriodicExecutorPtr TabletCellStatisticsGossipExecutor_;
-    TPeriodicExecutorPtr TableStatisticsGossipExecutor_;
     TPeriodicExecutorPtr BundleResourceUsageGossipExecutor_;
     TPeriodicExecutorPtr ProfilingExecutor_;
-
-    IReconfigurableThroughputThrottlerPtr TableStatisticsGossipThrottler_;
 
     using TProfilerKey = std::tuple<std::optional<ETabletStoresUpdateReason>, TString, bool>;
 
@@ -3968,12 +3905,9 @@ private:
 
         {
             const auto& gossipConfig = config->MulticellGossip;
-            TableStatisticsGossipThrottler_->Reconfigure(gossipConfig->TableStatisticsGossipThrottler);
+
             if (TabletCellStatisticsGossipExecutor_) {
                 TabletCellStatisticsGossipExecutor_->SetPeriod(gossipConfig->TabletCellStatisticsGossipPeriod);
-            }
-            if (TableStatisticsGossipExecutor_) {
-                TableStatisticsGossipExecutor_->SetPeriod(gossipConfig->TableStatisticsGossipPeriod);
             }
             if (BundleResourceUsageGossipExecutor_) {
                 BundleResourceUsageGossipExecutor_->SetPeriod(gossipConfig->BundleResourceUsageGossipPeriod);
@@ -4008,7 +3942,6 @@ private:
         TabletMap_.SaveValues(context);
         TableReplicaMap_.SaveValues(context);
         TabletActionMap_.SaveValues(context);
-        Save(context, TabletStatistisUpdateRequests_);
     }
 
 
@@ -4028,7 +3961,10 @@ private:
         TabletMap_.LoadValues(context);
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
-        Load(context, TabletStatistisUpdateRequests_);
+        if (context.GetVersion() < EMasterReign::MoveTableStatisticsGossipToTableManager) {
+            const auto& tableManager = context.GetBootstrap()->GetTableManager();
+            tableManager->LoadTableStatisticsUpdateRequests(context);
+        }
 
         // COMPAT(ifsmirnov)
         RecomputeAggregateTabletStatistics_ = (context.GetVersion() < EMasterReign::VersionedRemoteCopy);
@@ -4130,7 +4066,6 @@ private:
         TabletMap_.Clear();
         TableReplicaMap_.Clear();
         TabletActionMap_.Clear();
-        TabletStatistisUpdateRequests_.Clear();
 
         DefaultTabletCellBundle_ = nullptr;
     }
@@ -4187,156 +4122,6 @@ private:
         cellBundle = cellManager->CreateCellBundle(name, std::move(holder), std::move(options))
             ->As<TTabletCellBundle>();
         return true;
-    }
-
-    void ScheduleTableStatisticsUpdate(
-        TTableNode* table,
-        bool updateDataStatistics = true,
-        bool updateTabletStatistics = true)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsSecondaryMaster()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Schedule table statistics update (TableId: %v, UpdateDataStatistics: %v, UpdateTabletStatistics: %v)",
-                table->GetId(),
-                updateDataStatistics,
-                updateTabletStatistics);
-
-            auto& statistics = TabletStatistisUpdateRequests_[table->GetId()];
-            statistics.UpdateTabletResourceUsage |= updateTabletStatistics;
-            statistics.UpdateDataStatistics |= updateDataStatistics;
-            statistics.UpdateModificationTime = true;
-            statistics.UpdateAccessTime = true;
-        }
-    }
-
-    void OnTableStatisticsGossip()
-    {
-        auto tableCount = TabletStatistisUpdateRequests_.Size();
-        tableCount = TableStatisticsGossipThrottler_->TryAcquireAvailable(tableCount);
-        if (tableCount == 0) {
-            return;
-        }
-
-        NProto::TReqSendTableStatisticsUpdates request;
-        request.set_table_count(tableCount);
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
-    }
-
-    void SendTableStatisticsUpdates(TTableNode* table)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsSecondaryMaster());
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Sending table statistics update (TableId: %v)",
-            table->GetId());
-
-        NProto::TReqUpdateTableStatistics req;
-        auto* entry = req.add_entries();
-        ToProto(entry->mutable_table_id(), table->GetId());
-        ToProto(entry->mutable_data_statistics(), table->SnapshotStatistics());
-        ToProto(entry->mutable_tablet_resource_usage(), table->GetTabletResourceUsage());
-        entry->set_modification_time(ToProto<ui64>(table->GetModificationTime()));
-        entry->set_access_time(ToProto<ui64>(table->GetAccessTime()));
-        multicellManager->PostToMaster(req, table->GetNativeCellTag());
-
-        TabletStatistisUpdateRequests_.Pop(table->GetId());
-    }
-
-    void HydraSendTableStatisticsUpdates(NProto::TReqSendTableStatisticsUpdates* request)
-    {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsSecondaryMaster());
-
-        auto remainingTableCount = request->table_count();
-
-        std::vector<TTableId> tableIds;
-        // NB: Ordered map is needed to make things deterministic.
-        std::map<TCellTag, NProto::TReqUpdateTableStatistics> cellTagToRequest;
-        while (remainingTableCount-- > 0 && !TabletStatistisUpdateRequests_.IsEmpty()) {
-            const auto& [tableId, statistics] = TabletStatistisUpdateRequests_.Pop();
-
-            auto* node = cypressManager->FindNode(TVersionedNodeId(tableId));
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-            YT_VERIFY(IsTableType(node->GetType()));
-            auto* table = node->As<TTableNode>();
-
-            auto cellTag = CellTagFromId(tableId);
-            auto& request = cellTagToRequest[cellTag];
-            auto* entry = request.add_entries();
-            ToProto(entry->mutable_table_id(), tableId);
-            if (statistics.UpdateDataStatistics) {
-                ToProto(entry->mutable_data_statistics(), table->SnapshotStatistics());
-            }
-            if (statistics.UpdateTabletResourceUsage) {
-                ToProto(entry->mutable_tablet_resource_usage(), table->GetTabletResourceUsage());
-            }
-            if (statistics.UpdateModificationTime) {
-                entry->set_modification_time(ToProto<ui64>(table->GetModificationTime()));
-            }
-            if (statistics.UpdateAccessTime) {
-                entry->set_access_time(ToProto<ui64>(table->GetAccessTime()));
-            }
-            tableIds.push_back(tableId);
-        }
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Sending table statistics update (RequestedTableCount: %v, TableIds: %v)",
-            request->table_count(),
-            tableIds);
-
-        for  (const auto& [cellTag, request] : cellTagToRequest) {
-            multicellManager->PostToMaster(request, cellTag);
-        }
-    }
-
-    void HydraUpdateTableStatistics(NProto::TReqUpdateTableStatistics* request)
-    {
-        std::vector<TTableId> tableIds;
-        tableIds.reserve(request->entries_size());
-        for (const auto& entry : request->entries()) {
-            tableIds.push_back(FromProto<TTableId>(entry.table_id()));
-        }
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Received table statistics update (TableIds: %v)",
-            tableIds);
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        for (const auto& entry : request->entries()) {
-            auto tableId = FromProto<TTableId>(entry.table_id());
-            auto* node = cypressManager->FindNode(TVersionedNodeId(tableId));
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-
-            YT_VERIFY(IsTableType(node->GetType()));
-            auto* table = node->As<TTableNode>();
-
-            if (entry.has_tablet_resource_usage()) {
-                auto tabletResourceUsage = FromProto<TTabletResources>(entry.tablet_resource_usage());
-                table->SetExternalTabletResourceUsage(tabletResourceUsage);
-            }
-
-            if (entry.has_data_statistics()) {
-                YT_VERIFY(table->IsDynamic());
-                table->SnapshotStatistics() = entry.data_statistics();
-            }
-
-            if (entry.has_modification_time()) {
-                table->SetModificationTime(std::max(
-                    table->GetModificationTime(),
-                    FromProto<TInstant>(entry.modification_time())));
-            }
-
-            if (entry.has_access_time()) {
-                table->SetAccessTime(std::max(
-                    table->GetAccessTime(),
-                    FromProto<TInstant>(entry.access_time())));
-            }
-        }
     }
 
     void OnTabletCellStatisticsGossip()
@@ -4417,6 +4202,8 @@ private:
 
         NProfiling::TWallTimer timer;
 
+        const auto& tableManager = Bootstrap_->GetTableManager();
+
         // Copy tablet statistics, update performance counters and table replica statistics.
         auto now = TInstant::Now();
 
@@ -4472,7 +4259,7 @@ private:
                 }
 
                 if (EnableUpdateStatisticsOnHeartbeat_) {
-                    ScheduleTableStatisticsUpdate(table, true, false);
+                    tableManager->ScheduleTableStatisticsUpdate(table, true, false);
                 }
             }
 
@@ -4681,7 +4468,8 @@ private:
                 table->GetLastMountTransactionId() == table->GetPrimaryLastMountTransactionId();
 
             // Statistics should be correct before setting the tablet state.
-            SendTableStatisticsUpdates(table);
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            tableManager->SendTableStatisticsUpdates(table);
 
             NProto::TReqUpdateUpstreamTabletState request;
             ToProto(request.mutable_table_id(), table->GetId());
@@ -5003,7 +4791,11 @@ private:
 
         auto* table = tablet->GetTable();
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
-        ScheduleTableStatisticsUpdate(table, /*updateDataStatistics*/ true, /*updateTabletStatistics*/ false);
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->ScheduleTableStatisticsUpdate(
+            table,
+            /*updateDataStatistics*/ true,
+            /*updateTabletStatistics*/ false);
 
         TTabletStatistics statisticsDelta;
         statisticsDelta.ChunkCount = -static_cast<int>(dynamicStores.size());
@@ -5133,7 +4925,11 @@ private:
             dynamicStore->GetId());
 
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
-        ScheduleTableStatisticsUpdate(table, /*updateDataStatistics*/ true, /*updateTabletStatistics*/ false);
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->ScheduleTableStatisticsUpdate(
+            table,
+            /*updateDataStatistics*/ true,
+            /*updateTabletStatistics*/ false);
 
         TTabletStatistics statisticsDelta;
         statisticsDelta.ChunkCount = 1;
@@ -5983,7 +5779,8 @@ private:
         }
         bundle->UpdateResourceUsage(delta);
 
-        ScheduleTableStatisticsUpdate(table, scheduleTableDataStatisticsUpdate);
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->ScheduleTableStatisticsUpdate(table, scheduleTableDataStatisticsUpdate);
     }
 
     void OnProfiling()
@@ -6030,15 +5827,6 @@ private:
             dynamicConfig->MulticellGossip->TabletCellStatisticsGossipPeriod);
         TabletCellStatisticsGossipExecutor_->Start();
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsSecondaryMaster()) {
-            TableStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
-                BIND(&TImpl::OnTableStatisticsGossip, MakeWeak(this)),
-                dynamicConfig->MulticellGossip->TableStatisticsGossipPeriod);
-            TableStatisticsGossipExecutor_->Start();
-        }
-
         BundleResourceUsageGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
             BIND(&TImpl::OnTabletCellBundleResourceUsageGossip, MakeWeak(this)),
@@ -6065,10 +5853,6 @@ private:
         if (TabletCellStatisticsGossipExecutor_) {
             TabletCellStatisticsGossipExecutor_->Stop();
             TabletCellStatisticsGossipExecutor_.Reset();
-        }
-
-        if (TableStatisticsGossipExecutor_) {
-            TableStatisticsGossipExecutor_->Stop();
         }
 
         if (BundleResourceUsageGossipExecutor_) {
@@ -7020,11 +6804,6 @@ void TTabletManager::DestroyTabletAction(TTabletAction* action)
 void TTabletManager::MergeTable(TTableNode* originatingNode, NTableServer::TTableNode* branchedNode)
 {
     Impl_->MergeTable(originatingNode, branchedNode);
-}
-
-void TTabletManager::SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
-{
-    Impl_->SendTableStatisticsUpdates(chunkOwner);
 }
 
 void TTabletManager::RecomputeTabletCellStatistics(TCellBase* cellBase)

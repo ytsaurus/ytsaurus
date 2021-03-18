@@ -18,6 +18,8 @@
 
 #include <yt/yt/server/master/security_server/public.h>
 
+#include <yt/yt/server/master/table_server/public.h>
+
 #include <yt/yt/server/master/tablet_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
@@ -107,6 +109,7 @@ public:
     const NSecurityServer::TSecurityManagerPtr& GetSecurityManager() const;
     const NSchedulerPoolServer::TSchedulerPoolManagerPtr& GetSchedulerPoolManager() const;
     const NCellServer::TTamedCellManagerPtr& GetTamedCellManager() const;
+    const NTableServer::TTableManagerPtr& GetTableManager() const;
     const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
     const NHiveClient::TCellDirectoryPtr& GetCellDirectory() const;
@@ -172,6 +175,7 @@ private:
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
     NCellServer::TTamedCellManagerPtr TamedCellManager_;
     NCellServer::TCellHydraJanitorPtr CellHydraJanitor_;
+    NTableServer::TTableManagerPtr TableManager_;
     NTabletServer::TTabletManagerPtr TabletManager_;
     NSchedulerPoolServer::TSchedulerPoolManagerPtr SchedulerPoolManager_;
     NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;

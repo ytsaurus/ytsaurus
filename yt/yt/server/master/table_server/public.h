@@ -8,6 +8,10 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TTableId = NTableClient::TTableId;
+
+DECLARE_REFCOUNTED_CLASS(TTableManager)
+
 using TInternedTableSchema = TInternedObject<NTableClient::TTableSchema>;
 using TTableSchemaRegistry = TInternRegistry<NTableClient::TTableSchema>;
 using TTableSchemaRegistryPtr = TInternRegistryPtr<NTableClient::TTableSchema>;
