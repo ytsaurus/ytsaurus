@@ -31,6 +31,21 @@ TLogger TLogger::WithTag(const char* format, TArgs&&... args) const
     return result;
 }
 
+Y_FORCE_INLINE bool TLogger::IsLevelEnabled(ELogLevel level) const
+{
+    // This is the first check which is intended to be inlined next to
+    // logging invocation point. Check below is almost zero-cost due
+    // to branch prediction (which requires inlining for proper work).
+    if (level < MinLevel_) {
+        return false;
+    }
+
+    // Next check is heavier and requires full log manager definition which
+    // is undesirable in -inl.h header file. This is why we extract it
+    // to a separate method which is implemented in cpp file.
+    return IsLevelEnabledHeavy(level);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {

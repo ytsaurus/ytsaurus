@@ -69,19 +69,34 @@ struct TLogEvent
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr auto NullLoggerMinLevel = ELogLevel::Maximum;
+
+// Min level for non-null logger depends on whether we are in debug or release build.
+// - For release mode default behavior is to omit trace logging,
+//   this is done by setting logger min level to Debug by default.
+// - For debug mode logger min level is set to trace by default, so that trace logging is
+//   allowed by logger, but still may be discarded by category min level.
+#ifdef NDEBUG
+static constexpr auto LoggerDefaultMinLevel = ELogLevel::Debug;
+#else
+static constexpr auto LoggerDefaultMinLevel = ELogLevel::Trace;
+#endif
+
 class TLogger
 {
 public:
     TLogger() = default;
     TLogger(const TLogger& other) = default;
-    explicit TLogger(
-        TStringBuf categoryName,
-        bool essential = false);
+    explicit TLogger(TStringBuf categoryName);
 
     explicit operator bool() const;
 
     const TLoggingCategory* GetCategory() const;
+
+    //! Validate that level is admitted by logger's own min level
+    //! and by category's min level.
     bool IsLevelEnabled(ELogLevel level) const;
+
     bool GetAbortOnAlert() const;
 
     bool IsEssential() const;
@@ -99,17 +114,27 @@ public:
     template <class... TArgs>
     TLogger WithTag(const char* format, TArgs&&... args) const;
 
+    TLogger WithMinLevel(ELogLevel minLevel) const;
+
+    TLogger WithEssential(bool essential = true) const;
+
     const TString& GetTag() const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
 private:
+    // These fields are set only during logger creation, so they are effectively const
+    // and accessing them is thread-safe.
     TLogManager* LogManager_ = nullptr;
     const TLoggingCategory* Category_ = nullptr;
     bool Essential_ = false;
-
+    ELogLevel MinLevel_ = NullLoggerMinLevel;
     TString Tag_;
+
+    //! This method checks level against category's min level.
+    //! Refer to comment in TLogger::IsLevelEnabled for more details.
+    bool IsLevelEnabledHeavy(ELogLevel level) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
