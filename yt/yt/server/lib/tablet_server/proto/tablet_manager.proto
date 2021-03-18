@@ -5,7 +5,6 @@ import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 import "yt/server/lib/tablet_node/proto/tablet_manager.proto";
-import "yt/client/chunk_client/proto/data_statistics.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,26 +215,6 @@ message TReqSetTabletCellStatistics
 
     required int32 cell_tag = 1;
     repeated TEntry entries = 2;
-}
-
-message TReqSendTableStatisticsUpdates
-{
-    required int64 table_count = 1;
-}
-
-message TReqUpdateTableStatistics
-{
-    message TEntry
-    {
-        required NYT.NProto.TGuid table_id = 1;
-        optional NChunkClient.NProto.TDataStatistics data_statistics = 2;
-        reserved 3; // deprecated
-        optional TTabletResources tablet_resource_usage = 6;
-        optional uint64 modification_time = 4;
-        optional uint64 access_time = 5;
-    }
-
-    repeated TEntry entries = 1;
 }
 
 message TReqUpdateUpstreamTabletState

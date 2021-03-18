@@ -102,6 +102,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (TabletNodeTrackerService)
     (DataNodeTracker)
     (DataNodeTrackerService)
+    (TableManager)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

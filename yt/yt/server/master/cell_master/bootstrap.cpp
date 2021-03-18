@@ -70,6 +70,7 @@
 #include <yt/yt/server/master/security_server/cypress_integration.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
+#include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/table_node_type_handler.h>
 #include <yt/yt/server/master/table_server/replicated_table_node_type_handler.h>
 
@@ -391,6 +392,11 @@ const TSecurityManagerPtr& TBootstrap::GetSecurityManager() const
 const TSchedulerPoolManagerPtr& TBootstrap::GetSchedulerPoolManager() const
 {
     return SchedulerPoolManager_;
+}
+
+const TTableManagerPtr& TBootstrap::GetTableManager() const
+{
+    return TableManager_;
 }
 
 const TTamedCellManagerPtr& TBootstrap::GetTamedCellManager() const
@@ -725,6 +731,8 @@ void TBootstrap::DoInitialize()
 
     CellHydraJanitor_ = New<TCellHydraJanitor>(this);
 
+    TableManager_ = New<TTableManager>(this);
+
     TabletManager_ = New<TTabletManager>(this);
 
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
@@ -772,6 +780,7 @@ void TBootstrap::DoInitialize()
     ChunkManager_->Initialize();
     TamedCellManager_->Initialize();
     CellHydraJanitor_->Initialize();
+    TableManager_->Initialize();
     TabletManager_->Initialize();
     MulticellManager_->Initialize();
     SchedulerPoolManager_->Initialize();

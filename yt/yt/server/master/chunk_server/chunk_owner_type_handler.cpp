@@ -15,6 +15,8 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/security_tags.h>
 
+#include <yt/yt/server/master/table_server/table_manager.h>
+
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -409,8 +411,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
         if (!isExternal) {
             if (isDynamic) {
-                const auto& tabletManager = TBase::Bootstrap_->GetTabletManager();
-                tabletManager->SendTableStatisticsUpdates(originatingNode);
+                const auto& tableManager = TBase::Bootstrap_->GetTableManager();
+                tableManager->SendTableStatisticsUpdates(originatingNode);
             } else {
                 objectManager->UnrefObject(originatingChunkList);
                 objectManager->UnrefObject(branchedChunkList);
