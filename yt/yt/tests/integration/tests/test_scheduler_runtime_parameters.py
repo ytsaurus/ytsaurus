@@ -152,6 +152,18 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/pool") == "initial_pool")
 
     @authors("renadeen")
+    def test_pool_name_validation_on_change_pool_to_ephemeral(self):
+        op = run_sleeping_vanilla(spec={"pool": "ephemeral"})
+        wait(lambda: op.get_state() == "running")
+
+        with pytest.raises(YtError):
+            update_op_parameters(op.id, parameters={"scheduling_options_per_pool_tree": {
+                "default": {"pool": "ephemeral$subpool"}}
+            })
+
+        wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/default/pool") == "ephemeral")
+
+    @authors("renadeen")
     def test_change_pool_during_prepare_phase_bug(self):
         op = run_test_vanilla(":", spec={"testing": {"delay_inside_prepare": 3000}})
         wait(lambda: op.get_state() == "preparing", sleep_backoff=0.1)

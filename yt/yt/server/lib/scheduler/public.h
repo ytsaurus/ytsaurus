@@ -179,7 +179,6 @@ using TAgentId = TString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString RootPoolName;
 extern const TString DefaultTreeAttributeName;
 extern const TString TreeConfigAttributeName;
 extern const TString PoolTreesRootCypressPath;

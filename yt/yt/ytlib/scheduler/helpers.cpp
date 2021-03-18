@@ -24,6 +24,8 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/ypath/token.h>
@@ -630,6 +632,37 @@ TErrorOr<IUnversionedRowsetPtr> LookupOperationsInArchive(
         tableDescriptor.NameTable,
         MakeSharedRange(std::move(keys), std::move(rowBuffer)),
         lookupOptions));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const int PoolNameMaxLength = 100;
+const char* PoolNameRegex = "[A-Za-z0-9-_]+";
+
+TError CheckPoolName(const TString& poolName)
+{
+    if (poolName == RootPoolName) {
+        return TError("Pool name cannot be equal to root pool name")
+            << TErrorAttribute("root_pool_name", RootPoolName);
+    }
+
+    if (poolName.length() > PoolNameMaxLength) {
+        return TError("Pool name %Qv is too long", poolName)
+            << TErrorAttribute("length", poolName.length())
+            << TErrorAttribute("max_length", PoolNameMaxLength);
+    }
+
+    static const auto regex = New<NRe2::TRe2>(PoolNameRegex);
+    if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(poolName), *regex)) {
+        return TError("Pool name %Qv must match regular expression %Qv", poolName, PoolNameRegex);
+    }
+
+    return TError();
+}
+
+void ValidatePoolName(const TString& poolName)
+{
+    CheckPoolName(poolName).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
