@@ -25,22 +25,28 @@ public class TypeIO {
     private TypeIO() {
     }
 
-    static TiType parseYson(String input) {
+    public static TiType parseYson(String input) {
         return parseYson(input.getBytes(StandardCharsets.UTF_8));
     }
 
-    static TiType parseYson(byte[] input) {
+    public static TiType parseYson(byte[] input) {
         YsonParser parser = new YsonParser(input);
         TypeYsonConsumer consumer = new TypeYsonConsumer();
         parser.parseNode(consumer);
         return consumer.getType();
     }
 
-    static void serializeToYson(TiType type, YsonConsumer consumer) {
+    public static TiType parseYson(Consumer<YsonConsumer> f) {
+        TypeYsonConsumer ysonConsumer = new TypeYsonConsumer();
+        f.accept(ysonConsumer);
+        return ysonConsumer.getType();
+    }
+
+    public static void serializeToYson(TiType type, YsonConsumer consumer) {
         type.serializeTo(consumer);
     }
 
-    static String serializeToTextYson(TiType type) {
+    public static String serializeToTextYson(TiType type) {
         StringBuilder sb = new StringBuilder();
         try (YsonTextWriter writer = new YsonTextWriter(sb)) {
             serializeToYson(type, writer);
