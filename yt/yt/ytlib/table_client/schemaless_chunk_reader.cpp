@@ -288,23 +288,8 @@ protected:
         auto upperKeyBound = upperLimit.KeyBound();
         auto lastChunkKey = FromProto<TLegacyOwningKey>(blockMeta.blocks().rbegin()->last_key());
 
-        TUnversionedOwningRow firstUnreadRow;
         TKey firstUnreadKey;
         if (!unreadRows.Empty()) {
-            firstUnreadKey = TKey::FromRowUnchecked(unreadRows[0], chunkComparator.GetLength());
-            // NB: checks after the first one are invalid unless
-            // we read some data. Before we read anything, lowerKey may be
-            // longer than firstUnreadKey.
-            if (RowCount_ != unreadRows.size()) {
-                if (lowerKeyBound) {
-                    YT_VERIFY(comparator.TestKey(firstUnreadKey, lowerKeyBound));
-                }
-                if (upperKeyBound) {
-                    YT_VERIFY(comparator.TestKey(firstUnreadKey, upperKeyBound));
-                }
-            }
-
-            // COMPAT(gritukan)
             firstUnreadKey = TKey::FromRowUnchecked(unreadRows[0], interruptDescriptorKeyLength);
         }
 
@@ -313,7 +298,10 @@ protected:
             auto& chunk = unreadDescriptors[0].ChunkSpecs[0];
             chunk.mutable_lower_limit()->set_row_index(rowIndex);
             if (firstUnreadKey) {
-                ToProto(chunk.mutable_lower_limit()->mutable_legacy_key(), firstUnreadKey.AsOwningRow());
+                auto* chunkLowerLimit = chunk.mutable_lower_limit();
+                ToProto(chunkLowerLimit->mutable_legacy_key(), firstUnreadKey.AsOwningRow());
+                ToProto(chunkLowerLimit->mutable_key_bound_prefix(), firstUnreadKey.AsOwningRow());
+                chunkLowerLimit->set_key_bound_is_inclusive(true);
             }
             i64 rowCount = std::max(1l, chunk.row_count_override() - RowCount_ + static_cast<i64>(unreadRows.Size()));
             rowCount = std::min(rowCount, upperRowIndex - rowIndex);

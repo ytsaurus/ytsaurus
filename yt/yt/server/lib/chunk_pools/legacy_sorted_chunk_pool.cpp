@@ -677,9 +677,6 @@ private:
     {
         i64 dataWeight = 0;
         for (auto& dataSlice : unreadInputDataSlices) {
-            // NB(psushin): this is important, since we prune trivial limits from slices when serializing to proto.
-            // Here we restore them back.
-            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
             dataWeight += dataSlice->GetDataWeight();
         }
 

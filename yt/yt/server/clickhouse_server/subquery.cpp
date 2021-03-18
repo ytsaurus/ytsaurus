@@ -705,7 +705,9 @@ private:
         auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
 
         dataSlice->VirtualRowIndex = dataSliceDescriptor.VirtualRowIndex;
-        dataSlice->TransformToNew(RowBuffer_, InputTables_[tableIndex]->Comparator.GetLength());
+
+        int keyLength = InputTables_[tableIndex]->Comparator.GetLength();
+        dataSlice->TransformToNew(RowBuffer_, keyLength, /* trimChunkSliceKeys */ true);
 
         InputDataSlices_[tableIndex].emplace_back(std::move(dataSlice));
     }
