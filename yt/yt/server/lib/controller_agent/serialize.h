@@ -18,8 +18,10 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SimplifyForeignDataProcessing)        (300504))
     ((AutoMergePendingJobCount)             (300505))
     ((NoOrderedDynamicStoreInterrupts)      (300506))
+    ((CorrectLoggerSerialization)           (300507))
     // 21.2 start here
     ((TimeStatistics)                       (300601))
+    ((CorrectLoggerSerialization_21_2)      (300602))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

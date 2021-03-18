@@ -101,10 +101,10 @@ void CacheThreadName()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger::TLogger(TStringBuf categoryName, bool essential)
+TLogger::TLogger(TStringBuf categoryName)
     : LogManager_(TLogManager::Get())
     , Category_(LogManager_->GetCategory(categoryName))
-    , Essential_(essential)
+    , MinLevel_(LoggerDefaultMinLevel)
 { }
 
 TLogger::operator bool() const
@@ -117,11 +117,12 @@ const TLoggingCategory* TLogger::GetCategory() const
     return Category_;
 }
 
-bool TLogger::IsLevelEnabled(ELogLevel level) const
+bool TLogger::IsLevelEnabledHeavy(ELogLevel level) const
 {
-    if (!Category_) {
-        return false;
-    }
+    // Note that we managed to reach this point, i.e. level >= MinLevel_,
+    // which implies that MinLevel_ != ELogLevel::Maximum, so this logger was not
+    // default constructed, thus it has non-trivial category.
+    YT_ASSERT(Category_);
 
     if (Category_->CurrentVersion != Category_->ActualVersion->load(std::memory_order_relaxed)) {
         LogManager_->UpdateCategory(const_cast<TLoggingCategory*>(Category_));
@@ -165,6 +166,20 @@ TLogger TLogger::WithRawTag(const TString& tag) const
     return result;
 }
 
+TLogger TLogger::WithEssential(bool essential) const
+{
+    auto result = *this;
+    result.Essential_ = essential;
+    return result;
+}
+
+TLogger TLogger::WithMinLevel(ELogLevel minLevel) const
+{
+    auto result = *this;
+    result.MinLevel_ = minLevel;
+    return result;
+}
+
 const TString& TLogger::GetTag() const
 {
     return Tag_;
@@ -174,7 +189,15 @@ void TLogger::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, TString(Category_->Name));
+    if (Category_) {
+        Save(context, true);
+        Save(context, TString(Category_->Name));
+    } else {
+        Save(context, false);
+    }
+
+    Save(context, Essential_);
+    Save(context, MinLevel_);
     Save(context, Tag_);
 }
 
@@ -183,9 +206,19 @@ void TLogger::Load(TStreamLoadContext& context)
     using NYT::Load;
 
     TString categoryName;
-    Load(context, categoryName);
-    LogManager_ = TLogManager::Get();
-    Category_ = LogManager_->GetCategory(categoryName.data());
+
+    bool categoryPresent;
+    Load(context, categoryPresent);
+    if (categoryPresent) {
+        Load(context, categoryName);
+        LogManager_ = TLogManager::Get();
+        Category_ = LogManager_->GetCategory(categoryName.data());
+    } else {
+        Category_ = nullptr;
+    }
+
+    Load(context, Essential_);
+    Load(context, MinLevel_);
     Load(context, Tag_);
 }
 
