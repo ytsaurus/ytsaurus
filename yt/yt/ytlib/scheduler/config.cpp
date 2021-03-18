@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
@@ -1934,6 +1935,12 @@ TOperationFairShareTreeRuntimeParametersUpdate::TOperationFairShareTreeRuntimePa
         .Default();
     RegisterParameter("enable_detailed_logs", EnableDetailedLogs)
         .Optional();
+
+    RegisterPostprocessor([&] {
+        if (Pool.has_value()) {
+            ValidatePoolName(Pool->ToString());
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1955,6 +1962,9 @@ TOperationRuntimeParametersUpdate::TOperationRuntimeParametersUpdate()
     RegisterPostprocessor([&] {
         if (Acl.has_value()) {
             ValidateOperationAcl(*Acl);
+        }
+        if (Pool.has_value()) {
+            ValidatePoolName(*Pool);
         }
     });
 }
