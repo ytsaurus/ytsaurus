@@ -37,7 +37,7 @@ trait ByopLauncher {
   def startByop(config: ByopConfig,
                 ytConf: YtClientConfiguration,
                 timeout: Duration): BasicService = {
-    log.info(s"Start RPC proxy with config: $config")
+    log.info(s"Start RPC proxy with config: ${config.copy(tvm_client_secret = "***")}")
 
     val ytRpc = YtWrapper.createRpcClient("byop", ytConf.copy(byop = ByopConfiguration.DISABLED))
 
@@ -151,12 +151,7 @@ object ByopLauncher {
                         tvm_client_id: Int,
                         tvm_client_secret: String,
                         tvm_enable_user_ticket_checking: Boolean,
-                        tvm_client_enable_service_ticket_fetching: Boolean) {
-
-    override def toString: String = {
-      copy(tvm_client_secret = "*****").toString
-    }
-  }
+                        tvm_client_enable_service_ticket_fetching: Boolean)
 
   object ByopConfig {
     private val baseName = "byop"
