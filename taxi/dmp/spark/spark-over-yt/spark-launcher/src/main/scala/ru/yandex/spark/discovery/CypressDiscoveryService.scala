@@ -48,13 +48,13 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
     val tr = Some(transaction.getId.toString)
     try {
       if (clearDir) removeAddress(tr)
-      YtWrapper.createDir(s"$addressPath/${address.hostAndPort}", tr)
+      YtWrapper.createDir(s"$addressPath/${YtWrapper.escape(address.hostAndPort.toString)}", tr)
       Map(
-        webUiPath -> address.webUiHostAndPort,
-        restPath -> address.restHostAndPort,
+        webUiPath -> YtWrapper.escape(address.webUiHostAndPort.toString),
+        restPath -> YtWrapper.escape(address.restHostAndPort.toString),
         operationPath -> operationId,
         clusterVersionPath -> clusterVersion,
-        masterWrapperPath -> masterWrapperEndpoint
+        masterWrapperPath -> YtWrapper.escape(masterWrapperEndpoint.toString)
       ).foreach { case (path, value) =>
         YtWrapper.createDir(s"$path/$value", tr)
       }
@@ -70,8 +70,9 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
   override def registerSHS(address: HostAndPort): Unit = {
     val transaction = YtWrapper.createTransaction(None, 1 minute)
     val tr = Some(transaction.getId.toString)
+    val addr = YtWrapper.escape(address.toString)
     YtWrapper.removeDirIfExists(shsPath, recursive = true, tr)
-    YtWrapper.createDir(s"$shsPath/$address", tr)
+    YtWrapper.createDir(s"$shsPath/$addr", tr)
     transaction.commit().join()
   }
 

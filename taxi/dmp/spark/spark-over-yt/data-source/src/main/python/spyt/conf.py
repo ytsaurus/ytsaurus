@@ -54,6 +54,11 @@ def validate_versions_compatibility(spyt_version, spark_cluster_version):
                        "Please update your cluster with spark-launch-yt utility".format(spyt_version, spark_cluster_version))
 
 
+def validate_network_project(network_project, tvm_id, tvm_secret):
+    if network_project and not (tvm_id and tvm_secret):
+        raise RuntimeError("When using network_project, env variables SPARK_TVM_ID and SPARK_TVM_SECRET must be set.")
+
+
 def latest_compatible_spyt_version(spark_cluster_version, client=None):
     spark_cluster_minor_version = _get_spark_cluster_minor_version(spark_cluster_version)
     spyt_versions = get_available_spyt_versions(client)

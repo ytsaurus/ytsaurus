@@ -161,6 +161,14 @@ def default_proxy():
     return os.getenv("YT_PROXY")
 
 
+def default_tvm_secret():
+    return os.getenv("SPARK_TVM_SECRET")
+
+
+def default_tvm_id():
+    return os.getenv("SPARK_TVM_ID")
+
+
 def get_default_arg_parser(**kwargs):
     parser = argparse.ArgumentParser(**kwargs)
     parser.add_argument("--id", required=False)

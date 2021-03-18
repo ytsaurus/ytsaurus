@@ -11,6 +11,8 @@ trait YtCypressUtils {
 
   def formatPath(path: String): String = if (path.startsWith("//")) path else "/" + path
 
+  def escape(s: String): String = s.replaceAll("([\\\\/@&*\\[{])", "\\\\$1")
+
   def createDir(path: String, transaction: Option[String] = None, ignoreExisting: Boolean = false)
                (implicit yt: CompoundClient): Unit = {
     yt.createNode(

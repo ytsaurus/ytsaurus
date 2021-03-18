@@ -13,7 +13,7 @@ from yt.wrapper.spec_builders import VanillaSpecBuilder
 
 from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spyt_python_path, \
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
-    latest_cluster_version, update_config_inplace, validate_custom_params, \
+    latest_cluster_version, update_config_inplace, validate_custom_params, validate_network_project, \
     latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
 from .enabler import SpytEnablers
@@ -200,7 +200,7 @@ def get_spark_conf(config, enablers):
 
 def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                worker_cores, worker_memory, worker_num, worker_cores_overhead, worker_timeout,
-                               tmpfs_limit, master_memory_limit, history_server_memory_limit,
+                               tmpfs_limit, master_memory_limit, network_project, tvm_id, tvm_secret, history_server_memory_limit,
                                pool, enablers, client):
     def _launcher_command(component):
         unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C ./tmpfs"
@@ -223,6 +223,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     operation_spec["pool"] = pool
     if "title" not in operation_spec:
         operation_spec["title"] = operation_alias or "spark_{}".format(user)
+
     operation_spec["description"] = {
         "Spark over YT": {
             "discovery_path": spark_discovery.base_discovery_path,
@@ -274,6 +275,12 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     secure_vault = {"YT_USER": user, "YT_TOKEN": get_token(client=client)}
 
+    if network_project:
+        common_task_spec["network_project"] = network_project
+        secure_vault["SPARK_TVM_ID"] = tvm_id
+        secure_vault["SPARK_TVM_SECRET"] = tvm_secret
+        worker_environment["SPARK_YT_BYOP_TVM_ENABLED"] = "true"
+
     return VanillaSpecBuilder() \
         .begin_task("master") \
             .job_count(1) \
@@ -309,7 +316,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         tmpfs_limit=SparkDefaultArguments.SPARK_WORKER_TMPFS_LIMIT,
                         master_memory_limit=SparkDefaultArguments.SPARK_MASTER_MEMORY_LIMIT,
                         history_server_memory_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT,
-                        params=None, spark_cluster_version=None,
+                        params=None, spark_cluster_version=None, network_project=None, tvm_id=None, tvm_secret=None,
                         enablers=None,
                         client=None):
     """Start Spark cluster
@@ -325,6 +332,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param master_memory_limit: memory limit for master, default 2G
     :param history_server_memory_limit: memory limit for history server, default 8G
     :param spark_cluster_version: Spark cluster version
+    :param network_project: YT network project
+    :param tvm_id: TVM id for network project
+    :param tvm_secret: TVM secret for network project
     :param params: YT operation params: file_paths, layer_paths, operation_spec, environment, spark_conf
     :param enablers: ...
     :param client: YtClient
@@ -335,9 +345,11 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     ytserver_proxy_path = latest_ytserver_proxy_path(spark_cluster_version, client=client)
     global_conf = read_global_conf(client=client)
     spark_cluster_version = spark_cluster_version or latest_cluster_version(global_conf)
-    validate_cluster_version(spark_cluster_version, client=client)
 
+    validate_cluster_version(spark_cluster_version, client=client)
     validate_custom_params(params)
+    validate_network_project(network_project, tvm_id, tvm_secret)
+
     dynamic_config = SparkDefaultArguments.get_params()
     update_config_inplace(dynamic_config, read_remote_conf(global_conf, spark_cluster_version, client=client))
     update_config_inplace(dynamic_config, params)
@@ -357,6 +369,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                                               worker_timeout=worker_timeout,
                                               tmpfs_limit=tmpfs_limit,
                                               master_memory_limit=master_memory_limit,
+                                              network_project=network_project,
+                                              tvm_id=tvm_id,
+                                              tvm_secret=tvm_secret,
                                               history_server_memory_limit=history_server_memory_limit,
                                               pool=pool,
                                               enablers=enablers,

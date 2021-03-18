@@ -1,7 +1,5 @@
 package ru.yandex.spark.launcher
 
-import java.net.InetAddress
-
 import com.google.common.net.HostAndPort
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.discovery.{Address, DiscoveryService}
@@ -57,7 +55,7 @@ object Service {
 
   object BasicService {
     def apply(name: String, port: Int, thread: Thread): BasicService = {
-      BasicService(name, HostAndPort.fromParts(InetAddress.getLocalHost.getHostName, port), thread)
+      BasicService(name, HostAndPort.fromParts(Utils.ytHostnameOrIpAddress, port), thread)
     }
   }
 

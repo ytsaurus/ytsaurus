@@ -14,9 +14,12 @@ class MasterWrapperClient(val endpoint: HostAndPort) {
   implicit private val backend = HttpURLConnectionBackend()
 
   def byopEnabled: Try[Boolean] = {
+    // выносим url в отдельную переменную, потому что uri"http://$endpoint"
+    // сделает percent encoding и добавит '%' в ipv6 адрес. uri"$url" дает корректное поведение.
+    val url = s"http://$endpoint"
     Try {
       basicRequest
-        .get(uri"http://$endpoint")
+        .get(uri"$url")
         .send()
     }.flatMap(_.body.fold[Try[Boolean]](
       error => Failure(HttpError(error)),
@@ -25,9 +28,10 @@ class MasterWrapperClient(val endpoint: HostAndPort) {
   }
 
   def discoverProxies: Try[Seq[String]] = {
+    val url = s"http://$endpoint/api/v4/discover_proxies"
     Try {
       basicRequest
-        .get(uri"http://$endpoint/api/v4/discover_proxies")
+        .get(uri"$url")
         .send()
     }.flatMap(_.body.fold[Try[Seq[String]]](
       error => Failure(HttpError(error)),

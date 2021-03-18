@@ -30,6 +30,13 @@ class YtCypressUtilsTest extends FlatSpec with Matchers with LocalYtClient with 
     res.getOrThrow("a").stringValue() shouldEqual "A"
     res.getOrThrow("b").intValue() shouldEqual 1
   }
+
+  it should "escape path" in {
+    // https://yt.yandex-team.ru/docs/description/common/ypath#simple_ypath_lexis
+    val unescaped = "\\a/b@c&d*e[f{g"
+    val escaped = YtWrapper.escape(unescaped)
+    escaped shouldEqual "\\\\a\\/b\\@c\\&d\\*e\\[f\\{g"
+  }
 }
 
 class TestDoc(val a: String, val b: Int)
