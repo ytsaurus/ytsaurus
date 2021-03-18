@@ -2547,19 +2547,7 @@ protected:
         }
     }
 
-    bool EnableNewPartitionsHeuristic() const
-    {
-        if (Spec->UseNewPartitionsHeuristic) {
-            return true;
-        }
-
-        int salt = OperationId.Parts64[1] & 255;
-        if (salt < Spec->NewPartitionsHeuristicProbability) {
-            return true;
-        }
-
-        return false;
-    }
+    virtual bool EnableNewPartitionsHeuristic() const = 0;
 
     void ProcessInputs(const TTaskPtr& inputTask, const IJobSizeConstraintsPtr& jobSizeConstraints)
     {
@@ -3647,6 +3635,20 @@ private:
         return result;
     }
 
+    virtual bool EnableNewPartitionsHeuristic() const override
+    {
+        if (Spec->UseNewPartitionsHeuristic) {
+            return true;
+        }
+
+        int salt = OperationId.Parts64[1] & 255;
+        if (salt < Spec->NewPartitionsHeuristicProbability) {
+            return true;
+        }
+
+        return false;
+    }
+
     // Progress reporting.
 
     virtual TString GetLoggingProgress() const override
@@ -4490,6 +4492,24 @@ private:
         const TChunkStripeStatisticsVector& statistics) const override
     {
         YT_ABORT();
+    }
+
+    virtual bool EnableNewPartitionsHeuristic() const override
+    {
+        if (Spec->UseNewPartitionsHeuristic) {
+            return true;
+        }
+
+        if (Spec->HasNontrivialReduceCombiner()) {
+            return false;
+        }
+
+        int salt = OperationId.Parts64[1] & 255;
+        if (salt < Spec->NewPartitionsHeuristicProbability) {
+            return true;
+        }
+
+        return false;
     }
 
     // Progress reporting.
