@@ -291,9 +291,9 @@ std::vector<std::vector<TSharedRef>> RepairErasureJournalRows(
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<std::vector<TSharedRef>>& repairRowLists)
 {
-    i64 rowCount = Max<i64>();
+    i64 rowCount = repairRowLists[0].size();
     for (const auto& repairRows : repairRowLists) {
-        rowCount = std::min(rowCount, static_cast<i64>(repairRows.size()));
+        YT_VERIFY(repairRows.size() == rowCount);
     }
 
     i64 bufferSize = 0;
@@ -311,7 +311,7 @@ std::vector<std::vector<TSharedRef>> RepairErasureJournalRows(
         char* partBegin = buffer.GetCurrent();
         for (i64 rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
             const auto& repairRow = repairRows[rowIndex];
-            YT_ASSERT(repairRow.Size() == repairRowLists[0][rowIndex].size());
+            YT_VERIFY(repairRow.Size() == repairRowLists[0][rowIndex].size());
             buffer.Write(repairRow.Begin(), repairRow.Size());
         }
         repairParts.push_back(buffer.SliceFrom(partBegin));
