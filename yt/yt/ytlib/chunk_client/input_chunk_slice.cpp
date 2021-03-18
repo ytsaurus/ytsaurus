@@ -652,14 +652,22 @@ void TInputChunkSlice::TransformToLegacy(const TRowBufferPtr& rowBuffer)
     IsLegacy = true;
 }
 
-void TInputChunkSlice::TransformToNew(const TRowBufferPtr& rowBuffer, int keyLength)
+void TInputChunkSlice::TransformToNew(const TRowBufferPtr& rowBuffer, std::optional<int> keyLength)
 {
     YT_VERIFY(IsLegacy);
 
+    auto getKeyLength = [&] (const TLegacyKey& key) {
+        if (keyLength) {
+            return *keyLength;
+        }
+
+        return key ? static_cast<int>(key.GetCount()) : 0;
+    };
+
     LowerLimit_.RowIndex = LegacyLowerLimit_.RowIndex;
-    LowerLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyLowerLimit_.Key, /* isUpper */ false, keyLength, rowBuffer);
+    LowerLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyLowerLimit_.Key, /* isUpper */ false, getKeyLength(LegacyLowerLimit_.Key), rowBuffer);
     UpperLimit_.RowIndex = LegacyUpperLimit_.RowIndex;
-    UpperLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyUpperLimit_.Key, /* isUpper */ true, keyLength, rowBuffer);
+    UpperLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyUpperLimit_.Key, /* isUpper */ true, getKeyLength(LegacyUpperLimit_.Key), rowBuffer);
     LegacyLowerLimit_ = TLegacyInputSliceLimit();
     LegacyUpperLimit_ = TLegacyInputSliceLimit();
 

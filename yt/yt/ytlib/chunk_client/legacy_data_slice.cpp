@@ -189,7 +189,7 @@ void TLegacyDataSlice::TransformToLegacy(const TRowBufferPtr& rowBuffer)
     IsLegacy = true;
 }
 
-void TLegacyDataSlice::TransformToNew(const TRowBufferPtr& rowBuffer, int keyLength)
+void TLegacyDataSlice::TransformToNew(const TRowBufferPtr& rowBuffer, int keyLength, bool trimChunkSliceKeys)
 {
     YT_VERIFY(IsLegacy);
 
@@ -200,8 +200,12 @@ void TLegacyDataSlice::TransformToNew(const TRowBufferPtr& rowBuffer, int keyLen
     LegacyLowerLimit_ = TLegacyInputSliceLimit();
     LegacyUpperLimit_ = TLegacyInputSliceLimit();
 
+    std::optional<int> chunkSliceKeyLength;
+    if (trimChunkSliceKeys) {
+        chunkSliceKeyLength = keyLength;
+    }
     for (auto& chunkSlice : ChunkSlices) {
-        chunkSlice->TransformToNew(rowBuffer, keyLength);
+        chunkSlice->TransformToNew(rowBuffer, chunkSliceKeyLength);
     }
 
     IsLegacy = false;

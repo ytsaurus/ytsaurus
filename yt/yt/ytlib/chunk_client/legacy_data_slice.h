@@ -72,7 +72,7 @@ public:
     std::pair<TLegacyDataSlicePtr, TLegacyDataSlicePtr> SplitByRowIndex(i64 splitRow) const;
 
     void TransformToLegacy(const NTableClient::TRowBufferPtr& rowBuffer);
-    void TransformToNew(const NTableClient::TRowBufferPtr& rowBuffer, int keyLength);
+    void TransformToNew(const NTableClient::TRowBufferPtr& rowBuffer, int keyLength, bool trimChunkSliceKeys = false);
 
     //! Transform to new assuming that there are no non-trivial key bounds in read limits.
     void TransformToNewKeyless();

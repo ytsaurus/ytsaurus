@@ -189,7 +189,7 @@ public:
     void ApplySamplingSelectivityFactor(double samplingSelectivityFactor);
 
     void TransformToLegacy(const NTableClient::TRowBufferPtr& rowBuffer);
-    void TransformToNew(const NTableClient::TRowBufferPtr& rowBuffer, int keyLength);
+    void TransformToNew(const NTableClient::TRowBufferPtr& rowBuffer, std::optional<int> keyLength);
 
     //! Transform to new assuming that there are no non-trivial key bounds in read limits.
     void TransformToNewKeyless();
