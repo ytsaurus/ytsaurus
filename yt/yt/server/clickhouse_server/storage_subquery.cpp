@@ -93,14 +93,12 @@ public:
                 leakedMemory[StorageContext_->Settings->Testing->SubqueryAllocationSize - 1]);
         }
 
-        if (SubquerySpec_.InitialQueryId != QueryContext_->QueryId) {
-            QueryContext_->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
-            if (QueryContext_->InitialQuery) {
-                YT_VERIFY(*QueryContext_->InitialQuery == SubquerySpec_.InitialQuery);
-            } else {
-                QueryContext_->InitialQuery = SubquerySpec_.InitialQuery;
-            }
+        if (QueryContext_->InitialQuery) {
+            YT_VERIFY(*QueryContext_->InitialQuery == SubquerySpec_.InitialQuery);
+        } else {
+            QueryContext_->InitialQuery = SubquerySpec_.InitialQuery;
         }
+
         Logger = StorageContext_->Logger;
         Logger.AddTag("SubqueryIndex: %v, SubqueryTableIndex: %v",
             SubquerySpec_.SubqueryIndex,

@@ -1,8 +1,10 @@
 #include "query_context.h"
 
-#include "host.h"
 #include "helpers.h"
+#include "host.h"
 #include "query_registry.h"
+#include "statistics_reporter.h"
+#include "subquery_header.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -52,7 +54,8 @@ TQueryContext::TQueryContext(
     const DB::Context& context,
     TQueryId queryId,
     TTraceContextPtr traceContext,
-    std::optional<TString> dataLensRequestId)
+    std::optional<TString> dataLensRequestId,
+    const TSubqueryHeaderPtr& subqueryHeader)
     : Logger(QueryLogger)
     , User(TString(context.getClientInfo().initial_user))
     , TraceContext(std::move(traceContext))
@@ -74,16 +77,19 @@ TQueryContext::TQueryContext(
 
     CurrentUser = clientInfo.current_user;
     CurrentAddress = clientInfo.current_address.toString();
+
+    InitialUser = clientInfo.initial_user;
+    InitialAddress = clientInfo.initial_address.toString();
+    InitialQueryId = TQueryId::FromString(clientInfo.initial_query_id);
+
     if (QueryKind == EQueryKind::SecondaryQuery) {
-        InitialUser = clientInfo.initial_user;
-        InitialAddress = clientInfo.initial_address.toString();
-        InitialQueryId.emplace();
-        if (!TQueryId::FromString(clientInfo.initial_query_id, &*InitialQueryId)) {
-            YT_LOG_WARNING("Initial query id is not a valid YT query id (InitialQueryId: %v)", clientInfo.initial_query_id);
-            InitialQueryId.reset();
-        }
+        YT_VERIFY(subqueryHeader);
+        ParentQueryId = subqueryHeader->ParentQueryId;
+        SelectQueryIndex = subqueryHeader->StorageIndex;
+        
+        Logger.AddTag("InitialQueryId: %v", InitialQueryId);
+        Logger.AddTag("ParentQueryId: %v", ParentQueryId);
     }
-    ClientHostName = clientInfo.client_hostname;
     Interface = static_cast<EInterface>(clientInfo.interface);
     if (Interface == EInterface::HTTP) {
         HttpUserAgent = clientInfo.http_user_agent;
@@ -95,15 +101,14 @@ TQueryContext::TQueryContext(
 
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "
-        "InitialQueryId: %v, Interface: %v, ClientHostname: %v, HttpUserAgent: %v)",
+        "Interface: %v, HttpUserAgent: %v, QueryKind: %v)",
         CurrentUser,
         CurrentAddress,
         InitialUser,
         InitialAddress,
-        InitialQueryId,
         Interface,
-        ClientHostName,
-        HttpUserAgent);
+        HttpUserAgent,
+        QueryKind);
 }
 
 TQueryContext::~TQueryContext()
@@ -192,6 +197,23 @@ EQueryPhase TQueryContext::GetQueryPhase() const
     return QueryPhase_.load();
 }
 
+void TQueryContext::Finish()
+{
+    FinishTime_ = TInstant::Now();
+    AggregatedStatistics.Update(InstanceStatistics);
+    Host->GetQueryStatisticsReporter()->ReportQueryStatistics(MakeStrong(this));
+}
+
+TInstant TQueryContext::GetStartTime() const
+{
+    return StartTime_;
+}
+
+TInstant TQueryContext::GetFinishTime() const
+{
+    return FinishTime_;
+}
+
 TStorageContext* TQueryContext::FindStorageContext(const DB::IStorage* storage)
 {
     {
@@ -235,10 +257,10 @@ void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const
                     .Item("http_user_agent").Value(queryContext.HttpUserAgent);
             })
             .Item("current_address").Value(queryContext.CurrentAddress)
-            .Item("client_hostname").Value(queryContext.ClientHostName)
             .DoIf(queryContext.QueryKind == EQueryKind::SecondaryQuery, [&] (TFluentMap fluent) {
                 fluent
                     .Item("initial_query_id").Value(queryContext.InitialQueryId)
+                    .Item("parent_query_id").Value(queryContext.ParentQueryId)
                     .Item("initial_address").Value(queryContext.InitialAddress)
                     .Item("initial_user").Value(queryContext.InitialUser)
                     .Item("initial_query").Value(queryContext.InitialQuery);
@@ -266,6 +288,7 @@ struct THostContext
     // from control invoker.
     virtual ~THostContext() override
     {
+        QueryContext->Finish();
         Host->GetControlInvoker()->Invoke(
             BIND([host = Host, queryContext = std::move(QueryContext)] () mutable {
                 host->GetQueryRegistry()->Unregister(queryContext);
@@ -278,7 +301,8 @@ void SetupHostContext(THost* host,
     DB::Context& context,
     TQueryId queryId,
     TTraceContextPtr traceContext,
-    std::optional<TString> dataLensRequestId)
+    std::optional<TString> dataLensRequestId,
+    const TSubqueryHeaderPtr& subqueryHeader)
 {
     YT_VERIFY(traceContext);
 
@@ -287,7 +311,8 @@ void SetupHostContext(THost* host,
         context,
         queryId,
         std::move(traceContext),
-        std::move(dataLensRequestId));
+        std::move(dataLensRequestId),
+        subqueryHeader);
 
     WaitFor(BIND(
         &TQueryRegistry::Register,

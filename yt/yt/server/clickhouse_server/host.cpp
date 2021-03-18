@@ -2,20 +2,20 @@
 
 #include "clickhouse_invoker.h"
 #include "clickhouse_service_proxy.h"
+#include "config.h"
 #include "data_type_boolean.h"
+#include "dictionary_source.h"
+#include "health_checker.h"
+#include "memory_watchdog.h"
+#include "poco_config.h"
 #include "query_context.h"
 #include "query_registry.h"
-#include "poco_config.h"
-#include "config.h"
+#include "statistics_reporter.h"
 #include "storage_distributor.h"
 #include "storage_system_clique.h"
-#include "yt/yt/server/clickhouse_server/private.h"
-#include "yt_database.h"
-#include "table_functions.h"
 #include "table_functions_concat.h"
-#include "dictionary_source.h"
-#include "memory_watchdog.h"
-#include "health_checker.h"
+#include "table_functions.h"
+#include "yt_database.h"
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
@@ -131,10 +131,12 @@ public:
         , FetcherThreadPool_(New<TThreadPool>(Config_->FetcherThreadCount, "Fetcher"))
         , FetcherInvoker_(FetcherThreadPool_->GetInvoker())
         , ClickHouseFetcherInvoker_(CreateClickHouseInvoker(FetcherInvoker_))
+        , InstanceCookie_(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))
     {
         InitializeClients();
         InitializeCaches();
         InitializeReaderMemoryManager();
+        InitializeStatisticsReporter();
         RegisterFactories();
 
         // Configure clique's directory.
@@ -325,6 +327,11 @@ public:
         return result;
     }
 
+    int GetInstanceCookie() const
+    {
+        return InstanceCookie_;
+    }
+
     const IInvokerPtr& GetControlInvoker() const
     {
         return ControlInvoker_;
@@ -353,6 +360,11 @@ public:
     const IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const
     {
         return ParallelReaderMemoryManager_;
+    }
+
+    const TQueryStatisticsReporterPtr& GetQueryStatisticsReporter() const
+    {
+        return QueryStatisticsReporter_;
     }
 
     void HandleCrashSignal() const
@@ -445,6 +457,7 @@ private:
 
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
+    NApi::NNative::IClientPtr StatisticsReporterClient_;
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::TClientCachePtr ClientCache_;
 
@@ -453,6 +466,7 @@ private:
     NTableClient::TTableColumnarStatisticsCachePtr TableColumnarStatisticsCache_;
 
     TDiscoveryPtr Discovery_;
+    int InstanceCookie_;
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
 
@@ -460,6 +474,8 @@ private:
     THashMap<TString, int> UnknownInstancePingCounter_;
 
     IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
+
+    TQueryStatisticsReporterPtr QueryStatisticsReporter_;
 
     std::atomic<int> SigintCounter_ = {0};
 
@@ -486,6 +502,7 @@ private:
         };
         RootClient_ = getClientForUser(Config_->User);
         CacheClient_ = getClientForUser(CacheUserName);
+        StatisticsReporterClient_ = getClientForUser(Config_->QueryStatisticsReporter->User);
     }
 
     void InitializeCaches()
@@ -523,6 +540,13 @@ private:
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
 
+    void InitializeStatisticsReporter()
+    {
+        QueryStatisticsReporter_ = New<TQueryStatisticsReporter>(
+            Config_->QueryStatisticsReporter,
+            StatisticsReporterClient_);
+    }
+
     void StartDiscovery()
     {
         NApi::TCreateNodeOptions createCliqueNodeOptions;
@@ -544,7 +568,7 @@ private:
             {"tcp_port", ConvertToNode(Ports_.Tcp)},
             {"http_port", ConvertToNode(Ports_.Http)},
             {"pid", ConvertToNode(getpid())},
-            {"job_cookie", ConvertToNode(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))},
+            {"job_cookie", ConvertToNode(InstanceCookie_)},
         });
 
         WaitFor(Discovery_->Enter(ToString(Config_->InstanceId), attributes))
@@ -650,8 +674,7 @@ private:
         attributes->Set("remote_addresses", GetLocalAddresses({{"default", host}}, Ports_.Rpc));
         options.Attributes = std::move(attributes);
 
-        const auto& jobCookie = GetEnv("YT_JOB_COOKIE");
-        auto path = SysClickHouse + "/orchids/" + ToString(Config_->CliqueId) + "/" + jobCookie;
+        auto path = SysClickHouse + "/orchids/" + ToString(Config_->CliqueId) + "/" + ToString(InstanceCookie_);
 
         WaitFor(RootClient_->CreateNode(path, EObjectType::Orchid, options))
             .ThrowOnError();
@@ -752,6 +775,11 @@ TClusterNodes THost::GetNodes() const
     return Impl_->GetNodes();
 }
 
+int THost::GetInstanceCookie() const
+{
+    return Impl_->GetInstanceCookie();
+}
+
 void THost::HandleCrashSignal() const
 {
     return Impl_->HandleCrashSignal();
@@ -765,6 +793,11 @@ void THost::HandleSigint()
 const IMultiReaderMemoryManagerPtr& THost::GetMultiReaderMemoryManager() const
 {
     return Impl_->GetMultiReaderMemoryManager();
+}
+
+const TQueryStatisticsReporterPtr& THost::GetQueryStatisticsReporter() const
+{
+    return Impl_->GetQueryStatisticsReporter();
 }
 
 NApi::NNative::IClientPtr THost::GetRootClient() const

@@ -51,7 +51,8 @@ class TArchiveReporter
 public:
     TArchiveReporter(
         TArchiveVersionHolderPtr version,
-        TArchiveReporterConfigPtr config,
+        TArchiveReporterConfigPtr reporterConfig,
+        TArchiveHandlerConfigPtr handlerConfig,
         NTableClient::TNameTablePtr nameTable,
         TString reporterName,
         NApi::NNative::IClientPtr client,

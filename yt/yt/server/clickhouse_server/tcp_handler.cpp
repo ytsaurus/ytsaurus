@@ -2,6 +2,7 @@
 
 #include "helpers.h"
 #include "query_context.h"
+#include "subquery_header.h"
 
 #include <Poco/Util/LayeredConfiguration.h>
 #include <Server/TCPHandler.h>
@@ -49,52 +50,31 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
 
         virtual void customizeContext(DB::Context& context) override
         {
-            context.getClientInfo().current_user = context.getClientInfo().initial_user;
-            TQueryId queryId;
-            TSpanContext parentSpan;
             auto& clientInfo = context.getClientInfo();
 
-            TTraceContextPtr traceContext;
-
-            // For secondary queries, query id looks like <query_id>@<parent_trace_id>@<parent_span_id>@<parent_sampled>.
-            // Parent trace id is the same as client info initial_query_id.
-            if (static_cast<int>(context.getClientInfo().query_kind) == 2 /* secondary query */) {
-                auto requestCompositeQueryId = clientInfo.current_query_id;
-                auto requestInitialQueryId = clientInfo.initial_query_id;
-                YT_LOG_DEBUG("Parsing composite query id and initial query id (RequestCompositeQueryId: %v, RequestInitialQueryId: %v)",
-                    requestCompositeQueryId,
-                    requestInitialQueryId);
-                std::vector<TString> parts;
-                StringSplitter(requestCompositeQueryId).Split('@').AddTo(&parts);
-                YT_VERIFY(parts.size() == 4);
-                YT_VERIFY(TQueryId::FromString(parts[0], &queryId));
-                YT_VERIFY(TTraceId::FromString(parts[1], &parentSpan.TraceId));
-                YT_VERIFY(TryIntFromString<16>(parts[2], parentSpan.SpanId));
-                auto requestSampled = parts[3];
-                YT_VERIFY(requestSampled == "T" || requestSampled == "F");
-                context.getClientInfo().current_query_id = parts[0];
-                YT_LOG_INFO(
-                    "Query is secondary; composite query id successfully decomposed, actual query id substituted into the context "
-                    "(CompositeQueryId: %v, QueryId: %v, ParentTraceId: %v, ParentSpanId: %" PRIx64 ", ParentSampled: %v)",
-                    requestCompositeQueryId,
-                    queryId,
-                    parentSpan.TraceId,
-                    parentSpan.SpanId,
-                    requestSampled);
-                traceContext = New<TTraceContext>(parentSpan, "TcpHandler");
-                if (requestSampled == "T") {
-                    traceContext->SetSampled();
-                }
-            } else {
+            if (clientInfo.query_kind != DB::ClientInfo::QueryKind::SECONDARY_QUERY) {
                 // TODO(max42): support.
                 THROW_ERROR_EXCEPTION("Queries via native TCP protocol are not supported (CHYT-342)");
             }
 
-            YT_LOG_DEBUG("Registering new user (UserName: %v)", context.getClientInfo().current_user);
-            RegisterNewUser(context.getAccessControlManager(), TString(context.getClientInfo().current_user));
+            clientInfo.current_user = clientInfo.initial_user;
+
+            auto header = NYTree::ConvertTo<TSubqueryHeaderPtr>(NYson::TYsonString(clientInfo.current_query_id));
+            clientInfo.current_query_id = ToString(header->QueryId);
+
+            TTraceContextPtr traceContext = New<TTraceContext>(header->SpanContext, "TcpHandler");
+
+            YT_LOG_DEBUG("Registering new user (UserName: %v)", clientInfo.current_user);
+            RegisterNewUser(context.getAccessControlManager(), TString(clientInfo.current_user));
             YT_LOG_DEBUG("User registered");
 
-            SetupHostContext(Host_, context, queryId, std::move(traceContext));
+            SetupHostContext(
+                Host_,
+                context,
+                header->QueryId,
+                std::move(traceContext),
+                /* dataLensRequestId */ std::nullopt,
+                header);
         }
 
     private:

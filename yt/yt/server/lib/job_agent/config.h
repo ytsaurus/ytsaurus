@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/misc/config.h>
+
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/core/concurrency/config.h>
@@ -298,48 +302,85 @@ DEFINE_REFCOUNTED_TYPE(TJobControllerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobReporterConfig
-    : public NYTree::TYsonSerializable
+    : public TArchiveReporterConfig
 {
 public:
-    bool Enabled;
-    TDuration ReportingPeriod;
-    TDuration MinRepeatDelay;
-    TDuration MaxRepeatDelay;
-    int MaxInProgressJobDataSize;
-    int MaxInProgressOperationIdDataSize;
-    int MaxInProgressJobSpecDataSize;
-    int MaxInProgressJobStderrDataSize;
-    int MaxInProgressJobFailContextDataSize;
-    int MaxItemsInBatch;
+    TArchiveHandlerConfigPtr JobHandler;
+    TArchiveHandlerConfigPtr OperationIdHandler;
+    TArchiveHandlerConfigPtr JobSpecHandler;
+    TArchiveHandlerConfigPtr JobStderrHandler;
+    TArchiveHandlerConfigPtr JobFailContextHandler;
+    TArchiveHandlerConfigPtr JobProfileHandler;
+
     TString User;
     bool ReportStatisticsLz4;
 
+    // COMPAT(dakovalkov): Delete these when all job reporter configs are in new format.
+    std::optional<int> MaxInProgressJobDataSize;
+    std::optional<int> MaxInProgressOperationIdDataSize;
+    std::optional<int> MaxInProgressJobSpecDataSize;
+    std::optional<int> MaxInProgressJobStderrDataSize;
+    std::optional<int> MaxInProgressJobFailContextDataSize;
+    
     TJobReporterConfig()
     {
-        RegisterParameter("enabled", Enabled)
-            .Default(true);
-        RegisterParameter("reporting_period", ReportingPeriod)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("min_repeat_delay", MinRepeatDelay)
-            .Default(TDuration::Seconds(10));
-        RegisterParameter("max_repeat_delay", MaxRepeatDelay)
-            .Default(TDuration::Minutes(5));
-        RegisterParameter("max_in_progress_job_data_size", MaxInProgressJobDataSize)
-            .Default(250_MB);
-        RegisterParameter("max_in_progress_operation_id_data_size", MaxInProgressOperationIdDataSize)
-            .Default(10_MB);
-        RegisterParameter("max_in_progress_job_spec_data_size", MaxInProgressJobSpecDataSize)
-            .Default(250_MB);
-        RegisterParameter("max_in_progress_job_stderr_data_size", MaxInProgressJobStderrDataSize)
-            .Default(250_MB);
-        RegisterParameter("max_in_progress_job_fail_context_data_size", MaxInProgressJobFailContextDataSize)
-            .Default(250_MB);
-        RegisterParameter("max_items_in_batch", MaxItemsInBatch)
-            .Default(1000);
+        RegisterParameter("job_handler", JobHandler)
+            .DefaultNew();
+        RegisterParameter("operation_id_handler", OperationIdHandler)
+            .DefaultNew();
+        RegisterParameter("job_spec_handler", JobSpecHandler)
+            .DefaultNew();
+        RegisterParameter("job_stderr_handler", JobStderrHandler)
+            .DefaultNew();
+        RegisterParameter("job_fail_context_handler", JobFailContextHandler)
+            .DefaultNew();
+        RegisterParameter("job_profile_handler", JobProfileHandler)
+            .DefaultNew();
+
         RegisterParameter("user", User)
             .Default(NRpc::RootUserName);
         RegisterParameter("report_statistics_lz4", ReportStatisticsLz4)
             .Default(false);
+
+        RegisterParameter("max_in_progress_job_data_size", MaxInProgressJobDataSize)
+            .Default();
+        RegisterParameter("max_in_progress_operation_id_data_size", MaxInProgressOperationIdDataSize)
+            .Default();
+        RegisterParameter("max_in_progress_job_spec_data_size", MaxInProgressJobSpecDataSize)
+            .Default();
+        RegisterParameter("max_in_progress_job_stderr_data_size", MaxInProgressJobStderrDataSize)
+            .Default();
+        RegisterParameter("max_in_progress_job_fail_context_data_size", MaxInProgressJobFailContextDataSize)
+            .Default();
+
+        RegisterPreprocessor([&] {
+            OperationIdHandler->MaxInProgressDataSize = 10_MB;
+
+            JobHandler->Path = NScheduler::GetOperationsArchiveJobsPath();
+            OperationIdHandler->Path = NScheduler::GetOperationsArchiveOperationIdsPath();
+            JobSpecHandler->Path = NScheduler::GetOperationsArchiveJobSpecsPath();
+            JobStderrHandler->Path = NScheduler::GetOperationsArchiveJobStderrsPath();
+            JobFailContextHandler->Path = NScheduler::GetOperationsArchiveJobFailContextsPath();
+            JobProfileHandler->Path = NScheduler::GetOperationsArchiveJobProfilesPath();
+        });
+
+        RegisterPostprocessor([&] {
+            if (MaxInProgressJobDataSize) {
+                JobHandler->MaxInProgressDataSize = *MaxInProgressJobDataSize;
+            }
+            if (MaxInProgressOperationIdDataSize) {
+                OperationIdHandler->MaxInProgressDataSize = *MaxInProgressOperationIdDataSize;
+            }
+            if (MaxInProgressJobSpecDataSize) {
+                JobSpecHandler->MaxInProgressDataSize = *MaxInProgressJobSpecDataSize;
+            }
+            if (MaxInProgressJobStderrDataSize) {
+                JobStderrHandler->MaxInProgressDataSize = *MaxInProgressJobStderrDataSize;
+            }
+            if (MaxInProgressJobFailContextDataSize) {
+                JobFailContextHandler->MaxInProgressDataSize = *MaxInProgressJobFailContextDataSize;
+            }
+        });
     }
 };
 

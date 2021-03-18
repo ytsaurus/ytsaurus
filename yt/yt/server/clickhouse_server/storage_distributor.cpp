@@ -14,6 +14,7 @@
 #include "conversion.h"
 #include "storage_base.h"
 #include "subquery.h"
+#include "subquery_header.h"
 #include "table.h"
 
 #include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
@@ -114,10 +115,12 @@ DB::BlockInputStreamPtr CreateLocalStream(
 DB::Pipe CreateRemoteSource(
     const IClusterNodePtr& remoteNode,
     const DB::ASTPtr& queryAst,
+    TQueryId remoteQueryId,
     const DB::Context& context,
     const DB::ThrottlerPtr& throttler,
     const DB::Tables& externalTables,
     DB::QueryProcessingStage::Enum processedStage,
+    int storageIndex,
     TLogger logger)
 {
     const auto& Logger = logger;
@@ -127,7 +130,7 @@ DB::Pipe CreateRemoteSource(
     std::string query = queryToString(queryAst);
 
     // TODO(max42): can be done only once?
-    DB::Block header = DB::InterpreterSelectQuery(
+    DB::Block blockHeader = DB::InterpreterSelectQuery(
         queryAst,
         context,
         DB::SelectQueryOptions(processedStage).analyze()).getSampleBlock();
@@ -135,7 +138,7 @@ DB::Pipe CreateRemoteSource(
     auto remoteQueryExecutor = std::make_shared<DB::RemoteQueryExecutor>(
         remoteNode->GetConnection(),
         query,
-        header,
+        blockHeader,
         context,
         throttler,
         context.getQueryContext().getScalars(),
@@ -143,19 +146,22 @@ DB::Pipe CreateRemoteSource(
         processedStage);
     remoteQueryExecutor->setPoolMode(DB::PoolMode::GET_MANY);
 
-    auto remoteQueryId = ToString(TQueryId::Create());
     auto* traceContext = GetCurrentTraceContext();
     if (!traceContext) {
         traceContext = queryContext->TraceContext.Get();
     }
     YT_VERIFY(traceContext);
-    auto traceId = traceContext->GetTraceId();
-    auto spanId = traceContext->GetSpanId();
-    auto sampled = traceContext->IsSampled() ? "T" : "F";
-    auto compositeQueryId = Format("%v@%v@%" PRIx64 "@%v", remoteQueryId, traceId, spanId, sampled);
 
-    YT_LOG_INFO("Composite query id for secondary query constructed (RemoteQueryId: %v, CompositeQueryId: %v)", remoteQueryId, compositeQueryId);
-    remoteQueryExecutor->setQueryId(compositeQueryId);
+    auto queryHeader = New<TSubqueryHeader>();
+    queryHeader->QueryId = remoteQueryId;
+    queryHeader->ParentQueryId = queryContext->QueryId;
+    queryHeader->SpanContext = traceContext->GetSpanContext();
+    queryHeader->StorageIndex = storageIndex;
+
+    auto serializedQueryHeader = ConvertToYsonString(queryHeader, EYsonFormat::Text).ToString();
+
+    YT_LOG_INFO("Subquery header for secondary query constructed (RemoteQueryId: %v, SubqueryHeader: %v)", remoteQueryId, serializedQueryHeader);
+    remoteQueryExecutor->setQueryId(serializedQueryHeader);
 
     // XXX(max42): should we use this?
     // if (!table_func_ptr)
@@ -234,8 +240,10 @@ public:
                 << TErrorAttribute("storage_index", StorageContext_->Index);
         }
 
+        int selectQueryIndex = QueryContext_->SelectQueries.size();
+        QueryContext_->SelectQueries.push_back(TString(queryToString(QueryInfo_.query)));
+
         SpecTemplate_ = TSubquerySpec();
-        SpecTemplate_.InitialQueryId = QueryContext_->QueryId;
         SpecTemplate_.InitialQuery = SerializeAndMaybeTruncateSubquery(*QueryInfo_.query);
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
 
@@ -330,14 +338,20 @@ public:
                 index,
                 subqueryCount);
 
+            auto remoteQueryId = TQueryId::Create();
+
             auto pipe = CreateRemoteSource(
                 cliqueNode,
                 subqueryAst,
+                remoteQueryId,
                 newContext,
                 throttler,
                 Context_.getExternalTables(),
                 ProcessedStage_,
+                selectQueryIndex,
                 Logger);
+
+            QueryContext_->SecondaryQueryIds.push_back(ToString(remoteQueryId));
 
             pipes.emplace_back(std::move(pipe));
         }

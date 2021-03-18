@@ -177,6 +177,25 @@ TSecurityManagerConfig::TSecurityManagerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TQueryStatisticsReporterConfig::TQueryStatisticsReporterConfig()
+{
+    RegisterParameter("distributed_queries_handler", DistributedQueriesHandler)
+        .DefaultNew();
+    RegisterParameter("secondary_queries_handler", SecondaryQueriesHandler)
+        .DefaultNew();
+    RegisterParameter("ancestor_query_ids_handler", AncestorQueryIdsHandler)
+        .DefaultNew();
+
+    RegisterParameter("user", User)
+        .Default("yt-clickhouse");
+    
+    RegisterPreprocessor([&] {
+        Enabled = false;
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TYtConfig::TYtConfig()
 {
     RegisterParameter("clique_id", CliqueId)
@@ -271,6 +290,9 @@ TYtConfig::TYtConfig()
         .DefaultNew();
 
     RegisterParameter("table_columnar_statistics_cache", TableColumnarStatisticsCache)
+        .DefaultNew();
+
+    RegisterParameter("query_statistics_reporter", QueryStatisticsReporter)
         .DefaultNew();
 
     RegisterPreprocessor([&] {

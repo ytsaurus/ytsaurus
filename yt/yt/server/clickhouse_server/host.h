@@ -72,8 +72,12 @@ public:
     NApi::NNative::IClientPtr CreateClient(const TString& user);
 
     TClusterNodes GetNodes() const;
+    
+    int GetInstanceCookie() const;
 
     const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
+    
+    const TQueryStatisticsReporterPtr& GetQueryStatisticsReporter() const;
 
     TYtConfigPtr GetConfig() const;
 
