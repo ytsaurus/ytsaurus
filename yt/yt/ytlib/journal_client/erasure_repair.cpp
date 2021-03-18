@@ -63,7 +63,7 @@ void DoRepairErasedParts(
         YT_LOG_DEBUG("Reading rows (Rows: %v-%v)",
             firstRowIndex,
             rowCount - 1);
-        
+
         auto future = partsReader->ReadRows(options, firstRowIndex, rowCount - firstRowIndex);
         auto rowLists = WaitFor(future)
             .ValueOrThrow();
@@ -71,6 +71,9 @@ void DoRepairErasedParts(
         YT_VERIFY(rowLists.size() == writers.size());
 
         i64 readRowCount = static_cast<i64>(rowLists[0].size());
+        for (const auto& rowList : rowLists) {
+            YT_VERIFY(rowList.size() == readRowCount);
+        }
 
         YT_LOG_DEBUG("Rows received (Rows: %v-%v)",
             firstRowIndex,
@@ -95,10 +98,10 @@ void DoRepairErasedParts(
 
         if (!futures.empty()) {
             YT_LOG_DEBUG("Started waiting for writers");
-            
+
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();
-            
+
             YT_LOG_DEBUG("Finished waiting for writers");
         }
 

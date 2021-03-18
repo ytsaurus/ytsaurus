@@ -280,9 +280,16 @@ private:
 
         return AllSucceeded(futures)
             .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<std::vector<TSharedRef>>& fetchedRowLists) {
+                i64 rowCount = Max<i64>();
                 std::vector<std::vector<TSharedRef>> repairRowLists;
                 for (int index = 0; index < repairIndices.size(); ++index) {
-                    repairRowLists.push_back(fetchedRowLists[index]);
+                    const auto& fetchedRowList = fetchedRowLists[index];
+                    repairRowLists.push_back(fetchedRowList);
+                    rowCount = std::min<i64>(rowCount, fetchedRowList.size());
+                }
+
+                for (auto& repairRowList : repairRowLists) {
+                    repairRowList.resize(rowCount);
                 }
 
                 auto erasedRowLists = RepairErasureJournalRows(
@@ -297,7 +304,11 @@ private:
                         if (it == indices.end()) {
                             return false;
                         }
-                        requestedRowLists.push_back(rows[std::distance(indices.begin(), it)]);
+
+                        const auto& rowList = rows[std::distance(indices.begin(), it)];
+                        YT_VERIFY(rowList.size() == rowCount);
+                        requestedRowLists.push_back(rowList);
+
                         return true;
                     };
                     YT_VERIFY(tryFill(fetchIndices, fetchedRowLists) || tryFill(erasedIndices, erasedRowLists));
