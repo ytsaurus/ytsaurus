@@ -4,8 +4,8 @@ import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.discovery.DiscoveryService
 import ru.yandex.spark.launcher.ByopLauncher.ByopConfig
-import ru.yandex.spark.yt.wrapper.Utils
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
+import ru.yandex.spark.yt.wrapper.Utils.parseDuration
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -58,7 +58,7 @@ object WorkerLauncherArgs {
     args.required("memory"),
     YtClientConfiguration(args.optional),
     args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
-    args.optional("wait-master-timeout").map(Utils.parseDuration).getOrElse(5 minutes)
+    args.optional("wait-master-timeout").map(parseDuration).getOrElse(5 minutes)
   )
 
   def apply(args: Array[String]): WorkerLauncherArgs = WorkerLauncherArgs(Args(args))

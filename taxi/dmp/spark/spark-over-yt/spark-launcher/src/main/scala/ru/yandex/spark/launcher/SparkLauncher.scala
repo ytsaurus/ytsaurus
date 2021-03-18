@@ -1,7 +1,6 @@
 package ru.yandex.spark.launcher
 
 import java.io.File
-import java.net.InetAddress
 
 import io.circe.generic.auto._
 import io.circe.parser._
@@ -27,8 +26,7 @@ trait SparkLauncher {
   private val historyServerClass = "org.apache.spark.deploy.history.HistoryServer"
 
   def startMaster: MasterService = {
-    val host = InetAddress.getLocalHost.getHostName
-    val thread = runSparkThread(masterClass, namedArgs = Map("host" -> host))
+    val thread = runSparkThread(masterClass, namedArgs = Map("host" -> Utils.ytHostnameOrIpAddress))
     val address = readAddressOrDie("master", 5 minutes, thread)
     MasterService("Master", address, thread)
   }
@@ -39,7 +37,7 @@ trait SparkLauncher {
       namedArgs = Map(
         "cores" -> cores.toString,
         "memory" -> memory,
-        "host" -> InetAddress.getLocalHost.getHostName
+        "host" -> Utils.ytHostnameOrIpAddress
       ),
       positionalArgs = Seq(s"spark://${master.hostAndPort}")
     )
@@ -126,7 +124,9 @@ trait SparkLauncher {
       command,
       new File("."),
       "JAVA_HOME" -> javaHome,
-      "SPARK_HOME" -> sparkHome
+      "SPARK_HOME" -> sparkHome,
+      // when using MTN, Spark should use ip address and not hostname, because hostname is not in DNS
+      "SPARK_LOCAL_HOSTNAME" -> Utils.ytHostnameOrIpAddress
     ).run(ProcessLogger(log.info(_)))
   }
 

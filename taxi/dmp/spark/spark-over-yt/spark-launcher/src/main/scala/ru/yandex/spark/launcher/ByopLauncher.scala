@@ -50,6 +50,13 @@ trait ByopLauncher {
           .replaceAll("\\$SPARK_YT_BYOP_MONITORING_PORT", config.monitoringPort.toString)
           .replaceAll("\\$YT_OPERATION_ALIAS", config.operationAlias)
           .replaceAll("\\$YT_JOB_COOKIE", config.ytJobCookie)
+          .replaceAll("\\$TVM_ENABLED", config.tvm_enabled.toString)
+          .replaceAll("\\$TVM_CLIENT_ID", config.tvm_client_id.toString)
+          .replaceAll("\\$TVM_CLIENT_SECRET", config.tvm_client_secret)
+          .replaceAll("\\$TVM_ENABLE_USER_TICKET_CHECKING", config.tvm_enable_user_ticket_checking.toString)
+          .replaceAll("\\$TVM_ENABLE_SERVICE_TICKET_FETCHING", config.tvm_client_enable_service_ticket_fetching.toString)
+          .replaceAll("\\$TVM_HOST", config.tvm_host)
+          .replaceAll("\\$TVM_PORT", config.tvm_port.toString)
 
         val is = new ByteArrayInputStream(replacedAliases.getBytes(StandardCharsets.UTF_8))
         try {
@@ -137,7 +144,19 @@ object ByopLauncher {
                         rpcPort: Int,
                         monitoringPort: Int,
                         operationAlias: String,
-                        ytJobCookie: String)
+                        ytJobCookie: String,
+                        tvm_enabled: Boolean,
+                        tvm_host: String,
+                        tvm_port: Int,
+                        tvm_client_id: Int,
+                        tvm_client_secret: String,
+                        tvm_enable_user_ticket_checking: Boolean,
+                        tvm_client_enable_service_ticket_fetching: Boolean) {
+
+    override def toString: String = {
+      copy(tvm_client_secret = "*****").toString
+    }
+  }
 
   object ByopConfig {
     private val baseName = "byop"
@@ -172,16 +191,25 @@ object ByopLauncher {
     def create(sparkConf: Map[String, String], args: Args): Option[ByopConfig] = {
       if (byopEnabled(sparkConf)) {
         implicit val a = args
+        val tvmEnabled = optionArg("tvm-enabled").exists(_.toBoolean)
         Some(ByopConfig(
           binaryPath = arg("binary-path"),
           configPath = arg("config-path"),
           rpcPort = arg("port").toInt,
           monitoringPort = optionArg("monitoring-port").map(_.toInt).getOrElse(27001),
           operationAlias = args.optional("operation-alias").getOrElse(sys.env("YT_OPERATION_ALIAS")),
-          ytJobCookie = args.optional("job-cookie").getOrElse(sys.env("YT_JOB_COOKIE"))
+          ytJobCookie = args.optional("job-cookie").getOrElse(sys.env("YT_JOB_COOKIE")),
+          tvm_enabled = tvmEnabled,
+          tvm_host = optionArg("tvm-host").getOrElse("localhost"),
+          tvm_port = optionArg("tvm-port").map(_.toInt).getOrElse(13000),
+          tvm_client_id = sys.env.get("YT_SECURE_VAULT_SPARK_TVM_ID").map(_.toInt).getOrElse(0),
+          tvm_client_secret = sys.env.getOrElse("YT_SECURE_VAULT_SPARK_TVM_SECRET", ""),
+          tvm_enable_user_ticket_checking = optionArg("tvm-enable-user-ticket-checking")
+            .map(_.toBoolean).getOrElse(tvmEnabled),
+          tvm_client_enable_service_ticket_fetching = optionArg("tvm-enable-service-ticket-checking")
+            .map(_.toBoolean).getOrElse(tvmEnabled),
         ))
       } else None
     }
   }
-
 }
