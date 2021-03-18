@@ -11,8 +11,7 @@ import ru.yandex.yson.YsonConsumer;
  * Description of the type.
  * <p>
  * This is a base class for all other type describing classes
- * and it provides static factory methods for creating
- *
+ * and it provides static factory methods for creating all kinds of types.
  */
 public abstract class TiType {
     protected final TypeName typeName;
