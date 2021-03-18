@@ -478,6 +478,21 @@ TProtobufOneofOptions GetOneofOptions(
         options = GetDefaultOneofOptions(oneofDescriptor->containing_type());
     }
     ParseProtobufOneofOptions(oneofDescriptor->options().GetRepeatedExtension(oneof_flags), &options);
+    auto variantFieldName = oneofDescriptor->options().GetExtension(variant_field_name);
+    switch (options.Mode) {
+        case EProtobufOneofMode::SeparateFields:
+            if (variantFieldName) {
+                ythrow TApiUsageError() << "\"variant_field_name\" requires (NYT.oneof_flags) = VARIANT";
+            }
+            break;
+        case EProtobufOneofMode::Variant:
+            if (variantFieldName) {
+                options.VariantFieldName = variantFieldName;
+            } else {
+                options.VariantFieldName = oneofDescriptor->name();
+            }
+            break;
+    }
     return options;
 }
 
@@ -659,7 +674,7 @@ void MakeProtoFormatOneofConfig(
             addFields(&oneofFields);
             auto oneofField = TNode()
                 ("proto_type", "oneof")
-                ("name", oneofDescriptor->name())
+                ("name", oneofOptions.VariantFieldName)
                 ("fields", std::move(oneofFields));
             fields->Add(std::move(oneofField));
             return;
@@ -861,7 +876,7 @@ void AddOneofField(
             TVector<NTi::TStructType::TOwnedMember> variantMembers;
             addFields(&variantMembers, /* removeOptionality */ true);
             members->emplace_back(
-                oneofDescriptor.name(),
+                oneofOptions.VariantFieldName,
                 NTi::Optional(NTi::Variant(NTi::Struct(std::move(variantMembers)))));
             return;
         }

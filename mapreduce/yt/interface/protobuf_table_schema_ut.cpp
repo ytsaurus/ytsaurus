@@ -1,6 +1,7 @@
 #include "common.h"
 #include "errors.h"
 #include "common_ut.h"
+#include "util/generic/fwd.h"
 
 #include <mapreduce/yt/interface/protobuf_table_schema_ut.pb.h>
 
@@ -356,25 +357,27 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
             })))},
         });
 
-        auto type = NTi::Optional(NTi::Struct({
-            {"field", NTi::Optional(NTi::String())},
-            {"Oneof2", NTi::Optional(NTi::Variant(NTi::Struct({
-                {"x2", NTi::Int64()},
-                {"y2", NTi::String()},
-                {"z2", embedded},
-            })))},
-            {"y1", NTi::Optional(NTi::String())},
-            {"z1", NTi::Optional(embedded)},
-            {"x1", NTi::Optional(NTi::Int64())},
-        }));
+        auto createType = [&] (TString oneof2Name) {
+            return NTi::Optional(NTi::Struct({
+                {"field", NTi::Optional(NTi::String())},
+                {oneof2Name, NTi::Optional(NTi::Variant(NTi::Struct({
+                    {"x2", NTi::Int64()},
+                    {"y2", NTi::String()},
+                    {"z2", embedded},
+                })))},
+                {"y1", NTi::Optional(NTi::String())},
+                {"z1", NTi::Optional(embedded)},
+                {"x1", NTi::Optional(NTi::Int64())},
+            }));
+        };
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema()
                 .Name("DefaultSeparateFields")
-                .Type(type))
+                .Type(createType("variant_field_name")))
             .AddColumn(TColumnSchema()
                 .Name("NoDefault")
-                .Type(type))
+                .Type(createType("Oneof2")))
             .AddColumn(TColumnSchema()
                 .Name("SerializationProtobuf")
                 .Type(NTi::Optional(NTi::Struct({

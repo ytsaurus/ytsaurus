@@ -92,4 +92,5 @@ extend google.protobuf.MessageOptions
 extend google.protobuf.OneofOptions
 {
     repeated EWrapperOneofFlag.Enum oneof_flags = 56788;
+    optional string variant_field_name = 56789;
 }
