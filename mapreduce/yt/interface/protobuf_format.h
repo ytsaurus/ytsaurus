@@ -61,6 +61,7 @@ enum class EProtobufOneofMode
 struct TProtobufOneofOptions
 {
     EProtobufOneofMode Mode = EProtobufOneofMode::Variant;
+    TString VariantFieldName;
 };
 
 struct TProtobufFieldOptions

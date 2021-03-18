@@ -314,6 +314,7 @@ message TWithOneof
 
         oneof Oneof2
         {
+            option (NYT.variant_field_name) = "variant_field_name";
             option (NYT.oneof_flags) = VARIANT;
             string y2 = 4;
             TEmbedded z2 = 6;
