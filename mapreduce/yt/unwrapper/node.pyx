@@ -6,6 +6,8 @@ from util.generic.hash cimport THashMap
 from util.generic.string cimport TString
 from util.system.types cimport i64, ui64
 
+from yt.yson.yson_types import YsonStringProxy, get_bytes
+
 
 cdef extern from "library/cpp/yson/node/node.h" namespace "NYT" nogil:
     cdef cppclass TNode:
@@ -65,9 +67,8 @@ def node_ui64(ui):
 
 
 cdef TString _to_TString(s):
-    assert isinstance(s, (basestring, bytes))
-    if isinstance(s, unicode):
-        s = s.encode('UTF-8')
+    assert isinstance(s, (basestring, bytes, YsonStringProxy))
+    s = get_bytes(s)
     return TString(<const char*>s, len(s))
 
 
@@ -108,7 +109,7 @@ cdef TNode _pyobj_to_TNode(obj):
             raise Exception()
     elif isinstance(obj, bool):
         return TNode(<cpp_bool>obj)
-    elif isinstance(obj, (basestring, bytes)):
+    elif isinstance(obj, (basestring, bytes, YsonStringProxy)):
         return TNode(_to_TString(obj))
     elif isinstance(obj, long):
         if obj < 2**63:
