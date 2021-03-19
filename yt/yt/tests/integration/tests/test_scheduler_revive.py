@@ -1357,6 +1357,37 @@ class TestDisabledJobRevival(TestJobRevivalBase):
 
         assert read_table("//tmp/t_out") == [{"a": 1}]
 
+    @authors("gritukan")
+    def test_fail_on_job_restart(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"a": 0}])
+
+        map_cmd = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("snapshot_written"),
+                events_on_fs().wait_event_cmd("scheduler_reconnected"),
+                "echo {a=1}",
+            ]
+        )
+        op = map(
+            track=False,
+            command=map_cmd,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"fail_on_job_restart": True})
+
+        job_id = self._wait_for_single_job(op.id)
+
+        events_on_fs().wait_event("snapshot_written")
+        op.wait_for_fresh_snapshot()
+
+        self._kill_and_start("controller_agents")
+
+        with pytest.raises(YtError):
+            op.track()
+
 
 ##################################################################
 
