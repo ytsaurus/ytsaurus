@@ -3,8 +3,10 @@ import pytest
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 from yt_commands import *
 
-from copy import deepcopy
 from time import sleep
+
+import shutil
+import os
 
 ##################################################################
 
@@ -342,29 +344,21 @@ class TestReregisterNode(YTEnvSetup):
     NUM_NODES = 2
     FIRST_CONFIG = None
     SECOND_CONFIG = None
-    SECOND_CONFIG_PTR = None
 
     @classmethod
     def _change_node_address(cls):
-        cls.SECOND_CONFIG_PTR["data_node"] = cls.FIRST_CONFIG["data_node"]
+        path1 = os.path.join(cls.FIRST_CONFIG["data_node"]["store_locations"][0]["path"], "uuid")
+        path2 = os.path.join(cls.SECOND_CONFIG["data_node"]["store_locations"][0]["path"], "uuid")
 
         with Restarter(cls.Env, NODES_SERVICE, sync=False):
-            cls.Env.rewrite_node_configs()
-
-    @classmethod
-    def _change_node_address_back(cls):
-        cls.SECOND_CONFIG_PTR["data_node"] = cls.SECOND_CONFIG["data_node"]
-
-        with Restarter(cls.Env, [NODES_SERVICE]):
-            cls.Env.rewrite_node_configs()
+            shutil.copy(path1, path2)
 
     @classmethod
     def modify_node_config(cls, config):
         if (cls.FIRST_CONFIG is None):
-            cls.FIRST_CONFIG = deepcopy(config)
+            cls.FIRST_CONFIG = config
         else:
-            cls.SECOND_CONFIG = deepcopy(config)
-            cls.SECOND_CONFIG_PTR = config
+            cls.SECOND_CONFIG = config
 
     @authors("aleksandra-zh")
     def test_reregister_node_with_different_address(self):
@@ -380,5 +374,3 @@ class TestReregisterNode(YTEnvSetup):
         wait(lambda: get_online_node_count() == 1)
         sleep(5)
         assert get_online_node_count() == 1
-
-        TestReregisterNode._change_node_address_back()
