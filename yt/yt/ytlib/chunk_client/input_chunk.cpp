@@ -173,6 +173,16 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
         TotalRowCount_ = std::max<i64>(0, UpperLimit_->GetRowIndex() - lowerLimit);
         TotalDataWeight_ = std::max(TotalDataWeight_, TotalRowCount_);
     }
+
+    // TODO(max42): remove this after YT-14049.
+    if (keyColumnCount && BoundaryKeys_) {
+        if (BoundaryKeys_->MinKey.GetCount() > *keyColumnCount) {
+            BoundaryKeys_->MinKey = GetKeyPrefix(BoundaryKeys_->MinKey, *keyColumnCount);
+        }
+        if (BoundaryKeys_->MaxKey.GetCount() > *keyColumnCount) {
+            BoundaryKeys_->MaxKey = GetKeyPrefix(BoundaryKeys_->MaxKey, *keyColumnCount);
+        }
+    }
 }
 
 void TInputChunk::Persist(const TStreamPersistenceContext& context)

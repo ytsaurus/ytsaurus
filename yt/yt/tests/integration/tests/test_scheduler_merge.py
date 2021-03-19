@@ -2036,6 +2036,41 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 "job_count": 2,
             })
 
+    @authors("max42")
+    def test_teleport_to_narrow_schema_and_merge(self):
+        # YT-14536.
+        create("table", "//tmp/t_wide", attributes={
+            "schema": [
+                {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            ],
+            "chunk_writer": {"block_size": 1},
+            "compression_codec": "none",
+        })
+        create("table", "//tmp/t_narrow", attributes={
+            "schema": [
+                {"name": "k1", "type": "int64", "sort_order": "ascending"},
+                {"name": "k2", "type": "int64"},
+            ],
+            "chunk_writer": {"block_size": 1},
+            "compression_codec": "none",
+        })
+
+        write_table("<append=%true>//tmp/t_wide", [{"k1": 1, "k2": 10}])
+        merge(in_=["//tmp/t_wide"],
+              out="//tmp/t_narrow",
+              mode="sorted",
+              merge_by=["k1"])
+
+        merge(in_=["//tmp/t_narrow"],
+              out="//tmp/t_narrow",
+              mode="sorted",
+              merge_by=["k1"],
+              spec={"force_transform": True})
+
+        assert read_table("//tmp/t_narrow") == [{"k1": 1, "k2": 10}]
+
+
 ##################################################################
 
 
