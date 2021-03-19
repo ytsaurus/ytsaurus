@@ -658,12 +658,11 @@ TEST_F(TYPathTest, NewReadRanges)
             "Exact read limit must have exactly one independent selector");
     }
     {
-        // TODO(max42): YT-14241.
         // Exact consisting of tablet_index or tablet_index + row_index (which is OK).
         std::vector<TReadRange> ranges(2);
         // tablet_index = 2
         ranges[0].LowerLimit().SetTabletIndex(2);
-        ranges[0].UpperLimit().SetTabletIndex(2);
+        ranges[0].UpperLimit().SetTabletIndex(3);
         // tablet_index = 2; row_index = 42;
         ranges[1].LowerLimit().SetTabletIndex(2);
         ranges[1].LowerLimit().SetRowIndex(42);

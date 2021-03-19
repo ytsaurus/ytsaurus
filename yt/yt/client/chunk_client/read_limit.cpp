@@ -633,8 +633,20 @@ TReadLimit TReadLimit::ToExactUpperCounterpart() const
         result.KeyBound_ = result.KeyBound_.Invert().ToggleInclusiveness();
     }
 
+    // Ordered dyntables obey pretty tricky logic. All rows are ordered by
+    // (tablet_index, row_index) tuple lexicographically. Exact selector is
+    // transformed to lower+upper limits like following:
+    // - {tablet_index = 42} -> {tablet_index = 42}..{tablet_index = 43}
+    // - {tablet_index = 42; row_index = 123} ->
+    //   {tablet_index = 42; row_index = 123}..{tablet_index = 42; row_index = 124}
+    // Thus, both for static and ordered dynamic tables we should increment (only)
+    // row index if it is present. Addititonally, for ordered dynamic tables,
+    // if row index is missing, we must increment tablet index if it is present.
+
     if (RowIndex_) {
         ++*result.RowIndex_;
+    } else if (TabletIndex_) {
+        ++*result.TabletIndex_;
     }
 
     if (Offset_) {
@@ -644,13 +656,6 @@ TReadLimit TReadLimit::ToExactUpperCounterpart() const
     if (ChunkIndex_) {
         ++*result.ChunkIndex_;
     }
-
-    // TODO(max42): YT-14241.
-    // Right now tablet index is used only when reading ordered dynamic tables,
-    // and they obey different rules. Tablet index selector is effectively
-    // inclusive since we order rows by (tablet_index, row_index). In particular,
-    // upper_bound = {tablet_index = 2} specifies rows up to tablet 2 __inclusive__.
-    // This leads to the fact that we do not need to increment tablet index here.
 
     return result;
 }

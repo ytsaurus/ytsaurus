@@ -518,6 +518,13 @@ protected:
             // Tablet index.
             YT_VERIFY((!entry->LowerLimit.GetTabletIndex() && !entry->UpperLimit.GetTabletIndex()) || isOrdered);
 
+            if (isOrdered) {
+                // Read limit {tablet_index = 42} is equivalent to {tablet_index = 42; row_index = 0},
+                // for ordered dynamic tables. Perform such transformation.
+                entry->LowerLimit.SetRowIndex(entry->LowerLimit.GetRowIndex().value_or(0));
+                entry->UpperLimit.SetRowIndex(entry->UpperLimit.GetRowIndex().value_or(0));
+            }
+
             TReadLimit childLowerBound;
             TReadLimit childUpperBound;
 
