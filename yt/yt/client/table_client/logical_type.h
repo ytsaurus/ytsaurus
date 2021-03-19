@@ -138,9 +138,6 @@ TLogicalTypePtr DetagLogicalType(const TLogicalTypePtr& type);
 void ToProto(NProto::TLogicalType* protoLogicalType, const TLogicalTypePtr& logicalType);
 void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLogicalType);
 
-void Serialize(const TLogicalTypePtr& schema, NYson::IYsonConsumer* consumer);
-void Deserialize(TLogicalTypePtr& schema, NYTree::INodePtr node);
-
 bool IsComparable(const TLogicalTypePtr& type);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +151,12 @@ struct TTypeV3LogicalTypeWrapper
 
 void Serialize(const TTypeV3LogicalTypeWrapper& wrapper, NYson::IYsonConsumer* consumer);
 void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node);
+
+void Serialize(const TLogicalTypePtr& type, NYson::IYsonConsumer* consumer);
+void Deserialize(TLogicalTypePtr& type, NYTree::INodePtr node);
+
 void DeserializeV3(TLogicalTypePtr& type, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(TLogicalTypePtr& type, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
