@@ -15,7 +15,6 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <library/cpp/monlib/encode/format.h>
 #include <library/cpp/monlib/encode/json/json.h>
 #include <library/cpp/monlib/encode/spack/spack_v1.h>
 
@@ -85,6 +84,8 @@ TSolomonExporter::TSolomonExporter(
     CollectionStartDelay_ = Registry_->GetSelfProfiler().Timer("/collection_delay");
     WindowErrors_ = Registry_->GetSelfProfiler().Counter("/window_error_count");
     ReadDelays_ = Registry_->GetSelfProfiler().Counter("/read_delay_count");
+    ResponseCacheMiss_ = Registry_->GetSelfProfiler().Counter("/response_cache_miss");
+    ResponseCacheHit_ = Registry_->GetSelfProfiler().Counter("/response_cache_hit");
 
     for (const auto& [name, config] : Config_->Shards) {
         LastShardFetch_[name] = std::nullopt;
@@ -187,6 +188,8 @@ void TSolomonExporter::DoCollect()
     };
 
     while (true) {
+        CleanResponseCache();
+
         waitUntil(nextGridTime);
 
         auto delay = TInstant::Now() - nextGridTime;
@@ -399,6 +402,9 @@ void TSolomonExporter::HandleShard(
                 THROW_ERROR_EXCEPTION("Unsupported format %Qv", NMonitoring::ContentTypeByFormat(format));
         }
 
+        rsp->GetHeaders()->Set("Content-Type", TString{NMonitoring::ContentTypeByFormat(format)});
+        rsp->GetHeaders()->Set("Content-Encoding", TString{NMonitoring::ContentEncodingByCompression(compression)});
+
         TCgiParameters params(req->GetUrl().RawQuery);
 
         std::optional<TDuration> period;
@@ -434,60 +440,16 @@ void TSolomonExporter::HandleShard(
             THROW_ERROR_EXCEPTION("Window is empty");
         }
 
-        std::vector<std::pair<std::vector<int>, TInstant>> readWindow;
-        if (period) {
-            auto selectWindow = [&] () -> TError {
-                int gridSubsample = 1;
-                if (grid) {
-                    gridSubsample = *grid / Config_->GridStep;
-                }
-
-                for (auto time : Window_) {
-                    if (time.second >= *now - *period && time.second < *now) {
-                        if (readWindow.empty() ||
-                            readWindow.back().first.size() >= static_cast<size_t>(gridSubsample)
-                        ) {
-                            readWindow.emplace_back(std::vector<int>{time.first}, time.second);
-                        } else {
-                            readWindow.back().first.push_back(time.first);
-                            readWindow.back().second = time.second;
-                        }
-                    }
-                }
-
-                auto readGrid = Config_->GridStep;
-                if (grid) {
-                    readGrid = *grid;
-                }
-
-                if (readWindow.size() != *period / readGrid ||
-                    readWindow.empty() ||
-                    readWindow.back().first.size() != static_cast<size_t>(gridSubsample))
-                {
-                    return TError("Read query is outside of window")
-                        << TErrorAttribute("now", now)
-                        << TErrorAttribute("period", period)
-                        << TErrorAttribute("grid", grid)
-                        << TErrorAttribute("window_first", Window_.front().second)
-                        << TErrorAttribute("window_last", Window_.back().second);
-                }
-
-                return {};
+        std::optional<TCacheKey> cacheKey;
+        if (now && period) {
+            cacheKey = TCacheKey{
+                .Shard = name,
+                .Format = format,
+                .Compression = compression,
+                .Now = *now,
+                .Period = *period,
+                .Grid = grid,
             };
-
-            if (auto error = selectWindow(); !error.IsOK()) {
-                ReadDelays_.Increment();
-                YT_LOG_WARNING(error, "Delaying sensor read (Delay: %v)", Config_->ReadDelay);
-                TDelayedExecutor::WaitForDuration(Config_->ReadDelay);
-                readWindow.clear();
-                if (auto error = selectWindow(); !error.IsOK()) {
-                    WindowErrors_.Increment();
-                    THROW_ERROR error;
-                }
-            }
-        } else {
-            YT_LOG_WARNING("Timestamp query arguments are missing; returning last value");
-            readWindow.emplace_back(std::vector<int>{Window_.back().first}, Window_.back().second);
         }
 
         auto solomonCluster = req->GetHeaders()->Find("X-Solomon-ClusterId");
@@ -498,6 +460,39 @@ void TSolomonExporter::HandleShard(
             now,
             period,
             grid);
+
+        if (cacheKey && TryReplyFromCache(*cacheKey, rsp)) {
+            return;
+        }
+
+        TReadWindow readWindow;
+        if (period) {
+            if (auto errorOrWindow = SelectReadWindow(*now, *period, grid); !errorOrWindow.IsOK()) {
+                ReadDelays_.Increment();
+                YT_LOG_WARNING(errorOrWindow, "Delaying sensor read (Delay: %v)", Config_->ReadDelay);
+                TDelayedExecutor::WaitForDuration(Config_->ReadDelay);
+
+                if (cacheKey && TryReplyFromCache(*cacheKey, rsp)) {
+                    return;
+                }
+
+                if (auto errorOrWindow = SelectReadWindow(*now, *period, grid); !errorOrWindow.IsOK()) {
+                    WindowErrors_.Increment();
+                    THROW_ERROR errorOrWindow;
+                } else {
+                    readWindow = errorOrWindow.Value();
+                }
+            } else {
+                readWindow = errorOrWindow.Value();
+            }
+        } else {
+            YT_LOG_WARNING("Timestamp query arguments are missing; returning last value");
+            readWindow.emplace_back(std::vector<int>{Window_.back().first}, Window_.back().second);
+        }
+
+        if (cacheKey) {
+            ResponseCacheMiss_.Increment();
+        }
 
         TReadOptions options;
         options.Host = Config_->Host;
@@ -535,11 +530,14 @@ void TSolomonExporter::HandleShard(
             LastFetch_ = TInstant::Now();
         }
 
-        rsp->GetHeaders()->Set("Content-Type", TString{NMonitoring::ContentTypeByFormat(format)});
-        rsp->GetHeaders()->Set("Content-Encoding", TString{NMonitoring::ContentEncodingByCompression(compression)});
         rsp->SetStatus(EStatusCode::OK);
 
-        WaitFor(rsp->WriteBody(TSharedRef::FromString(buffer.Str())))
+        auto replyBlob = TSharedRef::FromString(buffer.Str());
+        if (cacheKey) {
+            ResponseCache_[*cacheKey] = replyBlob;
+        }
+
+        WaitFor(rsp->WriteBody(replyBlob))
             .ThrowOnError();
     } catch(const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to export sensors");
@@ -547,6 +545,8 @@ void TSolomonExporter::HandleShard(
         if (!rsp->IsHeadersFlushed()) {
             try {
                 rsp->SetStatus(EStatusCode::InternalServerError);
+                rsp->GetHeaders()->Remove("Content-Type");
+                rsp->GetHeaders()->Remove("Content-Encoding");
 
                 // Send only message. It should be displayed nicely in Solomon UI.
                 WaitFor(rsp->WriteBody(TSharedRef::FromString(TError(ex).GetMessage())))
@@ -617,6 +617,94 @@ void TSolomonExporter::DoPushCoreProfiling()
 IYPathServicePtr TSolomonExporter::GetService() const
 {
     return Root_->Via(Invoker_);
+}
+
+TErrorOr<TReadWindow> TSolomonExporter::SelectReadWindow(TInstant now, TDuration period, std::optional<TDuration> grid)
+{
+    TReadWindow readWindow;
+
+    int gridSubsample = 1;
+    if (grid) {
+        gridSubsample = *grid / Config_->GridStep;
+    }
+
+    for (auto time : Window_) {
+        if (time.second >= now - period && time.second < now) {
+            if (readWindow.empty() ||
+                readWindow.back().first.size() >= static_cast<size_t>(gridSubsample)
+            ) {
+                readWindow.emplace_back(std::vector<int>{time.first}, time.second);
+            } else {
+                readWindow.back().first.push_back(time.first);
+                readWindow.back().second = time.second;
+            }
+        }
+    }
+
+    auto readGrid = Config_->GridStep;
+    if (grid) {
+        readGrid = *grid;
+    }
+
+    if (readWindow.size() != period / readGrid ||
+        readWindow.empty() ||
+        readWindow.back().first.size() != static_cast<size_t>(gridSubsample))
+    {
+        return TError("Read query is outside of window")
+            << TErrorAttribute("now", now)
+            << TErrorAttribute("period", period)
+            << TErrorAttribute("grid", grid)
+            << TErrorAttribute("window_first", Window_.front().second)
+            << TErrorAttribute("window_last", Window_.back().second);
+    }
+
+    return readWindow;
+}
+
+bool TSolomonExporter::TryReplyFromCache(const TCacheKey& cacheKey, const NHttp::IResponseWriterPtr& rsp)
+{
+    auto cacheHitIt = ResponseCache_.find(cacheKey);
+    if (cacheHitIt != ResponseCache_.end()) {
+        YT_LOG_DEBUG("Replying from cache");
+
+        ResponseCacheHit_.Increment();
+
+        rsp->SetStatus(EStatusCode::OK);
+        WaitFor(rsp->WriteBody(cacheHitIt->second))
+            .ThrowOnError();
+
+        return true;
+    }
+
+    return false;
+}
+
+void TSolomonExporter::CleanResponseCache()
+{
+    std::vector<TCacheKey> toRemove;
+    for (const auto& [key, response] : ResponseCache_) {
+        if (key.Now < TInstant::Now() - Config_->ResponseCacheTtl) {
+            toRemove.push_back(key);
+        }
+    }
+
+    for (const auto& removedKey : toRemove) {
+        ResponseCache_.erase(removedKey);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSolomonExporter::TCacheKey::operator size_t() const
+{
+    size_t hash = 0;
+    HashCombine(hash, Shard);
+    HashCombine(hash, static_cast<int>(Format));
+    HashCombine(hash, static_cast<int>(Compression));
+    HashCombine(hash, Now);
+    HashCombine(hash, Period);
+    HashCombine(hash, Grid);
+    return hash;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

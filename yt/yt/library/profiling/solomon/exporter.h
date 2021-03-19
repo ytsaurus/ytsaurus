@@ -13,6 +13,8 @@
 #include <yt/yt/core/ytree/yson_serializable.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 
+#include <library/cpp/monlib/encode/format.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/producer.h>
 
@@ -62,6 +64,8 @@ struct TSolomonExporterConfig
     bool ReportBuildInfo;
 
     bool ReportRestart;
+
+    TDuration ResponseCacheTtl;
 
     TDuration ReadDelay;
 
@@ -122,6 +126,9 @@ struct TSolomonExporterConfig
         RegisterParameter("shards", Shards)
             .Default();
 
+        RegisterParameter("response_cache_ttl", ResponseCacheTtl)
+            .Default(TDuration::Minutes(2));
+
         RegisterPostprocessor([this] {
             if (LingerTimeout.GetValue() % GridStep.GetValue() != 0) {
                 THROW_ERROR_EXCEPTION("\"linger_timeout\" must be multiple of \"grid_step\"");
@@ -177,9 +184,27 @@ private:
     std::optional<TInstant> LastFetch_;
     THashMap<TString, std::optional<TInstant>> LastShardFetch_;
 
+    struct TCacheKey
+    {
+        std::optional<TString> Shard;
+        ::NMonitoring::EFormat Format;
+        ::NMonitoring::ECompression Compression;
+
+        TInstant Now;
+        TDuration Period;
+        std::optional<TDuration> Grid;
+
+        bool operator == (const TCacheKey& other) const = default;
+
+        operator size_t () const;
+    };
+
+    THashMap<TCacheKey, TSharedRef> ResponseCache_;
+
     TEventTimer CollectionStartDelay_;
     TCounter WindowErrors_;
     TCounter ReadDelays_;
+    TCounter ResponseCacheHit_, ResponseCacheMiss_;
 
     class TSensorService
         : public NYTree::TYPathServiceBase
@@ -217,6 +242,12 @@ private:
         const NHttp::IResponseWriterPtr& rsp);
 
     void ValidatePeriodAndGrid(std::optional<TDuration> period, std::optional<TDuration> grid);
+
+    TErrorOr<TReadWindow> SelectReadWindow(TInstant now, TDuration period, std::optional<TDuration> grid);
+
+    bool TryReplyFromCache(const TCacheKey& cacheKey, const NHttp::IResponseWriterPtr& rsp);
+
+    void CleanResponseCache();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSolomonExporter)
