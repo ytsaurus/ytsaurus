@@ -686,7 +686,7 @@ TSharedRef THttpOutput::GetTrailersPart()
 
 TSharedRef THttpOutput::GetChunkHeader(size_t size)
 {
-    return TSharedRef::FromString(Format("%X\r\n", size));
+    return TSharedRef::FromString(Format("%llX\r\n", size));
 }
 
 void THttpOutput::Flush100Continue()

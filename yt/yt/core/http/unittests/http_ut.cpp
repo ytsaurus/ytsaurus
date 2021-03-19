@@ -381,19 +381,66 @@ TEST(THttpOutputTest, Full)
         },
     };
 
-    for (auto testCase : table) {
+    for (auto [messageType, expected, callback]: table) {
         auto fake = New<TFakeConnection>();
         auto config = New<THttpIOConfig>();
-        auto output = New<THttpOutput>(fake, std::get<0>(testCase), config);
+        auto output = New<THttpOutput>(fake, messageType, config);
 
         try {
-            std::get<2>(testCase)(output.Get());
+            callback(output.Get());
         } catch (const std::exception& ex) {
             ADD_FAILURE() << "Failed to write output"
-                << std::get<1>(testCase)
+                << expected
                 << ex.what();
         }
-        ASSERT_EQ(fake->Output, std::get<1>(testCase));
+        ASSERT_EQ(fake->Output, expected);
+    }
+}
+
+TEST(THttpOutputTest, LargeResponse)
+{
+    constexpr ui64 Size = (4ULL << 30) + 1;
+    const auto body = TString(Size, 'x');
+
+    struct TLargeFakeConnection
+        : public TFakeConnection
+    {
+        virtual TFuture<void> WriteV(const TSharedRefArray& refs) override
+        {
+            for (const auto& ref : refs) {
+                if (ref.Size() == Size) {
+                    LargeRef = ref;
+                } else {
+                    Output += TString(ref.Begin(), ref.Size());
+                }
+            }
+            return VoidFuture;
+        }
+
+        TSharedRef LargeRef;
+    };
+
+    auto fake = New<TLargeFakeConnection>();
+    auto config = New<THttpIOConfig>();
+    auto output = New<THttpOutput>(fake, EMessageType::Response, config);
+
+    output->SetStatus(EStatusCode::OK);
+    WriteChunk(output.Get(), body);
+    FinishBody(output.Get());
+
+    // The large part is skipped and saved in LargeRef field.
+    ASSERT_EQ(fake->Output,
+        "HTTP/1.1 200 OK\r\n"
+        "Transfer-Encoding: chunked\r\n"
+        "\r\n"
+        "100000001\r\n" // 4 GiB + 1B
+        "\r\n"
+        "0\r\n"
+        "\r\n"
+    );
+
+    if (TStringBuf(fake->LargeRef.Begin(), fake->LargeRef.Size()) != body) {
+        ADD_FAILURE() << "Wrong large chunk";
     }
 }
 
