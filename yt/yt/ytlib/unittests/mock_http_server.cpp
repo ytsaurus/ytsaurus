@@ -56,13 +56,13 @@ void TMockHttpServer::Start()
     ServerImpl_ = std::make_unique<THttpServerImpl>();
     ServerImpl_->SetCallback(Callback_);
 
-    auto port = PortManager_.GetPort();
+    Port_ = NTesting::GetFreePort();
 
     Server_ = std::make_unique<THttpServer>(
         ServerImpl_.get(),
         THttpServerOptions()
             .SetHost("localhost")
-            .SetPort(port));
+            .SetPort(Port_));
     Server_->Start();
 }
 

@@ -14,7 +14,7 @@
 
 #include <yt/yt/core/misc/fs.h>
 
-#include <library/cpp/testing/unittest/tests_data.h>
+#include <library/cpp/testing/common/network.h>
 
 namespace NYT::NBus {
 namespace {
@@ -118,19 +118,12 @@ class TBusTest
     : public testing::Test
 {
 public:
-    ui16 Port;
+    NTesting::TPortHolder Port;
     TString Address;
-    TPortManager PortManager;
 
     TBusTest()
     {
-#ifdef _darwin_
-        // XXX(babenko): PortManager is based on SO_REUSEPORT, and I failed to make it work for MacOS and our Bus layer.
-        // Must revisit this issue sometime later.
-        Port = 1234;
-#else
-        Port = PortManager.GetPort();
-#endif
+        Port = NTesting::GetFreePort();
         Address = Format("localhost:%v", Port);
     }
 
@@ -266,7 +259,7 @@ TEST_F(TBusTest, TerminateBeforeAccept)
 
 TEST_F(TBusTest, Failed)
 {
-    auto port = PortManager.GetPort();
+    auto port = NTesting::GetFreePort();
 
     auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Format("localhost:%v", port)));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());

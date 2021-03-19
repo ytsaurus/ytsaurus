@@ -6,7 +6,7 @@
 
 #include <library/cpp/http/server/http.h>
 
-#include <library/cpp/testing/unittest/tests_data.h>
+#include <library/cpp/testing/common/network.h>
 
 namespace NYT::NTests {
 
@@ -59,7 +59,7 @@ private:
     };
 
     TCallback Callback_;
-    TPortManager PortManager_;
+    NTesting::TPortHolder Port_;
 
     std::unique_ptr<THttpServerImpl> ServerImpl_;
     std::unique_ptr<THttpServer> Server_;

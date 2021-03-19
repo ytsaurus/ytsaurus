@@ -41,7 +41,7 @@
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <library/cpp/testing/unittest/tests_data.h>
+#include <library/cpp/testing/common/network.h>
 
 #include <random>
 
@@ -98,7 +98,7 @@ class TTestBase
 public:
     virtual void SetUp() override final
     {
-        Port_ = PortManager_.GetPort();
+        Port_ = NTesting::GetFreePort();
         Address_ = Format("localhost:%v", Port_);
 
         Server_ = CreateServer(Port_);
@@ -152,8 +152,7 @@ public:
     }
 
 protected:
-    TPortManager PortManager_;
-    ui16 Port_;
+    NTesting::TPortHolder Port_;
     TString Address_;
 
     NConcurrency::TThreadPoolPtr WorkerPool_;
