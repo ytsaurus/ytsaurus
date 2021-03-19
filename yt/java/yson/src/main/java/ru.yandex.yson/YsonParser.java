@@ -18,12 +18,12 @@ public class YsonParser {
     // NB. Yson specs:
     //     https://docs.yandex-team.ru/yt/description/common/yson
     //     https://wiki.yandex-team.ru/yt/internal/yson/
-    private static final char[] nanLiteral = "%nan".toCharArray();
-    private static final char[] falseLiteral = "%false".toCharArray();
-    private static final char[] trueLiteral = "%true".toCharArray();
-    private static final char[] infLiteral = "%inf".toCharArray();
-    private static final char[] plusInfLiteral = "%+inf".toCharArray();
-    private static final char[] minusInfLiteral = "%-inf".toCharArray();
+    private static final char[] NAN_LITERAL = "%nan".toCharArray();
+    private static final char[] FALSE_LITERAL = "%false".toCharArray();
+    private static final char[] TRUE_LITERAL = "%true".toCharArray();
+    private static final char[] INF_LITERAL = "%inf".toCharArray();
+    private static final char[] PLUS_INF_LITERAL = "%+inf".toCharArray();
+    private static final char[] MINUS_INF_LITERAL = "%-inf".toCharArray();
 
     private final YsonTokenizer tokenizer;
     private final BufferReference bufferReference = new BufferReference();
@@ -49,6 +49,10 @@ public class YsonParser {
         this(new ByteZeroCopyInput(buffer, offset, length));
     }
 
+    private YsonParser(ZeroCopyInput input) {
+        this.tokenizer = new YsonTokenizer(input);
+    }
+
     /**
      * Parse YSON node.
      *
@@ -56,17 +60,15 @@ public class YsonParser {
      * stream contains trailing (non whitespace) bytes.
      */
     public void parseNode(YsonConsumer consumer) {
-        {
-            byte b = tokenizer.readByte();
-            parseNodeImpl(true, b, consumer);
-        }
+        byte b1 = tokenizer.readByte();
+        parseNodeImpl(true, b1, consumer);
 
         while (true) {
             int maybeByte = tokenizer.tryReadByte();
             if (maybeByte == YsonTokenizer.END_OF_STREAM) {
                 break;
             }
-            byte b = (byte)maybeByte;
+            byte b = (byte) maybeByte;
             if (!isSpace(b)) {
                 throw new YsonError(String.format("Unexpected trailing character: %s", debugByteString(b)));
             }
@@ -86,7 +88,7 @@ public class YsonParser {
                 return;
             }
             consumer.onListItem();
-            parseNodeImpl(true, (byte)maybeByte, consumer);
+            parseNodeImpl(true, (byte) maybeByte, consumer);
             expectFragmentSeparator = true;
         }
     }
@@ -104,7 +106,7 @@ public class YsonParser {
         if (maybeByte == YsonTokenizer.END_OF_STREAM) {
             return false;
         }
-        parseNodeImpl(true, (byte)maybeByte, consumer);
+        parseNodeImpl(true, (byte) maybeByte, consumer);
         expectFragmentSeparator = true;
         return true;
     }
@@ -112,10 +114,6 @@ public class YsonParser {
     //
     // Implementation
     //
-    private YsonParser(ZeroCopyInput input) {
-        this.tokenizer = new YsonTokenizer(input);
-    }
-
     private void parseNodeImpl(boolean allowAttributes, byte currentByte, YsonConsumer consumer) {
         while (true) {
             switch (currentByte) {
@@ -174,27 +172,27 @@ public class YsonParser {
                 case '%':
                     currentByte = tokenizer.readByte();
                     if (currentByte == 'n') {
-                        verifyLiteral(2, nanLiteral);
+                        verifyLiteral(2, NAN_LITERAL);
                         consumer.onDouble(Double.NaN);
                         return;
                     } else if (currentByte == 't') {
-                        verifyLiteral(2, trueLiteral);
+                        verifyLiteral(2, TRUE_LITERAL);
                         consumer.onBoolean(true);
                         return;
                     } else if (currentByte == 'f') {
-                        verifyLiteral(2, falseLiteral);
+                        verifyLiteral(2, FALSE_LITERAL);
                         consumer.onBoolean(false);
                         return;
                     } else if (currentByte == 'i') {
-                        verifyLiteral(2, infLiteral);
+                        verifyLiteral(2, INF_LITERAL);
                         consumer.onDouble(Double.POSITIVE_INFINITY);
                         return;
                     } else if (currentByte == '+') {
-                        verifyLiteral(2, plusInfLiteral);
+                        verifyLiteral(2, PLUS_INF_LITERAL);
                         consumer.onDouble(Double.POSITIVE_INFINITY);
                         return;
                     } else if (currentByte == '-') {
-                        verifyLiteral(2, minusInfLiteral);
+                        verifyLiteral(2, MINUS_INF_LITERAL);
                         consumer.onDouble(Double.NEGATIVE_INFINITY);
                         return;
                     }
@@ -223,7 +221,7 @@ public class YsonParser {
             if (maybeByte == YsonTokenizer.END_OF_STREAM) {
                 throw new YsonError("Unexpected end of stream");
             }
-            byte b = (byte)maybeByte;
+            byte b = (byte) maybeByte;
             if (b == YsonTags.END_LIST) {
                 return;
             }
@@ -240,7 +238,7 @@ public class YsonParser {
                 return maybeByte;
             }
 
-            byte b = (byte)maybeByte;
+            byte b = (byte) maybeByte;
             if (isSpace(b)) {
                 continue;
             } else if (expectSeparator) {
@@ -272,7 +270,11 @@ public class YsonParser {
                     expectSeparator = false;
                     continue;
                 } else {
-                    throw new YsonError(String.format("Expected ';' or '%s', found: %s", (char) (int) endByte, debugByteString(b)));
+                    throw new YsonError(
+                            String.format("Expected ';' or '%s', found: %s",
+                                    (char) endByte,
+                                    debugByteString(b)
+                            ));
                 }
             }
             parseMapKey(b, consumer);
@@ -340,7 +342,7 @@ public class YsonParser {
             if (literal[i] != c) {
                 throw new YsonError(String.format(
                         "Bad yson literal: %s",
-                        String.copyValueOf(literal, 0, i) + (char)c));
+                        String.copyValueOf(literal, 0, i) + (char) c));
             }
         }
     }
@@ -361,9 +363,13 @@ public class YsonParser {
             throw new YsonError(String.format("Yson string length is negative: %d", stringLength));
         }
         if (stringLength > Integer.MAX_VALUE) {
-            throw new YsonError(String.format("Yson string length exceeds limit: %d > %d", stringLength, Integer.MAX_VALUE));
+            throw new YsonError(
+                    String.format("Yson string length exceeds limit: %d > %d",
+                            stringLength,
+                            Integer.MAX_VALUE
+                    ));
         }
-        tokenizer.readBytes((int)stringLength, bufferReference);
+        tokenizer.readBytes((int) stringLength, bufferReference);
     }
 
     @Nullable
@@ -382,14 +388,14 @@ public class YsonParser {
             if (maybeByte == YsonTokenizer.END_OF_STREAM) {
                 break;
             }
-            byte b = (byte)maybeByte;
+            byte b = (byte) maybeByte;
             if ('a' <= b && b <= 'z' ||
                     'A' <= b && b <= 'Z' ||
                     '0' <= b && b <= '9' ||
                     b == '_' ||
                     b == '.' ||
-                    b == '-')
-            {
+                    b == '-'
+            ) {
                 out.write(b);
             } else {
                tokenizer.unreadByte();
@@ -400,21 +406,21 @@ public class YsonParser {
     }
 
     private boolean tryConsumeTextNumber(byte firstByte, YsonConsumer consumer) {
-        final int INT64 = 0;
-        final int UINT64 = 1;
-        final int DOUBLE = 2;
+        final int int64Type = 0;
+        final int uint64Type = 1;
+        final int doubleType = 2;
 
         int numberType;
         if ('0' <= firstByte && firstByte <= '9' || firstByte == '-' || firstByte == '+') {
-            numberType = INT64;
+            numberType = int64Type;
         } else if (firstByte == '.') {
-            numberType = DOUBLE;
+            numberType = doubleType;
         } else {
             return false;
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append((char)firstByte);
+        sb.append((char) firstByte);
         while (true) {
             int maybeByte = tokenizer.tryReadByte();
             if (maybeByte == YsonTokenizer.END_OF_STREAM) {
@@ -422,13 +428,13 @@ public class YsonParser {
             }
             byte b = (byte) maybeByte;
             if (b >= '0' && b <= '9' || b == '-' || b == '+') {
-                sb.append((char)b);
+                sb.append((char) b);
             } else if (b == '.' || b == 'e' || b == 'E') {
-                sb.append((char)b);
-                numberType = DOUBLE;
+                sb.append((char) b);
+                numberType = doubleType;
             } else if (b == 'u') {
-                sb.append((char)b);
-                numberType = UINT64;
+                sb.append((char) b);
+                numberType = uint64Type;
             } else {
                 tokenizer.unreadByte();
                 break;
@@ -436,7 +442,7 @@ public class YsonParser {
         }
 
         switch (numberType) {
-            case INT64: {
+            case int64Type: {
                 String text = sb.toString();
                 long value;
                 try {
@@ -447,7 +453,7 @@ public class YsonParser {
                 consumer.onInteger(value);
                 return true;
             }
-            case UINT64: {
+            case uint64Type: {
                 sb.deleteCharAt(sb.length() - 1); // trim trailing 'u'
                 String text = sb.toString();
                 long value;
@@ -459,7 +465,7 @@ public class YsonParser {
                 consumer.onUnsignedInteger(value);
                 return true;
             }
-            case DOUBLE: {
+            case doubleType: {
                 String text = sb.toString();
                 double value;
                 try {
@@ -515,6 +521,8 @@ public class YsonParser {
                     case '\\':
                         out.write('\\');
                         continue;
+                    default:
+                        break;
                 }
                 if (current == 'x') {
                     // шестнадцатиричная последовательность (максимум два числа)
@@ -532,7 +540,7 @@ public class YsonParser {
                         out.write((byte) first);
                     } else {
                         int value = (first << 4) | second;
-                        out.write((byte)value);
+                        out.write((byte) value);
                     }
                     continue;
                 }
@@ -559,7 +567,7 @@ public class YsonParser {
                                     "Invalid escape sequence: \\%d%d%d",
                                     firstOctal, secondOctal, thirdOctal));
                         }
-                        out.write((byte)value);
+                        out.write((byte) value);
                     }
                 }
             }
@@ -612,26 +620,25 @@ public class YsonParser {
 }
 
 class BufferReference {
-    private static final byte[] emptyBuffer = new byte[]{};
+    static final byte[] EMPTY_BUFFER = new byte[]{};
 
-    public byte[] buffer = emptyBuffer;
-    public int length = 0;
-    public int offset = 0;
+    byte[] buffer = EMPTY_BUFFER;
+    int length = 0;
+    int offset = 0;
 }
 
 class YsonTokenizer {
-    static public final int END_OF_STREAM = Integer.MAX_VALUE;
-    static private final byte[] emptyBuffer = new byte[]{};
+    public static final int END_OF_STREAM = Integer.MAX_VALUE;
 
     private final ZeroCopyInput underlying;
     private final BufferReference tmp = new BufferReference();
 
-    private byte[] buffer = emptyBuffer;
+    private byte[] buffer = BufferReference.EMPTY_BUFFER;
     private int bufferOffset = 0;
     private int bufferLength = 0;
-    private byte[] largeStringBuffer = emptyBuffer;
+    private byte[] largeStringBuffer = BufferReference.EMPTY_BUFFER;
 
-    public YsonTokenizer(ZeroCopyInput underlying) {
+    YsonTokenizer(ZeroCopyInput underlying) {
         this.underlying = underlying;
     }
 
@@ -767,16 +774,16 @@ class YsonTokenizer {
         long bits = 0;
         if (bufferOffset + 8 <= bufferLength) {
             bits |= (buffer[bufferOffset++] & 0xFF);
-            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 8;
-            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 16;
-            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 24;
-            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 32;
-            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 40;
-            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 48;
-            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 56;
+            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 8;
+            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 16;
+            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 24;
+            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 32;
+            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 40;
+            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 48;
+            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 56;
         } else {
             for (int i = 0; i < 64; i += 8) {
-                bits |= (long)(readByte() & 0xFF) << i;
+                bits |= (long) (readByte() & 0xFF) << i;
             }
         }
         return bits;
@@ -791,11 +798,11 @@ class BufferedStreamZeroCopyInput implements ZeroCopyInput {
     final InputStream underlying;
     final byte[] buffer;
 
-    public BufferedStreamZeroCopyInput(InputStream input, int bufferSize) {
+    BufferedStreamZeroCopyInput(InputStream input, int bufferSize) {
         this(input, new byte[bufferSize]);
     }
 
-    public BufferedStreamZeroCopyInput(InputStream input, byte[] buffer) {
+    BufferedStreamZeroCopyInput(InputStream input, byte[] buffer) {
         if (buffer.length == 0) {
             throw new IllegalArgumentException("Buffer must be nonempty");
         }
@@ -832,7 +839,7 @@ class ByteZeroCopyInput implements ZeroCopyInput {
     int offset;
     int length;
 
-    public ByteZeroCopyInput(@Nullable byte[] buffer, int offset, int length) {
+    ByteZeroCopyInput(@Nullable byte[] buffer, int offset, int length) {
         this.buffer = buffer;
         this.offset = offset;
         this.length = length;

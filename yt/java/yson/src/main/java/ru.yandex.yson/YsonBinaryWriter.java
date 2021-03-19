@@ -14,7 +14,7 @@ public class YsonBinaryWriter implements ClosableYsonConsumer {
     // Note about implementation:
     // this class has a bunch of methods (related to varints)
     // that are copy-pasted from com.google.protobuf.OutputStreamEncoder
-    private final static int DEFAULT_BUFFER_SIZE = 4096;
+    private static final int DEFAULT_BUFFER_SIZE = 4096;
 
     private final OutputStream output;
     private final byte[] buffer;
