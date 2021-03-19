@@ -104,6 +104,7 @@ public:
     void SetDynamicTags(std::vector<TTag> dynamicTags);
     std::vector<TTag> GetDynamicTags();
 
+    void SetGridFactor(std::function<int(const TString&)> gridFactor);
     void SetWindowSize(int windowSize);
     void ProcessRegistrations();
     void Collect(IInvokerPtr offloadInvoker = GetSyncInvoker());
@@ -134,6 +135,7 @@ public:
 private:
     i64 Iteration_ = 0;
     std::optional<int> WindowSize_;
+    std::function<int(const TString&)> GridFactor_;
     TProfiler SelfProfiler_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, DynamicTagsLock_);

@@ -17,8 +17,9 @@ static auto& Logger = SolomonLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSensorSet::TSensorSet(TSensorOptions options, i64 iteration, int windowSize)
+TSensorSet::TSensorSet(TSensorOptions options, i64 iteration, int windowSize, int gridFactor)
     : Options_(options)
+    , GridFactor_(gridFactor)
     , CountersCube_{windowSize, iteration}
     , TimeCountersCube_{windowSize, iteration}
     , GaugesCube_{windowSize, iteration}
@@ -358,6 +359,11 @@ void TSensorSet::LegacyReadSensors(const TString& name, TTagRegistry* tagRegistr
         sample->Value = value.Max().MicroSeconds();
         return false;
     });
+}
+
+int TSensorSet::GetGridFactor() const
+{
+    return GridFactor_;
 }
 
 int TSensorSet::GetObjectCount() const

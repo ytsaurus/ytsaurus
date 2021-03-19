@@ -167,7 +167,11 @@ DEFINE_REFCOUNTED_TYPE(THistogramState)
 class TSensorSet
 {
 public:
-    TSensorSet(TSensorOptions options, i64 iteration, int windowSize);
+    TSensorSet(
+        TSensorOptions options,
+        i64 iteration,
+        int windowSize,
+        int gridFactor);
 
     bool IsEmpty() const;
 
@@ -197,12 +201,14 @@ public:
 
     void LegacyReadSensors(const TString& name, TTagRegistry* tagRegistry);
 
+    int GetGridFactor() const;
     int GetObjectCount() const;
     int GetCubeSize() const;
     const TError& GetError() const;
 
 private:
     const TSensorOptions Options_;
+    const int GridFactor_;
 
     TError Error_;
 
