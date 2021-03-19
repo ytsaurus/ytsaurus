@@ -26,13 +26,13 @@ public class SetNode extends MutatePath<SetNode> implements HighLevelRequest<TRe
     private boolean force;
 
     public SetNode(String path, byte[]value) {
-        super(path);
+        super(YPath.simple(path));
         this.value = value;
         this.force = false;
     }
 
     public SetNode(YPath path, YTreeNode value) {
-        super(path.toString());
+        super(path);
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             YTreeBinarySerializer.serialize(value, baos);
@@ -51,7 +51,7 @@ public class SetNode extends MutatePath<SetNode> implements HighLevelRequest<TRe
 
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqSetNode.Builder, ?> builder) {
-        builder.body().setPath(path)
+        builder.body().setPath(path.toString())
                 .setForce(force)
                 .setValue(ByteString.copyFrom(value));
         if (transactionalOptions != null) {

@@ -33,12 +33,12 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
     private final Map<String, YTreeNode> attributes = new HashMap<>();
 
     public CreateNode(String path, ObjectType type) {
-        super(path);
+        super(YPath.simple(path));
         this.type = type.value();
     }
 
     public CreateNode(YPath path, ObjectType type) {
-        super(path.toString());
+        super(path);
         this.type = type.value();
     }
 
@@ -48,7 +48,7 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
     }
 
     public CreateNode(YPath path, CypressNodeType type, Map<String, YTreeNode> attributes) {
-        this(path.toString(), ObjectType.from(type));
+        this(path, ObjectType.from(type));
         setAttributes(attributes);
     }
 
@@ -86,7 +86,7 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCreateNode.Builder, ?> builder) {
         builder.body()
-                .setPath(path)
+                .setPath(path.toString())
                 .setType(type)
                 .setRecursive(recursive)
                 .setForce(force)
