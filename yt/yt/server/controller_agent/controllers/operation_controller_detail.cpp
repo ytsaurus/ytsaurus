@@ -1183,6 +1183,12 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
 void TOperationControllerBase::AbortAllJoblets()
 {
+    if (Spec_->FailOnJobRestart && !JobletMap.empty()) {
+        OnOperationFailed(TError(
+            NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" spec option is set"));
+    }
+
     for (const auto& [jobId, joblet] : JobletMap) {
         auto jobSummary = TAbortedJobSummary(jobId, EAbortReason::Scheduler);
         joblet->Task->OnJobAborted(joblet, jobSummary);
