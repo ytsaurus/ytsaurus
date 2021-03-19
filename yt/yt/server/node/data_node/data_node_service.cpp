@@ -142,6 +142,7 @@ public:
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkFragmentSet)
+            .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
             .SetQueueSizeLimit(100000)
             .SetConcurrencyLimit(100000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows)
@@ -878,7 +879,7 @@ private:
                                     fragment.offset(),
                                     fragment.length()
                                 },
-                                fragments[fragmentIndex++]);
+                                std::move(fragments[fragmentIndex++]));
                             readRequests.push_back(std::move(readRequest));
                         }
                     }
@@ -914,7 +915,7 @@ private:
         } else {
             AllSucceeded(std::move(prepareReaderFutures))
                 .Subscribe(BIND(std::move(afterReadersPrepared))
-                    .Via(Bootstrap_->GetStorageHeavyInvoker()));
+                    .Via(Bootstrap_->GetStorageLookupInvoker()));
         }
     }
 
