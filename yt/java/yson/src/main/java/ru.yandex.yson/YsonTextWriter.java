@@ -189,7 +189,10 @@ public class YsonTextWriter implements ClosableYsonConsumer {
 }
 
 class YsonTextUtils {
-    private static final char[] digits = "0123456789abcdef".toCharArray();
+    private static final char[] DIGITS = "0123456789abcdef".toCharArray();
+
+    private YsonTextUtils() {
+    }
 
     static void writeQuotedByte(byte b, Writer out) {
         try {
@@ -209,17 +212,18 @@ class YsonTextUtils {
                 case '\\':
                     out.append("\\\\");
                     return;
+                default:
+                    break;
             }
             if (b <= 0x1f || b >= 0x7f) {
                 out.append("\\x");
-                out.append(digits[(b & 255) >>> 4]);
-                out.append(digits[b & 15]);
+                out.append(DIGITS[(b & 255) >>> 4]);
+                out.append(DIGITS[b & 15]);
             } else {
-                out.append((char)b);
+                out.append((char) b);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 }
-
