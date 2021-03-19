@@ -280,7 +280,13 @@ private:
 
     i64 UpperRowIndexLimit() const
     {
-        return UpperLimit_.HasRowIndex() ? UpperLimit_.GetRowIndex() : std::numeric_limits<i64>::max();
+        if (UpperLimit_.HasRowIndex()) {
+            return UpperLimit_.GetRowIndex();
+        } else if (UpperLimit_.HasTabletIndex()) {
+            return 0;
+        } else {
+            return std::numeric_limits<i64>::max();
+        }
     }
 
     TLegacyOwningKey LowerKeyLimit() const

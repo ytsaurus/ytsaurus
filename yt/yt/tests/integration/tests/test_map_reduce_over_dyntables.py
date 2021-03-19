@@ -586,7 +586,9 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
             "{exact={tablet_index=1; row_index=3}};"
             "{lower_limit={tablet_index=0; row_index=1}; upper_limit={tablet_index=0; row_index=0}};"
             "{lower_limit={tablet_index=0; row_index=3}; upper_limit={tablet_index=0; row_index=0}};"
-            "{lower_limit={tablet_index=2; row_index=0}; upper_limit={tablet_index=3; row_index=1}}]>"
+            "{lower_limit={tablet_index=2; row_index=0}; upper_limit={tablet_index=3; row_index=1}};"
+            "{lower_limit={tablet_index=2;}; upper_limit={tablet_index=3;}};"
+            "]>"
         )
         self._validate_output([])
 
@@ -594,7 +596,9 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
             "<ranges=["
             "{lower_limit={tablet_index=0; row_index=1}; upper_limit={tablet_index=0; row_index=4}};"
             "{lower_limit={tablet_index=0; row_index=5}; upper_limit={tablet_index=1; row_index=2}};"
-            "{lower_limit={tablet_index=1; row_index=1}; upper_limit={tablet_index=2; row_index=1}}]>"
+            "{lower_limit={tablet_index=1; row_index=1}; upper_limit={tablet_index=2; row_index=1}};"
+            "{lower_limit={tablet_index=0;}; upper_limit={tablet_index=1;}};"
+            "]>"
         )
         self._validate_output(
             [
@@ -604,6 +608,9 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
                 {"key": 5, "tablet_index": 1, "range_index": 1},
                 {"key": 5, "tablet_index": 1, "range_index": 2},
                 {"key": 6, "tablet_index": 1, "range_index": 2},
+                {"key": 0, "tablet_index": 0, "range_index": 3},
+                {"key": 1, "tablet_index": 0, "range_index": 3},
+                {"key": 2, "tablet_index": 0, "range_index": 3},
             ]
         )
 
