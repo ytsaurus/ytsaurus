@@ -48,7 +48,13 @@ int main(int argc, char* argv[])
         internalShardConfig->Filter = {"yt/solomon"};
 
         auto ytallocShardConfig = New<TShardConfig>();
-        ytallocShardConfig->Filter = {"yt/ytalloc"};
+        ytallocShardConfig->Filter = {"yt/yt_alloc"};
+
+        if (!fast) {
+            ytallocShardConfig->GridStep = TDuration::Seconds(30);
+        } else {
+            ytallocShardConfig->GridStep = TDuration::Seconds(6);
+        }
 
         auto defaultShardConfig = New<TShardConfig>();
         defaultShardConfig->Filter = {""};

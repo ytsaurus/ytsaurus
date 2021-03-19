@@ -27,9 +27,14 @@ struct TShardConfig
 {
     std::vector<TString> Filter;
 
+    std::optional<TDuration> GridStep;
+
     TShardConfig()
     {
         RegisterParameter("filter", Filter)
+            .Default();
+        
+        RegisterParameter("grid_step", GridStep)
             .Default();
     }
 };
@@ -134,10 +139,29 @@ struct TSolomonExporterConfig
                 THROW_ERROR_EXCEPTION("\"linger_timeout\" must be multiple of \"grid_step\"");
             }
         });
+    
+        RegisterPostprocessor([this] {
+            for (const auto& [name, shard] : Shards) {
+                if (!shard->GridStep) {
+                    continue;
+                }
+
+                if (shard->GridStep < GridStep) {
+                    THROW_ERROR_EXCEPTION("shard \"grid_step\" must be greater than global \"grid_step\"");
+                }
+
+                if (shard->GridStep->GetValue() % GridStep.GetValue() != 0) {
+                    THROW_ERROR_EXCEPTION("shard \"grid_step\" must be multiple of global \"grid_step\"");
+                }
+
+                if (LingerTimeout.GetValue() % shard->GridStep->GetValue() != 0) {
+                    THROW_ERROR_EXCEPTION("\"linger_timeout\" must be multiple shard \"grid_step\"");
+                }
+            }
+        });
     }
 
-
-    bool Filter(const TString& shardName, const TString& sensorName);
+    TShardConfigPtr MatchShard(const TString& sensorName);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSolomonExporterConfig)
@@ -176,7 +200,8 @@ private:
     NConcurrency::TThreadPoolPtr ThreadPool_;
 
     TFuture<void> Collector_;
-    std::vector<std::pair<int, TInstant>> Window_;
+
+    std::vector<std::pair<i64, TInstant>> Window_;
 
     const NConcurrency::TPeriodicExecutorPtr CoreProfilingPusher_;
 
@@ -241,13 +266,15 @@ private:
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp);
 
-    void ValidatePeriodAndGrid(std::optional<TDuration> period, std::optional<TDuration> grid);
+    void ValidatePeriodAndGrid(std::optional<TDuration> period, std::optional<TDuration> readGridStep, TDuration gridStep);
 
-    TErrorOr<TReadWindow> SelectReadWindow(TInstant now, TDuration period, std::optional<TDuration> grid);
+    TErrorOr<TReadWindow> SelectReadWindow(TInstant now, TDuration period, std::optional<TDuration> readGridStep, TDuration gridStep);
 
     bool TryReplyFromCache(const TCacheKey& cacheKey, const NHttp::IResponseWriterPtr& rsp);
 
     void CleanResponseCache();
+
+    bool FilterDefaultGrid(const TString& sensorName);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSolomonExporter)

@@ -20,7 +20,7 @@ def test_url():
         ]
 
         p = yatest.common.execute(cmd, wait=False, env={"YT_LOG_LEVEL": "DEBUG"})
-        time.sleep(15)
+        time.sleep(20)
         assert p.running
 
         yield f"http://localhost:{port}"
@@ -50,10 +50,10 @@ def test_get_last(test_url, format):
     check_ok(test_url + "/solomon/shard/default", headers={"Accept": format})
 
 
-def format_now(delta=None):
+def format_now(delta=None, grid=2):
     d = datetime.datetime.utcnow()
-    if d.second % 2 != 0:
-        d -= datetime.timedelta(seconds=1)
+    if d.second % grid != 0:
+        d -= datetime.timedelta(seconds=d.second % grid)
 
     if delta:
         d += delta
@@ -65,12 +65,14 @@ def format_now(delta=None):
 @pytest.mark.parametrize('format', ["application/json", "application/x-spack"])
 def test_timestamp_args(test_url, format):
     now = format_now()
-
     check_ok(test_url + f"/solomon/all?now={now}&period=10s", headers={"Accept": format})
 
     # test reply cache
     for i in range(10):
         check_ok(test_url + f"/solomon/all?now={now}&period=6s", headers={"Accept": format})
+
+    now = format_now(grid=6)
+    check_ok(test_url + f"/solomon/shard/ytalloc?now={now}&period=12s", headers={"Accept": format})
 
 
 @pytest.mark.parametrize('format', ["application/json", "application/x-spack"])

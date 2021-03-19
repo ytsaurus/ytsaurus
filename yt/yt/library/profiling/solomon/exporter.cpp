@@ -36,9 +36,9 @@ static auto& Logger = SolomonLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TSolomonExporterConfig::Filter(const TString& shardName, const TString& sensorName)
+TShardConfigPtr TSolomonExporterConfig::MatchShard(const TString& sensorName)
 {
-    std::optional<TString> matchedShard;
+    TShardConfigPtr matchedShard;
     int matchSize = 0;
 
     for (const auto& [name, config] : Shards) {
@@ -49,17 +49,12 @@ bool TSolomonExporterConfig::Filter(const TString& shardName, const TString& sen
 
             if (prefix.size() > static_cast<size_t>(matchSize)) {
                 matchSize = prefix.size();
-                matchedShard = name;
-                continue;
-            }
-
-            if (prefix.size() == static_cast<size_t>(matchSize) && name == shardName) {
-                matchedShard = name;
+                matchedShard = config;
             }
         }
     }
 
-    return matchedShard == shardName;
+    return matchedShard;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,6 +87,18 @@ TSolomonExporter::TSolomonExporter(
     }
 
     Registry_->SetWindowSize(Config_->WindowSize);
+    Registry_->SetGridFactor([config] (const TString& name) -> int {
+        auto shard = config->MatchShard(name);
+        if (!shard) {
+            return 1;
+        }
+
+        if (!shard->GridStep) {
+            return 1;
+        }
+
+        return shard->GridStep->GetValue() / config->GridStep.GetValue();
+    });
 
     if (config->ReportBuildInfo) {
         TProfiler profiler{registry, ""};
@@ -187,6 +194,23 @@ void TSolomonExporter::DoCollect()
         TDelayedExecutor::WaitForDuration(deadline - now);
     };
 
+    // Compute start time. Zero iteration time should be aligned with each GridStep.
+    while (true) {
+        bool aligned = true;
+        for (const auto& [name, shard] : Config_->Shards) {
+            if (shard->GridStep && nextGridTime.GetValue() % shard->GridStep->GetValue() != 0) {
+                aligned = false;
+            }
+        }
+
+        if (aligned) {
+            break;
+        }
+
+        nextGridTime += Config_->GridStep;
+    }
+
+    YT_LOG_DEBUG("Sensor collector started (StartTime: %v)", nextGridTime);
     while (true) {
         CleanResponseCache();
 
@@ -198,13 +222,13 @@ void TSolomonExporter::DoCollect()
         YT_LOG_DEBUG("Started sensor collection (Delay: %v)", delay);
         Registry_->ProcessRegistrations();
 
-        auto i = Registry_->IndexOf(Registry_->GetNextIteration());
+        auto iteration = Registry_->GetNextIteration();
         {
             TForbidContextSwitchGuard guard;
             Registry_->Collect(ThreadPool_ ? ThreadPool_->GetInvoker() : GetSyncInvoker());
         }
 
-        Window_.emplace_back(i, nextGridTime);
+        Window_.emplace_back(iteration, nextGridTime);
         if (Window_.size() > static_cast<size_t>(Registry_->GetWindowSize())) {
             Window_.erase(Window_.begin());
         }
@@ -334,7 +358,7 @@ std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options)
 
         // Read last value.
         auto readOptions = options;
-        readOptions.Times.emplace_back(std::vector<int>{Window_.back().first}, TInstant::Zero());
+        readOptions.Times.emplace_back(std::vector<int>{Registry_->IndexOf(Window_.back().first)}, TInstant::Zero());
         readOptions.ConvertCountersToRateGauge = false;
         readOptions.ExportSummary |= this_->Config_->ExportSummary;
         readOptions.ExportSummaryAsMax |= this_->Config_->ExportSummaryAsMax;
@@ -349,6 +373,9 @@ std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options)
                 readOptions.InstanceTags.emplace_back(k, v);
             }
         }
+        readOptions.SensorFilter = [this] (const TString& sensorName) {
+            return FilterDefaultGrid(sensorName);
+        };
 
         encoder->OnStreamBegin();
         Registry_->ReadSensors(readOptions, encoder.Get());
@@ -417,14 +444,14 @@ void TSolomonExporter::HandleShard(
             now = TInstant::ParseIso8601(it->second);
         }
 
-        std::optional<TDuration> grid;
+        std::optional<TDuration> readGridStep;
         if (auto gridHeader = req->GetHeaders()->Find("X-Solomon-GridSec"); gridHeader) {
             int gridSeconds;
             if (!TryFromString<int>(*gridHeader, gridSeconds)) {
                 THROW_ERROR_EXCEPTION("Invalid value of \"X-Solomon-GridSec\" header")
                     << TErrorAttribute("value", *gridHeader);
             }
-            grid = TDuration::Seconds(gridSeconds);
+            readGridStep = TDuration::Seconds(gridSeconds);
         }
 
         if ((now && !period) || (period && !now)) {
@@ -433,7 +460,15 @@ void TSolomonExporter::HandleShard(
                 << TErrorAttribute("period", period);
         }
 
-        ValidatePeriodAndGrid(period, grid);
+        auto gridStep = Config_->GridStep;
+        if (name) {
+            auto shardConfig = Config_->Shards[*name];
+            if (shardConfig->GridStep) {
+                gridStep = *shardConfig->GridStep;
+            }
+        }
+
+        ValidatePeriodAndGrid(period, readGridStep, gridStep);
 
         if (Window_.empty()) {
             WindowErrors_.Increment();
@@ -448,7 +483,7 @@ void TSolomonExporter::HandleShard(
                 .Compression = compression,
                 .Now = *now,
                 .Period = *period,
-                .Grid = grid,
+                .Grid = readGridStep,
             };
         }
 
@@ -459,7 +494,7 @@ void TSolomonExporter::HandleShard(
             solomonCluster ? *solomonCluster : "",
             now,
             period,
-            grid);
+            readGridStep);
 
         if (cacheKey && TryReplyFromCache(*cacheKey, rsp)) {
             return;
@@ -467,7 +502,7 @@ void TSolomonExporter::HandleShard(
 
         TReadWindow readWindow;
         if (period) {
-            if (auto errorOrWindow = SelectReadWindow(*now, *period, grid); !errorOrWindow.IsOK()) {
+            if (auto errorOrWindow = SelectReadWindow(*now, *period, readGridStep, gridStep); !errorOrWindow.IsOK()) {
                 ReadDelays_.Increment();
                 YT_LOG_WARNING(errorOrWindow, "Delaying sensor read (Delay: %v)", Config_->ReadDelay);
                 TDelayedExecutor::WaitForDuration(Config_->ReadDelay);
@@ -476,7 +511,7 @@ void TSolomonExporter::HandleShard(
                     return;
                 }
 
-                if (auto errorOrWindow = SelectReadWindow(*now, *period, grid); !errorOrWindow.IsOK()) {
+                if (auto errorOrWindow = SelectReadWindow(*now, *period, readGridStep, gridStep); !errorOrWindow.IsOK()) {
                     WindowErrors_.Increment();
                     THROW_ERROR errorOrWindow;
                 } else {
@@ -487,7 +522,22 @@ void TSolomonExporter::HandleShard(
             }
         } else {
             YT_LOG_WARNING("Timestamp query arguments are missing; returning last value");
-            readWindow.emplace_back(std::vector<int>{Window_.back().first}, Window_.back().second);
+
+            int gridFactor = gridStep / Config_->GridStep;
+            for (auto i = static_cast<int>(Window_.size()) - 1; i >= 0; --i) {
+                auto [iteration, time] = Window_[i];
+                if (iteration % gridFactor == 0) {
+                    readWindow.emplace_back(std::vector<int>{Registry_->IndexOf(iteration / gridFactor)}, time);
+                    break;
+                }
+            }
+
+            if (readWindow.empty()) {
+                THROW_ERROR_EXCEPTION("Can't find latest timestamp")
+                    << TErrorAttribute("first_iteration", Window_[0].first)
+                    << TErrorAttribute("grid_factor", gridFactor)
+                    << TErrorAttribute("window_size", Window_.size());
+            }
         }
 
         if (cacheKey) {
@@ -501,9 +551,9 @@ void TSolomonExporter::HandleShard(
         if (Config_->ConvertCountersToRate) {
             options.ConvertCountersToRateGauge = true;
 
-            options.RateDenominator = Config_->GridStep.SecondsFloat();
-            if (grid) {
-                options.RateDenominator = grid->SecondsFloat();
+            options.RateDenominator = gridStep.SecondsFloat();
+            if (readGridStep) {
+                options.RateDenominator = readGridStep->SecondsFloat();
             }
         }
 
@@ -513,10 +563,16 @@ void TSolomonExporter::HandleShard(
         options.ExportSummaryAsMax = Config_->ExportSummaryAsMax;
         options.ExportSummaryAsAvg = Config_->ExportSummaryAsAvg;
         options.MarkAggregates = Config_->MarkAggregates;
-        options.LingerWindowSize = Config_->LingerTimeout / Config_->GridStep;
+        options.LingerWindowSize = Config_->LingerTimeout / gridStep;
 
         if (name) {
-            options.SensorFilter = std::bind(&TSolomonExporterConfig::Filter, Config_.Get(), *name, std::placeholders::_1);
+            options.SensorFilter = [&] (const TString& sensorName) {
+                return Config_->MatchShard(sensorName) == Config_->Shards[*name];
+            };
+        } else {
+            options.SensorFilter = [this] (const TString& sensorName) {
+                return FilterDefaultGrid(sensorName);
+            };
         }
 
         encoder->OnStreamBegin();
@@ -558,46 +614,46 @@ void TSolomonExporter::HandleShard(
     }
 }
 
-void TSolomonExporter::ValidatePeriodAndGrid(std::optional<TDuration> period, std::optional<TDuration> grid)
+void TSolomonExporter::ValidatePeriodAndGrid(std::optional<TDuration> period, std::optional<TDuration> readGridStep, TDuration gridStep)
 {
     if (!period) {
         return;
     }
 
-    if (*period < Config_->GridStep) {
+    if (*period < gridStep) {
         THROW_ERROR_EXCEPTION("Period cannot be lower than grid step")
             << TErrorAttribute("period", *period)
-            << TErrorAttribute("grid_step", Config_->GridStep);
+            << TErrorAttribute("grid_step", gridStep);
     }
 
-    if (period->GetValue() % Config_->GridStep.GetValue() != 0) {
+    if (period->GetValue() % gridStep.GetValue() != 0) {
         THROW_ERROR_EXCEPTION("Period must be multiple of grid step")
             << TErrorAttribute("period", *period)
-            << TErrorAttribute("grid_step", Config_->GridStep);
+            << TErrorAttribute("grid_step", gridStep);
     }
 
-    if (grid) {
-        if (*grid < Config_->GridStep) {
+    if (readGridStep) {
+        if (*readGridStep < gridStep) {
             THROW_ERROR_EXCEPTION("Server grid step cannot be lower than client grid step")
-                << TErrorAttribute("server_grid_step", *grid)
-                << TErrorAttribute("grid_step", Config_->GridStep);
+                << TErrorAttribute("server_grid_step", *readGridStep)
+                << TErrorAttribute("grid_step", gridStep);
         }
 
-        if (grid->GetValue() % Config_->GridStep.GetValue() != 0) {
+        if (readGridStep->GetValue() % gridStep.GetValue() != 0) {
             THROW_ERROR_EXCEPTION("Server grid step must be multiple of client grid step")
-                << TErrorAttribute("server_grid_step", *grid)
-                << TErrorAttribute("grid_step", Config_->GridStep);
+                << TErrorAttribute("server_grid_step", *readGridStep)
+                << TErrorAttribute("grid_step", gridStep);
         }
 
-        if (*grid > *period) {
+        if (*readGridStep > *period) {
             THROW_ERROR_EXCEPTION("Server grid step cannot be greater than fetch period")
-                << TErrorAttribute("server_grid_step", *grid)
+                << TErrorAttribute("server_grid_step", *readGridStep)
                 << TErrorAttribute("period", *period);
         }
 
-        if (period->GetValue() % grid->GetValue() != 0) {
+        if (period->GetValue() % readGridStep->GetValue() != 0) {
             THROW_ERROR_EXCEPTION("Server grid step must be multiple of fetch period")
-                << TErrorAttribute("server_grid_step", *grid)
+                << TErrorAttribute("server_grid_step", *readGridStep)
                 << TErrorAttribute("period", *period);
         }
     }
@@ -619,31 +675,42 @@ IYPathServicePtr TSolomonExporter::GetService() const
     return Root_->Via(Invoker_);
 }
 
-TErrorOr<TReadWindow> TSolomonExporter::SelectReadWindow(TInstant now, TDuration period, std::optional<TDuration> grid)
+TErrorOr<TReadWindow> TSolomonExporter::SelectReadWindow(
+    TInstant now,
+    TDuration period,
+    std::optional<TDuration> readGridStep,
+    TDuration gridStep)
 {
     TReadWindow readWindow;
 
     int gridSubsample = 1;
-    if (grid) {
-        gridSubsample = *grid / Config_->GridStep;
+    if (readGridStep) {
+        gridSubsample = *readGridStep / gridStep;
     }
 
-    for (auto time : Window_) {
-        if (time.second >= now - period && time.second < now) {
+    int gridFactor = gridStep / Config_->GridStep;
+
+    for (auto [iteration, time] : Window_) {
+        if (iteration % gridFactor != 0) {
+            continue;
+        }
+
+        int index = Registry_->IndexOf(iteration / gridFactor);
+        if (time >= now - period && time < now) {
             if (readWindow.empty() ||
                 readWindow.back().first.size() >= static_cast<size_t>(gridSubsample)
             ) {
-                readWindow.emplace_back(std::vector<int>{time.first}, time.second);
+                readWindow.emplace_back(std::vector<int>{index}, time);
             } else {
-                readWindow.back().first.push_back(time.first);
-                readWindow.back().second = time.second;
+                readWindow.back().first.push_back(index);
+                readWindow.back().second = time;
             }
         }
     }
 
-    auto readGrid = Config_->GridStep;
-    if (grid) {
-        readGrid = *grid;
+    auto readGrid = gridStep;
+    if (readGridStep) {
+        readGrid = *readGridStep;
     }
 
     if (readWindow.size() != period / readGrid ||
@@ -653,7 +720,7 @@ TErrorOr<TReadWindow> TSolomonExporter::SelectReadWindow(TInstant now, TDuration
         return TError("Read query is outside of window")
             << TErrorAttribute("now", now)
             << TErrorAttribute("period", period)
-            << TErrorAttribute("grid", grid)
+            << TErrorAttribute("grid", readGridStep)
             << TErrorAttribute("window_first", Window_.front().second)
             << TErrorAttribute("window_last", Window_.back().second);
     }
@@ -691,6 +758,16 @@ void TSolomonExporter::CleanResponseCache()
     for (const auto& removedKey : toRemove) {
         ResponseCache_.erase(removedKey);
     }
+}
+
+bool TSolomonExporter::FilterDefaultGrid(const TString& sensorName)
+{
+    auto shard = Config_->MatchShard(sensorName);
+    if (shard && shard->GridStep) {
+        return Config_->GridStep == *shard->GridStep;
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

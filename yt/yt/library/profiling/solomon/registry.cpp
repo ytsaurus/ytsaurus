@@ -212,6 +212,11 @@ i64 TSolomonRegistry::GetNextIteration() const
     return Iteration_;
 }
 
+void TSolomonRegistry::SetGridFactor(std::function<int(const TString&)> gridFactor)
+{
+    GridFactor_ = gridFactor;
+}
+
 void TSolomonRegistry::SetWindowSize(int windowSize)
 {
     if (WindowSize_) {
@@ -304,6 +309,10 @@ void TSolomonRegistry::Collect(IInvokerPtr offloadInvoker)
 
     std::vector<TFuture<void>> offloadFutures;
     for (auto& [name, set] : Sensors_) {
+        if (Iteration_ % set.GetGridFactor() != 0) {
+            continue;
+        }
+
         auto future = BIND([sensorSet=&set, projectionCount, collectDuration=SensorCollectDuration_] {
             auto start = TInstant::Now();
             *projectionCount += sensorSet->Collect();
@@ -360,12 +369,13 @@ void TSolomonRegistry::ReadRecentSensorValue(
 
     int valuesRead = 0;
     if (auto tagIds = Tags_.TryEncode(tags)) {
-        auto index = IndexOf(Iteration_ - 1);
-
         if (auto it = Sensors_.find(name);
             it != Sensors_.end())
         {
             const auto& set = it->second;
+
+            auto index = IndexOf((Iteration_ - 1) / set.GetGridFactor());
+
             valuesRead += set.ReadSensorValues(*tagIds, index, options, fluent);
         }
     }
@@ -406,7 +416,12 @@ TSensorSet* TSolomonRegistry::FindSet(const TString& name, const TSensorOptions&
         it->second.ValidateOptions(options);
         return &it->second;
     } else {
-        it = Sensors_.emplace(name, TSensorSet{options, Iteration_, GetWindowSize()}).first;
+        int gridFactor = 1;
+        if (GridFactor_) {
+            gridFactor = GridFactor_(name);
+        }
+
+        it = Sensors_.emplace(name, TSensorSet{options, Iteration_ / gridFactor, GetWindowSize(), gridFactor}).first;
         it->second.Profile(SelfProfiler_.WithTag("metric_name", name));
         SensorCount_.Update(Sensors_.size());
         return &it->second;

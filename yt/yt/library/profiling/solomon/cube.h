@@ -53,7 +53,7 @@ template <class T>
 class TCube
 {
 public:
-    explicit TCube(int windowSize, i64 nextIteration);
+    TCube(int windowSize, i64 nextIteration);
 
     void Add(const TTagIdList& tagIds);
     void AddAll(const TTagIdList& tagIds, const TProjectionSet& projections);
@@ -98,7 +98,8 @@ public:
         NYTree::TFluentAny fluent) const;
 
 private:
-    int WindowSize_;
+    const int WindowSize_;
+
     i64 NextIteration_;
     i64 BaseIteration_;
     int Index_ = 0;
