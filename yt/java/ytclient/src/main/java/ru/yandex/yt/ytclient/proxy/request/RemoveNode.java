@@ -17,11 +17,11 @@ public class RemoveNode extends MutatePath<RemoveNode> implements HighLevelReque
     private boolean force = false;
 
     public RemoveNode(String path) {
-        super(path);
+        super(YPath.simple(path));
     }
 
     public RemoveNode(YPath path) {
-        super(path.toString());
+        super(path);
     }
 
     public RemoveNode setRecursive(boolean f) {
@@ -37,7 +37,7 @@ public class RemoveNode extends MutatePath<RemoveNode> implements HighLevelReque
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqRemoveNode.Builder, ?> builder) {
         builder.body()
-                .setPath(path)
+                .setPath(path.toString())
                 .setRecursive(recursive)
                 .setForce(force);
 

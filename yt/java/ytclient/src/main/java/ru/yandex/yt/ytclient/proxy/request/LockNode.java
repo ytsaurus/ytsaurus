@@ -22,12 +22,12 @@ public class LockNode extends MutatePath<LockNode> implements HighLevelRequest<T
     private @Nullable String attributeKey;
 
     public LockNode(String path, LockMode mode) {
-        super(path);
+        super(YPath.simple(path));
         this.mode = mode;
     }
 
     public LockNode(YPath path, LockMode mode) {
-        super(path.toString());
+        super(path);
         this.mode = mode;
     }
 
@@ -49,7 +49,7 @@ public class LockNode extends MutatePath<LockNode> implements HighLevelRequest<T
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqLockNode.Builder, ?> builder) {
         builder.body()
-                .setPath(path)
+                .setPath(path.toString())
                 .setMode(mode.value())
                 .setWaitable(waitable);
 

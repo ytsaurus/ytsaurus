@@ -1,15 +1,16 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
 @NonNullFields
 @NonNullApi
 public abstract class MutatePath<T extends MutatePath<T>> extends MutateNode<T> {
-    final String path;
+    final YPath path;
 
-    MutatePath(String path) {
-        this.path = path;
+    MutatePath(YPath path) {
+        this.path = path.justPath();
     }
 
     @Override
