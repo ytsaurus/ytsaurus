@@ -26,11 +26,12 @@ public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T
         this.destination = destination;
     }
 
-    public CopyLikeReq(CopyLikeReq<?> copyLikeReq) {
+    protected CopyLikeReq(CopyLikeReq<?> copyLikeReq) {
         super(copyLikeReq);
         source = copyLikeReq.source;
         destination = copyLikeReq.destination;
         recursive = copyLikeReq.recursive;
+        force = copyLikeReq.force;
         preserveAccount = copyLikeReq.preserveAccount;
         preserveExpirationTime = copyLikeReq.preserveExpirationTime;
         preserveCreationTime = copyLikeReq.preserveCreationTime;
@@ -133,7 +134,6 @@ public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T
                 .key("preserve_account").value(preserveAccount)
                 .key("preserve_expiration_time").value(preserveExpirationTime)
                 .key("preserve_creation_time").value(preserveCreationTime)
-                .key("ignore_existing").value(ignoreExisting)
-                ;
+                .key("ignore_existing").value(ignoreExisting);
     }
 }

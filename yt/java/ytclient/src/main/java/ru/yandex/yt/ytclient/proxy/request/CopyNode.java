@@ -22,7 +22,6 @@ public class CopyNode extends CopyLikeReq<CopyNode> implements HighLevelRequest<
         super(copyNode);
     }
 
-
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCopyNode.Builder, ?> requestBuilder) {
         TReqCopyNode.Builder builder = requestBuilder.body();
