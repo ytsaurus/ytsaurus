@@ -67,7 +67,10 @@ def test_timestamp_args(test_url, format):
     now = format_now()
 
     check_ok(test_url + f"/solomon/all?now={now}&period=10s", headers={"Accept": format})
-    check_ok(test_url + f"/solomon/all?now={now}&period=6s", headers={"Accept": format})
+
+    # test reply cache
+    for i in range(10):
+        check_ok(test_url + f"/solomon/all?now={now}&period=6s", headers={"Accept": format})
 
 
 @pytest.mark.parametrize('format', ["application/json", "application/x-spack"])

@@ -15,9 +15,11 @@ namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef std::vector<std::pair<std::vector<int>, TInstant>> TReadWindow;
+
 struct TReadOptions
 {
-    std::vector<std::pair<std::vector<int>, TInstant>> Times;
+    TReadWindow Times;
 
     std::function<bool(const TString&)> SensorFilter;
 
