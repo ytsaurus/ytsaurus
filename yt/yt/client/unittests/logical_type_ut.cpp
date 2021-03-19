@@ -7,6 +7,9 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <library/cpp/resource/resource.h>
+
+#include <util/string/split.h>
 
 namespace NYT::NTableClient {
 namespace {
@@ -937,6 +940,89 @@ TEST_P(TStructValidationTest, Test)
             {"\xFF", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         }),
         "Name of struct field #0 is not valid utf8");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::vector<TString>> ParseData(TStringBuf data, int expectedFieldsCount) {
+    TString noComments;
+    {
+        TMemoryInput in(data);
+        TString line;
+        while (in.ReadLine(line)) {
+            if (StripString(line).StartsWith('#')) {
+                continue;
+            }
+            noComments += line;
+        }
+    }
+
+    std::vector<std::vector<TString>> result;
+    for (TStringBuf record : StringSplitter(noComments).SplitByString(";;")) {
+        record = StripString(record);
+        if (record.Empty()) {
+            continue;
+        }
+        std::vector<TString> fields;
+        for (TStringBuf field : StringSplitter(record).SplitByString("::")) {
+            fields.emplace_back(StripString(field));
+        }
+        if (static_cast<int>(fields.size()) != expectedFieldsCount) {
+            ythrow yexception() << "Unexpected field count expected: " << expectedFieldsCount << " actual: " << fields.size();
+        }
+        result.push_back(fields);
+    }
+    return result;
+}
+
+TEST(TTestLogicalTypesWithData, GoodTypes)
+{
+    auto records = ParseData(NResource::Find("/types/good"), 2);
+
+    for (const auto& record : records) {
+        const auto& typeYson = record.at(0);
+        // TODO(levysotsky): Remove when tz_* types are supported.
+        if (typeYson.Contains("tz_")) {
+            continue;
+        }
+        const auto& typeText = record.at(1);
+        TString context = Format("text: %v\nyson: %v\n", typeText, typeYson);
+        auto wrapError = [&] (const std::exception& ex) {
+            return yexception() << "Unexpected error: " << ex.what() << '\n' << context;
+        };
+
+        TLogicalTypePtr type;
+        try {
+            type = ConvertTo<TLogicalTypePtr>(TYsonStringBuf(typeYson));
+        } catch (const std::exception& ex) {
+            ythrow wrapError(ex);
+        }
+
+        auto serialized = ConvertToYsonString(type);
+        TLogicalTypePtr type2;
+        try {
+            type2 = ConvertTo<TLogicalTypePtr>(serialized);
+        } catch (const std::exception& ex) {
+            ythrow wrapError(ex);
+        }
+        
+        EXPECT_EQ(*type, *type2);
+    }
+}
+
+TEST(TTestLogicalTypesWithData, BadTypes)
+{
+    auto records = ParseData(NResource::Find("/types/bad"), 3);
+
+    for (const auto& record : records) {
+        const auto& typeYson = record.at(0);
+        // TODO(levysotsky): Remove when tz_* types are supported.
+        if (typeYson.Contains("tz_")) {
+            continue;
+        }
+
+        EXPECT_THROW(ConvertTo<TLogicalTypePtr>(TYsonStringBuf(typeYson)), TErrorException);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1187,8 +1187,16 @@ void Deserialize(TStructField& structElement, NYTree::INodePtr node)
     structElement.Type = NYTree::ConvertTo<TLogicalTypePtr>(mapNode->GetChildOrThrow("type"));
 }
 
+// TODO(levysotsky): Get rid of this variable when we are sure type_v2 is dead for good.
+static constexpr bool UseTypeV3ForSerialization = true;
+
 void Serialize(const TLogicalTypePtr& logicalType, NYson::IYsonConsumer* consumer)
 {
+    if (UseTypeV3ForSerialization) {
+        Serialize(TTypeV3LogicalTypeWrapper{logicalType}, consumer);
+        return;
+    }
+
     const auto metatype = logicalType->GetMetatype();
     switch (metatype) {
         case ELogicalMetatype::Simple:
@@ -1271,6 +1279,13 @@ void Serialize(const TLogicalTypePtr& logicalType, NYson::IYsonConsumer* consume
 
 void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
 {
+    if (UseTypeV3ForSerialization) {
+        TTypeV3LogicalTypeWrapper wrapper;
+        Deserialize(wrapper, node);
+        logicalType = wrapper.LogicalType;
+        return;
+    }
+
     if (node->GetType() == NYTree::ENodeType::String) {
         auto simpleLogicalType = NYTree::ConvertTo<ESimpleLogicalValueType>(node);
         logicalType = SimpleLogicalType(simpleLogicalType);
@@ -1355,7 +1370,6 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
     }
     YT_ABORT();
 }
-
 
 bool IsComparable(const TLogicalTypePtr& type)
 {
@@ -1806,12 +1820,12 @@ void DeserializeV3(TLogicalTypePtr& type, NYson::TYsonPullParserCursor* cursor)
             (*cursor)->GetType());
     }
 
-    TV3TypeName typeName;
+    std::optional<TV3TypeName> typeName;
     std::optional<std::vector<TStructField>> members;
     std::optional<std::vector<TLogicalTypePtr>> elements;
     TLogicalTypePtr item, keyType, valueType;
     std::optional<i64> precision, scale;
-    TString tag;
+    std::optional<TString> tag;
 
     cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
         EnsureYsonToken(TStringBuf("logical type attribute key"), *cursor, EYsonItemType::StringValue);
@@ -1894,6 +1908,10 @@ void DeserializeV3(TLogicalTypePtr& type, NYson::TYsonPullParserCursor* cursor)
         }
     });
     
+    if (!typeName) {
+        THROW_ERROR_EXCEPTION("\"type_name\" is required");
+    }
+
     type = std::visit([&](const auto& typeName) {
         using T = std::decay_t<decltype(typeName)>;
         if constexpr (std::is_same_v<T, ESimpleLogicalValueType>) {
@@ -1953,11 +1971,17 @@ void DeserializeV3(TLogicalTypePtr& type, NYson::TYsonPullParserCursor* cursor)
                 case ELogicalMetatype::Tagged:
                     ensureIsPresent("tag", tag);
                     ensureIsPresent("item", item);
-                    return TaggedLogicalType(std::move(tag), std::move(item));
+                    return TaggedLogicalType(std::move(*tag), std::move(item));
             }
             YT_ABORT();
         }
-    }, typeName);
+    }, *typeName);
+}
+
+void Deserialize(TLogicalTypePtr& type, NYson::TYsonPullParserCursor* cursor)
+{
+    YT_VERIFY(UseTypeV3ForSerialization);
+    DeserializeV3(type, cursor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
