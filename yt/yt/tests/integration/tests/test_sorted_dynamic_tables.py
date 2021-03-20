@@ -825,12 +825,22 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_stress_tablet_readers(self, optimize_for):
+    @pytest.mark.parametrize("new_scan_reader", [False, True])
+    def test_stress_tablet_readers(self, optimize_for, new_scan_reader):
+        if new_scan_reader and optimize_for != "scan":
+            return
+
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for,
+            enable_new_scan_reader_for_lookup=new_scan_reader,
+            enable_new_scan_reader_for_select=new_scan_reader)
         sync_mount_table("//tmp/t")
 
         values = dict()
+
+        items = 100
 
         def verify():
             expected = [{"key": key, "value": values[key]} for key in values.keys()]
@@ -852,10 +862,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             actual = lookup_rows("//tmp/t", [{"key": key} for key in keys])
             assert actual == expected
 
+            keys = sample(xrange(1, items), 30)
+            expected = [{"key": key, "value": values[key]} if key in values else None for key in keys]
+            actual = lookup_rows("//tmp/t", [{"key": key} for key in keys], keep_missing_rows=True)
+            assert actual == expected
+
         verify()
 
         rounds = 10
-        items = 100
 
         for wave in xrange(1, rounds):
             rows = [{"key": i, "value": str(i + wave * 100)} for i in xrange(0, items, wave)]
@@ -883,7 +897,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
-    def test_stress_chunk_view(self, optimize_for, in_memory_mode):
+    @pytest.mark.parametrize("new_scan_reader", [False, True])
+    def test_stress_chunk_view(self, optimize_for, in_memory_mode, new_scan_reader):
+        if new_scan_reader and optimize_for != "scan":
+            return
+
         random.seed(98765)
 
         sync_create_cells(1)
@@ -898,7 +916,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             return {"key": randint(1, key_range), "value": "".join(choice(ascii_lowercase) for i in range(5))}
 
         # Prepare both tables.
-        self._create_simple_table("//tmp/t", optimize_for=optimize_for, in_memory_mode=in_memory_mode)
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for,
+            in_memory_mode=in_memory_mode,
+            enable_new_scan_reader_for_lookup=new_scan_reader,
+            enable_new_scan_reader_for_select=new_scan_reader)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
         self._create_simple_table("//tmp/correct")

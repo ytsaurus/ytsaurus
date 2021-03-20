@@ -27,6 +27,8 @@
 #include <yt/yt/ytlib/table_client/lookup_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
+#include <yt/yt/ytlib/new_table_client/versioned_chunk_reader.h>
+
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
@@ -38,7 +40,6 @@
 #include <yt/yt/client/table_client/versioned_reader.h>
 
 #include <yt/yt/client/object_client/helpers.h>
-
 
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -292,6 +293,30 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
 
+    if (tabletSnapshot->Config->EnableNewScanReaderForSelect &&
+        chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::VersionedColumnar &&
+        timestamp != AllCommittedTimestamp)
+    {
+        // Chunk view support.
+        ranges = NNewTableClient::ClipRanges(
+            ranges,
+            ReadRange_.Size() > 0 ? ReadRange_.Front().first : TUnversionedRow(),
+            ReadRange_.Size() > 0 ? ReadRange_.Front().second : TUnversionedRow(),
+            ReadRange_.GetHolder());
+
+        return NNewTableClient::CreateVersionedChunkReader(
+            std::move(ranges),
+            timestamp,
+            chunkState->ChunkMeta,
+            columnFilter,
+            chunkState->BlockCache,
+            ReaderConfig_,
+            chunkReader,
+            chunkState->PerformanceCounters,
+            blockReadOptions,
+            produceAllVersions);
+    }
+
     return CreateVersionedChunkReader(
         ReaderConfig_,
         std::move(chunkReader),
@@ -398,6 +423,22 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto chunkState = PrepareChunkState(readers.ChunkReader, blockReadOptions);
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
+
+    if (tabletSnapshot->Config->EnableNewScanReaderForLookup &&
+        chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::VersionedColumnar)
+    {
+        return createFilteringReader(NNewTableClient::CreateVersionedChunkReader(
+            filteredKeys,
+            timestamp,
+            chunkState->ChunkMeta,
+            columnFilter,
+            chunkState->BlockCache,
+            ReaderConfig_,
+            readers.ChunkReader,
+            chunkState->PerformanceCounters,
+            blockReadOptions,
+            produceAllVersions));
+    }
 
     return createFilteringReader(CreateVersionedChunkReader(
         ReaderConfig_,

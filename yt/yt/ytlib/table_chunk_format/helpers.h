@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/yt/core/misc/chunked_output_stream.h>
-
 namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////

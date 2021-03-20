@@ -10,6 +10,16 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TIter, class TPredicate>
+Y_FORCE_INLINE TIter LinearSearch(TIter begin, TIter end, TPredicate pred)
+{
+    while (begin < end && pred(begin)) {
+        ++begin;
+    }
+
+    return begin;
+}
+
+template <class TIter, class TPredicate>
 TIter BinarySearch(TIter begin, TIter end, TPredicate pred)
 {
     while (begin < end) {
@@ -31,12 +41,12 @@ size_t BinarySearch(size_t begin, size_t end, TPredicate pred)
 }
 
 template <class TIter, class TPredicate>
-TIter ExponentialSearch(TIter begin, TIter end, TPredicate pred)
+Y_FORCE_INLINE TIter ExponentialSearch(TIter begin, TIter end, TPredicate pred)
 {
-    size_t step = 1;
+    decltype(TIter() - TIter()) step = 1;
     TIter next = begin;
 
-    if (begin == end) {
+    if (begin >= end) {
         return begin;
     }
 

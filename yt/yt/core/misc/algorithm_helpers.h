@@ -6,6 +6,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TIter, class TPredicate>
+TIter LinearSearch(TIter begin, TIter end, TPredicate pred);
+
 // Search returns iterator to the first element that is !pred(it).
 // Reverse(Search) returns iterator to the last element that pred(it).
 

@@ -233,11 +233,15 @@ class TestLookup(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_stress_versioned_lookup(self, in_memory_mode, optimize_for):
+    @pytest.mark.parametrize("new_scan_reader", [False, True])
+    def test_stress_versioned_lookup(self, in_memory_mode, optimize_for, new_scan_reader):
         # This test checks that versioned lookup gives the same result for scan and lookup versioned formats.
         random.seed(12345)
 
         if in_memory_mode == "none" and optimize_for == "lookup":
+            return
+
+        if new_scan_reader and optimize_for != "scan":
             return
 
         schema = [
@@ -283,6 +287,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         copy("//tmp/expected", "//tmp/actual")
         set("//tmp/actual/@optimize_for", optimize_for)
         set("//tmp/actual/@in_memory_mode", in_memory_mode)
+        set("//tmp/actual/@enable_new_scan_reader_for_lookup", new_scan_reader)
         sync_mount_table("//tmp/expected")
         sync_mount_table("//tmp/actual")
         sync_compact_table("//tmp/actual")

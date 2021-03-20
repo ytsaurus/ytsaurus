@@ -4,7 +4,9 @@
 #include "helpers.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
+
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
+#include <yt/yt/core/misc/chunked_output_stream.h>
 
 namespace NYT::NTableChunkFormat {
 
