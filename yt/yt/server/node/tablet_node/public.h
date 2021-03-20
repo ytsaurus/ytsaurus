@@ -131,6 +131,8 @@ using TSyncReplicaIdList = SmallVector<TTableReplicaId, 2>;
 
 constexpr int EdenIndex = -1;
 
+DECLARE_REFCOUNTED_STRUCT(IRowComparerProvider)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

@@ -45,8 +45,7 @@ class TSortedDynamicRowKeyComparer
 {
 public:
     static TSortedDynamicRowKeyComparer Create(
-        int keyColumnCount,
-        const TTableSchema& schema);
+        TRange<EValueType> keyColumnTypes);
 
     TSortedDynamicRowKeyComparer() = default;
 
@@ -74,6 +73,17 @@ private:
         NCodegen::TCGFunction<TUUComparerSignature> uuComparer);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct IRowComparerProvider
+    : public virtual TRefCounted
+{
+    virtual TSortedDynamicRowKeyComparer Get(NTableClient::TKeyColumnTypes keyColumnTypes) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IRowComparerProvider)
+
+IRowComparerProviderPtr CreateRowComparerProvider(TSlruCacheConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

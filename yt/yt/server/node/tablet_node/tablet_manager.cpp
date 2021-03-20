@@ -581,6 +581,11 @@ private:
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();
         }
 
+        virtual NTabletNode::IRowComparerProviderPtr GetRowComparerProvider() override
+        {
+            return Owner_->Bootstrap_->GetRowComparerProvider();
+        }
+
         virtual TObjectId GenerateId(EObjectType type) override
         {
             return Owner_->Slot_->GenerateId(type);

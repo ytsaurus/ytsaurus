@@ -81,6 +81,11 @@ protected:
         return ColumnEvaluatorCache_;
     }
 
+    virtual NTabletNode::IRowComparerProviderPtr GetRowComparerProvider() override
+    {
+        return RowComparerProvider_;
+    }
+
     virtual TObjectId GenerateId(EObjectType /*type*/) override
     {
         return TObjectId::Create();
@@ -374,6 +379,8 @@ protected:
 
     const IColumnEvaluatorCachePtr ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(
         New<TColumnEvaluatorCacheConfig>());
+
+    const NTabletNode::IRowComparerProviderPtr RowComparerProvider_ = CreateRowComparerProvider(New<TSlruCacheConfig>());
 
     TNameTablePtr NameTable_;
     TNameTablePtr QueryNameTable_;

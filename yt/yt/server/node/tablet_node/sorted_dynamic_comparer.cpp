@@ -3,6 +3,8 @@
 #include "dynamic_store_bits.h"
 #include "row_comparer_generator.h"
 
+#include <yt/yt/core/misc/sync_cache.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NCodegen;
@@ -22,15 +24,14 @@ TSortedDynamicRowKeyComparer::TSortedDynamicRowKeyComparer(
 { }
 
 TSortedDynamicRowKeyComparer TSortedDynamicRowKeyComparer::Create(
-    int keyColumnCount,
-    const TTableSchema& schema)
+    TRange<EValueType> keyColumnTypes)
 {
     TCGFunction<TDDComparerSignature> ddComparer;
     TCGFunction<TDUComparerSignature> duComparer;
     TCGFunction<TUUComparerSignature> uuComparer;
-    std::tie(ddComparer, duComparer, uuComparer) = GenerateComparers(keyColumnCount, schema);
+    std::tie(ddComparer, duComparer, uuComparer) = GenerateComparers(keyColumnTypes);
     return TSortedDynamicRowKeyComparer(
-        keyColumnCount,
+        keyColumnTypes.Size(),
         std::move(ddComparer),
         std::move(duComparer),
         std::move(uuComparer));
@@ -87,6 +88,49 @@ int TSortedDynamicRowKeyComparer::operator()(
 {
     return UUComparer_(lhsBegin, lhsEnd - lhsBegin, rhsBegin, rhsEnd - rhsBegin);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachedRowComparer
+    : public TSyncCacheValueBase<TKeyColumnTypes, TCachedRowComparer, THash<TRange<EValueType>>>
+    , public TSortedDynamicRowKeyComparer
+{
+public:
+    TCachedRowComparer(
+        TKeyColumnTypes keyColumnTypes,
+        TSortedDynamicRowKeyComparer comparer)
+        : TSyncCacheValueBase(keyColumnTypes)
+        , TSortedDynamicRowKeyComparer(std::move(comparer))
+    { }
+};
+
+class TRowComparerCache
+    : public TSyncSlruCacheBase<TKeyColumnTypes, TCachedRowComparer, THash<TRange<EValueType>>>
+    , public IRowComparerProvider
+{
+public:
+    using TSyncSlruCacheBase::TSyncSlruCacheBase;
+
+    virtual TSortedDynamicRowKeyComparer Get(TKeyColumnTypes keyColumnTypes) override
+    {
+        auto cachedEvaluator = TSyncSlruCacheBase::Find(keyColumnTypes);
+        if (!cachedEvaluator) {
+            cachedEvaluator = New<TCachedRowComparer>(
+                keyColumnTypes,
+                TSortedDynamicRowKeyComparer::Create(keyColumnTypes));
+
+            TryInsert(cachedEvaluator, &cachedEvaluator);
+        }
+
+        return *cachedEvaluator;
+    }
+
+};
+
+IRowComparerProviderPtr CreateRowComparerProvider(TSlruCacheConfigPtr config)
+{
+    return New<TRowComparerCache>(config);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

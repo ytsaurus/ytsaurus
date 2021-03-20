@@ -2,7 +2,6 @@
 
 #include "dynamic_store_bits.h"
 
-#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/library/codegen/function.h>
@@ -23,7 +22,7 @@ std::tuple<
     NCodegen::TCGFunction<TDDComparerSignature>,
     NCodegen::TCGFunction<TDUComparerSignature>,
     NCodegen::TCGFunction<TUUComparerSignature>>
-GenerateComparers(int keyColumnCount, const TTableSchema& schema);
+GenerateComparers(TRange<EValueType> keyColumnTypes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
