@@ -88,6 +88,8 @@ public:
     bool IsEmpty() const;
     bool IsRunning() const;
 
+    IInvokerPtr GetProfilingTagSettingInvoker(int profilingTag);
+
 private:
     const std::shared_ptr<TEventCount> CallbackEventCount_;
 
@@ -112,7 +114,7 @@ private:
     std::vector<TCountersPtr> Counters_;
     TCountersPtr CumulativeCounters_;
 
-    int CurrentProfilingTag_ = 0;
+    std::vector<IInvokerPtr> ProfilingTagSettingInvokers_;
 
     TCountersPtr CreateCounters(const NProfiling::TTagSet& tagSet);
 };

@@ -2,37 +2,11 @@
 
 #include "invoker_queue.h"
 
-#include <yt/yt/core/actions/invoker_detail.h>
-
 namespace NYT::NConcurrency {
 
 using namespace NProfiling;
 using namespace NYPath;
 using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TProfilingTagSettingInvoker
-    : public TInvokerWrapper
-{
-public:
-    TProfilingTagSettingInvoker(
-        TMpscInvokerQueuePtr queue,
-        int profilingTag)
-        : TInvokerWrapper(queue)
-        , Queue_(std::move(queue))
-        , ProfilingTag_(profilingTag)
-    { }
-
-    virtual void Invoke(TClosure callback) override
-    {
-        Queue_->Invoke(std::move(callback), ProfilingTag_);
-    }
-
-private:
-    const TMpscInvokerQueuePtr Queue_;
-    const int ProfilingTag_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,8 +21,10 @@ TFairShareInvokerQueue::TFairShareInvokerQueue(
             callbackEventCount,
             bucketDescription.QueueTagSets,
             bucketDescription.BucketTagSet);
-        for (int index = 0; index < bucketDescription.QueueTagSets.size(); ++index) {
-            bucket.Invokers.push_back(New<TProfilingTagSettingInvoker>(bucket.Queue, index));
+        int profilingTagCount = bucketDescription.QueueTagSets.size();
+        bucket.Invokers.reserve(profilingTagCount);
+        for (int index = 0; index < profilingTagCount; ++index) {
+            bucket.Invokers.push_back(bucket.Queue->GetProfilingTagSettingInvoker(index));
         }
     }
 }

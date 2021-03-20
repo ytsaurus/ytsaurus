@@ -1,6 +1,7 @@
 #include "invoker_queue.h"
 #include "private.h"
 
+#include <yt/yt/core/actions/invoker_detail.h>
 #include <yt/yt/core/actions/invoker_util.h>
 
 namespace NYT::NConcurrency {
@@ -38,6 +39,48 @@ Y_FORCE_INLINE bool TMpscQueueImpl::TryDequeue(TEnqueuedAction* action)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TQueueImpl>
+class TProfilingTagSettingInvoker
+    : public IInvoker
+{
+public:
+    TProfilingTagSettingInvoker(
+        TWeakPtr<TInvokerQueue<TQueueImpl>> queue,
+        int profilingTag)
+        : Queue_(std::move(queue))
+        , ProfilingTag_(profilingTag)
+    { }
+
+    virtual void Invoke(TClosure callback) override
+    {
+        if (auto queue = Queue_.Lock()) {
+            queue->Invoke(std::move(callback), ProfilingTag_);
+        }
+    }
+
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
+    virtual TThreadId GetThreadId() const override
+    {
+        if (auto queue = Queue_.Lock()) {
+            return queue->GetThreadId();
+        } else {
+            return {};
+        }
+    }
+
+    virtual bool CheckAffinity(const IInvokerPtr& invoker) const
+    {
+        return invoker.Get() == this;
+    }
+#endif
+
+private:
+    const TWeakPtr<TInvokerQueue<TQueueImpl>> Queue_;
+    const int ProfilingTag_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TQueueImpl>
 TInvokerQueue<TQueueImpl>::TInvokerQueue(
     std::shared_ptr<TEventCount> callbackEventCount,
     const TTagSet& counterTagSet)
@@ -59,6 +102,12 @@ TInvokerQueue<TQueueImpl>::TInvokerQueue(
     }
 
     CumulativeCounters_ = CreateCounters(cumulativeCounterTagSet);
+
+    ProfilingTagSettingInvokers_.reserve(Counters_.size());
+    for (int index = 0; index < Counters_.size(); ++index) {
+        ProfilingTagSettingInvokers_.push_back(
+            New<TProfilingTagSettingInvoker<TQueueImpl>>(MakeWeak(this), index));
+    }
 }
 
 template <class TQueueImpl>
@@ -70,7 +119,8 @@ void TInvokerQueue<TQueueImpl>::SetThreadId(TThreadId threadId)
 template <class TQueueImpl>
 void TInvokerQueue<TQueueImpl>::Invoke(TClosure callback)
 {
-    Invoke(std::move(callback), CurrentProfilingTag_);
+    YT_ASSERT(Counters_.size() == 1);
+    Invoke(std::move(callback), /* profilingTag */ 0);
 }
 
 template <class TQueueImpl>
@@ -168,8 +218,7 @@ TClosure TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action)
     updateCounters(Counters_[action->ProfilingTag]);
     updateCounters(CumulativeCounters_);
 
-    SetCurrentInvoker(this);
-    CurrentProfilingTag_ = action->ProfilingTag;
+    SetCurrentInvoker(GetProfilingTagSettingInvoker(action->ProfilingTag));
 
     return std::move(action->Callback);
 }
@@ -222,6 +271,19 @@ template <class TQueueImpl>
 bool TInvokerQueue<TQueueImpl>::IsRunning() const
 {
     return Running_.load(std::memory_order_relaxed);
+}
+
+template <class TQueueImpl>
+IInvokerPtr TInvokerQueue<TQueueImpl>::GetProfilingTagSettingInvoker(int profilingTag)
+{
+    if (Counters_.size() == 1) {
+        // Fast path.
+        YT_ASSERT(profilingTag == 0);
+        return this;
+    } else {
+        YT_ASSERT(0 <= profilingTag && profilingTag < Counters_.size());
+        return ProfilingTagSettingInvokers_[profilingTag];
+    }
 }
 
 template <class TQueueImpl>
