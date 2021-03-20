@@ -32,7 +32,6 @@ using namespace NConcurrency;
 
 static constexpr auto LockBackoffTime = TDuration::MilliSeconds(100);
 static constexpr int MaxLockRetries = 100;
-static constexpr i64 Alignment = 4_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,8 +47,8 @@ public:
         , FileName_(fileName)
         , Config_(config)
         , Logger(HydraLogger.WithTag("Path: %v", FileName_))
-        , IndexFile_(IOEngine_, fileName + "." + ChangelogIndexExtension, Alignment, Config_->IndexBlockSize, Config_->EnableSync)
-        , AppendOutput_(Alignment, Alignment)
+        , IndexFile_(IOEngine_, FileName_ + "." + ChangelogIndexExtension, Config_->IndexBlockSize, Config_->EnableSync)
+        , AppendOutput_(/* size */ ChangelogAlignment, /* pageAligned */ true)
     { }
 
     const TFileChangelogConfigPtr& GetConfig() const
@@ -465,7 +464,7 @@ private:
         Zero(header);
         header.Signature = TFileHeader::ExpectedSignature;
         header.MetaSize = 0;
-        header.FirstRecordOffset = ::AlignUp<size_t>(sizeof(TFileHeader) + header.MetaSize, Alignment);
+        header.FirstRecordOffset = AlignUp<size_t>(sizeof(TFileHeader) + header.MetaSize, ChangelogAlignment);
         header.TruncatedRecordCount = TruncatedRecordCount_.value_or(TChangelogHeader::NotTruncatedRecordCount);
         header.PaddingSize = header.FirstRecordOffset - sizeof(TFileHeader) - header.MetaSize;
         if constexpr(std::is_base_of_v<TChangelogHeader_5, TFileHeader>) {
@@ -534,7 +533,7 @@ private:
                 .ThrowOnError();
 
             auto header = MakeChangelogHeader<T>();
-            auto data = TAsyncFileChangelogIndex::AllocateAligned(header.FirstRecordOffset, true, Alignment);
+            auto data = TSharedMutableRef::AllocatePageAligned(header.FirstRecordOffset, true);
             ::memcpy(data.Begin(), &header, sizeof(header));
 
             WaitFor(IOEngine_->Write(IIOEngine::TWriteRequest{*DataFile_, 0, std::move(data)}))
@@ -672,7 +671,7 @@ private:
         WaitFor(IndexFile_.FlushData())
             .ThrowOnError();
 
-        auto validSize = ::AlignUp<i64>(CurrentFilePosition_.load(), Alignment);
+        auto validSize = AlignUp<i64>(CurrentFilePosition_.load(), ChangelogAlignment);
         // Rewrite the last 4K-block in case of incorrect size?
         if (validSize > CurrentFilePosition_) {
             YT_VERIFY(lastValidRecordInfo);
@@ -874,7 +873,7 @@ private:
                         AppendOutput_.Size() +
                         AlignUp(sizeof(TRecordHeader)) +
                         AlignUp(record.Size());
-                    paddingSize = ::AlignUp(blockSize, Alignment) - blockSize;
+                    paddingSize = AlignUp<i64>(blockSize, ChangelogAlignment) - blockSize;
                 }
 
                 YT_VERIFY(paddingSize <= std::numeric_limits<i16>::max());
@@ -896,8 +895,8 @@ private:
                 AppendSizes_.push_back(totalSize);
             }
 
-            YT_VERIFY(::AlignUp(CurrentFilePosition_.load(), Alignment) == CurrentFilePosition_);
-            YT_VERIFY(::AlignUp<i64>(AppendOutput_.Size(), Alignment) == AppendOutput_.Size());
+            YT_VERIFY(AlignUp<i64>(CurrentFilePosition_.load(), ChangelogAlignment) == CurrentFilePosition_);
+            YT_VERIFY(AlignUp<i64>(AppendOutput_.Size(), ChangelogAlignment) == AppendOutput_.Size());
 
             TSharedRef data(AppendOutput_.Blob().Begin(), AppendOutput_.Size(), MakeStrong(this));
 

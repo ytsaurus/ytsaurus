@@ -78,12 +78,12 @@ typename std::vector<T>::const_iterator FirstGreater(
 struct TIndexBucketDataTag
 { };
 
-TIndexBucket::TIndexBucket(size_t capacity, i64 alignment, i64 offset)
+TIndexBucket::TIndexBucket(size_t capacity, i64 offset)
     : Capacity_(capacity)
     , Offset_(offset)
-    , Data_(TAsyncFileChangelogIndex::AllocateAligned<TIndexBucketDataTag>(capacity * sizeof(TChangelogIndexRecord), true, alignment))
+    , Data_(TSharedMutableRef::AllocatePageAligned<TIndexBucketDataTag>(capacity * sizeof(TChangelogIndexRecord), true))
 {
-    auto maxCurrentIndexRecords = alignment / sizeof(TChangelogIndexRecord);
+    auto maxCurrentIndexRecords = ChangelogAlignment / sizeof(TChangelogIndexRecord);
     Index_ = reinterpret_cast<TChangelogIndexRecord*>(Data_.Begin());
 
     for (int i = 0; i < maxCurrentIndexRecords; ++i) {
@@ -142,20 +142,17 @@ bool TIndexBucket::HasSpace() const
 TAsyncFileChangelogIndex::TAsyncFileChangelogIndex(
     const NChunkClient::IIOEnginePtr& IOEngine,
     const TString& name,
-    i64 alignment,
     i64 indexBlockSize,
     bool enableSync)
     : IOEngine_(IOEngine)
     , IndexFileName_(name)
-    , Alignment_(alignment)
     , IndexBlockSize_(indexBlockSize)
-    , MaxIndexRecordsPerBucket_(Alignment_ / sizeof(TChangelogIndexRecord))
+    , MaxIndexRecordsPerBucket_(ChangelogAlignment / sizeof(TChangelogIndexRecord))
     , EnableSync_(enableSync)
-    , FirstIndexBucket_(New<TIndexBucket>(MaxIndexRecordsPerBucket_, Alignment_, 0))
+    , FirstIndexBucket_(New<TIndexBucket>(MaxIndexRecordsPerBucket_, 0))
     , CurrentIndexBucket_(FirstIndexBucket_)
 {
     FirstIndexBucket_->PushHeader();
-    YT_VERIFY(Alignment_ % sizeof(TChangelogIndexRecord) == 0);
 }
 
 //! Creates an empty index file.
@@ -258,9 +255,9 @@ void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 validPrefixSize)
         // calculate file offset of CurrentIndexBucket
         auto indexOffset = (recordIndex + firstRecordId) * sizeof(TChangelogIndexRecord);
 
-        YT_VERIFY(indexOffset % Alignment_ == 0);
+        YT_VERIFY(indexOffset % ChangelogAlignment == 0);
 
-        CurrentIndexBucket_ = New<TIndexBucket>(MaxIndexRecordsPerBucket_, Alignment_, indexOffset);
+        CurrentIndexBucket_ = New<TIndexBucket>(MaxIndexRecordsPerBucket_, indexOffset);
         auto recordCount = totalRecordCount - recordIndex;
 
         YT_VERIFY(recordCount < MaxIndexRecordsPerBucket_);
@@ -344,7 +341,7 @@ void TAsyncFileChangelogIndex::UpdateIndexBuckets()
             DirtyBuckets_.push_back(std::move(CurrentIndexBucket_));
         }
 
-        CurrentIndexBucket_ = New<TIndexBucket>(MaxIndexRecordsPerBucket_, Alignment_, bucketOffset);
+        CurrentIndexBucket_ = New<TIndexBucket>(MaxIndexRecordsPerBucket_, bucketOffset);
     }
 
     FirstIndexBucket_->UpdateRecordCount(Index_.size());

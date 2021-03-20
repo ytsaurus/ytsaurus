@@ -22,7 +22,7 @@ public:
             data[i] = RandomNumber<unsigned char>();
         }
 
-        return TCodecTraits::TBufferType(0, data.data(), data.size());
+        return TCodecTraits::TBufferType(0, TRef(data.data(), data.size()));
     }
 };
 

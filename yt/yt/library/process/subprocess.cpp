@@ -1,5 +1,6 @@
 #include "subprocess.h"
 
+#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/finally.h>
 

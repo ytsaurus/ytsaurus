@@ -12,6 +12,7 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/lock_free.h>
 #include <yt/yt/core/misc/ring_queue.h>
 
