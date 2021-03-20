@@ -7,6 +7,7 @@
 #include <yt/yt/core/yson/writer.h>
 
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
+#include <yt/yt/core/misc/chunked_output_stream.h>
 
 namespace NYT::NTableChunkFormat {
 

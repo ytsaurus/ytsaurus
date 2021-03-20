@@ -189,6 +189,8 @@ void TCompressedVectorView::UnpackTo(T* output)
     auto width = GetWidth();
     auto input = Ptr_ + 1;
 
+    YT_VERIFY(width <= 8 * sizeof(T));
+
     switch (width) {
         case  0: std::fill(output, output + size, 0); break;
         // Cast to const ui32* produces less instructions.
