@@ -1,5 +1,10 @@
 #pragma once
 
+///
+/// @file mapreduce/yt/interface/serialize.h
+///
+/// Header containing declaration of functions for serializing to/from YSON.
+
 #include "common.h"
 
 #include <library/cpp/type_info/fwd.h>

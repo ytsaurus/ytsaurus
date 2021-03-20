@@ -103,7 +103,7 @@ TTableStructure StructuredTableDescription();
 struct TVoidStructuredRowStream
 { };
 
-/// Tag class marking that row stream consists of @ref NYT:TNode.
+/// Tag class marking that row stream consists of @ref NYT::TNode.
 struct TTNodeStructuredRowStream
 { };
 
@@ -301,24 +301,34 @@ private:
     TVector<TRichYPath> MapOutputs_;
 };
 
-/// Base spec of input tables 
+///
+/// @brief Base spec of operations with input tables.
 class TOperationInputSpecBase
 {
 public:
     template <class T, class = void>
     struct TFormatAdder;
 
-    /// Add input table path to input path list and specify type of rows.
+    ///
+    /// @brief Add input table path to input path list and specify type of rows.
     template <class T>
     void AddInput(const TRichYPath& path);
 
+    ///
+    /// @brief Add input table path as structured paths.
     void AddStructuredInput(TStructuredTablePath path);
 
+    ///
+    /// @brief Set input table path and type.
     template <class T>
     void SetInput(size_t tableIndex, const TRichYPath& path);
 
+    ///
+    /// @brief All input paths.
     TVector<TRichYPath> Inputs_;
 
+    ///
+    /// @brief Get all input structured paths.
     const TVector<TStructuredTablePath>& GetStructuredInputs() const;
 
 private:
@@ -328,22 +338,34 @@ private:
     friend struct TOperationIOSpec;
 };
 
+///
+/// @brief Base spec of operations with output tables.
 class TOperationOutputSpecBase
 {
 public:
     template <class T, class = void>
     struct TFormatAdder;
 
+    ///
+    /// @brief Add output table path to output path list and specify type of rows.
     template <class T>
     void AddOutput(const TRichYPath& path);
 
+    ///
+    /// @brief Add output table path as structured paths.
     void AddStructuredOutput(TStructuredTablePath path);
 
+    ///
+    /// @brief Set output table path and type.
     template <class T>
     void SetOutput(size_t tableIndex, const TRichYPath& path);
 
+    ///
+    /// @brief All output paths.
     TVector<TRichYPath> Outputs_;
 
+    ///
+    /// @brief Get all output structured paths.
     const TVector<TStructuredTablePath>& GetStructuredOutputs() const;
 
 private:
@@ -353,11 +375,15 @@ private:
     friend struct TOperationIOSpec;
 };
 
+///
+/// @brief Base spec for operations with inputs and outputs.
 struct TOperationIOSpecBase
     : public TOperationInputSpecBase
     , public TOperationOutputSpecBase
 { };
 
+///
+/// @brief Base spec for operations with inputs and outputs.
 template <class TDerived>
 struct TOperationIOSpec
     : public TOperationIOSpecBase
@@ -390,13 +416,15 @@ struct TOperationIOSpec
     TDerived& AddProtobufOutput_VerySlow_Deprecated(const TRichYPath& path);
 };
 
+///
+/// @brief Base spec for all operations.
 template <class TDerived>
 struct TOperationSpecBase
 {
     using TSelf = TDerived;
 
     ///
-    /// @prief Limit on operation execution time.
+    /// @brief Limit on operation execution time.
     ///
     /// If operation doesn't finish in time it will be aborted.
     FLUENT_FIELD_OPTION(TDuration, TimeLimit);
@@ -405,63 +433,82 @@ struct TOperationSpecBase
     FLUENT_FIELD_OPTION(TString, Title);
 };
 
+///
+/// @brief Base spec for all operations with user jobs.
 template <class TDerived>
 struct TUserOperationSpecBase
     : TOperationSpecBase<TDerived>
 {
     using TSelf = TDerived;
 
-    // How many jobs can fail before operation is failed.
+    /// How many jobs can fail before operation is failed.
     FLUENT_FIELD_OPTION(ui64, MaxFailedJobCount);
 
-    // On any unsuccessful job completion (i.e. abortion or failure) force the whole operation to fail.
+    /// On any unsuccessful job completion (i.e. abortion or failure) force the whole operation to fail.
     FLUENT_FIELD_OPTION(bool, FailOnJobRestart);
 
-    // Table to save whole stderr of operation
-    // https://clubs.at.yandex-team.ru/yt/1045
+    /// 
+    /// @brief Table to save whole stderr of operation.
+    ///
+    /// @see https://clubs.at.yandex-team.ru/yt/1045
     FLUENT_FIELD_OPTION(TYPath, StderrTablePath);
 
-    // Table to save coredumps of operation
-    // https://clubs.at.yandex-team.ru/yt/1045
+    ///
+    /// @brief Table to save coredumps of operation.
+    ///
+    /// @see https://clubs.at.yandex-team.ru/yt/1045
     FLUENT_FIELD_OPTION(TYPath, CoreTablePath);
 
-    // How long should the scheduler wait for the job to be started on a node.
-    // When you run huge jobs that require preemption of all the other jobs on
-    // a node, the default timeout might be insufficient and your job may be
-    // aborted with 'waiting_timeout' reason. This is especially problematic
-    // when you are setting 'FailOnJobRestart' option.
-    // The value must be between 10 seconds and 10 minutes.
+    ///
+    /// @brief How long should the scheduler wait for the job to be started on a node.
+    ///
+    /// When you run huge jobs that require preemption of all the other jobs on
+    /// a node, the default timeout might be insufficient and your job may be
+    /// aborted with 'waiting_timeout' reason. This is especially problematic
+    /// when you are setting 'FailOnJobRestart' option.
+    ///
+    /// @note The value must be between 10 seconds and 10 minutes.
     FLUENT_FIELD_OPTION(TDuration, WaitingJobTimeout);
 };
 
+///
+/// @brief Class to provide information on intermediate mapreduce stream protobuf types.
+///
+/// When using protobuf format it is important to know exact types of proto messages
+/// that are used in input/output.
+///
+/// Sometimes such messages cannot be derived from job class
+/// i.e. when job class uses `NYT::TTableReader<::google::protobuf::Message>`
+/// or `NYT::TTableWriter<::google::protobuf::Message>`.
+///
+/// When using such jobs user can provide exact message type using this class.
+///
+/// @note Only input/output that relate to intermediate tables can be hinted.
+/// Input to map and output of reduce is derived from `AddInput`/`AddOutput`.
 template <class TDerived>
 struct TIntermediateTablesHintSpec
 {
-    // When using protobuf format it is important to know exact types of proto messages
-    // that are used in input/output.
-    //
-    // Sometimes such messages cannot be derived from job class
-    // i.e. when job class uses TTableReader<::google::protobuf::Message>
-    // or TTableWriter<::google::protobuf::Message>
-    //
-    // When using such jobs user can provide exact message type using functions below.
-    //
-    // NOTE: only input/output that relate to intermediate tables can be hinted.
-    // Input to map and output of reduce is derived from AddInput/AddOutput.
+    /// Specify intermediate map output type.
     template <class T>
     TDerived& HintMapOutput();
 
+    /// Specify reduce combiner input.
     template <class T>
     TDerived& HintReduceCombinerInput();
+    
+    /// Specify reduce combiner output.
     template <class T>
     TDerived& HintReduceCombinerOutput();
 
+    /// Specify reducer input.
     template <class T>
     TDerived& HintReduceInput();
 
-    // Add output of map stage.
-    // Mapper output table #0 is always intermediate table that is going to be reduced later.
-    // Rows that mapper write to tables #1, #2, ... are saved in MapOutput tables.
+    ///
+    /// @brief Add output of map stage.
+    ///
+    /// Mapper output table #0 is always intermediate table that is going to be reduced later.
+    /// Rows that mapper write to tables #1, #2, ... are saved in MapOutput tables.
     template <class T>
     TDerived& AddMapOutput(const TRichYPath& path);
 
@@ -487,24 +534,37 @@ struct TAddLocalFileOptions
 {
     using TSelf = TAddLocalFileOptions;
 
-    // Path by which job will see the uploaded file.
-    // Defaults to basename of the local path.
+    ///
+    /// @brief Path by which job will see the uploaded file.
+    ///
+    /// Defaults to basename of the local path.
     FLUENT_FIELD_OPTION(TString, PathInJob);
 
-    // MD5 checksum
-    // This library computes md5 checksum for all files that are uploaded to YT.
-    // When md5 checksum is known user might provide it as `MD5CheckSum`
-    // argument to save some cpu and disk IO.
+    ///
+    /// @brief MD5 checksum of uploaded file.
+    ///
+    /// If not specified it is computed by this library.
+    /// If this argument is provided, the user can some cpu and disk IO.
     FLUENT_FIELD_OPTION(TString, MD5CheckSum);
 };
 
+///
+/// @brief Spec of user job.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/operations_options#user_script_options
 struct TUserJobSpec
 {
     using TSelf = TUserJobSpec;
 
-    TSelf&  AddLocalFile(const TLocalFilePath& path, const TAddLocalFileOptions& options = TAddLocalFileOptions());
+    ///
+    /// @brief Specify a local file to upload to Cypress and prepare for use in job.
+    TSelf& AddLocalFile(const TLocalFilePath& path, const TAddLocalFileOptions& options = TAddLocalFileOptions());
+
+    ///
+    /// @brief Get the list of all added local files.
     TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> GetLocalFiles() const;
 
+    /// @brief Paths to files in Cypress to use in job.
     FLUENT_VECTOR_FIELD(TRichYPath, File);
 
     ///
@@ -538,7 +598,7 @@ struct TUserJobSpec
     /// This option should be used if job writes data to tmpfs.
     ///
     /// ExtraTmpfsSize should not include size of files specified with
-    /// @ref NYT::TUserJobSpec::AddLocalFile or @ref NYT::TUserJobSpec::File
+    /// @ref NYT::TUserJobSpec::AddLocalFile or @ref NYT::TUserJobSpec::AddFile
     /// These files are copied to tmpfs automatically and their total size
     /// is computed automatically.
     ///
@@ -546,51 +606,67 @@ struct TUserJobSpec
     /// @see NYT::TUserJobSpec::MemoryLimit
     FLUENT_FIELD_OPTION(i64, ExtraTmpfsSize);
 
+    ///
+    /// @brief Maximum number of CPU cores for a single job to use.
     FLUENT_FIELD_OPTION(double, CpuLimit);
 
-    //
-    // https://yt.yandex-team.ru/docs/description/mr/operations_options#memory_reserve_factor
-    //
-    // Defines a fraction of MemoryLimit that job gets at start
+    ///
+    /// @brief Fraction of @ref NYT::TUserJobSpec::MemoryLimit that job gets at start.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/operations_options#memory_reserve_factor
     FLUENT_FIELD_OPTION(double, MemoryReserveFactor);
 
-    //
-    // JobBinary allows to specify path to executable that is to be used inside jobs.
-    // Provided executable must use C++ YT API library (this library)
-    // and implement job class that is going to be used.
-    //
-    // This option might be useful if we want to start operation from nonlinux machines
-    // (in that case we use JobBinary to provide path to the same program compiled for linux).
-    // Other example of using this option is uploading executable to cypress in advance
-    // and save the time required to upload current executable to cache.
-    // `md5` argument can be used to save cpu time and disk IO when binary md5 checksum is known.
-    // When argument is not provided library will compute it itself.
+    ///
+    /// @brief Local path to executable to be used inside jobs.
+    ////
+    /// Provided executable must use C++ YT API library (this library)
+    /// and implement job class that is going to be used.
+    ///
+    /// This option might be useful if we want to start operation from nonlinux machines
+    /// (in that case we use `JobBinary` to provide path to the same program compiled for linux).
+    /// Other example of using this option is uploading executable to cypress in advance
+    /// and save the time required to upload current executable to cache.
+    /// `md5` argument can be used to save cpu time and disk IO when binary MD5 checksum is known.
+    /// When argument is not provided library will compute it itself.
     TUserJobSpec& JobBinaryLocalPath(TString path, TMaybe<TString> md5 = Nothing());
-    TUserJobSpec& JobBinaryCypressPath(TString path, TMaybe<TTransactionId> transactionId = Nothing());
-    const TJobBinaryConfig& GetJobBinary() const;
 
-    //
-    // Prefix and suffix for specific kind of job
-    // Overrides common prefix and suffix in TOperationOptions
+    ///
+    /// @brief Cypress path to executable to be used inside jobs.
+    TUserJobSpec& JobBinaryCypressPath(TString path, TMaybe<TTransactionId> transactionId = Nothing());
+
+    ///
+    /// @brief String that will be prepended to the command.
+    ///
+    /// This option overrides @ref NYT::TOperationOptions::JobCommandPrefix.
     FLUENT_FIELD(TString, JobCommandPrefix);
+
+    ///
+    /// @brief String that will be appended to the command.
+    ///
+    /// This option overrides @ref NYT::TOperationOptions::JobCommandSuffix.
     FLUENT_FIELD(TString, JobCommandSuffix);
 
-    //
-    // Map of environment variables that will be set for jobs.
+    ///
+    /// @brief Map of environment variables that will be set for jobs.
     FLUENT_MAP_FIELD(TString, TString, Environment);
 
-    //
-    // Limit for all files inside job sandbox.
+    ///
+    /// @brief Limit for all files inside job sandbox (in bytes).
     FLUENT_FIELD_OPTION(ui64, DiskSpaceLimit);
 
-    //
-    // Number of ports reserved for the job. They are passed through environment in YT_PORT_0, YT_PORT_1, ...
+    ///
+    /// @brief Number of ports reserved for the job (passed through environment in YT_PORT_0, YT_PORT_1, ...).
     FLUENT_FIELD_OPTION(ui16, PortCount);
 
-    //
-    // Limit on job execution time.
-    // Jobs that exceed this limit will be considered failed.
+    ///
+    /// @brief Limit on job execution time.
+    ///
+    /// Jobs that exceed this limit will be considered failed.
     FLUENT_FIELD_OPTION(TDuration, JobTimeLimit);
+
+    ///
+    /// @brief Get job binary config.
+    const TJobBinaryConfig& GetJobBinary() const;
 
 private:
     TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> LocalFiles_;
@@ -599,33 +675,58 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Spec of Map operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/map
 template <typename TDerived>
 struct TMapOperationSpecBase
     : public TUserOperationSpecBase<TDerived>
 {
     using TSelf = TDerived;
 
+    ///
+    /// @brief Spec of mapper job.
     FLUENT_FIELD(TUserJobSpec, MapperSpec);
 
-    // When `Ordered' is false (by default), there is no guaranties about order of reading rows.
-    // In this case mapper might work slightly faster because row delivered from fast node can be processed YT waits
-    // response from slow nodes.
-    // When `Ordered' is true, rows will come in order in which they are stored in input tables.
+    ///
+    /// @brief Whether to guarantee the order of rows passed to mapper matches the order in the table.
+    /// 
+    /// When `Ordered' is false (by default), there is no guaranties about order of reading rows.
+    /// In this case mapper might work slightly faster because row delivered from fast node can be processed YT waits
+    /// response from slow nodes.
+    /// When `Ordered' is true, rows will come in order in which they are stored in input tables.
     FLUENT_FIELD_OPTION(bool, Ordered);
 
-    // `JobCount' and `DataSizePerJob' options affect how many jobs will be launched.
-    // These options only provide recommendations and YT might ignore them if they conflict with YT internal limits.
-    // `JobCount' has higher priority than `DataSizePerJob'.
+    /// 
+    /// @brief Recommended number of jobs to run.
+    ///
+    /// `JobCount' has higher priority than @ref NYT::TMapOperationSpecBase::DataSizePerJob.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
     FLUENT_FIELD_OPTION(ui32, JobCount);
+
+    ///
+    /// @brief Recommended of data size for each job.
+    ///
+    /// `DataSizePerJob` has lower priority that @ref NYT::TMapOperationSpecBase::JobCount.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
     FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
 };
 
+///
+/// @brief Spec of Map operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/map
 struct TMapOperationSpec
     : public TMapOperationSpecBase<TMapOperationSpec>
     , public TOperationIOSpec<TMapOperationSpec>
     , public TUserJobFormatHintsBase<TMapOperationSpec>
 { };
 
+///
+/// @brief Spec of raw Map operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/map
 struct TRawMapOperationSpec
     : public TMapOperationSpecBase<TRawMapOperationSpec>
     , public TSimpleRawOperationIoSpec<TRawMapOperationSpec>
@@ -633,31 +734,67 @@ struct TRawMapOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Spec of Reduce operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/reduce
 template <typename TDerived>
 struct TReduceOperationSpecBase
     : public TUserOperationSpecBase<TDerived>
 {
     using TSelf = TDerived;
 
+    ///
+    /// @brief Spec of reduce job.
     FLUENT_FIELD(TUserJobSpec, ReducerSpec);
+
+    ///
+    /// @brief Columns to sort rows by (must include `ReduceBy` as prefix).
     FLUENT_FIELD(TKeyColumns, SortBy);
+
+    ///
+    /// @brief Columns to group rows by.
     FLUENT_FIELD(TKeyColumns, ReduceBy);
+
+    ///
+    /// @brief Columns to join foreign tables by (must be prefix of `ReduceBy`).
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/reduce#foreign_tables
     FLUENT_FIELD_OPTION(TKeyColumns, JoinBy);
-    //When set to true forces controller to put all rows with same ReduceBy columns in one job
-    //When set to false controller can relax this demand (default true)
+
+    ///
+    /// @brief Guarantee to feed all rows with same `ReduceBy` columns to a single job (`true` by default).
     FLUENT_FIELD_OPTION(bool, EnableKeyGuarantee);
 
-    // Similar to corresponding options in `TMapOperationSpec'.
+    /// 
+    /// @brief Recommended number of jobs to run.
+    ///
+    /// `JobCount' has higher priority than @ref NYT::TReduceOperationSpecBase::DataSizePerJob.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
     FLUENT_FIELD_OPTION(ui32, JobCount);
+
+    ///
+    /// @brief Recommended of data size for each job.
+    ///
+    /// `DataSizePerJob` has lower priority that @ref NYT::TReduceOperationSpecBase::JobCount.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
     FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
 };
 
+///
+/// @brief Spec of Reduce operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/reduce
 struct TReduceOperationSpec
     : public TReduceOperationSpecBase<TReduceOperationSpec>
     , public TOperationIOSpec<TReduceOperationSpec>
     , public TUserJobFormatHintsBase<TReduceOperationSpec>
 { };
 
+///
+/// @brief Spec of raw Reduce operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/reduce
 struct TRawReduceOperationSpec
     : public TReduceOperationSpecBase<TRawReduceOperationSpec>
     , public TSimpleRawOperationIoSpec<TRawReduceOperationSpec>
@@ -665,26 +802,64 @@ struct TRawReduceOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Spec of JoinReduce operation.
+///
+/// @deprecated Instead the user should run a reduce operation
+/// with @ref NYT::TReduceOperationSpec::EnableKeyGuarantee set to `false`.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/reduce#foreign_tables
 template <typename TDerived>
 struct TJoinReduceOperationSpecBase
     : public TUserOperationSpecBase<TDerived>
 {
     using TSelf = TDerived;
 
+    ///
+    /// @brief Spec of reduce job.
     FLUENT_FIELD(TUserJobSpec, ReducerSpec);
-    FLUENT_FIELD(TKeyColumns, JoinBy);
 
-    // Similar to corresponding options in `TMapOperationSpec'.
+    ///
+    /// @brief Columns to join foreign tables by (must be prefix of `ReduceBy`).
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/reduce#foreign_tables
+    FLUENT_FIELD(TKeyColumns, JoinBy);
+   
+    /// 
+    /// @brief Recommended number of jobs to run.
+    ///
+    /// `JobCount' has higher priority than @ref NYT::TJoinReduceOperationSpecBase::DataSizePerJob.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
     FLUENT_FIELD_OPTION(ui32, JobCount);
+
+    ///
+    /// @brief Recommended of data size for each job.
+    ///
+    /// `DataSizePerJob` has lower priority that @ref NYT::TJoinReduceOperationSpecBase::JobCount.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
     FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
 };
 
+///
+/// @brief Spec of JoinReduce operation.
+///
+/// @deprecated Instead the user should run a reduce operation
+/// with @ref NYT::TReduceOperationSpec::EnableKeyGuarantee set to `false`.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/reduce#foreign_tables
 struct TJoinReduceOperationSpec
     : public TJoinReduceOperationSpecBase<TJoinReduceOperationSpec>
     , public TOperationIOSpec<TJoinReduceOperationSpec>
     , public TUserJobFormatHintsBase<TJoinReduceOperationSpec>
 { };
 
+///
+/// @brief Spec of raw JoinReduce operation.
+///
+/// @deprecated Instead the user should run a reduce operation
+/// with @ref NYT::TReduceOperationSpec::EnableKeyGuarantee set to `false`.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/reduce#foreign_tables
 struct TRawJoinReduceOperationSpec
     : public TJoinReduceOperationSpecBase<TRawJoinReduceOperationSpec>
     , public TSimpleRawOperationIoSpec<TRawJoinReduceOperationSpec>
@@ -692,39 +867,81 @@ struct TRawJoinReduceOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Spec of MapReduce operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/mapreduce
 template <typename TDerived>
 struct TMapReduceOperationSpecBase
     : public TUserOperationSpecBase<TDerived>
 {
     using TSelf = TDerived;
 
+    ///
+    /// @brief Spec of map job.
     FLUENT_FIELD(TUserJobSpec, MapperSpec);
+
+    ///
+    /// @brief Spec of reduce job.
     FLUENT_FIELD(TUserJobSpec, ReducerSpec);
+
+    ///
+    /// @brief Spec of reduce combiner.
     FLUENT_FIELD(TUserJobSpec, ReduceCombinerSpec);
+
+    ///
+    /// @brief Columns to sort rows by (must include `ReduceBy` as prefix).
     FLUENT_FIELD(TKeyColumns, SortBy);
+
+    ///
+    /// @brief Columns to group rows by.
     FLUENT_FIELD(TKeyColumns, ReduceBy);
 
-    // Similar to `JobCount' / `DataSizePerJob'.
-    FLUENT_FIELD_OPTION(ui64, MapJobCount);
+    /// 
+    /// @brief Recommended number of map jobs to run.
+    ///
+    /// `JobCount' has higher priority than @ref NYT::TMapReduceOperationSpecBase::DataSizePerMapJob.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
+    FLUENT_FIELD_OPTION(ui32, MapJobCount);
+
+    ///
+    /// @brief Recommended of data size for each map job.
+    ///
+    /// `DataSizePerJob` has lower priority that @ref NYT::TMapReduceOperationSpecBase::MapJobCount.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
     FLUENT_FIELD_OPTION(ui64, DataSizePerMapJob);
 
+    ///
+    /// @brief Recommended number of intermediate data partitions.
     FLUENT_FIELD_OPTION(ui64, PartitionCount);
+
+    ///
+    /// @brief Recommended size of intermediate data partitions.
     FLUENT_FIELD_OPTION(ui64, PartitionDataSize);
 
-    // Replication factor for intermediate data (it's equal 1 by default).
+    ///
+    /// @brief Replication factor for intermediate data (1 by default).
     FLUENT_FIELD_OPTION(ui64,  IntermediateDataReplicationFactor);
 
-    // Specifies how much data should be passed to single reduce-combiner job.
+    ///
+    /// @brief Recommended size of data to be passed to a single reduce combiner.
     FLUENT_FIELD_OPTION(ui64, DataSizePerSortJob);
 
-    // Ordered mode for map stage.
-    // Check `Ordered' option for Map operation for more info.
+    ///
+    /// @brief Whether to guarantee the order of rows passed to mapper matches the order in the table.
+    /// 
+    /// @see @ref NYT::TMapOperationSpec::Ordered for more info.
     FLUENT_FIELD_OPTION(bool, Ordered);
 
-    // Always run reduce combiner before reducer.
+    ///
+    /// @brief Guarantee to run reduce combiner before reducer.
     FLUENT_FIELD_OPTION(bool, ForceReduceCombiners);
 };
 
+///
+/// @brief Spec of MapReduce operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/mapreduce
 struct TMapReduceOperationSpec
     : public TMapReduceOperationSpecBase<TMapReduceOperationSpec>
     , public TOperationIOSpec<TMapReduceOperationSpec>
@@ -732,11 +949,23 @@ struct TMapReduceOperationSpec
 {
     using TSelf = TMapReduceOperationSpec;
 
+    ///
+    /// @brief Format hints for mapper.
     FLUENT_FIELD_DEFAULT(TUserJobFormatHints, MapperFormatHints, TUserJobFormatHints());
+
+    ///
+    /// @brief Format hints for reducer.
     FLUENT_FIELD_DEFAULT(TUserJobFormatHints, ReducerFormatHints, TUserJobFormatHints());
+
+    ///
+    /// @brief Format hints for reduce combiner.
     FLUENT_FIELD_DEFAULT(TUserJobFormatHints, ReduceCombinerFormatHints, TUserJobFormatHints());
 };
 
+///
+/// @brief Spec of raw MapReduce operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/mapreduce
 struct TRawMapReduceOperationSpec
     : public TMapReduceOperationSpecBase<TRawMapReduceOperationSpec>
     , public TRawMapReduceOperationIoSpec<TRawMapReduceOperationSpec>
@@ -744,7 +973,10 @@ struct TRawMapReduceOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// See https://yt.yandex-team.ru/docs/description/storage/static_schema.html#schema_inference
+///
+/// @brief Schema inference mode.
+///
+/// @see https://yt.yandex-team.ru/docs/description/storage/static_schema.html#schema_inference
 enum class ESchemaInferenceMode : int
 {
     FromInput   /* "from_input" */,
@@ -752,27 +984,63 @@ enum class ESchemaInferenceMode : int
     Auto        /* "auto" */,
 };
 
+///
+/// @brief Spec of Sort operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/sort
 struct TSortOperationSpec
     : TOperationSpecBase<TSortOperationSpec>
 {
     using TSelf = TSortOperationSpec;
 
+    ///
+    /// @brief Paths to input tables.
     FLUENT_VECTOR_FIELD(TRichYPath, Input);
+
+    ///
+    /// @brief Path to output table.
     FLUENT_FIELD(TRichYPath, Output);
+
+    ///
+    /// @brief Columns to sort table by.
     FLUENT_FIELD(TKeyColumns, SortBy);
 
+    ///
+    /// @brief Recommended number of intermediate data partitions.
     FLUENT_FIELD_OPTION(ui64, PartitionCount);
-    FLUENT_FIELD_OPTION(ui64, PartitionDataSize);
 
+    ///
+    /// @brief Recommended size of intermediate data partitions.
+    FLUENT_FIELD_OPTION(ui64, PartitionDataSize);
+    
+    /// 
+    /// @brief Recommended number of partition jobs to run.
+    ///
+    /// `JobCount' has higher priority than @ref NYT::TSortOperationSpec::DataSizePerPartitionJob.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
     FLUENT_FIELD_OPTION(ui64, PartitionJobCount);
+
+    ///
+    /// @brief Recommended of data size for each partition job.
+    ///
+    /// `DataSizePerJob` has lower priority that @ref NYT::TSortOperationSpec::PartitionJobCount.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
     FLUENT_FIELD_OPTION(ui64, DataSizePerPartitionJob);
 
+    ///
+    /// @brief Inference mode for output table schema.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/storage/static_schema.html#schema_inference
     FLUENT_FIELD_OPTION(ESchemaInferenceMode, SchemaInferenceMode);
 
-    // Replication factor for intermediate data (it's equal 1 by default).
+    ///
+    /// @brief Replication factor for intermediate data (1 by default).
     FLUENT_FIELD_OPTION(ui64, IntermediateDataReplicationFactor);
 };
 
+
+///
+/// @brief Merge mode.
 enum EMergeMode : int
 {
     MM_UNORDERED    /* "unordered" */,
@@ -780,104 +1048,310 @@ enum EMergeMode : int
     MM_SORTED       /* "sorted" */,
 };
 
+///
+/// @brief Spec of Merge operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/merge
 struct TMergeOperationSpec
     : TOperationSpecBase<TMergeOperationSpec>
 {
     using TSelf = TMergeOperationSpec;
 
+    ///
+    /// @brief Paths to input tables.
     FLUENT_VECTOR_FIELD(TRichYPath, Input);
+
+    ///
+    /// @brief Path to output table.
     FLUENT_FIELD(TRichYPath, Output);
+
+    ///
+    /// @brief Columns by which to merge (for @ref NYT::EMergeMode::MM_SORTED).
     FLUENT_FIELD(TKeyColumns, MergeBy);
+    
+    ///
+    /// @brief Merge mode.
     FLUENT_FIELD_DEFAULT(EMergeMode, Mode, MM_UNORDERED);
+
+    ///
+    /// @brief Combine output chunks to larger ones.
     FLUENT_FIELD_DEFAULT(bool, CombineChunks, false);
+
+    ///
+    /// @brief Guarantee that all input chunks will be read.
     FLUENT_FIELD_DEFAULT(bool, ForceTransform, false);
 
-    // Similar to `JobCount' / `DataSizePerJob'.
-    FLUENT_FIELD_OPTION(ui64, JobCount);
+    /// 
+    /// @brief Recommended number of jobs to run.
+    ///
+    /// `JobCount' has higher priority than @ref NYT::TMergeOperationSpec::DataSizePerJob.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
+    FLUENT_FIELD_OPTION(ui32, JobCount);
+
+    ///
+    /// @brief Recommended of data size for each job.
+    ///
+    /// `DataSizePerJob` has lower priority that @ref NYT::TMergeOperationSpec::JobCount.
+    /// This option only provide a recommendation and may be ignored if conflicting with YT internal limits.
     FLUENT_FIELD_OPTION(ui64, DataSizePerJob);
 
+    ///
+    /// @brief Inference mode for output table schema.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/storage/static_schema.html#schema_inference
     FLUENT_FIELD_OPTION(ESchemaInferenceMode, SchemaInferenceMode);
 };
 
+///
+/// @brief Spec of Erase operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/erase
 struct TEraseOperationSpec
     : TOperationSpecBase<TEraseOperationSpec>
 {
     using TSelf = TEraseOperationSpec;
 
+    ///
+    /// @brief Which table (or row range) to erase.
     FLUENT_FIELD(TRichYPath, TablePath);
+
+    ///
+    /// Combine output chunks to larger ones.
     FLUENT_FIELD_DEFAULT(bool, CombineChunks, false);
 
+    ///
+    /// @brief Inference mode for output table schema.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/storage/static_schema.html#schema_inference
     FLUENT_FIELD_OPTION(ESchemaInferenceMode, SchemaInferenceMode);
 };
 
-// See https://yt.yandex-team.ru/docs/description/mr/remote_copy
+///
+/// @brief Spec of RemoteCopy operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/remote_copy
 struct TRemoteCopyOperationSpec
     : TOperationSpecBase<TRemoteCopyOperationSpec>
 {
     using TSelf = TRemoteCopyOperationSpec;
 
-    // Source cluster name.
+    ///
+    /// @brief Source cluster name.
     FLUENT_FIELD(TString, ClusterName);
 
-    // Network to use for copy (all remote cluster nodes must have it configured).
+    ///
+    /// @brief Network to use for copy (all remote cluster nodes must have it configured).
     FLUENT_FIELD_OPTION(TString, NetworkName);
 
+    ///
+    /// @brief Paths to input tables.
     FLUENT_VECTOR_FIELD(TRichYPath, Input);
+
+    ///
+    /// @brief Path to output table.
     FLUENT_FIELD(TRichYPath, Output);
 
+    ///
+    /// @brief Inference mode for output table schema.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/storage/static_schema.html#schema_inference
     FLUENT_FIELD_OPTION(ESchemaInferenceMode, SchemaInferenceMode);
 
-    // Should user attributes be copied to the output table (allowed only for single output table).
-    // 'AttributeKey's vector allows to choose what attributes to copy.
+    ///
+    /// @brief Copy user attributes from input to output table (allowed only for single output table).
     FLUENT_FIELD_DEFAULT(bool, CopyAttributes, false);
+
+    ///
+    /// @brief Names of user attributes to copy from input to output table.
+    ///
+    /// @note To make this option make sense set @ref NYT::TRemoteCopyOperationSpec::CopyAttributes to `true`.
     FLUENT_VECTOR_FIELD(TString, AttributeKey);
 
 private:
+
+    ///
+    /// @brief Config for remote cluster connection.
     FLUENT_FIELD_OPTION(TNode, ClusterConnection);
 };
 
 class IVanillaJobBase;
 
+///
+/// @brief Task of Vanilla operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/vanilla
 struct TVanillaTask
     : public TOperationOutputSpecBase
     , public TUserJobOutputFormatHintsBase<TVanillaTask>
 {
     using TSelf = TVanillaTask;
 
+    ///
+    /// @brief Add output table path and specify the task output type (i.e. TMyProtoMessage).
     template <class T>
     TSelf& AddOutput(const TRichYPath& path);
 
+    ///
+    /// @brief Add output table path as structured path.
     TSelf& AddStructuredOutput(TStructuredTablePath path);
 
+    ///
+    /// @brief Set output table path and specify the task output type (i.e. TMyProtoMessage).
     template <class T>
     TSelf& SetOutput(size_t tableIndex, const TRichYPath& path);
 
+    ///
+    /// @brief Task name.
     FLUENT_FIELD(TString, Name);
+
+    ///
+    /// @brief Job to be executed in this task.
     FLUENT_FIELD(::TIntrusivePtr<IVanillaJobBase>, Job);
+
+    ///
+    /// @brief User job spec.
     FLUENT_FIELD(TUserJobSpec, Spec);
+
+    ///
+    /// @brief Number of jobs to run and wait for successful completion.
+    ///
+    /// @note If @ref NYT::TUserOperationSpecBase::FailOnJobRestart is `false`, a failed job will be restarted
+    /// and will not count in this amount.
     FLUENT_FIELD(ui64, JobCount);
 };
 
+///
+/// @brief Spec of Vanilla operation.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/vanilla
 struct TVanillaOperationSpec
     : TUserOperationSpecBase<TVanillaOperationSpec>
 {
     using TSelf = TVanillaOperationSpec;
 
+    ///
+    /// @brief Description of tasks to run in this operation.
     FLUENT_VECTOR_FIELD(TVanillaTask, Task);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Options for @ref NYT::IOperationClient::Map and other operation start commands.
+struct TOperationOptions
+{
+    using TSelf = TOperationOptions;
+
+    ///
+    /// @brief Additional field to put to operation spec.
+    FLUENT_FIELD_OPTION(TNode, Spec);
+
+    ///
+    /// @brief Wait for operation finish synchronously.
+    FLUENT_FIELD_DEFAULT(bool, Wait, true);
+
+    ///
+    ///
+    /// @brief Use format from table attribute (for YAMR-like format).
+    ///
+    /// @deprecated
+    FLUENT_FIELD_DEFAULT(bool, UseTableFormats, false);
+
+    ///
+    /// @brief Prefix for bash command running the jobs.
+    ///
+    /// Can be overridden for the specific job type in the @ref NYT::TUserJobSpec.
+    FLUENT_FIELD(TString, JobCommandPrefix);
+
+    ///
+    /// @brief Suffix for bash command running the jobs.
+    ///
+    /// Can be overridden for the specific job type in the @ref NYT::TUserJobSpec.
+    FLUENT_FIELD(TString, JobCommandSuffix);
+
+    ///
+    /// @brief Put all files required by the job into tmpfs.
+    ///
+    /// This option can be set globaly using @ref NYT::TConfig::MountSandboxInTmpfs.
+    /// @see https://yt.yandex-team.ru/docs/problems/woodpeckers
+    FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
+
+    ///
+    /// @brief Path to directory to store temporary files.
+    FLUENT_FIELD_OPTION(TString, FileStorage);
+    
+    ///
+    /// @brief Info to be passed securely to the job.
+    FLUENT_FIELD_OPTION(TNode, SecureVault);
+
+    ///
+    /// @brief File cache mode.
+    enum class EFileCacheMode : int
+    {
+        ///
+        /// @brief Use YT API commands "get_file_from_cache" and "put_file_to_cache".
+        ApiCommandBased,
+
+        ///
+        /// @brief Upload files to random paths inside @ref NYT::TOperationOptions::FileStorage without caching.
+        CachelessRandomPathUpload,
+    };
+
+    ///
+    /// @brief File cache mode.
+    FLUENT_FIELD_DEFAULT(EFileCacheMode, FileCacheMode, EFileCacheMode::ApiCommandBased);
+
+    ///
+    /// @brief Id of transaction within which all Cypress file storage entries will be checked/created.
+    ///
+    /// By default, the root transaction is used.
+    ///
+    /// @note Set a specific transaction only if you
+    ///  1. specify non-default file storage path in @ref NYT::TOperationOptions::FileStorage or in @ref NYT::TConfig::RemoteTempFilesDirectory.
+    ///  2. use `CachelessRandomPathUpload` caching mode (@ref NYT::TOperationOptions::FileCacheMode).
+    FLUENT_FIELD(TTransactionId, FileStorageTransactionId);
+
+    ///
+    /// @brief Ensure stderr and core tables exist before starting operation.
+    ///
+    /// If set to `false`, it is user's responsibility to ensure these tables exist.
+    FLUENT_FIELD_DEFAULT(bool, CreateDebugOutputTables, true);
+
+    ///
+    /// @brief Ensure output tables exist before starting operation.
+    ///
+    /// If set to `false`, it is user's responsibility to ensure output tables exist.
+    FLUENT_FIELD_DEFAULT(bool, CreateOutputTables, true);
+
+    ///
+    /// @brief Try to infer schema of inexistent table from the type of written rows.
+    ///
+    /// @note Default values for this option may differ depending on the row type.
+    /// For protobuf it's currently `false` by default.
+    FLUENT_FIELD_OPTION(bool, InferOutputSchema);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+///
+/// @brief Get operation secure vault (specified in @ref NYT::TOperationOptions::SecureVault) inside a job.
 const TNode& GetJobSecureVault();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Context passed to @ref NYT::IRawJob::Do.
 class TRawJobContext
 {
 public:
     explicit TRawJobContext(size_t outputTableCount);
 
+    ///
+    /// @brief Get file corresponding to input stream.
     const TFile& GetInputFile() const;
+
+    ///
+    /// @brief Get files corresponding to output streams.
     const TVector<TFile>& GetOutputFileList() const;
 
 private:
@@ -887,19 +1361,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Interface for classes that can be Saved/Loaded.
-// Can be used with Y_SAVELOAD_JOB
+///
+/// @brief Interface for classes that can be Saved/Loaded (to be used with @ref Y_SAVELOAD_JOB).
 class ISerializableForJob
 {
 public:
     virtual ~ISerializableForJob() = default;
 
+    ///
+    /// @brief Dump state to output stream to be restored in job.
     virtual void Save(IOutputStream& stream) const = 0;
+
+    ///
+    /// @brief Load state from a stream.
     virtual void Load(IInputStream& stream) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
 /// @brief Provider of information about operation inputs/outputs during @ref NYT::IJob::PrepareOperation.
 class IOperationPreparationContext
 {
@@ -925,6 +1405,7 @@ public:
     virtual TMaybe<TYPath> GetOutputPath(int index) const = 0;
 };
 
+///
 /// @brief Fluent builder class for @ref NYT::IJob::PrepareOperation.
 ///
 /// @note Method calls are supposed to be chained.
@@ -932,9 +1413,10 @@ class TJobOperationPreparer
 {
 public:
 
+    ///
     /// @brief Group of input tables that allows to specify properties on all of them at once.
     ///
-    /// The instances are created with @ref NYT::TJobOperationPreparer::StartInputGroup, not directly.
+    /// The instances are created with @ref NYT::TJobOperationPreparer::BeginInputGroup, not directly.
     class TInputGroup
     {
     public:
@@ -959,10 +1441,11 @@ public:
         TJobOperationPreparer& Preparer_;
         TVector<int> Indices_;
     };
-
+    
+    ///
     /// @brief Group of output tables that allows to specify properties on all of them at once.
     ///
-    /// The instances are created with @ref NYT::TJobOperationPreparer::StartOutputGroup, not directly.
+    /// The instances are created with @ref NYT::TJobOperationPreparer::BeginOutputGroup, not directly.
     class TOutputGroup
     {
     public:
@@ -1129,10 +1612,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Interface for all user jobs.
 class IJob
     : public TThrRefBase
 {
 public:
+
+    ///
+    /// @brief Type of job.
     enum EType
     {
         Mapper,
@@ -1142,21 +1630,29 @@ public:
         VanillaJob,
     };
 
+    ///
+    /// @brief Save job state to stream to be restored on cluster nodes.
     virtual void Save(IOutputStream& stream) const
     {
         Y_UNUSED(stream);
     }
 
+    ///
+    /// @brief Restore job state from a stream.
     virtual void Load(IInputStream& stream)
     {
         Y_UNUSED(stream);
     }
 
+    ///
+    /// @brief Get operation secure vault (specified in @ref NYT::TOperationOptions::SecureVault) inside a job.
     const TNode& SecureVault() const
     {
         return GetJobSecureVault();
     }
 
+    ///
+    /// @brief Get number of output tables.
     i64 GetOutputTableCount() const
     {
         Y_VERIFY(NDetail::OutputTableCount > 0);
@@ -1164,6 +1660,7 @@ public:
         return NDetail::OutputTableCount;
     }
 
+    ///
     /// @brief Method allowing user to control some properties of input and output tables and formats.
     ///
     /// User can override this method in their job class to:
@@ -1193,11 +1690,13 @@ public:
     ///
     /// @note All the output table schemas must be set
     /// (possibly as empty nonstrict using @ref NYT::TJobOperationPreparer::NoOutputSchema or
-    /// @ref NYT::TJobOperationPreparer::TOutputGroup::NoOutputSchema).
+    /// @ref NYT::TJobOperationPreparer::TOutputGroup::NoSchema).
     /// By default all the output table schemas are marked as empty nonstrict.
     virtual void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& preparer) const;
 };
 
+///
+/// @brief Declare what fields of currently declare job class to save and restore on cluster node.
 #define Y_SAVELOAD_JOB(...) \
     virtual void Save(IOutputStream& stream) const override { Save(&stream); } \
     virtual void Load(IInputStream& stream) override { Load(&stream); } \
@@ -1205,6 +1704,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Interface for jobs with typed inputs and outputs.
 class IStructuredJob
     : public IJob
 {
@@ -1215,29 +1716,41 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+///
+/// @brief Base interface for structured (typed) map jobs.
 class IMapperBase
     : public IStructuredJob
 { };
 
+///
+/// @brief Base interface for structured (typed) map jobs with given reader and writer.
 template <class TR, class TW>
 class IMapper
     : public IMapperBase
 {
 public:
-    static constexpr EType JobType = EType::Mapper;
     using TReader = TR;
     using TWriter = TW;
 
+public:
+    static constexpr EType JobType = EType::Mapper;
+
+    ///
+    /// @brief This method is called before feeding input rows to mapper (before `Do` method).
     virtual void Start(TWriter* writer)
     {
         Y_UNUSED(writer);
     }
 
-    //
-    // Each mapper job will call Do method only once.
-    // Reader reader will read whole range of job input.
+    ///
+    /// @brief This method is called exactly once for the whole job input.
+    ///
+    /// Read input rows from `reader` and write output ones to `writer`.
     virtual void Do(TReader* reader, TWriter* writer) = 0;
 
+    ///
+    /// @brief This method is called after feeding input rows to mapper (after `Do` method).
     virtual void Finish(TWriter* writer)
     {
         Y_UNUSED(writer);
@@ -1249,11 +1762,16 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Common base for IReducer and IAggregatorReducer
+///
+/// @brief Base interface for structured (typed) reduce jobs.
+///
+/// It is common base for @ref NYT::IReducer and @ref NYT::IAggregatorReducer.
 class IReducerBase
     : public IStructuredJob
 { };
 
+///
+/// @brief Base interface for structured (typed) reduce jobs with given reader and writer.
 template <class TR, class TW>
 class IReducer
     : public IReducerBase
@@ -1266,22 +1784,28 @@ public:
     static constexpr EType JobType = EType::Reducer;
 
 public:
+
+    ///
+    /// @brief This method is called before feeding input rows to reducer (before `Do` method).
     virtual void Start(TWriter* writer)
     {
         Y_UNUSED(writer);
     }
 
-    //
-    // Reduce jobs will call Do multiple times.
-    // Each time Do is called reader will point to the range of records that have same ReduceBy or JoinBy key.
+    ///
+    /// @brief This method is called exactly once for each range with same value of `ReduceBy` (or `JoinBy`) keys.
     virtual void Do(TReader* reader, TWriter* writer) = 0;
 
+    ///
+    /// @brief This method is called after feeding input rows to reducer (after `Do` method).
     virtual void Finish(TWriter* writer)
     {
         Y_UNUSED(writer);
     }
 
-    void Break(); // do not process other keys
+    ///
+    /// @brief Refuse to process the remaining row ranges and finish the job (successfully).
+    void Break();
 
     virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const override;
     virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const override;
@@ -1289,12 +1813,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//
-// IAggregatorReducer jobs are used inside reduce operations.
-// Unlike IReduce jobs their `Do' method is called only once
-// and takes whole range of records split by key boundaries.
-//
-// Template argument TR must be TTableRangesReader.
+///
+/// @brief Base interface of jobs used inside reduce operations.
+///
+/// Unlike @ref NYT::IReducer jobs their `Do' method is called only once
+/// and takes whole range of records split by key boundaries.
+///
+/// Template argument `TR` must be @ref NYT::TTableRangesReader.
 template <class TR, class TW>
 class IAggregatorReducer
     : public IReducerBase
@@ -1307,13 +1832,19 @@ public:
     static constexpr EType JobType = EType::ReducerAggregator;
 
 public:
+    ///
+    /// @brief This method is called before feeding input rows to reducer (before `Do` method).
     virtual void Start(TWriter* writer)
     {
         Y_UNUSED(writer);
     }
 
+    ///
+    /// @brief This method is called exactly once for the whole job input.
     virtual void Do(TReader* reader, TWriter* writer) = 0;
 
+    ///
+    /// @brief This method is called after feeding input rows to reducer (after `Do` method).
     virtual void Finish(TWriter* writer)
     {
         Y_UNUSED(writer);
@@ -1325,30 +1856,45 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Interface for raw jobs (i.e. reading and writing byte streams).
 class IRawJob
     : public IJob
 {
 public:
     static constexpr EType JobType = EType::RawJob;
 
+    ///
+    /// @brief This method is called exactly once for the whole job input.
     virtual void Do(const TRawJobContext& jobContext) = 0;
 };
 
+///
+/// @brief Interface of jobs that run the given bash command.
 class ICommandJob
     : public IJob
 {
 public:
+    ///
+    /// @brief Get bash command to run.
+    ///
+    /// @note This method is called on the client side.
     virtual const TString& GetCommand() const = 0;
 };
 
+///
 /// @brief Raw job executing given bash command.
 ///
-/// The binary will not be uploaded.
+/// @note The binary will not be uploaded.
 class TCommandRawJob
     : public IRawJob
     , public ICommandJob
 {
 public:
+    ///
+    /// @brief Create job with specified command.
+    ///
+    /// @param command Bash command to run.
     explicit TCommandRawJob(TStringBuf command = {});
 
     const TString& GetCommand() const override;
@@ -1360,6 +1906,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Base interface for vanilla jobs.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/vanilla
 class IVanillaJobBase
    : public virtual IStructuredJob
 {
@@ -1370,25 +1920,34 @@ public:
 template <class TW = void>
 class IVanillaJob;
 
+///
+/// @brief Interface of vanilla job without outputs.
 template <>
 class IVanillaJob<void>
     : public IVanillaJobBase
 {
 public:
+    ///
+    /// @brief This method is called exactly once for each vanilla job.
     virtual void Do() = 0;
 
     virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const override;
     virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const override;
 };
 
+///
 /// @brief Vanilla job executing given bash command.
 ///
-/// The binary will not be uploaded.
+/// @note The binary will not be uploaded.
 class TCommandVanillaJob
     : public IVanillaJob<>
     , public ICommandJob
 {
 public:
+    ///
+    /// @brief Create job with specified command.
+    ///
+    /// @param command Bash command to run.
     explicit TCommandVanillaJob(TStringBuf command = {});
 
     const TString& GetCommand() const override;
@@ -1398,6 +1957,8 @@ private:
     TString Command_;
 };
 
+///
+/// @brief Interface for vanilla jobs with output tables.
 template <class TW>
 class IVanillaJob
     : public IVanillaJobBase
@@ -1405,11 +1966,19 @@ class IVanillaJob
 public:
     using TWriter = TW;
 
+    ///
+    /// @brief This method is called before `Do` method.
     virtual void Start(TWriter* /* writer */)
     { }
 
+    ///
+    /// @brief This method is called exactly once for each vanilla job.
+    ///
+    /// Write output rows to `writer`.
     virtual void Do(TWriter* writer) = 0;
 
+    ///
+    /// @brief This method is called after `Do` method.
     virtual void Finish(TWriter* /* writer */)
     { }
 
@@ -1419,6 +1988,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Attributes to request for an operation.
 enum class EOperationAttribute : int
 {
     Id                /* "id" */,
@@ -1438,12 +2009,16 @@ enum class EOperationAttribute : int
     UnrecognizedSpec  /* "unrecognized_spec" */,
 };
 
+///
+/// @brief Class describing which attributes to request in @ref NYT::IClient::GetOperation or @ref NYT::IClient::ListOperations.
 struct TOperationAttributeFilter
 {
     using TSelf = TOperationAttributeFilter;
 
     TVector<EOperationAttribute> Attributes_;
 
+    ///
+    /// @brief Add attribute to the filter. Calls are supposed to be chained.
     TSelf& Add(EOperationAttribute attribute)
     {
         Attributes_.push_back(attribute);
@@ -1451,21 +2026,31 @@ struct TOperationAttributeFilter
     }
 };
 
+///
+/// @brief Options for @ref NYT::IClient::GetOperation call.
 struct TGetOperationOptions
 {
     using TSelf = TGetOperationOptions;
 
+    ///
+    /// @brief What attributes to request (if omitted, the default set of attributes will be requested).
     FLUENT_FIELD_OPTION(TOperationAttributeFilter, AttributeFilter);
 };
 
+///
+/// @brief "Coarse-grained" state of an operation.
 enum class EOperationBriefState : int
 {
     InProgress    /* "in_progress" */,
     Completed     /* "completed" */,
     Aborted       /* "aborted" */,
+
+    /// Failed
     Failed        /* "failed" */,
 };
 
+///
+/// @brief Operation type.
 enum class EOperationType : int
 {
     Map         /* "map" */,
@@ -1479,11 +2064,17 @@ enum class EOperationType : int
     Vanilla     /* "vanilla" */,
 };
 
+///
+/// @brief Operation progress.
 struct TOperationProgress
 {
+    ///
+    /// @brief Total job statistics.
     TJobStatistics JobStatistics;
 };
 
+///
+/// @brief Brief operation progress (numbers of jobs in these states).
 struct TOperationBriefProgress
 {
     ui64 Aborted = 0;
@@ -1495,122 +2086,255 @@ struct TOperationBriefProgress
     ui64 Total = 0;
 };
 
+///
+/// @brief Operation result.
 struct TOperationResult
 {
+    ///
+    /// @brief For a unsuccessfully finished operation: description of error.
     TMaybe<TYtError> Error;
 };
 
+///
+/// @brief Operation event (change of state).
 struct TOperationEvent
 {
+    ///
+    /// @brief New state of operation.
     TString State;
+
+    ///
+    /// @brief Time of state change.
     TInstant Time;
 };
 
+///
+/// @brief Operation info.
+///
+/// A field may be `Nothing()` either if it was not requested (see @ref NYT::TGetOperationOptions::AttributeFilter)
+/// or it is not available (i.e. `FinishTime` for a running operation).
+/// @see https://yt.yandex-team.ru/docs/api/commands#get_operation
 struct TOperationAttributes
 {
+    ///
+    /// @brief Operation id.
     TMaybe<TOperationId> Id;
+    
+    ///
+    /// @brief Operation type.
     TMaybe<EOperationType> Type;
+
+    ///
+    /// @brief Operation state.
     TMaybe<TString> State;
+
+    ///
+    /// @brief "Coarse-grained" operation state.
     TMaybe<EOperationBriefState> BriefState;
+
+    ///
+    /// @brief Name of user that started the operation.
     TMaybe<TString> AuthenticatedUser;
+
+    ///
+    /// @brief Operation start time.
     TMaybe<TInstant> StartTime;
+
+    ///
+    /// @brief Operation finish time (if the operation has finished). 
     TMaybe<TInstant> FinishTime;
+
+    ///
+    /// @brief Brief progress of the operation.
     TMaybe<TOperationBriefProgress> BriefProgress;
+
+    ///
+    /// @brief Brief spec of operation (light-weight fields only).
     TMaybe<TNode> BriefSpec;
+
+    ///
+    /// @brief Spec of the operation as provided by the user.
     TMaybe<TNode> Spec;
+
+    ///
+    /// @brief Full spec of operation (all fields not specified by user are filled with default values).
     TMaybe<TNode> FullSpec;
+
+    ///
+    /// @brief Fields not recognized by scheduler.
     TMaybe<TNode> UnrecognizedSpec;
+
+    ///
+    /// @brief Is operation suspended.
     TMaybe<bool> Suspended;
+
+    ///
+    /// @brief Operation result.
     TMaybe<TOperationResult> Result;
+
+    ///
+    /// @brief Operation progress.
     TMaybe<TOperationProgress> Progress;
+
+    ///
+    /// @brief List of operation events (changes of state).
     TMaybe<TVector<TOperationEvent>> Events;
+
+    ///
+    /// @brief Map from alert name to its description.
     TMaybe<THashMap<TString, TYtError>> Alerts;
 };
 
+///
+/// @brief Direction of cursor for paging, see @ref NYT::TListOperationsOptions::CursorDirection.
 enum class ECursorDirection
 {
     Past /* "past" */,
     Future /* "future" */,
 };
 
-// https://yt.yandex-team.ru/docs/api/commands.html#list_operations
+///
+/// @brief Options of @ref NYT::IClient::ListOperations command.
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#list_operations
 struct TListOperationsOptions
 {
     using TSelf = TListOperationsOptions;
 
-    // Search for operations with start time in half-closed interval
-    // [CursorTime, ToTime) if CursorDirection == Future or
-    // [FromTime, CursorTime) if CursorDirection == Past.
+    ///
+    /// @name Time range specification
+    ///
+    /// List operations with start time in half-closed interval
+    /// `[CursorTime, ToTime)` if `CursorDirection == Future` or
+    /// `[FromTime, CursorTime)` if `CursorDirection == Past`.
+    ///@{
+
+    ///
+    /// @brief Search for operations with start time >= `FromTime`.
     FLUENT_FIELD_OPTION(TInstant, FromTime);
+
+    ///
+    /// @brief Search for operations with start time < `ToTime`.
     FLUENT_FIELD_OPTION(TInstant, ToTime);
+
+    ///
+    /// @brief Additional restriction on operation start time (useful for pagination).
+    ///
+    /// Search for operations with start time >= `CursorTime` if `CursorDirection == Future`
+    /// and with start time < `CursorTime` if `CursorDirection == Past`
     FLUENT_FIELD_OPTION(TInstant, CursorTime);
+
+    ///
+    /// @brief Direction of pagination (see @ref NYT::TListOperationsOptions::CursorTime).
     FLUENT_FIELD_OPTION(ECursorDirection, CursorDirection);
 
-    // Choose operations satisfying given filters.
-    //
-    // Search for Filter as a substring in operation text factors
-    // (e.g. title or input/output table paths).
+    ///@}
+
+    ///
+    /// @name Filters
+    /// Choose operations satisfying given filters.
+    ///@{
+
+    ///
+    /// @brief Search for `Filter` as a substring in operation text factors
+    /// (e.g. title or input/output table paths).
     FLUENT_FIELD_OPTION(TString, Filter);
-    // Choose operations whose pools include Pool.
+
+    ///
+    /// @brief Choose operations whose pools include `Pool`.
     FLUENT_FIELD_OPTION(TString, Pool);
-    // Choose operations with given user, state and type.
+
+    ///
+    /// @brief Choose operations with given @ref NYT::TOperationAttributes::AuthenticatedUser.
     FLUENT_FIELD_OPTION(TString, User);
+
+    ///
+    /// @brief Choose operations with given @ref NYT::TOperationAttributes::State.
     FLUENT_FIELD_OPTION(TString, State);
+
+    ///
+    /// @brief Choose operations with given @ref NYT::TOperationAttributes::Type.
     FLUENT_FIELD_OPTION(EOperationType, Type);
-    // Choose operations having (or not having) any failed jobs.
+    
+    ///
+    /// @brief Choose operations having (or not having) any failed jobs.
     FLUENT_FIELD_OPTION(bool, WithFailedJobs);
 
-    // Search for operations in the archive in addition to Cypress.
+    ///@}
+
+    ///
+    /// @brief Search for operations in the archive in addition to Cypress.
     FLUENT_FIELD_OPTION(bool, IncludeArchive);
 
-    // If set to true, include the number of operations for each pool, user, state and type
-    // and the number of operations having failed jobs.
+    ///
+    /// @brief Include the counters for different filter paramters in the response.
+    ///
+    /// Include number of operations for each pool, user, state, type
+    /// and the number of operations having failed jobs.
     FLUENT_FIELD_OPTION(bool, IncludeCounters);
 
-    // Return no more than Limit operations (current default and maximum value is 100).
+    ///
+    /// @brief Return no more than `Limit` operations (current default and maximum value is 1000).
     FLUENT_FIELD_OPTION(i64, Limit);
 };
 
+///
+/// @brief Response for @ref NYT::IClient::ListOperations command.
 struct TListOperationsResult
 {
+    ///
+    /// @brief Found operations' attributes.
     TVector<TOperationAttributes> Operations;
 
-    // If counters were requested (IncludeCounters == true)
-    // the maps contain the number of operations found for each pool, user, state and type.
-    // NOTE:
-    //  1) Counters ignore CursorTime and CursorDirection,
-    //     they always are collected in the whole [FromTime, ToTime) interval.
-    //  2) Each next counter in the sequence [pool, user, state, type, with_failed_jobs]
-    //     takes into account all the previous filters (i.e. if you set User filter to "some-user"
-    //     type counts describe only operations with user "some-user").
+    ///
+    /// @name Counters for different filter.
+    ///
+    /// If counters were requested (@ref NYT::TListOperationsOptions::IncludeCounters is `true`)
+    /// the maps contain the number of operations found for each pool, user, state and type.
+    /// NOTE:
+    ///  1) Counters ignore CursorTime and CursorDirection,
+    ///     they always are collected in the whole [FromTime, ToTime) interval.
+    ///  2) Each next counter in the sequence [pool, user, state, type, with_failed_jobs]
+    ///     takes into account all the previous filters (i.e. if you set User filter to "some-user"
+    ///     type counts describe only operations with user "some-user").
+    /// @{
+
+    ///
+    /// @brief Number of operations for each pool.
     TMaybe<THashMap<TString, i64>> PoolCounts;
+
+    ///
+    /// @brief Number of operations for each user (subject to previous filters).
     TMaybe<THashMap<TString, i64>> UserCounts;
+
+    ///
+    /// @brief Number of operations for each state (subject to previous filters).
     TMaybe<THashMap<TString, i64>> StateCounts;
+
+    ///
+    /// @brief Number of operations for each type (subject to previous filters).
     TMaybe<THashMap<EOperationType, i64>> TypeCounts;
-    // Number of operations having failed jobs (subject to all previous filters).
+
+    ///
+    /// @brief Number of operations having failed jobs (subject to all previous filters).
     TMaybe<i64> WithFailedJobsCount;
 
-    // Incomplete == true means that not all operations satisisfying filters
-    // were returned (limit exceeded) and you need to repeat the request with new StartTime
-    // (e.g. StartTime == *Operations.back().StartTime, but don't forget to
-    // remove the duplicates).
+    /// @}
+
+    ///
+    /// @brief Whether some operations were not returned due to @ref NYT::TListOperationsOptions::Limit.
+    ///
+    /// `Incomplete == true` means that not all operations satisisfying filters
+    /// were returned (limit exceeded) and you need to repeat the request with new @ref NYT::TListOperationsOptions::CursorTime
+    /// (e.g. `CursorTime == *Operations.back().StartTime`, but don't forget to
+    /// remove the duplicates).
     bool Incomplete;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class EJobSortField : int
-{
-    Type       /* "type" */,
-    State      /* "state" */,
-    StartTime  /* "start_time" */,
-    FinishTime /* "finish_time" */,
-    Address    /* "address" */,
-    Duration   /* "duration" */,
-    Progress   /* "progress" */,
-    Id         /* "id" */,
-};
-
+///
+/// @brief Data source for @ref NYT::IClient::ListJobs command.
 enum class EListJobsDataSource : int
 {
     Runtime  /* "runtime" */,
@@ -1619,6 +2343,8 @@ enum class EListJobsDataSource : int
     Manual   /* "manual" */,
 };
 
+///
+/// @brief Job type.
 enum class EJobType : int
 {
     SchedulerFirst    /* "scheduler_first" */,
@@ -1648,6 +2374,7 @@ enum class EJobType : int
     ReplicatorLast    /* "replicator_last" */,
 };
 
+///
 /// @brief Well-known task names.
 enum class ETaskName : int
 {
@@ -1670,12 +2397,24 @@ enum class ETaskName : int
     JoinReduce        /* "join_reduce" */,
 };
 
+///
+/// @brief Task name (can either well-known or just a string).
 class TTaskName
 {
 public:
+    
     // Constructors are implicit by design.
+    
+    ///
+    /// @brief Construct a custom task name.
     TTaskName(TString taskName);
+
+    ///
+    /// @brief Construct a custom task name.
     TTaskName(const char* taskName);
+
+    ///
+    /// @brief Construct a well-known task name.
     TTaskName(ETaskName taskName);
 
     const TString& Get() const;
@@ -1684,6 +2423,8 @@ private:
     TString TaskName_;
 };
 
+///
+/// @brief Job state.
 enum class EJobState : int
 {
     None       /* "none" */,
@@ -1696,43 +2437,115 @@ enum class EJobState : int
     Lost       /* "lost" */,
 };
 
+///
+/// @brief Job sort field.
+///
+/// @see @ref NYT::TListJobsOptions.
+enum class EJobSortField : int
+{
+    Type       /* "type" */,
+    State      /* "state" */,
+    StartTime  /* "start_time" */,
+    FinishTime /* "finish_time" */,
+    Address    /* "address" */,
+    Duration   /* "duration" */,
+    Progress   /* "progress" */,
+    Id         /* "id" */,
+};
+
+///
+/// @brief Job sort direction.
+///
+/// @see @ref NYT::TListJobsOptions.
 enum class EJobSortDirection : int
 {
     Ascending /* "ascending" */,
     Descending /* "descending" */,
 };
 
-// https://yt.yandex-team.ru/docs/api/commands.html#list_jobs
+///
+/// @brief Options for @ref NYT::IClient::ListJobs.
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#list_jobs
 struct TListJobsOptions
 {
     using TSelf = TListJobsOptions;
 
-    // Choose only jobs with given value of parameter (type, state, address and existence of stderr).
-    // If a field is Nothing, choose jobs with all possible values of the corresponding parameter.
+    ///
+    /// @name Filters
+    /// Return only jobs with given value of parameter (type, state, address and existence of stderr).
+    /// If a field is `Nothing()`, return jobs with all possible values of the corresponding parameter.
+    /// @{
+
+    ///
+    /// @brief Job type.
     FLUENT_FIELD_OPTION(EJobType, Type);
+
+    ///
+    /// @brief Job state.
     FLUENT_FIELD_OPTION(EJobState, State);
+
+    ///
+    /// @brief Address of the cluster node where job was running.
     FLUENT_FIELD_OPTION(TString, Address);
+
+    ///
+    /// @brief Return only jobs whose stderr has been saved.
     FLUENT_FIELD_OPTION(bool, WithStderr);
+
+    ///
+    /// @brief Return only jobs whose spec has been saved.
     FLUENT_FIELD_OPTION(bool, WithSpec);
+
+    ///
+    /// @brief Return only jobs whose fail context has been saved.
     FLUENT_FIELD_OPTION(bool, WithFailContext);
 
+    /// @}
+
+    ///
+    /// @name Sort options
+    /// @{
+
+    ///
+    /// @brief Sort by this field.
     FLUENT_FIELD_OPTION(EJobSortField, SortField);
+
+    ///
+    /// @brief Sort order.
     FLUENT_FIELD_OPTION(ESortOrder, SortOrder);
 
-    // Where to search for jobs: in scheduler and Cypress ('Runtime'), in archive ('Archive'),
-    // automatically basing on operation presence in Cypress ('Auto') or choose manually (`Manual').
+    /// @}
+
+    ///
+    /// @brief Data source.
+    ///
+    /// Where to search for jobs: in scheduler and Cypress ('Runtime'), in archive ('Archive'),
+    /// automatically basing on operation presence in Cypress ('Auto') or choose manually (`Manual').
     FLUENT_FIELD_OPTION(EListJobsDataSource, DataSource);
 
-    // These three options are taken into account only for `DataSource == Manual'.
+    /// @deprecated
     FLUENT_FIELD_OPTION(bool, IncludeCypress);
+
+    /// @deprecated
     FLUENT_FIELD_OPTION(bool, IncludeControllerAgent);
+
+    /// @deprecated
     FLUENT_FIELD_OPTION(bool, IncludeArchive);
 
-    // Skip `Offset' first jobs and return not more than `Limit' of remaining.
+    ///
+    /// @brief Maximum number of jobs to return.
     FLUENT_FIELD_OPTION(i64, Limit);
+
+    ///
+    /// @brief Number of jobs (in specified sort order) to skip.
+    ///
+    /// Together with @ref NYT::TListJobsOptions::Limit may be used for pagination.
     FLUENT_FIELD_OPTION(i64, Offset);
 };
 
+///
+/// @brief Description of a core dump that happened in the job.
 struct TCoreInfo
 {
     i64 ProcessId;
@@ -1741,47 +2554,109 @@ struct TCoreInfo
     TMaybe<TYtError> Error;
 };
 
+///
+/// @brief Job attributes.
+///
+/// A field may be `Nothing()` if it is not available (i.e. `FinishTime` for a running job).
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands#get_job
 struct TJobAttributes
 {
+    ///
+    /// @brief Job id.
     TMaybe<TJobId> Id;
+
+    ///
+    /// @brief Job type
     TMaybe<EJobType> Type;
+
+    ///
+    /// @brief Job state.
     TMaybe<EJobState> State;
+
+    ///
+    /// @brief Address of a cluster node where job was running.
     TMaybe<TString> Address;
+
+    ///
+    /// @brief Job start time.
     TMaybe<TInstant> StartTime;
+
+    ///
+    /// @brief Job finish time (for a finished job).
     TMaybe<TInstant> FinishTime;
+
+    ///
+    /// @brief Estimated ratio of job's completed work.
     TMaybe<double> Progress;
+
+    ///
+    /// @brief Size of saved job stderr.
     TMaybe<i64> StderrSize;
+
+    ///
+    /// @brief Error for a unsuccessfully finished job.
     TMaybe<TYtError> Error;
+
+    ///
+    /// @brief Job brief statistics.
     TMaybe<TNode> BriefStatistics;
+
+    ///
+    /// @brief Job input paths (with ranges).
     TMaybe<TVector<TRichYPath>> InputPaths;
+
+    ///
+    /// @brief Infos for core dumps produced by job.
     TMaybe<TVector<TCoreInfo>> CoreInfos;
 };
 
+///
+/// @brief Response for @ref NYT::IOperation::ListJobs.
 struct TListJobsResult
 {
+    ///
+    /// @brief Jobs.
     TVector<TJobAttributes> Jobs;
+
+    ///
+    /// @deprecated
     TMaybe<i64> CypressJobCount;
+
+    ///
+    /// @brief Number of jobs retrieved from controller agent.
     TMaybe<i64> ControllerAgentJobCount;
+
+    ///
+    /// @brief Number of jobs retrieved from archive.
     TMaybe<i64> ArchiveJobCount;
 };
 
 ////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Options for @ref NYT::IClient::GetJob.
 struct TGetJobOptions
 {
     using TSelf = TGetJobOptions;
 };
 
+///
+/// @brief Options for @ref NYT::IClient::GetJobInput.
 struct TGetJobInputOptions
 {
     using TSelf = TGetJobInputOptions;
 };
 
+///
+/// @brief Options for @ref NYT::IClient::GetJobFailContext.
 struct TGetJobFailContextOptions
 {
     using TSelf = TGetJobFailContextOptions;
 };
 
+///
+/// @brief Options for @ref NYT::IClient::GetJobStderr.
 struct TGetJobStderrOptions
 {
     using TSelf = TGetJobStderrOptions;
@@ -1789,180 +2664,176 @@ struct TGetJobStderrOptions
 
 ////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Options for @ref NYT::IOperation::GetFailedJobInfo.
 struct TGetFailedJobInfoOptions
 {
     using TSelf = TGetFailedJobInfoOptions;
 
-    // How many jobs to download. Which jobs will be chosen is undefined.
+    ///
+    /// @brief How many jobs to download. Which jobs will be chosen is undefined.
     FLUENT_FIELD_DEFAULT(ui64, MaxJobCount, 10);
 
-    // How much of stderr should be downloaded.
+    ///
+    /// @brief How much of stderr tail should be downloaded.
     FLUENT_FIELD_DEFAULT(ui64, StderrTailSize, 64 * 1024);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Interface representing an operation.
 struct IOperation
     : public TThrRefBase
 {
     virtual ~IOperation() = default;
 
-    //
-    // Get operation id.
+    ///
+    /// @brief Get operation id.
     virtual const TOperationId& GetId() const = 0;
 
-    //
-    // Get URL of the operation in YT Web UI.
+    ///
+    /// @brief Get URL of the operation in YT Web UI.
     virtual TString GetWebInterfaceUrl() const = 0;
 
-    //
-    // Start watching operation. Return future that is set when operation is complete.
-    //
-    // NOTE: user should check value of returned future to ensure that operation completed successfully e.g.
-    //     auto operationComplete = operation->Watch();
-    //     operationComplete.Wait();
-    //     operationComplete.GetValue(); // will throw if operation completed with errors
-    //
-    // If operation is completed successfully future contains void value.
-    // If operation is completed with error future contains TOperationFailedException exception.
-    // In rare cases when error occurred while waiting (e.g. YT become unavailable) future might contain other exception.
+    ///
+    /// @brief Start watching operation.
+    ///
+    /// @return future that is set when operation is complete.
+    ///
+    /// @note: the user should check value of returned future to ensure that operation completed successfully e.g.
+    /// @code{.cpp}
+    ///     auto operationComplete = operation->Watch();
+    ///     operationComplete.Wait();
+    ///     operationComplete.GetValue(); /// will throw if operation completed with errors
+    /// @endcode
+    ///
+    /// If operation is completed successfully the returned future contains void value.
+    /// If operation is completed with error future contains @ref NYT::TOperationFailedError.
+    /// In rare cases when error occurred while waiting (e.g. YT become unavailable) future might contain other exception.
     virtual NThreading::TFuture<void> Watch() = 0;
 
-    //
-    // Retrieves information about failed jobs.
-    // Can be called for operation in any stage.
-    // Though user should keep in mind that this method always fetches info from cypress
-    // and doesn't work when operation is archived. Successfully completed operations can be archived
-    // quite quickly (in about ~30 seconds).
+    ///
+    /// @brief Get information about failed jobs.
+    ///
+    /// Can be called for operation in any stage.
+    /// Though user should keep in mind that this method always fetches info from cypress
+    /// and doesn't work when operation is archived. Successfully completed operations can be archived
+    /// quite quickly (in about ~30 seconds).
     virtual TVector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) = 0;
 
-    // Return current operation brief state.
+    ///
+    /// Get operation brief state.
     virtual EOperationBriefState GetBriefState() = 0;
 
-    //
-    // Will return Nothing if operation is in 'Completed' or 'InProgress' state.
-    // For failed / aborted operation will return nonempty error explaining operation fail / abort.
+    ///
+    /// @brief Get error (if operation has failed).
+    ///
+    /// @return `Nothing()` if operation is in 'Completed' or 'InProgress' state (or reason for failed / aborted operation).
     virtual TMaybe<TYtError> GetError() = 0;
 
-    //
-    // Retrieve job statistics.
+    ///
+    /// Get job statistics.
     virtual TJobStatistics GetJobStatistics() = 0;
 
-    //
-    // Retrieve operation progress.
-    // Will return Nothing if operation has no running jobs yet, e.g. when it is materializing or has pending state.
+    ///
+    /// Get operation progress.
+    /// 
+    /// @return `Nothing()` if operation has no running jobs yet, e.g. when it is in "materializing" or "pending" state.
     virtual TMaybe<TOperationBriefProgress> GetBriefProgress() = 0;
 
-    //
-    // Abort operation.
-    // Operation will be finished immediately.
-    // All results of completed/running jobs will be lost.
+    ///
+    /// @brief Abort operation.
+    ///
+    /// Operation will be finished immediately.
+    /// All results of completed/running jobs will be lost.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/api/commands#abort_op
     virtual void AbortOperation() = 0;
 
-    //
-    // Complete operation.
-    // Operation will be finished immediately.
-    // All results of completed jobs will appear in output tables.
-    // All results of running (not completed) jobs will be lost.
+    ///
+    /// @brief Complete operation.
+    ///
+    /// Operation will be finished immediately.
+    /// All results of completed jobs will appear in output tables.
+    /// All results of running (not completed) jobs will be lost.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/api/commands#complete_op
     virtual void CompleteOperation() = 0;
 
-    //
-    // Suspend operation.
-    // Jobs will not be aborted by default, c.f. TSuspendOperationOptions.
+    ///
+    /// @brief Suspend operation.
+    ///
+    /// Jobs will not be aborted by default, c.f. @ref NYT::TSuspendOperationOptions.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/api/commands#suspend_op
     virtual void SuspendOperation(
         const TSuspendOperationOptions& options = TSuspendOperationOptions()) = 0;
 
-    //
-    // Resume previously suspended operation.
+    ///
+    /// @brief Resume previously suspended operation.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/api/commands#resume_op
     virtual void ResumeOperation(
         const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
 
-    //
-    // Get operation attributes.
+    ///
+    /// @brief Get operation attributes.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/api/commands#get_operation
     virtual TOperationAttributes GetAttributes(
         const TGetOperationOptions& options = TGetOperationOptions()) = 0;
 
-    //
-    // Update operation runtime parameters.
+    ///
+    /// @brief Update operation runtime parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/api/commands#update_op_parameters
     virtual void UpdateParameters(
         const TUpdateOperationParametersOptions& options = TUpdateOperationParametersOptions()) = 0;
 
-    //
-    // Get job attributes.
+    ///
+    /// @brief Get job attributes.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/api/commands#get_job
     virtual TJobAttributes GetJob(
         const TJobId& jobId,
         const TGetJobOptions& options = TGetJobOptions()) = 0;
 
-    //
-    // List jobs satisfying given filters.
+    ///
+    /// List jobs satisfying given filters (see @ref NYT::TListJobsOptions).
+    ///
+    /// @see https://yt.yandex-team.ru/docs/api/commands#list_jobs
     virtual TListJobsResult ListJobs(
         const TListJobsOptions& options = TListJobsOptions()) = 0;
 };
 
-struct TOperationOptions
-{
-    using TSelf = TOperationOptions;
-
-    FLUENT_FIELD_OPTION(TNode, Spec);
-    FLUENT_FIELD_DEFAULT(bool, Wait, true);
-    FLUENT_FIELD_DEFAULT(bool, UseTableFormats, false);
-
-    // Prefix and suffix for all kind of jobs (mapper,reducer,combiner)
-    // Can be overridden for the specific job type in the TUserJobSpec
-    FLUENT_FIELD(TString, JobCommandPrefix);
-    FLUENT_FIELD(TString, JobCommandSuffix);
-
-    ///
-    /// @brief Put all files required by the job into tmpfs.
-    ///
-    /// This option can be set globaly using @ref NYT::TConfig::MountSandboxInTmpfs.
-    /// @see https://yt.yandex-team.ru/docs/problems/woodpeckers
-    FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
-    FLUENT_FIELD_OPTION(TString, FileStorage);
-    FLUENT_FIELD_OPTION(TNode, SecureVault);
-
-    enum class EFileCacheMode : int
-    {
-        // Use YT API commands "get_file_from_cache" and "put_file_to_cache".
-        ApiCommandBased,
-
-        // Upload files to random paths inside 'FileStorage' without caching.
-        CachelessRandomPathUpload,
-    };
-
-    FLUENT_FIELD_DEFAULT(EFileCacheMode, FileCacheMode, EFileCacheMode::ApiCommandBased);
-
-    // Provides the transaction id, under which all
-    // Cypress file storage entries will be checked/created.
-    // By default, the global transaction is used.
-    // Set a specific transaction only if you specify non-default file storage
-    // path in 'FileStorage' option or in 'RemoteTempFilesDirectory' property of config.
-    //
-    // NOTE: this option can be set only for 'CachelessRandomPathUpload' caching mode.
-    FLUENT_FIELD(TTransactionId, FileStorageTransactionId);
-
-    // Ensure stderr, core tables exist before starting operation.
-    // If set to false, it is caller's responsibility to ensure these tables exist.
-    FLUENT_FIELD_DEFAULT(bool, CreateDebugOutputTables, true);
-
-    // Ensure output tables exist before starting operation.
-    // If set to false, it is caller's responsibility to ensure output tables exist.
-    FLUENT_FIELD_DEFAULT(bool, CreateOutputTables, true);
-
-    // Try to infer schema of inexistent table from the type of written rows.
-    //
-    // NOTE: Default values for this option may differ depending on the row type.
-    // For protobuf it's currently false by default.
-    FLUENT_FIELD_OPTION(bool, InferOutputSchema);
-};
-
+///
+/// @brief Interface of client capable of managing operations.
 struct IOperationClient
 {
+    ///
+    /// @brief Run Map operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param mapper Instance of a job to run.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/map
     IOperationPtr Map(
         const TMapOperationSpec& spec,
         ::TIntrusivePtr<IMapperBase> mapper,
         const TOperationOptions& options = TOperationOptions());
 
+    ///
+    /// @brief Run Map operation.
+    ///
+    /// @param mapper Instance of a job to run.
+    /// @param input Input table(s)
+    /// @param output Output table(s)
+    /// @param spec Operation spec.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/map
     IOperationPtr Map(
         ::TIntrusivePtr<IMapperBase> mapper,
         const TOneOrMany<TStructuredTablePath>& input,
@@ -1970,16 +2841,43 @@ struct IOperationClient
         const TMapOperationSpec& spec = TMapOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
+    ///
+    /// @brief Run raw Map operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param rawJob Instance of a raw mapper to run.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/map
     virtual IOperationPtr RawMap(
         const TRawMapOperationSpec& spec,
         ::TIntrusivePtr<IRawJob> rawJob,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
+    ///
+    /// @brief Run Reduce operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param reducer Instance of a job to run.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/reduce
     IOperationPtr Reduce(
         const TReduceOperationSpec& spec,
         ::TIntrusivePtr<IReducerBase> reducer,
         const TOperationOptions& options = TOperationOptions());
 
+    ///
+    /// @brief Run Reduce operation.
+    ///
+    /// @param reducer Instance of a job to run.
+    /// @param input Input table(s)
+    /// @param output Output table(s)
+    /// @param reduceBy Columns to group rows by.
+    /// @param spec Operation spec.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/reduce
     IOperationPtr Reduce(
         ::TIntrusivePtr<IReducerBase> reducer,
         const TOneOrMany<TStructuredTablePath>& input,
@@ -1988,30 +2886,70 @@ struct IOperationClient
         const TReduceOperationSpec& spec = TReduceOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
+    ///
+    /// @brief Run raw Reduce operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param rawJob Instance of a raw reducer to run.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/reduce
     virtual IOperationPtr RawReduce(
         const TRawReduceOperationSpec& spec,
         ::TIntrusivePtr<IRawJob> rawJob,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
+    ///
+    /// @brief Run JoinReduce operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param reducer Instance of a job to run.
+    /// @param options Optional parameters.
+    ///
+    /// @deprecated Use @ref NYT::IOperationClient::Reduce with @ref NYT::TReduceOperationSpec::EnableKeyGuarantee set to `false.
     IOperationPtr JoinReduce(
         const TJoinReduceOperationSpec& spec,
         ::TIntrusivePtr<IReducerBase> reducer,
         const TOperationOptions& options = TOperationOptions());
 
+    ///
+    /// @brief Run raw JoinReduce operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param rawJob Instance of a raw reducer to run.
+    /// @param options Optional parameters.
+    ///
+    /// @deprecated Use @ref NYT::IOperationClient::RawReduce with @ref NYT::TReduceOperationSpec::EnableKeyGuarantee set to `false.
     virtual IOperationPtr RawJoinReduce(
         const TRawJoinReduceOperationSpec& spec,
         ::TIntrusivePtr<IRawJob> rawJob,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
-    //
-    // mapper might be nullptr in that case it's assumed to be identity mapper
+    ///
+    /// @brief Run MapReduce operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param mapper Instance of a map job to run (identity mapper if `nullptr`).
+    /// @param reducer Instance of a reduce job to run.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/mapreduce
     IOperationPtr MapReduce(
         const TMapReduceOperationSpec& spec,
         ::TIntrusivePtr<IMapperBase> mapper,
         ::TIntrusivePtr<IReducerBase> reducer,
         const TOperationOptions& options = TOperationOptions());
 
-    // mapper, reduce combiner, reducer
+    ///
+    /// @brief Run MapReduce operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param mapper Instance of a map job to run (identity mapper if `nullptr`).
+    /// @param reducerCombiner Instance of a reduce combiner to run (identity reduce combiner if `nullptr`).
+    /// @param reducer Instance of a reduce job to run.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/mapreduce
     IOperationPtr MapReduce(
         const TMapReduceOperationSpec& spec,
         ::TIntrusivePtr<IMapperBase> mapper,
@@ -2019,6 +2957,18 @@ struct IOperationClient
         ::TIntrusivePtr<IReducerBase> reducer,
         const TOperationOptions& options = TOperationOptions());
 
+    ///
+    /// @brief Run MapReduce operation.
+    ///
+    /// @param mapper Instance of mapper to run (identity mapper if `nullptr`).
+    /// @param reducer Instance of reducer to run.
+    /// @param input Input table(s)
+    /// @param output Output table(s)
+    /// @param reduceBy Columns to group rows by.
+    /// @param spec Operation spec.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/mapreduce
     IOperationPtr MapReduce(
         ::TIntrusivePtr<IMapperBase> mapper,
         ::TIntrusivePtr<IReducerBase> reducer,
@@ -2028,6 +2978,19 @@ struct IOperationClient
         TMapReduceOperationSpec spec = TMapReduceOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
+    ///
+    /// @brief Run MapReduce operation.
+    ///
+    /// @param mapper Instance of mapper to run (identity mapper if `nullptr`).
+    /// @param reduceCombiner Instance of reduceCombiner to run (identity reduce combiner if `nullptr`).
+    /// @param reducer Instance of reducer to run.
+    /// @param input Input table(s)
+    /// @param output Output table(s)
+    /// @param reduceBy Columns to group rows by.
+    /// @param spec Operation spec.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/mapreduce
     IOperationPtr MapReduce(
         ::TIntrusivePtr<IMapperBase> mapper,
         ::TIntrusivePtr<IReducerBase> reduceCombiner,
@@ -2038,7 +3001,16 @@ struct IOperationClient
         TMapReduceOperationSpec spec = TMapReduceOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
-    // mapper and/or reduceCombiner may be nullptr
+    ///
+    /// @brief Run raw MapReduce operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param mapper Instance of a raw mapper to run (identity mapper if `nullptr`).
+    /// @param mapper Instance of a raw reduce combiner to run (identity reduce combiner if `nullptr`).
+    /// @param mapper Instance of a raw reducer to run.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/mapreduce
     virtual IOperationPtr RawMapReduce(
         const TRawMapReduceOperationSpec& spec,
         ::TIntrusivePtr<IRawJob> mapper,
@@ -2046,10 +3018,27 @@ struct IOperationClient
         ::TIntrusivePtr<IRawJob> reducer,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
+    ///
+    /// @brief Run Sort operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/sort
     virtual IOperationPtr Sort(
         const TSortOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
+    ///
+    /// @brief Run Sort operation.
+    ///
+    /// @param input Input table(s).
+    /// @param output Output table.
+    /// @param sortBy Columns to sort input rows by.
+    /// @param spec Operation spec.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/sort
     IOperationPtr Sort(
         const TOneOrMany<TRichYPath>& input,
         const TRichYPath& output,
@@ -2057,42 +3046,81 @@ struct IOperationClient
         const TSortOperationSpec& spec = TSortOperationSpec(),
         const TOperationOptions& options = TOperationOptions());
 
-
+    ///
+    /// @brief Run Merge operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/merge
     virtual IOperationPtr Merge(
         const TMergeOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
+    ///
+    /// @brief Run Erase operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/erase
     virtual IOperationPtr Erase(
         const TEraseOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
+    ///
+    /// @brief Run RemoteCopy operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/remote_copy
     virtual IOperationPtr RemoteCopy(
         const TRemoteCopyOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
+    ///
+    /// @brief Run Vanilla operation.
+    ///
+    /// @param spec Operation spec.
+    /// @param options Optional parameters.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/vanilla
     virtual IOperationPtr RunVanilla(
         const TVanillaOperationSpec& spec,
         const TOperationOptions& options = TOperationOptions()) = 0;
 
+    ///
+    /// @brief Abort operation.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/api/commands#abort_op
     virtual void AbortOperation(
         const TOperationId& operationId) = 0;
 
+    ///
+    /// @brief Complete operation.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/api/commands#complete_op
     virtual void CompleteOperation(
         const TOperationId& operationId) = 0;
 
+    ///
+    /// @brief Wait for operation to finish.
     virtual void WaitForOperation(
         const TOperationId& operationId) = 0;
 
-    //
-    // Checks and returns operation status.
-    // NOTE: this function will never return EOperationBriefState::Failed or EOperationBriefState::Aborted status,
-    // it will throw TOperationFailedError instead.
+    ///
+    /// @brief Check and return operation status.
+    ///
+    /// @note this function will never return @ref NYT::EOperationBriefState::Failed or @ref NYT::EOperationBriefState::Aborted status,
+    /// it will throw @ref NYT::TOperationFailedError instead.
     virtual EOperationBriefState CheckOperation(
         const TOperationId& operationId) = 0;
 
-    //
-    // Creates operation object given operation id.
-    // Will throw TErrorResponse exception if operation doesn't exist.
+    ///
+    /// @brief Create an operation object given operation id.
+    ///
+    /// @throw @ref NYT::TErrorResponse if the operation doesn't exist.
     virtual IOperationPtr AttachOperation(const TOperationId& operationId) = 0;
 
 private:
