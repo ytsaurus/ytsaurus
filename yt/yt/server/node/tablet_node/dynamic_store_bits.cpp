@@ -1,43 +1,28 @@
 #include "dynamic_store_bits.h"
-#include "automaton.h"
-#include "tablet.h"
 
 namespace NYT::NTabletNode {
 
-using namespace NTableClient;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TLegacyOwningKey RowToKey(
-    const TTableSchema& schema,
-    TSortedDynamicRow row)
+TUnversionedValue GetUnversionedKeyValue(TSortedDynamicRow row, int index, EValueType type)
 {
-    if (!row) {
-        return TLegacyOwningKey();
+    auto nullKeyMask = row.GetNullKeyMask();
+    YT_ASSERT(index < sizeof(nullKeyMask) * 8);
+
+    auto source = row.BeginKeys()[index];
+
+    auto result = MakeUnversionedSentinelValue(EValueType::Null, index);
+    if (!(nullKeyMask & (1 << index))) {
+        result.Type = type;
+        if (IsStringLikeType(type)) {
+            result.Length = source.String->Length;
+            result.Data.String = source.String->Data;
+        } else {
+            ::memcpy(&result.Data, &source, sizeof(TDynamicValueData));
+        }
     }
 
-    TUnversionedOwningRowBuilder builder;
-    ui32 nullKeyBit = 1;
-    ui32 nullKeyMask = row.GetNullKeyMask();
-    const auto* srcKey = row.BeginKeys();
-    auto columnIt = schema.Columns().begin();
-    for (int index = 0;
-         index < schema.GetKeyColumnCount();
-         ++index, nullKeyBit <<= 1, ++srcKey, ++columnIt)
-    {
-        auto dstKey = MakeUnversionedSentinelValue(EValueType::Null, index);
-        if (!(nullKeyMask & nullKeyBit)) {
-            dstKey.Type = columnIt->GetPhysicalType();
-            if (IsStringLikeType(EValueType(dstKey.Type))) {
-                dstKey.Length = srcKey->String->Length;
-                dstKey.Data.String = srcKey->String->Data;
-            } else {
-                ::memcpy(&dstKey.Data, srcKey, sizeof(TDynamicValueData));
-            }
-        }
-        builder.AddValue(dstKey);
-    }
-    return builder.FinishRow();
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

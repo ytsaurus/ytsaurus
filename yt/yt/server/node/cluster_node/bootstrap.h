@@ -108,6 +108,7 @@ public:
     const NExecAgent::IMasterConnectorPtr& GetExecNodeMasterConnector() const;
     const NTabletNode::IMasterConnectorPtr& GetTabletNodeMasterConnector() const;
     const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
+    const NTabletNode::IRowComparerProviderPtr& GetRowComparerProvider() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const;
@@ -220,6 +221,7 @@ private:
     NTabletNode::ITabletSnapshotStorePtr TabletSnapshotStore_;
 
     NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    NTabletNode::IRowComparerProviderPtr RowComparerProvider_;
 
 #ifdef __linux__
     NContainers::TInstanceLimitsTrackerPtr InstanceLimitsTracker_;

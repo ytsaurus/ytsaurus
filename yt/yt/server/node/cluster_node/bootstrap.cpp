@@ -639,6 +639,8 @@ void TBootstrap::DoInitialize()
 
     ColumnEvaluatorCache_ = NQueryClient::CreateColumnEvaluatorCache(Config_->TabletNode->ColumnEvaluatorCache);
 
+    RowComparerProvider_ = NTabletNode::CreateRowComparerProvider(Config_->TabletNode->ColumnEvaluatorCache->CGCache);
+
     SecurityManager_ = New<TSecurityManager>(Config_->TabletNode->SecurityManager, this);
 
     InMemoryManager_ = CreateInMemoryManager(Config_->TabletNode->InMemoryManager, this);
@@ -1204,6 +1206,11 @@ std::vector<TString> TBootstrap::GetMasterAddressesOrThrow(TCellTag cellTag) con
 const NQueryClient::IColumnEvaluatorCachePtr& TBootstrap::GetColumnEvaluatorCache() const
 {
     return ColumnEvaluatorCache_;
+}
+
+const IRowComparerProviderPtr& TBootstrap::GetRowComparerProvider() const
+{
+    return RowComparerProvider_;
 }
 
 const IThroughputThrottlerPtr& TBootstrap::GetDataNodeThrottler(EDataNodeThrottlerKind kind) const

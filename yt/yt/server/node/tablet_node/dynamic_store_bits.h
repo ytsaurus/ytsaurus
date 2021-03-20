@@ -605,9 +605,7 @@ struct TWriteContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLegacyOwningKey RowToKey(
-    const NTableClient::TTableSchema& schema,
-    TSortedDynamicRow row);
+TUnversionedValue GetUnversionedKeyValue(TSortedDynamicRow row, int index, EValueType type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

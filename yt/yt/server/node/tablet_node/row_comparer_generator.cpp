@@ -52,8 +52,7 @@ class TComparerBuilder
 public:
     TComparerBuilder(
         TCGModulePtr module,
-        int keyColumnCount,
-        const TTableSchema& schema);
+        TRange<EValueType> keyColumnTypes);
 
     void BuildDDComparer(TString& functionName);
     void BuildDUComparer(TString& functionName);
@@ -64,8 +63,6 @@ private:
     class TValueBuilderBase;
     class TDynamicValueBuilder;
     class TUnversionedValueBuilder;
-    friend class TDynamicValueBuilder;
-    friend class TUnversionedValueBuilder;
 
     BasicBlock* CreateBB(const Twine& name = "");
     Value* CreateCmp(Value* lhs, Value* rhs, EValueType type, bool isLessThan);
@@ -80,8 +77,7 @@ private:
         IValueBuilder& rhsBuilder,
         Value* length = nullptr);
 
-    const int KeyColumnCount_;
-    const TTableSchema& Schema_;
+    const TRange<EValueType> KeyColumnTypes_;
     const TCGModulePtr Module_;
     LLVMContext& Context_;
 
@@ -182,7 +178,7 @@ public:
             NullKeyMask_);
         const auto& type = TTypeBuilder<TUnversionedValue>::TType::Get(Builder_.getContext());
         auto* nullType = ConstantInt::get(type, static_cast<int>(EValueType::Null));
-        auto* schemaType = ConstantInt::get(type, static_cast<int>(Builder_.Schema_.Columns()[index].GetPhysicalType()));
+        auto* schemaType = ConstantInt::get(type, static_cast<int>(Builder_.KeyColumnTypes_[index]));
         return Builder_.CreateSelect(
             Builder_.CreateICmpNE(nullKeyBit, Builder_.getInt32(0)),
             nullType,
@@ -321,11 +317,9 @@ private:
 
 TComparerBuilder::TComparerBuilder(
     TCGModulePtr module,
-    int keyColumnCount,
-    const TTableSchema& schema)
+    TRange<EValueType> keyColumnTypes)
     : IRBuilder(module->GetContext())
-    , KeyColumnCount_(keyColumnCount)
-    , Schema_(schema)
+    , KeyColumnTypes_(keyColumnTypes)
     , Module_(std::move(module))
     , Context_(Module_->GetContext())
 { }
@@ -367,7 +361,7 @@ void TComparerBuilder::BuildDUComparer(TString& functionName)
     auto lhsBuilder = TDynamicValueBuilder(*this, lhsNullKeyMask, lhsKeys);
     auto rhsBuilder = TUnversionedValueBuilder(*this, rhsKeys);
     BuildMainLoop(lhsBuilder, rhsBuilder, length);
-    auto lengthDifference = CreateSub(getInt32(KeyColumnCount_), length);
+    auto lengthDifference = CreateSub(getInt32(KeyColumnTypes_.size()), length);
     CreateRet(lengthDifference);
 }
 
@@ -494,8 +488,7 @@ void TComparerBuilder::BuildMainLoop(
 {
     LastBB_ = CreateBB("epilogue");
     NextBB_ = CreateBB("iteration");
-    auto columnIt = Schema_.Columns().begin();
-    for (int index = 0; index < KeyColumnCount_; ++index, ++columnIt) {
+    for (int index = 0; index < KeyColumnTypes_.size(); ++index) {
         BuildIterationLimitCheck(iterationsLimit, index);
 
         auto* lhsType = lhsBuilder.GetType(index);
@@ -503,7 +496,7 @@ void TComparerBuilder::BuildMainLoop(
         BuildCmp(lhsType, rhsType, EValueType::Uint64);
         BuildSentinelTypeCheck(lhsType);
 
-        auto type = columnIt->GetPhysicalType();
+        auto type = KeyColumnTypes_[index];
         if (type == EValueType::String) {
             auto* lhsLength = lhsBuilder.GetStringLength(index);
             auto* rhsLength = rhsBuilder.GetStringLength(index);
@@ -530,10 +523,10 @@ std::tuple<
     NCodegen::TCGFunction<TDDComparerSignature>,
     NCodegen::TCGFunction<TDUComparerSignature>,
     NCodegen::TCGFunction<TUUComparerSignature>>
-GenerateComparers(int keyColumnCount, const TTableSchema& schema)
+GenerateComparers(TRange<EValueType> keyColumnTypes)
 {
     auto module = TCGModule::Create(GetComparerRoutineRegistry());
-    auto builder = TComparerBuilder(module, keyColumnCount, schema);
+    auto builder = TComparerBuilder(module, keyColumnTypes);
     auto ddComparerName = TString("DDCompare");
     auto duComparerName = TString("DUCompare");
     auto uuComparerName = TString("UUCompare");

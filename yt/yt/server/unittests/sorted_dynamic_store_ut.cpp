@@ -352,10 +352,10 @@ public:
         Transaction_ = StartTransaction();
 
         auto schema = GetSchema();
-        int keyColumnCount = schema->GetKeyColumnCount();
+
 
         StaticComparer_ = TStaticComparer(*schema);
-        LlvmComparer_ = TSortedDynamicRowKeyComparer::Create(keyColumnCount, *schema);
+        LlvmComparer_ = TSortedDynamicRowKeyComparer::Create(GetKeyColumnTypes(schema));
     }
 
     TSortedDynamicRow BuildDynamicRow(

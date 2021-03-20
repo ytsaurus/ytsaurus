@@ -1002,5 +1002,20 @@ void TOrderedStoreBase::Load(TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLegacyOwningKey RowToKey(const TTableSchema& schema, TSortedDynamicRow row)
+{
+    if (!row) {
+        return TLegacyOwningKey();
+    }
+
+    TUnversionedOwningRowBuilder builder;
+    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
+        builder.AddValue(GetUnversionedKeyValue(row, index, schema.Columns()[index].GetPhysicalType()));
+    }
+    return builder.FinishRow();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletNode
 

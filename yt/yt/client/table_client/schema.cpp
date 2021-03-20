@@ -1651,4 +1651,15 @@ void FromProto(NTableClient::TColumnFilter* columnFilter, const TColumnFilter& p
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TKeyColumnTypes GetKeyColumnTypes(NTableClient::TTableSchemaPtr schema)
+{
+    TKeyColumnTypes keyColumnTypes;
+    for (int i = 0; i < schema->GetKeyColumnCount(); ++i) {
+        keyColumnTypes.push_back(schema->Columns()[i].GetPhysicalType());
+    }
+    return keyColumnTypes;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
