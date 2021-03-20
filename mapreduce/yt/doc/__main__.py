@@ -26,7 +26,9 @@ ENABLE_PREPROCESSING = YES
 MACRO_EXPANSION      = YES
 EXPAND_ONLY_PREDEF   = YES
 PREDEFINED           = "FLUENT_FIELD_OPTION(type, name) = TSelf& name(type);" \
-                       "FLUENT_FIELD_DEFAULT(type, name, default) = TSelf& name(type);"
+                       "FLUENT_FIELD_DEFAULT(type, name, default) = TSelf& name(type);" \
+                       "FLUENT_FIELD(type, name) = TSelf& name(type);" \
+                       "FLUENT_FIELD_VECTOR(type, name) = TSelf& Add # name(type);"
 
 GENERATE_LATEX = NO
 
