@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "blob.h"
 #include "ref.h"
 
 #include <util/stream/output.h>

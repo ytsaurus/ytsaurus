@@ -1,6 +1,9 @@
 #include "ref.h"
+#include "blob.h"
 #include "serialize.h"
 #include "small_vector.h"
+
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <util/system/info.h>
 
@@ -63,26 +66,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAllocationHolder
+template <class TDerived>
+class TAllocationHolderBase
     : public TRefCounted
-    , public TWithExtraSpace<TAllocationHolder>
 {
 public:
-    TAllocationHolder(size_t size, bool initializeStorage, TRefCountedTypeCookie cookie)
+    TAllocationHolderBase(size_t size, TRefCountedTypeCookie cookie)
         : Size_(size)
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
         , Cookie_(cookie)
 #endif
-    {
-        if (initializeStorage) {
-            ::memset(GetExtraSpacePtr(), 0, Size_);
-        }
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        TRefCountedTrackerFacade::AllocateTagInstance(Cookie_);
-        TRefCountedTrackerFacade::AllocateSpace(Cookie_, Size_);
-#endif
-    }
-    ~TAllocationHolder()
+    { }
+
+    ~TAllocationHolderBase()
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
         TRefCountedTrackerFacade::FreeTagInstance(Cookie_);
@@ -92,17 +88,79 @@ public:
 
     TMutableRef GetRef()
     {
-        return TMutableRef(GetExtraSpacePtr(), Size_);
+        return TMutableRef(static_cast<TDerived*>(this)->GetBegin(), Size_);
     }
 
-private:
+protected:
     const size_t Size_;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     const TRefCountedTypeCookie Cookie_;
 #endif
+
+    void Initialize(bool initializeStorage)
+    {
+        if (initializeStorage) {
+            ::memset(static_cast<TDerived*>(this)->GetBegin(), 0, Size_);
+        }
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        TRefCountedTrackerFacade::AllocateTagInstance(Cookie_);
+        TRefCountedTrackerFacade::AllocateSpace(Cookie_, Size_);
+#endif
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TAllocationHolder
+    : public TAllocationHolderBase<TAllocationHolder>
+    , public TWithExtraSpace<TAllocationHolder>
+{
+public:
+    TAllocationHolder(size_t size, bool initializeStorage, TRefCountedTypeCookie cookie)
+        : TAllocationHolderBase(size, cookie)
+    {
+        Initialize(initializeStorage);
+    }
+
+    char* GetBegin()
+    {
+        return static_cast<char*>(GetExtraSpacePtr());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPageAlignedAllocationHolder
+    : public TAllocationHolderBase<TPageAlignedAllocationHolder>
+{
+public:
+    TPageAlignedAllocationHolder(size_t size, bool initializeStorage, TRefCountedTypeCookie cookie)
+        : TAllocationHolderBase(size, cookie)
+        , Begin_(static_cast<char*>(NYTAlloc::AllocatePageAligned(size)))
+    {
+        Initialize(initializeStorage);
+    }
+
+    ~TPageAlignedAllocationHolder()
+    {
+        NYTAlloc::Free(Begin_);
+    }
+
+    char* GetBegin()
+    {
+        return Begin_;
+    }
+
+private:
+    char* const Begin_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRef TRef::FromBlob(const TBlob& blob)
+{
+    return TRef(blob.Begin(), blob.Size());
+}
 
 bool TRef::AreBitwiseEqual(TRef lhs, TRef rhs)
 {
@@ -113,6 +171,13 @@ bool TRef::AreBitwiseEqual(TRef lhs, TRef rhs)
         return true;
     }
     return ::memcmp(lhs.Begin(), rhs.Begin(), lhs.Size()) == 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMutableRef TMutableRef::FromBlob(TBlob& blob)
+{
+    return TMutableRef(blob.Begin(), blob.Size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,6 +231,13 @@ std::vector<TSharedRef> TSharedRef::Split(size_t partSize) const
 TSharedMutableRef TSharedMutableRef::Allocate(size_t size, bool initializeStorage, TRefCountedTypeCookie tagCookie)
 {
     auto holder = NewWithExtraSpace<TAllocationHolder>(size, size, initializeStorage, tagCookie);
+    auto ref = holder->GetRef();
+    return TSharedMutableRef(ref, std::move(holder));
+}
+
+TSharedMutableRef TSharedMutableRef::AllocatePageAligned(size_t size, bool initializeStorage, TRefCountedTypeCookie tagCookie)
+{
+    auto holder = New<TPageAlignedAllocationHolder>(size, initializeStorage, tagCookie);
     auto ref = holder->GetRef();
     return TSharedMutableRef(ref, std::move(holder));
 }

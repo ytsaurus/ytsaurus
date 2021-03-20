@@ -31,11 +31,6 @@ Y_FORCE_INLINE TRef TRef::MakeEmpty()
     return TRef(NDetail::EmptyRefData, NDetail::EmptyRefData);
 }
 
-Y_FORCE_INLINE TRef TRef::FromBlob(const TBlob& blob)
-{
-    return TRef(blob.Begin(), blob.Size());
-}
-
 Y_FORCE_INLINE TRef TRef::FromString(const TString& str)
 {
     return TRef(str.data(), str.length());
@@ -72,11 +67,6 @@ Y_FORCE_INLINE TMutableRef TMutableRef::MakeEmpty()
 Y_FORCE_INLINE TMutableRef::operator TRef() const
 {
     return TRef(Begin(), Size());
-}
-
-Y_FORCE_INLINE TMutableRef TMutableRef::FromBlob(TBlob& blob)
-{
-    return TMutableRef(blob.Begin(), blob.Size());
 }
 
 template <class T>
@@ -191,6 +181,11 @@ Y_FORCE_INLINE TSharedMutableRef TSharedMutableRef::Allocate(size_t size, bool i
     return Allocate<TDefaultSharedBlobTag>(size, initializeStorage);
 }
 
+Y_FORCE_INLINE TSharedMutableRef TSharedMutableRef::AllocatePageAligned(size_t size, bool initializeStorage)
+{
+    return AllocatePageAligned<TDefaultSharedBlobTag>(size, initializeStorage);
+}
+
 template <class TTag>
 Y_FORCE_INLINE TSharedMutableRef TSharedMutableRef::MakeCopy(TRef ref)
 {
@@ -214,6 +209,12 @@ template <class TTag>
 Y_FORCE_INLINE TSharedMutableRef TSharedMutableRef::Allocate(size_t size, bool initializeStorage)
 {
     return Allocate(size, initializeStorage, GetRefCountedTypeCookie<TTag>());
+}
+
+template <class TTag>
+Y_FORCE_INLINE TSharedMutableRef TSharedMutableRef::AllocatePageAligned(size_t size, bool initializeStorage)
+{
+    return AllocatePageAligned(size, initializeStorage, GetRefCountedTypeCookie<TTag>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

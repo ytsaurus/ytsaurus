@@ -6,6 +6,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/chunked_memory_pool.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/small_vector.h>
@@ -79,7 +80,7 @@ public:
     void Clear()
     {
         if (IsStringLikeType(Value_.Type)) {
-            delete [] Value_.Data.String;
+            delete[] Value_.Data.String;
         }
         Value_.Type = EValueType::TheBottom;
         Value_.Length = 0;
@@ -97,7 +98,6 @@ private:
             Value_.Data.String = newString;
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

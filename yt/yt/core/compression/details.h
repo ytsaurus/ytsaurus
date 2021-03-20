@@ -2,6 +2,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/serialize.h>
 

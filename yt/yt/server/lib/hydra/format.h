@@ -6,11 +6,13 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
-#include <util/system/align.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+constexpr auto ChangelogAlignment = NYTAlloc::PageSize;
 
 #pragma pack(push, 1)
 
@@ -91,7 +93,8 @@ struct TChangelogIndexRecord
     ui32 Padding;
 };
 
-static_assert(sizeof(TChangelogIndexRecord) == 16, "Binary size of TLogIndexRecord has changed.");
+static_assert(sizeof(TChangelogIndexRecord) == 16, "Binary size of TChangelogIndexRecord has changed.");
+static_assert(ChangelogAlignment % sizeof(TChangelogIndexRecord) == 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 

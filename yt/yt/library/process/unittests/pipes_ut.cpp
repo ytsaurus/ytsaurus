@@ -3,6 +3,7 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/net/connection.h>

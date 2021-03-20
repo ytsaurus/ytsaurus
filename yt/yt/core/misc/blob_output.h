@@ -1,9 +1,8 @@
 #pragma once
 
-#include <util/stream/zerocopy_output.h>
+#include "blob.h"
 
-#include "common.h"
-#include "ref.h"
+#include <util/stream/zerocopy_output.h>
 
 namespace NYT {
 
@@ -14,9 +13,9 @@ class TBlobOutput
 {
 public:
     TBlobOutput();
-    explicit TBlobOutput(size_t capacity, size_t alignment = 1);
-
-    ~TBlobOutput();
+    explicit TBlobOutput(
+        size_t capacity,
+        bool pageAligned = false);
 
     TBlob& Blob();
     const TBlob& Blob() const;

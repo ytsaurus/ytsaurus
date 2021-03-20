@@ -7,6 +7,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
 #include <util/system/align.h>
 
 namespace NYT::NHydra {
@@ -17,7 +19,7 @@ class TIndexBucket
     : public TRefCounted
 {
 public:
-    TIndexBucket(size_t capacity, i64 alignment, i64 offset);
+    TIndexBucket(size_t capacity, i64 offset);
 
     void PushHeader();
     void Push(const TChangelogIndexRecord& record);
@@ -46,7 +48,6 @@ public:
     TAsyncFileChangelogIndex(
         const NChunkClient::IIOEnginePtr& ioEngine,
         const TString& fileName,
-        i64 alignment,
         i64 indexBlockSize,
         bool enableSync);
 
@@ -70,19 +71,9 @@ public:
     void Read(std::optional<int> truncatedRecordCount = {});
     void TruncateInvalidRecords(i64 validPrefixSize);
 
-    template <class TTag = TDefaultSharedBlobTag>
-    static TSharedMutableRef AllocateAligned(size_t size, bool initializeStorage, size_t alignment)
-    {
-        auto data = TSharedMutableRef::Allocate<TTag>(size + alignment, initializeStorage);
-        data = data.Slice(AlignUp(data.Begin(), alignment), data.End());
-        data = data.Slice(data.Begin(), data.Begin() + size);
-        return data;
-    }
-
 private:
     const NChunkClient::IIOEnginePtr IOEngine_;
     const TString IndexFileName_;
-    const i64 Alignment_;
     const i64 IndexBlockSize_;
     const int MaxIndexRecordsPerBucket_;
     const bool EnableSync_;

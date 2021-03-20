@@ -49,7 +49,7 @@ public:
 TEST_P(TAsyncFileChangelogIndexTest, Simple)
 {
     TString IndexFileName = GenerateRandomFileName("TAsyncFileChangelogIndexTest.index");
-    TAsyncFileChangelogIndex index(IOEngine_, IndexFileName, 4096, 16, true);
+    TAsyncFileChangelogIndex index(IOEngine_, IndexFileName, 16, true);
 
     index.Create();
     index.Append(0, 0, 1);
@@ -95,7 +95,7 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
 
     index.Close();
 
-    TAsyncFileChangelogIndex index2(IOEngine_, IndexFileName, 4096, 16, true);
+    TAsyncFileChangelogIndex index2(IOEngine_, IndexFileName, 16, true);
     index2.Read();
     index2.TruncateInvalidRecords(index2.Records().size());
 

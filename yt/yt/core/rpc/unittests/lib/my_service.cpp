@@ -7,6 +7,7 @@
 
 #include <yt/yt/core/rpc/grpc/proto/grpc.pb.h>
 
+#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <random>
@@ -80,7 +81,7 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, RegularAttachments)
     {
         for (const auto& attachment : request->Attachments()) {
-            auto data = TBlob(TDefaultBlobTag());
+            auto data = TBlob();
             data.Append(attachment);
             data.Append("_", 1);
             response->Attachments().push_back(TSharedRef::FromBlob(std::move(data)));

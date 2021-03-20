@@ -79,7 +79,7 @@ private:
         if (blob->Capacity() >= 16_KB &&
             blob->Capacity() >= 1.05 * blob->Size())
         {
-            *blob = TBlob(blobCookie, blob->Begin(), blob->Size());
+            *blob = TBlob(blobCookie, blob->ToRef());
         }
         return TSharedRef::FromBlob(std::move(*blob));
     }

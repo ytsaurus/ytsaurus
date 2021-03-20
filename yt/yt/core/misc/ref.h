@@ -1,6 +1,5 @@
 #pragma once
 
-#include "blob.h"
 #include "common.h"
 #include "new.h"
 #include "range.h"
@@ -11,6 +10,9 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// Forward declaration.
+class TBlob;
 
 //! A non-owning reference to a range of memory.
 class TRef
@@ -203,6 +205,22 @@ public:
     //! Allocates a new shared block of memory.
     //! The memory is marked with a given tag.
     static TSharedMutableRef Allocate(size_t size, bool initializeStorage, TRefCountedTypeCookie tagCookie);
+
+    //! Allocates a new page aligned shared block of memory.
+    //! #size must be divisible by page size.
+    //! The memory is marked with a given tag.
+    template <class TTag>
+    static TSharedMutableRef AllocatePageAligned(size_t size, bool initializeStorage = true);
+
+    //! Allocates a new page aligned shared block of memory.
+    //! #size must be divisible by page size.
+    //! The memory is marked with TDefaultSharedBlobTag.
+    static TSharedMutableRef AllocatePageAligned(size_t size, bool initializeStorage = true);
+
+    //! Allocates a new page aligned shared block of memory.
+    //! #size must be divisible by page size.
+    //! The memory is marked with a given tag.
+    static TSharedMutableRef AllocatePageAligned(size_t size, bool initializeStorage, TRefCountedTypeCookie tagCookie);
 
     //! Creates a TSharedMutableRef for the whole blob taking ownership of its content.
     static TSharedMutableRef FromBlob(TBlob&& blob);
