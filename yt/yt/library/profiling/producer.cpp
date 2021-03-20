@@ -93,19 +93,32 @@ void TSensorBuffer::WriteTo(ISensorWriter* writer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBufferedProducer::CollectSensors(ISensorWriter* writer)
+TIntrusivePtr<TSensorBuffer> ISensorProducer::GetBuffer()
 {
-    TIntrusivePtr<TSensorBuffer> buffer;
-    {
-        auto guard = Guard(Lock_);
-        if (Enabled_) {
-            buffer = Buffer_;
+    auto buffer = New<TSensorBuffer>();
+    CollectSensors(buffer.Get());
+    return buffer;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TBufferedProducer::CollectSensors(ISensorWriter* )
+{
+    YT_ABORT();
+}
+
+TIntrusivePtr<TSensorBuffer> TBufferedProducer::GetBuffer()
+{
+    auto guard = Guard(Lock_);
+    if (Enabled_) {
+        if (Buffer_) {
+            return Buffer_;
+        } else {
+            return New<TSensorBuffer>();
         }
     }
 
-    if (buffer) {
-        buffer->WriteTo(writer);
-    }
+    return nullptr;
 }
 
 void TBufferedProducer::SetEnabled(bool enabled)

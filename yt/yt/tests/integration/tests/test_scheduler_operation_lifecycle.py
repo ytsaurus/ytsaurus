@@ -794,7 +794,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         )
 
         map(
-            command="sleep 1; cat",
+            command="sleep 10; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"pool": "unique_pool"},

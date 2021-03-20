@@ -59,6 +59,7 @@ struct TProducerState final
     }
 
     const TWeakPtr<ISensorProducer> Producer;
+    TWeakPtr<TSensorBuffer> LastBuffer;
 
     TProducerCountersPtr Counters;
 };

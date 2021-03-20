@@ -115,7 +115,20 @@ void TProducerSet::Collect(IRegistryImplPtr profiler, IInvokerPtr invoker)
 
             TCounterWriter writer(profiler, producer->Counters);
             try {
-                owner->CollectSensors(&writer);
+                auto buffer = owner->GetBuffer();
+                if (buffer) {
+                    auto lastBuffer = producer->LastBuffer.Lock();
+                    if (lastBuffer == buffer) {
+                        return;
+                    }
+
+                    buffer->WriteTo(&writer);
+                    producer->LastBuffer = buffer;
+                } else {
+                    producer->Counters->Counters.clear();
+                    producer->Counters->Gauges.clear();
+                    producer->Counters->Tags.clear();
+                }
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Producer read failed");
                 return;

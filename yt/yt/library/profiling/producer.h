@@ -83,6 +83,7 @@ struct ISensorProducer
      *  no way to cleanup removed tags.
      */
     virtual void CollectSensors(ISensorWriter* writer) = 0;
+    virtual TIntrusivePtr<TSensorBuffer> GetBuffer();
 };
 
 DEFINE_REFCOUNTED_TYPE(ISensorProducer)
@@ -94,6 +95,7 @@ class TBufferedProducer
 {
 public:
     virtual void CollectSensors(ISensorWriter* writer) override;
+    virtual TIntrusivePtr<TSensorBuffer> GetBuffer() override;
 
     void Update(TSensorBuffer buffer);
     void Update(std::function<void(ISensorWriter*)> cb);
