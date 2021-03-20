@@ -23,7 +23,6 @@ protected:
     explicit TInvokerWrapper(IInvokerPtr underlyingInvoker);
 
     IInvokerPtr UnderlyingInvoker_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
