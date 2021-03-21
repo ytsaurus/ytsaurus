@@ -285,8 +285,10 @@ void TJobProxy::RetrieveJobSpec()
 
     Ports_ = FromProto<std::vector<int>>(rsp->ports());
 
-    YT_LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})",
+    auto authenticatedUser = GetJobSpecHelper()->GetSchedulerJobSpecExt().authenticated_user();
+    YT_LOG_INFO("Job spec received (JobType: %v, AuthenticatedUser: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})",
         NScheduler::EJobType(rsp->job_spec().type()),
+        authenticatedUser,
         resourceUsage.cpu(),
         resourceUsage.memory(),
         resourceUsage.network());
@@ -304,9 +306,11 @@ void TJobProxy::RetrieveJobSpec()
     RequestedMemoryReserve_ = JobProxyMemoryReserve_;
 
     std::vector<TString> annotations{
+        Format("Type: SchedulerJob"),
         Format("OperationId: %v", OperationId_),
         Format("JobId: %v", JobId_),
         Format("JobType: %v", GetJobSpecHelper()->GetJobType()),
+        Format("AuthenticatedUser: %v", authenticatedUser),
     };
 
     for (auto* descriptor : {

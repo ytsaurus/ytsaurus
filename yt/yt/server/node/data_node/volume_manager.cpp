@@ -1010,7 +1010,10 @@ public:
         ProfilingExecutor_->Start();
     }
 
-    TFuture<TLayerPtr> PrepareLayer(const TArtifactKey& artifactKey, TGuid tag)
+    TFuture<TLayerPtr> PrepareLayer(
+        const TArtifactKey& artifactKey,
+        const TArtifactDownloadOptions& downloadOptions,
+        TGuid tag)
     {
         {
             auto guard = Guard(TmpfsCacheDataSpinLock_);
@@ -1031,7 +1034,7 @@ public:
         auto cookie = BeginInsert(artifactKey);
         auto value = cookie.GetValue();
         if (cookie.IsActive()) {
-            DownloadAndImportLayer(artifactKey, tag, false)
+            DownloadAndImportLayer(artifactKey, downloadOptions, tag, false)
                 .Subscribe(BIND([=, this_ = MakeStrong(this), cookie_ = std::move(cookie)] (const TErrorOr<TLayerPtr>& layerOrError) mutable {
                     if (!layerOrError.IsOK()) {
                         cookie_.Cancel(layerOrError);
@@ -1165,7 +1168,11 @@ private:
         }
     }
 
-    TFuture<TLayerPtr> DownloadAndImportLayer(const TArtifactKey& artifactKey, TGuid tag, bool useTmpfsLocation)
+    TFuture<TLayerPtr> DownloadAndImportLayer(
+        const TArtifactKey& artifactKey,
+        const TArtifactDownloadOptions& downloadOptions,
+        TGuid tag,
+        bool useTmpfsLocation)
     {
         auto& chunkCache = Bootstrap_->GetChunkCache();
 
@@ -1174,8 +1181,6 @@ private:
             artifactKey.data_source().path(),
             useTmpfsLocation);
 
-        TArtifactDownloadOptions downloadOptions;
-        downloadOptions.NodeDirectory = Bootstrap_->GetNodeDirectory();
         return chunkCache->DownloadArtifact(artifactKey, downloadOptions)
             .Apply(BIND([=, this_ = MakeStrong(this)] (const IChunkPtr& artifactChunk) {
                  YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, ArtifactPath: %v)",
@@ -1351,8 +1356,13 @@ private:
 
         std::vector<TFuture<TLayerPtr>> newLayerFutures;
         newLayerFutures.reserve(newArtifacts.size());
+
+        TArtifactDownloadOptions downloadOptions{
+            .NodeDirectory = Bootstrap_->GetNodeDirectory(),
+            .WorkloadDescriptorAnnotations = {"Type: TmpfsLayersUpdate"},
+        };
         for (const auto& artifactKey : newArtifacts) {
-            newLayerFutures.push_back(DownloadAndImportLayer(artifactKey, tag, true));
+            newLayerFutures.push_back(DownloadAndImportLayer(artifactKey, downloadOptions, tag, true));
         }
 
         auto newLayersOrError = WaitFor(AllSet(newLayerFutures));
@@ -1602,7 +1612,9 @@ public:
         LayerCache_ = New<TLayerCache>(config, Locations_, tmpfsExecutor, bootstrap);
     }
 
-    virtual TFuture<IVolumePtr> PrepareVolume(const std::vector<TArtifactKey>& layers) override
+    virtual TFuture<IVolumePtr> PrepareVolume(
+        const std::vector<TArtifactKey>& layers,
+        const TArtifactDownloadOptions& downloadOptions) override
     {
         YT_VERIFY(!layers.empty());
 
@@ -1630,7 +1642,7 @@ public:
         std::vector<TFuture<TLayerPtr>> layerFutures;
         layerFutures.reserve(layers.size());
         for (const auto& layerKey : layers) {
-            layerFutures.push_back(LayerCache_->PrepareLayer(layerKey, tag));
+            layerFutures.push_back(LayerCache_->PrepareLayer(layerKey, downloadOptions, tag));
         }
 
         // ToDo(psushin): choose proper invoker.

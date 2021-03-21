@@ -353,7 +353,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto blockReadOptions = MakeClientBlockReadOptions();
+        auto blockReadOptions = MakeClientBlockReadOptions(
+            artifactDownloadOptions,
+            /* bypassArtifactCache */ false);
+
         auto Logger = DataNodeLogger.WithTag("Key: %v, ReadSessionId: %v",
             key,
             blockReadOptions.ReadSessionId);
@@ -379,7 +382,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto blockReadOptions = MakeClientBlockReadOptions();
+        auto blockReadOptions = MakeClientBlockReadOptions(
+            artifactDownloadOptions,
+            /* bypassArtifactCache */ true);
 
         decltype(&TImpl::MakeFileProducer) producerBuilder;
         switch (CheckedEnumCast<EDataSourceType>(key.data_source().type())) {
@@ -843,12 +848,20 @@ private:
     }
 
 
-    TClientBlockReadOptions MakeClientBlockReadOptions()
+    TClientBlockReadOptions MakeClientBlockReadOptions(
+        TArtifactDownloadOptions artifactDownloadOptions,
+        bool bypassArtifactCache)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        auto workloadDescriptor = Config_->ArtifactCacheReader->WorkloadDescriptor;
+        auto& annotations = workloadDescriptor.Annotations;
+        annotations = artifactDownloadOptions.WorkloadDescriptorAnnotations;
+        annotations.push_back("Type: ChunkCache");
+        annotations.push_back(Format("BypassArtifactCache: %v", bypassArtifactCache));
+
         return TClientBlockReadOptions{
-            .WorkloadDescriptor = Config_->ArtifactCacheReader->WorkloadDescriptor,
+            .WorkloadDescriptor = workloadDescriptor,
             .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
             .ReadSessionId = TReadSessionId::Create()
         };

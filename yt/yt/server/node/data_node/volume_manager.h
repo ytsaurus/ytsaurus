@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "chunk_cache.h"
+
 #include <yt/yt/server/node/cluster_node/public.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -27,7 +29,9 @@ DEFINE_REFCOUNTED_TYPE(IVolume)
 struct IVolumeManager
     : public virtual TRefCounted
 {
-    virtual TFuture<IVolumePtr> PrepareVolume(const std::vector<TArtifactKey>& layers) = 0;
+    virtual TFuture<IVolumePtr> PrepareVolume(
+        const std::vector<TArtifactKey>& layers,
+        const TArtifactDownloadOptions& downloadOptions) = 0;
 
     virtual void BuildOrchidYson(NYTree::TFluentMap fluent) const = 0;
 };

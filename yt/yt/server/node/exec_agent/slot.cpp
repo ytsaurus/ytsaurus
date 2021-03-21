@@ -154,13 +154,15 @@ public:
             true);
     }
 
-    virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& layers) override
+    virtual TFuture<IVolumePtr> PrepareRootVolume(
+        const std::vector<TArtifactKey>& layers,
+        const TArtifactDownloadOptions& downloadOptions) override
     {
         if (!VolumeManager_) {
             return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
         }
         return RunPrepareAction<IVolumePtr>([&] {
-                return VolumeManager_->PrepareVolume(layers);
+                return VolumeManager_->PrepareVolume(layers, downloadOptions);
             });
     }
 
