@@ -8189,6 +8189,11 @@ EOperationType TOperationControllerBase::GetOperationType() const
     return OperationType;
 }
 
+const TString& TOperationControllerBase::GetAuthenticatedUser() const
+{
+    return AuthenticatedUser;
+}
+
 const TChunkListPoolPtr& TOperationControllerBase::GetOutputChunkListPool() const
 {
     return OutputChunkListPool_;

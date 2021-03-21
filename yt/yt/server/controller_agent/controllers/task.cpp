@@ -1368,6 +1368,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
 
     schedulerJobSpecExt->set_task_name(GetVertexDescriptor());
     schedulerJobSpecExt->set_tree_id(joblet->TreeId);
+    schedulerJobSpecExt->set_authenticated_user(TaskHost_->GetAuthenticatedUser());
 
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }

@@ -315,6 +315,8 @@ message TSchedulerJobSpecExt
     optional int32 partition_tag = 26;
 
     optional string tree_id = 27;
+
+    optional string authenticated_user = 29 [default = "unknown"];
 }
 
 message TSchedulerJobResultExt

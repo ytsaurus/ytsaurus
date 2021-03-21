@@ -46,6 +46,8 @@ struct IJobHost
 
     virtual void ReleaseNetwork() = 0;
 
+    virtual TString GetJobUserName() const = 0;
+
     virtual NApi::NNative::IClientPtr GetClient() const = 0;
 
     virtual void OnPrepared() = 0;

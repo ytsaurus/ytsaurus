@@ -52,6 +52,8 @@ public:
 
     virtual NJobTrackerClient::TJobId GetJobId() const override;
 
+    virtual TString GetJobUserName() const override;
+
     virtual NRpc::IServerPtr GetRpcServer() const override;
 
     virtual TString GetPreparationPath() const override;
