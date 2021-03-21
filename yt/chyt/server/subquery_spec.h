@@ -4,7 +4,7 @@
 
 #include "conversion.h"
 
-#include <yt/yt/server/clickhouse_server/protos/subquery_spec.pb.h>
+#include <yt/chyt/server/protos/subquery_spec.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>

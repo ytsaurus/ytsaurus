@@ -3,8 +3,7 @@
 #include "query_context.h"
 #include "storage_distributor.h"
 #include "table.h"
-
-#include <yt/yt/server/clickhouse_server/config.h>
+#include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -251,7 +250,7 @@ private:
             .ValueOrThrow();
         auto itemList = ConvertTo<IListNodePtr>(items);
 
-        
+
         std::vector<TRichYPath> itemPaths;
         for (const auto& child : itemList->GetChildren()) {
             const auto& attributes = child->Attributes();
