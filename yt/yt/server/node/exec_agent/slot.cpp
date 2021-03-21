@@ -154,6 +154,11 @@ public:
             true);
     }
 
+    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const override
+    {
+        return VolumeManager_->IsLayerCached(artifactKey);
+    }
+
     virtual TFuture<IVolumePtr> PrepareRootVolume(
         const std::vector<TArtifactKey>& layers,
         const TArtifactDownloadOptions& downloadOptions) override

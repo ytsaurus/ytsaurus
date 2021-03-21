@@ -6,6 +6,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 namespace NYT::NDataNode {
 
@@ -40,6 +41,16 @@ TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor
     if (descriptor.has_format()) {
         set_format(descriptor.format());
     }
+}
+
+i64 TArtifactKey::GetCompressedDataSize() const
+{
+    i64 compressedDataSize = 0;
+    for (const auto& chunkSpec : chunk_specs()) {
+        compressedDataSize += GetChunkCompressedDataSize(chunkSpec);
+    }
+
+    return compressedDataSize;
 }
 
 TArtifactKey::operator size_t() const

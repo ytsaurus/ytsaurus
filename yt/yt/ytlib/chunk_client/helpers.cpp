@@ -595,6 +595,12 @@ i64 GetChunkDataWeight(const NProto::TChunkSpec& chunkSpec)
     return miscExt.data_weight();
 }
 
+i64 GetChunkCompressedDataSize(const NProto::TChunkSpec& chunkSpec)
+{
+    const auto& miscExt = GetProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+    return miscExt.compressed_data_size();
+}
+
 i64 GetChunkUncompressedDataSize(const NProto::TChunkSpec& chunkSpec)
 {
     const auto& miscExt = GetProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());

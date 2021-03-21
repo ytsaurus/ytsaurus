@@ -350,7 +350,8 @@ public:
 
     TFuture<IChunkPtr> DownloadArtifact(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions)
+        const TArtifactDownloadOptions& artifactDownloadOptions,
+        bool* fetchedFromCache = nullptr)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -371,8 +372,14 @@ public:
             } else {
                 DoDownloadArtifact(std::move(cookie), key, artifactDownloadOptions, blockReadOptions, Logger);
             }
+            if (fetchedFromCache) {
+                *fetchedFromCache = false;
+            }
         } else {
             YT_LOG_INFO("Artifact is already being downloaded");
+            if (fetchedFromCache) {
+                *fetchedFromCache = true;
+            }
         }
         return cookieValue.As<IChunkPtr>();
     }
@@ -1376,11 +1383,12 @@ int TChunkCache::GetChunkCount()
 
 TFuture<IChunkPtr> TChunkCache::DownloadArtifact(
     const TArtifactKey& key,
-    const TArtifactDownloadOptions& artifactDownloadOptions)
+    const TArtifactDownloadOptions& artifactDownloadOptions,
+    bool* fetchedFromCache)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl_->DownloadArtifact(key, artifactDownloadOptions);
+    return Impl_->DownloadArtifact(key, artifactDownloadOptions, fetchedFromCache);
 }
 
 std::function<void(IOutputStream*)> TChunkCache::MakeArtifactDownloadProducer(

@@ -560,6 +560,8 @@ public:
                 EnrichStatisticsWithGpuInfo(&statistics);
             }
 
+            EnrichStatisticsWithArtifactsInfo(&statistics);
+
             StatisticsYson_ = ConvertToYsonString(statistics);
 
             ReportStatistics(MakeDefaultJobStatistics()
@@ -841,6 +843,11 @@ private:
 
     std::vector<std::pair<TString, TIP6Address>> ResolvedNodeAddresses_;
 
+    // Artifact statistics.
+    i64 CacheHitArtifactsSize_ = 0;
+    i64 CacheMissArtifactsSize_ = 0;
+    i64 CacheBypassedArtifactsSize_ = 0;
+
     // Helpers.
 
     template <class... U>
@@ -1068,6 +1075,14 @@ private:
                 StartPrepareVolumeTime_ = TInstant::Now();
                 SetJobPhase(EJobPhase::PreparingRootVolume);
                 YT_LOG_INFO("Preparing root volume (LayerCount: %v)", LayerArtifactKeys_.size());
+
+                for (const auto& layer : LayerArtifactKeys_) {
+                    i64 layerSize = layer.GetCompressedDataSize();
+                    // NB(gritukan): This check is racy. Layer can be removed
+                    // from cache after this check and before actual preparation.
+                    UpdateArtifactStatistics(layerSize, Slot_->IsLayerCached(layer));
+                }
+
                 Slot_->PrepareRootVolume(LayerArtifactKeys_, MakeArtifactDownloadOptions())
                     .Subscribe(BIND(
                         &TJob::OnVolumePrepared,
@@ -1649,17 +1664,21 @@ private:
 
         std::vector<TFuture<IChunkPtr>> asyncChunks;
         for (const auto& artifact : Artifacts_) {
+            i64 artifactSize = artifact.Key.GetCompressedDataSize();
             if (artifact.BypassArtifactCache) {
+                CacheBypassedArtifactsSize_ += artifactSize;
                 asyncChunks.push_back(MakeFuture<IChunkPtr>(nullptr));
                 continue;
             }
 
-            YT_LOG_INFO("Downloading user file (FileName: %v, SandboxKind: %v)",
+            YT_LOG_INFO("Downloading user file (FileName: %v, SandboxKind: %v, CompressedDataSize: %v)",
                 artifact.Name,
-                artifact.SandboxKind);
+                artifact.SandboxKind,
+                artifact.Key.GetCompressedDataSize());
 
             auto downloadOptions = MakeArtifactDownloadOptions();
-            auto asyncChunk = chunkCache->DownloadArtifact(artifact.Key, downloadOptions)
+            bool fetchedFromCache = false;
+            auto asyncChunk = chunkCache->DownloadArtifact(artifact.Key, downloadOptions, &fetchedFromCache)
                 .Apply(BIND([=, fileName = artifact.Name, this_ = MakeStrong(this)] (const TErrorOr<IChunkPtr>& chunkOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
                         EErrorCode::ArtifactDownloadFailed,
@@ -1675,6 +1694,8 @@ private:
                 }));
 
             asyncChunks.push_back(asyncChunk);
+
+            UpdateArtifactStatistics(artifactSize, fetchedFromCache);
         }
 
         return AllSucceeded(asyncChunks);
@@ -1971,6 +1992,22 @@ private:
         statistics->AddSample("/user_job/gpu/utilization_clocks_sm", totalUtilizationClocksSm);
         statistics->AddSample("/user_job/gpu/load", totalLoad);
         statistics->AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
+    }
+
+    void EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
+    {
+        statistics->AddSample("/exec_agent/artifacts/cache_hit_artifacts_size", CacheHitArtifactsSize_);
+        statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size", CacheMissArtifactsSize_);
+        statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size", CacheBypassedArtifactsSize_);
+    }
+
+    void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit)
+    {
+        if (cacheHit) {
+            CacheHitArtifactsSize_ += compressedDataSize;
+        } else {
+            CacheMissArtifactsSize_ += compressedDataSize;
+        }
     }
 
     std::vector<TShellCommandConfigPtr> GetSetupCommands()

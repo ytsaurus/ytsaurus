@@ -64,6 +64,8 @@ struct ISlot
         const TString& destinationName,
         bool executable) = 0;
 
+    virtual bool IsLayerCached(const NDataNode::TArtifactKey& artifactKey) const = 0;
+
     virtual TFuture<NDataNode::IVolumePtr> PrepareRootVolume(
         const std::vector<NDataNode::TArtifactKey>& layers,
         const NDataNode::TArtifactDownloadOptions& downloadOptions) = 0;
