@@ -3015,7 +3015,6 @@ class TestSchedulerReduceCommandsNewSortedPool(TestSchedulerReduceCommands):
             "operation_options": {
                 "spec_template": {
                     "use_new_sorted_pool": True,
-                    "nightly_options": {"log_details": True},
                 }
             }
         }

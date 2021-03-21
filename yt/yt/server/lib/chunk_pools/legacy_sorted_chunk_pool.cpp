@@ -50,7 +50,8 @@ public:
         const TSortedChunkPoolOptions& options,
         IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
         TInputStreamDirectory inputStreamDirectory)
-        : SortedJobOptions_(options.SortedJobOptions)
+        : TChunkPoolOutputWithLegacyJobManagerBase(options.Logger)
+        , SortedJobOptions_(options.SortedJobOptions)
         , ChunkSliceFetcherFactory_(std::move(chunkSliceFetcherFactory))
         , EnableKeyGuarantee_(options.SortedJobOptions.EnableKeyGuarantee)
         , InputStreamDirectory_(std::move(inputStreamDirectory))
@@ -63,20 +64,16 @@ public:
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
         , SupportLocality_(options.SupportLocality)
         , ReturnNewDataSlices_(options.ReturnNewDataSlices)
-        , OperationId_(options.OperationId)
-        , Task_(options.Task)
         , RowBuffer_(options.RowBuffer)
+        , Logger(options.Logger)
     {
+        ValidateLogger(Logger);
+
         if (options.SortedJobOptions.PrimaryComparator.HasDescendingSortOrder() ||
             options.SortedJobOptions.ForeignComparator.HasDescendingSortOrder())
         {
             THROW_ERROR_EXCEPTION("Legacy sorted chunk pool does not support descending sort order");
         }
-
-        Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
-        Logger.AddTag("OperationId: %v", OperationId_);
-        Logger.AddTag("Task: %v", Task_);
-        JobManager_->SetLogger(Logger);
 
         YT_VERIFY(RowBuffer_);
 
@@ -200,18 +197,15 @@ public:
         Persist(context, JobSizeConstraints_);
         Persist(context, TeleportChunkSampler_);
         Persist(context, SupportLocality_);
-        Persist(context, OperationId_);
-        Persist(context, Task_);
-        Persist(context, ChunkPoolId_);
         Persist(context, TeleportChunks_);
         Persist(context, IsCompleted_);
         Persist(context, ReturnNewDataSlices_);
+        Persist(context, Logger);
+
         if (context.IsLoad()) {
-            Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
-            Logger.AddTag("OperationId: %v", OperationId_);
-            Logger.AddTag("Task: %v", Task_);
-            JobManager_->SetLogger(Logger);
+            // TODO(max42): Why is it here?
             RowBuffer_ = New<TRowBuffer>();
+            ValidateLogger(Logger);
         }
     }
 
@@ -302,13 +296,6 @@ private:
 
     bool ReturnNewDataSlices_ = true;
 
-    TLogger Logger = ChunkPoolLogger;
-
-    TOperationId OperationId_;
-    TString Task_;
-
-    TGuid ChunkPoolId_ = TGuid::Create();
-
     TRowBufferPtr RowBuffer_;
 
     std::vector<TInputChunkPtr> TeleportChunks_;
@@ -316,6 +303,8 @@ private:
     bool IsCompleted_ = false;
 
     std::vector<TChunkStripeListPtr> CachedNewStripeLists_;
+
+    TLogger Logger;
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -372,15 +361,13 @@ private:
                         : false;
 
                     if (chunkSliceFetcher && (isPrimary || SliceForeignChunks_)) {
-                        if (SortedJobOptions_.LogDetails) {
-                            YT_LOG_DEBUG("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, SliceSize: %v, KeyColumnCount: %v, SliceByKeys: %v)",
-                                inputChunk->GetChunkId(),
-                                inputChunk->GetDataWeight(),
-                                isPrimary,
-                                sliceSize,
-                                keyColumnCount,
-                                sliceByKeys);
-                        }
+                        YT_LOG_TRACE("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, SliceSize: %v, KeyColumnCount: %v, SliceByKeys: %v)",
+                            inputChunk->GetChunkId(),
+                            inputChunk->GetDataWeight(),
+                            isPrimary,
+                            sliceSize,
+                            keyColumnCount,
+                            sliceByKeys);
                         TComparator comparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
                         chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, sliceByKeys);
                     } else if (!isPrimary) {

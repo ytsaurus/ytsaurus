@@ -394,6 +394,8 @@ public:
 
     virtual const TInputTablePtr& GetInputTable(int tableIndex) const override;
 
+    virtual NLogging::TLogger GetLogger() const override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;

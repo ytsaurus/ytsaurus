@@ -31,13 +31,12 @@ public:
 
     TJobSplitter(
         TJobSplitterConfigPtr config,
-        TOperationId operationId)
+        const NLogging::TLogger& logger)
         : Config_(config)
         , CanSplitJobs_(config->EnableJobSplitting)
         , CanLaunchSpeculativeJobs_(config->EnableJobSpeculation)
         , JobTimeTracker_(std::move(config))
-        , OperationId_(operationId)
-        , Logger(ControllerLogger.WithTag("OperationId: %v", OperationId_))
+        , Logger(logger)
     {
         YT_VERIFY(Config_);
     }
@@ -246,13 +245,9 @@ public:
         Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, RunningJobs_);
         Persist(context, JobTimeTracker_);
         Persist(context, MaxRunningJobCount_);
-        Persist(context, OperationId_);
+        Persist(context, Logger);
         Persist(context, SuccessJobPrepareDurationSum_);
         Persist(context, SuccessJobCount_);
-
-        if (context.IsLoad()) {
-            Logger = ControllerLogger.WithTag("OperationId: %v", OperationId_);
-        }
     }
 
 private:
@@ -461,8 +456,6 @@ private:
     TDuration SuccessJobPrepareDurationSum_;
     int SuccessJobCount_ = 0;
 
-    TOperationId OperationId_;
-
     NLogging::TLogger Logger;
 
     void OnJobFinished(const TJobSummary& summary)
@@ -495,9 +488,9 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSplitter);
 
 std::unique_ptr<IJobSplitter> CreateJobSplitter(
     TJobSplitterConfigPtr config,
-    TOperationId operationId)
+    const NLogging::TLogger& logger)
 {
-    return std::make_unique<TJobSplitter>(std::move(config), operationId);
+    return std::make_unique<TJobSplitter>(std::move(config), logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

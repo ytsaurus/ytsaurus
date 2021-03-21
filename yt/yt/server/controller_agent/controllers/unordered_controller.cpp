@@ -70,7 +70,6 @@ public:
             , Controller_(controller)
         {
             auto options = Controller_->GetUnorderedChunkPoolOptions();
-            options.Name = GetTitle();
 
             ChunkPool_ = CreateUnorderedChunkPool(std::move(options), Controller_->GetInputStreamDirectory());
             ChunkPool_->SubscribeChunkTeleported(BIND(&TUnorderedTaskBase::OnChunkTeleported, MakeWeak(this)));
@@ -346,9 +345,9 @@ protected:
         options.RowBuffer = RowBuffer;
         options.MinTeleportChunkSize = GetMinTeleportChunkSize();
         options.MinTeleportChunkDataWeight = options.MinTeleportChunkSize;
-        options.OperationId = OperationId;
         options.JobSizeConstraints = JobSizeConstraints_;
         options.SliceErasureChunksByParts = Spec->SliceErasureChunksByParts;
+        options.Logger = Logger.WithTag("Name: Root");
 
         return options;
     }

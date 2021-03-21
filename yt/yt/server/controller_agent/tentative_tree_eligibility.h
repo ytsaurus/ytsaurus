@@ -31,13 +31,10 @@ struct TJobFinishedResult
 class TTentativeTreeEligibility
 {
 public:
-    TTentativeTreeEligibility(
-        const NScheduler::TTentativeTreeEligibilityConfigPtr& config);
+    TTentativeTreeEligibility(const NScheduler::TTentativeTreeEligibilityConfigPtr& config, const NLogging::TLogger& logger);
 
     // For persistence only.
     TTentativeTreeEligibility();
-
-    void Initialize(TOperationId operationId, const TString& taskTitle);
 
     void Persist(const TPersistenceContext& context);
 
@@ -60,8 +57,6 @@ public:
 private:
     using TDurationSummary = TAvgSummary<TDuration>;
 
-    NLogging::TLogger Logger;
-
     TDurationSummary NonTentativeTreeDuration_;
 
     // Tentative job durations - by pool trees.
@@ -79,6 +74,8 @@ private:
     THashSet<TString> BannedTrees_;
 
     bool Disabled_ = false;
+
+    NLogging::TLogger Logger;
 
     // For documentation on the meaning of parameters, see
     // TTentativeTreeEligibilityConfig::{SampleJobCount,MaxTentativeJobDurationRatio,MinJobDuration} respectively.

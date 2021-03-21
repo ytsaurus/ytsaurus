@@ -90,7 +90,10 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, DataSliceCounter, New<NControllerAgent::TProgressCounter>());
 
 public:
+    //! Used only for persistence.
     TLegacyJobManager();
+
+    explicit TLegacyJobManager(const NLogging::TLogger& logger);
 
     void AddJobs(std::vector<std::unique_ptr<TLegacyJobStub>> jobStubs);
 
@@ -118,8 +121,6 @@ public:
     const TChunkStripeListPtr& GetStripeList(IChunkPoolOutput::TCookie cookie);
 
     void InvalidateAllJobs();
-
-    void SetLogger(NLogging::TLogger logger);
 
     //! Perform a pass over all jobs in their order and join some groups of
     //! adjacent jobs that are still smaller than `dataWeightPerJob` in total.

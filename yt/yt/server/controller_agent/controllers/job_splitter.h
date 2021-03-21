@@ -41,7 +41,7 @@ struct IJobSplitter
 
 std::unique_ptr<IJobSplitter> CreateJobSplitter(
     TJobSplitterConfigPtr config,
-    TOperationId operationId);
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

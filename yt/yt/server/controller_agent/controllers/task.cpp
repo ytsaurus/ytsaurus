@@ -64,10 +64,9 @@ TTask::TTask()
 { }
 
 TTask::TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptor> streamDescriptors)
-    : Logger(ControllerLogger)
+    : Logger(taskHost->GetLogger())
     , TaskHost_(taskHost.Get())
     , StreamDescriptors_(std::move(streamDescriptors))
-    , TentativeTreeEligibility_(taskHost->GetSpec()->TentativeTreeEligibility)
     , CachedPendingJobCount_(0)
     , CachedTotalJobCount_(0)
     , InputChunkMapping_(New<TInputChunkMapping>())
@@ -84,14 +83,6 @@ TTask::TTask(ITaskHostPtr taskHost)
 
 void TTask::Initialize()
 {
-    auto operationId = TaskHost_->GetOperationId();
-    auto taskTitle = GetTitle();
-
-    Logger.AddTag("OperationId: %v", operationId);
-    Logger.AddTag("Task: %v", taskTitle);
-
-    TentativeTreeEligibility_.Initialize(operationId, taskTitle);
-
     SetupCallbacks();
 
     if (IsSimpleTask()) {
@@ -103,6 +94,9 @@ void TTask::Initialize()
 
 void TTask::Prepare()
 {
+    Logger.AddTag("Task: %v", GetTitle());
+    TentativeTreeEligibility_ = TTentativeTreeEligibility(TaskHost_->GetSpec()->TentativeTreeEligibility, Logger);
+
     if (IsInputDataWeightHistogramSupported()) {
         EstimatedInputDataWeightHistogram_ = CreateHistogram();
         InputDataWeightHistogram_ = CreateHistogram();
@@ -110,7 +104,7 @@ void TTask::Prepare()
 
     JobSplitter_ = CreateJobSplitter(
         GetJobSplitterConfig(),
-        TaskHost_->GetOperationId());
+        Logger);
 }
 
 TString TTask::GetTitle() const
@@ -734,6 +728,8 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, IsInput_);
 
     Persist(context, ResourceOverdraftedOutputCookies_);
+
+    Persist(context, Logger);
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)

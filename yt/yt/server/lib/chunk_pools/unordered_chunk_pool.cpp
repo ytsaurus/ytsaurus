@@ -47,9 +47,7 @@ public:
     TUnorderedChunkPool(
         const TUnorderedChunkPoolOptions& options,
         TInputStreamDirectory directory)
-        : OperationId_(options.OperationId)
-        , Name_(options.Name)
-        , JobSizeConstraints_(options.JobSizeConstraints)
+        : JobSizeConstraints_(options.JobSizeConstraints)
         , Sampler_(JobSizeConstraints_->GetSamplingRate())
         , Mode_(options.Mode)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
@@ -57,19 +55,14 @@ public:
         , SliceErasureChunksByParts_(options.SliceErasureChunksByParts)
         , RowBuffer_(options.RowBuffer)
         , InputStreamDirectory_(std::move(directory))
-        , JobManager_(New<TNewJobManager>())
+        , JobManager_(New<TNewJobManager>(options.Logger))
         , FreeJobCounter_(New<TProgressCounter>())
         , FreeDataWeightCounter_(New<TProgressCounter>())
         , FreeRowCounter_(New<TProgressCounter>())
+        , Logger(options.Logger)
     {
-        Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
-        Logger.AddTag("OperationId: %v", OperationId_);
-        Logger.AddTag("Name: %v", Name_);
-
         // TODO(max42): why do we need row buffer in unordered pool at all?
         YT_VERIFY(RowBuffer_);
-
-        JobManager_->SetLogger(TLogger{Logger});
 
         FreeJobCounter_->AddParent(JobCounter);
         FreeDataWeightCounter_->AddParent(DataWeightCounter);
@@ -386,9 +379,6 @@ public:
         TChunkPoolOutputWithCountersBase::Persist(context);
 
         using NYT::Persist;
-        Persist(context, ChunkPoolId_);
-        Persist(context, OperationId_);
-        Persist(context, Name_);
         Persist(context, InputCookieToInternalCookies_);
         Persist(context, Stripes_);
         Persist(context, InputCookieIsSuspended_);
@@ -410,22 +400,15 @@ public:
         Persist(context, FreeDataWeightCounter_);
         Persist(context, FreeRowCounter_);
         Persist(context, IsCompleted_);
+        Persist(context, Logger);
 
         if (context.IsLoad()) {
-            Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
-            Logger.AddTag("OperationId: %v", OperationId_);
-            Logger.AddTag("Name: %v", Name_);
-            JobManager_->SetLogger(TLogger{Logger});
+            ValidateLogger(Logger);
         }
     }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool, 0xbacd26ad);
-
-    TLogger Logger = ChunkPoolLogger;
-    TGuid ChunkPoolId_ = TGuid::Create();
-    TOperationId OperationId_;
-    TString Name_;
 
     //! A mappping between input cookies (that are returned and used by controllers) and internal smaller
     //! stripe cookies that are obtained by slicing the input stripes.
@@ -485,6 +468,8 @@ private:
     TProgressCounterPtr FreeRowCounter_;
 
     bool IsCompleted_ = false;
+
+    TLogger Logger;
 
     // XXX(max42): looks like this comment became obsolete even
     // before I got into this company.
@@ -822,8 +807,7 @@ void TUnorderedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, MinTeleportChunkSize);
     Persist(context, MinTeleportChunkDataWeight);
     Persist(context, SliceErasureChunksByParts);
-    Persist(context, OperationId);
-    Persist(context, Name);
+    Persist(context, Logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

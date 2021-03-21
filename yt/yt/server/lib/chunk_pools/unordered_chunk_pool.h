@@ -25,8 +25,7 @@ struct TUnorderedChunkPoolOptions
     bool SliceErasureChunksByParts = false;
     // TODO(max42): YT-13335.
     NTableClient::TRowBufferPtr RowBuffer;
-    NScheduler::TOperationId OperationId;
-    TString Name;
+    NLogging::TLogger Logger;
 
     void Persist(const TPersistenceContext& context);
 };

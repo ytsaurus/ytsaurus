@@ -6,15 +6,18 @@ namespace NYT::NControllerAgent::NControllers {
 namespace {
 
 using namespace ::testing;
+using namespace NLogging;
 
 ///////////////////////////////////////////////////////////////////////////////
+
+static const TLogger Logger("AutoMergeTest");
 
 TEST(TAutoMergeTest, SimpleScenario)
 {
     TAutoMergeDirector director(
         20 /* maxIntermediateChunkCount */,
         5 /* maxChunkCountPerMergeJob */,
-        TOperationId()
+        Logger
     );
 
     // Suppose that we have a single output table.
@@ -78,7 +81,7 @@ TEST(TAutoMergeTest, ForceFlush)
     TAutoMergeDirector director(
         20 /* maxIntermediateChunkCount */,
         5 /* maxChunkCountPerMergeJob */,
-        TOperationId()
+        Logger
     );
 
     // Suppose that we have three output tables.
@@ -115,7 +118,7 @@ TEST(TAutoMergeTest, BypassMarginalJobs)
     TAutoMergeDirector director(
         20 /* maxIntermediateChunkCount */,
         5 /* maxChunkCountPerMergeJob */,
-        TOperationId()
+        Logger
     );
 
     // Suppose that we have three output tables.
@@ -147,7 +150,7 @@ TEST(TAutoMergeTest, JobFailure)
     TAutoMergeDirector director(
         20 /* maxIntermediateChunkCount */,
         5 /* maxChunkCountPerMergeJob */,
-        TOperationId()
+        Logger
     );
 
     // Suppose that we have three output tables.

@@ -158,6 +158,8 @@ struct ITaskHost
     virtual TJobSplitterConfigPtr GetJobSplitterConfigTemplate() const = 0;
 
     virtual const TInputTablePtr& GetInputTable(int tableIndex) const = 0;
+
+    virtual NLogging::TLogger GetLogger() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

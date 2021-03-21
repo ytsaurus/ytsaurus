@@ -40,7 +40,7 @@ public:
         : TTask(std::move(taskHost), std::move(streamDescriptors))
         , Spec_(std::move(spec))
         , Name_(std::move(name))
-        , VanillaChunkPool_(CreateVanillaChunkPool({Spec_->JobCount, Spec_->RestartCompletedJobs}))
+        , VanillaChunkPool_(CreateVanillaChunkPool({Spec_->JobCount, Spec_->RestartCompletedJobs, Logger}))
     { }
 
     //! Used only for persistence.

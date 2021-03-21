@@ -721,9 +721,6 @@ public:
     //! Suspend operation right after the materialization phase.
     bool SuspendOperationAfterMaterialization;
 
-    //! Generic map to turn on/off different experimental options.
-    NYTree::IMapNodePtr NightlyOptions;
-
     //! If total input data weight of operation is less, we disable locality timeouts.
     //! Also disables partitioned data balancing for small operations.
     i64 MinLocalityInputDataWeight;
@@ -813,6 +810,9 @@ public:
 
     //! Explicitly specified names of experiments.
     std::optional<std::vector<TString>> ExperimentOverrides;
+
+    //! Enable trace log level for operation controller.
+    bool EnableTraceLogging;
 
     TOperationSpecBase();
 

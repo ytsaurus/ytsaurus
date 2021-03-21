@@ -262,7 +262,6 @@ public:
         i64 maxTotalDataSliceCount,
         i64 inputSliceDataWeight,
         const TInputStreamDirectory& inputStreamDirectory,
-        bool logDetails,
         const TLogger& logger)
         : EnableKeyGuarantee_(enableKeyGuarantee)
         , PrimaryComparator_(primaryComparator)
@@ -270,19 +269,18 @@ public:
         , LimitStatistics_(limitStatistics)
         , MaxTotalDataSliceCount_(maxTotalDataSliceCount)
         , InputSliceDataWeight_(inputSliceDataWeight)
-        , LogDetails_(logDetails)
         , RowBuffer_(rowBuffer)
         , InputStreamDirectory_(inputStreamDirectory)
         , Logger(logger)
         , ForeignDomain_(ForeignComparator_)
     {
-        YT_LOG_DEBUG_IF(LogDetails_, "Staging area instantiated (LimitStatistics: %v)", LimitStatistics_);
+        YT_LOG_TRACE("Staging area instantiated (LimitStatistics: %v)", LimitStatistics_);
     }
 
     //! Promote upper bound for currently built job.
     void PromoteUpperBound(TKeyBound upperBound)
     {
-        YT_LOG_DEBUG_IF(LogDetails_, "Upper bound promoted (UpperBound: %v)", upperBound);
+        YT_LOG_TRACE("Upper bound promoted (UpperBound: %v)", upperBound);
 
         // NB: The leftmost endpoint may be >=[] when dealing with sorted dynamic stores,
         // and it is the only case when UpperBound_ may not be smaller than upperBound.
@@ -343,8 +341,7 @@ public:
             return;
         }
 
-        YT_LOG_DEBUG_IF(
-            LogDetails_,
+        YT_LOG_TRACE(
             "Performing flush (Statistics: %v, Limits: %v, IsOverflow: %v, Force: %v)",
             GetStatisticsDebugString(),
             LimitStatistics_,
@@ -370,8 +367,7 @@ public:
             progressMade |= TryFlushMain();
         } while (progressMade);
 
-        YT_LOG_DEBUG_IF(
-            LogDetails_,
+        YT_LOG_TRACE(
             "Flush finished (Statistics: %v)",
             GetStatisticsDebugString());
 
@@ -389,7 +385,7 @@ public:
     //! Called at the end of processing to flush all remaining data slices into jobs.
     void Finish()
     {
-        YT_LOG_DEBUG_IF(LogDetails_, "Finishing work in staging area");
+        YT_LOG_TRACE("Finishing work in staging area");
 
         PromoteUpperBound(TKeyBound::MakeUniversal(/* isUpper */ true));
 
@@ -419,7 +415,6 @@ private:
     TAggregatedStatistics LimitStatistics_;
     i64 MaxTotalDataSliceCount_;
     i64 InputSliceDataWeight_;
-    bool LogDetails_;
     TRowBufferPtr RowBuffer_;
     TInputStreamDirectory InputStreamDirectory_;
     TLogger Logger;
@@ -533,7 +528,7 @@ private:
 
     void CutMainByUpperBound()
     {
-        YT_LOG_DEBUG_IF(LogDetails_, "Cutting main domain by upper bound (UpperBound: %v)", UpperBound_);
+        YT_LOG_TRACE("Cutting main domain by upper bound (UpperBound: %v)", UpperBound_);
 
         auto& mainDataSlices = PrimaryDomains_[EDomainKind::Main].DataSlices;
         for (auto it = mainDataSlices.begin(); it != mainDataSlices.end(); mainDataSlices.move_forward(it)) {
@@ -568,16 +563,14 @@ private:
         while (true) {
             // Check if there is at least one data slices to transfer.
             if (singletonDomain.Statistics.IsZero()) {
-                YT_LOG_DEBUG_IF(LogDetails_, "Singleton domain exhausted");
+                YT_LOG_TRACE("Singleton domain exhausted");
                 return false;
             }
 
             // Stop process if we are not forced to transfer singletons up to the end
             // and if Main domain is already full.
             if (!force && mainDomain.Statistics >= LimitStatistics_) {
-                YT_LOG_DEBUG_IF(
-                    LogDetails_,
-                    "Main domain saturated (Statistics: %v)", mainDomain.Statistics);
+                YT_LOG_TRACE("Main domain saturated (Statistics: %v)", mainDomain.Statistics);
                 return false;
             }
 
@@ -590,8 +583,7 @@ private:
             auto statistics = TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ true);
 
             auto takeWhole = [&] {
-                YT_LOG_DEBUG_IF(
-                    LogDetails_,
+                YT_LOG_TRACE(
                     "Adding whole singleton data slice to main domain (DataSlice: %v, Statistics: %v)",
                     GetDataSliceDebugString(dataSlice),
                     statistics);
@@ -613,8 +605,7 @@ private:
                 auto gapStatistics = LimitStatistics_;
                 gapStatistics -= mainDomain.Statistics;
 
-                YT_LOG_DEBUG_IF(
-                    LogDetails_,
+                YT_LOG_TRACE(
                     "Trying to fill the gap (GapStatistics: %v, DataSlice: %v)",
                     gapStatistics,
                     GetDataSliceDebugString(dataSlice));
@@ -642,11 +633,9 @@ private:
                 constexpr double UpperFractionThreshold = 0.9;
 
                 if (fraction >= UpperFractionThreshold) {
-                    YT_LOG_DEBUG_IF(LogDetails_, "Fraction for the remaining data slice is high enough to take it as a whole (Fraction: %v)", fraction);
+                    YT_LOG_TRACE("Fraction for the remaining data slice is high enough to take it as a whole (Fraction: %v)", fraction);
                     takeWhole();
-                    YT_LOG_DEBUG_IF(
-                        LogDetails_,
-                        "Main domain saturated after transferring final whole data slice (Statistics: %v)", mainDomain.Statistics);
+                    YT_LOG_TRACE("Main domain saturated after transferring final whole data slice (Statistics: %v)", mainDomain.Statistics);
                 } else {
                     // Divide slice in desired proportion using row indices.
                     auto lowerRowIndex = dataSlice->LowerLimit().RowIndex.value_or(0);
@@ -655,8 +644,7 @@ private:
                     auto rowCount = static_cast<i64>(std::ceil((upperRowIndex - lowerRowIndex) * fraction));
                     rowCount = ClampVal<i64>(rowCount, 0, upperRowIndex - lowerRowIndex);
 
-                    YT_LOG_DEBUG_IF(
-                        LogDetails_,
+                    YT_LOG_TRACE(
                         "Splitting data slice by rows (Fraction: %v, LowerRowIndex: %v, UpperRowIndex: %v, RowCount: %v, MiddleRowIndex: %v)",
                         fraction,
                         lowerRowIndex,
@@ -680,9 +668,7 @@ private:
                         // Finally, add left part to the Main domain.
                         mainDomain.AddDataSlice(leftDataSlice);
                         CurrentJobContainsSingleton_ = true;
-                        YT_LOG_DEBUG_IF(
-                            LogDetails_,
-                            "Main domain saturated after transferring final partial data slice (Statistics: %v)", mainDomain.Statistics);
+                        YT_LOG_TRACE("Main domain saturated after transferring final partial data slice (Statistics: %v)", mainDomain.Statistics);
                     }
                 }
 
@@ -706,8 +692,7 @@ private:
 
     void ValidateCurrentJobBounds(TKeyBound actualLowerBound, TKeyBound actualUpperBound) const
     {
-        YT_LOG_DEBUG_IF(
-            LogDetails_,
+        YT_LOG_TRACE(
             "Current job key bounds (KeyBounds: %v:%v)",
             actualLowerBound,
             actualUpperBound);
@@ -762,7 +747,7 @@ private:
         while (!ForeignDomain_.DataSlices.empty() &&
             ForeignComparator_.IsRangeEmpty(actualLowerBound, ForeignDomain_.DataSlices.front()->UpperLimit().KeyBound))
         {
-            YT_LOG_DEBUG_IF(LogDetails_, "Trimming foreign data slice (DataSlice: %v)", ForeignDomain_.DataSlices.front());
+            YT_LOG_TRACE("Trimming foreign data slice (DataSlice: %v)", ForeignDomain_.DataSlices.front());
             ForeignDomain_.Statistics -= TAggregatedStatistics::FromDataSlice(ForeignDomain_.DataSlices.front(), /* isPrimary */ false);
             ExtractHeap(ForeignDomain_.DataSlices.begin(), ForeignDomain_.DataSlices.end(), ForeignDomain_.DataSliceUpperBoundComparator);
             ForeignDomain_.DataSlices.pop_back();
@@ -774,7 +759,7 @@ private:
     bool TryFlushMain()
     {
         if (PrimaryDomains_[EDomainKind::Main].Statistics.IsZero()) {
-            YT_LOG_DEBUG_IF(LogDetails_, "Nothing to flush");
+            YT_LOG_TRACE("Nothing to flush");
             return false;
         }
 
@@ -782,7 +767,7 @@ private:
 
         auto& mainDataSlices = PrimaryDomains_[EDomainKind::Main].DataSlices;
 
-        YT_LOG_DEBUG_IF(LogDetails_, "Flushing main domain into job (Statistics: %v)", PrimaryDomains_[EDomainKind::Main].Statistics);
+        YT_LOG_TRACE("Flushing main domain into job (Statistics: %v)", PrimaryDomains_[EDomainKind::Main].Statistics);
 
         // Calculate the actual lower and upper bounds of newly formed job and move data slices to the job.
         auto actualLowerBound = TKeyBound::MakeEmpty(/* isUpper */ false);
@@ -833,13 +818,10 @@ private:
         }
 
         if (!foreignStatistics.IsZero()) {
-            YT_LOG_DEBUG_IF(LogDetails_, "Attaching foreign data slices to job (Statistics: %v)", foreignStatistics);
+            YT_LOG_TRACE("Attaching foreign data slices to job (Statistics: %v)", foreignStatistics);
         }
 
-        YT_LOG_DEBUG_IF(
-            LogDetails_,
-            "Job prepared (DataSlices: %v)",
-            job.GetDebugString());
+        YT_LOG_TRACE("Job prepared (DataSlices: %v)", job.GetDebugString());
 
         TotalDataSliceCount_ += job.GetSliceCount();
 
@@ -918,9 +900,7 @@ public:
     {
         AddPivotKeysEndpoints();
         SortEndpoints();
-        if (Options_.LogDetails) {
-            LogDetails();
-        }
+        LogDetails();
         BuildJobs();
 
         for (auto& job : Jobs_) {
@@ -1062,9 +1042,12 @@ private:
 
     void LogDetails()
     {
+        if (!Logger.IsLevelEnabled(ELogLevel::Trace)) {
+            return;
+        }
         for (int index = 0; index < Endpoints_.size(); ++index) {
             const auto& endpoint = Endpoints_[index];
-            YT_LOG_DEBUG("Endpoint (Index: %v, KeyBound: %v, Type: %v, DataSlice: %v)",
+            YT_LOG_TRACE("Endpoint (Index: %v, KeyBound: %v, Type: %v, DataSlice: %v)",
                 index,
                 endpoint.KeyBound,
                 endpoint.Type,
@@ -1107,12 +1090,10 @@ private:
 
             TotalDataWeight_ += job.GetDataWeight();
 
-            if (Options_.LogDetails) {
-                YT_LOG_DEBUG("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
-                    JobIndex_,
-                    Jobs_.size(),
-                    job.GetDebugString());
-            }
+            YT_LOG_TRACE("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
+                JobIndex_,
+                Jobs_.size(),
+                job.GetDebugString());
 
             Jobs_.emplace_back(std::move(job));
         } else {
@@ -1160,7 +1141,6 @@ private:
             Options_.MaxTotalSliceCount,
             JobSizeConstraints_->GetInputSliceDataWeight(),
             InputStreamDirectory_,
-            Options_.LogDetails,
             Logger);
 
         // Iterate over groups of coinciding endpoints.

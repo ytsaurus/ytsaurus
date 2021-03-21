@@ -108,8 +108,8 @@ void TChunkPoolOutputWithCountersBase::Persist(const TPersistenceContext& contex
 // IChunkPoolOutput implementation.
 
 template <class TJobManager>
-TChunkPoolOutputWithJobManagerBase<TJobManager>::TChunkPoolOutputWithJobManagerBase()
-    : JobManager_(New<TJobManager>())
+TChunkPoolOutputWithJobManagerBase<TJobManager>::TChunkPoolOutputWithJobManagerBase(const NLogging::TLogger& logger)
+    : JobManager_(New<TJobManager>(logger))
 { }
 
 template <class TJobManager>

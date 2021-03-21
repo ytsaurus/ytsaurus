@@ -213,7 +213,14 @@ TOperationControllerBase::TOperationControllerBase(
     , AuthenticatedUser(operation->GetAuthenticatedUser())
     , SecureVault(operation->GetSecureVault())
     , UserTransactionId(operation->GetUserTransactionId())
-    , Logger(ControllerLogger.WithTag("OperationId: %v", OperationId))
+    , Logger([=] {
+            auto logger = ControllerLogger;
+            logger = logger.WithTag("OperationId: %v", OperationId);
+            if (spec->EnableTraceLogging) {
+                logger = logger.WithMinLevel(ELogLevel::Trace);
+            }
+            return logger;
+        }())
     , CoreNotes_({Format("OperationId: %v", OperationId)})
     , Acl(operation->GetAcl())
     , CancelableContext(New<TCancelableContext>())
@@ -1599,7 +1606,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
     AutoMergeDirector_ = std::make_unique<TAutoMergeDirector>(
         maxIntermediateChunkCount,
         chunkCountPerMergeJob,
-        OperationId);
+        Logger);
 
     bool sortedOutputAutoMergeRequired = false;
 
@@ -1643,6 +1650,11 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
     }
 
     return autoMergeEnabled;
+}
+
+NLogging::TLogger TOperationControllerBase::GetLogger() const
+{
+    return Logger;
 }
 
 std::vector<TStreamDescriptor> TOperationControllerBase::GetAutoMergeStreamDescriptors()
@@ -3103,7 +3115,6 @@ const TLogger* TOperationControllerBase::GetEventLogger()
 
     return &ControllerEventLogger;
 }
-
 
 void TOperationControllerBase::OnChunkFailed(TChunkId chunkId)
 {

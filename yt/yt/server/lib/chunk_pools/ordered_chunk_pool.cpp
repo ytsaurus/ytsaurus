@@ -40,7 +40,7 @@ void TOrderedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, OperationId);
     Persist(context, EnablePeriodicYielder);
     Persist(context, ShouldSliceByRowIndices);
-    Persist(context, Task);
+    Persist(context, Logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,26 +58,23 @@ public:
     TOrderedChunkPool(
         const TOrderedChunkPoolOptions& options,
         TInputStreamDirectory inputStreamDirectory)
-        : InputStreamDirectory_(std::move(inputStreamDirectory))
+        : TChunkPoolOutputWithNewJobManagerBase(options.Logger)
+        , InputStreamDirectory_(std::move(inputStreamDirectory))
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , Sampler_(JobSizeConstraints_->GetSamplingRate())
         , SupportLocality_(options.SupportLocality)
-        , OperationId_(options.OperationId)
-        , Task_(options.Task)
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
         , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
         , OutputOrder_(options.KeepOutputOrder ? New<TOutputOrder>() : nullptr)
+        , Logger(options.Logger)
     {
+        ValidateLogger(Logger);
+
         if (JobSizeConstraints_->IsExplicitJobCount() && JobSizeConstraints_->GetJobCount() == 1) {
             SingleJob_ = true;
         }
-
-        Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
-        Logger.AddTag("OperationId: %v", OperationId_);
-        Logger.AddTag("Task: %v", Task_);
-        JobManager_->SetLogger(Logger);
 
         YT_LOG_DEBUG("Ordered chunk pool created (DataWeightPerJob: %v, MaxDataSlicesPerJob: %v, "
             "InputSliceDataWeight: %v, InputSliceRowCount: %v, SingleJob: %v)",
@@ -183,9 +180,6 @@ public:
         Persist(context, JobSizeConstraints_);
         Persist(context, Sampler_);
         Persist(context, SupportLocality_);
-        Persist(context, OperationId_);
-        Persist(context, Task_);
-        Persist(context, ChunkPoolId_);
         Persist(context, MaxTotalSliceCount_);
         Persist(context, ShouldSliceByRowIndices_);
         Persist(context, EnablePeriodicYielder_);
@@ -194,11 +188,10 @@ public:
         Persist(context, BuiltJobCount_);
         Persist(context, SingleJob_);
         Persist(context, IsCompleted_);
+        Persist(context, Logger);
+
         if (context.IsLoad()) {
-            Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
-            Logger.AddTag("OperationId: %v", OperationId_);
-            Logger.AddTag("Task: %v", Task_);
-            JobManager_->SetLogger(Logger);
+            ValidateLogger(Logger);
         }
     }
 
@@ -221,13 +214,6 @@ private:
 
     bool SupportLocality_ = false;
 
-    TLogger Logger = ChunkPoolLogger;
-
-    TOperationId OperationId_;
-    TString Task_;
-
-    TGuid ChunkPoolId_ = TGuid::Create();
-
     i64 MaxTotalSliceCount_ = 0;
 
     bool ShouldSliceByRowIndices_ = false;
@@ -244,6 +230,8 @@ private:
     bool SingleJob_ = false;
 
     bool IsCompleted_ = false;
+
+    TLogger Logger;
 
     void SetupSuspendedStripes()
     {

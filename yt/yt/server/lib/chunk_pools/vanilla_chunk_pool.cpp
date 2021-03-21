@@ -23,7 +23,8 @@ class TVanillaChunkPool
 {
 public:
     explicit TVanillaChunkPool(const TVanillaChunkPoolOptions& options)
-        : RestartCompletedJobs_(options.RestartCompletedJobs)
+        : TChunkPoolOutputWithNewJobManagerBase(options.Logger)
+        , RestartCompletedJobs_(options.RestartCompletedJobs)
     {
         // We use very small portion of job manager functionality. We fill it with dummy
         // jobs and make manager deal with extracting/completing/failing/aborting jobs for us.

@@ -129,8 +129,6 @@ protected:
             , Options_(controller->GetSortedChunkPoolOptions())
             , UseNewSortedPool_(ParseOperationSpec<TSortedOperationSpec>(ConvertToNode(Controller_->GetSpec()))->UseNewSortedPool)
         {
-            Options_.Task = GetTitle();
-
             if (UseNewSortedPool_) {
                 YT_LOG_INFO("Operation uses new sorted pool");
                 ChunkPool_ = CreateNewSortedChunkPool(
@@ -692,18 +690,11 @@ protected:
         jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
         jobOptions.EnablePeriodicYielder = true;
 
-        if (Spec_->NightlyOptions) {
-            auto logDetails = Spec_->NightlyOptions->FindChild("log_details");
-            if (logDetails && logDetails->GetType() == ENodeType::Boolean) {
-                jobOptions.LogDetails = logDetails->AsBoolean()->GetValue();
-            }
-        }
-
         chunkPoolOptions.RowBuffer = RowBuffer;
         chunkPoolOptions.SortedJobOptions = jobOptions;
         chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
-        chunkPoolOptions.OperationId = OperationId;
+        chunkPoolOptions.Logger = Logger.WithTag("Name: Root");
         return chunkPoolOptions;
     }
 

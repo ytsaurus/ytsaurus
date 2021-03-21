@@ -1,4 +1,5 @@
 #include "chunk_slice_fetcher_mock.h"
+#include "chunk_pools_helpers.h"
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -61,7 +62,7 @@ protected:
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.UseNewJobBuilder = false;
         Options_.ReturnNewDataSlices = false;
-        Options_.Task = "TestTask";
+        Options_.Logger = GetTestLogger();
         DataSizePerJob_ = Inf64;
         MaxBuildRetryCount_ = 1;
         MaxDataSlicesPerJob_ = Inf32;

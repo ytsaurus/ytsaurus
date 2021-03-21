@@ -192,7 +192,10 @@ class TChunkPoolOutputWithJobManagerBase
     : public TChunkPoolOutputBase
 {
 public:
-    TChunkPoolOutputWithJobManagerBase();
+    //! Used only for persistence.
+    TChunkPoolOutputWithJobManagerBase() = default;
+
+    TChunkPoolOutputWithJobManagerBase(const NLogging::TLogger& logger);
 
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
     virtual IChunkPoolOutput::TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
