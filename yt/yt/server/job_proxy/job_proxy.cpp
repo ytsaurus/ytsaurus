@@ -574,11 +574,11 @@ TJobResult TJobProxy::DoRun()
         SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(supervisorChannel);
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
+        RetrieveJobSpec();
+
         auto clusterConnection = NApi::NNative::CreateConnection(Config_->ClusterConnection);
 
-        Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::JobUserName));
-
-        RetrieveJobSpec();
+        Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetJobUserName()));
 
         auto cpuMonitorConfig = ConvertTo<TJobCpuMonitorConfigPtr>(TYsonString(JobSpecHelper_->GetSchedulerJobSpecExt().job_cpu_monitor_config()));
         CpuMonitor_ = New<TCpuMonitor>(std::move(cpuMonitorConfig), JobThread_->GetInvoker(), this, CpuShare_);
@@ -804,6 +804,13 @@ TOperationId TJobProxy::GetOperationId() const
 TJobId TJobProxy::GetJobId() const
 {
     return JobId_;
+}
+
+TString TJobProxy::GetJobUserName() const
+{
+    return Format("%v:%v",
+        NSecurityClient::JobUserName,
+        JobSpecHelper_->GetSchedulerJobSpecExt().authenticated_user());
 }
 
 const IJobSpecHelperPtr& TJobProxy::GetJobSpecHelper() const

@@ -326,6 +326,8 @@ public:
     virtual TOperationId GetOperationId() const override;
     virtual EOperationType GetOperationType() const override;
 
+    virtual const TString& GetAuthenticatedUser() const override;
+
     virtual const TOutputTablePtr& StderrTable() const override;
     virtual const TOutputTablePtr& CoreTable() const override;
 

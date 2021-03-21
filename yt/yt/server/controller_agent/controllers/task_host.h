@@ -93,6 +93,8 @@ struct ITaskHost
     virtual TOperationId GetOperationId() const = 0;
     virtual EOperationType GetOperationType() const = 0;
 
+    virtual const TString& GetAuthenticatedUser() const = 0;
+
     virtual const TOutputTablePtr& StderrTable() const = 0;
     virtual const TOutputTablePtr& CoreTable() const = 0;
 
