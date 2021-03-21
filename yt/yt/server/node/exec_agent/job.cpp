@@ -1068,7 +1068,7 @@ private:
                 StartPrepareVolumeTime_ = TInstant::Now();
                 SetJobPhase(EJobPhase::PreparingRootVolume);
                 YT_LOG_INFO("Preparing root volume (LayerCount: %v)", LayerArtifactKeys_.size());
-                Slot_->PrepareRootVolume(LayerArtifactKeys_)
+                Slot_->PrepareRootVolume(LayerArtifactKeys_, MakeArtifactDownloadOptions())
                     .Subscribe(BIND(
                         &TJob::OnVolumePrepared,
                         MakeWeak(this))
@@ -1624,14 +1624,20 @@ private:
         }
     }
 
-    TArtifactDownloadOptions MakeArtifactDownloadOptions()
+    TArtifactDownloadOptions MakeArtifactDownloadOptions() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TArtifactDownloadOptions options;
-        options.NodeDirectory = Bootstrap_->GetNodeDirectory();
-        options.TrafficMeter = TrafficMeter_;
-        return options;
+        std::vector<TString> workloadDescriptorAnnotations = {
+            Format("OperationId: %v", OperationId_),
+            Format("JobId: %v", Id_),
+            Format("AuthenticatedUser: %v", SchedulerJobSpecExt_->authenticated_user()),
+        };
+
+        return TArtifactDownloadOptions{
+            .NodeDirectory = Bootstrap_->GetNodeDirectory(),
+            .TrafficMeter = TrafficMeter_
+        };
     }
 
     // Start async artifacts download.

@@ -3,9 +3,10 @@
 #include "public.h"
 
 #include <yt/yt/server/node/data_node/artifact.h>
-#include <yt/yt/server/node/data_node/public.h>
+#include <yt/yt/server/node/data_node/chunk_cache.h>
 
 #include <yt/yt/server/lib/containers/public.h>
+
 #include <yt/yt/server/lib/job_proxy/config.h>
 
 #include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
@@ -63,7 +64,9 @@ struct ISlot
         const TString& destinationName,
         bool executable) = 0;
 
-    virtual TFuture<NDataNode::IVolumePtr> PrepareRootVolume(const std::vector<NDataNode::TArtifactKey>& layers) = 0;
+    virtual TFuture<NDataNode::IVolumePtr> PrepareRootVolume(
+        const std::vector<NDataNode::TArtifactKey>& layers,
+        const NDataNode::TArtifactDownloadOptions& downloadOptions) = 0;
 
     virtual TFuture<void> FinalizePreparation() = 0;
 
