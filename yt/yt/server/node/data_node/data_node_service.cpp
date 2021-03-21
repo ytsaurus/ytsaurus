@@ -618,7 +618,7 @@ private:
         context->SetResponseInfo(
             "HasCompleteChunk: %v, "
             "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v, "
-            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v"
+            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v, "
             "BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
             hasCompleteChunk,
             netThrottling,
@@ -724,7 +724,7 @@ private:
         context->SetResponseInfo(
             "HasCompleteChunk: %v, "
             "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v, "
-            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v"
+            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v, "
             "BlocksWithData: %v, BlocksSize: %v",
             hasCompleteChunk,
             netThrottling,
