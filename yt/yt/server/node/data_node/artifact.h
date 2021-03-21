@@ -20,6 +20,8 @@ struct TArtifactKey
     explicit TArtifactKey(NChunkClient::TChunkId id);
     explicit TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor);
 
+    i64 GetCompressedDataSize() const;
+
     // Hasher.
     operator size_t() const;
 

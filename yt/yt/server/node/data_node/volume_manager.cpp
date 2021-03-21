@@ -1052,6 +1052,18 @@ public:
         return value;
     }
 
+    bool IsLayerCached(const TArtifactKey& artifactKey)
+    {
+        {
+            auto guard = Guard(TmpfsCacheDataSpinLock_);
+            if (CachedTmpfsLayers_.contains(artifactKey)) {
+                return true;
+            }
+        }
+
+        return Find(artifactKey) != nullptr;
+    }
+
     void Touch(const TLayerPtr& layer)
     {
         Find(layer->GetKey());
@@ -1658,6 +1670,11 @@ public:
         return promise.ToFuture()
             .Apply(BIND(createVolume, true))
             .As<IVolumePtr>();
+    }
+
+    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const override
+    {
+        return LayerCache_->IsLayerCached(artifactKey);
     }
 
 private:

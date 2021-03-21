@@ -880,7 +880,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
         create("file", "//tmp/file")
         write_file("//tmp/file", '{"hello": "world"}')
-        map(
+        op = map(
             command="cat file",
             in_="//tmp/t_input",
             out="//tmp/t_output",
@@ -891,6 +891,10 @@ class TestArtifactCacheBypass(YTEnvSetup):
                 }
             },
         )
+
+        statistics = get(op.get_path() + "/@progress/job_statistics")
+        bypassed_size = get_statistics(statistics, "exec_agent.artifacts.cache_bypassed_artifacts_size.$.completed.map.sum")
+        assert bypassed_size == 18
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
 

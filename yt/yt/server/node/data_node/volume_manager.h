@@ -33,6 +33,8 @@ struct IVolumeManager
         const std::vector<TArtifactKey>& layers,
         const TArtifactDownloadOptions& downloadOptions) = 0;
 
+    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
+
     virtual void BuildOrchidYson(NYTree::TFluentMap fluent) const = 0;
 };
 

@@ -61,7 +61,8 @@ public:
      */
     TFuture<IChunkPtr> DownloadArtifact(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& artifactDownloadOptions);
+        const TArtifactDownloadOptions& artifactDownloadOptions,
+        bool* fetchedFromCache = nullptr);
 
     //! Constructs a producer that will download the artifact and feed its content to a stream.
     std::function<void(IOutputStream*)> MakeArtifactDownloadProducer(
