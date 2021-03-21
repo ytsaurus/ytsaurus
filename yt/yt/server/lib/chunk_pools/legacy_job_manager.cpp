@@ -412,6 +412,11 @@ TLegacyJobManager::TLegacyJobManager()
     : CookiePool_(std::make_unique<TCookiePool>(TLegacyJobManager::TStripeListComparator(this /* owner */)))
 { }
 
+TLegacyJobManager::TLegacyJobManager(const TLogger& logger)
+    : CookiePool_(std::make_unique<TCookiePool>(TLegacyJobManager::TStripeListComparator(this /* owner */)))
+    , Logger(logger)
+{ }
+
 void TLegacyJobManager::AddJobs(std::vector<std::unique_ptr<TLegacyJobStub>> jobStubs)
 {
     if (jobStubs.empty()) {
@@ -588,6 +593,7 @@ void TLegacyJobManager::Persist(const TPersistenceContext& context)
     Persist(context, FirstValidJobIndex_);
     Persist(context, SuspendedInputCookies_);
     Persist(context, Jobs_);
+    Persist(context, Logger);
 }
 
 TChunkStripeStatisticsVector TLegacyJobManager::GetApproximateStripeStatistics() const
@@ -616,11 +622,6 @@ void TLegacyJobManager::InvalidateAllJobs()
         }
         FirstValidJobIndex_++;
     }
-}
-
-void TLegacyJobManager::SetLogger(TLogger logger)
-{
-    Logger = logger;
 }
 
 void TLegacyJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)

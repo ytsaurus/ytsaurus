@@ -6,21 +6,14 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger AutoMergeLogger("AutoMerge");
-
-////////////////////////////////////////////////////////////////////////////////
-
 TAutoMergeDirector::TAutoMergeDirector(
     int maxIntermediateChunkCount,
     int maxChunkCountPerMergeJob,
-    TOperationId operationId)
+    const NLogging::TLogger& logger)
     : MaxIntermediateChunkCount_(maxIntermediateChunkCount)
     , ChunkCountPerMergeJob_(maxChunkCountPerMergeJob)
-    , OperationId_(operationId)
-    , Logger(AutoMergeLogger)
-{
-    Logger.AddTag("OperationId: %v", OperationId_);
-}
+    , Logger(logger)
+{ }
 
 bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
 {
@@ -145,15 +138,11 @@ void TAutoMergeDirector::Persist(const TPersistenceContext& context)
 
     Persist(context, MaxIntermediateChunkCount_);
     Persist(context, ChunkCountPerMergeJob_);
-    Persist(context, OperationId_);
     Persist(context, RunningMergeJobCount_);
     Persist(context, ForceScheduleMergeJob_);
     Persist(context, TaskCompleted_);
     Persist(context, RunningTaskJobCount_);
-
-    if (context.IsLoad()) {
-        Logger = AutoMergeLogger.WithTag("OperationId: %v", OperationId_);
-    }
+    Persist(context, Logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

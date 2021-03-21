@@ -70,8 +70,8 @@ DEFINE_ENUM(EResourceTreeElementKind,
     (Root)
 );
 
-inline const NLogging::TLogger SchedulerEventLogger = NLogging::TLogger("SchedulerEventLog").WithEssential();
-inline const NLogging::TLogger SchedulerResourceMeteringLogger = NLogging::TLogger("SchedulerResourceMetering").WithEssential();
+inline const auto SchedulerEventLogger = NLogging::TLogger("SchedulerEventLog").WithEssential();
+inline const auto SchedulerResourceMeteringLogger = NLogging::TLogger("SchedulerResourceMetering").WithEssential();
 
 inline const NProfiling::TProfiler SchedulerProfiler{"/scheduler"};
 

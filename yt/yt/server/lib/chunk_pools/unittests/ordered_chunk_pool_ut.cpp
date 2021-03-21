@@ -56,6 +56,7 @@ protected:
         Options_.MinTeleportChunkSize = Inf64;
         Options_.MaxTotalSliceCount = Inf64;
         Options_.ShouldSliceByRowIndices = true;
+        Options_.Logger = GetTestLogger();
         DataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataSize_ = Inf64;

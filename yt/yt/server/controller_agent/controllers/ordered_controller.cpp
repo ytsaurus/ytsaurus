@@ -137,7 +137,6 @@ protected:
             , Controller_(controller)
         {
             auto options = controller->GetOrderedChunkPoolOptions();
-            options.Task = GetTitle();
             ChunkPool_ = CreateOrderedChunkPool(options, controller->GetInputStreamDirectory());
             ChunkPool_->SubscribeChunkTeleported(BIND(&TOrderedTask::OnChunkTeleported, MakeWeak(this)));
         }
@@ -475,6 +474,7 @@ protected:
         chunkPoolOptions.OperationId = OperationId;
         chunkPoolOptions.KeepOutputOrder = OrderedOutputRequired_;
         chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
+        chunkPoolOptions.Logger = Logger.WithTag("Name: Root");
         return chunkPoolOptions;
     }
 };

@@ -23,7 +23,7 @@ public:
     //! Used only for persistence.
     TAutoMergeDirector() = default;
 
-    TAutoMergeDirector(int maxIntermediateChunkCount, int maxChunkCountPerMergeJob, TOperationId operationId);
+    TAutoMergeDirector(int maxIntermediateChunkCount, int maxChunkCountPerMergeJob, const NLogging::TLogger& logger);
 
     //! Returns true if new job fits in the maxIntermediateChunkCount limit, false otherwise.
     //! If it returns false and the number of running auto-merge jobs is zero, the force-flush
@@ -71,9 +71,6 @@ public:
     DEFINE_SIGNAL(void(), StateChanged);
 
 private:
-    //! Id of the operation this auto-merge director belongs to.
-    TOperationId OperationId_;
-
     //! Number of all intermediate chunks to be auto-merged. It is a sum of two values:
     //! number of chunks already created by the finished jobs (that is precise) and
     //! number of chunks that were not created yet (they are accounted using the stripe list

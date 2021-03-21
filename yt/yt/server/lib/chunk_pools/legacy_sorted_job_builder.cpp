@@ -163,9 +163,7 @@ public:
     {
         AddPivotKeysEndpoints();
         SortEndpoints();
-        if (Options_.LogDetails) {
-            LogDetails();
-        }
+        LogDetails();
         BuildJobs();
         AttachForeignSlices();
         for (auto& job : Jobs_) {
@@ -308,9 +306,13 @@ private:
 
     void LogDetails()
     {
+        if (!Logger.IsLevelEnabled(ELogLevel::Trace)) {
+            return;
+        }
+
         for (int index = 0; index < Endpoints_.size(); ++index) {
             const auto& endpoint = Endpoints_[index];
-            YT_LOG_DEBUG("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %v)",
+            YT_LOG_TRACE("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %v)",
                 index,
                 endpoint.Key,
                 endpoint.RowIndex,
@@ -325,14 +327,14 @@ private:
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 chunkIds.push_back(chunkSlice->GetInputChunk()->GetChunkId());
             }
-            YT_LOG_DEBUG("Data slice (Address: %v, DataWeight: %v, InputStreamIndex: %v, ChunkIds: %v)",
+            YT_LOG_TRACE("Data slice (Address: %v, DataWeight: %v, InputStreamIndex: %v, ChunkIds: %v)",
                 dataSlice.Get(),
                 dataSlice->GetDataWeight(),
                 dataSlice->InputStreamIndex,
                 chunkIds);
         }
         for (const auto& teleportChunk : TeleportChunks_) {
-            YT_LOG_DEBUG("Teleport chunk (Address: %v, MinKey: %v, MaxKey: %v)",
+            YT_LOG_TRACE("Teleport chunk (Address: %v, MinKey: %v, MaxKey: %v)",
                 teleportChunk.Get(),
                 teleportChunk->BoundaryKeys()->MinKey,
                 teleportChunk->BoundaryKeys()->MaxKey);
@@ -424,12 +426,10 @@ private:
                     ValidateTotalSliceCountLimit();
                     Jobs_.emplace_back(std::make_unique<TLegacyJobStub>());
 
-                    if (Options_.LogDetails) {
-                        YT_LOG_DEBUG("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
-                            jobIndex,
-                            static_cast<int>(Jobs_.size()) - 1,
-                            Jobs_.back()->GetDebugString());
-                    }
+                    YT_LOG_TRACE("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
+                        jobIndex,
+                        static_cast<int>(Jobs_.size()) - 1,
+                        Jobs_.back()->GetDebugString());
                 } else {
                     YT_LOG_DEBUG("Sorted job skipped (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, "
                         "PreliminaryForeignDataSize: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",

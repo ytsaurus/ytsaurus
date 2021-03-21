@@ -22,11 +22,10 @@ public:
     TDataBalancer(
         TDataBalancerOptionsPtr options,
         i64 totalDataWeight,
-        const NScheduler::TExecNodeDescriptorMap& execNodes);
+        const NScheduler::TExecNodeDescriptorMap& execNodes,
+        const NLogging::TLogger& logger);
 
     void Persist(const TPersistenceContext& context);
-
-    void SetLogger(const NLogging::TLogger& logger);
 
     //! Account given data weight delta at the given node.
     void UpdateNodeDataWeight(const TJobNodeDescriptor& descriptor, i64 delta);

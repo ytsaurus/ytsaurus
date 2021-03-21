@@ -578,20 +578,11 @@ protected:
                 DataBalancer_ = New<TDataBalancer>(
                     Controller_->Options->DataBalancer,
                     totalDataWeight,
-                    Controller_->GetOnlineExecNodeDescriptors());
-                DataBalancer_->SetLogger(Logger);
+                    Controller_->GetOnlineExecNodeDescriptors(),
+                    Logger);
             }
 
             TTask::FinishInput();
-        }
-
-        virtual void Initialize() override
-        {
-            TTask::Initialize();
-
-            if (DataBalancer_) {
-                DataBalancer_->SetLogger(Logger);
-            }
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -2209,10 +2200,10 @@ protected:
             TOrderedChunkPoolOptions options;
             options.JobSizeConstraints = std::move(jobSizeConstraints);
             options.OperationId = OperationId;
-            options.Task = "RootPartitionPool";
             options.MaxTotalSliceCount = Config->MaxTotalSliceCount;
             options.EnablePeriodicYielder = true;
             options.ShouldSliceByRowIndices = true;
+            options.Logger = Logger.WithTag("Name: RootPartition");
 
             RootPartitionPool = CreateOrderedChunkPool(
                 std::move(options),
@@ -2222,8 +2213,7 @@ protected:
             options.RowBuffer = RowBuffer;
             options.JobSizeConstraints = std::move(jobSizeConstraints);
             options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
-            options.OperationId = OperationId;
-            options.Name = "RootPartitionPool";
+            options.Logger = Logger.WithTag("Name: RootPartition");
 
             RootPartitionPool = CreateUnorderedChunkPool(
                 std::move(options),
@@ -2275,8 +2265,7 @@ protected:
         TUnorderedChunkPoolOptions options;
         options.RowBuffer = RowBuffer;
         options.JobSizeConstraints = std::move(jobSizeConstraints);
-        options.OperationId = OperationId;
-        options.Name = "SimpleSort";
+        options.Logger = Logger.WithTag("Name: SimpleSort");
 
         SimpleSortPool = CreateUnorderedChunkPool(
             std::move(options),
@@ -2873,7 +2862,7 @@ protected:
         return {streamDescriptor};
     }
 
-    IChunkPoolPtr CreateSortedMergeChunkPool(TString taskId)
+    IChunkPoolPtr CreateSortedMergeChunkPool(TString name)
     {
         TSortedChunkPoolOptions chunkPoolOptions;
         TSortedJobOptions jobOptions;
@@ -2887,14 +2876,13 @@ protected:
         // can't handle this.
         jobOptions.EnablePeriodicYielder = false;
         chunkPoolOptions.RowBuffer = RowBuffer;
-        chunkPoolOptions.OperationId = OperationId;
         chunkPoolOptions.SortedJobOptions = jobOptions;
         chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(
             Spec,
             Options,
             Logger,
             GetOutputTablePaths().size());
-        chunkPoolOptions.Task = taskId;
+        chunkPoolOptions.Logger = Logger.WithTag("Name: %v", name);
 
         if (Spec->UseNewSortedPool) {
             YT_LOG_DEBUG("Creating new sorted pool");

@@ -5,30 +5,24 @@
 namespace NYT::NControllerAgent {
 
 using namespace NJobTrackerClient;
+using namespace NLogging;
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TTentativeTreeEligibility::TTentativeTreeEligibility(
-    const NScheduler::TTentativeTreeEligibilityConfigPtr& config)
-    : Logger(ControllerAgentLogger)
-    , SampleJobCount_(config->SampleJobCount)
+    const NScheduler::TTentativeTreeEligibilityConfigPtr& config,
+    const TLogger& logger)
+    : SampleJobCount_(config->SampleJobCount)
     , MaxTentativeTreeJobDurationRatio_(config->MaxTentativeJobDurationRatio)
     , MinJobDuration_(config->MinJobDuration)
+    , Logger(logger)
 { }
 
 TTentativeTreeEligibility::TTentativeTreeEligibility()
-    : Logger(ControllerAgentLogger)
-    , SampleJobCount_(-1)
+    : SampleJobCount_(-1)
     , MaxTentativeTreeJobDurationRatio_(-1.0)
+    , Logger(ControllerAgentLogger)
 { }
-
-void TTentativeTreeEligibility::Initialize(
-    TOperationId operationId,
-    const TString& taskTitle)
-{
-    Logger.AddTag("OperationId: %v", operationId);
-    Logger.AddTag("Task: %v", taskTitle);
-}
 
 void TTentativeTreeEligibility::Persist(const TPersistenceContext& context)
 {
@@ -46,6 +40,8 @@ void TTentativeTreeEligibility::Persist(const TPersistenceContext& context)
     Persist(context, LastStartJobTimePerPoolTree_);
     Persist(context, FinishedJobsPerStatePerPoolTree_);
     Persist(context, BannedTrees_);
+
+    Persist(context, Logger);
 }
 
 bool TTentativeTreeEligibility::CanScheduleJob(

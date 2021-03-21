@@ -22,9 +22,11 @@ using namespace NScheduler;
 TDataBalancer::TDataBalancer(
     TDataBalancerOptionsPtr options,
     i64 totalDataWeight,
-    const TExecNodeDescriptorMap& execNodes)
+    const TExecNodeDescriptorMap& execNodes,
+    const NLogging::TLogger& logger)
     : Options_(std::move(options))
     , TotalDataWeight_(totalDataWeight)
+    , Logger(logger)
 {
     for (const auto& [nodeId, execNode] : execNodes) {
         auto& node = GetOrRegisterNode(execNode);
@@ -76,11 +78,7 @@ void TDataBalancer::Persist(const TPersistenceContext& context)
     Persist(context, IdToNode_);
     Persist(context, ActiveNodeTotalIOWeight_);
     Persist(context, ConsecutiveViolationCount_);
-}
-
-void TDataBalancer::SetLogger(const TLogger& logger)
-{
-    Logger = logger;
+    Persist(context, Logger);
 }
 
 TDataBalancer::TNode& TDataBalancer::GetOrRegisterNode(NNodeTrackerClient::TNodeId nodeId)

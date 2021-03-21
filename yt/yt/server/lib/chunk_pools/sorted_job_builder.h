@@ -31,8 +31,6 @@ struct TSortedJobOptions
     //! is exceeded, an exception is thrown.
     i64 MaxTotalSliceCount;
 
-    bool LogDetails = false;
-
     void Persist(const TPersistenceContext& context);
 };
 

@@ -13,6 +13,9 @@ namespace NYT::NControllerAgent::NControllers {
 namespace {
 
 using namespace ::testing;
+using namespace NLogging;
+
+static const TLogger Logger("JobSplitterTest");
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +90,7 @@ TJobId MakeResidualSplittableJob(const std::unique_ptr<IJobSplitter>& jobSplitte
 
 TEST(TJobSplitterTest, SplitLongAmongRunningInterruptableJob)
 {
-    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), TOperationId());
+    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), Logger);
 
     TJobId slowJobId(0, 0);
     jobSplitter->OnJobStarted(slowJobId, CreateTwoRowStripeList(/* isSplittable */ true), true);
@@ -101,7 +104,7 @@ TEST(TJobSplitterTest, SplitLongAmongRunningInterruptableJob)
 
 TEST(TJobSplitterTest, SpeculateLongAmongRunningNonInterruptableJob)
 {
-    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), TOperationId());
+    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), Logger);
 
     TJobId slowJobId(0, 0);
     jobSplitter->OnJobStarted(slowJobId, CreateTwoRowStripeList(/* isSplittable */ false), true);
@@ -114,7 +117,7 @@ TEST(TJobSplitterTest, SpeculateLongAmongRunningNonInterruptableJob)
 
 TEST(TJobSplitterTest, SpeculateLongAmongRunningInterruptableJobWithTooSmallTotalDataWeight)
 {
-    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), TOperationId());
+    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), Logger);
 
     TJobId slowJobId(0, 0);
     auto smallStripeList = CreateTwoRowStripeList();
@@ -129,7 +132,7 @@ TEST(TJobSplitterTest, SpeculateLongAmongRunningInterruptableJobWithTooSmallTota
 
 TEST(TJobSplitterTest, SplitResidualInterruptableJob)
 {
-    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), TOperationId());
+    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), Logger);
 
     TJobId residualJobId(0, 0);
     jobSplitter->OnJobStarted(residualJobId, CreateTwoRowStripeList(), true);
@@ -144,7 +147,7 @@ TEST(TJobSplitterTest, SplitResidualInterruptableJob)
 
 TEST(TJobSplitterTest, SpeculateResidualNonInterruptableJob)
 {
-    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), TOperationId());
+    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), Logger);
 
     TJobId residualJobId(0, 0);
     jobSplitter->OnJobStarted(residualJobId, CreateTwoRowStripeList(/* isSplittable */ false), true);
@@ -159,7 +162,7 @@ TEST(TJobSplitterTest, SpeculateResidualNonInterruptableJob)
 
 TEST(TJobSplitterTest, DoNothingWithNotLongAndNotResidualJob)
 {
-    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), TOperationId());
+    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), Logger);
 
     TJobId slowJobId(0, 0);
     jobSplitter->OnJobStarted(slowJobId, CreateTwoRowStripeList(), true);
@@ -172,7 +175,7 @@ TEST(TJobSplitterTest, DoNothingWithNotLongAndNotResidualJob)
 
 TEST(TJobSplitterTest, SpeculateLongJobWithNoProgressWhenHasCompletedJobs)
 {
-    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), TOperationId());
+    auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), Logger);
 
     TJobId noProgressJobId(0, 0);
     jobSplitter->OnJobStarted(noProgressJobId, CreateTwoRowStripeList(), true);
@@ -189,10 +192,10 @@ TEST(TJobSplitterTest, SpeculateWhenInterruptTimeoutExpired)
 {
     auto config = CreateSplitterConfig();
     config->SplitTimeoutBeforeSpeculate = TDuration::Zero();
-    auto jobSplitter = CreateJobSplitter(config, TOperationId());
+    auto jobSplitter = CreateJobSplitter(config, Logger);
 
     TJobId residualJobId = MakeResidualSplittableJob(jobSplitter);
-    
+
     EXPECT_EQ(EJobSplitterVerdict::Split, jobSplitter->ExamineJob(residualJobId));
     EXPECT_EQ(EJobSplitterVerdict::LaunchSpeculative, jobSplitter->ExamineJob(residualJobId));
 }
@@ -201,7 +204,7 @@ TEST(TJobSplitterTest, JobSplitIsDisabled)
 {
     auto config = CreateSplitterConfig();
     config->EnableJobSplitting = false;
-    auto jobSplitter = CreateJobSplitter(config, TOperationId());
+    auto jobSplitter = CreateJobSplitter(config, Logger);
 
     TJobId residualJobId = MakeResidualSplittableJob(jobSplitter);
     EXPECT_EQ(EJobSplitterVerdict::LaunchSpeculative, jobSplitter->ExamineJob(residualJobId));
@@ -212,7 +215,7 @@ TEST(TJobSplitterTest, JobSpeculationIsDisabled)
     auto config = CreateSplitterConfig();
     config->SplitTimeoutBeforeSpeculate = TDuration::Zero();
     config->EnableJobSpeculation = false;
-    auto jobSplitter = CreateJobSplitter(config, TOperationId());
+    auto jobSplitter = CreateJobSplitter(config, Logger);
 
     TJobId residualJobId = MakeResidualSplittableJob(jobSplitter);
     EXPECT_EQ(EJobSplitterVerdict::Split, jobSplitter->ExamineJob(residualJobId));
@@ -225,7 +228,7 @@ TEST(TJobSplitterTest, EverythingIsDiabled)
     config->SplitTimeoutBeforeSpeculate = TDuration::Zero();
     config->EnableJobSplitting = false;
     config->EnableJobSpeculation = false;
-    auto jobSplitter = CreateJobSplitter(config, TOperationId());
+    auto jobSplitter = CreateJobSplitter(config, Logger);
 
     TJobId residualJobId = MakeResidualSplittableJob(jobSplitter);
     EXPECT_EQ(EJobSplitterVerdict::DoNothing, jobSplitter->ExamineJob(residualJobId));

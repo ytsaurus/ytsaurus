@@ -261,6 +261,7 @@ b"""
                 max_failed_job_count = 10;
                 locality_timeout = 100;
                 intermediate_data_replication_factor = 1;
+                enable_trace_logging = %true;
             }
         };
     };

@@ -497,9 +497,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("suspend_operation_after_materialization", SuspendOperationAfterMaterialization)
         .Default(false);
 
-    RegisterParameter("nightly_options", NightlyOptions)
-        .Default();
-
     RegisterParameter("min_locality_input_data_weight", MinLocalityInputDataWeight)
         .GreaterThanOrEqual(0)
         .Default(1_GB);
@@ -585,6 +582,9 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("experiment_overrides", ExperimentOverrides)
         .Default();
+
+    RegisterParameter("enable_trace_logging", EnableTraceLogging)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&

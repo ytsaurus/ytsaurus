@@ -10,6 +10,7 @@ struct TVanillaChunkPoolOptions
 {
     int JobCount;
     bool RestartCompletedJobs = false;
+    NLogging::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

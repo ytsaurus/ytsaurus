@@ -24,7 +24,7 @@ struct TOrderedChunkPoolOptions
     bool EnablePeriodicYielder = false;
     bool KeepOutputOrder = false;
     bool ShouldSliceByRowIndices = false;
-    TString Task;
+    NLogging::TLogger Logger;
 
     void Persist(const TPersistenceContext& context);
 };

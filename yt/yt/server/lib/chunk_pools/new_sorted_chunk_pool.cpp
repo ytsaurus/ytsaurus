@@ -50,7 +50,8 @@ public:
         const TSortedChunkPoolOptions& options,
         IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
         TInputStreamDirectory inputStreamDirectory)
-        : SortedJobOptions_(options.SortedJobOptions)
+        : TChunkPoolOutputWithNewJobManagerBase(options.Logger)
+        , SortedJobOptions_(options.SortedJobOptions)
         , PrimaryComparator_(options.SortedJobOptions.PrimaryComparator)
         , ForeignComparator_(options.SortedJobOptions.ForeignComparator)
         , ChunkSliceFetcherFactory_(std::move(chunkSliceFetcherFactory))
@@ -64,14 +65,10 @@ public:
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
         , SupportLocality_(options.SupportLocality)
-        , OperationId_(options.OperationId)
-        , Task_(options.Task)
         , RowBuffer_(options.RowBuffer)
+        , Logger(options.Logger)
     {
-        Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
-        Logger.AddTag("OperationId: %v", OperationId_);
-        Logger.AddTag("Task: %v", Task_);
-        JobManager_->SetLogger(Logger);
+        ValidateLogger(Logger);
 
         YT_VERIFY(RowBuffer_);
 
@@ -113,8 +110,7 @@ public:
                 YT_VERIFY(!dataSlice->UpperLimit().KeyBound.IsUniversal());
             }
 
-            YT_LOG_DEBUG_IF(
-                SortedJobOptions_.LogDetails,
+            YT_LOG_TRACE(
                 "Data slice added (LowerLimit: %v, UpperLimit: %v, InputStreamIndex: %v)",
                 dataSlice->LowerLimit(),
                 dataSlice->UpperLimit(),
@@ -230,16 +226,11 @@ public:
         Persist(context, JobSizeConstraints_);
         Persist(context, TeleportChunkSampler_);
         Persist(context, SupportLocality_);
-        Persist(context, OperationId_);
-        Persist(context, Task_);
-        Persist(context, ChunkPoolId_);
         Persist(context, TeleportChunks_);
         Persist(context, IsCompleted_);
+        Persist(context, Logger);
         if (context.IsLoad()) {
-            Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
-            Logger.AddTag("OperationId: %v", OperationId_);
-            Logger.AddTag("Task: %v", Task_);
-            JobManager_->SetLogger(Logger);
+            ValidateLogger(Logger);
             RowBuffer_ = New<TRowBuffer>();
         }
     }
@@ -296,18 +287,13 @@ private:
 
     bool SupportLocality_ = false;
 
-    TLogger Logger = ChunkPoolLogger;
-
-    TOperationId OperationId_;
-    TString Task_;
-
-    TGuid ChunkPoolId_ = TGuid::Create();
-
     TRowBufferPtr RowBuffer_;
 
     std::vector<TInputChunkPtr> TeleportChunks_;
 
     bool IsCompleted_ = false;
+
+    TLogger Logger;
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -367,15 +353,13 @@ private:
                         : false;
 
                     if (chunkSliceFetcher && (isPrimary || SliceForeignChunks_)) {
-                        if (SortedJobOptions_.LogDetails) {
-                            YT_LOG_DEBUG("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, Comparator: %v, SliceSize: %v, SliceByKeys: %v)",
-                                inputChunk->GetChunkId(),
-                                inputChunk->GetDataWeight(),
-                                isPrimary,
-                                comparator,
-                                sliceSize,
-                                sliceByKeys);
-                        }
+                        YT_LOG_TRACE("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, Comparator: %v, SliceSize: %v, SliceByKeys: %v)",
+                            inputChunk->GetChunkId(),
+                            inputChunk->GetDataWeight(),
+                            isPrimary,
+                            comparator,
+                            sliceSize,
+                            sliceByKeys);
 
                         chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, sliceByKeys);
                     } else if (!isPrimary) {

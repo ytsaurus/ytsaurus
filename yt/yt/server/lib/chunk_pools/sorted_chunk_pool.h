@@ -25,9 +25,8 @@ struct TSortedChunkPoolOptions
     bool SupportLocality = false;
     bool SliceForeignChunks = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
-    NScheduler::TOperationId OperationId;
-    TString Task;
     NTableClient::TRowBufferPtr RowBuffer;
+    NLogging::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
