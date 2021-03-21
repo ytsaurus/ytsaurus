@@ -2,8 +2,6 @@
 
 #include "chunk_detail.h"
 
-#include <yt/yt/server/lib/hydra/public.h>
-
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,8 +37,8 @@ public:
         int blockCount,
         const TBlockReadOptions& options) override;
 
-    virtual NChunkClient::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
-        const NChunkClient::TChunkFragmentDescriptor& fragmentDescriptor,
+    virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
         TSharedMutableRef data) override;
 
     i64 GetFlushedRowCount() const;

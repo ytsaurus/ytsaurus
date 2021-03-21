@@ -1,19 +1,19 @@
-#include <util/random/shuffle.h>
-#include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/server/lib/io/chunk_file_reader.h>
+#include <yt/yt/server/lib/io/chunk_file_reader_adapter.h>
+#include <yt/yt/server/lib/io/chunk_file_writer.h>
+#include <yt/yt/server/lib/io/io_engine.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/yt/ytlib/chunk_client/erasure_writer.h>
 #include <yt/yt/ytlib/chunk_client/erasure_reader.h>
-#include <yt/yt/ytlib/chunk_client/file_reader.h>
-#include <yt/yt/ytlib/chunk_client/file_reader_adapter.h>
-#include <yt/yt/ytlib/chunk_client/file_writer.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/yt/ytlib/chunk_client/io_engine.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
+
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/checksum.h>
 
@@ -21,25 +21,28 @@
 
 #include <util/system/fs.h>
 
+#include <util/random/shuffle.h>
+
 #include <random>
 
 #include <iostream>
 
-namespace NYT::NErasure {
+namespace NYT::NIO {
 namespace {
+
+using namespace NConcurrency;
+using namespace NYTree;
+using namespace NChunkClient;
+using namespace NErasure;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NConcurrency;
-using namespace NChunkClient;
-
-
-class TFailingFileReaderAdapter
+class TFailingChunkFileReaderAdapter
     : public IChunkReaderAllowingRepair
 {
 public:
-    TFailingFileReaderAdapter(
-        TFileReaderPtr underlying,
+    TFailingChunkFileReaderAdapter(
+        TChunkFileReaderPtr underlying,
         int period = 5)
         : Underlying_(std::move(underlying))
         , Period_(period)
@@ -90,7 +93,7 @@ public:
     { }
 
 private:
-    const TFileReaderPtr Underlying_;
+    const TChunkFileReaderPtr Underlying_;
     const int Period_;
 
     int Counter_ = 0;
@@ -118,7 +121,7 @@ static std::vector<TSharedRef> GetRandomTextBlocks(int blockCount, int minBlockS
     std::vector<TSharedRef> result;
     for (int i = 0; i < blockCount; ++i) {
         int size = minBlockSize + (maxBlockSize > minBlockSize ? std::rand() % (maxBlockSize - minBlockSize) : 0);
-        auto data = TBlob(TDefaultBlobTag(), size);
+        auto data = NYT::TBlob(NYT::TDefaultBlobTag(), size);
         for (int i = 0; i < size; ++i) {
             data[i] = static_cast<char>('a' + (std::abs(std::rand()) % 26));
         }
@@ -166,7 +169,7 @@ TEST(TErasureCodingTest, RandomText)
         std::vector<TSharedRef> dataBlocks;
         for (int i = 0; i < codec->GetDataPartCount(); ++i) {
             char* begin = data.data() + i * 64;
-            auto blob = TBlob(TDefaultBlobTag(), TRef(begin, 64));
+            auto blob = NYT::TBlob(NYT::TDefaultBlobTag(), TRef(begin, 64));
             dataBlocks.push_back(TSharedRef::FromBlob(std::move(blob)));
         }
 
@@ -206,11 +209,10 @@ TEST(TErasureCodingTest, RandomText)
                 }
             }
         }
-
     }
 }
 
-class TErasureMixture
+class TErasuseMixtureTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<ECodec>
 {
@@ -236,10 +238,10 @@ public:
         config->ErasureStoreOriginalBlockChecksums = storeBlockChecksums;
 
         std::vector<IChunkWriterPtr> writers;
-        auto ioEngine = CreateIOEngine(NChunkClient::EIOEngineType::ThreadPool, NYTree::INodePtr());
+        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, INodePtr());
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
-            writers.push_back(New<TFileWriter>(ioEngine, NullChunkId, filename));
+            writers.push_back(New<TChunkFileWriter>(ioEngine, NullChunkId, filename));
         }
 
         auto meta = New<TDeferredChunkMeta>();
@@ -284,14 +286,14 @@ public:
         auto repairIndices = *codec->GetRepairIndices(erasedIndices);
         std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
 
-        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
+        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, INodePtr());
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
             if (repairWriters && erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
-                repairWriters->push_back(New<TFileWriter>(ioEngine, NullChunkId, filename));
+                repairWriters->push_back(New<TChunkFileWriter>(ioEngine, NullChunkId, filename));
             }
             if (repairReaders && repairIndicesSet.find(i) != repairIndicesSet.end()) {
-                auto reader = CreateFileReaderAdapter(New<TFileReader>(ioEngine, NullChunkId, filename));
+                auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(ioEngine, NullChunkId, filename));
                 repairReaders->push_back(reader);
             }
 
@@ -299,20 +301,20 @@ public:
                 erasedIndicesSet.find(i) == erasedIndicesSet.end() &&
                 (i < codec->GetDataPartCount() || repairIndicesSet.find(i) != repairIndicesSet.end()))
             {
-                auto reader = CreateFileReaderAdapter(New<TFileReader>(ioEngine, NullChunkId, filename));
+                auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(ioEngine, NullChunkId, filename));
                 allReaders->push_back(reader);
             }
         }
     }
 
-    static std::vector<IChunkReaderAllowingRepairPtr> GetFileReaders(int partCount)
+    static std::vector<IChunkReaderAllowingRepairPtr> GetChunkFileReaders(int partCount)
     {
         std::vector<IChunkReaderAllowingRepairPtr> readers;
-        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
+        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, INodePtr());
         readers.reserve(partCount);
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
-            auto reader = CreateFileReaderAdapter(New<TFileReader>(ioEngine, NullChunkId, filename));
+            auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(ioEngine, NullChunkId, filename));
             readers.push_back(reader);
         }
         return readers;
@@ -322,7 +324,7 @@ public:
     {
         auto config = CreateErasureConfig();
         config->EnableAutoRepair = false;
-        return CreateAdaptiveRepairingErasureReader(NullChunkId, codec, config, GetFileReaders(codec->GetDataPartCount()));
+        return CreateAdaptiveRepairingErasureReader(NullChunkId, codec, config, GetChunkFileReaders(codec->GetDataPartCount()));
     }
 
     static TErasureReaderConfigPtr CreateErasureConfig()
@@ -332,7 +334,7 @@ public:
 
     static IChunkReaderPtr CreateOkRepairingReader(ICodec *codec)
     {
-        return CreateAdaptiveRepairingErasureReader(NullChunkId, codec, CreateErasureConfig(), GetFileReaders(codec->GetTotalPartCount()));
+        return CreateAdaptiveRepairingErasureReader(NullChunkId, codec, CreateErasureConfig(), GetChunkFileReaders(codec->GetTotalPartCount()));
     }
 
     static void CheckRepairReader(
@@ -427,13 +429,13 @@ public:
 
         std::vector<IChunkReaderAllowingRepairPtr> readers;
         readers.reserve(partCount);
-        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYTree::INodePtr());
+        auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, INodePtr());
         for (int i = 0; i < partCount; ++i) {
             auto filename = "part" + ToString(i + 1);
             if (failingTimes[i] == 0) {
-                readers.push_back(CreateFileReaderAdapter(New<TFileReader>(ioEngine, NullChunkId, filename)));
+                readers.push_back(CreateChunkFileReaderAdapter(New<TChunkFileReader>(ioEngine, NullChunkId, filename)));
             } else {
-                readers.push_back(New<TFailingFileReaderAdapter>(New<TFileReader>(ioEngine, NullChunkId, filename), failingTimes[i]));
+                readers.push_back(New<TFailingChunkFileReaderAdapter>(New<TChunkFileReader>(ioEngine, NullChunkId, filename), failingTimes[i]));
             }
         }
         return readers;
@@ -448,9 +450,9 @@ public:
 
     static std::mt19937 Gen_;
 };
-std::mt19937 TErasureMixture::Gen_(7657457);
+std::mt19937 TErasuseMixtureTest::Gen_(7657457);
 
-TEST_P(TErasureMixture, WriterTest)
+TEST_P(TErasuseMixtureTest, Writer)
 {
     auto codecId = GetParam();
     auto codec = GetCodec(codecId);
@@ -482,7 +484,7 @@ TEST_P(TErasureMixture, WriterTest)
     Cleanup(codec);
 }
 
-TEST_P(TErasureMixture, ReaderTest)
+TEST_P(TErasuseMixtureTest, Reader)
 {
     auto codecId = GetParam();
     auto codec = GetCodec(codecId);
@@ -532,7 +534,7 @@ TEST_P(TErasureMixture, ReaderTest)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairTest1)
+TEST_F(TErasuseMixtureTest, Repair1)
 {
     auto codecId = ECodec::ReedSolomon_6_3;
     auto codec = GetCodec(codecId);
@@ -565,7 +567,7 @@ TEST_F(TErasureMixture, RepairTest1)
     Cleanup(codec);
 }
 
-TEST_P(TErasureMixture, RepairTest2)
+TEST_P(TErasuseMixtureTest, Repair2)
 {
     auto codecId = GetParam();
     auto codec = GetCodec(codecId);
@@ -603,7 +605,7 @@ TEST_P(TErasureMixture, RepairTest2)
     Cleanup(codec);
 }
 
-TEST_P(TErasureMixture, RepairTest3)
+TEST_P(TErasuseMixtureTest, Repair3)
 {
     auto codecId = GetParam();
     auto codec = GetCodec(codecId);
@@ -643,7 +645,7 @@ TEST_P(TErasureMixture, RepairTest3)
     Cleanup(codec);
 }
 
-TEST_P(TErasureMixture, RepairTest4)
+TEST_P(TErasuseMixtureTest, Repair4)
 {
     auto codecId = GetParam();
     auto codec = GetCodec(codecId);
@@ -679,7 +681,7 @@ TEST_P(TErasureMixture, RepairTest4)
     Cleanup(codec);
 }
 
-TEST_P(TErasureMixture, RepairTest5)
+TEST_P(TErasuseMixtureTest, Repair5)
 {
     auto codecId = GetParam();
     auto codec = GetCodec(codecId);
@@ -718,7 +720,7 @@ TEST_P(TErasureMixture, RepairTest5)
     Cleanup(codec);
 }
 
-TEST_P(TErasureMixture, RepairTest6)
+TEST_P(TErasuseMixtureTest, Repair6)
 {
     auto codecId = GetParam();
     auto codec = GetCodec(codecId);
@@ -757,7 +759,7 @@ TEST_P(TErasureMixture, RepairTest6)
     Cleanup(codec);
 }
 
-TEST_P(TErasureMixture, RepairingReaderChecksums)
+TEST_P(TErasuseMixtureTest, RepairingReaderChecksums)
 {
     auto codecId = GetParam();
     auto codec = GetCodec(codecId);
@@ -790,7 +792,7 @@ TEST_P(TErasureMixture, RepairingReaderChecksums)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairingReaderAllCorrect)
+TEST_F(TErasuseMixtureTest, RepairingReaderAllCorrect)
 {
     auto codecId = ECodec::ReedSolomon_6_3;
     auto codec = GetCodec(codecId);
@@ -805,7 +807,7 @@ TEST_F(TErasureMixture, RepairingReaderAllCorrect)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairingReaderSimultaneousFail)
+TEST_F(TErasuseMixtureTest, RepairingReaderSimultaneousFail)
 {
     auto codecId = ECodec::ReedSolomon_6_3;
     auto codec = GetCodec(codecId);
@@ -829,7 +831,7 @@ TEST_F(TErasureMixture, RepairingReaderSimultaneousFail)
     Cleanup(codec);
 }
 
-TEST_P(TErasureMixture, RepairingReaderSequenceFail)
+TEST_P(TErasuseMixtureTest, RepairingReaderSequenceFail)
 {
     auto codecId = GetParam();
     auto codec = GetCodec(codecId);
@@ -850,7 +852,7 @@ TEST_P(TErasureMixture, RepairingReaderSequenceFail)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairingReaderUnrecoverable)
+TEST_F(TErasuseMixtureTest, RepairingReaderUnrecoverable)
 {
     auto codecId = ECodec::ReedSolomon_6_3;
     auto codec = GetCodec(codecId);
@@ -877,11 +879,11 @@ TEST_F(TErasureMixture, RepairingReaderUnrecoverable)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TErasureMixture,
-    TErasureMixture,
+    TErasuseMixtureTest,
+    TErasuseMixtureTest,
     ::testing::Values(ECodec::Lrc_12_2_2, ECodec::IsaLrc_12_2_2));
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NErasure
+} // namespace NYT::NIO

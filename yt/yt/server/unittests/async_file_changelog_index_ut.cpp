@@ -1,12 +1,13 @@
-#include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/server/lib/io/io_engine.h>
 
 #include <yt/yt/server/lib/hydra/changelog.h>
 #include <yt/yt/server/lib/hydra/config.h>
 #include <yt/yt/server/lib/hydra/format.h>
 #include <yt/yt/server/lib/hydra/async_file_changelog_index.h>
 
-#include <yt/yt/ytlib/chunk_client/io_engine.h>
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -21,6 +22,7 @@
 namespace NYT::NHydra {
 namespace {
 
+using namespace NIO;
 using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,11 +30,11 @@ using namespace NHydra::NProto;
 class TAsyncFileChangelogIndexTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
-        NChunkClient::EIOEngineType,
+        NIO::EIOEngineType,
         const char*>>
 {
 protected:
-    NChunkClient::IIOEnginePtr IOEngine_;
+    NIO::IIOEnginePtr IOEngine_;
 
 public:
     virtual void SetUp() override
@@ -42,7 +44,7 @@ public:
         auto config = NYTree::ConvertTo<NYTree::INodePtr>(
             NYson::TYsonString(TString(std::get<1>(args))));
 
-        IOEngine_ = NChunkClient::CreateIOEngine(type, config);
+        IOEngine_ = CreateIOEngine(type, config);
     }
 };
 
@@ -124,7 +126,7 @@ INSTANTIATE_TEST_SUITE_P(
     TAsyncFileChangelogIndexTest,
     TAsyncFileChangelogIndexTest,
     ::testing::Values(
-        std::make_tuple(NChunkClient::EIOEngineType::ThreadPool, "{ }")
+        std::make_tuple(NIO::EIOEngineType::ThreadPool, "{ }")
     )
 );
 

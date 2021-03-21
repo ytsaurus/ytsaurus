@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/timestamp_server/config.h>
 
+#include <yt/yt/server/lib/election/config.h>
+
 #include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/ytlib/hive/config.h>

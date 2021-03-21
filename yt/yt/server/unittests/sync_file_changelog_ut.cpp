@@ -1,4 +1,4 @@
-#include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/server/lib/io/io_engine.h>
 
 #include <yt/yt/server/lib/hydra/changelog.h>
 #include <yt/yt/server/lib/hydra/config.h>
@@ -6,9 +6,11 @@
 #include <yt/yt/server/lib/hydra/file_helpers.h>
 #include <yt/yt/server/lib/hydra/sync_file_changelog.h>
 
-#include <yt/yt/ytlib/chunk_client/io_engine.h>
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
+#include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/fs.h>
 
@@ -23,6 +25,7 @@
 namespace NYT::NHydra {
 namespace {
 
+using namespace NIO;
 using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +38,7 @@ protected:
     std::unique_ptr<TTempFile> TemporaryFile;
     std::unique_ptr<TTempFile> TemporaryIndexFile;
     TFileChangelogConfigPtr DefaultFileChangelogConfig;
-    NChunkClient::IIOEnginePtr IOEngine;
+    NIO::IIOEnginePtr IOEngine;
 
     EFileChangelogFormat GetFormatParam() const
     {
@@ -48,7 +51,7 @@ protected:
         TemporaryIndexFile.reset(new TTempFile(TemporaryFile->Name() + ".index"));
         DefaultFileChangelogConfig = New<TFileChangelogConfig>();
         DefaultFileChangelogConfig->IndexBlockSize = 64;
-        IOEngine = NChunkClient::CreateIOEngine(NChunkClient::EIOEngineType::ThreadPool, NYTree::INodePtr());
+        IOEngine = CreateIOEngine(NIO::EIOEngineType::ThreadPool, NYTree::INodePtr());
     }
 
     virtual void TearDown()

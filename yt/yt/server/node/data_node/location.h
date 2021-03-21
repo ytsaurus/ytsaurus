@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/lib/io/public.h>
+
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
@@ -122,7 +124,7 @@ public:
     const TString& GetDiskFamily() const;
 
     //! Returns the IO Engine.
-    const NChunkClient::IIOEnginePtr& GetIOEngine() const;
+    const NIO::IIOEnginePtr& GetIOEngine() const;
 
     //! Returns the medium name.
     TString GetMediumName() const;
@@ -285,7 +287,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr TabletRecoveryOutThrottler_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 
-    NChunkClient::IIOEnginePtr IOEngine_;
+    NIO::IIOEnginePtr IOEngine_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 

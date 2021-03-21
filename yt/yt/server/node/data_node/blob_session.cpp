@@ -8,12 +8,13 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
+#include <yt/yt/server/lib/io/chunk_file_writer.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/yt/ytlib/chunk_client/file_writer.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -30,6 +31,7 @@ namespace NYT::NDataNode {
 
 using namespace NProfiling;
 using namespace NRpc;
+using namespace NIO;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
@@ -67,7 +69,7 @@ public:
         , SessionInvoker_(std::move(sessionInvoker))
         , Options_(options)
         , Logger(std::move(logger))
-        , Writer_(New<TFileWriter>(
+        , Writer_(New<TChunkFileWriter>(
             Location_->GetIOEngine(),
             chunkId,
             Location_->GetChunkPath(chunkId),
@@ -116,7 +118,7 @@ private:
     const TSessionOptions Options_;
     const NLogging::TLogger Logger;
 
-    const TFileWriterPtr Writer_;
+    const NIO::TChunkFileWriterPtr Writer_;
 
     using TCommand = TCallback<TFuture<void>()>;
 

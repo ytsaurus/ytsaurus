@@ -25,6 +25,7 @@ namespace NYT::NDataNode {
 
 using namespace NConcurrency;
 using namespace NClusterNode;
+using namespace NIO;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NJournalClient;

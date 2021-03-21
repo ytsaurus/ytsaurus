@@ -10,10 +10,11 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
+#include <yt/yt/server/lib/io/chunk_file_reader.h>
+
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
-#include <yt/yt/ytlib/chunk_client/file_reader.h>
 
 #include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
 

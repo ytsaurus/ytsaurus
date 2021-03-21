@@ -300,7 +300,7 @@ class TFileChangelogDispatcher
 {
 public:
     TFileChangelogDispatcher(
-        NChunkClient::IIOEnginePtr ioEngine,
+        NIO::IIOEnginePtr ioEngine,
         IFileChangelogDispatcherConfigPtr config,
         TString threadName,
         TProfiler profiler)
@@ -361,7 +361,7 @@ public:
             .Run();
     }
 
-    
+
     TFileChangelogQueuePtr CreateQueue(TSyncFileChangelogPtr syncChangelog)
     {
         return New<TFileChangelogQueue>(std::move(syncChangelog), Profiler, ActionQueue_->GetInvoker());
@@ -433,7 +433,7 @@ public:
     }
 
 private:
-    const NChunkClient::IIOEnginePtr IOEngine_;
+    const NIO::IIOEnginePtr IOEngine_;
     const IFileChangelogDispatcherConfigPtr Config_;
     const TClosure ProcessQueuesCallback_;
 
@@ -528,7 +528,7 @@ private:
         changelog->Preallocate(size);
     }
 
-    
+
     IChangelogPtr DoCreateChangelog(
         const TString& path,
         const TFileChangelogConfigPtr& config)
@@ -678,7 +678,7 @@ IChangelogPtr CreateFileChangelog(
 ////////////////////////////////////////////////////////////////////////////////
 
 IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
-    NChunkClient::IIOEnginePtr ioEngine,
+    NIO::IIOEnginePtr ioEngine,
     IFileChangelogDispatcherConfigPtr config,
     TString threadName,
     TProfiler profiler)

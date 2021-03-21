@@ -1,6 +1,8 @@
 #pragma once
 
-#include "chunk_writer.h"
+#include "public.h"
+
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 
@@ -10,7 +12,7 @@
 
 #include <util/system/file.h>
 
-namespace NYT::NChunkClient {
+namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,32 +28,31 @@ DEFINE_ENUM(EFileWriterState,
     (Failed)
 );
 
-//! Provides a local and synchronous implementation of #IAsyncWriter.
-class TFileWriter
-    : public IChunkWriter
+class TChunkFileWriter
+    : public NChunkClient::IChunkWriter
 {
 public:
-    TFileWriter(
+    TChunkFileWriter(
         IIOEnginePtr ioEngine,
-        TChunkId chunkId,
+        NChunkClient::TChunkId chunkId,
         TString fileName,
         bool syncOnClose = true);
 
     // IChunkWriter implementation.
     virtual TFuture<void> Open() override;
 
-    virtual bool WriteBlock(const TBlock& block) override;
-    virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override;
+    virtual bool WriteBlock(const NChunkClient::TBlock& block) override;
+    virtual bool WriteBlocks(const std::vector<NChunkClient::TBlock>& blocks) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 
-    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override;
+    virtual TFuture<void> Close(const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override;
 
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;
-    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override;
+    virtual NChunkClient::TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override;
 
-    virtual TChunkId GetChunkId() const override;
+    virtual NChunkClient::TChunkId GetChunkId() const override;
 
     virtual NErasure::ECodec GetErasureCodecId() const override;
 
@@ -77,7 +78,7 @@ public:
 
 private:
     const IIOEnginePtr IOEngine_;
-    const TChunkId ChunkId_;
+    const NChunkClient::TChunkId ChunkId_;
     const TString FileName_;
     const bool SyncOnClose_;
 
@@ -91,15 +92,15 @@ private:
 
     std::shared_ptr<TFileHandle> DataFile_;
 
-    const TRefCountedChunkMetaPtr ChunkMeta_ = New<TRefCountedChunkMeta>();
+    const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
     NChunkClient::NProto::TChunkInfo ChunkInfo_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
 
     void TryLockDataFile(TPromise<void> promise);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFileWriter)
+DEFINE_REFCOUNTED_TYPE(TChunkFileWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkClient
+} // namespace NYT::NIO

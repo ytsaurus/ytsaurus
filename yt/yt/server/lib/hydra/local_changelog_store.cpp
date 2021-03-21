@@ -4,7 +4,8 @@
 #include "config.h"
 #include "file_changelog_dispatcher.h"
 
-#include <yt/yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/server/lib/io/io_engine.h>
+
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/core/misc/async_slru_cache.h>
@@ -219,7 +220,7 @@ class TLocalChangelogStoreFactory
 {
 public:
     TLocalChangelogStoreFactory(
-        const NChunkClient::IIOEnginePtr& ioEngine,
+        const NIO::IIOEnginePtr& ioEngine,
         TFileChangelogStoreConfigPtr config,
         const TString& threadName,
         const NProfiling::TProfiler& profiler)
@@ -264,7 +265,7 @@ public:
     }
 
 private:
-    const NChunkClient::IIOEnginePtr IOEngine_;
+    const NIO::IIOEnginePtr IOEngine_;
     const TFileChangelogStoreConfigPtr Config_;
     const IFileChangelogDispatcherPtr Dispatcher_;
 
@@ -450,7 +451,7 @@ IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
     const NProfiling::TProfiler& profiler)
 {
     auto store = New<TLocalChangelogStoreFactory>(
-        NChunkClient::CreateIOEngine(config->IOEngineType, config->IOConfig),
+        CreateIOEngine(config->IOEngineType, config->IOConfig),
         config,
         threadName,
         profiler);

@@ -1,11 +1,11 @@
-#include "file_writer.h"
+#include "chunk_file_writer.h"
+#include "io_engine.h"
+#include "private.h"
 
-#include "chunk_meta_extensions.h"
-#include "deferred_chunk_meta.h"
-#include "format.h"
-#include "block.h"
-
-#include <yt/yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/format.h>
+#include <yt/yt/ytlib/chunk_client/block.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
@@ -15,9 +15,10 @@
 #include <util/system/align.h>
 #include <util/system/compiler.h>
 
-namespace NYT::NChunkClient {
+namespace NYT::NIO {
 
 using namespace NConcurrency;
+using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,11 +32,11 @@ static constexpr auto FileMode =
     AWUser |
     AWGroup;
 
-static const auto& Logger = ChunkClientLogger;
+static const auto& Logger = IOLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileWriter::TFileWriter(
+TChunkFileWriter::TChunkFileWriter(
     IIOEnginePtr ioEngine,
     TChunkId chunkId,
     TString fileName,
@@ -48,7 +49,7 @@ TFileWriter::TFileWriter(
     BlocksExt_.set_sync_on_close(SyncOnClose_);
 }
 
-void TFileWriter::TryLockDataFile(TPromise<void> promise)
+void TChunkFileWriter::TryLockDataFile(TPromise<void> promise)
 {
     YT_VERIFY(State_.load() == EState::Opening);
 
@@ -66,18 +67,18 @@ void TFileWriter::TryLockDataFile(TPromise<void> promise)
         FileName_);
 
     TDelayedExecutor::Submit(
-        BIND(&TFileWriter::TryLockDataFile, MakeStrong(this), promise),
+        BIND(&TChunkFileWriter::TryLockDataFile, MakeStrong(this), promise),
         TDuration::MilliSeconds(10),
         IOEngine_->GetAuxPoolInvoker());
 }
 
-TFuture<void> TFileWriter::Open()
+TFuture<void> TChunkFileWriter::Open()
 {
     YT_VERIFY(State_.exchange(EState::Opening) == EState::Created);
 
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
-    return IOEngine_->Open(FileName_ + NFS::TempFileSuffix, FileMode)
+    return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, FileMode})
         .Apply(BIND([=, this_ = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& file) {
             YT_VERIFY(State_.load() == EState::Opening);
 
@@ -101,20 +102,20 @@ TFuture<void> TFileWriter::Open()
         }));
 }
 
-bool TFileWriter::WriteBlock(const TBlock& block)
+bool TChunkFileWriter::WriteBlock(const TBlock& block)
 {
     return WriteBlocks({block});
 }
 
-bool TFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
+bool TChunkFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 {
     YT_VERIFY(State_.exchange(EState::WritingBlocks) == EState::Ready);
 
     i64 startOffset = DataSize_;
     i64 currentOffset = startOffset;
 
-    std::vector<TSharedRef> data;
-    data.reserve(blocks.size());
+    std::vector<TSharedRef> buffers;
+    buffers.reserve(blocks.size());
 
     for (const auto& block : blocks) {
         auto error = block.ValidateChecksum();
@@ -126,14 +127,14 @@ bool TFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
         blockInfo->set_checksum(block.GetOrComputeChecksum());
 
         currentOffset += block.Size();
-        data.push_back(block.Data);
+        buffers.push_back(block.Data);
     }
 
     ReadyEvent_ =
-        IOEngine_->WriteVectorized(IIOEngine::TVectorizedWriteRequest{
+        IOEngine_->Write({
             *DataFile_,
             startOffset,
-            std::move(data)
+            std::move(buffers)
         })
         .Apply(BIND([=, this_ = MakeStrong(this), newDataSize = currentOffset] (const TError& error) {
             YT_VERIFY(State_.load() == EState::WritingBlocks);
@@ -152,7 +153,7 @@ bool TFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
     return false;
 }
 
-TFuture<void> TFileWriter::GetReadyEvent()
+TFuture<void> TChunkFileWriter::GetReadyEvent()
 {
     auto state = State_.load();
     YT_VERIFY(state == EState::WritingBlocks || state == EState::Ready);
@@ -160,12 +161,12 @@ TFuture<void> TFileWriter::GetReadyEvent()
     return ReadyEvent_;
 }
 
-TFuture<void> TFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
+TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 {
     YT_VERIFY(State_.exchange(EState::Closing) == EState::Ready);
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
-    return IOEngine_->Close(std::move(DataFile_), DataSize_, SyncOnClose_)
+    return IOEngine_->Close({std::move(DataFile_), DataSize_, SyncOnClose_})
         .Apply(BIND([=, _this = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Closing);
 
@@ -175,7 +176,7 @@ TFuture<void> TFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
             ChunkMeta_->CopyFrom(*chunkMeta);
             SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
 
-            return IOEngine_->Open(metaFileName + NFS::TempFileSuffix, FileMode);
+            return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, FileMode});
         }))
         .Apply(BIND([=, _this = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& chunkMetaFile) {
             YT_VERIFY(State_.load() == EState::Closing);
@@ -197,12 +198,17 @@ TFuture<void> TFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
             ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
 
             return
-                IOEngine_->Write(IIOEngine::TWriteRequest{
+                IOEngine_->Write({
                     *chunkMetaFile,
                     0,
-                    buffer
+                    {std::move(buffer)}
                 })
-                .Apply(BIND(&IIOEngine::Close, IOEngine_, std::move(chunkMetaFile), MetaDataSize_, SyncOnClose_));
+                .Apply(BIND(&IIOEngine::Close, IOEngine_, IIOEngine::TCloseRequest{
+                    std::move(chunkMetaFile),
+                    MetaDataSize_,
+                    SyncOnClose_
+                },
+                IIOEngine::DefaultPriority));
         }))
         .Apply(BIND([=, _this = MakeStrong(this)] () {
             YT_VERIFY(State_.load() == EState::Closing);
@@ -214,7 +220,7 @@ TFuture<void> TFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
                 return VoidFuture;
             }
 
-            return IOEngine_->FlushDirectory(NFS::GetDirectoryName(FileName_));
+            return IOEngine_->FlushDirectory({NFS::GetDirectoryName(FileName_)});
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
         .Apply(BIND([this, _this = MakeStrong(this)] (const TError& error) {
             YT_VERIFY(State_.load() == EState::Closing);
@@ -231,17 +237,17 @@ TFuture<void> TFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
         }));
 }
 
-i64 TFileWriter::GetDataSize() const
+i64 TChunkFileWriter::GetDataSize() const
 {
     return DataSize_;
 }
 
-const TString& TFileWriter::GetFileName() const
+const TString& TChunkFileWriter::GetFileName() const
 {
     return FileName_;
 }
 
-TFuture<void> TFileWriter::Abort()
+TFuture<void> TChunkFileWriter::Abort()
 {
     auto state = State_.exchange(EState::Aborting);
     YT_VERIFY(
@@ -269,48 +275,48 @@ TFuture<void> TFileWriter::Abort()
         .Run();
 }
 
-const TChunkInfo& TFileWriter::GetChunkInfo() const
+const TChunkInfo& TChunkFileWriter::GetChunkInfo() const
 {
     YT_VERIFY(State_.load() == EState::Closed);
 
     return ChunkInfo_;
 }
 
-const TDataStatistics& TFileWriter::GetDataStatistics() const
+const TDataStatistics& TChunkFileWriter::GetDataStatistics() const
 {
     YT_VERIFY(State_.load() == EState::Closed);
 
     YT_ABORT();
 }
 
-const TRefCountedChunkMetaPtr& TFileWriter::GetChunkMeta() const
+const TRefCountedChunkMetaPtr& TChunkFileWriter::GetChunkMeta() const
 {
     YT_VERIFY(State_.load() == EState::Closed);
 
     return ChunkMeta_;
 }
 
-TChunkReplicaWithMediumList TFileWriter::GetWrittenChunkReplicas() const
+TChunkReplicaWithMediumList TChunkFileWriter::GetWrittenChunkReplicas() const
 {
     YT_UNIMPLEMENTED();
 }
 
-TChunkId TFileWriter::GetChunkId() const
+TChunkId TChunkFileWriter::GetChunkId() const
 {
     return ChunkId_;
 }
 
-NErasure::ECodec TFileWriter::GetErasureCodecId() const
+NErasure::ECodec TChunkFileWriter::GetErasureCodecId() const
 {
     return NErasure::ECodec::None;
 }
 
-bool TFileWriter::IsCloseDemanded() const
+bool TChunkFileWriter::IsCloseDemanded() const
 {
     YT_UNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkClient
+} // namespace NYT::NIO
 

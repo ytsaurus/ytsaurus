@@ -1,12 +1,12 @@
-#include <yt/yt/core/test_framework/framework.h>
-
-#include <yt/yt/core/ytree/public.h>
-#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/server/lib/io/chunk_file_writer.h>
+#include <yt/yt/server/lib/io/io_engine.h>
 
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/yt/ytlib/chunk_client/file_writer.h>
-#include <yt/yt/ytlib/chunk_client/io_engine.h>
+
+#include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -14,39 +14,57 @@
 
 #include <util/random/random.h>
 
-namespace NYT::NChunkClient {
+namespace NYT::NIO {
+namespace {
+
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TWriteFileChunkTestParams = std::tuple<
+using TChunkFileWriterTestParams = std::tuple<
     EIOEngineType,
     const char*
 >;
 
-class TWriteFileChunkTest
+class TChunkFileWriterTest
     : public ::testing::Test
-    , public ::testing::WithParamInterface<TWriteFileChunkTestParams>
+    , public ::testing::WithParamInterface<TChunkFileWriterTestParams>
 {
 protected:
-    TFileWriterPtr CreateWriter(const TWriteFileChunkTestParams& params)
+    EIOEngineType GetIOEngineType()
     {
-        const auto& type = std::get<0>(params);
-        const auto config = NYTree::ConvertTo<NYTree::INodePtr>(
-            NYson::TYsonString(TString(std::get<1>(params))));
-
-        auto engine = CreateIOEngine(type, config);
-        auto fileName = GenerateRandomFileName("TFileWriterTest");
-        auto tmpFileName = fileName + NFS::TempFileSuffix;
-
-        return New<TFileWriter>(engine, TGuid::Create(), fileName);
+        return std::get<0>(GetParam());
     }
 
-    std::unique_ptr<TFile> OpenDataFile(const TFileWriterPtr& writer)
+    TChunkFileWriterPtr CreateWriter(const TChunkFileWriterTestParams& params)
+    {
+        auto type = GetIOEngineType();
+        auto config = NYTree::ConvertTo<NYTree::INodePtr>(
+            NYson::TYsonString(TString(std::get<1>(GetParam()))));
+
+        auto engine = CreateIOEngine(type, config);
+        auto fileName = GenerateRandomFileName("TChunkFileWriterTest");
+        auto tmpFileName = fileName + NFS::TempFileSuffix;
+
+        return New<TChunkFileWriter>(engine, TGuid::Create(), fileName);
+    }
+
+
+    virtual void SetUp()
+    {
+        auto supportedTypes = GetSupportedIOEngineTypes();
+        auto type = GetIOEngineType();
+        if (std::find(supportedTypes.begin(), supportedTypes.end(), type) == supportedTypes.end()) {
+            GTEST_SKIP();
+        }
+    }
+
+    std::unique_ptr<TFile> OpenDataFile(const TChunkFileWriterPtr& writer)
     {
         return std::make_unique<TFile>(writer->GetFileName(), RdOnly);
     }
 
-    std::unique_ptr<TFile> OpenTempDataFile(const TFileWriterPtr& writer)
+    std::unique_ptr<TFile> OpenTempDataFile(const TChunkFileWriterPtr& writer)
     {
         return std::make_unique<TFile>(writer->GetFileName() + NFS::TempFileSuffix, RdOnly);
     }
@@ -89,7 +107,7 @@ protected:
     }
 };
 
-TEST_P(TWriteFileChunkTest, SingleWrite)
+TEST_P(TChunkFileWriterTest, SingleWrite)
 {
     auto writer = CreateWriter(GetParam());
 
@@ -125,7 +143,7 @@ TEST_P(TWriteFileChunkTest, SingleWrite)
     EXPECT_EQ(GetTotalSize(blocks), file->GetLength());
 }
 
-TEST_P(TWriteFileChunkTest, MultiWrite)
+TEST_P(TChunkFileWriterTest, MultiWrite)
 {
     auto writer = CreateWriter(GetParam());
 
@@ -159,7 +177,7 @@ TEST_P(TWriteFileChunkTest, MultiWrite)
     EXPECT_EQ(GetTotalSize(blocks), file->GetLength());
 }
 
-TEST_P(TWriteFileChunkTest, Specific)
+TEST_P(TChunkFileWriterTest, Specific)
 {
     auto writer = CreateWriter(GetParam());
 
@@ -188,7 +206,7 @@ TEST_P(TWriteFileChunkTest, Specific)
     }
 }
 
-TEST_P(TWriteFileChunkTest, Random)
+TEST_P(TChunkFileWriterTest, Random)
 {
     auto writer = CreateWriter(GetParam());
 
@@ -216,14 +234,16 @@ TEST_P(TWriteFileChunkTest, Random)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TWriteFileChunkTest,
-    TWriteFileChunkTest,
+    TChunkFileWriterTest,
+    TChunkFileWriterTest,
     ::testing::Values(
         std::make_tuple(EIOEngineType::ThreadPool, "{ max_bytes_per_write = 65536; }"),
-        std::make_tuple(EIOEngineType::ThreadPool, "{ max_bytes_per_write = 65536; enable_pwritev = %false; }")
+        std::make_tuple(EIOEngineType::ThreadPool, "{ max_bytes_per_write = 65536; enable_pwritev = %false; }"),
+        std::make_tuple(EIOEngineType::Uring, "{ }")
     )
 );
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkClient
+} // namespace
+} // namespace NYT::NIO

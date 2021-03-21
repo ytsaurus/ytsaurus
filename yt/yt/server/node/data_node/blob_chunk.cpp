@@ -10,11 +10,12 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
+#include <yt/yt/server/lib/io/chunk_file_reader.h>
+#include <yt/yt/server/lib/io/chunk_file_writer.h>
+
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/yt/ytlib/chunk_client/file_reader.h>
-#include <yt/yt/ytlib/chunk_client/file_writer.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -31,6 +32,7 @@ namespace NYT::NDataNode {
 using namespace NConcurrency;
 using namespace NClusterNode;
 using namespace NNodeTrackerClient;
+using namespace NIO;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NProfiling;
@@ -155,7 +157,7 @@ bool TBlobChunkBase::IsFatalError(const TError& error)
     return true;
 }
 
-NChunkClient::TFileReaderPtr TBlobChunkBase::GetReader()
+TChunkFileReaderPtr TBlobChunkBase::GetReader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YT_VERIFY(ReadLockCounter_.load() > 0);

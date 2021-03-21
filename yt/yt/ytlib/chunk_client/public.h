@@ -45,8 +45,6 @@ class TReqGetChunkMeta;
 
 struct TBlock;
 
-struct TChunkFragmentDescriptor;
-
 constexpr int AllBlocksIndex = -1;
 
 using TMediumId = NObjectClient::TObjectId;
@@ -83,11 +81,6 @@ DEFINE_ENUM(EChunkType,
     ((Table)   (2))
     ((Journal) (3))
     ((Hunk)    (4))
-);
-
-DEFINE_ENUM(EIOEngineType,
-    (ThreadPool)
-    (Aio)
 );
 
 //! Values must be contiguous.
@@ -152,11 +145,6 @@ DECLARE_REFCOUNTED_STRUCT(IMultiChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(IBlockCache)
 DECLARE_REFCOUNTED_STRUCT(IClientBlockCache)
 
-DECLARE_REFCOUNTED_STRUCT(IIOEngine)
-
-DECLARE_REFCOUNTED_CLASS(TFileReader)
-DECLARE_REFCOUNTED_CLASS(TFileWriter)
-
 DECLARE_REFCOUNTED_CLASS(TMemoryWriter)
 
 DECLARE_REFCOUNTED_CLASS(TInputChunk)
@@ -216,8 +204,6 @@ struct TClientBlockReadOptions;
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 
 using TDataCenterName = std::optional<TString>;
-
-struct IBlocksExtCache;
 
 DECLARE_REFCOUNTED_STRUCT(TMemoryUsageGuard)
 

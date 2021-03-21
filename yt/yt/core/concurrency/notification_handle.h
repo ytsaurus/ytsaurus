@@ -13,7 +13,7 @@ namespace NYT::NConcurrency {
 class TNotificationHandle
 {
 public:
-    TNotificationHandle();
+    explicit TNotificationHandle(bool blocking = false);
     ~TNotificationHandle();
 
     //! Called from an arbitrary thread to wake up the polling thread.
@@ -24,7 +24,6 @@ public:
     void Clear();
 
     //! Returns the pollable handle, which becomes readable when #Raise is invoked.
-    //! This handle is initialized in non-blocking mode.
     int GetFD() const;
 
 private:
