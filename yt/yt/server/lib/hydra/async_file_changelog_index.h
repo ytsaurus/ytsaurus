@@ -3,13 +3,11 @@
 #include "format.h"
 #include "file_helpers.h"
 
-#include <yt/yt/core/actions/future.h>
+#include <yt/yt/server/lib/io/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
-#include <util/system/align.h>
+#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NHydra {
 
@@ -24,7 +22,7 @@ public:
     void PushHeader();
     void Push(const TChangelogIndexRecord& record);
 
-    TFuture<void> Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& ioEngine) const;
+    TFuture<void> Write(const std::shared_ptr<TFileHandle>& file, const NIO::IIOEnginePtr& ioEngine) const;
     void UpdateRecordCount(int newRecordCount);
     i64 GetOffset() const;
     int GetCurrentIndexId() const;
@@ -46,7 +44,7 @@ class TAsyncFileChangelogIndex
 {
 public:
     TAsyncFileChangelogIndex(
-        const NChunkClient::IIOEnginePtr& ioEngine,
+        const NIO::IIOEnginePtr& ioEngine,
         const TString& fileName,
         i64 indexBlockSize,
         bool enableSync);
@@ -72,7 +70,7 @@ public:
     void TruncateInvalidRecords(i64 validPrefixSize);
 
 private:
-    const NChunkClient::IIOEnginePtr IOEngine_;
+    const NIO::IIOEnginePtr IOEngine_;
     const TString IndexFileName_;
     const i64 IndexBlockSize_;
     const int MaxIndexRecordsPerBucket_;

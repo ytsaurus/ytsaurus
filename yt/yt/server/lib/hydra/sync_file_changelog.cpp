@@ -4,7 +4,7 @@
 #include "file_helpers.h"
 #include "format.h"
 
-#include <yt/yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/server/lib/io/io_engine.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
@@ -25,7 +25,7 @@
 namespace NYT::NHydra {
 
 using namespace NHydra::NProto;
-using namespace NChunkClient;
+using namespace NIO;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +40,7 @@ class TSyncFileChangelog::TImpl
 {
 public:
     TImpl(
-        const NChunkClient::IIOEnginePtr& ioEngine,
+        const NIO::IIOEnginePtr& ioEngine,
         const TString& fileName,
         TFileChangelogConfigPtr config)
         : IOEngine_(ioEngine)
@@ -75,7 +75,7 @@ public:
             std::unique_ptr<TFileWrapper> dataFile;
             NFS::ExpectIOErrors([&] {
                 dataFile.reset(new TFileWrapper(FileName_, RdOnly | Seq | CloseOnExec));
-                DataFile_ = WaitFor(IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec))
+                DataFile_ = WaitFor(IOEngine_->Open({FileName_, RdWr | Seq | CloseOnExec}))
                     .ValueOrThrow();
                 LockDataFile();
             });
@@ -270,7 +270,7 @@ public:
             if (Config_->EnableSync) {
                 std::vector<TFuture<void>> futures{
                     IndexFile_.FlushData(),
-                    IOEngine_->FlushData(*DataFile_)
+                    IOEngine_->FlushFile({*DataFile_, EFlushFileMode::Data})
                 };
                 WaitFor(AllSucceeded(std::move(futures)))
                     .ThrowOnError();
@@ -340,14 +340,14 @@ public:
 
         YT_LOG_DEBUG("Started preallocating changelog");
 
-        WaitFor(IOEngine_->Fallocate(*DataFile_, size))
+        WaitFor(IOEngine_->Allocate({*DataFile_, static_cast<i64>(size)}))
             .ThrowOnError();
 
         YT_LOG_DEBUG("Finished preallocating changelog");
     }
 
 private:
-    const NChunkClient::IIOEnginePtr IOEngine_;
+    const NIO::IIOEnginePtr IOEngine_;
     const TString FileName_;
     const TFileChangelogConfigPtr Config_;
     const NLogging::TLogger Logger;
@@ -504,7 +504,7 @@ private:
                 NFS::Replace(tempFileName, FileName_);
             }
 
-            DataFile_ = WaitFor(IOEngine_->Open(FileName_, RdWr | Seq | CloseOnExec))
+            DataFile_ = WaitFor(IOEngine_->Open({FileName_, RdWr | Seq | CloseOnExec}))
                 .ValueOrThrow();
         });
     }
@@ -529,16 +529,16 @@ private:
     void DoUpdateLogHeader()
     {
         NFS::ExpectIOErrors([&] {
-            WaitFor(IOEngine_->FlushData(*DataFile_))
+            WaitFor(IOEngine_->FlushFile({*DataFile_, EFlushFileMode::Data}))
                 .ThrowOnError();
 
             auto header = MakeChangelogHeader<T>();
             auto data = TSharedMutableRef::AllocatePageAligned(header.FirstRecordOffset, true);
             ::memcpy(data.Begin(), &header, sizeof(header));
 
-            WaitFor(IOEngine_->Write(IIOEngine::TWriteRequest{*DataFile_, 0, std::move(data)}))
+            WaitFor(IOEngine_->Write({*DataFile_, 0, {std::move(data)}}))
                 .ThrowOnError();
-            WaitFor(IOEngine_->FlushData(*DataFile_))
+            WaitFor(IOEngine_->FlushFile({*DataFile_, EFlushFileMode::Data}))
                 .ThrowOnError();
         });
     }
@@ -582,7 +582,7 @@ private:
         { };
         result.Blob = TSharedMutableRef::Allocate<TEnvelopeBufferTag>(result.GetLength(), false);
 
-        WaitFor(IOEngine_->Read(IIOEngine::TReadRequest{*DataFile_, result.GetStartPosition(), result.Blob}))
+        WaitFor(IOEngine_->Read({{*DataFile_, result.GetStartPosition(), result.Blob}}))
             .ThrowOnError();
 
         YT_VERIFY(result.Blob.Size() == result.GetLength());
@@ -901,7 +901,7 @@ private:
             TSharedRef data(AppendOutput_.Blob().Begin(), AppendOutput_.Size(), MakeStrong(this));
 
             // Write blob to file.
-            WaitFor(IOEngine_->Write(IIOEngine::TWriteRequest{*DataFile_, CurrentFilePosition_, std::move(data)}))
+            WaitFor(IOEngine_->Write({*DataFile_, CurrentFilePosition_, {std::move(data)}}))
                 .ThrowOnError();
 
             // Process written records (update index etc).
@@ -996,7 +996,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSyncFileChangelog::TSyncFileChangelog(
-    const NChunkClient::IIOEnginePtr& ioEngine,
+    const NIO::IIOEnginePtr& ioEngine,
     const TString& fileName,
     TFileChangelogConfigPtr config)
     : Impl_(New<TImpl>(

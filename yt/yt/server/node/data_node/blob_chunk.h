@@ -5,6 +5,8 @@
 #include "chunk_detail.h"
 #include "chunk_meta_manager.h"
 
+#include <yt/yt/server/lib/io/public.h>
+
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 
@@ -42,8 +44,8 @@ public:
         int blockCount,
         const TBlockReadOptions& options);
 
-    virtual NChunkClient::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
-        const NChunkClient::TChunkFragmentDescriptor& fragmentDescriptor,
+    virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
         TSharedMutableRef data) override;
 
     virtual void SyncRemove(bool force) override;
@@ -93,13 +95,13 @@ private:
     TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
 
     // Protected by LifetimeLock_.
-    TWeakPtr<NChunkClient::TFileReader> CachedWeakReader_;
-    NChunkClient::TFileReaderPtr PreparedReader_;
+    TWeakPtr<NIO::TChunkFileReader> CachedWeakReader_;
+    NIO::TChunkFileReaderPtr PreparedReader_;
 
     //! Returns true if location must be disabled.
     static bool IsFatalError(const TError& error);
 
-    NChunkClient::TFileReaderPtr GetReader();
+    NIO::TChunkFileReaderPtr GetReader();
 
     virtual TFuture<void> PrepareReader(TReaderGuard& readerGuard) override;
     virtual void ReleaseReader(TWriterGuard& writerGuard) override;

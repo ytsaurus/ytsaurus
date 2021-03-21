@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/server/lib/io/public.h>
 
 namespace NYT::NDataNode {
 
@@ -22,7 +22,7 @@ struct IBlobReaderCache
     /*!
      *  The reader becomes open on first use.
      */
-    virtual NChunkClient::TFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk) = 0;
+    virtual NIO::TChunkFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk) = 0;
 
     //! Evicts the reader from the cache thus hopefully closing the files.
     /*!

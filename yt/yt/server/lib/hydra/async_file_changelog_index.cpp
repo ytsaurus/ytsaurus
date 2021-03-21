@@ -2,13 +2,13 @@
 #include "format.h"
 #include "private.h"
 
-#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/server/lib/io/io_engine.h>
 
-#include <yt/yt/ytlib/chunk_client/io_engine.h>
+#include <yt/yt/core/misc/fs.h>
 
 namespace NYT::NHydra {
 
-using namespace NChunkClient;
+using namespace NIO;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,9 +93,9 @@ TIndexBucket::TIndexBucket(size_t capacity, i64 offset)
     }
 }
 
-TFuture<void> TIndexBucket::Write(const std::shared_ptr<TFileHandle>& file, const NChunkClient::IIOEnginePtr& ioEngine) const
+TFuture<void> TIndexBucket::Write(const std::shared_ptr<TFileHandle>& file, const IIOEnginePtr& ioEngine) const
 {
-    return ioEngine->Write(IIOEngine::TWriteRequest{*file, Offset_, Data_});
+    return ioEngine->Write({*file, Offset_, {Data_}});
 }
 
 void TIndexBucket::Push(const TChangelogIndexRecord& record)
@@ -140,7 +140,7 @@ bool TIndexBucket::HasSpace() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TAsyncFileChangelogIndex::TAsyncFileChangelogIndex(
-    const NChunkClient::IIOEnginePtr& IOEngine,
+    const IIOEnginePtr& IOEngine,
     const TString& name,
     i64 indexBlockSize,
     bool enableSync)
@@ -175,7 +175,7 @@ void TAsyncFileChangelogIndex::Create()
 
     NFS::Replace(tempFileName, IndexFileName_);
 
-    IndexFile_ = WaitFor(IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec))
+    IndexFile_ = WaitFor(IOEngine_->Open({IndexFileName_, WrOnly | CloseOnExec}))
         .ValueOrThrow();
 }
 
@@ -269,7 +269,7 @@ void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 validPrefixSize)
 
     {
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
-        IndexFile_ = WaitFor(IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec))
+        IndexFile_ = WaitFor(IOEngine_->Open({IndexFileName_, WrOnly | CloseOnExec}))
             .ValueOrThrow();
         IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
     }
@@ -309,23 +309,23 @@ TFuture<void> TAsyncFileChangelogIndex::FlushDirtyBuckets()
         return VoidFuture;
     }
 
-    std::vector<TFuture<void>> asyncResults;
-    asyncResults.reserve(DirtyBuckets_.size() + 2);
+    std::vector<TFuture<void>> futures;
+    futures.reserve(DirtyBuckets_.size() + 2);
 
     if (FirstIndexBucket_ != CurrentIndexBucket_) {
-        asyncResults.push_back(FirstIndexBucket_->Write(IndexFile_, IOEngine_));
+        futures.push_back(FirstIndexBucket_->Write(IndexFile_, IOEngine_));
     }
 
     for (const auto& block : DirtyBuckets_) {
-        asyncResults.push_back(block->Write(IndexFile_, IOEngine_));
+        futures.push_back(block->Write(IndexFile_, IOEngine_));
     }
 
-    asyncResults.push_back(CurrentIndexBucket_->Write(IndexFile_, IOEngine_));
+    futures.push_back(CurrentIndexBucket_->Write(IndexFile_, IOEngine_));
 
     DirtyBuckets_.clear();
     HasDirtyBuckets_ = false;
 
-    return AllSucceeded(asyncResults);
+    return AllSucceeded(futures);
 }
 
 void TAsyncFileChangelogIndex::UpdateIndexBuckets()
@@ -398,17 +398,16 @@ void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, int r
 
 TFuture<void> TAsyncFileChangelogIndex::FlushData()
 {
-    if (HasDirtyBuckets_) {
-        std::vector<TFuture<void>> asyncResults;
-        asyncResults.reserve(2);
-        asyncResults.push_back(FlushDirtyBuckets());
-        if (EnableSync_) {
-            asyncResults.push_back(IOEngine_->FlushData(*IndexFile_));
-        }
-        return AllSucceeded(asyncResults);
-    } else {
+    if (!HasDirtyBuckets_) {
         return VoidFuture;
     }
+    std::vector<TFuture<void>> asyncResults;
+    asyncResults.reserve(2);
+    asyncResults.push_back(FlushDirtyBuckets());
+    if (EnableSync_) {
+        asyncResults.push_back(IOEngine_->FlushFile({*IndexFile_, EFlushFileMode::Data}));
+    }
+    return AllSucceeded(asyncResults);
 }
 
 void TAsyncFileChangelogIndex::Close()

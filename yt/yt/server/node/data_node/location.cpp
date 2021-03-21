@@ -20,8 +20,9 @@
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 #include <yt/yt/server/lib/misc/private.h>
 
+#include <yt/yt/server/lib/io/io_engine.h>
+
 #include <yt/yt/ytlib/chunk_client/format.h>
-#include <yt/yt/ytlib/chunk_client/io_engine.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -175,7 +176,7 @@ TLocation::TLocation(
         Profiler_);
 }
 
-const NChunkClient::IIOEnginePtr& TLocation::GetIOEngine() const
+const NIO::IIOEnginePtr& TLocation::GetIOEngine() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

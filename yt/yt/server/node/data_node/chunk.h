@@ -2,9 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/io/io_engine.h>
+
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/yt/ytlib/chunk_client/io_engine.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -86,8 +87,8 @@ struct IChunk
      *  \note
      *  Thread affinity: any
      */
-    virtual NChunkClient::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
-        const NChunkClient::TChunkFragmentDescriptor& fragmentDescriptor,
+    virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
         TSharedMutableRef data) = 0;
 
     //! Tries to acquire a read lock; throws on failure.

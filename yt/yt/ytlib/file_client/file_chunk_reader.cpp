@@ -15,7 +15,6 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/yt/ytlib/chunk_client/io_engine.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/yt/client/api/client.h>

@@ -11,6 +11,8 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/server/lib/io/chunk_file_reader.h>
+#include <yt/yt/server/lib/io/chunk_file_writer.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
@@ -19,8 +21,6 @@
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
-#include <yt/yt/ytlib/chunk_client/file_writer.h>
-#include <yt/yt/ytlib/chunk_client/file_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 
@@ -61,6 +61,7 @@ namespace NYT::NDataNode {
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
+using namespace NIO;
 using namespace NObjectClient;
 using namespace NFileClient;
 using namespace NNodeTrackerClient;
@@ -590,7 +591,7 @@ private:
 
             auto dataFileName = location->GetChunkPath(chunkId);
 
-            auto chunkReader = New<TFileReader>(
+            auto chunkReader = New<TChunkFileReader>(
                 location->GetIOEngine(),
                 chunkId,
                 dataFileName);
@@ -907,7 +908,7 @@ private:
                 Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut));
 
             auto fileName = location->GetChunkPath(chunkId);
-            auto chunkWriter = New<TFileWriter>(
+            auto chunkWriter = New<TChunkFileWriter>(
                 location->GetIOEngine(),
                 chunkId,
                 fileName,

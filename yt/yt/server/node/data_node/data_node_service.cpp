@@ -20,6 +20,9 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/server/lib/io/io_engine.h>
+#include <yt/yt/server/lib/io/chunk_file_reader.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_slice.h>
@@ -73,6 +76,7 @@
 namespace NYT::NDataNode {
 
 using namespace NRpc;
+using namespace NIO;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
@@ -888,12 +892,12 @@ private:
                 std::vector<TFuture<void>> readFutures;
                 readFutures.reserve(locationToReadRequests.size());
 
-                for (const auto& [location, readRequests] : locationToReadRequests) {
+                for (auto&& [location, readRequests] : locationToReadRequests) {
                     YT_LOG_DEBUG("Reading block fragments (LocationId: %v, FragmentCount: %v)",
                         location->GetId(),
                         readRequests.size());
                     const auto& ioEngine = location->GetIOEngine();
-                    readFutures.push_back(ioEngine->ReadMany(readRequests));
+                    readFutures.push_back(ioEngine->Read(std::move(readRequests)));
                 }
 
                 AllSucceeded(std::move(readFutures))

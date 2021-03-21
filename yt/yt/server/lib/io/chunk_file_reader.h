@@ -1,15 +1,16 @@
 #pragma once
 
-#include "block.h"
 #include "io_engine.h"
 
 #include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+
+#include <yt/yt/ytlib/chunk_client/block.h>
 
 #include <util/system/file.h>
 
 #include <atomic>
 
-namespace NYT::NChunkClient {
+namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,10 +18,10 @@ struct IBlocksExtCache
 {
     virtual ~IBlocksExtCache() = default;
 
-    virtual TRefCountedBlocksExtPtr Find() = 0;
+    virtual NChunkClient::TRefCountedBlocksExtPtr Find() = 0;
     virtual void Put(
-        const TRefCountedChunkMetaPtr& chunkMeta,
-        const TRefCountedBlocksExtPtr& blocksExt) = 0;
+        const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
+        const NChunkClient::TRefCountedBlocksExtPtr& blocksExt) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +36,7 @@ struct TChunkFragmentDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileReader
+class TChunkFileReader
     : public virtual TRefCounted
 {
 public:
@@ -44,26 +45,26 @@ public:
      *  For chunk meta version 2+, #chunkId is validated against that stored
      *  in the meta file. Passing #NullChunkId in #chunkId suppresses this check.
      */
-    TFileReader(
+    TChunkFileReader(
         IIOEnginePtr ioEngine,
-        TChunkId chunkId,
+        NChunkClient::TChunkId chunkId,
         TString fileName,
         bool validateBlocksChecksums = true,
         IBlocksExtCache* blocksExtCache = nullptr);
 
-    TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+    TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
+        const NChunkClient::TClientBlockReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize);
 
-    TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+    TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
+        const NChunkClient::TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         std::optional<i64> estimatedSize);
 
-    TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientBlockReadOptions& options,
+    TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetMeta(
+        const NChunkClient::TClientBlockReadOptions& options,
         std::optional<int> partitionTag = std::nullopt,
         const std::optional<std::vector<int>>& extensionTags = std::nullopt);
 
@@ -75,11 +76,11 @@ public:
         const TChunkFragmentDescriptor& fragmentDescriptor,
         TSharedMutableRef data);
 
-    TChunkId GetChunkId() const;
+    NChunkClient::TChunkId GetChunkId() const;
 
 private:
     const IIOEnginePtr IOEngine_;
-    const TChunkId ChunkId_;
+    const NChunkClient::TChunkId ChunkId_;
     const TString FileName_;
     const bool ValidateBlockChecksums_;
     IBlocksExtCache* const BlocksExtCache_;
@@ -89,41 +90,41 @@ private:
     std::shared_ptr<TFileHandle> DataFile_;
     std::atomic<bool> DataFileOpened_ = false;
 
-    TFuture<std::vector<TBlock>> DoReadBlocks(
-        const TClientBlockReadOptions& options,
+    TFuture<std::vector<NChunkClient::TBlock>> DoReadBlocks(
+        const NChunkClient::TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        TRefCountedBlocksExtPtr blocksExt = nullptr,
+        NChunkClient::TRefCountedBlocksExtPtr blocksExt = nullptr,
         std::shared_ptr<TFileHandle> dataFile = nullptr);
-    std::vector<TBlock> OnBlocksRead(
-        const TClientBlockReadOptions& options,
+    std::vector<NChunkClient::TBlock> OnBlocksRead(
+        const NChunkClient::TClientBlockReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const TRefCountedBlocksExtPtr& blocksExt,
+        const NChunkClient::TRefCountedBlocksExtPtr& blocksExt,
         const TSharedMutableRef& buffer);
-    TFuture<TRefCountedChunkMetaPtr> DoReadMeta(
-        const TClientBlockReadOptions& options,
+    TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoReadMeta(
+        const NChunkClient::TClientBlockReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags);
-    TRefCountedChunkMetaPtr OnMetaRead(
+    NChunkClient::TRefCountedChunkMetaPtr OnMetaRead(
         const TString& metaFileName,
-        TChunkReaderStatisticsPtr chunkReaderStatistics,
+        NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
         const TSharedMutableRef& data);
 
-    TFuture<TRefCountedBlocksExtPtr> ReadBlocksExt(const TClientBlockReadOptions& options);
+    TFuture<NChunkClient::TRefCountedBlocksExtPtr> ReadBlocksExt(const NChunkClient::TClientBlockReadOptions& options);
 
     TFuture<std::shared_ptr<TFileHandle>> OpenDataFile();
     std::shared_ptr<TFileHandle> OnDataFileOpened(const std::shared_ptr<TFileHandle>& file);
 
     void DumpBrokenBlock(
         int blockIndex,
-        const NProto::TBlockInfo& blockInfo,
+        const NChunkClient::NProto::TBlockInfo& blockInfo,
         TRef block) const;
     void DumpBrokenMeta(TRef block) const;
 };
 
-DEFINE_REFCOUNTED_TYPE(TFileReader)
+DEFINE_REFCOUNTED_TYPE(TChunkFileReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkClient
+} // namespace NYT::NIO

@@ -2,7 +2,8 @@
 
 #include "private.h"
 
-#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/server/lib/io/public.h>
+
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/core/misc/ref.h>
@@ -27,7 +28,7 @@ class TSyncFileChangelog
 public:
     //! Basic constructor.
     TSyncFileChangelog(
-        const NChunkClient::IIOEnginePtr& ioEngine,
+        const NIO::IIOEnginePtr& ioEngine,
         const TString& fileName,
         TFileChangelogConfigPtr config);
 

@@ -1,16 +1,19 @@
-#include "file_reader_adapter.h"
-#include "chunk_reader_allowing_repair.h"
-#include "file_reader.h"
+#include "chunk_file_reader_adapter.h"
+#include "chunk_file_reader.h"
 
-namespace NYT::NChunkClient {
+#include <yt/yt/ytlib/chunk_client/chunk_reader_allowing_repair.h>
+
+namespace NYT::NIO {
+
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileReaderAdapter
+class TChunkFileReaderAdapter
     : public IChunkReaderAllowingRepair
 {
 public:
-    explicit TFileReaderAdapter(TFileReaderPtr underlying)
+    explicit TChunkFileReaderAdapter(TChunkFileReaderPtr underlying)
         : Underlying_(std::move(underlying))
     { }
 
@@ -53,14 +56,15 @@ public:
     { }
 
 private:
-    const TFileReaderPtr Underlying_;
+    const TChunkFileReaderPtr Underlying_;
 };
 
-IChunkReaderAllowingRepairPtr CreateFileReaderAdapter(TFileReaderPtr underlying)
+IChunkReaderAllowingRepairPtr CreateChunkFileReaderAdapter(
+    TChunkFileReaderPtr underlying)
 {
-    return New<TFileReaderAdapter>(std::move(underlying));
+    return New<TChunkFileReaderAdapter>(std::move(underlying));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkClient
+} // namespace NYT::NIO

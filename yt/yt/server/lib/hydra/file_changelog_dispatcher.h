@@ -2,11 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/server/lib/io/public.h>
 
-#include <yt/yt/core/actions/public.h>
-
-#include <yt/yt/core/profiling/public.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NHydra {
 
@@ -38,7 +36,7 @@ struct IFileChangelogDispatcher
 DEFINE_REFCOUNTED_TYPE(IFileChangelogDispatcher)
 
 IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
-    NChunkClient::IIOEnginePtr ioEngine,
+    NIO::IIOEnginePtr ioEngine,
     IFileChangelogDispatcherConfigPtr config,
     TString threadName,
     NProfiling::TProfiler profiler);

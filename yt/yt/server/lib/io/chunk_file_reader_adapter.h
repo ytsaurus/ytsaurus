@@ -1,0 +1,16 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/ytlib/chunk_client/public.h>
+
+namespace NYT::NIO {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NChunkClient::IChunkReaderAllowingRepairPtr CreateChunkFileReaderAdapter(
+    TChunkFileReaderPtr underlying);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NIO

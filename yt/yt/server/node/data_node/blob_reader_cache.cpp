@@ -9,12 +9,13 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/ytlib/chunk_client/file_reader.h>
+#include <yt/yt/server/lib/io/chunk_file_reader.h>
 
 #include <yt/yt/core/misc/sync_cache.h>
 
 namespace NYT::NDataNode {
 
+using namespace NIO;
 using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +40,7 @@ DECLARE_REFCOUNTED_CLASS(TCachedBlobReader)
 
 class TCachedBlobReader
     : public TSyncCacheValueBase<TBlobReaderCacheKey, TCachedBlobReader>
-    , public TFileReader
+    , public TChunkFileReader
     , public IBlocksExtCache
 {
 public:
@@ -50,7 +51,7 @@ public:
         bool validateBlockChecksums)
         : TSyncCacheValueBase<TBlobReaderCacheKey, TCachedBlobReader>(
             MakeReaderCacheKey(chunk.Get()))
-        , TFileReader(
+        , TChunkFileReader(
             chunk->GetLocation()->GetIOEngine(),
             chunk->GetId(),
             fileName,
@@ -96,7 +97,7 @@ public:
         , Config_(Bootstrap_->GetConfig()->DataNode)
     { }
 
-    virtual TFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk) override
+    virtual TChunkFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk) override
     {
         auto key = MakeReaderCacheKey(chunk.Get());
         if (auto reader = Find(key)) {

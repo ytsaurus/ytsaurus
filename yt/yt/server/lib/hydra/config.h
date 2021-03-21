@@ -2,11 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/election/config.h>
+#include <yt/yt/server/lib/io/public.h>
 
 #include <yt/yt/client/api/config.h>
-
-#include <yt/yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/core/compression/public.h>
 
@@ -89,7 +87,7 @@ public:
     //! Maximum number of cached changelogs.
     TSlruCacheConfigPtr ChangelogReaderCache;
 
-    NChunkClient::EIOEngineType IOEngineType;
+    NIO::EIOEngineType IOEngineType;
     NYTree::INodePtr IOConfig;
 
     TFileChangelogStoreConfig()
@@ -99,7 +97,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("io_engine_type", IOEngineType)
-            .Default(NChunkClient::EIOEngineType::ThreadPool);
+            .Default(NIO::EIOEngineType::ThreadPool);
         RegisterParameter("io_engine", IOConfig)
             .Optional();
 

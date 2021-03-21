@@ -156,7 +156,7 @@ public:
     //! Controls outcoming location bandwidth used by tablet recovery.
     NConcurrency::TThroughputThrottlerConfigPtr TabletRecoveryOutThrottler;
 
-    NChunkClient::EIOEngineType IOEngineType;
+    NIO::EIOEngineType IOEngineType;
     NYTree::INodePtr IOConfig;
 
     TDuration ThrottleDuration;
@@ -181,7 +181,7 @@ public:
         RegisterParameter("tablet_recovery_out_throttler", TabletRecoveryOutThrottler)
             .DefaultNew();
         RegisterParameter("io_engine_type", IOEngineType)
-            .Default(NChunkClient::EIOEngineType::ThreadPool);
+            .Default(NIO::EIOEngineType::ThreadPool);
         RegisterParameter("io_config", IOConfig)
             .Optional();
         RegisterParameter("throttle_counter_interval", ThrottleDuration)

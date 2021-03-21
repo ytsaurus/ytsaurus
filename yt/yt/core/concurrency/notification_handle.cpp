@@ -10,10 +10,13 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNotificationHandle::TNotificationHandle()
+TNotificationHandle::TNotificationHandle(bool blocking)
 {
 #ifdef _linux_
-    EventFD_ = HandleEintr(eventfd, 0, EFD_CLOEXEC | EFD_NONBLOCK);
+    EventFD_ = HandleEintr(
+        eventfd,
+        0,
+        EFD_CLOEXEC | (blocking ? 0 : EFD_NONBLOCK));
     YT_VERIFY(EventFD_ >= 0);
 #else
 #ifdef _darwin_
@@ -21,7 +24,9 @@ TNotificationHandle::TNotificationHandle()
 #else
     YT_VERIFY(HandleEintr(pipe2, PipeFDs_, O_CLOEXEC) == 0);
 #endif
-    YT_VERIFY(fcntl(PipeFDs_[0], F_SETFL, O_NONBLOCK) == 0);
+    if (!blocking) {
+        YT_VERIFY(fcntl(PipeFDs_[0], F_SETFL, O_NONBLOCK) == 0);
+    }
 #endif
 }
 
