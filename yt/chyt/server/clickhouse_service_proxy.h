@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/server/clickhouse_server/protos/clickhouse_service.pb.h>
+#include <yt/chyt/server/protos/clickhouse_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 

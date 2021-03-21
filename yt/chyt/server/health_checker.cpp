@@ -3,7 +3,7 @@
 #include "config.h"
 #include "query_context.h"
 #include "helpers.h"
-#include "yt/yt/server/clickhouse_server/private.h"
+#include "private.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>

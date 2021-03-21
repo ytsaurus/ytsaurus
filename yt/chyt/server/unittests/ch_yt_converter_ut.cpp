@@ -1,8 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/clickhouse_server/ch_yt_converter.h>
-#include <yt/yt/server/clickhouse_server/data_type_boolean.h>
-#include <yt/yt/server/clickhouse_server/config.h>
+#include <yt/chyt/server/ch_yt_converter.h>
+#include <yt/chyt/server/data_type_boolean.h>
+#include <yt/chyt/server/config.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 

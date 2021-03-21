@@ -1,10 +1,10 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/clickhouse_server/config.h>
-#include <yt/yt/server/clickhouse_server/conversion.h>
-#include <yt/yt/server/clickhouse_server/data_type_boolean.h>
-#include <yt/yt/server/clickhouse_server/helpers.h>
-#include <yt/yt/server/clickhouse_server/yt_ch_converter.h>
+#include <yt/chyt/server/config.h>
+#include <yt/chyt/server/conversion.h>
+#include <yt/chyt/server/data_type_boolean.h>
+#include <yt/chyt/server/helpers.h>
+#include <yt/chyt/server/yt_ch_converter.h>
 
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/column_writer.h>
