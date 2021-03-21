@@ -247,10 +247,10 @@ private:
             auto voting = owner->CellManager_->GetPeerConfig(followerId).Voting;
             YT_LOG_DEBUG("Mutations are logged by follower (PeerId: %v, Voting: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
                 followerId,
+                voting,
                 GetStartVersion(),
                 GetMutationCount(),
-                CommitTimer_->GetElapsedTime(),
-                voting);
+                CommitTimer_->GetElapsedTime());
             if (voting) {
                 OnSuccessfulFlush(owner);
             }
