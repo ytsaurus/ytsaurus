@@ -99,6 +99,15 @@ private:
 
 class TTableField {
 public:
+    struct TAny {
+        TString Value;
+    };
+    struct TComposite {
+        TString Value;
+    };
+    using TValue = std::variant<i64, ui64, double, bool, TString, TAny, TComposite, nullptr_t>;
+
+public:
     template <typename T>
     TTableField(TString name, T value)
         : Name_(std::move(name))
@@ -106,16 +115,35 @@ public:
     { }
 
     template <>
-    TTableField(const TString name, TStringBuf value)
+    TTableField(TString name, TStringBuf value)
         : Name_(std::move(name))
         , Value_(TString(value))
+    { }
+
+    TTableField(TString name, NTableClient::EValueType valueType, TStringBuf value)
+        : Name_(std::move(name))
+        , Value_(ToValue(valueType, TString(value)))
     { }
 
     NTableClient::TUnversionedValue ToUnversionedValue(const NTableClient::TNameTablePtr& nameTable) const;
 
 private:
+    static TValue ToValue(NTableClient::EValueType valueType, TStringBuf value) {
+        using namespace NTableClient;
+        if (valueType == EValueType::String) {
+            return TString(value);
+        } else if (valueType == EValueType::Any) {
+            return TAny{TString(value)};
+        } else if (valueType == EValueType::Composite) {
+            return TComposite{TString(value)};
+        } else {
+            YT_ABORT();
+        }
+    }
+
+private:
     TString Name_;
-    std::variant<i64, ui64, double, bool, TString, nullptr_t> Value_;
+    TValue Value_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,16 +161,6 @@ TString GetString(const NTableClient::TUnversionedValue& row);
 NYTree::INodePtr GetAny(const NTableClient::TUnversionedValue& row);
 NYTree::INodePtr GetComposite(const NTableClient::TUnversionedValue& row);
 bool IsNull(const NTableClient::TUnversionedValue& row);
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NTableClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NTableClient
 
 ////////////////////////////////////////////////////////////////////////////////
 

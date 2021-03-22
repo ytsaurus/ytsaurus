@@ -132,4 +132,27 @@ void TUuidWriter::operator()(TStringBuf value, NSkiff::TCheckedInDebugSkiffWrite
     writer->WriteUint128(NSkiff::TUint128{InetToHost(array[1]), InetToHost(array[0])});
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <NSkiff::EWireType wireType, typename TValueType>
+void CheckIntSize(TValueType value)
+{
+    using TIntType = typename NSkiff::TUnderlyingIntegerType<wireType>::TValue;
+    bool ok;
+    if constexpr (std::is_same_v<TValueType, i64>) {
+        ok = std::numeric_limits<TIntType>::min() <= value && value <= std::numeric_limits<TIntType>::max();
+    } else if constexpr (std::is_same_v<TValueType, ui64>) {
+        ok = value <= std::numeric_limits<TIntType>::max();
+    } else {
+        static_assert(std::is_same_v<TIntType, i64>, "We expect either i64 or ui64 here");
+    }
+    if (!ok) {
+        THROW_ERROR_EXCEPTION("Value %v is out of range for possible values for skiff type %Qlv",
+            value,
+            wireType);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFormats

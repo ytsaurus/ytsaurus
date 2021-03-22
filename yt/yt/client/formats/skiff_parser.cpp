@@ -64,9 +64,19 @@ public:
 
         if constexpr (std::is_same_v<TValueType, TStringBuf>) {
             valueConsumer->OnValue(MakeUnversionedStringValue(value, ColumnId_));
-        } else if constexpr (std::is_same_v<TValueType, i64>) {
+        } else if constexpr (
+            std::is_same_v<TValueType, i8> ||
+            std::is_same_v<TValueType, i16> ||
+            std::is_same_v<TValueType, i32> ||
+            std::is_same_v<TValueType, i64>)
+        {
             valueConsumer->OnValue(MakeUnversionedInt64Value(value, ColumnId_));
-        } else if constexpr (std::is_same_v<TValueType, ui64>) {
+        } else if constexpr (
+            std::is_same_v<TValueType, ui8> ||
+            std::is_same_v<TValueType, ui16> ||
+            std::is_same_v<TValueType, ui32> ||
+            std::is_same_v<TValueType, ui64>)
+        {
             valueConsumer->OnValue(MakeUnversionedUint64Value(value, ColumnId_));
         } else if constexpr (std::is_same_v<TValueType, bool>) {
             valueConsumer->OnValue(MakeUnversionedBooleanValue(value, ColumnId_));
@@ -102,7 +112,13 @@ TSkiffToUnversionedValueConverter CreatePrimitiveTypeConverter(EWireType wireTyp
                     return TPrimitiveTypeConverter<true, TSimpleSkiffParser<(x)>>(columnId); \
                 } \
             } while (0)
+        CASE(EWireType::Int8);
+        CASE(EWireType::Int16);
+        CASE(EWireType::Int32);
         CASE(EWireType::Int64);
+        CASE(EWireType::Uint8);
+        CASE(EWireType::Uint16);
+        CASE(EWireType::Uint32);
         CASE(EWireType::Uint64);
         CASE(EWireType::Boolean);
         CASE(EWireType::Double);
@@ -184,14 +200,24 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
         case ESimpleLogicalValueType::Int16:
         case ESimpleLogicalValueType::Int32:
         case ESimpleLogicalValueType::Int64:
-            CheckWireTypeCompatibility(fieldDescription, {EWireType::Int64});
+
+        case ESimpleLogicalValueType::Timestamp:
+            CheckWireTypeCompatibility(
+                fieldDescription,
+                {EWireType::Int8, EWireType::Int16, EWireType::Int32, EWireType::Int64});
             return CreatePrimitiveTypeConverter(wireType, required, columnId);
 
         case ESimpleLogicalValueType::Uint8:
         case ESimpleLogicalValueType::Uint16:
         case ESimpleLogicalValueType::Uint32:
         case ESimpleLogicalValueType::Uint64:
-            CheckWireTypeCompatibility(fieldDescription, {EWireType::Uint64});
+
+        case ESimpleLogicalValueType::Date:
+        case ESimpleLogicalValueType::Datetime:
+        case ESimpleLogicalValueType::Interval:
+            CheckWireTypeCompatibility(
+                fieldDescription,
+                {EWireType::Uint8, EWireType::Uint16, EWireType::Uint32, EWireType::Uint64});
             return CreatePrimitiveTypeConverter(wireType, required, columnId);
 
         case ESimpleLogicalValueType::String:
@@ -212,8 +238,16 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
         case ESimpleLogicalValueType::Any:
             CheckWireTypeCompatibility(
                 fieldDescription, {
+                    EWireType::Int8,
+                    EWireType::Int16,
+                    EWireType::Int32,
                     EWireType::Int64,
+
+                    EWireType::Uint8,
+                    EWireType::Uint16,
+                    EWireType::Uint32,
                     EWireType::Uint64,
+
                     EWireType::Double,
                     EWireType::Boolean,
                     EWireType::String32,
@@ -232,14 +266,6 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
                 }
                 return TPrimitiveTypeConverter<false, TSimpleSkiffParser<EWireType::Nothing>>(columnId);
             }
-            return CreatePrimitiveTypeConverter(wireType, required, columnId);
-        case ESimpleLogicalValueType::Date:
-        case ESimpleLogicalValueType::Datetime:
-        case ESimpleLogicalValueType::Interval:
-            CheckWireTypeCompatibility(fieldDescription, {EWireType::Uint64});
-            return CreatePrimitiveTypeConverter(wireType, required, columnId);
-        case ESimpleLogicalValueType::Timestamp:
-            CheckWireTypeCompatibility(fieldDescription, {EWireType::Int64});
             return CreatePrimitiveTypeConverter(wireType, required, columnId);
 
         case ESimpleLogicalValueType::Null:
@@ -368,8 +394,13 @@ public:
                         fieldDescription,
                         /*sparseColumn*/ false);
                 } catch (const std::exception& ex) {
+                    auto logicalType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
+                    if (columnSchema && *columnSchema) {
+                        logicalType = (*columnSchema)->LogicalType();
+                    }
                     THROW_ERROR_EXCEPTION("Cannot create skiff parser for table #%v",
                         tableIndex)
+                        << TErrorAttribute("logical_type", logicalType)
                         << ex;
                 }
                 parserTableDescription.DenseFieldConverters.emplace_back(converter);

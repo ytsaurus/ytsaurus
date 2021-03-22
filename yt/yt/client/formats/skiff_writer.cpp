@@ -106,9 +106,18 @@ using TUnversionedValueToSkiffConverter = std::function<void(const TUnversionedV
 template <EWireType wireType>
 constexpr EValueType WireTypeToValueType()
 {
-    if constexpr (wireType == EWireType::Int64) {
+    if constexpr (wireType == EWireType::Int8 ||
+        wireType == EWireType::Int16 ||
+        wireType == EWireType::Int32 ||
+        wireType == EWireType::Int64)
+    {
         return EValueType::Int64;
-    } else if constexpr (wireType == EWireType::Uint64) {
+    } else if constexpr (
+        wireType == EWireType::Uint8 ||
+        wireType == EWireType::Uint16 ||
+        wireType == EWireType::Uint32 ||
+        wireType == EWireType::Uint64)
+    {
         return EValueType::Uint64;
     } else if constexpr (wireType == EWireType::Double) {
         return EValueType::Double;
@@ -147,10 +156,30 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
         }
     }
 
-    if constexpr (wireType == EWireType::Int64) {
+    if constexpr (wireType == EWireType::Int8) {
+        CheckIntSize<wireType>(value.Data.Int64);
+        writer->WriteInt8(value.Data.Int64);
+    } else if constexpr (wireType == EWireType::Int16) {
+        CheckIntSize<wireType>(value.Data.Int64);
+        writer->WriteInt16(value.Data.Int64);
+    } else if constexpr (wireType == EWireType::Int32) {
+        CheckIntSize<wireType>(value.Data.Int64);
+        writer->WriteInt32(value.Data.Int64);
+    } else if constexpr (wireType == EWireType::Int64) {
         writer->WriteInt64(value.Data.Int64);
+
+    } else if constexpr (wireType == EWireType::Uint8) {
+        CheckIntSize<wireType>(value.Data.Uint64);
+        writer->WriteUint8(value.Data.Uint64);
+    } else if constexpr (wireType == EWireType::Uint16) {
+        CheckIntSize<wireType>(value.Data.Uint64);
+        writer->WriteUint16(value.Data.Uint64);
+    } else if constexpr (wireType == EWireType::Uint32) {
+        CheckIntSize<wireType>(value.Data.Uint64);
+        writer->WriteUint32(value.Data.Uint64);
     } else if constexpr (wireType == EWireType::Uint64) {
         writer->WriteUint64(value.Data.Uint64);
+
     } else if constexpr (wireType == EWireType::Boolean) {
         writer->WriteBoolean(value.Data.Boolean);
     } else if constexpr (wireType == EWireType::Double) {
@@ -322,7 +351,13 @@ TUnversionedValueToSkiffConverter CreatePrimitiveValueConverter(EWireType wireTy
 #define CASE(t) \
         case t: \
             return required ? ConvertSimpleValueImpl<t, false> : ConvertSimpleValueImpl<t, true>;
+        CASE(EWireType::Int8)
+        CASE(EWireType::Int16)
+        CASE(EWireType::Int32)
         CASE(EWireType::Int64)
+        CASE(EWireType::Uint8)
+        CASE(EWireType::Uint16)
+        CASE(EWireType::Uint32)
         CASE(EWireType::Uint64)
         CASE(EWireType::Double)
         CASE(EWireType::Boolean)
@@ -349,14 +384,20 @@ TUnversionedValueToSkiffConverter CreateSimpleValueConverter(
         case ESimpleLogicalValueType::Int16:
         case ESimpleLogicalValueType::Int32:
         case ESimpleLogicalValueType::Int64:
-            CheckWireType(wireType, {EWireType::Int64});
+
+        case ESimpleLogicalValueType::Interval:
+            CheckWireType(wireType, {EWireType::Int8, EWireType::Int16, EWireType::Int32, EWireType::Int64});
             return CreatePrimitiveValueConverter(wireType, required);
 
         case ESimpleLogicalValueType::Uint8:
         case ESimpleLogicalValueType::Uint16:
         case ESimpleLogicalValueType::Uint32:
         case ESimpleLogicalValueType::Uint64:
-            CheckWireType(wireType, {EWireType::Uint64});
+
+        case ESimpleLogicalValueType::Date:
+        case ESimpleLogicalValueType::Datetime:
+        case ESimpleLogicalValueType::Timestamp:
+            CheckWireType(wireType, {EWireType::Uint8, EWireType::Uint16, EWireType::Uint32, EWireType::Uint64});
             return CreatePrimitiveValueConverter(wireType, required);
 
         case ESimpleLogicalValueType::Float:
@@ -376,8 +417,16 @@ TUnversionedValueToSkiffConverter CreateSimpleValueConverter(
 
         case ESimpleLogicalValueType::Any:
             CheckWireType(wireType, {
+                EWireType::Int8,
+                EWireType::Int16,
+                EWireType::Int32,
                 EWireType::Int64,
+
+                EWireType::Uint8,
+                EWireType::Uint16,
+                EWireType::Uint32,
                 EWireType::Uint64,
+
                 EWireType::String32,
                 EWireType::Boolean,
                 EWireType::Double,
@@ -389,15 +438,6 @@ TUnversionedValueToSkiffConverter CreateSimpleValueConverter(
         case ESimpleLogicalValueType::Null:
         case ESimpleLogicalValueType::Void:
             CheckWireType(wireType, {EWireType::Nothing});
-            return CreatePrimitiveValueConverter(wireType, required);
-
-        case ESimpleLogicalValueType::Date:
-        case ESimpleLogicalValueType::Datetime:
-        case ESimpleLogicalValueType::Timestamp:
-            CheckWireType(wireType, {EWireType::Uint64});
-            return CreatePrimitiveValueConverter(wireType, required);
-        case ESimpleLogicalValueType::Interval:
-            CheckWireType(wireType, {EWireType::Int64});
             return CreatePrimitiveValueConverter(wireType, required);
 
         case ESimpleLogicalValueType::Uuid:
@@ -666,7 +706,9 @@ public:
                     YT_ABORT();
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Cannot create skiff writer for column: %Qv",
-                        skiffField.Name()) << ex;
+                        skiffField.Name())
+                        << TErrorAttribute("logical_type", logicalType)
+                        << ex;
                 }
             };
 

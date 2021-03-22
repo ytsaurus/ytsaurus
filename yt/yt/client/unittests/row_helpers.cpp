@@ -25,6 +25,10 @@ NTableClient::TUnversionedValue TTableField::ToUnversionedValue(const NTableClie
             return MakeUnversionedBooleanValue(value, valueId);
         } else if constexpr (std::is_same_v<T, TString>) {
             return MakeUnversionedStringValue(value, valueId);
+        } else if constexpr (std::is_same_v<T, TAny>) {
+            return MakeUnversionedAnyValue(value.Value, valueId);
+        } else if constexpr (std::is_same_v<T, TComposite>) {
+            return MakeUnversionedCompositeValue(value.Value, valueId);
         } else {
             static_assert(std::is_same_v<T, std::nullptr_t>);
             return MakeUnversionedSentinelValue(EValueType::Null, valueId);
