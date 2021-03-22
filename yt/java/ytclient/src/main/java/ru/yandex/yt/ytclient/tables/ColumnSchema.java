@@ -195,6 +195,12 @@ public class ColumnSchema implements YTreeConvertible {
             this.type = type;
         }
 
+        public Builder(String name, ColumnValueType type, boolean required) {
+            this.name = name;
+            this.type = type;
+            this.required = required;
+        }
+
         public Builder(ColumnSchema columnSchema) {
             this.name = columnSchema.name;
             this.type = columnSchema.type;
@@ -228,11 +234,6 @@ public class ColumnSchema implements YTreeConvertible {
 
         public Builder setGroup(String group) {
             this.group = group;
-            return this;
-        }
-
-        public Builder setRequired(boolean required) {
-            this.required = required;
             return this;
         }
 
