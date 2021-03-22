@@ -19,7 +19,7 @@ namespace NYT::NTabletNode {
 void ThrottleUponOverdraft(
     ETabletDistributedThrottlerKind tabletThrottlerKind,
     const TTabletSnapshotPtr& tabletSnapshot,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions);
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +31,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<NTableClient::TRowRange>& bounds,
     TTimestamp timestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
 
@@ -41,7 +41,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
     TTimestamp timestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
 
@@ -54,7 +54,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
     TTimestamp timestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
 
@@ -68,7 +68,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
 
@@ -84,7 +84,7 @@ NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     TLegacyOwningKey upperBound,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     int minConcurrency,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler);

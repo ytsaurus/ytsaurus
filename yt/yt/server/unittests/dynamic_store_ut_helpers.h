@@ -14,6 +14,7 @@
 #include <yt/yt/server/node/tablet_node/structured_logger.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/memory_reader.h>
@@ -386,7 +387,7 @@ protected:
     TNameTablePtr QueryNameTable_;
     std::unique_ptr<TTablet> Tablet_;
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
-    NChunkClient::TClientBlockReadOptions BlockReadOptions_;
+    NChunkClient::TClientChunkReadOptions BlockReadOptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

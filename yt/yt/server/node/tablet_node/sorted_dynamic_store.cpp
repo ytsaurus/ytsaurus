@@ -6,6 +6,7 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/memory_reader.h>
@@ -1849,7 +1850,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const NChunkClient::TClientBlockReadOptions& /*blockReadOptions*/,
+    const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
     IThroughputThrottlerPtr /*bandwidthThrottler*/)
 {
     return New<TRangeReader>(
@@ -1868,7 +1869,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const NChunkClient::TClientBlockReadOptions&,
+    const NChunkClient::TClientChunkReadOptions&,
     IThroughputThrottlerPtr /*bandwidthThrottler*/)
 {
     return New<TLookupReader>(
@@ -2013,9 +2014,9 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 
         auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
             chunkReader,
-            TClientBlockReadOptions(),
+            /* chunkReadOptions */ {},
             Schema_,
-            {} /* columnRenameDescriptors */,
+            /* columnRenameDescriptors */ {},
             MemoryTracker_
                 ? MemoryTracker_->WithCategory(EMemoryCategory::VersionedChunkMeta)
                 : GetNullMemoryUsageTracker());
@@ -2032,7 +2033,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             chunkReader,
             std::move(chunkState),
             std::move(cachedMeta),
-            TClientBlockReadOptions(),
+            /* chunkReadOptions */ {},
             MinKey(),
             MaxKey(),
             TColumnFilter(),

@@ -82,7 +82,7 @@ public:
     virtual TFuture<TCachedVersionedChunkMetaPtr> GetMeta(
         const IChunkReaderPtr& chunkReader,
         const TTableSchemaPtr& schema,
-        const TClientBlockReadOptions& blockReadOptions) override
+        const TClientChunkReadOptions& chunkReadOptions) override
     {
         auto chunkId = chunkReader->GetChunkId();
         auto key = TVersionedChunkMetaCacheKey{chunkId, schema};
@@ -91,7 +91,7 @@ public:
             // TODO(savrus,psushin) Move call to dispatcher?
             auto asyncMeta = TCachedVersionedChunkMeta::Load(
                 std::move(chunkReader),
-                blockReadOptions,
+                chunkReadOptions,
                 schema,
                 {} /* columnRenameDescriptors */,
                 Bootstrap_

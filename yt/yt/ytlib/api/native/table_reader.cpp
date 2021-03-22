@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/table_client/table_read_spec.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -194,11 +195,10 @@ private:
             .UnavailableChunkStrategy = tableReaderConfig->UnavailableChunkStrategy,
         };
 
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = tableReaderConfig->WorkloadDescriptor;
-        blockReadOptions.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        blockReadOptions.ReadSessionId = readSessionId;
+        TClientChunkReadOptions chunkReadOptions;
+        chunkReadOptions.WorkloadDescriptor = tableReaderConfig->WorkloadDescriptor;
+        chunkReadOptions.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
+        chunkReadOptions.ReadSessionId = readSessionId;
 
         auto tableReadSpec = FetchSingleTableReadSpec(fetchTableReadSpecOptions);
         YT_VERIFY(tableReadSpec.DataSourceDirectory->DataSources().size() == 1);
@@ -210,7 +210,7 @@ private:
             tableReaderOptions,
             tableReaderConfig,
             tableReadSpec,
-            blockReadOptions,
+            chunkReadOptions,
             Options_.Unordered,
             NameTable_,
             ColumnFilter_,

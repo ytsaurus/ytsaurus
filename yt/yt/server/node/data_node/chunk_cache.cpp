@@ -361,22 +361,22 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto blockReadOptions = MakeClientBlockReadOptions(
+        auto chunkReadOptions = MakeClientBlockReadOptions(
             artifactDownloadOptions,
             /* bypassArtifactCache */ false);
 
         auto Logger = DataNodeLogger.WithTag("Key: %v, ReadSessionId: %v",
             key,
-            blockReadOptions.ReadSessionId);
+            chunkReadOptions.ReadSessionId);
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
 
         if (cookie.IsActive()) {
             if (auto optionalDescriptor = ExtractRegisteredChunk(key)) {
-                DoValidateArtifact(std::move(cookie), key, artifactDownloadOptions, blockReadOptions, *optionalDescriptor, Logger);
+                DoValidateArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, *optionalDescriptor, Logger);
             } else {
-                DoDownloadArtifact(std::move(cookie), key, artifactDownloadOptions, blockReadOptions, Logger);
+                DoDownloadArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, Logger);
             }
             if (fetchedFromCache) {
                 *fetchedFromCache = false;
@@ -396,7 +396,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto blockReadOptions = MakeClientBlockReadOptions(
+        auto chunkReadOptions = MakeClientBlockReadOptions(
             artifactDownloadOptions,
             /* bypassArtifactCache */ true);
 
@@ -417,7 +417,7 @@ public:
             key,
             artifactDownloadOptions.NodeDirectory ? artifactDownloadOptions.NodeDirectory : New<TNodeDirectory>(),
             artifactDownloadOptions.TrafficMeter,
-            blockReadOptions,
+            chunkReadOptions,
             // TODO(babenko): throttle prepartion
             GetUnlimitedThrottler());
     }
@@ -500,7 +500,7 @@ private:
         TInsertCookie cookie,
         const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const NLogging::TLogger& Logger)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -547,7 +547,7 @@ private:
             location,
             chunkId,
             artifactDownloadOptions.NodeDirectory ? artifactDownloadOptions.NodeDirectory : New<TNodeDirectory>(),
-            blockReadOptions,
+            chunkReadOptions,
             Passed(std::move(cookie)),
             artifactDownloadOptions.TrafficMeter));
     }
@@ -556,7 +556,7 @@ private:
         TInsertCookie cookie,
         const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const TRegisteredChunkDescriptor& descriptor,
         NLogging::TLogger Logger)
     {
@@ -581,7 +581,7 @@ private:
             Passed(std::move(cookie)),
             key,
             artifactDownloadOptions,
-            blockReadOptions,
+            chunkReadOptions,
             descriptor,
             Logger));
     }
@@ -590,7 +590,7 @@ private:
         TInsertCookie cookie,
         const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const TRegisteredChunkDescriptor& descriptor,
         const NLogging::TLogger& Logger)
     {
@@ -611,13 +611,12 @@ private:
                 chunkId,
                 dataFileName);
 
-            TClientBlockReadOptions blockReadOptions{
-                TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Validate chunk length"}),
-                New<TChunkReaderStatistics>(),
-                TReadSessionId::Create()
+            TClientChunkReadOptions chunkReadOptions{
+                .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Validate chunk length"}),
+                .ReadSessionId = TReadSessionId::Create()
             };
 
-            auto metaOrError = WaitFor(chunkReader->GetMeta(blockReadOptions));
+            auto metaOrError = WaitFor(chunkReader->GetMeta(chunkReadOptions));
             THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to read cached chunk meta");
 
             const auto& meta = *metaOrError.Value();
@@ -649,7 +648,7 @@ private:
                 std::move(cookie),
                 key,
                 artifactDownloadOptions,
-                blockReadOptions,
+                chunkReadOptions,
                 Logger);
         }
     }
@@ -864,7 +863,7 @@ private:
     }
 
 
-    TClientBlockReadOptions MakeClientBlockReadOptions(
+    TClientChunkReadOptions MakeClientBlockReadOptions(
         TArtifactDownloadOptions artifactDownloadOptions,
         bool bypassArtifactCache)
     {
@@ -876,9 +875,8 @@ private:
         annotations.push_back("Type: ChunkCache");
         annotations.push_back(Format("BypassArtifactCache: %v", bypassArtifactCache));
 
-        return TClientBlockReadOptions{
+        return TClientChunkReadOptions{
             .WorkloadDescriptor = workloadDescriptor,
-            .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
             .ReadSessionId = TReadSessionId::Create()
         };
     }
@@ -890,7 +888,7 @@ private:
         const TCacheLocationPtr& location,
         TChunkId chunkId,
         const TNodeDirectoryPtr& nodeDirectory,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie,
         const TTrafficMeterPtr& trafficMeter)
     {
@@ -901,7 +899,7 @@ private:
 
         auto Logger = DataNodeLogger.WithTag("ChunkId: %v, ReadSessionId: %v, Location: %v",
             chunkId,
-            blockReadOptions.ReadSessionId,
+            chunkReadOptions.ReadSessionId,
             location->GetId());
 
         try {
@@ -941,7 +939,7 @@ private:
             YT_LOG_DEBUG("Getting chunk meta");
 
             auto chunkMeta = WaitFor(chunkReader->GetMeta(
-                blockReadOptions))
+                chunkReadOptions))
                 .ValueOrThrow();
 
             // Download all blocks.
@@ -973,7 +971,7 @@ private:
                 GetNullBlockCache(),
                 NCompression::ECodec::None,
                 1.0, /* compressionRatio */
-                blockReadOptions);
+                chunkReadOptions);
 
             for (int index = 0; index < blockCount; ++index) {
                 YT_LOG_DEBUG("Downloading block (BlockIndex: %v)",
@@ -1023,7 +1021,7 @@ private:
         const TCacheLocationPtr& location,
         TChunkId chunkId,
         const TNodeDirectoryPtr& nodeDirectory,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie,
         const TTrafficMeterPtr& trafficMeter)
     {
@@ -1034,7 +1032,7 @@ private:
                 key,
                 nodeDirectory,
                 trafficMeter,
-                blockReadOptions,
+                chunkReadOptions,
                 location->GetInThrottler());
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
@@ -1051,7 +1049,7 @@ private:
         const TArtifactKey& key,
         const TNodeDirectoryPtr& nodeDirectory,
         const TTrafficMeterPtr& trafficMeter,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const IThroughputThrottlerPtr& throttler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1069,7 +1067,7 @@ private:
             Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
-            blockReadOptions,
+            chunkReadOptions,
             chunkSpecs,
             trafficMeter,
             Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),
@@ -1096,7 +1094,7 @@ private:
         const TCacheLocationPtr& location,
         TChunkId chunkId,
         const TNodeDirectoryPtr& nodeDirectory,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie,
         const TTrafficMeterPtr& trafficMeter)
     {
@@ -1107,7 +1105,7 @@ private:
                 key,
                 nodeDirectory,
                 trafficMeter,
-                blockReadOptions,
+                chunkReadOptions,
                 location->GetInThrottler());
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
@@ -1126,7 +1124,7 @@ private:
         const TArtifactKey& key,
         const TNodeDirectoryPtr& nodeDirectory,
         const TTrafficMeterPtr& trafficMeter,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const IThroughputThrottlerPtr& throttler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1188,7 +1186,7 @@ private:
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
-            blockReadOptions,
+            chunkReadOptions,
             /* columnFilter */ {},
             /* sortColumns */ {},
             /* partitionTag */ std::nullopt,

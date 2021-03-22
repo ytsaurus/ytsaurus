@@ -4,6 +4,7 @@
 #include "erasure_repair.h"
 #include "erasure_helpers.h"
 #include "dispatcher.h"
+#include "chunk_reader_options.h"
 #include "chunk_reader_statistics.h"
 
 #include <yt/yt/client/misc/workload.h>
@@ -42,17 +43,17 @@ public:
         const TLogger& logger);
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         std::optional<i64> estimatedSize) override;
@@ -68,7 +69,7 @@ private:
     void MaybeUnbanReaders();
 
     TRefCountedChunkMetaPtr DoGetMeta(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags);
 
@@ -96,7 +97,7 @@ public:
         const TErasureReaderConfigPtr config,
         const TLogger& logger,
         const std::vector<IChunkReaderAllowingRepairPtr>& readers,
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize,
@@ -132,7 +133,7 @@ private:
     const TWeakPtr<TAdaptiveRepairingErasureReader> Reader_;
     const TLogger Logger;
     const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
-    const TClientBlockReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions BlockReadOptions_;
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
     const std::optional<i64> EstimatedSize_;
@@ -260,7 +261,7 @@ TAdaptiveRepairingErasureReader::TAdaptiveRepairingErasureReader(
 }
 
 TFuture<TRefCountedChunkMetaPtr> TAdaptiveRepairingErasureReader::GetMeta(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
 {
@@ -283,7 +284,7 @@ TFuture<TRefCountedChunkMetaPtr> TAdaptiveRepairingErasureReader::GetMeta(
 }
 
 TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     const std::vector<int>& blockIndexes,
     std::optional<i64> estimatedSize)
 {
@@ -305,7 +306,7 @@ TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
 }
 
 TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
-    const TClientBlockReadOptions& /*options*/,
+    const TClientChunkReadOptions& /*options*/,
     int /*firstBlockIndex*/,
     int /*blockCount*/,
     std::optional<i64> /*estimatedSize*/)
@@ -400,7 +401,7 @@ TError TAdaptiveRepairingErasureReader::CheckPartReaderIsSlow(int partIndex, i64
 }
 
 TRefCountedChunkMetaPtr TAdaptiveRepairingErasureReader::DoGetMeta(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
 {

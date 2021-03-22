@@ -16,7 +16,7 @@ void LookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     NTableClient::TWireProtocolReader* reader,
     NTableClient::TWireProtocolWriter* writer);
 
@@ -24,7 +24,7 @@ void VersionedLookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     NTableClient::TRetentionConfigPtr retentionConfig,
     NTableClient::TWireProtocolReader* reader,
     NTableClient::TWireProtocolWriter* writer);
@@ -33,7 +33,7 @@ void LookupRead(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     NTableClient::TRetentionConfigPtr retentionConfig,
     NTableClient::TWireProtocolReader* reader,
     NTableClient::TWireProtocolWriter* writer);

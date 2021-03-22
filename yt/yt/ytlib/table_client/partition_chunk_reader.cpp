@@ -44,14 +44,14 @@ TPartitionChunkReader::TPartitionChunkReader(
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     IBlockCachePtr blockCache,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     int partitionTag,
     TChunkReaderMemoryManagerPtr memoryManager)
     : TChunkReaderBase(
         std::move(config),
         std::move(underlyingReader),
         std::move(blockCache),
-        blockReadOptions,
+        chunkReadOptions,
         std::move(memoryManager))
     , NameTable_(nameTable)
     , PartitionTag_(partitionTag)
@@ -167,7 +167,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
     int partitionTag,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
@@ -215,7 +215,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         remoteReader,
                         nameTable,
                         blockCache,
-                        blockReadOptions,
+                        chunkReadOptions,
                         partitionTag,
                         multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
                 });

@@ -33,7 +33,7 @@ public:
         NChunkClient::IChunkReaderPtr underlyingReader,
         const TSortColumns& sortColumns,
         NChunkClient::IBlockCachePtr blockCache,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::function<void(int /*skippedRowCount*/)> onRowsSkipped,
         const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
@@ -42,7 +42,7 @@ protected:
     const TChunkReaderConfigPtr Config_;
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
     const NChunkClient::IBlockCachePtr BlockCache_;
-    const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
+    const NChunkClient::TClientChunkReadOptions BlockReadOptions_;
 
     //! Chunk is physically sorted by these columns.
     //! During unsorted read of a sorted chunk we consider

@@ -52,13 +52,13 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
 
 TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     const IChunkReaderPtr& chunkReader,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TTableSchemaPtr& schema,
     const TColumnRenameDescriptors& renameDescriptors,
     const IMemoryUsageTrackerPtr& memoryTracker)
 {
     auto chunkId = chunkReader->GetChunkId();
-    return chunkReader->GetMeta(blockReadOptions)
+    return chunkReader->GetMeta(chunkReadOptions)
         .Apply(BIND([=] (const TRefCountedChunkMetaPtr& chunkMeta) {
             return TCachedVersionedChunkMeta::Create(chunkId, *chunkMeta, schema, renameDescriptors, memoryTracker);
         }));

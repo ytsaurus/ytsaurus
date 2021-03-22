@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/table_client/table_read_spec.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
@@ -77,7 +78,7 @@ public:
             New<TTableReaderOptions>(),
             New<TTableReaderConfig>(),
             tableReadSpec,
-            TClientBlockReadOptions(),
+            TClientChunkReadOptions(),
             true,
             NTableClient::TNameTable::FromSchema(*table->Schema),
             NTableClient::TColumnFilter(table->Schema->GetColumnCount()));

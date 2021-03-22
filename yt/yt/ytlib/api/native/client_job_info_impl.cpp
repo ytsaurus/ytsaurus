@@ -14,6 +14,7 @@
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -559,21 +560,18 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
 
     auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
 
-    TClientBlockReadOptions blockReadOptions;
-    blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-
     auto userJobReadController = CreateUserJobReadController(
         jobSpecHelper,
         MakeStrong(this),
         GetConnection()->GetInvoker(),
         TNodeDescriptor(),
-        BIND([] { }) /* onNetworkRelease */,
-        std::nullopt /* udfDirectory */,
-        blockReadOptions,
+        /* onNetworkRelease */ BIND([] { }),
+        /* udfDirectory */ {},
+        /* chunkReadOptions */ {},
         GetNullBlockCache(),
         nullptr /* trafficMeter */,
-        NConcurrency::GetUnlimitedThrottler() /* bandwidthThrottler */,
-        NConcurrency::GetUnlimitedThrottler() /* rpsThrottler */);
+        /* bandwidthThrottler */ NConcurrency::GetUnlimitedThrottler(),
+        /* rpsThrottler */ NConcurrency::GetUnlimitedThrottler());
 
     auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
     jobInputReader->Open();

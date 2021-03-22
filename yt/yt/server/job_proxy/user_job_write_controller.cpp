@@ -4,6 +4,7 @@
 #include <yt/yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
 
@@ -193,7 +194,7 @@ void TUserJobWriteController::Init()
 
     auto userJobIOFactory = CreateUserJobIOFactory(
         Host_->GetJobSpecHelper(),
-        TClientBlockReadOptions(),
+        TClientChunkReadOptions(),
         Host_->GetWriterBlockCache(),
         Host_->GetTrafficMeter(),
         Host_->GetInBandwidthThrottler(),

@@ -14,7 +14,7 @@ struct IVersionedChunkMetaManager
     virtual TFuture<NTableClient::TCachedVersionedChunkMetaPtr> GetMeta(
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NTableClient::TTableSchemaPtr& schema,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions) = 0;
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVersionedChunkMetaManager)

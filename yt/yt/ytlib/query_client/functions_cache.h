@@ -87,7 +87,7 @@ void FetchFunctionImplementationsFromCypress(
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
     const TFunctionImplCachePtr& cache,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions);
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
 
 void FetchFunctionImplementationsFromFiles(
     const TFunctionProfilerMapPtr& functionProfilers,

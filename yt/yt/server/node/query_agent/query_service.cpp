@@ -24,6 +24,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -493,10 +494,10 @@ private:
             queryOptions.MemoryLimitPerNode,
             dataSources.size());
 
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = queryOptions.WorkloadDescriptor;
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        blockReadOptions.ReadSessionId = queryOptions.ReadSessionId;
+        TClientChunkReadOptions chunkReadOptions{
+            .WorkloadDescriptor = queryOptions.WorkloadDescriptor,
+            .ReadSessionId = queryOptions.ReadSessionId
+        };
 
         // Grab the invoker provided by GetExecuteInvoker.
         auto invoker = GetCurrentInvoker();
@@ -525,7 +526,7 @@ private:
                     writer,
                     memoryChunkProvider,
                     invoker,
-                    blockReadOptions,
+                    chunkReadOptions,
                     queryOptions,
                     profilerGuard);
 
@@ -549,10 +550,10 @@ private:
         auto timestamp = FromProto<TTimestamp>(request->timestamp());
 
         // TODO(sandello): Extract this out of RPC request.
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+        TClientChunkReadOptions chunkReadOptions{
+            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
+            .ReadSessionId = TReadSessionId::Create()
+        };
 
         TRetentionConfigPtr retentionConfig;
         if (request->has_retention_config()) {
@@ -580,7 +581,7 @@ private:
             timestamp,
             requestCodecId,
             responseCodecId,
-            blockReadOptions.ReadSessionId,
+            chunkReadOptions.ReadSessionId,
             retentionConfig);
 
         // COMAPT(babenko)
@@ -630,7 +631,7 @@ private:
                                 tabletSnapshot,
                                 timestamp,
                                 useLookupCache,
-                                blockReadOptions,
+                                chunkReadOptions,
                                 retentionConfig,
                                 &reader,
                                 &writer);
@@ -781,9 +782,9 @@ private:
                 tabletSnapshot,
                 MakeSingletonRowRange(lowerBound, upperBound),
                 timestamp,
-                /*produceAllVersions*/ false,
+                /* produceAllVersions */ false,
                 columnFilter,
-                TClientBlockReadOptions());
+                /* chunkReadOptions */ {});
             WaitFor(reader->Open())
                 .ThrowOnError();
 
@@ -858,11 +859,11 @@ private:
             // NB: Options and throttler are not used by the reader.
             auto reader = dynamicStore->AsOrdered()->CreateReader(
                 tabletSnapshot,
-                -1, // tabletIndex, fake
+                /* tabletIndex */ -1, // fake
                 startRowIndex,
                 endRowIndex,
                 columnFilter,
-                TClientBlockReadOptions());
+                /* chunkReadOptions */ {});
 
             YT_LOG_DEBUG("Started serving remote dynamic store read request "
                 "(TabletId: %v, StoreId: %v, ReadSessionId: %v, "

@@ -27,7 +27,7 @@ IVersionedReaderPtr CreateRemoteSortedDynamicStoreReader(
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp);
 
@@ -42,7 +42,7 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     NChunkClient::TChunkReaderMemoryManagerPtr readerMemoryManager,
@@ -63,7 +63,7 @@ ISchemalessChunkReaderPtr CreateRemoteOrderedDynamicStoreReader(
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const std::optional<std::vector<TString>>& columns);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,7 +79,7 @@ ISchemalessChunkReaderPtr CreateRetryingRemoteOrderedDynamicStoreReader(
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const std::optional<std::vector<TString>>& columns,
     NChunkClient::TChunkReaderMemoryManagerPtr readerMemoryManager,
     TCallback<TFuture<ISchemalessChunkReaderPtr>(

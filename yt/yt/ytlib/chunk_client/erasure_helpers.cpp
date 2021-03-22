@@ -518,7 +518,7 @@ void TPartEncoder::Run()
 
 TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
     const IChunkReaderPtr& reader,
-    const TClientBlockReadOptions& options)
+    const TClientChunkReadOptions& options)
 {
     return reader->GetMeta(
         options,
@@ -621,7 +621,7 @@ TErasureChunkReaderBase::TErasureChunkReaderBase(
 { }
 
 TFuture<TRefCountedChunkMetaPtr> TErasureChunkReaderBase::GetMeta(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
 {
@@ -642,7 +642,7 @@ TChunkId TErasureChunkReaderBase::GetChunkId() const
     return ChunkId_;
 }
 
-TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(const TClientBlockReadOptions& options)
+TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(const TClientChunkReadOptions& options)
 {
     if (PlacementExtFuture_) {
         return PlacementExtFuture_;

@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
@@ -188,7 +189,7 @@ public:
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
         IUnversionedRowsetWriterPtr writer,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const TQueryOptions& options) override
     {
         NTracing::TChildTraceContextGuard guard("QueryClient.Execute");
@@ -203,7 +204,7 @@ public:
                 std::move(externalCGInfo),
                 std::move(dataSource),
                 options,
-                blockReadOptions,
+                chunkReadOptions,
                 std::move(writer));
     }
 
@@ -219,7 +220,7 @@ private:
         const TConstQueryPtr& query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const IUnversionedRowsetWriterPtr& writer,
         int subrangesCount,
         std::function<std::pair<std::vector<TDataSource>, TString>(int)> getSubsources)
@@ -241,7 +242,7 @@ private:
             aggregateGenerators,
             externalCGInfo,
             FunctionImplCache_,
-            blockReadOptions);
+            chunkReadOptions);
 
         return CoordinateAndExecute(
             query,
@@ -283,7 +284,7 @@ private:
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
         const TQueryOptions& options,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         IUnversionedRowsetWriterPtr writer)
     {
         auto Logger = MakeQueryLogger(query);
@@ -330,7 +331,7 @@ private:
             query,
             externalCGInfo,
             options,
-            blockReadOptions,
+            chunkReadOptions,
             writer,
             groupedSplits.size(),
             [&] (int index) {
@@ -343,7 +344,7 @@ private:
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
         const TQueryOptions& options,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         IUnversionedRowsetWriterPtr writer)
     {
         auto Logger = MakeQueryLogger(query);
@@ -364,7 +365,7 @@ private:
             query,
             externalCGInfo,
             options,
-            blockReadOptions,
+            chunkReadOptions,
             writer,
             allSplits.size(),
             [&] (int index) {
@@ -499,7 +500,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
         YT_VERIFY(it != tableInfo->Tablets.begin()); // But can be equal to end.
 
         const auto& tabletInfo = *(it - 1);
-        
+
         TDataSource dataSubsource;
 
         dataSubsource.Schema = dataSource.Schema;

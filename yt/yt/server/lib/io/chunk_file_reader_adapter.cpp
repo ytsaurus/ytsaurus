@@ -18,7 +18,7 @@ public:
     { }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize) override
     {
@@ -26,7 +26,7 @@ public:
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         std::optional<i64> estimatedSize) override
@@ -35,7 +35,7 @@ public:
     }
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
     {

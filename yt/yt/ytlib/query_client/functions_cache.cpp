@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 
@@ -536,7 +537,7 @@ public:
     TSharedRef DoFetch(
         const TFunctionImplKey& key,
         TNodeDirectoryPtr nodeDirectory,
-        const TClientBlockReadOptions& blockReadOptions)
+        const TClientChunkReadOptions& chunkReadOptions)
     {
         auto client = Client_.Lock();
         YT_VERIFY(client);
@@ -544,7 +545,7 @@ public:
 
         YT_LOG_DEBUG("Downloading implementation for UDF function (Chunks: %v, ReadSessionId: %v)",
             key,
-            blockReadOptions.ReadSessionId);
+            chunkReadOptions.ReadSessionId);
 
         auto reader = NFileClient::CreateFileMultiChunkReader(
             New<NApi::TFileReaderConfig>(),
@@ -554,7 +555,7 @@ public:
             /* partitionTag */ std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
             std::move(nodeDirectory),
-            blockReadOptions,
+            chunkReadOptions,
             std::move(chunks));
 
         std::vector<TSharedRef> blocks;
@@ -587,7 +588,7 @@ public:
     TFuture<TFunctionImplCacheEntryPtr> FetchImplementation(
         const TFunctionImplKey& key,
         TNodeDirectoryPtr nodeDirectory,
-        const TClientBlockReadOptions& blockReadOptions)
+        const TClientChunkReadOptions& chunkReadOptions)
     {
         auto cookie = BeginInsert(key);
         if (!cookie.IsActive()) {
@@ -597,10 +598,10 @@ public:
         return BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (
                 const TFunctionImplKey& key,
                 TNodeDirectoryPtr nodeDirectory,
-                const TClientBlockReadOptions& blockReadOptions) mutable
+                const TClientChunkReadOptions& chunkReadOptions) mutable
             {
                 try {
-                    auto file = DoFetch(key, std::move(nodeDirectory), blockReadOptions);
+                    auto file = DoFetch(key, std::move(nodeDirectory), chunkReadOptions);
                     cookie.EndInsert(New<TFunctionImplCacheEntry>(key, file));
                 } catch (const std::exception& ex) {
                     cookie.Cancel(TError(ex).Wrap("Failed to download function implementation"));
@@ -609,7 +610,7 @@ public:
                 return cookie.GetValue();
             })
             .AsyncVia(GetCurrentInvoker())
-            .Run(key, nodeDirectory, blockReadOptions);
+            .Run(key, nodeDirectory, chunkReadOptions);
     }
 
 private:
@@ -681,7 +682,7 @@ void FetchFunctionImplementationsFromCypress(
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
     const TFunctionImplCachePtr& cache,
-    const TClientBlockReadOptions& blockReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions)
 {
     std::vector<TFuture<TFunctionImplCacheEntryPtr>> asyncResults;
 
@@ -690,12 +691,12 @@ void FetchFunctionImplementationsFromCypress(
 
         YT_LOG_DEBUG("Fetching UDF implementation (Name: %v, ReadSessionId: %v)",
             name,
-            blockReadOptions.ReadSessionId);
+            chunkReadOptions.ReadSessionId);
 
         TFunctionImplKey key;
         key.ChunkSpecs = function.ChunkSpecs;
 
-        asyncResults.push_back(cache->FetchImplementation(key, externalCGInfo->NodeDirectory, blockReadOptions));
+        asyncResults.push_back(cache->FetchImplementation(key, externalCGInfo->NodeDirectory, chunkReadOptions));
     }
 
     auto results = WaitFor(AllSucceeded(asyncResults))

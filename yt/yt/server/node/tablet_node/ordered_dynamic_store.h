@@ -67,7 +67,7 @@ public:
         i64 lowerRowIndex,
         i64 upperRowIndex,
         const NTableClient::TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) override;
 
 private:

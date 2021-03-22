@@ -18,7 +18,7 @@ namespace NYT {
 
 struct TWorkloadDescriptor
 {
-    explicit TWorkloadDescriptor(
+    TWorkloadDescriptor(
         EWorkloadCategory category = EWorkloadCategory::Idle,
         int band = 0,
         TInstant instant = {},

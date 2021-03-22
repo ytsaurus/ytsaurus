@@ -8,6 +8,7 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/ytlib/table_client/overlapping_reader.h>
 #include <yt/yt/ytlib/table_client/row_merger.h>
@@ -57,7 +58,7 @@ struct TStoreRangeFormatter
 void ThrottleUponOverdraft(
     ETabletDistributedThrottlerKind tabletThrottlerKind,
     const TTabletSnapshotPtr& tabletSnapshot,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions)
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions)
 {
     const auto& tabletThrottler = tabletSnapshot->DistributedThrottlers[tabletThrottlerKind];
     if (!tabletThrottler || !tabletThrottler->IsOverdraft()) {
@@ -66,7 +67,7 @@ void ThrottleUponOverdraft(
 
     YT_LOG_DEBUG("Started waiting for tablet throttler (TabletId: %v, ReadSessionId: %v, ThrottlerKind: %v)",
         tabletSnapshot->TabletId,
-        blockReadOptions.ReadSessionId,
+        chunkReadOptions.ReadSessionId,
         tabletThrottlerKind);
 
     NProfiling::TWallTimer throttlerWaitTimer;
@@ -76,7 +77,7 @@ void ThrottleUponOverdraft(
 
     YT_LOG_DEBUG("Finished waiting for tablet throttler (TabletId: %v, ReadSessionId: %v, ThrottlerKind: %v, ElapsedTime: %v)",
         tabletSnapshot->TabletId,
-        blockReadOptions.ReadSessionId,
+        chunkReadOptions.ReadSessionId,
         tabletThrottlerKind,
         elapsedTime);
 
@@ -195,7 +196,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TRowRange>& bounds,
     TTimestamp timestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
@@ -210,7 +211,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     tabletSnapshot->WaitOnLocks(timestamp);
 
     if (tabletThrottlerKind) {
-        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, blockReadOptions);
+        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
     // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
@@ -263,8 +264,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         timestamp,
         lowerBound,
         upperBound,
-        blockReadOptions.WorkloadDescriptor,
-        blockReadOptions.ReadSessionId,
+        chunkReadOptions.WorkloadDescriptor,
+        chunkReadOptions.ReadSessionId,
         MakeFormattableView(stores, TStoreIdFormatter()),
         MakeFormattableView(stores, TStoreRangeFormatter()),
         bounds.Size());
@@ -299,7 +300,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 timestamp,
                 false,
                 columnFilter,
-                blockReadOptions,
+                chunkReadOptions,
                 bandwidthThrottler);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (
@@ -322,7 +323,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
     TTimestamp /*timestamp*/,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
@@ -331,7 +332,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     YT_VERIFY(upperBound.GetCount() >= 1);
 
     if (tabletThrottlerKind) {
-        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, blockReadOptions);
+        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
     const i64 infinity = std::numeric_limits<i64>::max() / 2;
@@ -418,8 +419,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
         tabletSnapshot->CellId,
         lowerRowIndex,
         upperRowIndex,
-        blockReadOptions.WorkloadDescriptor,
-        blockReadOptions.ReadSessionId,
+        chunkReadOptions.WorkloadDescriptor,
+        chunkReadOptions.ReadSessionId,
         MakeFormattableView(storeIndices, [&] (auto* builder, int storeIndex) {
             FormatValue(builder, allStores[storeIndex]->GetId(), TStringBuf());
         }));
@@ -434,7 +435,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
                 lowerRowIndex,
                 upperRowIndex,
                 columnFilter,
-                blockReadOptions,
+                chunkReadOptions,
                 bandwidthThrottler);
         });
     }
@@ -453,7 +454,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
     TTimestamp timestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
@@ -463,7 +464,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
             columnFilter,
             MakeSingletonRowRange(lowerBound, upperBound),
             timestamp,
-            blockReadOptions,
+            chunkReadOptions,
             tabletThrottlerKind,
             std::move(bandwidthThrottler));
     } else {
@@ -473,7 +474,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
             std::move(lowerBound),
             std::move(upperBound),
             timestamp,
-            blockReadOptions,
+            chunkReadOptions,
             tabletThrottlerKind,
             std::move(bandwidthThrottler));
     }
@@ -489,7 +490,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
     const TPartitionSnapshotPtr& partitionSnapshot,
     const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     TRowBufferPtr rowBuffer,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
@@ -515,8 +516,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         timestamp,
-        blockReadOptions.WorkloadDescriptor,
-        blockReadOptions.ReadSessionId,
+        chunkReadOptions.WorkloadDescriptor,
+        chunkReadOptions.ReadSessionId,
         MakeFormattableView(stores, TStoreIdFormatter()),
         MakeFormattableView(stores, TStoreRangeFormatter()));
 
@@ -543,7 +544,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
                     timestamp,
                     false,
                     columnFilter,
-                    blockReadOptions,
+                    chunkReadOptions,
                     bandwidthThrottler);
             } else {
                 return nullptr;
@@ -558,7 +559,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
@@ -567,7 +568,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     tabletSnapshot->WaitOnLocks(timestamp);
 
     if (tabletThrottlerKind) {
-        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, blockReadOptions);
+        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
     if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
@@ -613,7 +614,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
                 partitions[index],
                 partitionedKeys[index],
                 timestamp,
-                blockReadOptions,
+                chunkReadOptions,
                 rowBuffer,
                 tabletThrottlerKind,
                 bandwidthThrottler);
@@ -641,7 +642,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TLegacyOwningKey upperBound,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     int minConcurrency,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
@@ -655,7 +656,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     tabletSnapshot->WaitOnLocks(majorTimestamp);
 
     if (tabletThrottlerKind) {
-        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, blockReadOptions);
+        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
     YT_LOG_DEBUG(
@@ -667,8 +668,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         upperBound,
         currentTimestamp,
         majorTimestamp,
-        blockReadOptions.WorkloadDescriptor,
-        blockReadOptions.ReadSessionId,
+        chunkReadOptions.WorkloadDescriptor,
+        chunkReadOptions.ReadSessionId,
         MakeFormattableView(stores, TStoreIdFormatter()),
         MakeFormattableView(stores, TStoreRangeFormatter()));
 
@@ -707,7 +708,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
                 AllCommittedTimestamp,
                 true,
                 TColumnFilter(),
-                blockReadOptions,
+                chunkReadOptions,
                 bandwidthThrottler);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (

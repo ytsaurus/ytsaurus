@@ -34,7 +34,7 @@ public:
         NLogging::TLogger logger);
 
     TFuture<std::vector<std::vector<TSharedRef>>> ReadRows(
-        const NChunkClient::TClientBlockReadOptions& options,
+        const NChunkClient::TClientChunkReadOptions& options,
         int firstRowIndex,
         int rowCount);
 

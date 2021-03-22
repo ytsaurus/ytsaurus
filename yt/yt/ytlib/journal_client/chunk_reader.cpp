@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_replica_locator.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -154,7 +155,7 @@ public:
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& /*options*/,
+        const TClientChunkReadOptions& /*options*/,
         const std::vector<int>& /*blockIndexes*/,
         std::optional<i64> /*estimatedSize*/) override
     {
@@ -167,7 +168,7 @@ public:
     public:
         TReadBlocksSession(
             TErasureChunkReaderPtr reader,
-            const TClientBlockReadOptions& options,
+            const TClientChunkReadOptions& options,
             int firstBlockIndex,
             int blockCount)
             : Reader_(std::move(reader))
@@ -186,7 +187,7 @@ public:
 
     private:
         const TErasureChunkReaderPtr Reader_;
-        const TClientBlockReadOptions Options_;
+        const TClientChunkReadOptions Options_;
         const int FirstBlockIndex_;
         const int BlockCount_;
 
@@ -285,7 +286,7 @@ public:
     };
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         std::optional<i64> /*estimatedSize*/) override
@@ -295,7 +296,7 @@ public:
     }
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientBlockReadOptions& /*options*/,
+        const TClientChunkReadOptions& /*options*/,
         std::optional<int> /*partitionTag*/,
         const std::optional<std::vector<int>>& /*extensionTags*/) override
     {

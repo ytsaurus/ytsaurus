@@ -260,7 +260,7 @@ private:
     const TActionQueuePtr RemoteCopyQueue_;
     TAsyncSemaphorePtr CopySemaphore_;
 
-    TClientBlockReadOptions BlockReadOptions_;
+    TClientChunkReadOptions BlockReadOptions_;
 
     std::vector<TFuture<void>> ChunkFinalizationResults_;
 
@@ -578,10 +578,12 @@ private:
             Host_->GetOutBandwidthThrottler());
         YT_VERIFY(erasedPartWriters.size() == erasedPartIndicies.size());
 
-        TClientBlockReadOptions repairBlockReadOptions;
-        repairBlockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-
-        WaitFor(RepairErasedParts(erasureCodec, erasedPartIndicies, repairPartReaders, erasedPartWriters, repairBlockReadOptions))
+        WaitFor(RepairErasedParts(
+            erasureCodec,
+            erasedPartIndicies,
+            repairPartReaders,
+            erasedPartWriters,
+            TClientChunkReadOptions()))
             .ThrowOnError();
 
         for (int index = 0; index < erasedPartIndicies.size(); ++index) {

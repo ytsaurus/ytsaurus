@@ -26,7 +26,7 @@ namespace NYT::NTableClient {
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& state,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TSharedRange<TLegacyKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -34,7 +34,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& state,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,

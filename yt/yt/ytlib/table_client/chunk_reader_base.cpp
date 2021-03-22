@@ -29,12 +29,12 @@ TChunkReaderBase::TChunkReaderBase(
     TBlockFetcherConfigPtr config,
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TChunkReaderMemoryManagerPtr& memoryManager)
     : Config_(std::move(config))
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
-    , BlockReadOptions_(blockReadOptions)
+    , BlockReadOptions_(chunkReadOptions)
     , Logger(TableClientLogger.WithTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
 {
     if (memoryManager) {

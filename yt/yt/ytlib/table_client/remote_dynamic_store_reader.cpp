@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -158,7 +159,7 @@ public:
         TRemoteDynamicStoreReaderConfigPtr config,
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
-        const TClientBlockReadOptions& blockReadOptions)
+        const TClientChunkReadOptions& chunkReadOptions)
         : ChunkSpec_(std::move(chunkSpec))
         , Config_(std::move(config))
         , Client_(std::move(client))
@@ -166,8 +167,8 @@ public:
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , Logger(TableClientLogger.WithTag("ReaderId: %v", TGuid::Create()))
     {
-        if (blockReadOptions.ReadSessionId) {
-            ReadSessionId_ = blockReadOptions.ReadSessionId;
+        if (chunkReadOptions.ReadSessionId) {
+            ReadSessionId_ = chunkReadOptions.ReadSessionId;
         } else {
             ReadSessionId_ = TReadSessionId::Create();
         }
@@ -399,7 +400,7 @@ public:
         TRemoteDynamicStoreReaderConfigPtr config,
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp)
         : TBase(
@@ -407,7 +408,7 @@ public:
             std::move(config),
             std::move(client),
             std::move(nodeDirectory),
-            blockReadOptions)
+            chunkReadOptions)
         , Timestamp_(timestamp)
     {
         std::tie(Schema_, ColumnFilter_, IdMapping_) = CreateSortedReadParameters(schema, columnFilter);
@@ -469,7 +470,7 @@ IVersionedReaderPtr CreateRemoteSortedDynamicStoreReader(
     TTrafficMeterPtr /*trafficMeter*/,
     IThroughputThrottlerPtr /*bandwidthThrottler*/,
     IThroughputThrottlerPtr /*rpsThrottler*/,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
 {
@@ -479,7 +480,7 @@ IVersionedReaderPtr CreateRemoteSortedDynamicStoreReader(
         std::move(config),
         std::move(client),
         std::move(nodeDirectory),
-        blockReadOptions,
+        chunkReadOptions,
         columnFilter,
         timestamp);
 }
@@ -498,7 +499,7 @@ public:
         TChunkReaderOptionsPtr options,
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         TNameTablePtr nameTable,
         const std::optional<std::vector<TString>>& columns)
         : TBase(
@@ -506,7 +507,7 @@ public:
             std::move(config),
             std::move(client),
             std::move(nodeDirectory),
-            blockReadOptions)
+            chunkReadOptions)
         , Options_(std::move(options))
         , NameTable_(std::move(nameTable))
     {
@@ -673,7 +674,7 @@ ISchemalessChunkReaderPtr CreateRemoteOrderedDynamicStoreReader(
     TTrafficMeterPtr /*trafficMeter*/,
     IThroughputThrottlerPtr /*bandwidthThrottler*/,
     IThroughputThrottlerPtr /*rpsThrottler*/,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const std::optional<std::vector<TString>>& columns)
 {
     return New<TRemoteOrderedDynamicStoreReader>(
@@ -683,7 +684,7 @@ ISchemalessChunkReaderPtr CreateRemoteOrderedDynamicStoreReader(
         std::move(options),
         std::move(client),
         std::move(nodeDirectory),
-        blockReadOptions,
+        chunkReadOptions,
         std::move(nameTable),
         columns);
 }
@@ -706,7 +707,7 @@ public:
         TRetryingRemoteDynamicStoreReaderConfigPtr config,
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         TChunkReaderMemoryManagerPtr readerMemoryManager,
         TAsyncChunkReaderFactory<IReaderPtr> chunkReaderFactory)
         : ChunkSpec_(std::move(chunkSpec))
@@ -715,7 +716,7 @@ public:
         , Client_(std::move(client))
         , NodeDirectory_(std::move(nodeDirectory))
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
-        , BlockReadOptions_(blockReadOptions)
+        , BlockReadOptions_(chunkReadOptions)
         , ReaderMemoryManager_(std::move(readerMemoryManager))
         , ChunkReaderFactory_(chunkReaderFactory)
         , Logger(TableClientLogger.WithTag("ReaderId: %v", TGuid::Create()))
@@ -819,7 +820,7 @@ protected:
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TNetworkPreferenceList Networks_;
-    const TClientBlockReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions BlockReadOptions_;
     const TChunkReaderMemoryManagerPtr ReaderMemoryManager_;
 
     IReaderPtr CurrentReader_;
@@ -1034,7 +1035,7 @@ public:
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const TColumnFilter& columnFilter,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         TTimestamp timestamp,
         NChunkClient::TChunkReaderMemoryManagerPtr readerMemoryManager,
         TAsyncChunkReaderFactory<IVersionedReaderPtr> chunkReaderFactory)
@@ -1044,7 +1045,7 @@ public:
             std::move(config),
             std::move(client),
             std::move(nodeDirectory),
-            blockReadOptions,
+            chunkReadOptions,
             std::move(readerMemoryManager),
             std::move(chunkReaderFactory))
         , ColumnFilter_(columnFilter)
@@ -1100,8 +1101,9 @@ private:
 
     virtual void DoCreateRemoteDynamicStoreReader() override
     {
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.ReadSessionId = ReadSessionId_;
+        TClientChunkReadOptions chunkReadOptions{
+            .ReadSessionId = ReadSessionId_
+        };
 
         try {
             CurrentReader_ = CreateRemoteSortedDynamicStoreReader(
@@ -1113,7 +1115,7 @@ private:
                 {} /*trafficMeter*/,
                 {} /*bandwidthThrottler*/,
                 {} /*rpsThrottler*/,
-                blockReadOptions,
+                chunkReadOptions,
                 ColumnFilter_,
                 Timestamp_);
         } catch (const std::exception& ex) {
@@ -1139,7 +1141,7 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
     NChunkClient::TTrafficMeterPtr /*trafficMeter*/,
     NConcurrency::IThroughputThrottlerPtr /*bandwidthThrottler*/,
     NConcurrency::IThroughputThrottlerPtr /*rpsThrottler*/,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     TChunkReaderMemoryManagerPtr readerMemoryManager,
@@ -1161,7 +1163,7 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
         client,
         nodeDirectory,
         columnFilter,
-        blockReadOptions,
+        chunkReadOptions,
         timestamp,
         std::move(readerMemoryManager),
         asyncChunkReaderFactory);
@@ -1181,7 +1183,7 @@ public:
         TChunkReaderOptionsPtr chunkReaderOptions,
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         TNameTablePtr nameTable,
         const std::optional<std::vector<TString>>& columns,
         TChunkReaderMemoryManagerPtr readerMemoryManager,
@@ -1192,7 +1194,7 @@ public:
             std::move(config),
             std::move(client),
             std::move(nodeDirectory),
-            blockReadOptions,
+            chunkReadOptions,
             std::move(readerMemoryManager),
             std::move(chunkReaderFactory))
         , ChunkReaderOptions_(std::move(chunkReaderOptions))
@@ -1287,8 +1289,10 @@ private:
 
     virtual void DoCreateRemoteDynamicStoreReader() override
     {
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.ReadSessionId = ReadSessionId_;
+        TClientChunkReadOptions chunkReadOptions{
+            .ReadSessionId = ReadSessionId_
+        };
+
         CurrentReader_ = CreateRemoteOrderedDynamicStoreReader(
             ChunkSpec_,
             Schema_,
@@ -1300,7 +1304,7 @@ private:
             {} /*trafficMeter*/,
             {} /*bandwidthThrottler*/,
             {} /*rpsThrottler*/,
-            blockReadOptions,
+            chunkReadOptions,
             Columns_);
     }
 
@@ -1323,7 +1327,7 @@ ISchemalessChunkReaderPtr CreateRetryingRemoteOrderedDynamicStoreReader(
     TTrafficMeterPtr /*trafficMeter*/,
     IThroughputThrottlerPtr /*bandwidthThrottler*/,
     IThroughputThrottlerPtr /*rpsThrottler*/,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const std::optional<std::vector<TString>>& columns,
     TChunkReaderMemoryManagerPtr readerMemoryManager,
     TAsyncChunkReaderFactory<ISchemalessChunkReaderPtr> chunkReaderFactory)
@@ -1335,7 +1339,7 @@ ISchemalessChunkReaderPtr CreateRetryingRemoteOrderedDynamicStoreReader(
         std::move(options),
         std::move(client),
         std::move(nodeDirectory),
-        blockReadOptions,
+        chunkReadOptions,
         std::move(nameTable),
         columns,
         std::move(readerMemoryManager),

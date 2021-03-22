@@ -31,7 +31,7 @@ NTableClient::IVersionedReaderPtr CreateVersionedChunkReader(
     const NTableClient::TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr underlyingReader,
     NTableClient::TChunkReaderPerformanceCountersPtr performanceCounters,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
     TReaderTimeStatisticsPtr timeStatistics = nullptr);
 

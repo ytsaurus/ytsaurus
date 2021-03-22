@@ -54,7 +54,7 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
@@ -63,7 +63,7 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) override;
 
     virtual bool CheckRowLocks(
@@ -96,18 +96,18 @@ private:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions);
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
     NTableClient::IVersionedReaderPtr TryCreateCacheBasedReader(
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         const TSharedRange<NTableClient::TRowRange>& singletonClippingRange);
 
     NTableClient::TChunkStatePtr PrepareChunkState(
         NChunkClient::IChunkReaderPtr chunkReader,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions);
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
 
     void ValidateBlockSize(
         const TTabletSnapshotPtr& tabletSnapshot,

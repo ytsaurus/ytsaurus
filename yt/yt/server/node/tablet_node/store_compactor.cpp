@@ -34,6 +34,7 @@
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -1108,15 +1109,15 @@ private:
 
     void PartitionEden(TTask* task)
     {
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+        TClientChunkReadOptions chunkReadOptions{
+            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
+            .ReadSessionId = TReadSessionId::Create()
+        };
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("%v, ReadSessionId: %v",
             task->TabletLoggingTag,
-            blockReadOptions.ReadSessionId);
+            chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             ScheduleMorePartitionings();
@@ -1254,7 +1255,7 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 MinTimestamp, // NB: No major compaction during Eden partitioning.
-                blockReadOptions,
+                chunkReadOptions,
                 stores.size(),
                 ETabletDistributedThrottlerKind::CompactionRead,
                 std::move(bandwidthThrottler));
@@ -1364,7 +1365,7 @@ private:
             writerProfiler->Update(writer);
         }
 
-        readerProfiler->Update(reader, blockReadOptions.ChunkReaderStatistics);
+        readerProfiler->Update(reader, chunkReadOptions.ChunkReaderStatistics);
         writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Partitioning, failed);
         readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Partitioning, failed);
 
@@ -1655,15 +1656,15 @@ private:
 
     void CompactPartition(TTask* task)
     {
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+        TClientChunkReadOptions chunkReadOptions{
+            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
+            .ReadSessionId = TReadSessionId::Create()
+        };
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("%v, ReadSessionId: %v",
             task->TabletLoggingTag,
-            blockReadOptions.ReadSessionId);
+            chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             ScheduleMoreCompactions();
@@ -1812,7 +1813,7 @@ private:
                 tablet->GetNextPivotKey(),
                 currentTimestamp,
                 majorTimestamp,
-                blockReadOptions,
+                chunkReadOptions,
                 stores.size(),
                 ETabletDistributedThrottlerKind::CompactionRead,
                 std::move(bandwidthThrottler));
@@ -1905,7 +1906,7 @@ private:
         }
 
         writerProfiler->Update(writer);
-        readerProfiler->Update(reader, blockReadOptions.ChunkReaderStatistics);
+        readerProfiler->Update(reader, chunkReadOptions.ChunkReaderStatistics);
 
         writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Compaction, failed);
         readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Compaction, failed);

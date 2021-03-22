@@ -2,6 +2,7 @@
 #include "erasure_parts_reader.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/ref_counted_proto.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -25,7 +26,7 @@ void DoRepairErasedParts(
     const TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     const NLogging::TLogger& logger)
 {
     YT_VERIFY(!writers.empty());
@@ -118,7 +119,7 @@ void DoRepairErasedParts(
                 futures.push_back(writer->Close());
             }
         }
-        
+
         WaitFor(AllSucceeded(std::move(futures)))
             .ThrowOnError();
 
@@ -135,7 +136,7 @@ TFuture<void> RepairErasedParts(
     const TPartIndexList& erasedIndices,
     std::vector<IChunkReaderPtr> readers,
     std::vector<IChunkWriterPtr> writers,
-    TClientBlockReadOptions options,
+    TClientChunkReadOptions options,
     NLogging::TLogger logger)
 {
     return BIND(&DoRepairErasedParts)

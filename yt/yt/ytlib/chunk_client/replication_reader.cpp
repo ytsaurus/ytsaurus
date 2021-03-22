@@ -8,6 +8,7 @@
 #include "data_node_service_proxy.h"
 #include "helpers.h"
 #include "chunk_reader_allowing_repair.h"
+#include "chunk_reader_options.h"
 #include "chunk_replica_locator.h"
 #include "remote_chunk_reader.h"
 
@@ -195,23 +196,23 @@ public:
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize) override;
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         std::optional<i64> estimatedSize) override;
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<TSharedRef> LookupRows(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         TSharedRange<TLegacyKey> lookupKeys,
         TObjectId tableId,
         TRevision revision,
@@ -413,7 +414,7 @@ protected:
     const TRemoteReaderOptionsPtr ReaderOptions_;
     const TChunkId ChunkId_;
 
-    const TClientBlockReadOptions SessionOptions_;
+    const TClientChunkReadOptions SessionOptions_;
 
     //! The workload descriptor from the config with instant field updated
     //! properly.
@@ -465,7 +466,7 @@ protected:
 
     TSessionBase(
         TReplicationReader* reader,
-        const TClientBlockReadOptions& options)
+        const TClientChunkReadOptions& options)
         : Reader_(reader)
         , ReaderConfig_(reader->Config_)
         , ReaderOptions_(reader->Options_)
@@ -1271,7 +1272,7 @@ class TReplicationReader::TReadBlockSetSession
 public:
     TReadBlockSetSession(
         TReplicationReader* reader,
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize)
         : TSessionBase(reader, options)
@@ -1747,7 +1748,7 @@ private:
 };
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     const std::vector<int>& blockIndexes,
     std::optional<i64> estimatedSize)
 {
@@ -1769,7 +1770,7 @@ class TReplicationReader::TReadBlockRangeSession
 public:
     TReadBlockRangeSession(
         TReplicationReader* reader,
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         const std::optional<i64> estimatedSize)
@@ -1996,7 +1997,7 @@ private:
 };
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     int firstBlockIndex,
     int blockCount,
     std::optional<i64> estimatedSize)
@@ -2020,7 +2021,7 @@ class TReplicationReader::TGetMetaSession
 public:
     TGetMetaSession(
         TReplicationReader* reader,
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         const std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags)
         : TSessionBase(reader, options)
@@ -2172,7 +2173,7 @@ private:
 };
 
 TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
 {
@@ -2190,7 +2191,7 @@ class TReplicationReader::TLookupRowsSession
 public:
     TLookupRowsSession(
         TReplicationReader* reader,
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         TSharedRange<TLegacyKey> lookupKeys,
         TObjectId tableId,
         TRevision revision,
@@ -2662,7 +2663,7 @@ private:
 };
 
 TFuture<TSharedRef> TReplicationReader::LookupRows(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     TSharedRange<TLegacyKey> lookupKeys,
     TObjectId tableId,
     TRevision revision,
