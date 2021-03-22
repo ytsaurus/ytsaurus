@@ -101,6 +101,9 @@ public:
     void TryRemove(const TValuePtr& value, bool forbidResurrection = false);
     void Clear();
 
+    void UpdateWeight(const TKey& key);
+    void UpdateWeight(const TValuePtr& value);
+
     void Reconfigure(const TSlruCacheDynamicConfigPtr& config);
 
 protected:
@@ -113,6 +116,8 @@ protected:
         TSlruCacheConfigPtr config,
         const NProfiling::TProfiler& profiler = {});
 
+    // Called once when the value is inserted to the cache.
+    // If item weight ever changes, UpdateWeight() should be called to apply the changes. 
     virtual i64 GetWeight(const TValuePtr& value) const;
 
     virtual void OnAdded(const TValuePtr& value);
@@ -137,6 +142,7 @@ private:
 
         TValuePromise ValuePromise;
         TValuePtr Value;
+        i64 CachedWeight;
         bool Younger;
     };
 
@@ -173,7 +179,6 @@ private:
     void MoveToYounger(TItem* item);
     void MoveToOlder(TItem* item);
     void Pop(TItem* item);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
