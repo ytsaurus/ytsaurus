@@ -181,7 +181,7 @@ class DynamicTablesBase(YTEnvSetup):
 
 
 class DynamicTablesSingleCellBase(DynamicTablesBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
