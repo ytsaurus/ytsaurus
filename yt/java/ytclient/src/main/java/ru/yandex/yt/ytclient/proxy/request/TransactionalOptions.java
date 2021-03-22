@@ -54,9 +54,7 @@ public class TransactionalOptions {
 
     YTreeBuilder toTree(YTreeBuilder builder) {
         if (transactionId != null) {
-            builder
-                    .key("transaction_id").value(transactionId.toString())
-            ;
+            builder.key("transaction_id").value(transactionId.toString());
         }
         return builder;
     }

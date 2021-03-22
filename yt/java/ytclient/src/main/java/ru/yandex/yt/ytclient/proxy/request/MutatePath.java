@@ -13,6 +13,15 @@ public abstract class MutatePath<T extends MutatePath<T>> extends MutateNode<T> 
         this.path = path.justPath();
     }
 
+    MutatePath(MutatePath<T> other) {
+        super(other);
+        path = other.path;
+    }
+
+    public YPath getPath() {
+        return path;
+    }
+
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
         sb.append("Path: ").append(path).append("; ");
