@@ -107,8 +107,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 
     bool needToDrain = Touch(item);
 
-    auto weight = GetWeight(item->Value);
-    HitWeightCounter_.Increment(weight);
+    HitWeightCounter_.Increment(item->CachedWeight);
 
     readerGuard.Release();
 
@@ -156,8 +155,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             auto promise = item->ValuePromise;
 
             if (item->Value) {
-                auto weight = GetWeight(item->Value);
-                HitWeightCounter_.Increment(weight);
+                HitWeightCounter_.Increment(item->CachedWeight);
             }
 
             readerGuard.Release();
@@ -224,8 +222,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
                 .ToUncancelable();
 
             if (item->Value) {
-                auto weight = GetWeight(item->Value);
-                HitWeightCounter_.Increment(weight);
+                HitWeightCounter_.Increment(item->CachedWeight);
             }
 
             return TInsertCookie(
@@ -405,6 +402,44 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::DoTryRemove(
 }
 
 template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::UpdateWeight(const TKey& key)
+{
+    auto guard = WriterGuard(SpinLock_);
+
+    DrainTouchBuffer();
+
+    auto itemIt = ItemMap_.find(key);
+    if (itemIt == ItemMap_.end()) {
+        return;
+    }
+
+    auto item = itemIt->second;
+    if (!item->Value) {
+        return;
+    }
+
+    i64 newWeight = GetWeight(item->Value);
+    i64 weightDelta = newWeight - item->CachedWeight;
+
+    YT_VERIFY(!item->Empty());
+    if (item->Younger) {
+        YoungerWeightCounter_.fetch_add(weightDelta);
+    } else {
+        OlderWeightCounter_.fetch_add(weightDelta);
+    }
+
+    item->CachedWeight = newWeight;
+
+    Trim(guard);
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::UpdateWeight(const TValuePtr& value)
+{
+    UpdateWeight(value->GetKey());
+}
+
+template <class TKey, class TValue, class THash>
 bool TAsyncSlruCacheBase<TKey, TValue, THash>::Touch(TItem* item)
 {
     int capacity = TouchBuffer_.size();
@@ -458,6 +493,7 @@ i64 TAsyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
     YT_ASSERT(item->Empty());
     YoungerLruList_.PushFront(item);
     auto weight = GetWeight(item->Value);
+    item->CachedWeight = weight;
     YoungerWeightCounter_.fetch_add(weight);
     item->Younger = true;
     return weight;
@@ -470,7 +506,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
     item->Unlink();
     YoungerLruList_.PushFront(item);
     if (!item->Younger) {
-        auto weight = GetWeight(item->Value);
+        auto weight = item->CachedWeight;
         OlderWeightCounter_.fetch_sub(weight);
         YoungerWeightCounter_.fetch_add(weight);
         item->Younger = true;
@@ -484,7 +520,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item)
     item->Unlink();
     OlderLruList_.PushFront(item);
     if (item->Younger) {
-        auto weight = GetWeight(item->Value);
+        auto weight = item->CachedWeight;
         YoungerWeightCounter_.fetch_sub(weight);
         OlderWeightCounter_.fetch_add(weight);
         item->Younger = false;
@@ -496,7 +532,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Pop(TItem* item)
 {
     if (item->Empty())
         return;
-    auto weight = GetWeight(item->Value);
+    auto weight = item->CachedWeight;
     if (item->Younger) {
         YoungerWeightCounter_.fetch_sub(weight);
     } else {
