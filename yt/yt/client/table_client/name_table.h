@@ -42,8 +42,9 @@ private:
 
     bool EnableColumnNameValidation_ = false;
 
-    std::vector<TString> IdToName_;
-    // String values are owned by IdToName_.
+    // String values are owned by IdToName_
+    // NB: Names may be SSO-strings, using a deque to avoid string view invalidation
+    std::deque<TString> IdToName_;
     THashMap<TStringBuf, int> NameToId_;
     i64 ByteSize_ = 0;
 
@@ -90,8 +91,10 @@ public:
 private:
     const TNameTablePtr NameTable_;
 
-    mutable std::vector<TString> Names_;
-    mutable THashMap<TStringBuf, int> NameToId_; // String values are owned by Names_.
+    // String values are owned by Names_
+    // NB: Names may be SSO-strings, using a deque to avoid string view invalidation
+    mutable std::deque<TString> Names_;
+    mutable THashMap<TStringBuf, int> NameToId_;
 
 };
 
