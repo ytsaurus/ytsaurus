@@ -412,7 +412,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         if (!isExternal) {
             if (isDynamic) {
                 const auto& tableManager = TBase::Bootstrap_->GetTableManager();
-                tableManager->SendTableStatisticsUpdates(originatingNode);
+                tableManager->SendStatisticsUpdate(originatingNode);
             } else {
                 objectManager->UnrefObject(originatingChunkList);
                 objectManager->UnrefObject(branchedChunkList);

@@ -28,6 +28,10 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = CypressServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
 const EObjectType TCypressScalarTypeTraits<TString>::ObjectType = EObjectType::StringNode;
@@ -348,6 +352,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
     branchedNode->SetExternalCellTag(originatingNode->GetExternalCellTag());
     if (originatingNode->IsForeign()) {
         branchedNode->SetForeign();
+        branchedNode->SetNativeContentRevision(originatingNode->GetNativeContentRevision());
     }
     branchedNode->SetOpaque(originatingNode->GetOpaque());
 
@@ -386,6 +391,19 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
     originatingNode->SetModificationTime(std::max(originatingNode->GetModificationTime(), branchedNode->GetModificationTime()));
     originatingNode->SetAttributeRevision(mutationContext->GetVersion().ToRevision());
     originatingNode->SetContentRevision(mutationContext->GetVersion().ToRevision());
+    if (originatingNode->IsForeign()) {
+        auto* transaction = branchedNode->GetTransaction();
+        auto nativeContentRevision = transaction->GetNativeCommitMutationRevision();
+        if (branchedNode->GetNativeContentRevision() <= nativeContentRevision) {
+            originatingNode->SetNativeContentRevision(nativeContentRevision);
+        } else {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received non-monotonic native content revision update; ignored (NodeId: %v, OldNativeContentRevision: %llx, NewNativeContentRevision: %llx)",
+                branchedNode->GetVersionedId(),
+                branchedNode->GetNativeContentRevision(),
+                nativeContentRevision);
+
+        }
+    }
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::MergeCoreEpilogue(

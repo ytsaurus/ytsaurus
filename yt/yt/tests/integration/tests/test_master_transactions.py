@@ -11,6 +11,8 @@ from flaky import flaky
 from time import sleep
 from datetime import datetime, timedelta
 
+import __builtin__
+
 ##################################################################
 
 
@@ -511,8 +513,81 @@ class TestMasterTransactions(YTEnvSetup):
 
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_ROLES = {"2": ["chunk_host"]}
+
+    def _assert_native_content_revision_matches(self, path, tx="0-0-0-0"):
+        content_revision = get(path + "/@content_revision", tx=tx)
+        native_content_revision = get(path + "/@native_content_revision", tx=tx)
+        assert content_revision == native_content_revision
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("commit_order", [[1, 3, 2], [3, 1, 2], [3, 2, 1]])
+    def test_native_content_revision(self, commit_order):
+        create("table", "//tmp/t", attributes={"external_cell_tag": 2})
+        self._assert_native_content_revision_matches("//tmp/t")
+
+        write_table("//tmp/t", {"a": "b"})
+
+        self._assert_native_content_revision_matches("//tmp/t")
+
+        tx1 = start_transaction()
+        write_table("<append=%true>//tmp/t", {"a": "b"}, tx=tx1)
+        self._assert_native_content_revision_matches("//tmp/t")
+        self._assert_native_content_revision_matches("//tmp/t", tx1)
+
+        tx2 = start_transaction()
+        write_table("<append=%true>//tmp/t", {"a": "b"}, tx=tx2)
+        self._assert_native_content_revision_matches("//tmp/t")
+        self._assert_native_content_revision_matches("//tmp/t", tx1)
+        self._assert_native_content_revision_matches("//tmp/t", tx2)
+
+        tx3 = start_transaction(tx=tx2)
+        write_table("<append=%true>//tmp/t", {"a": "b"}, tx=tx3)
+        self._assert_native_content_revision_matches("//tmp/t")
+        self._assert_native_content_revision_matches("//tmp/t", tx1)
+        self._assert_native_content_revision_matches("//tmp/t", tx2)
+        self._assert_native_content_revision_matches("//tmp/t", tx3)
+
+        def pick_tx(n):
+            return {1: tx1, 2: tx2, 3: tx3}[n]
+
+        committed_txs = __builtin__.set()
+
+        def assert_on_commit():
+            for tx in [tx for tx in ["0-0-0-0", tx1, tx2, tx3] if tx not in committed_txs]:
+                self._assert_native_content_revision_matches("//tmp/t", tx)
+
+        for tx_num in commit_order:
+            tx_to_commit = pick_tx(tx_num)
+            commit_transaction(tx_to_commit)
+            committed_txs.add(tx_to_commit)
+            assert_on_commit()
+
+    @authors("shakurov")
+    def test_native_content_revision_copy(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 3})
+
+        create("table", "//tmp/t", attributes={"external_cell_tag": 2})
+        self._assert_native_content_revision_matches("//tmp/t")
+
+        copy("//tmp/t", "//tmp/t_copy")
+        self._assert_native_content_revision_matches("//tmp/t_copy")
+        copy("//tmp/t", "//tmp/p/t_copy")
+        self._assert_native_content_revision_matches("//tmp/p/t_copy")
+
+        tx = start_transaction()
+        write_table("<append=%true>//tmp/t", {"a": "b"}, tx=tx)
+
+        copy("//tmp/t", "//tmp/t_copy_tx", tx=tx)
+        self._assert_native_content_revision_matches("//tmp/t_copy_tx", tx=tx)
+        copy("//tmp/t", "//tmp/p/t_copy_tx", tx=tx)
+        self._assert_native_content_revision_matches("//tmp/p/t_copy_tx", tx=tx)
+
+        commit_transaction(tx)
+
+        self._assert_native_content_revision_matches("//tmp/t_copy_tx")
+        self._assert_native_content_revision_matches("//tmp/p/t_copy_tx")
 
 
 class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):

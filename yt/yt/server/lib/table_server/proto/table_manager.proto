@@ -9,19 +9,33 @@ import "yt/server/lib/tablet_server/proto/tablet_manager.proto";
 
 message TReqSendTableStatisticsUpdates
 {
-    required int64 table_count = 1;
+    required int64 node_count = 1;
 }
 
 message TReqUpdateTableStatistics
 {
     message TEntry
     {
-        required NYT.NProto.TGuid table_id = 1;
+        required NYT.NProto.TGuid node_id = 1;
+        optional uint64 expected_content_revision = 7;
         optional NChunkClient.NProto.TDataStatistics data_statistics = 2;
         reserved 3; // deprecated
         optional NTabletServer.NProto.TTabletResources tablet_resource_usage = 6;
         optional uint64 modification_time = 4;
         optional uint64 access_time = 5;
+    }
+
+    repeated TEntry entries = 1;
+}
+
+message TReqNotifyContentRevisionCasFailed
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid node_id = 1;
+        required bool update_data_statistics = 2;
+        required bool update_tablet_statistics = 3;
+        optional uint64 actual_content_revision = 4;
     }
 
     repeated TEntry entries = 1;

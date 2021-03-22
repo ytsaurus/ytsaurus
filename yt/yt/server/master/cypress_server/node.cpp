@@ -160,6 +160,18 @@ NHydra::TRevision TCypressNode::GetRevision() const
     return Max(AttributeRevision_, ContentRevision_);
 }
 
+NHydra::TRevision TCypressNode::GetNativeContentRevision() const
+{
+    YT_VERIFY(IsForeign());
+    return NativeContentRevision_;
+}
+
+void TCypressNode::SetNativeContentRevision(NHydra::TRevision revision)
+{
+    YT_VERIFY(IsForeign());
+    NativeContentRevision_ = revision;
+}
+
 bool TCypressNode::IsBeingCreated() const
 {
     return GetRevision() == NHydra::GetCurrentMutationContext()->GetVersion().ToRevision();
@@ -199,6 +211,7 @@ void TCypressNode::Save(TSaveContext& context) const
     Save(context, ModificationTime_);
     Save(context, AttributeRevision_);
     Save(context, ContentRevision_);
+    Save(context, NativeContentRevision_);
     Save(context, Account_);
     Save(context, Acd_);
     Save(context, Opaque_);
@@ -229,6 +242,10 @@ void TCypressNode::Load(TLoadContext& context)
     Load(context, ModificationTime_);
     Load(context, AttributeRevision_);
     Load(context, ContentRevision_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= EMasterReign::NativeContentRevision) {
+        Load(context, NativeContentRevision_);
+    }
     Load(context, Account_);
     Load(context, Acd_);
     Load(context, Opaque_);

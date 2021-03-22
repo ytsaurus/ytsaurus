@@ -161,6 +161,7 @@ DEFINE_ENUM(EMasterReign,
     ((PullParserDeserialization)                                    (1514))  // levysotsky
     ((UuidType)                                                     (1515))  // ermolovd
     ((MoveTableStatisticsGossipToTableManager)                      (1516))  // shakurov
+    ((NativeContentRevision)                                        (1517))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

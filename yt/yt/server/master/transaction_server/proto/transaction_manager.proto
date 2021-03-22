@@ -40,6 +40,7 @@ message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required uint64 commit_timestamp = 2;
+    optional uint64 native_commit_mutation_revision = 3;
 }
 
 message TReqAbortTransaction

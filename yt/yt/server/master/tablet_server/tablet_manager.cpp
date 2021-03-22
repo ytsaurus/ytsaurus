@@ -3963,7 +3963,7 @@ private:
         TabletActionMap_.LoadValues(context);
         if (context.GetVersion() < EMasterReign::MoveTableStatisticsGossipToTableManager) {
             const auto& tableManager = context.GetBootstrap()->GetTableManager();
-            tableManager->LoadTableStatisticsUpdateRequests(context);
+            tableManager->LoadStatisticsUpdateRequests(context);
         }
 
         // COMPAT(ifsmirnov)
@@ -4259,7 +4259,7 @@ private:
                 }
 
                 if (EnableUpdateStatisticsOnHeartbeat_) {
-                    tableManager->ScheduleTableStatisticsUpdate(table, true, false);
+                    tableManager->ScheduleStatisticsUpdate(table, true, false);
                 }
             }
 
@@ -4469,7 +4469,7 @@ private:
 
             // Statistics should be correct before setting the tablet state.
             const auto& tableManager = Bootstrap_->GetTableManager();
-            tableManager->SendTableStatisticsUpdates(table);
+            tableManager->SendStatisticsUpdate(table);
 
             NProto::TReqUpdateUpstreamTabletState request;
             ToProto(request.mutable_table_id(), table->GetId());
@@ -4792,7 +4792,7 @@ private:
         auto* table = tablet->GetTable();
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
         const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->ScheduleTableStatisticsUpdate(
+        tableManager->ScheduleStatisticsUpdate(
             table,
             /*updateDataStatistics*/ true,
             /*updateTabletStatistics*/ false);
@@ -4926,7 +4926,7 @@ private:
 
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
         const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->ScheduleTableStatisticsUpdate(
+        tableManager->ScheduleStatisticsUpdate(
             table,
             /*updateDataStatistics*/ true,
             /*updateTabletStatistics*/ false);
@@ -5780,7 +5780,7 @@ private:
         bundle->UpdateResourceUsage(delta);
 
         const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->ScheduleTableStatisticsUpdate(table, scheduleTableDataStatisticsUpdate);
+        tableManager->ScheduleStatisticsUpdate(table, scheduleTableDataStatisticsUpdate);
     }
 
     void OnProfiling()

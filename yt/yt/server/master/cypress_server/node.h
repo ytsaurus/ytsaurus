@@ -204,6 +204,8 @@ public:
     virtual ~TCypressNode();
 
     NHydra::TRevision GetRevision() const;
+    NHydra::TRevision GetNativeContentRevision() const;
+    void SetNativeContentRevision(NHydra::TRevision);
 
     TCypressNodeDynamicData* GetDynamicData() const;
 
@@ -281,7 +283,7 @@ private:
     TCypressNode* Originator_ = nullptr;
     std::unique_ptr<TCypressNodeLockingState> LockingState_;
     NTransactionServer::TTransactionId TransactionId_;
-
+    NHydra::TRevision NativeContentRevision_ = NHydra::NullRevision;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

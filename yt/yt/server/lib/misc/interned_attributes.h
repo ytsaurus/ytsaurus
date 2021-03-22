@@ -248,6 +248,7 @@
     XX(MulticellStatus, multicell_status) \
     XX(Name, name) \
     XX(NativeCellTag, native_cell_tag) \
+    XX(NativeContentRevision, native_content_revision) \
     XX(NestedTransactionIds, nested_transaction_ids) \
     XX(NodeId, node_id) \
     XX(NodeTagFilter, node_tag_filter) \
