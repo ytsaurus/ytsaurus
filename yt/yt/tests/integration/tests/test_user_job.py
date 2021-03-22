@@ -863,15 +863,6 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
     USE_PORTO = True
 
-    DELTA_NODE_CONFIG = {
-        "data_node": {
-            "artifact_cache_reader": {
-                "retry_count": 1,
-                "min_backoff_time": 100,
-            },
-        },
-    }
-
     @authors("babenko")
     def test_bypass_artifact_cache_for_file(self):
         create("table", "//tmp/t_input")
@@ -950,6 +941,15 @@ class TestArtifactCacheBypass(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("bypass_artifact_cache", [False, True])
     def test_lost_artifact(self, bypass_artifact_cache):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "artifact_cache_reader": {
+                    "retry_count": 1,
+                    "min_backoff_time": 100,
+                },
+            },
+        })
+
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})

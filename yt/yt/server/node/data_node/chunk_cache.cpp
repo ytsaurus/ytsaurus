@@ -9,6 +9,8 @@
 #include "legacy_master_connector.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
@@ -271,6 +273,7 @@ public:
             DataNodeProfiler.WithPrefix("/chunk_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
+        , ArtifactCacheReaderConfig_(New<TArtifactCacheReaderConfig>())
     { }
 
     void Initialize()
@@ -278,6 +281,9 @@ public:
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         YT_LOG_INFO("Initializing chunk cache");
+
+        Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(
+            BIND(&TChunkCache::TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
         std::vector<TFuture<void>> futures;
         for (int i = 0; i < Config_->CacheLocations.size(); ++i) {
@@ -419,6 +425,8 @@ public:
 private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
+
+    TAtomicObject<TArtifactCacheReaderConfigPtr> ArtifactCacheReaderConfig_;
 
     //! Describes a registered but not yet validated chunk.
     struct TRegisteredChunkDescriptor
@@ -862,7 +870,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto workloadDescriptor = Config_->ArtifactCacheReader->WorkloadDescriptor;
+        auto workloadDescriptor = GetArtifactCacheReaderConfig()->WorkloadDescriptor;
         auto& annotations = workloadDescriptor.Annotations;
         annotations = artifactDownloadOptions.WorkloadDescriptorAnnotations;
         annotations.push_back("Type: ChunkCache");
@@ -900,8 +908,10 @@ private:
             auto artifactDownloadOptions = New<TRemoteReaderOptions>();
             artifactDownloadOptions->EnableP2P = true;
 
+            auto artifactCacheReaderConfig = GetArtifactCacheReaderConfig();
+
             auto chunkReader = CreateReplicationReader(
-                Config_->ArtifactCacheReader,
+                artifactCacheReaderConfig,
                 artifactDownloadOptions,
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
@@ -947,7 +957,7 @@ private:
             }
 
             auto memoryManager = New<TChunkReaderMemoryManager>(
-                TChunkReaderMemoryManagerOptions(Config_->ArtifactCacheReader->WindowSize));
+                TChunkReaderMemoryManagerOptions(artifactCacheReaderConfig->WindowSize));
 
             i64 requiredMemory = 0;
             for (const auto& block : blocks) {
@@ -956,7 +966,7 @@ private:
             memoryManager->SetRequiredMemorySize(requiredMemory);
 
             auto blockFetcher = New<TBlockFetcher>(
-                Config_->ArtifactCacheReader,
+                artifactCacheReaderConfig,
                 std::move(blocks),
                 memoryManager,
                 chunkReader,
@@ -1052,7 +1062,7 @@ private:
         readerOptions->EnableP2P = true;
 
         auto reader = CreateFileMultiChunkReader(
-            Config_->ArtifactCacheReader,
+            GetArtifactCacheReaderConfig(),
             readerOptions,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
@@ -1168,7 +1178,7 @@ private:
         }
 
         auto reader = CreateSchemalessSequentialMultiReader(
-            Config_->ArtifactCacheReader,
+            GetArtifactCacheReaderConfig(),
             readerOptions,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
@@ -1337,6 +1347,22 @@ private:
             location->RemoveChunkFilesPermanently(chunkId);
         }
         return key;
+    }
+
+    TArtifactCacheReaderConfigPtr GetArtifactCacheReaderConfig() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ArtifactCacheReaderConfig_.Load();
+    }
+
+    void OnDynamicConfigChanged(
+        const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const TClusterNodeDynamicConfigPtr& newNodeConfig)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        ArtifactCacheReaderConfig_.Store(newNodeConfig->DataNode->ArtifactCacheReader);
     }
 };
 
