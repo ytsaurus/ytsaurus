@@ -3,6 +3,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
@@ -26,6 +27,7 @@
 #include <yt/yt/client/table_client/versioned_writer.h>
 
 #include <yt/yt/core/compression/public.h>
+
 #include <yt/yt/core/misc/random.h>
 
 #include <util/random/shuffle.h>
@@ -189,12 +191,10 @@ protected:
 
         WriteManyRows();
 
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
         auto chunkMeta = TCachedVersionedChunkMeta::Load(
             MemoryReader,
-            blockReadOptions,
+            /* chunkReadOptions */ {},
             Schema)
             .Get()
             .ValueOrThrow();
@@ -283,7 +283,7 @@ protected:
                     New<TChunkReaderConfig>(),
                     MemoryReader,
                     chunkState->PerformanceCounters,
-                    blockReadOptions,
+                    /* chunkReadOptions */ {},
                     false);
             } else {
                 chunkReader = CreateVersionedChunkReader(
@@ -291,7 +291,7 @@ protected:
                     MemoryReader,
                     std::move(chunkState),
                     std::move(chunkMeta),
-                    blockReadOptions,
+                    /* chunkReadOptions */ {},
                     sharedKeys,
                     TColumnFilter(),
                     MaxTimestamp,
@@ -419,13 +419,13 @@ protected:
             memoryWriter->GetChunkMeta(),
             memoryWriter->GetBlocks());
 
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
         auto chunkMeta = TCachedVersionedChunkMeta::Load(
             memoryReader,
-            blockReadOptions,
-            readSchema).Get().ValueOrThrow();
+            /* chunkReadOptions */ {},
+            readSchema)
+            .Get()
+            .ValueOrThrow();
 
         auto chunkState = New<TChunkState>(GetNullBlockCache());
 
@@ -440,7 +440,7 @@ protected:
                 New<TChunkReaderConfig>(),
                 memoryReader,
                 chunkState->PerformanceCounters,
-                blockReadOptions,
+                /* chunkReadOptions */ {},
                 produceAllVersions);
         } else {
             chunkReader = CreateVersionedChunkReader(
@@ -448,7 +448,7 @@ protected:
                 memoryReader,
                 std::move(chunkState),
                 std::move(chunkMeta),
-                blockReadOptions,
+                /* chunkReadOptions */ {},
                 lowerKey,
                 upperKey,
                 TColumnFilter(),

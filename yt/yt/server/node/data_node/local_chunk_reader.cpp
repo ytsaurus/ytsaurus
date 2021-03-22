@@ -43,12 +43,12 @@ public:
     { }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> /* estimatedSize */) override
     {
         auto session = New<TReadBlockSetSession>();
-        static_cast<TClientBlockReadOptions&>(session->Options) = options;
+        static_cast<TClientChunkReadOptions&>(session->Options) = options;
         session->Options.BlockCache = BlockCache_;
         session->Options.PopulateCache = Config_->PopulateCache;
         session->BlockIndexes = blockIndexes;
@@ -58,13 +58,13 @@ public:
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& clientOptions,
+        const TClientChunkReadOptions& clientOptions,
         int firstBlockIndex,
         int blockCount,
         std::optional<i64> /* estimatedSize */) override
     {
         TBlockReadOptions options;
-        static_cast<TClientBlockReadOptions&>(options) = clientOptions;
+        static_cast<TClientChunkReadOptions&>(options) = clientOptions;
         options.BlockCache = BlockCache_;
         options.PopulateCache = Config_->PopulateCache;
 
@@ -83,12 +83,12 @@ public:
     }
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientBlockReadOptions& clientOptions,
+        const TClientChunkReadOptions& clientOptions,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         TBlockReadOptions options;
-        static_cast<TClientBlockReadOptions&>(options) = clientOptions;
+        static_cast<TClientChunkReadOptions&>(options) = clientOptions;
 
         auto asyncResult = Chunk_->ReadMeta(options, extensionTags);
         return asyncResult.Apply(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {

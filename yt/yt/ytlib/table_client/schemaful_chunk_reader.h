@@ -19,7 +19,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TTableSchemaPtr& resultSchema,
     const TSortColumns& sortColumns,
     const NChunkClient::TReadRange& readRange,

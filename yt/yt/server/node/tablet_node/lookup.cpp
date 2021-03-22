@@ -14,6 +14,7 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
@@ -72,14 +73,14 @@ public:
         bool produceAllVersions,
         bool useLookupCache,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         TSharedRange<TUnversionedRow> lookupKeys)
         : TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
         , UseLookupCache_(useLookupCache && TabletSnapshot_->RowCache)
         , ColumnFilter_(columnFilter)
-        , BlockReadOptions_(blockReadOptions)
+        , BlockReadOptions_(chunkReadOptions)
         , LookupKeys_(std::move(lookupKeys))
     { }
 
@@ -322,7 +323,7 @@ private:
     const bool ProduceAllVersions_;
     const bool UseLookupCache_;
     const TColumnFilter& ColumnFilter_;
-    const TClientBlockReadOptions& BlockReadOptions_;
+    const TClientChunkReadOptions& BlockReadOptions_;
     const TSharedRange<TUnversionedRow> LookupKeys_;
     TSharedRange<TUnversionedRow> ChunkLookupKeys_;
     // Holds references to lookup tables.
@@ -606,7 +607,7 @@ void LookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
@@ -636,7 +637,7 @@ void LookupRows(
         false,
         useLookupCache,
         columnFilter,
-        blockReadOptions,
+        chunkReadOptions,
         std::move(lookupKeys));
 
     session.Run(
@@ -654,7 +655,7 @@ void VersionedLookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -692,7 +693,7 @@ void VersionedLookupRows(
         true,
         useLookupCache,
         UniversalColumnFilter,
-        blockReadOptions,
+        chunkReadOptions,
         std::move(lookupKeys));
 
     session.Run(
@@ -710,7 +711,7 @@ void ExecuteSingleRead(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -722,7 +723,7 @@ void ExecuteSingleRead(
                 std::move(tabletSnapshot),
                 timestamp,
                 useLookupCache,
-                blockReadOptions,
+                chunkReadOptions,
                 reader,
                 writer);
             break;
@@ -732,7 +733,7 @@ void ExecuteSingleRead(
                 std::move(tabletSnapshot),
                 timestamp,
                 useLookupCache,
-                blockReadOptions,
+                chunkReadOptions,
                 std::move(retentionConfig),
                 reader,
                 writer);
@@ -748,7 +749,7 @@ void LookupRead(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -765,7 +766,7 @@ void LookupRead(
             tabletSnapshot,
             timestamp,
             useLookupCache,
-            blockReadOptions,
+            chunkReadOptions,
             retentionConfig,
             reader,
             writer);

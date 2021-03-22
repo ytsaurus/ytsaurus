@@ -9,9 +9,10 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -235,12 +236,12 @@ private:
             }
 
             // TODO(savrus): profile chunk reader statistics.
-            TClientBlockReadOptions options;
-            options.WorkloadDescriptor = Config_->WorkloadDescriptor;
-            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            TClientChunkReadOptions chunkReadOptions{
+                .WorkloadDescriptor = Config_->WorkloadDescriptor
+            };
 
             auto rowsOrError = WaitFor(CurrentChunkReader_->ReadBlocks(
-                options,
+                chunkReadOptions,
                 CurrentRowIndex_,
                 static_cast<int>(EndRowIndex_ - CurrentRowIndex_)));
             THROW_ERROR_EXCEPTION_IF_FAILED(rowsOrError);

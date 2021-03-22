@@ -37,7 +37,7 @@ using NChunkClient::IChunkReaderPtr;
 
 using NChunkClient::TChunkReaderMemoryManager;
 using NChunkClient::TChunkReaderMemoryManagerOptions;
-using NChunkClient::TClientBlockReadOptions;
+using NChunkClient::TClientChunkReadOptions;
 
 using NTableClient::TCachedVersionedChunkMetaPtr;
 using NTableClient::TRefCountedBlockMetaPtr;
@@ -1090,7 +1090,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
     TReaderTimeStatisticsPtr timeStatistics)
 {
@@ -1123,7 +1123,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             blockCache,
             CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec()),
             static_cast<double>(chunkMeta->Misc().compressed_data_size()) / chunkMeta->Misc().uncompressed_data_size(),
-            blockReadOptions);
+            chunkReadOptions);
     }
 
     auto valueSchema = GetValueTypes(chunkMeta, schemaIdMapping);
@@ -1163,7 +1163,7 @@ IVersionedReaderPtr CreateVersionedChunkReader<TRowRange>(
     const TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
     TReaderTimeStatisticsPtr timeStatistics);
 
@@ -1177,7 +1177,7 @@ IVersionedReaderPtr CreateVersionedChunkReader<TLegacyKey>(
     const TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
     TReaderTimeStatisticsPtr timeStatistics);
 

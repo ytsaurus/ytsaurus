@@ -38,7 +38,7 @@ public:
         i64 lowerRowIndex,
         i64 upperRowIndex,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) override;
 
     virtual void Save(TSaveContext& context) const override;
@@ -53,7 +53,7 @@ private:
 
     NTableClient::ISchemafulUnversionedReaderPtr TryCreateCacheBasedReader(
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         const NChunkClient::TReadRange& readRange,
         const NTableClient::TTableSchemaPtr& readSchema,
         bool enableTabletIndex,

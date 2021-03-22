@@ -37,7 +37,7 @@ IFileReaderPtr CreateFileChunkReader(
     NChunkClient::IChunkReaderPtr chunkReader,
     NChunkClient::IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     i64 startOffset,
     i64 endOffset,
     NChunkClient::TChunkReaderMemoryManagerPtr chunkReaderMemoryManager = nullptr);
@@ -52,7 +52,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     std::optional<NNodeTrackerClient::TNodeId> localNodeId,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),

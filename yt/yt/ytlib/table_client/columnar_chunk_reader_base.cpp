@@ -32,14 +32,14 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     IChunkReaderPtr underlyingReader,
     const TSortColumns& sortColumns,
     IBlockCachePtr blockCache,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     std::function<void(int)> onRowsSkipped,
     const TChunkReaderMemoryManagerPtr& memoryManager)
     : ChunkMeta_(std::move(chunkMeta))
     , Config_(std::move(config))
     , UnderlyingReader_(std::move(underlyingReader))
     , BlockCache_(std::move(blockCache))
-    , BlockReadOptions_(blockReadOptions)
+    , BlockReadOptions_(chunkReadOptions)
     , ChunkSortColumns_(ChunkMeta_->GetChunkSchema()->GetSortColumns())
     , SortColumns_(sortColumns)
     , ChunkComparator_(GetComparator(ChunkSortColumns_))

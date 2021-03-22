@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 
@@ -38,7 +39,7 @@ class TErasurePartsReader::TReadRowsSession
 public:
     TReadRowsSession(
         TErasurePartsReaderPtr reader,
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         int firstRowIndex,
         int readRowCount)
         : Reader_(std::move(reader))
@@ -70,7 +71,7 @@ public:
 
 private:
     const TErasurePartsReaderPtr Reader_;
-    const TClientBlockReadOptions Options_;
+    const TClientChunkReadOptions Options_;
     const int FirstRowIndex_;
     const int ReadRowCount_;
 
@@ -371,7 +372,7 @@ TErasurePartsReader::TErasurePartsReader(
 { }
 
 TFuture<std::vector<std::vector<TSharedRef>>> TErasurePartsReader::ReadRows(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     int firstRowIndex,
     int rowCount)
 {

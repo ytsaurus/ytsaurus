@@ -95,7 +95,7 @@ public:
         TChunkReaderOptionsPtr options,
         TChunkId chunkId,
         TNameTablePtr nameTable,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const TColumnFilter& columnFilter,
         const std::vector<TString>& omittedInaccessibleColumns,
         std::optional<i64> virtualRowIndex = std::nullopt)
@@ -114,8 +114,8 @@ public:
             chunkId))
         , ReaderInvoker_(CreateSerializedInvoker(NChunkClient::TDispatcher::Get()->GetReaderInvoker()))
     {
-        if (blockReadOptions.ReadSessionId) {
-            Logger.AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId);
+        if (chunkReadOptions.ReadSessionId) {
+            Logger.AddTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId);
         }
 
         if (Config_->SamplingSeed) {
@@ -368,7 +368,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
@@ -428,7 +428,7 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     TChunkReaderOptionsPtr options,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
@@ -439,7 +439,7 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
         config,
         underlyingReader,
         chunkState->BlockCache,
-        blockReadOptions,
+        chunkReadOptions,
         memoryManager)
     , TSchemalessChunkReaderBase(
         chunkState,
@@ -447,7 +447,7 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
         options,
         underlyingReader->GetChunkId(),
         nameTable,
-        blockReadOptions,
+        chunkReadOptions,
         columnFilter,
         omittedInaccessibleColumns,
         virtualRowIndex)
@@ -544,7 +544,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
@@ -584,7 +584,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     TChunkReaderOptionsPtr options,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
@@ -600,7 +600,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
         std::move(options),
         std::move(underlyingReader),
         std::move(nameTable),
-        blockReadOptions,
+        chunkReadOptions,
         sortColumns,
         omittedInaccessibleColumns,
         columnFilter,
@@ -839,7 +839,7 @@ public:
         TChunkReaderOptionsPtr options,
         NChunkClient::IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
@@ -873,7 +873,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
@@ -888,7 +888,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         std::move(options),
         std::move(underlyingReader),
         std::move(nameTable),
-        blockReadOptions,
+        chunkReadOptions,
         sortColumns,
         omittedInaccessibleColumns,
         columnFilter,
@@ -1075,7 +1075,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
@@ -1089,7 +1089,7 @@ public:
             options,
             underlyingReader->GetChunkId(),
             nameTable,
-            blockReadOptions,
+            chunkReadOptions,
             columnFilter,
             omittedInaccessibleColumns,
             virtualRowIndex)
@@ -1099,7 +1099,7 @@ public:
             underlyingReader,
             sortColumns,
             chunkState->BlockCache,
-            blockReadOptions,
+            chunkReadOptions,
             BIND(&TColumnarSchemalessRangeChunkReader::OnRowsSkipped, MakeWeak(this)),
             memoryManager)
         , InterruptDescriptorKeyLength_(interruptDescriptorKeyLength)
@@ -1719,7 +1719,7 @@ public:
         TChunkReaderOptionsPtr options,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const TSortColumns& sortColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
@@ -1732,7 +1732,7 @@ public:
             options,
             underlyingReader->GetChunkId(),
             nameTable,
-            blockReadOptions,
+            chunkReadOptions,
             columnFilter,
             omittedInaccessibleColumns)
         , TColumnarLookupChunkReaderBase(
@@ -1741,7 +1741,7 @@ public:
             underlyingReader,
             sortColumns,
             chunkState->BlockCache,
-            blockReadOptions,
+            chunkReadOptions,
             [] (int) { YT_ABORT(); }, // Rows should not be skipped in lookup reader.
             memoryManager)
         , PerformanceCounters_(std::move(performanceCounters))
@@ -2006,7 +2006,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
@@ -2027,7 +2027,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 options,
                 underlyingReader,
                 nameTable,
-                blockReadOptions,
+                chunkReadOptions,
                 sortColumns,
                 omittedInaccessibleColumns,
                 columnFilter,
@@ -2045,7 +2045,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 options,
                 underlyingReader,
                 nameTable,
-                blockReadOptions,
+                chunkReadOptions,
                 sortColumns,
                 omittedInaccessibleColumns,
                 columnFilter,
@@ -2068,7 +2068,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TSortColumns& sortColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
@@ -2089,7 +2089,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 std::move(options),
                 std::move(underlyingReader),
                 std::move(nameTable),
-                blockReadOptions,
+                chunkReadOptions,
                 sortColumns,
                 omittedInaccessibleColumns,
                 columnFilter,
@@ -2106,7 +2106,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 std::move(options),
                 std::move(underlyingReader),
                 std::move(nameTable),
-                blockReadOptions,
+                chunkReadOptions,
                 sortColumns,
                 omittedInaccessibleColumns,
                 columnFilter,

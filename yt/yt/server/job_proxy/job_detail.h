@@ -3,8 +3,8 @@
 #include "public.h"
 #include "job.h"
 
-#include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
@@ -50,7 +50,7 @@ protected:
     IJobHost* Host_;
     const TInstant StartTime_;
 
-    NChunkClient::TClientBlockReadOptions BlockReadOptions_;
+    NChunkClient::TClientChunkReadOptions BlockReadOptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

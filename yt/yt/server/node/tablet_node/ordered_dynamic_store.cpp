@@ -17,6 +17,7 @@
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/memory_reader.h>
@@ -380,7 +381,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
             New<TColumnarChunkMeta>(*chunkMeta),
             New<TChunkReaderConfig>(),
             chunkReader,
-            TClientBlockReadOptions(),
+            TClientChunkReadOptions(),
             Schema_,
             TSortColumns(),
             TReadRange());
@@ -426,7 +427,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
     i64 lowerRowIndex,
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
-    const NChunkClient::TClientBlockReadOptions& /*blockReadOptions*/,
+    const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
     IThroughputThrottlerPtr /*bandwidthThrottler*/)
 {
     return DoCreateReader(

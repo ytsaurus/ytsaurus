@@ -127,8 +127,7 @@ DECLARE_REFCOUNTED_CLASS(TBlockFetcher)
 DECLARE_REFCOUNTED_CLASS(TSequentialBlockFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkReader)
-DECLARE_REFCOUNTED_STRUCT(IChunkWriter)
-
+DECLARE_REFCOUNTED_STRUCT(IChunkFragmentReader)
 DECLARE_REFCOUNTED_STRUCT(IChunkReaderAllowingRepair)
 DECLARE_REFCOUNTED_STRUCT(IRemoteChunkReader)
 
@@ -141,6 +140,7 @@ DECLARE_REFCOUNTED_CLASS(TTrafficMeter)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkWriterBase)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkWriter)
+DECLARE_REFCOUNTED_STRUCT(IChunkWriter)
 
 DECLARE_REFCOUNTED_STRUCT(IBlockCache)
 DECLARE_REFCOUNTED_STRUCT(IClientBlockCache)
@@ -199,7 +199,7 @@ struct TInterruptDescriptor;
 
 class TCodecStatistics;
 
-struct TClientBlockReadOptions;
+struct TClientChunkReadOptions;
 
 DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 

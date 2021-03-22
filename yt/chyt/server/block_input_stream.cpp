@@ -10,6 +10,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
@@ -73,14 +74,14 @@ TTableSchemaPtr InsertVirtualColumns(
         schema->GetSchemaModification());
 }
 
-TClientBlockReadOptions CreateBlockReadOptions(const TString& user)
+TClientChunkReadOptions CreateBlockReadOptions(const TString& user)
 {
-    TClientBlockReadOptions blockReadOptions;
-    blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-    blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
-    blockReadOptions.WorkloadDescriptor.CompressionFairShareTag = user;
-    blockReadOptions.ReadSessionId = NChunkClient::TReadSessionId::Create();
-    return blockReadOptions;
+    TClientChunkReadOptions chunkReadOptions;
+    chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+    chunkReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+    chunkReadOptions.WorkloadDescriptor.CompressionFairShareTag = user;
+    chunkReadOptions.ReadSessionId = NChunkClient::TReadSessionId::Create();
+    return chunkReadOptions;
 }
 
 // Analog of the method from MergeTreeBaseSelectBlockInputStream::executePrewhereActions from CH.
@@ -365,7 +366,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     DB::PrewhereInfoPtr prewhereInfo)
 {
     auto* queryContext = storageContext->QueryContext;
-    auto blockReadOptions = CreateBlockReadOptions(queryContext->User);
+    auto chunkReadOptions = CreateBlockReadOptions(queryContext->User);
 
     auto readSchema = subquerySpec.ReadSchema->Filter(realColumns);
     auto readSchemaWithVirtualColumns = InsertVirtualColumns(readSchema, subquerySpec.DataSourceDirectory, virtualColumns);
@@ -417,7 +418,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             subquerySpec.DataSourceDirectory,
             dataSliceDescriptor,
             TNameTable::FromSchema(*readSchemaWithVirtualColumns),
-            blockReadOptions,
+            chunkReadOptions,
             TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
             /* trafficMeter */ nullptr,
             GetUnlimitedThrottler(),
@@ -435,7 +436,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             subquerySpec.DataSourceDirectory,
             dataSliceDescriptors,
             TNameTable::FromSchema(*readSchemaWithVirtualColumns),
-            blockReadOptions,
+            chunkReadOptions,
             TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
             /* keyColumns =*/{},
             /* partitionTag =*/std::nullopt,
@@ -451,7 +452,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         blockInputStreamTraceContext,
         queryContext->Host,
         storageContext->Settings,
-        queryContext->Logger.WithTag("ReadSessionId: %v", blockReadOptions.ReadSessionId),
+        queryContext->Logger.WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId),
         prewhereInfo);
 }
 

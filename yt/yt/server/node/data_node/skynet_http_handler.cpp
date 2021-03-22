@@ -104,12 +104,12 @@ public:
             TProtoExtensionTag<TMiscExt>::Value
         };
 
-        TBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = skynetWorkload;
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        blockReadOptions.ReadSessionId = TReadSessionId::Create();
+        TBlockReadOptions chunkReadOptions;
+        chunkReadOptions.WorkloadDescriptor = skynetWorkload;
+        chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        chunkReadOptions.ReadSessionId = TReadSessionId::Create();
 
-        auto chunkMeta = WaitFor(chunk->ReadMeta(blockReadOptions))
+        auto chunkMeta = WaitFor(chunk->ReadMeta(chunkReadOptions))
             .ValueOrThrow();
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
@@ -143,7 +143,7 @@ public:
             New<TChunkReaderOptions>(),
             chunkReader,
             New<TNameTable>(),
-            blockReadOptions,
+            chunkReadOptions,
             /* sortColumns */ {},
             /* omittedInaccessibleColumns */ {},
             /* columnFilter */ {},

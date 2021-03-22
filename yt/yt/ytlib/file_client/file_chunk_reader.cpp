@@ -55,7 +55,7 @@ public:
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         i64 startOffset,
         i64 endOffset,
         TChunkReaderMemoryManagerPtr chunkReaderMemoryManager)
@@ -63,7 +63,7 @@ public:
         , ChunkReader_(std::move(chunkReader))
         , BlockCache_(std::move(blockCache))
         , CodecId_(codecId)
-        , BlockReadOptions_(blockReadOptions)
+        , BlockReadOptions_(chunkReadOptions)
         , StartOffset_(startOffset)
         , EndOffset_(endOffset)
     {
@@ -158,7 +158,7 @@ private:
     const IChunkReaderPtr ChunkReader_;
     const IBlockCachePtr BlockCache_;
     const NCompression::ECodec CodecId_;
-    const TClientBlockReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions BlockReadOptions_;
 
     i64 StartOffset_;
     i64 EndOffset_;
@@ -289,7 +289,7 @@ IFileReaderPtr CreateFileChunkReader(
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     i64 startOffset,
     i64 endOffset,
     TChunkReaderMemoryManagerPtr chunkReaderMemoryManager)
@@ -299,7 +299,7 @@ IFileReaderPtr CreateFileChunkReader(
         std::move(chunkReader),
         std::move(blockCache),
         codecId,
-        blockReadOptions,
+        chunkReadOptions,
         startOffset,
         endOffset,
         std::move(chunkReaderMemoryManager));
@@ -394,7 +394,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     std::optional<TNodeId> localNodeId,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const std::vector<TChunkSpec>& chunkSpecs,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -445,7 +445,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 std::move(remoteReader),
                 blockCache,
                 CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec()),
-                blockReadOptions,
+                chunkReadOptions,
                 startOffset,
                 endOffset,
                 multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));

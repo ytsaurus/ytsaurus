@@ -28,7 +28,7 @@ struct IExecutor
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
         IUnversionedRowsetWriterPtr writer,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         const TQueryOptions& options) = 0;
 
 };

@@ -15,6 +15,7 @@
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/ref_counted_proto.h>
 
@@ -250,7 +251,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -268,7 +269,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp,
         produceAllVersions,
         columnFilter,
-        blockReadOptions,
+        chunkReadOptions,
         ReadRange_))
     {
         return reader;
@@ -283,15 +284,15 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             timestamp,
             produceAllVersions,
             columnFilter,
-            blockReadOptions);
+            chunkReadOptions);
     }
 
     auto chunkReader = GetReaders(
         bandwidthThrottler,
         /* rpsThrottler */ GetUnlimitedThrottler()).ChunkReader;
-    auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
+    auto chunkState = PrepareChunkState(chunkReader, chunkReadOptions);
 
-    ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
+    ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
     if (tabletSnapshot->Config->EnableNewScanReaderForSelect &&
         chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::VersionedColumnar &&
@@ -313,7 +314,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             ReaderConfig_,
             chunkReader,
             chunkState->PerformanceCounters,
-            blockReadOptions,
+            chunkReadOptions,
             produceAllVersions);
     }
 
@@ -322,7 +323,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         std::move(chunkReader),
         chunkState,
         chunkState->ChunkMeta,
-        blockReadOptions,
+        chunkReadOptions,
         std::move(ranges),
         columnFilter,
         timestamp,
@@ -335,7 +336,7 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TSharedRange<TRowRange>& singletonClippingRange)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -347,7 +348,7 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
 
     return CreateCacheBasedVersionedChunkReader(
         std::move(chunkState),
-        blockReadOptions,
+        chunkReadOptions,
         std::move(ranges),
         columnFilter,
         timestamp,
@@ -361,7 +362,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -387,7 +388,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp,
         produceAllVersions,
         columnFilter,
-        blockReadOptions))
+        chunkReadOptions))
     {
         return createFilteringReader(std::move(reader));
     }
@@ -401,7 +402,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             timestamp,
             produceAllVersions,
             columnFilter,
-            blockReadOptions);
+            chunkReadOptions);
     }
 
     auto readers = GetReaders(
@@ -410,7 +411,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     if (tabletSnapshot->Config->EnableDataNodeLookup && readers.LookupReader) {
         return createFilteringReader(CreateRowLookupReader(
             std::move(readers.LookupReader),
-            blockReadOptions,
+            chunkReadOptions,
             filteredKeys,
             tabletSnapshot,
             columnFilter,
@@ -421,8 +422,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             tabletSnapshot->Config->EnableRejectsInDataNodeLookupIfThrottling));
     }
 
-    auto chunkState = PrepareChunkState(readers.ChunkReader, blockReadOptions);
-    ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
+    auto chunkState = PrepareChunkState(readers.ChunkReader, chunkReadOptions);
+    ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
     if (tabletSnapshot->Config->EnableNewScanReaderForLookup &&
         chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::VersionedColumnar)
@@ -436,7 +437,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             ReaderConfig_,
             readers.ChunkReader,
             chunkState->PerformanceCounters,
-            blockReadOptions,
+            chunkReadOptions,
             produceAllVersions));
     }
 
@@ -445,7 +446,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         std::move(readers.ChunkReader),
         chunkState,
         chunkState->ChunkMeta,
-        blockReadOptions,
+        chunkReadOptions,
         filteredKeys,
         columnFilter,
         timestamp,
@@ -471,7 +472,7 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TClientBlockReadOptions& blockReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions)
 {
     auto chunkState = FindPreloadedChunkState();
     if (!chunkState) {
@@ -480,7 +481,7 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
 
     return CreateCacheBasedVersionedChunkReader(
         std::move(chunkState),
-        blockReadOptions,
+        chunkReadOptions,
         keys,
         columnFilter,
         timestamp,
@@ -532,7 +533,7 @@ void TSortedChunkStore::Load(TLoadContext& context)
 
 TChunkStatePtr TSortedChunkStore::PrepareChunkState(
     IChunkReaderPtr chunkReader,
-    const TClientBlockReadOptions& blockReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -546,11 +547,11 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
         asyncChunkMeta = ChunkMetaManager_->GetMeta(
             chunkReader,
             Schema_,
-            blockReadOptions);
+            chunkReadOptions);
     } else {
         asyncChunkMeta = TCachedVersionedChunkMeta::Load(
             chunkReader,
-            blockReadOptions,
+            chunkReadOptions,
             Schema_,
             {},
             nullptr);
@@ -558,7 +559,7 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
 
     auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();
-    blockReadOptions.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
+    chunkReadOptions.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
 
     return New<TChunkState>(
         BlockCache_,

@@ -45,7 +45,7 @@ public:
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         const NChunkClient::IChunkReaderPtr& chunkReader,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         const TTableSchemaPtr& schema,
         const TColumnRenameDescriptors& renameDescriptors = {},
         const IMemoryUsageTrackerPtr& memoryTracker = nullptr);

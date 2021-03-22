@@ -21,7 +21,7 @@ TFuture<void> RepairErasedParts(
     const NErasure::TPartIndexList& erasedIndices,
     std::vector<NChunkClient::IChunkReaderPtr> readers,
     std::vector<NChunkClient::IChunkWriterPtr> writers,
-    NChunkClient::TClientBlockReadOptions options,
+    NChunkClient::TClientChunkReadOptions options,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

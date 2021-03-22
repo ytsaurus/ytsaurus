@@ -29,7 +29,7 @@ TBlockFetcher::TBlockFetcher(
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
     double compressionRatio,
-    const TClientBlockReadOptions& blockReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions)
     : Config_(std::move(config))
     , BlockInfos_(std::move(blockInfos))
     , ChunkReader_(std::move(chunkReader))
@@ -37,12 +37,12 @@ TBlockFetcher::TBlockFetcher(
     , CompressionInvoker_(
         codecId == NCompression::ECodec::None
         ? nullptr
-        : GetCompressionInvoker(blockReadOptions.WorkloadDescriptor))
+        : GetCompressionInvoker(chunkReadOptions.WorkloadDescriptor))
     , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
     , CompressionRatio_(compressionRatio)
     , MemoryManager_(std::move(memoryManager))
     , Codec_(NCompression::GetCodec(codecId))
-    , BlockReadOptions_(blockReadOptions)
+    , BlockReadOptions_(chunkReadOptions)
     , Logger(ChunkClientLogger)
 {
     YT_VERIFY(ChunkReader_);
@@ -431,7 +431,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
     double compressionRatio,
-    const TClientBlockReadOptions& blockReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions)
     : TBlockFetcher(
         config,
         blockInfos,
@@ -440,7 +440,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
         blockCache,
         codecId,
         compressionRatio,
-        blockReadOptions)
+        chunkReadOptions)
     , OriginalOrderBlockInfos_(blockInfos)
 { }
 

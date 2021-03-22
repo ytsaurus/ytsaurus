@@ -2,7 +2,8 @@
 #include "tablet_snapshot.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+
 #include <yt/yt/client/chunk_client/reader_base.h>
 #include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
 
@@ -12,6 +13,7 @@
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/core/compression/codec.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NTableClient {
@@ -35,7 +37,7 @@ class TRowLookupReader
 public:
     TRowLookupReader(
         ILookupReaderPtr underlyingReader,
-        TClientBlockReadOptions blockReadOptions,
+        TClientChunkReadOptions chunkReadOptions,
         TSharedRange<TLegacyKey> lookupKeys,
         TTabletSnapshotPtr tabletSnapshot,
         TColumnFilter columnFilter,
@@ -45,7 +47,7 @@ public:
         bool enablePeerProbing,
         bool enableRejectsIfThrottling)
         : UnderlyingReader_(std::move(underlyingReader))
-        , RowsReadOptions_(std::move(blockReadOptions))
+        , RowsReadOptions_(std::move(chunkReadOptions))
         , LookupKeys_(std::move(lookupKeys))
         , TabletSnapshot_(std::move(tabletSnapshot))
         , ColumnFilter_(std::move(columnFilter))
@@ -128,7 +130,7 @@ public:
 
 private:
     const ILookupReaderPtr UnderlyingReader_;
-    const TClientBlockReadOptions RowsReadOptions_;
+    const TClientChunkReadOptions RowsReadOptions_;
     const TSharedRange<TLegacyKey> LookupKeys_;
     const TTabletSnapshotPtr TabletSnapshot_;
     const TColumnFilter ColumnFilter_;
@@ -233,7 +235,7 @@ private:
 
 IVersionedReaderPtr CreateRowLookupReader(
     ILookupReaderPtr underlyingReader,
-    TClientBlockReadOptions blockReadOptions,
+    TClientChunkReadOptions chunkReadOptions,
     TSharedRange<TLegacyKey> lookupKeys,
     TTabletSnapshotPtr tabletSnapshot,
     TColumnFilter columnFilter,
@@ -245,7 +247,7 @@ IVersionedReaderPtr CreateRowLookupReader(
 {
     return New<TRowLookupReader>(
         std::move(underlyingReader),
-        std::move(blockReadOptions),
+        std::move(chunkReadOptions),
         std::move(lookupKeys),
         std::move(tabletSnapshot),
         std::move(columnFilter),

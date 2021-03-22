@@ -6,6 +6,7 @@
 
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -16,7 +17,7 @@ namespace NYT::NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBlockReadOptions
-    : public NChunkClient::TClientBlockReadOptions
+    : public NChunkClient::TClientChunkReadOptions
 {
     NChunkClient::IBlockCachePtr BlockCache;
     bool PopulateCache = false;

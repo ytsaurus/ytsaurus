@@ -21,9 +21,7 @@ struct ILookupReader
     : public virtual TRefCounted
 {
     virtual TFuture<TSharedRef> LookupRows(
-        // TODO(akozhikhov): change TClientBlockReadOptions type name,
-        // because now it also provides options for lookups.
-        const NChunkClient::TClientBlockReadOptions& options,
+        const NChunkClient::TClientChunkReadOptions& options,
         TSharedRange<TLegacyKey> lookupKeys,
         NCypressClient::TObjectId tableId,
         NHydra::TRevision revision,
@@ -44,7 +42,7 @@ DEFINE_REFCOUNTED_TYPE(ILookupReader)
 
 IVersionedReaderPtr CreateRowLookupReader(
     ILookupReaderPtr underlyingReader,
-    NChunkClient::TClientBlockReadOptions blockReadOptions,
+    NChunkClient::TClientChunkReadOptions chunkReadOptions,
     TSharedRange<TLegacyKey> lookupKeys,
     TTabletSnapshotPtr tabletSnapshot,
     TColumnFilter columnFilter,

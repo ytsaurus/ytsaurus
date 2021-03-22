@@ -127,7 +127,7 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
@@ -136,7 +136,7 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) override;
 
     virtual bool CheckRowLocks(

@@ -1,5 +1,7 @@
 #include "ordered_dynamic_store_ut_helpers.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+
 namespace NYT::NTabletNode {
 namespace {
 

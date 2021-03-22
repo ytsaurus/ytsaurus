@@ -37,6 +37,7 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
@@ -895,10 +896,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
     queryOptions.SuppressAccessTracking = options.SuppressAccessTracking;
 
-    TClientBlockReadOptions blockReadOptions;
-    blockReadOptions.WorkloadDescriptor = queryOptions.WorkloadDescriptor;
-    blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-    blockReadOptions.ReadSessionId = queryOptions.ReadSessionId;
+    TClientChunkReadOptions chunkReadOptions{
+        .WorkloadDescriptor = queryOptions.WorkloadDescriptor,
+        .ReadSessionId = queryOptions.ReadSessionId
+    };
 
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -909,7 +910,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         externalCGInfo,
         dataSource,
         writer,
-        blockReadOptions,
+        chunkReadOptions,
         queryOptions))
         .ValueOrThrow();
 

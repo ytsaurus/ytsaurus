@@ -13,6 +13,7 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
@@ -285,11 +286,11 @@ private:
             i64 batchRowCount;
             i64 batchDataWeight;
 
-            // TODO(savrus) profile chunk reader statistics.
-            TClientBlockReadOptions blockReadOptions;
-            blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletReplication),
-            blockReadOptions.ReadSessionId = TReadSessionId::Create();
-            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            // TODO(savrus): profile chunk reader statistics.
+            TClientChunkReadOptions chunkReadOptions{
+                .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletReplication),
+                .ReadSessionId = TReadSessionId::Create()
+            };
 
             {
                 TEventTimer timerGuard(counters.ReplicationRowsReadTime);
@@ -298,7 +299,7 @@ private:
                         MountConfig_,
                         tabletSnapshot,
                         replicaSnapshot,
-                        blockReadOptions,
+                        chunkReadOptions,
                         startRowIndex,
                         &replicationRows,
                         &rowBuffer,
@@ -315,7 +316,7 @@ private:
                         MountConfig_,
                         tabletSnapshot,
                         replicaSnapshot,
-                        blockReadOptions);
+                        chunkReadOptions);
                     YT_VERIFY(readReplicationBatch());
                 }
             }
@@ -389,7 +390,7 @@ private:
     TTimestamp ReadLogRowTimestamp(
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         i64 rowIndex)
     {
         auto reader = CreateSchemafulRangeTabletReader(
@@ -398,7 +399,7 @@ private:
             MakeRowBound(rowIndex),
             MakeRowBound(rowIndex + 1),
             NullTimestamp,
-            blockReadOptions,
+            chunkReadOptions,
             /* tabletThrottlerKind */ std::nullopt,
             NodeInThrottler_);
 
@@ -447,7 +448,7 @@ private:
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
         const TTableReplicaSnapshotPtr& replicaSnapshot,
-        const TClientBlockReadOptions& blockReadOptions)
+        const TClientChunkReadOptions& chunkReadOptions)
     {
         auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
         auto totalRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
@@ -468,7 +469,7 @@ private:
 
         while (rowIndexLo < rowIndexHi - 1) {
             auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
-            auto timestampMid = ReadLogRowTimestamp(mountConfig, tabletSnapshot, blockReadOptions, rowIndexMid);
+            auto timestampMid = ReadLogRowTimestamp(mountConfig, tabletSnapshot, chunkReadOptions, rowIndexMid);
             if (timestampMid <= startReplicationTimestamp) {
                 rowIndexLo = rowIndexMid;
             } else {
@@ -479,7 +480,7 @@ private:
         auto startRowIndex = rowIndexLo;
         auto startTimestamp = NullTimestamp;
         while (startRowIndex < totalRowCount) {
-            startTimestamp = ReadLogRowTimestamp(mountConfig, tabletSnapshot, blockReadOptions, startRowIndex);
+            startTimestamp = ReadLogRowTimestamp(mountConfig, tabletSnapshot, chunkReadOptions, startRowIndex);
             if (startTimestamp > startReplicationTimestamp) {
                 break;
             }
@@ -497,7 +498,7 @@ private:
         const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
         const TTableReplicaSnapshotPtr& replicaSnapshot,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         i64 startRowIndex,
         std::vector<TRowModification>* replicationRows,
         TRowBufferPtr* rowBuffer,
@@ -518,7 +519,7 @@ private:
             MakeRowBound(startRowIndex),
             MakeRowBound(std::numeric_limits<i64>::max()),
             NullTimestamp,
-            blockReadOptions,
+            chunkReadOptions,
             /* tabletThrottlerKind */ std::nullopt,
             NodeInThrottler_);
 

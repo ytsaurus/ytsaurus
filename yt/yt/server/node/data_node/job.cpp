@@ -591,16 +591,16 @@ private:
 
         auto chunk = GetLocalChunkOrThrow(chunkId, sourceMediumIndex);
 
-        TBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = workloadDescriptor;
-        blockReadOptions.BlockCache = Bootstrap_->GetBlockCache();
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        TBlockReadOptions chunkReadOptions;
+        chunkReadOptions.WorkloadDescriptor = workloadDescriptor;
+        chunkReadOptions.BlockCache = Bootstrap_->GetBlockCache();
+        chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
         TRefCountedChunkMetaPtr meta;
         {
             YT_LOG_DEBUG("Fetching chunk meta");
 
-            auto asyncMeta = chunk->ReadMeta(blockReadOptions);
+            auto asyncMeta = chunk->ReadMeta(chunkReadOptions);
             meta = WaitFor(asyncMeta)
                 .ValueOrThrow();
 
@@ -639,7 +639,7 @@ private:
                 chunkId,
                 currentBlockIndex,
                 blockCount - currentBlockIndex,
-                blockReadOptions);
+                chunkReadOptions);
 
             auto readBlocks = WaitFor(asyncReadBlocks)
                 .ValueOrThrow();
@@ -834,10 +834,10 @@ private:
             decommission ? "Decommission via repair" : "Repair",
             ChunkId_));
 
-        // TODO(savrus) profile chunk reader statistics.
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = workloadDescriptor;
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        // TODO(savrus): profile chunk reader statistics.
+        TClientChunkReadOptions chunkReadOptions{
+            .WorkloadDescriptor = workloadDescriptor
+        };
 
         NErasure::TPartIndexList sourcePartIndexes;
         for (auto replica : SourceReplicas_) {
@@ -876,7 +876,7 @@ private:
                         erasedPartIndexes,
                         readers,
                         writers,
-                        blockReadOptions);
+                        chunkReadOptions);
                         // XXX(babenko): pass logger
                     break;
                 }
@@ -894,7 +894,7 @@ private:
                         erasedPartIndexes,
                         readers,
                         writers,
-                        blockReadOptions,
+                        chunkReadOptions,
                         Logger);
                     break;
                 }
@@ -995,10 +995,10 @@ private:
                 /* trafficMeter */ nullptr,
                 Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationIn));
 
-            // TODO(savrus) profile chunk reader statistics.
-            TClientBlockReadOptions blockReadOptions;
-            blockReadOptions.WorkloadDescriptor = workloadDescriptor;
-            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            // TODO(savrus): profile chunk reader statistics.
+            TClientChunkReadOptions chunkReadOptions{
+                .WorkloadDescriptor = workloadDescriptor
+            };
 
             while (currentRowCount < sealRowCount) {
                 YT_LOG_DEBUG("Reading rows (Rows: %v-%v)",
@@ -1006,7 +1006,7 @@ private:
                     sealRowCount - 1);
 
                 auto asyncBlocks = reader->ReadBlocks(
-                    blockReadOptions,
+                    chunkReadOptions,
                     currentRowCount,
                     sealRowCount - currentRowCount);
                 auto blocks = WaitFor(asyncBlocks)

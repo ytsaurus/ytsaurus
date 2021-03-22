@@ -53,18 +53,18 @@ public:
         IBlocksExtCache* blocksExtCache = nullptr);
 
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
-        const NChunkClient::TClientBlockReadOptions& options,
+        const NChunkClient::TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize);
 
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
-        const NChunkClient::TClientBlockReadOptions& options,
+        const NChunkClient::TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         std::optional<i64> estimatedSize);
 
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetMeta(
-        const NChunkClient::TClientBlockReadOptions& options,
+        const NChunkClient::TClientChunkReadOptions& options,
         std::optional<int> partitionTag = std::nullopt,
         const std::optional<std::vector<int>>& extensionTags = std::nullopt);
 
@@ -91,19 +91,19 @@ private:
     std::atomic<bool> DataFileOpened_ = false;
 
     TFuture<std::vector<NChunkClient::TBlock>> DoReadBlocks(
-        const NChunkClient::TClientBlockReadOptions& options,
+        const NChunkClient::TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         NChunkClient::TRefCountedBlocksExtPtr blocksExt = nullptr,
         std::shared_ptr<TFileHandle> dataFile = nullptr);
     std::vector<NChunkClient::TBlock> OnBlocksRead(
-        const NChunkClient::TClientBlockReadOptions& options,
+        const NChunkClient::TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         const NChunkClient::TRefCountedBlocksExtPtr& blocksExt,
         const TSharedMutableRef& buffer);
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoReadMeta(
-        const NChunkClient::TClientBlockReadOptions& options,
+        const NChunkClient::TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags);
     NChunkClient::TRefCountedChunkMetaPtr OnMetaRead(
@@ -111,7 +111,7 @@ private:
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
         const TSharedMutableRef& data);
 
-    TFuture<NChunkClient::TRefCountedBlocksExtPtr> ReadBlocksExt(const NChunkClient::TClientBlockReadOptions& options);
+    TFuture<NChunkClient::TRefCountedBlocksExtPtr> ReadBlocksExt(const NChunkClient::TClientChunkReadOptions& options);
 
     TFuture<std::shared_ptr<TFileHandle>> OpenDataFile();
     std::shared_ptr<TFileHandle> OnDataFileOpened(const std::shared_ptr<TFileHandle>& file);

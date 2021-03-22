@@ -4,6 +4,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/format.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/core/misc/checksum.h>
@@ -68,7 +69,7 @@ TChunkFileReader::TChunkFileReader(
 { }
 
 TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     const std::vector<int>& blockIndexes,
     std::optional<i64> /* estimatedSize */)
 {
@@ -117,7 +118,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
 }
 
 TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     int firstBlockIndex,
     int blockCount,
     std::optional<i64> /* estimatedSize */)
@@ -132,7 +133,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
 }
 
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::GetMeta(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
 {
@@ -174,7 +175,7 @@ IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
 }
 
 std::vector<TBlock> TChunkFileReader::OnBlocksRead(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     int firstBlockIndex,
     int blockCount,
     const TRefCountedBlocksExtPtr& blocksExt,
@@ -215,7 +216,7 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
 }
 
 TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     int firstBlockIndex,
     int blockCount,
     TRefCountedBlocksExtPtr blocksExt,
@@ -283,7 +284,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
 }
 
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
-    const TClientBlockReadOptions& options,
+    const TClientChunkReadOptions& options,
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
 {

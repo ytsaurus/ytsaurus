@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk_reader.h"
+#include "chunk_reader_options.h"
 #include "chunk_reader_memory_manager.h"
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
@@ -46,7 +47,7 @@ public:
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
         double compressionRatio,
-        const TClientBlockReadOptions& blockReadOptions);
+        const TClientChunkReadOptions& chunkReadOptions);
 
     ~TBlockFetcher();
 
@@ -85,7 +86,7 @@ private:
     const double CompressionRatio_;
     const TChunkReaderMemoryManagerPtr MemoryManager_;
     NCompression::ICodec* const Codec_;
-    const TClientBlockReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions BlockReadOptions_;
     NLogging::TLogger Logger;
 
     std::atomic<i64> UncompressedDataSize_ = {0};
@@ -160,7 +161,7 @@ public:
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
         double compressionRatio,
-        const TClientBlockReadOptions& blockReadOptions);
+        const TClientChunkReadOptions& chunkReadOptions);
 
     TFuture<TBlock> FetchNextBlock();
 

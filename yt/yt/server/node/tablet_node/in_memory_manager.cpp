@@ -22,6 +22,7 @@
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
@@ -535,16 +536,17 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     YT_LOG_INFO("Store preload started");
 
-    TClientBlockReadOptions blockReadOptions;
-    blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
-    blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-    blockReadOptions.ReadSessionId = readSessionId;
-    readerProfiler->SetChunkReaderStatistics(blockReadOptions.ChunkReaderStatistics);
+    TClientChunkReadOptions chunkReadOptions{
+        .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload),
+        .ReadSessionId = readSessionId
+    };
+
+    readerProfiler->SetChunkReaderStatistics(chunkReadOptions.ChunkReaderStatistics);
 
     auto reader = store->GetReaders(
         bandwidthThrottler,
         /* rpsThrottler */ GetUnlimitedThrottler()).ChunkReader;
-    auto meta = WaitFor(reader->GetMeta(blockReadOptions))
+    auto meta = WaitFor(reader->GetMeta(chunkReadOptions))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<TMiscExt>(meta->extensions());
@@ -640,7 +642,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             startBlockIndex);
 
         auto compressedBlocks = WaitFor(reader->ReadBlocks(
-            blockReadOptions,
+            chunkReadOptions,
             startBlockIndex,
             endBlockIndex - startBlockIndex))
             .ValueOrThrow();

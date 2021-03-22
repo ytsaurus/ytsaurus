@@ -203,7 +203,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     i64 lowerRowIndex,
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
     TReadLimit lowerLimit;
@@ -242,7 +242,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     // Fast lane: check for in-memory reads.
     if (auto reader = TryCreateCacheBasedReader(
         columnFilter,
-        blockReadOptions,
+        chunkReadOptions,
         readRange,
         readSchema,
         enableTabletIndex,
@@ -260,7 +260,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
         chunkReader,
         Schema_,
-        blockReadOptions);
+        chunkReadOptions);
     auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();
 
@@ -271,7 +271,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         chunkMeta,
         ReaderConfig_,
         std::move(chunkReader),
-        blockReadOptions,
+        chunkReadOptions,
         readSchema,
         /* sortColumns */ {},
         {readRange});
@@ -305,7 +305,7 @@ TKeyComparer TOrderedChunkStore::GetKeyComparer()
 
 ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(
     const TColumnFilter& columnFilter,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TReadRange& readRange,
     const TTableSchemaPtr& readSchema,
     bool enableTabletIndex,
@@ -328,7 +328,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(
         chunkState->ChunkMeta,
         ReaderConfig_,
         std::move(chunkReader),
-        blockReadOptions,
+        chunkReadOptions,
         readSchema,
         /* sortColumns */ {},
         {readRange});

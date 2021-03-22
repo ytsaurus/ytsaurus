@@ -199,7 +199,7 @@ struct ISortedStore
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) = 0;
 
     //! Creates a reader for the set of |keys|.
@@ -222,7 +222,7 @@ struct ISortedStore
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) = 0;
 
     //! Checks that the transaction attempting to take locks indicated by #lockMask for #row
@@ -273,7 +273,7 @@ struct IOrderedStore
         i64 lowerRowIndex,
         i64 upperRowIndex,
         const NTableClient::TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) = 0;
 };
 

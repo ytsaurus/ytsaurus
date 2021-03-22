@@ -3,6 +3,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -314,9 +315,6 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         GetNullBlockCache(),
         ChunkSpec_);
 
-    TClientBlockReadOptions blockReadOptions;
-    blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-
     auto legacyReadRange = std::get<3>(GetParam());
 
     auto lowerReadLimit = ReadLimitFromLegacyReadLimit(legacyReadRange.LowerLimit(), /* isUpper */ false, keyColumnCount);
@@ -329,7 +327,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         New<TChunkReaderOptions>(),
         MemoryReader_,
         readNameTable,
-        blockReadOptions,
+        /* chunkReadOptions */ {},
         /* sortColumns */ {},
         /* omittedInaccessibleColumns */ {},
         columnFilter,
@@ -461,9 +459,6 @@ protected:
 
     virtual ISchemalessUnversionedReaderPtr CreateReader(const TColumnFilter& columnFilter)
     {
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-
         return CreateSchemalessRangeChunkReader(
             ChunkState_,
             ChunkMeta_,
@@ -471,7 +466,7 @@ protected:
             New<TChunkReaderOptions>(),
             MemoryReader_,
             TNameTable::FromSchema(*Schema_),
-            blockReadOptions,
+            /* chunkReadOptions */ {},
             /* sortColumns */ {},
             /* omittedInaccessibleColumns */ {},
             columnFilter,
@@ -691,12 +686,9 @@ protected:
         auto options = New<TChunkReaderOptions>();
         options->DynamicTable = true;
 
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-
         auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
             MemoryReader_,
-            blockReadOptions,
+            /* chunkReadOptions */ {},
             Schema_);
         auto chunkMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
@@ -713,7 +705,7 @@ protected:
             options,
             MemoryReader_,
             WriteNameTable_,
-            blockReadOptions,
+            /* chunkReadOptions */ {},
             sortColumns,
             /* omittedInaccessibleColumns */ {},
             /* columnFilter */ {},

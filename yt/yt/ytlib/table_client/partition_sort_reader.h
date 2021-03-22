@@ -30,7 +30,7 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     i64 estimatedRowCount,
     bool isApproximate,
     int partitionTag,
-    NChunkClient::TClientBlockReadOptions blockReadOptions,
+    NChunkClient::TClientChunkReadOptions chunkReadOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),

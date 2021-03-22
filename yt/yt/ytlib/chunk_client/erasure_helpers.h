@@ -158,7 +158,7 @@ DEFINE_REFCOUNTED_TYPE(TPartEncoder)
 
 TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
     const IChunkReaderPtr& reader,
-    const TClientBlockReadOptions& options);
+    const TClientChunkReadOptions& options);
 
 TParityPartSplitInfo GetParityPartSplitInfo(const NProto::TErasurePlacementExt& placementExt);
 
@@ -191,14 +191,14 @@ public:
         const std::vector<IChunkReaderAllowingRepairPtr>& readers);
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override;
 
     virtual TChunkId GetChunkId() const override;
 
 protected:
-    TFuture<void> PreparePlacementMeta(const TClientBlockReadOptions& options);
+    TFuture<void> PreparePlacementMeta(const TClientChunkReadOptions& options);
     void OnGotPlacementMeta(const NProto::TErasurePlacementExt& placementExt);
 
     const TChunkId ChunkId_;

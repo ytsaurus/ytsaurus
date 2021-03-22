@@ -8,6 +8,7 @@
 #include "dispatcher.h"
 #include "erasure_helpers.h"
 #include "private.h"
+#include "chunk_reader_options.h"
 #include "chunk_reader_statistics.h"
 #include "yt/yt/core/misc/error.h"
 
@@ -38,7 +39,7 @@ class TSequentialCachingBlocksReader
 public:
     TSequentialCachingBlocksReader(
         IChunkReaderPtr reader,
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         const std::vector<int>& blocksToSave = {})
         : UnderlyingReader_(reader)
         , BlockReadOptions_(options)
@@ -123,7 +124,7 @@ public:
 
 private:
     const IChunkReaderPtr UnderlyingReader_;
-    const TClientBlockReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions BlockReadOptions_;
     const std::vector<int> BlocksToSave_;
     THashMap<int, int> BlockIndexToBlocksToSaveIndex_;
 
@@ -145,7 +146,7 @@ public:
         const TPartIndexList& erasedIndices,
         const std::vector<IChunkReaderPtr>& readers,
         const std::vector<IChunkWriterPtr>& writers,
-        const TClientBlockReadOptions& options)
+        const TClientChunkReadOptions& options)
         : Codec_(codec)
         , Readers_(readers)
         , Writers_(writers)
@@ -171,7 +172,7 @@ private:
     const std::vector<IChunkReaderPtr> Readers_;
     const std::vector<IChunkWriterPtr> Writers_;
     const TPartIndexList ErasedIndices_;
-    const TClientBlockReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions BlockReadOptions_;
 
     TParityPartSplitInfo ParityPartSplitInfo_;
 
@@ -304,7 +305,7 @@ TFuture<void> RepairErasedParts(
     const TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
-    const TClientBlockReadOptions& options)
+    const TClientChunkReadOptions& options)
 {
     auto session = New<TRepairAllPartsSession>(
         codec,
@@ -401,7 +402,7 @@ public:
         const std::vector<IChunkReaderAllowingRepairPtr>& readers,
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         const IInvokerPtr& readerInvoker,
         const TLogger& logger)
         : ChunkId_(chunkId)
@@ -499,7 +500,7 @@ private:
     const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
-    const TClientBlockReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions BlockReadOptions_;
     const TLogger Logger;
 
     TParityPartSplitInfo ParityPartSplitInfo_;
@@ -603,7 +604,7 @@ public:
     { }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> /* estimatedSize */) override
     {
@@ -626,7 +627,7 @@ public:
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         std::optional<i64> /* estimatedSize */) override
@@ -672,7 +673,7 @@ TFuture<void> RepairErasedParts(
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
-    const TClientBlockReadOptions& options)
+    const TClientChunkReadOptions& options)
 {
     std::vector<IChunkReaderPtr> simpleReaders(readers.begin(), readers.end());
     return RepairErasedParts(codec, erasedIndices, simpleReaders, writers, options);

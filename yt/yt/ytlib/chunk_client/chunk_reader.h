@@ -1,26 +1,12 @@
 #pragma once
 
 #include "block.h"
-#include "chunk_reader_statistics.h"
-
-#include <yt/yt/client/hydra/public.h>
-
-#include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/core/actions/future.h>
-
-#include <yt/yt/core/profiling/public.h>
 
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TClientBlockReadOptions
-{
-    TWorkloadDescriptor WorkloadDescriptor;
-    TChunkReaderStatisticsPtr ChunkReaderStatistics = New<TChunkReaderStatistics>();
-    TReadSessionId ReadSessionId;
-};
 
 //! A basic interface for reading chunks from a suitable source.
 struct IChunkReader
@@ -29,7 +15,7 @@ struct IChunkReader
     //! Asynchronously reads a given set of blocks.
     //! Returns a collection of blocks, each corresponding to a single given index.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize = {}) = 0;
 
@@ -37,14 +23,14 @@ struct IChunkReader
     //! The call may return less blocks than requested.
     //! If an empty list of blocks is returned then there are no blocks in the given range.
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         std::optional<i64> estimatedSize = {}) = 0;
 
     //! Asynchronously obtains a meta, possibly filtered by #partitionTag and #extensionTags.
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientBlockReadOptions& options,
+        const TClientChunkReadOptions& options,
         std::optional<int> partitionTag = std::nullopt,
         const std::optional<std::vector<int>>& extensionTags = {}) = 0;
 

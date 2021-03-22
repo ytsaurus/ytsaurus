@@ -290,7 +290,7 @@ public:
         IUnversionedRowsetWriterPtr writer,
         IMemoryChunkProviderPtr memoryChunkProvider,
         IInvokerPtr invoker,
-        const TClientBlockReadOptions& blockReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const TQueryOptions& queryOptions)
         : Config_(std::move(config))
         , FunctionImplCache_(std::move(functionImplCache))
@@ -307,7 +307,7 @@ public:
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
         , Invoker_(std::move(invoker))
         , QueryOptions_(std::move(queryOptions))
-        , BlockReadOptions_(blockReadOptions)
+        , BlockReadOptions_(chunkReadOptions)
         , Logger(MakeQueryLogger(Query_))
         , TabletSnapshots_(Bootstrap_->GetTabletSnapshotStore(), Logger)
         , Identity_(NRpc::GetCurrentAuthenticationIdentity())
@@ -355,7 +355,7 @@ private:
 
     const IInvokerPtr Invoker_;
     const TQueryOptions QueryOptions_;
-    const TClientBlockReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions BlockReadOptions_;
 
     const NLogging::TLogger Logger;
 
@@ -1046,7 +1046,7 @@ TQueryStatistics ExecuteSubquery(
     IUnversionedRowsetWriterPtr writer,
     IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,
-    const TClientBlockReadOptions& blockReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     const TQueryOptions& queryOptions,
     TServiceProfilerGuard& profilerGuard)
 {
@@ -1063,7 +1063,7 @@ TQueryStatistics ExecuteSubquery(
         std::move(writer),
         std::move(memoryChunkProvider),
         invoker,
-        blockReadOptions,
+        chunkReadOptions,
         queryOptions);
 
     return execution->Execute(profilerGuard);
