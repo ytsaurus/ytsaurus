@@ -761,9 +761,6 @@ public:
     //! Manages layers and root volumes for Porto job environment.
     TVolumeManagerConfigPtr VolumeManager;
 
-    //! Reader configuration used to download chunks into cache.
-    TArtifactCacheReaderConfigPtr ArtifactCacheReader;
-
     //! Writer configuration used to replicate chunks.
     NChunkClient::TReplicationWriterConfigPtr ReplicationWriter;
 
@@ -919,8 +916,6 @@ public:
         RegisterParameter("volume_manager", VolumeManager)
             .DefaultNew();
 
-        RegisterParameter("artifact_cache_reader", ArtifactCacheReader)
-            .DefaultNew();
         RegisterParameter("replication_writer", ReplicationWriter)
             .DefaultNew();
         RegisterParameter("repair_reader", RepairReader)
@@ -935,7 +930,7 @@ public:
             .Optional();
 
         // COMPAT(babenko): use /data_node/throttlers instead.
-       RegisterParameter("total_in_throttler", Throttlers[EDataNodeThrottlerKind::TotalIn])
+        RegisterParameter("total_in_throttler", Throttlers[EDataNodeThrottlerKind::TotalIn])
             .Optional();
         RegisterParameter("total_out_throttler", Throttlers[EDataNodeThrottlerKind::TotalOut])
             .Optional();
@@ -1130,6 +1125,9 @@ public:
     //! Prepared chunk readers are kept open during this period of time after the last use.
     TDuration ChunkReaderRetentionTimeout;
 
+    //! Reader configuration used to download chunks into cache.
+    TArtifactCacheReaderConfigPtr ArtifactCacheReader;
+
     TDataNodeDynamicConfig()
     {
         RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
@@ -1167,6 +1165,9 @@ public:
 
         RegisterParameter("chunk_reader_retention_timeout", ChunkReaderRetentionTimeout)
             .Default(TDuration::Minutes(1));
+
+        RegisterParameter("artifact_cache_reader", ArtifactCacheReader)
+            .DefaultNew();
     }
 };
 
