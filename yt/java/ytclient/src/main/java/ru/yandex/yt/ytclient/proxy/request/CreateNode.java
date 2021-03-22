@@ -1,14 +1,17 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
@@ -75,13 +78,30 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
         return this;
     }
 
+    public boolean getForce() {
+        return force;
+    }
+
     public CreateNode setForce(boolean force) {
         this.force = force;
         return this;
     }
 
+    public boolean getIgnoreExisting() {
+        return ignoreExisting;
+    }
+
     public CreateNode setIgnoreExisting(boolean ignoreExisting) {
         this.ignoreExisting = ignoreExisting;
+        return this;
+    }
+
+    public Map<String, YTreeNode> getAttributes() {
+        return Collections.unmodifiableMap(attributes);
+    }
+
+    public CreateNode addAttribute(String name, @Nullable Object value) {
+        this.attributes.put(name, YTree.node(value));
         return this;
     }
 
