@@ -22,38 +22,6 @@ using namespace NSkiff;
 using namespace NYson;
 using namespace NTableClient;
 
-////////////////////////////////////////////////////////////////////////////////
-
-EWireType GetSkiffTypeForSimpleLogicalType(ESimpleLogicalValueType logicalType)
-{
-    const auto valueType = GetPhysicalType(logicalType);
-    switch (valueType) {
-        case EValueType::Int64:
-            return EWireType::Int64;
-        case EValueType::Uint64:
-            return EWireType::Uint64;
-        case EValueType::String:
-            return EWireType::String32;
-        case EValueType::Any:
-            return EWireType::Yson32;
-        case EValueType::Boolean:
-            return EWireType::Boolean;
-        case EValueType::Double:
-            return EWireType::Double;
-        case EValueType::Null:
-            return EWireType::Nothing;
-        case EValueType::Composite:
-            // NB. GetPhysicalType never returns EValueType::Composite
-        case EValueType::Min:
-        case EValueType::Max:
-        case EValueType::TheBottom:
-            break;
-    }
-    ThrowUnexpectedValueType(valueType);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,9 +82,19 @@ struct TSkiffStructField
 template<EWireType wireType>
 constexpr EYsonItemType WireTypeToYsonItemType()
 {
-    if constexpr (wireType == EWireType::Int64) {
+    if constexpr (
+        wireType == EWireType::Int8 ||
+        wireType == EWireType::Int16 ||
+        wireType == EWireType::Int32 ||
+        wireType == EWireType::Int64)
+    {
         return EYsonItemType::Int64Value;
-    } else if constexpr (wireType == EWireType::Uint64) {
+    } else if constexpr (
+        wireType == EWireType::Uint8 ||
+        wireType == EWireType::Uint16 ||
+        wireType == EWireType::Uint32 ||
+        wireType == EWireType::Uint64)
+    {
         return EYsonItemType::Uint64Value;
     } else if constexpr (wireType == EWireType::Double) {
         return EYsonItemType::DoubleValue;
@@ -587,10 +565,36 @@ public:
                     ysonItem.GetType());
             }
 
-            if constexpr (wireType == EWireType::Int64) {
+            if constexpr (wireType == EWireType::Int8) {
+                const auto value = ysonItem.UncheckedAsInt64();
+                CheckIntSize<wireType>(value);
+                writer->WriteInt8(value);
+            } else if constexpr (wireType == EWireType::Int16) {
+                const auto value = ysonItem.UncheckedAsInt64();
+                CheckIntSize<wireType>(value);
+                writer->WriteInt16(value);
+            } else if constexpr (wireType == EWireType::Int32) {
+                const auto value = ysonItem.UncheckedAsInt64();
+                CheckIntSize<wireType>(value);
+                writer->WriteInt32(value);
+            } else if constexpr (wireType == EWireType::Int64) {
                 writer->WriteInt64(ysonItem.UncheckedAsInt64());
+
+            } else if constexpr (wireType == EWireType::Uint8) {
+                auto value = ysonItem.UncheckedAsUint64();
+                CheckIntSize<wireType>(value);
+                writer->WriteUint8(value);
+            } else if constexpr (wireType == EWireType::Uint16) {
+                auto value = ysonItem.UncheckedAsUint64();
+                CheckIntSize<wireType>(value);
+                writer->WriteUint16(value);
+            } else if constexpr (wireType == EWireType::Uint32) {
+                auto value = ysonItem.UncheckedAsUint64();
+                CheckIntSize<wireType>(value);
+                writer->WriteUint32(value);
             } else if constexpr (wireType == EWireType::Uint64) {
                 writer->WriteUint64(ysonItem.UncheckedAsUint64());
+
             } else if constexpr (wireType == EWireType::Boolean) {
                 writer->WriteBoolean(ysonItem.UncheckedAsBoolean());
             } else if constexpr (wireType == EWireType::Double) {
@@ -625,7 +629,13 @@ TYsonToSkiffConverter CreatePrimitiveTypeYsonToSkiffConverter(
 {
     switch (wireType) {
 #define CASE(x) case x: return TSimpleYsonToSkiffConverter<x>(std::move(descriptor));
+        CASE(EWireType::Int8)
+        CASE(EWireType::Int16)
+        CASE(EWireType::Int32)
         CASE(EWireType::Int64)
+        CASE(EWireType::Uint8)
+        CASE(EWireType::Uint16)
+        CASE(EWireType::Uint32)
         CASE(EWireType::Uint64)
         CASE(EWireType::Boolean)
         CASE(EWireType::Double)
@@ -650,14 +660,20 @@ TYsonToSkiffConverter CreateSimpleYsonToSkiffConverter(
             case ESimpleLogicalValueType::Int16:
             case ESimpleLogicalValueType::Int32:
             case ESimpleLogicalValueType::Int64:
-                CheckWireType(wireType, {EWireType::Int64});
+
+            case ESimpleLogicalValueType::Interval:
+                CheckWireType(wireType, {EWireType::Int8, EWireType::Int16, EWireType::Int32, EWireType::Int64});
                 return CreatePrimitiveTypeYsonToSkiffConverter(std::move(descriptor), wireType);
 
             case ESimpleLogicalValueType::Uint8:
             case ESimpleLogicalValueType::Uint16:
             case ESimpleLogicalValueType::Uint32:
             case ESimpleLogicalValueType::Uint64:
-                CheckWireType(wireType, {EWireType::Uint64});
+
+            case ESimpleLogicalValueType::Date:
+            case ESimpleLogicalValueType::Datetime:
+            case ESimpleLogicalValueType::Timestamp:
+                CheckWireType(wireType, {EWireType::Uint8, EWireType::Uint16, EWireType::Uint32, EWireType::Uint64});
                 return CreatePrimitiveTypeYsonToSkiffConverter(std::move(descriptor), wireType);
 
             case ESimpleLogicalValueType::Float:
@@ -682,15 +698,6 @@ TYsonToSkiffConverter CreateSimpleYsonToSkiffConverter(
             case ESimpleLogicalValueType::Null:
             case ESimpleLogicalValueType::Void:
                 CheckWireType(wireType, {EWireType::Nothing});
-                return CreatePrimitiveTypeYsonToSkiffConverter(std::move(descriptor), wireType);
-
-            case ESimpleLogicalValueType::Date:
-            case ESimpleLogicalValueType::Datetime:
-            case ESimpleLogicalValueType::Timestamp:
-                CheckWireType(wireType, {EWireType::Uint64});
-                return CreatePrimitiveTypeYsonToSkiffConverter(std::move(descriptor), wireType);
-            case ESimpleLogicalValueType::Interval:
-                CheckWireType(wireType, {EWireType::Int64});
                 return CreatePrimitiveTypeYsonToSkiffConverter(std::move(descriptor), wireType);
 
             case ESimpleLogicalValueType::Uuid:
@@ -1251,9 +1258,19 @@ public:
 
         if constexpr (std::is_same_v<TValueType, TStringBuf>) {
             writer->WriteBinaryString(value);
-        } else if constexpr (std::is_same_v<TValueType, i64>) {
+        } else if constexpr (
+            std::is_same_v<TValueType, i8> ||
+            std::is_same_v<TValueType, i16> ||
+            std::is_same_v<TValueType, i32> ||
+            std::is_same_v<TValueType, i64>)
+        {
             writer->WriteBinaryInt64(value);
-        } else if constexpr (std::is_same_v<TValueType, ui64>) {
+        } else if constexpr (
+            std::is_same_v<TValueType, ui8> ||
+            std::is_same_v<TValueType, ui16> ||
+            std::is_same_v<TValueType, ui32> ||
+            std::is_same_v<TValueType, ui64>)
+        {
             writer->WriteBinaryUint64(value);
         } else if constexpr (std::is_same_v<TValueType, bool>) {
             writer->WriteBinaryBoolean(value);
@@ -1287,8 +1304,16 @@ TSkiffToYsonConverter CreatePrimitiveTypeSkiffToYsonConverter(EWireType wireType
 #define CASE(x) \
     case x: \
         return TPrimitiveTypeSkiffToYsonConverter(TSimpleSkiffParser<x>());
+        CASE(EWireType::Int8)
+        CASE(EWireType::Int16)
+        CASE(EWireType::Int32)
         CASE(EWireType::Int64)
+
+        CASE(EWireType::Uint8)
+        CASE(EWireType::Uint16)
+        CASE(EWireType::Uint32)
         CASE(EWireType::Uint64)
+
         CASE(EWireType::Boolean)
         CASE(EWireType::Double)
         CASE(EWireType::String32)
@@ -1316,14 +1341,20 @@ TSkiffToYsonConverter CreateSimpleSkiffToYsonConverter(
             case ESimpleLogicalValueType::Int16:
             case ESimpleLogicalValueType::Int32:
             case ESimpleLogicalValueType::Int64:
-                CheckWireType(wireType, {EWireType::Int64});
+
+            case ESimpleLogicalValueType::Interval:
+                CheckWireType(wireType, {EWireType::Int8, EWireType::Int16, EWireType::Int32, EWireType::Int64});
                 return CreatePrimitiveTypeSkiffToYsonConverter(wireType);
 
             case ESimpleLogicalValueType::Uint8:
             case ESimpleLogicalValueType::Uint16:
             case ESimpleLogicalValueType::Uint32:
             case ESimpleLogicalValueType::Uint64:
-                CheckWireType(wireType, {EWireType::Uint64});
+
+            case ESimpleLogicalValueType::Date:
+            case ESimpleLogicalValueType::Datetime:
+            case ESimpleLogicalValueType::Timestamp:
+                CheckWireType(wireType, {EWireType::Uint8, EWireType::Uint16, EWireType::Uint32, EWireType::Uint64});
                 return CreatePrimitiveTypeSkiffToYsonConverter(wireType);
 
             case ESimpleLogicalValueType::Boolean:
@@ -1350,19 +1381,11 @@ TSkiffToYsonConverter CreateSimpleSkiffToYsonConverter(
                 CheckWireType(wireType, {EWireType::Nothing});
                 return CreatePrimitiveTypeSkiffToYsonConverter(wireType);
 
-            case ESimpleLogicalValueType::Date:
-            case ESimpleLogicalValueType::Datetime:
-            case ESimpleLogicalValueType::Timestamp:
-                CheckWireType(wireType, {EWireType::Uint64});
-                return CreatePrimitiveTypeSkiffToYsonConverter(wireType);
-            case ESimpleLogicalValueType::Interval:
-                CheckWireType(wireType, {EWireType::Int64});
-                return CreatePrimitiveTypeSkiffToYsonConverter(wireType);
-
             case ESimpleLogicalValueType::Uuid:
                 CheckWireType(wireType, {EWireType::Uint128});
                 return TPrimitiveTypeSkiffToYsonConverter(TUuidParser());
         }
+        YT_ABORT();
     } catch (const std::exception& ex) {
         RethrowCannotMatchField(descriptor, skiffSchema, ex);
     }

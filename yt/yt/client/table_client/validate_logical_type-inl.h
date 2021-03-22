@@ -19,12 +19,6 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr i64 DateUpperBound = 49673;
-constexpr i64 DatetimeUpperBound = DateUpperBound * 86400ll;
-constexpr i64 TimestampUpperBound = DatetimeUpperBound * 1000000ll;
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <typename TNumber>
 static Y_FORCE_INLINE void ValidateNumericRange(TNumber value, TNumber min, TNumber max)
 {
@@ -45,8 +39,6 @@ static constexpr auto GetLogicalTypeMax()
     // Ints
     if constexpr (type == ESimpleLogicalValueType::Int8) {
         return static_cast<i64>(Max<i8>());
-    } else if constexpr (type == ESimpleLogicalValueType::Int16) {
-        return static_cast<i64>(Max<i16>());
     } else if constexpr (type == ESimpleLogicalValueType::Int16) {
         return static_cast<i64>(Max<i16>());
     } else if constexpr (type == ESimpleLogicalValueType::Int32) {
@@ -83,8 +75,6 @@ static constexpr auto GetLogicalTypeMin()
     // Ints
     if constexpr (type == ESimpleLogicalValueType::Int8) {
         return static_cast<i64>(Min<i8>());
-    } else if constexpr (type == ESimpleLogicalValueType::Int16) {
-        return static_cast<i64>(Min<i16>());
     } else if constexpr (type == ESimpleLogicalValueType::Int16) {
         return static_cast<i64>(Min<i16>());
     } else if constexpr (type == ESimpleLogicalValueType::Int32) {

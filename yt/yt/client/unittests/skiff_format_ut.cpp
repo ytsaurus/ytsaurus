@@ -9,6 +9,7 @@
 #include <yt/yt/client/formats/skiff_writer.h>
 #include <yt/yt/client/formats/format.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/validate_logical_type.h>
 
 #include <yt/yt/library/skiff_ext/schema_match.h>
 
@@ -38,7 +39,7 @@ using namespace NYson;
 
 TString ConvertToSkiffSchemaShortDebugString(INodePtr node)
 {
-    auto skiffFormatConfig = ConvertTo<TSkiffFormatConfigPtr>(node);
+    auto skiffFormatConfig = ConvertTo<TSkiffFormatConfigPtr>(std::move(node));
     auto skiffSchemas = ParseSkiffSchemas(skiffFormatConfig->SkiffSchemaRegistry, skiffFormatConfig->TableSkiffSchemas);
     TStringStream result;
     result << '{';
@@ -329,8 +330,8 @@ ISchemalessFormatWriterPtr CreateSkiffWriter(
     controlAttributesConfig->EnableKeySwitch = (keyColumnCount > 0);
     controlAttributesConfig->EnableEndOfStream = enableEndOfStream;
     return CreateWriterForSkiff(
-        {skiffSchema},
-        nameTable,
+        {std::move(skiffSchema)},
+        std::move(nameTable),
         tableSchemaList,
         NConcurrency::CreateAsyncAdapter(outputStream),
         false,
@@ -678,6 +679,235 @@ TEST(TSkiffWriter, TestYsonWireType)
     // end
     ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
     checkedSkiffParser.ValidateFinished();
+}
+
+class TSkiffFormatSmallIntP
+: public ::testing::TestWithParam<std::tuple<
+    std::shared_ptr<TSkiffSchema>,
+    TLogicalTypePtr,
+    TTableField::TValue,
+    TString
+>>
+{
+public:
+    static std::vector<ParamType> GetCases()
+    {
+        using namespace NLogicalTypeShortcuts;
+
+        std::vector<ParamType> result;
+
+        auto addSimpleCase = [&result] (
+            EWireType wireType,
+            const TLogicalTypePtr& logicalType,
+            auto value,
+            TStringBuf skiffValue)
+        {
+            auto simpleSkiffSchema = CreateSimpleTypeSchema(wireType);
+            auto simpleSkiffData = TString(2, 0) + skiffValue;
+            result.emplace_back(simpleSkiffSchema, logicalType, value, simpleSkiffData);
+        };
+
+        auto addListCase = [&result] (
+            EWireType wireType,
+            const TLogicalTypePtr& logicalType,
+            auto value,
+            TStringBuf skiffValue)
+        {
+            auto listSkiffSchema = CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(wireType)});
+            auto listSkiffData = TString(3, 0) + skiffValue + TString(1, '\xff');
+            auto listValue = TTableField::TValue{
+                TTableField::TComposite{
+                    BuildYsonStringFluently()
+                        .BeginList()
+                        .Item().Value(value)
+                        .EndList().ToString()
+                }
+            };
+            result.emplace_back(listSkiffSchema, List(logicalType), listValue, listSkiffData);
+        };
+
+        auto addSimpleAndListCases = [&] (
+            EWireType wireType,
+            const TLogicalTypePtr& logicalType,
+            auto value,
+            TStringBuf skiffValue)
+        {
+            addSimpleCase(wireType, logicalType, value, skiffValue);
+            addListCase(wireType, logicalType, value, skiffValue);
+        };
+
+        auto addMultiCase = [&] (EWireType wireType, auto value, TStringBuf skiffValue) {
+            auto add = [&] (const TLogicalTypePtr& logicalType) {
+                addSimpleAndListCases(wireType, logicalType, value, skiffValue);
+            };
+            addSimpleCase(wireType, Yson(), value, skiffValue);
+
+            using T = std::decay_t<decltype(value)>;
+            static_assert(std::is_integral_v<T>);
+            if constexpr (std::is_signed_v<T>) {
+                if (std::numeric_limits<i8>::min() <= value && value <= std::numeric_limits<i8>::max()) {
+                    add(Int8());
+                }
+                if (std::numeric_limits<i16>::min() <= value && value <= std::numeric_limits<i16>::max()) {
+                    add(Int16());
+                }
+                if (std::numeric_limits<i32>::min() <= value && value <= std::numeric_limits<i32>::max()) {
+                    add(Int32());
+                }
+                add(Int64());
+            } else {
+                if (value <= std::numeric_limits<ui8>::max()) {
+                    add(Uint8());
+                }
+                if (value <= std::numeric_limits<ui16>::max()) {
+                    add(Uint16());
+                }
+                if (value <= std::numeric_limits<ui32>::max()) {
+                    add(Uint32());
+                }
+                add(Uint64());
+            }
+        };
+        addMultiCase(EWireType::Int8, 0, AsStringBuf("\x00"));
+        addMultiCase(EWireType::Int8, 42, AsStringBuf("*"));
+        addMultiCase(EWireType::Int8, -42, AsStringBuf("\xd6"));
+        addMultiCase(EWireType::Int8, 127, AsStringBuf("\x7f"));
+        addMultiCase(EWireType::Int8, -128, AsStringBuf("\x80"));
+
+        addMultiCase(EWireType::Int16, 0, AsStringBuf("\x00\x00"));
+        addMultiCase(EWireType::Int16, 42, AsStringBuf("\x2a\x00"));
+        addMultiCase(EWireType::Int16, -42, AsStringBuf("\xd6\xff"));
+        addMultiCase(EWireType::Int16, 0x7fff, AsStringBuf("\xff\x7f"));
+        addMultiCase(EWireType::Int16, -0x8000, AsStringBuf("\x00\x80"));
+
+        addMultiCase(EWireType::Int32, 0, AsStringBuf("\x00\x00\x00\x00"));
+        addMultiCase(EWireType::Int32, 42, AsStringBuf("\x2a\x00\x00\x00"));
+        addMultiCase(EWireType::Int32, -42, AsStringBuf("\xd6\xff\xff\xff"));
+        addMultiCase(EWireType::Int32, 0x7fffffff, AsStringBuf("\xff\xff\xff\x7f"));
+        addMultiCase(EWireType::Int32, -0x80000000l, AsStringBuf("\x00\x00\x00\x80"));
+
+        addMultiCase(EWireType::Uint8, 0ull, AsStringBuf("\x00"));
+        addMultiCase(EWireType::Uint8, 42ull, AsStringBuf("*"));
+        addMultiCase(EWireType::Uint8, 255ull, AsStringBuf("\xff"));
+
+        addMultiCase(EWireType::Uint16, 0ull, AsStringBuf("\x00\x00"));
+        addMultiCase(EWireType::Uint16, 42ull, AsStringBuf("\x2a\x00"));
+        addMultiCase(EWireType::Uint16, 0xFFFFull, AsStringBuf("\xff\xff"));
+
+        addMultiCase(EWireType::Uint32, 0ull, AsStringBuf("\x00\x00\x00\x00"));
+        addMultiCase(EWireType::Uint32, 42ull, AsStringBuf("\x2a\x00\x00\x00"));
+        addMultiCase(EWireType::Uint32, 0xFFFFFFFFull, AsStringBuf("\xff\xff\xff\xff"));
+
+        addSimpleAndListCases(EWireType::Uint16, Date(), 0ull, AsStringBuf("\x00\x00"));
+        addSimpleAndListCases(EWireType::Uint16, Date(), 42ull, AsStringBuf("\x2a\x00"));
+        addSimpleAndListCases(EWireType::Uint16, Date(), DateUpperBound - 1, AsStringBuf("\x08\xc2"));
+
+        addSimpleAndListCases(EWireType::Uint32, Datetime(), 0ull, AsStringBuf("\x00\x00\x00\x00"));
+        addSimpleAndListCases(EWireType::Uint32, Datetime(), 42ull, AsStringBuf("\x2a\x00\x00\x00"));
+        addSimpleAndListCases(EWireType::Uint32, Datetime(), DatetimeUpperBound - 1, AsStringBuf("\x7f\xdd\xce\xff"));
+
+        return result;
+    }
+
+    static const std::vector<ParamType> Cases;
+};
+
+const std::vector<TSkiffFormatSmallIntP::ParamType> TSkiffFormatSmallIntP::Cases = TSkiffFormatSmallIntP::GetCases();
+
+INSTANTIATE_TEST_SUITE_P(
+    Cases,
+    TSkiffFormatSmallIntP,
+    ::testing::ValuesIn(TSkiffFormatSmallIntP::Cases));
+
+TEST_P(TSkiffFormatSmallIntP, Test)
+{
+    const auto& [skiffValueSchema, logicalType, value, expectedSkiffData] = GetParam();
+
+    const auto nameTable = New<TNameTable>();
+
+    TStringStream actualSkiffData;
+    auto skiffTableSchema = CreateTupleSchema({
+        skiffValueSchema->SetName("column")
+    });
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("column", logicalType),
+    });
+    auto writer = CreateSkiffWriter(skiffTableSchema, nameTable, &actualSkiffData, {tableSchema});
+    writer->Write({
+        MakeRow(nameTable, {{"column", value}})
+    });
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+    EXPECT_EQ(actualSkiffData.Str(), expectedSkiffData);
+
+    TCollectingValueConsumer rowCollector(nameTable);
+    auto parser = CreateParserForSkiff(skiffTableSchema, tableSchema, &rowCollector);
+    parser->Read(expectedSkiffData);
+    parser->Finish();
+    auto actualValue = rowCollector.GetRowValue(0, "column");
+
+    EXPECT_EQ(actualValue, TTableField("common", value).ToUnversionedValue(nameTable));
+}
+
+TEST(TSkiffWriter, TestBadSmallIntegers)
+{
+    using namespace NLogicalTypeShortcuts;
+    auto writeSkiffValue = [] (
+        std::shared_ptr<TSkiffSchema>&& typeSchema,
+        TLogicalTypePtr logicalType,
+        TTableField::TValue value)
+    {
+        TStringStream result;
+        auto skiffSchema = CreateTupleSchema({
+            typeSchema->SetName("column")
+        });
+        auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+            TColumnSchema("column", std::move(logicalType)),
+        });
+        auto nameTable = New<TNameTable>();
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &result, {tableSchema});
+        writer->Write({
+            MakeRow(nameTable, {{"column", std::move(value)}})
+        });
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+        return result.Str();
+    };
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        writeSkiffValue(CreateSimpleTypeSchema(EWireType::Int8), Int64(), 128),
+        "is out of range for possible values");
+    EXPECT_THROW_WITH_SUBSTRING(
+        writeSkiffValue(CreateSimpleTypeSchema(EWireType::Int8), Int64(), -129),
+        "is out of range for possible values");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        writeSkiffValue(CreateSimpleTypeSchema(EWireType::Int16), Int64(), 0x8000),
+        "is out of range for possible values");
+    EXPECT_THROW_WITH_SUBSTRING(
+        writeSkiffValue(CreateSimpleTypeSchema(EWireType::Int16), Int64(), -0x8001),
+        "is out of range for possible values");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        writeSkiffValue(CreateSimpleTypeSchema(EWireType::Int32), Int64(), 0x80000000ll),
+        "is out of range for possible values");
+    EXPECT_THROW_WITH_SUBSTRING(
+        writeSkiffValue(CreateSimpleTypeSchema(EWireType::Int32), Int64(), -0x80000001ll),
+        "is out of range for possible values");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        writeSkiffValue(CreateSimpleTypeSchema(EWireType::Uint8), Uint64(), 256ull),
+        "is out of range for possible values");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        writeSkiffValue(CreateSimpleTypeSchema(EWireType::Uint16), Uint64(), 0x1FFFFull),
+        "is out of range for possible values");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        writeSkiffValue(CreateSimpleTypeSchema(EWireType::Uint32), Uint64(), 0x100000000ull),
+        "is out of range for possible values");
 }
 
 class TSkiffFormatUuidTestP : public ::testing::TestWithParam<std::tuple<
@@ -1511,7 +1741,7 @@ TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
         RangeIndexColumnName,
     };
 
-    for (const auto columnName : columnNameList) {
+    for (const auto& columnName : columnNameList) {
         auto skiffSchema = CreateTupleSchema({
             CreateVariant8Schema({
                 CreateSimpleTypeSchema(EWireType::Nothing),

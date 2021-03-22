@@ -12,10 +12,6 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NSkiff::EWireType GetSkiffTypeForSimpleLogicalType(NTableClient::ESimpleLogicalValueType logicalType);
-
-////////////////////////////////////////////////////////////////////////////////
-
 using TYsonToSkiffConverter = std::function<void(NYson::TYsonPullParserCursor*, NSkiff::TCheckedInDebugSkiffWriter*)>;
 using TSkiffToYsonConverter = std::function<void(NSkiff::TCheckedInDebugSkiffParser*, NYson::TCheckedInDebugYsonTokenWriter*)>;
 
@@ -104,6 +100,9 @@ public:
 
 void CheckSkiffWireTypeForDecimal(int precision, NSkiff::EWireType wireType);
 void CheckWireType(NSkiff::EWireType wireType, const std::initializer_list<NSkiff::EWireType>& expected);
+
+template <NSkiff::EWireType wireType, typename TValueType>
+Y_FORCE_INLINE void CheckIntSize(TValueType value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
