@@ -57,6 +57,11 @@ public:
 #endif
     }
 
+    const TString& String() const
+    {
+        return String_;
+    }
+
 private:
     const TString String_;
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -184,8 +189,8 @@ TMutableRef TMutableRef::FromBlob(TBlob& blob)
 
 TSharedRef TSharedRef::FromString(TString str, TRefCountedTypeCookie tagCookie)
 {
-    auto ref = TRef::FromString(str);
     auto holder = New<TStringHolder>(std::move(str), tagCookie);
+    auto ref = TRef::FromString(holder->String());
     return TSharedRef(ref, std::move(holder));
 }
 

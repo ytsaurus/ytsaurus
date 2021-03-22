@@ -138,8 +138,7 @@ int TNameTable::DoRegisterName(TStringBuf name)
             << TErrorAttribute("max_column_name_length", MaxColumnNameLength);
     }
 
-    IdToName_.emplace_back(name);
-    const auto& savedName = IdToName_.back();
+    const auto& savedName = IdToName_.emplace_back(name);
     YT_VERIFY(NameToId_.emplace(savedName, id).second);
     ByteSize_ += savedName.length();
     return id;
@@ -157,7 +156,8 @@ int TNameTable::DoRegisterNameOrThrow(TStringBuf name)
 std::vector<TString> TNameTable::GetNames() const
 {
     auto guard = Guard(SpinLock_);
-    return IdToName_;
+    std::vector<TString> result(IdToName_.begin(), IdToName_.end());
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
