@@ -599,6 +599,8 @@ private:
                 BIND(&TImpl::OnCellStatisticsGossip, MakeWeak(this)));
             CellStatisticsGossipExecutor_->Start();
         }
+
+        OnDynamicConfigChanged();
     }
 
     virtual void OnStartLeading() override
