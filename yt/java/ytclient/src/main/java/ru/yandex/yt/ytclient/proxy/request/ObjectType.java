@@ -3,35 +3,31 @@ package ru.yandex.yt.ytclient.proxy.request;
 import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
 
 public enum ObjectType {
-    Null (0),
-
-
     // Static nodes
-    StringNode (300),
-    Int64Node (301),
-    Uint64Node (306),
-    DoubleNode (302),
-    MapNode (303),
-    ListNode (304),
-    BooleanNode (305),
+    StringNode(300, CypressNodeType.STRING),
+    Int64Node(301, CypressNodeType.INT64),
+    Uint64Node(306, CypressNodeType.UINT64),
+    DoubleNode(302, CypressNodeType.DOUBLE),
+    MapNode(303, CypressNodeType.MAP),
+    ListNode(304, CypressNodeType.LIST),
+    BooleanNode(305, CypressNodeType.BOOLEAN),
 
     // Dynamic nodes
-    File (400),
-    Table (401),
-    Journal (423),
-    Orchid (412),
-    Link (417),
-    Document (421),
-    ReplicatedTable (425),
+    File(400, CypressNodeType.FILE),
+    Table(401, CypressNodeType.TABLE),
+    Link(417, null),
+    Document(421, CypressNodeType.DOCUMENT),
+    ReplicatedTable(425, CypressNodeType.REPLICATED_TABLE),
 
     // Tablet Manager stuff
-    TableReplica (709),
-    ;
+    TableReplica(709, CypressNodeType.TABLE_REPLICA);
 
     private final int value;
+    private final CypressNodeType cypressNodeType;
 
-    ObjectType(int value) {
+    ObjectType(int value, CypressNodeType cypressNodeType) {
         this.value = value;
+        this.cypressNodeType = cypressNodeType;
     }
 
     static ObjectType from(CypressNodeType type) {
@@ -67,5 +63,12 @@ public enum ObjectType {
 
     public int value() {
         return value;
+    }
+
+    public CypressNodeType toCypressNodeType() {
+        if (cypressNodeType == null) {
+            throw new IllegalArgumentException();
+        }
+        return cypressNodeType;
     }
 }

@@ -9,6 +9,7 @@ import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -25,21 +26,30 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
  *     </a>
  */
 public class CreateNode extends MutatePath<CreateNode> implements HighLevelRequest<TReqCreateNode.Builder> {
-    private final int type;
+    private final ObjectType type;
 
     private boolean recursive = false;
     private boolean force = false;
     private boolean ignoreExisting = false;
     private final Map<String, YTreeNode> attributes = new HashMap<>();
 
+    public CreateNode(CreateNode other) {
+        super(other);
+        type = other.type;
+        recursive = other.recursive;
+        force = other.force;
+        ignoreExisting = other.ignoreExisting;
+        attributes.putAll(other.attributes);
+    }
+
     public CreateNode(String path, ObjectType type) {
         super(YPath.simple(path));
-        this.type = type.value();
+        this.type = type;
     }
 
     public CreateNode(YPath path, ObjectType type) {
         super(path);
-        this.type = type.value();
+        this.type = type;
     }
 
     public CreateNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
@@ -50,6 +60,14 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
     public CreateNode(YPath path, CypressNodeType type, Map<String, YTreeNode> attributes) {
         this(path, ObjectType.from(type));
         setAttributes(attributes);
+    }
+
+    public ObjectType getType() {
+        return type;
+    }
+
+    public boolean getRecursive() {
+        return recursive;
     }
 
     public CreateNode setRecursive(boolean recursive) {
@@ -87,7 +105,7 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
     public void writeTo(RpcClientRequestBuilder<TReqCreateNode.Builder, ?> builder) {
         builder.body()
                 .setPath(path.toString())
-                .setType(type)
+                .setType(type.value())
                 .setRecursive(recursive)
                 .setForce(force)
                 .setIgnoreExisting(ignoreExisting);
@@ -113,6 +131,17 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
                         .setValue(ByteString.copyFrom(me.getValue().toBinary()));
             }
         }
+    }
+
+    public YTreeBuilder toTree(YTreeBuilder builder) {
+        return builder
+                .apply(super::toTree)
+                .key("path").apply(path::toTree)
+                .key("type").value(type.toCypressNodeType().value())
+                .when(recursive, b -> b.key("recursive").value(recursive))
+                .when(ignoreExisting, b -> b.key("ignore_existing").value(ignoreExisting))
+                .when(force, b -> b.key("force").value(true))
+                .when(!attributes.isEmpty(), b -> b.key("attributes").value(attributes));
     }
 
     @Override

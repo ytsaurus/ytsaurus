@@ -69,8 +69,9 @@ public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T>
         if (mutatingOptions != null) {
             throw new IllegalStateException("mutating options are not supported");
         }
-        return builder
-                .apply(transactionalOptions::toTree)
-                ;
+        if (transactionalOptions != null) {
+            builder = transactionalOptions.toTree(builder);
+        }
+        return builder;
     }
 }
