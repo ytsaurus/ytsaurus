@@ -21,15 +21,18 @@ public:
 
     void Initialize();
 
-    void ScheduleTableStatisticsUpdate(
-        TTableNode* table,
+    void ScheduleStatisticsUpdate(
+        NChunkServer::TChunkOwnerBase* chunkOwner,
         bool updateDataStatistics = true,
-        bool updateTabletStatistics = true);
+        bool updateTabletStatistics = true,
+        bool useNativeContentRevisionCas = false);
 
-    void SendTableStatisticsUpdates(NChunkServer::TChunkOwnerBase* chunkOwner);
+    void SendStatisticsUpdate(
+        NChunkServer::TChunkOwnerBase* chunkOwner,
+        bool useNativeContentRevisionCas = false);
 
     // COMPAT(shakurov)
-    void LoadTableStatisticsUpdateRequests(NCellMaster::TLoadContext& context);
+    void LoadStatisticsUpdateRequests(NCellMaster::TLoadContext& context);
 
 private:
     class TImpl;

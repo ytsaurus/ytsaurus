@@ -88,6 +88,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, LockedDynamicTables_);
     Save(context, Depth_);
     Save(context, Upload_);
+    Save(context, NativeCommitMutationRevision_);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -125,6 +126,10 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
             type == EObjectType::UploadNestedTransaction;
     } else {
         Load(context, Upload_);
+    }
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= EMasterReign::NativeContentRevision) {
+        Load(context, NativeCommitMutationRevision_);
     }
 }
 

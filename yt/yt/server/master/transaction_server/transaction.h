@@ -45,6 +45,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, DependentTransactions);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, Deadline);
     DEFINE_BYVAL_RW_PROPERTY(int, Depth);
+    // Only set when transaction commit is in progress that has been initiated via an Hive message.
+    // There's no strong reason for this field to be persistent, but it may ease future debugging.
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, NativeCommitMutationRevision, NHydra::NullRevision);
 
     struct TExportEntry
     {

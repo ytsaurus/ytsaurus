@@ -24,6 +24,7 @@ struct TCreateNodeContext
     NYTree::IAttributeDictionary* ExplicitAttributes = nullptr;
     NSecurityServer::TAccount* Account = nullptr;
     TCypressShard* Shard = nullptr;
+    NHydra::TRevision NativeContentRevision = {};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +101,7 @@ struct INodeTypeHandler
     virtual std::unique_ptr<TCypressNode> Branch(
         TCypressNode* originatingNode,
         NTransactionServer::TTransaction* transaction,
-        const TLockRequest& lockRquest) = 0;
+        const TLockRequest& lockRequest) = 0;
 
     //! Called on transaction commit to merge the changes made in the branched node back into the originating one.
     /*!

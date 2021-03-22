@@ -141,6 +141,7 @@ public:
             }
             protoRequest.set_mode(static_cast<int>(clone.Mode));
             ToProto(protoRequest.mutable_account_id(), clone.CloneAccountId);
+            protoRequest.set_native_content_revision(clone.NativeContentRevision);
             multicellManager->PostToMaster(protoRequest, clone.ExternalCellTag);
         }
 
@@ -154,6 +155,7 @@ public:
             ToProto(protoRequest.mutable_explicit_node_attributes(), *externalNode.ReplicationExplicitAttributes);
             ToProto(protoRequest.mutable_inherited_node_attributes(), *externalNode.ReplicationInheritedAttributes);
             ToProto(protoRequest.mutable_account_id(), externalNode.AccountId);
+            protoRequest.set_native_content_revision(externalNode.NativeContentRevision);
             multicellManager->PostToMaster(protoRequest, externalNode.ExternalCellTag);
         }
 
@@ -411,7 +413,8 @@ public:
                 .AccountId = account->GetId(),
                 .ReplicationExplicitAttributes = std::move(replicationExplicitAttributes),
                 .ReplicationInheritedAttributes = std::move(replicationInheritedAttributes),
-                .ExternalCellTag = externalCellTag
+                .ExternalCellTag = externalCellTag,
+                .NativeContentRevision = trunkNode->GetContentRevision()
             });
         }
 
@@ -471,7 +474,8 @@ public:
                 .SourceNodeId = TVersionedObjectId(sourceNode->GetId(), externalizedSourceTransactionId),
                 .ClonedNodeId = TVersionedObjectId(clonedNode->GetId(), externalizedClonedTransactionId),
                 .CloneAccountId = clonedNode->GetAccount()->GetId(),
-                .ExternalCellTag = externalCellTag
+                .ExternalCellTag = externalCellTag,
+                .NativeContentRevision = clonedNode->GetContentRevision()
             });
         }
 
@@ -568,6 +572,7 @@ private:
         TVersionedNodeId ClonedNodeId;
         TAccountId CloneAccountId;
         TCellTag ExternalCellTag;
+        NHydra::TRevision NativeContentRevision;
     };
     std::vector<TClonedExternalNode> ClonedExternalNodes_;
 
@@ -579,6 +584,7 @@ private:
         IAttributeDictionaryPtr ReplicationExplicitAttributes;
         IAttributeDictionaryPtr ReplicationInheritedAttributes;
         TCellTag ExternalCellTag;
+        NHydra::TRevision NativeContentRevision;
     };
     std::vector<TCreatedExternalNode> CreatedExternalNodes_;
 
@@ -3459,7 +3465,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto accountId = FromProto<TAccountId>(request->account_id());
         auto type = EObjectType(request->type());
-
+        auto nativeContentRevision = request->native_content_revision();
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionId
             ? transactionManager->GetTransactionOrThrow(transactionId)
@@ -3482,7 +3488,8 @@ private:
                 .Transaction = transaction,
                 .InheritedAttributes = inheritedAttributes.Get(),
                 .ExplicitAttributes = explicitAttributes.Get(),
-                .Account = account
+                .Account = account,
+                .NativeContentRevision = nativeContentRevision
             });
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -3506,6 +3513,7 @@ private:
         auto clonedTransactionId = FromProto<TTransactionId>(request->cloned_transaction_id());
         auto mode = ENodeCloneMode(request->mode());
         auto accountId = FromProto<TAccountId>(request->account_id());
+        auto nativeContentRevision = request->native_content_revision();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* sourceTransaction = sourceTransactionId
@@ -3564,6 +3572,8 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(clonedTrunkNode);
+
+        clonedTrunkNode->SetNativeContentRevision(nativeContentRevision);
 
         LockNode(clonedTrunkNode, clonedTransaction, ELockMode::Exclusive);
 

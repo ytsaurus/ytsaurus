@@ -466,6 +466,8 @@ public:
 
         NProfiling::TWallTimer timer;
 
+        YT_VERIFY(transaction->IsForeign() || transaction->GetNativeCommitMutationRevision() == NHydra::NullRevision);
+
         auto transactionId = transaction->GetId();
 
         auto state = transaction->GetPersistentState();
@@ -509,6 +511,8 @@ public:
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(commitTimestamp);
+            const auto* mutationContext = NHydra::GetCurrentMutationContext();
+            request.set_native_commit_mutation_revision(mutationContext->GetVersion().ToRevision());
             multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
 
@@ -516,6 +520,8 @@ public:
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
             request.set_commit_timestamp(commitTimestamp);
+            const auto* mutationContext = NHydra::GetCurrentMutationContext();
+            request.set_native_commit_mutation_revision(mutationContext->GetVersion().ToRevision());
             multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
 
@@ -1026,11 +1032,13 @@ public:
 
     void CommitTransaction(
         TTransactionId transactionId,
-        TTimestamp commitTimestamp)
+        TTimestamp commitTimestamp,
+        NHydra::TRevision nativeCommitMutationRevision)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
+        transaction->SetNativeCommitMutationRevision(nativeCommitMutationRevision);
         CommitTransaction(transaction, commitTimestamp);
     }
 
@@ -1318,7 +1326,8 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
-        CommitTransaction(transactionId, commitTimestamp);
+        auto nativeCommitMutationRevision = request->native_commit_mutation_revision();
+        CommitTransaction(transactionId, commitTimestamp, nativeCommitMutationRevision);
     }
 
     void HydraAbortTransaction(NProto::TReqAbortTransaction* request)
@@ -1958,7 +1967,7 @@ void TTransactionManager::CommitTransaction(
     TTransactionId transactionId,
     TTimestamp commitTimestamp)
 {
-    Impl_->CommitTransaction(transactionId, commitTimestamp);
+    Impl_->CommitTransaction(transactionId, commitTimestamp, NHydra::NullRevision);
 }
 
 void TTransactionManager::AbortTransaction(

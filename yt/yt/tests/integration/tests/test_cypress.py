@@ -2732,8 +2732,8 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             create("sorted_dynamic_tablet_store", "//tmp/s")
 
-    @authors("aozeritsky")
-    def test_attributes_content_revision(self):
+    @authors("shakurov")
+    def test_attribute_content_revision(self):
         create("map_node", "//tmp/test_node")
         revision = get("//tmp/test_node/@revision")
         attribute_revision = get("//tmp/test_node/@attribute_revision")

@@ -585,6 +585,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(EInternedAttributeKey::Revision);
     descriptors->push_back(EInternedAttributeKey::AttributeRevision);
     descriptors->push_back(EInternedAttributeKey::ContentRevision);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::NativeContentRevision)
+        .SetExternal(isExternal));
     descriptors->push_back(EInternedAttributeKey::ResourceUsage);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveResourceUsage)
         .SetOpaque(true));
@@ -611,7 +613,8 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 {
     auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
-    bool isExternal = node->IsExternal();
+    auto isExternal = node->IsExternal();
+    auto isNative = node->IsNative();
 
     switch (key) {
         case EInternedAttributeKey::ParentId:
@@ -742,6 +745,15 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         case EInternedAttributeKey::ContentRevision:
             BuildYsonFluently(consumer)
                 .Value(node->GetContentRevision());
+            return true;
+
+        case EInternedAttributeKey::NativeContentRevision:
+            if (isExternal || isNative) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(node->GetNativeContentRevision());
             return true;
 
         case EInternedAttributeKey::ResourceUsage: {

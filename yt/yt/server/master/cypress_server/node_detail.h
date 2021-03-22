@@ -311,6 +311,7 @@ protected:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (nodeHolder->GetNativeCellTag() != multicellManager->GetCellTag()) {
             nodeHolder->SetForeign();
+            nodeHolder->SetNativeContentRevision(context.NativeContentRevision);
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
