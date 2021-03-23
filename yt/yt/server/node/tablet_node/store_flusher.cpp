@@ -385,8 +385,9 @@ private:
                 case EStoreState::Persistent: {
                     if (auto backingStore = store->AsChunk()->GetBackingStore()) {
                         auto guard = Guard(SpinLock_);
-                        BackingMemoryUsage_ += memoryUsage;
-                        TabletCellBundleData_[bundleName].BackingMemoryUsage += memoryUsage;
+                        auto backingMemoryUsage = backingStore->GetDynamicMemoryUsage();
+                        BackingMemoryUsage_ += backingMemoryUsage;
+                        TabletCellBundleData_[bundleName].BackingMemoryUsage += backingMemoryUsage;
                     }
                     break;
                 }
