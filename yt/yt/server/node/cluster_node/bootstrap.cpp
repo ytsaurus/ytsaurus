@@ -319,6 +319,9 @@ void TBootstrap::DoInitialize()
     TabletLookupThreadPool_ = New<TThreadPool>(
         Config_->QueryAgent->LookupThreadPoolSize,
         "TabletLookup");
+    TabletFetchThreadPool_ = New<TThreadPool>(
+        Config_->QueryAgent->FetchThreadPoolSize,
+        "TabletFetch");
     TableReplicatorThreadPool_ = New<TThreadPool>(
         Config_->TabletNode->TabletManager->ReplicatorThreadPoolSize,
         "Replicator");
@@ -935,6 +938,11 @@ const IInvokerPtr& TBootstrap::GetTabletLookupPoolInvoker() const
     return TabletLookupThreadPool_->GetInvoker();
 }
 
+const IInvokerPtr& TBootstrap::GetTabletFetchPoolInvoker() const
+{
+    return TabletFetchThreadPool_->GetInvoker();
+}
+
 const IInvokerPtr& TBootstrap::GetTableReplicatorPoolInvoker() const
 {
     return TableReplicatorThreadPool_->GetInvoker();
@@ -1384,6 +1392,8 @@ void TBootstrap::OnDynamicConfigChanged(
         newConfig->QueryAgent->QueryThreadPoolSize.value_or(Config_->QueryAgent->QueryThreadPoolSize));
     TabletLookupThreadPool_->Configure(
         newConfig->QueryAgent->LookupThreadPoolSize.value_or(Config_->QueryAgent->LookupThreadPoolSize));
+    TabletFetchThreadPool_->Configure(
+        newConfig->QueryAgent->FetchThreadPoolSize.value_or(Config_->QueryAgent->FetchThreadPoolSize));
     TableReplicatorThreadPool_->Configure(
         newConfig->TabletNode->TabletManager->ReplicatorThreadPoolSize.value_or(Config_->TabletNode->TabletManager->ReplicatorThreadPoolSize));
     StorageHeavyThreadPool_->Configure(

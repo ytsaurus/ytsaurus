@@ -16,6 +16,7 @@ class TQueryAgentConfig
 public:
     int QueryThreadPoolSize;
     int LookupThreadPoolSize;
+    int FetchThreadPoolSize;
     int MaxSubsplitsPerTablet;
     int MaxSubqueries;
     int MaxQueryRetries;
@@ -32,6 +33,9 @@ public:
             .GreaterThan(0)
             .Default(4);
         RegisterParameter("lookup_thread_pool_size", LookupThreadPoolSize)
+            .GreaterThan(0)
+            .Default(4);
+        RegisterParameter("fetch_thread_pool_size", FetchThreadPoolSize)
             .GreaterThan(0)
             .Default(4);
         RegisterParameter("max_subsplits_per_tablet", MaxSubsplitsPerTablet)
@@ -69,6 +73,7 @@ class TQueryAgentDynamicConfig
 public:
     std::optional<int> QueryThreadPoolSize;
     std::optional<int> LookupThreadPoolSize;
+    std::optional<int> FetchThreadPoolSize;
 
     TQueryAgentDynamicConfig()
     {
@@ -77,6 +82,9 @@ public:
             .GreaterThan(0)
             .Optional();
         RegisterParameter("lookup_thread_pool_size", LookupThreadPoolSize)
+            .GreaterThan(0)
+            .Optional();
+        RegisterParameter("fetch_thread_pool_size", FetchThreadPoolSize)
             .GreaterThan(0)
             .Optional();
     }
