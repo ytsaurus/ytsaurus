@@ -1,4 +1,5 @@
 #include "automaton.h"
+#include "hint_manager.h"
 #include "in_memory_manager.h"
 #include "private.h"
 #include "store_detail.h"
@@ -42,6 +43,7 @@ namespace NYT::NTabletNode {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NClusterNode;
 using namespace NDataNode;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
@@ -415,6 +417,7 @@ DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStoreBase::TChunkStoreBase(
+    TBootstrap* bootstrap,
     TTabletManagerConfigPtr config,
     TStoreId id,
     TChunkId chunkId,
@@ -427,6 +430,7 @@ TChunkStoreBase::TChunkStoreBase(
     NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TStoreBase(std::move(config), id, tablet)
+    , Bootstrap_(bootstrap)
     , BlockCache_(std::move(blockCache))
     , ChunkRegistry_(std::move(chunkRegistry))
     , ChunkBlockManager_(std::move(chunkBlockManager))
@@ -660,6 +664,9 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
         chunkSpec.set_erasure_codec(MiscExt_.erasure_codec());
         *chunkSpec.mutable_chunk_meta() = *ChunkMeta_;
         CachedWeakChunk_.Reset();
+        auto nodeStatusDirectory = Bootstrap_
+            ? Bootstrap_->GetTabletNodeHintManager()
+            : nullptr;
         setCachedReaders(
             false,
             CreateRemoteReader(
@@ -672,6 +679,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
                 std::nullopt,
                 DoGetBlockCache(),
                 /* trafficMeter */ nullptr,
+                std::move(nodeStatusDirectory),
                 bandwidthThrottler,
                 rpsThrottler));
         YT_LOG_DEBUG("Remote chunk reader created and cached");

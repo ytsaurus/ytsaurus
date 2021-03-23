@@ -27,6 +27,7 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/client/object_client/helpers.h>
@@ -99,17 +100,20 @@ struct TPeer
         TAddressWithNetwork addressWithNetwork,
         TNodeDescriptor nodeDescriptor,
         EPeerType peerType,
-        EAddressLocality locality)
+        EAddressLocality locality,
+        std::optional<TInstant> nodeSuspicionMarkTime)
         : AddressWithNetwork(std::move(addressWithNetwork))
         , NodeDescriptor(std::move(nodeDescriptor))
         , Type(peerType)
         , Locality(locality)
+        , NodeSuspicionMarkTime(nodeSuspicionMarkTime)
     { }
 
     TAddressWithNetwork AddressWithNetwork;
     TNodeDescriptor NodeDescriptor;
     EPeerType Type;
     EAddressLocality Locality;
+    std::optional<TInstant> NodeSuspicionMarkTime;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TPeer& peer, TStringBuf format)
@@ -149,24 +153,26 @@ public:
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const TNodeDescriptor& localDescriptor,
-        const std::optional<TNodeId>& localNodeId,
+        const std::optional<TNodeId>& /* localNodeId */,
         TChunkId chunkId,
         const TChunkReplicaList& seedReplicas,
         IBlockCachePtr blockCache,
+        TTrafficMeterPtr trafficMeter,
+        INodeStatusDirectoryPtr nodeStatusDirectory,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler,
-        TTrafficMeterPtr trafficMeter)
-        : Config_(config)
-        , Options_(options)
-        , Client_(client)
-        , NodeDirectory_(nodeDirectory)
+        IThroughputThrottlerPtr rpsThrottler)
+        : Config_(std::move(config))
+        , Options_(std::move(options))
+        , Client_(std::move(client))
+        , NodeDirectory_(std::move(nodeDirectory))
         , LocalDescriptor_(localDescriptor)
         , ChunkId_(chunkId)
-        , BlockCache_(blockCache)
+        , BlockCache_(std::move(blockCache))
+        , TrafficMeter_(std::move(trafficMeter))
+        , NodeStatusDirectory_(std::move(nodeStatusDirectory))
         , BandwidthThrottler_(std::move(bandwidthThrottler))
         , RpsThrottler_(std::move(rpsThrottler))
-        , Networks_(client->GetNativeConnection()->GetNetworks())
-        , TrafficMeter_(trafficMeter)
+        , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , Logger(ChunkClientLogger.WithTag("ChunkId: %v", ChunkId_))
         , ChunkReplicaLocator_(New<TChunkReplicaLocator>(
             Client_,
@@ -275,10 +281,11 @@ private:
     const std::optional<TNodeId> LocalNodeId_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
+    const TTrafficMeterPtr TrafficMeter_;
+    const INodeStatusDirectoryPtr NodeStatusDirectory_;
     const IThroughputThrottlerPtr BandwidthThrottler_;
     const IThroughputThrottlerPtr RpsThrottler_;
     const TNetworkPreferenceList Networks_;
-    const TTrafficMeterPtr TrafficMeter_;
 
     const NLogging::TLogger Logger;
     const TChunkReplicaLocatorPtr ChunkReplicaLocator_;
@@ -294,13 +301,27 @@ private:
 
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
+    std::atomic<TInstant> DiscardDelayTime_ = TInstant();
 
-    void DiscardSeeds(const TFuture<TChunkReplicaList>& future)
+
+    void DiscardSeeds(const TFuture<TChunkReplicaList>& future, bool applyProlongedDelay = false)
     {
         if (!Options_->AllowFetchingSeedsFromMaster) {
             // We're not allowed to ask master for seeds.
             // Better keep the initial ones.
             return;
+        }
+
+        if (applyProlongedDelay) {
+            auto now = TInstant::Now();
+            auto discardDelayTime = DiscardDelayTime_.load();
+            if (discardDelayTime >= now) {
+                return;
+            }
+            auto nextDiscardDelayTime = now + Config_->ProlongedDiscardSeedsDelay;
+            if (!DiscardDelayTime_.compare_exchange_strong(discardDelayTime, nextDiscardDelayTime)) {
+                return;
+            }
         }
 
         ChunkReplicaLocator_->DiscardReplicas(future);
@@ -416,6 +437,8 @@ protected:
 
     const TClientChunkReadOptions SessionOptions_;
 
+    const INodeStatusDirectoryPtr NodeStatusDirectory_;
+
     //! The workload descriptor from the config with instant field updated
     //! properly.
     const TWorkloadDescriptor WorkloadDescriptor_;
@@ -472,6 +495,7 @@ protected:
         , ReaderOptions_(reader->Options_)
         , ChunkId_(reader->ChunkId_)
         , SessionOptions_(options)
+        , NodeStatusDirectory_(reader->NodeStatusDirectory_)
         , WorkloadDescriptor_(ReaderConfig_->EnableWorkloadFifoScheduling
             ? options.WorkloadDescriptor.SetCurrentInstant()
             : options.WorkloadDescriptor)
@@ -557,14 +581,23 @@ protected:
     }
 
     //! Register peer and install into the peer queue if neccessary.
-    bool AddPeer(const TString& address, const TNodeDescriptor& descriptor, EPeerType type)
+    bool AddPeer(
+        const TString& address,
+        const TNodeDescriptor& descriptor,
+        EPeerType type,
+        std::optional<TInstant> nodeSuspicionMarkTime)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
             return false;
         }
 
-        TPeer peer(descriptor.GetAddressWithNetworkOrThrow(Networks_), descriptor, type, GetNodeLocality(descriptor));
+        TPeer peer(
+            descriptor.GetAddressWithNetworkOrThrow(Networks_),
+            descriptor,
+            type,
+            GetNodeLocality(descriptor),
+            nodeSuspicionMarkTime);
         auto pair = Peers_.insert({address, peer});
         if (!pair.second) {
             // Peer was already handled on current pass.
@@ -626,11 +659,23 @@ protected:
     }
 
     template <class T>
-    void ProcessError(const TErrorOr<T>& rspOrError, const TString& peerAddress, const TError& wrappingError)
+    void ProcessError(const TErrorOr<T>& rspOrError, const TPeer& peer, const TError& wrappingError)
     {
         auto code = rspOrError.GetCode();
         if (code == NYT::EErrorCode::Canceled) {
             return;
+        }
+
+        if (NodeStatusDirectory_ &&
+            !peer.NodeSuspicionMarkTime &&
+            NodeStatusDirectory_->ShouldMarkNodeSuspicious(code))
+        {
+            YT_LOG_WARNING("Node is marked as suspicious (NodeAddress: %v)",
+                peer.AddressWithNetwork.Address);
+            NodeStatusDirectory_->UpdateSuspicionMarkTime(
+                peer.AddressWithNetwork.Address,
+                /* suspicious */ true,
+                std::nullopt);
         }
 
         auto error = wrappingError << rspOrError;
@@ -642,7 +687,7 @@ protected:
             return;
         }
 
-        BanPeer(peerAddress, code == NChunkClient::EErrorCode::NoSuchChunk);
+        BanPeer(peer.AddressWithNetwork.Address, code == NChunkClient::EErrorCode::NoSuchChunk);
         RegisterError(error);
     }
 
@@ -795,6 +840,11 @@ protected:
         ResetPeerQueue();
         Peers_.clear();
 
+        std::vector<const TNodeDescriptor*> peerDescriptors;
+        std::vector<TString> peerAddresses;
+        peerDescriptors.reserve(SeedReplicas_.size());
+        peerAddresses.reserve(SeedReplicas_.size());
+
         for (auto replica : SeedReplicas_) {
             const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
             if (!descriptor) {
@@ -815,8 +865,23 @@ protected:
                 OnSessionFailed(/* fatal */ true);
                 return false;
             } else {
-                AddPeer(*address, *descriptor, EPeerType::Seed);
+                peerDescriptors.push_back(descriptor);
+                peerAddresses.push_back(*address);
             }
+        }
+
+        auto nodeSuspicionMarkTimes = NodeStatusDirectory_
+            ? NodeStatusDirectory_->RetrieveSuspicionMarkTimes(peerAddresses)
+            : std::vector<std::optional<TInstant>>();
+        for (int i = 0; i < peerDescriptors.size(); ++i) {
+            auto suspicionMarkTime = NodeStatusDirectory_
+                ? nodeSuspicionMarkTimes[i]
+                : std::nullopt;
+            AddPeer(
+                std::move(peerAddresses[i]),
+                *peerDescriptors[i],
+                EPeerType::Seed,
+                suspicionMarkTime);
         }
 
         if (PeerQueue_.empty()) {
@@ -908,9 +973,7 @@ protected:
         }
 
         auto peerAndProbeResultsOrError = WaitFor(DoProbeAndSelectBestPeers(candidates, count, blockIndexes, reader));
-        if (!peerAndProbeResultsOrError.IsOK()) {
-            return {};
-        }
+        YT_VERIFY(peerAndProbeResultsOrError.IsOK());
         return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count, reader);
     }
 
@@ -930,11 +993,9 @@ protected:
         return DoProbeAndSelectBestPeers(candidates, count, blockIndexes, reader)
             .Apply(BIND(
                 [=, this_ = MakeWeak(this), reader = std::move(reader)]
-                (const TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>& peerAndProbeResultsOrError) -> TPeerList
+                (const TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>& peerAndProbeResultsOrError)
             {
-                if (!peerAndProbeResultsOrError.IsOK()) {
-                    return {};
-                }
+                YT_VERIFY(peerAndProbeResultsOrError.IsOK());
                 return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count, reader);
             }).AsyncVia(SessionInvoker_));
     }
@@ -981,6 +1042,16 @@ private:
                 YT_VERIFY(lhs.Peer.Type == EPeerType::Seed);
                 return -1;
             }
+        }
+
+        if (lhs.Peer.NodeSuspicionMarkTime || rhs.Peer.NodeSuspicionMarkTime) {
+            // Prefer peer that is not suspicious.
+            // If both are suspicious prefer one that was suspicious for less time.
+            auto lhsMarkTime = lhs.Peer.NodeSuspicionMarkTime.value_or(TInstant::Max());
+            auto rhsMarkTime = rhs.Peer.NodeSuspicionMarkTime.value_or(TInstant::Max());
+            return lhsMarkTime < rhsMarkTime
+                ? -1
+                : 1;
         }
 
         if (lhs.BanCount != rhs.BanCount) {
@@ -1075,20 +1146,66 @@ private:
 
     template <class TRspPtr>
     static std::pair<TPeer, TErrorOrPeerProbeResult> ParsePeerAndProbeResponse(
-        const TPeer& peer,
+        TPeer peer,
         const TErrorOr<TRspPtr>& rspOrError)
     {
         if (rspOrError.IsOK()) {
             return {
-                peer,
+                std::move(peer),
                 TErrorOrPeerProbeResult(ParseProbeResponse(rspOrError.Value()))
             };
         } else {
             return {
-                peer,
+                std::move(peer),
                 TErrorOrPeerProbeResult(TError(rspOrError))
             };
         }
+    }
+
+    template <class TRspPtr>
+    std::pair<TPeer, TErrorOrPeerProbeResult> ParseSuspiciousPeerAndProbeResponse(
+        TPeer peer,
+        const TErrorOr<TRspPtr>& rspOrError,
+        const TFuture<TChunkReplicaList>& currentSeedsFuture,
+        int totalPeerCount)
+    {
+        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+        YT_VERIFY(peer.NodeSuspicionMarkTime && NodeStatusDirectory_);
+
+        if (rspOrError.IsOK()) {
+            NodeStatusDirectory_->UpdateSuspicionMarkTime(
+                peer.AddressWithNetwork.Address,
+                /* suspicious */ false,
+                peer.NodeSuspicionMarkTime);
+            peer.NodeSuspicionMarkTime.reset();
+
+            return {
+                std::move(peer),
+                TErrorOrPeerProbeResult(ParseProbeResponse(rspOrError.Value()))
+            };
+        }
+
+        if (ReaderConfig_->SuspiciousNodeGracePeriod && totalPeerCount > 1) {
+            auto now = TInstant::Now();
+            if (*peer.NodeSuspicionMarkTime + *ReaderConfig_->SuspiciousNodeGracePeriod < now) {
+                if (auto reader = Reader_.Lock()) {
+                    // NB(akozhikhov): In order not to call DiscardSeeds too often, we implement additional delay.
+                    // TODO(akozhikhov, ifsmirnov): Drop prolonged delay logic when DRT will come.
+                    YT_LOG_WARNING("Discarding seeds due to node being suspicious (NodeAddress: %v, SuspicionTime: %v)",
+                        peer.AddressWithNetwork,
+                        now - *peer.NodeSuspicionMarkTime);
+                    reader->DiscardSeeds(
+                        currentSeedsFuture,
+                        /* applyProlongedDelay */ true);
+                }
+            }
+        }
+
+        return {
+            std::move(peer),
+            TErrorOrPeerProbeResult(TError(rspOrError))
+        };
     }
 
     TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeerViaGetBlockSet(
@@ -1109,9 +1226,23 @@ private:
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->SetAcknowledgementTimeout(std::nullopt);
 
-        return req->Invoke().Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError) {
-            return ParsePeerAndProbeResponse(peer, rspOrError);
-        }));
+        if (peer.NodeSuspicionMarkTime) {
+            return req->Invoke().Apply(BIND(
+                [=, this_ = MakeStrong(this), currentSeedsFuture = SeedsFuture_, totalPeerCount = Peers_.size()]
+                (const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError)
+                {
+                    return ParseSuspiciousPeerAndProbeResponse(
+                        std::move(peer),
+                        rspOrError,
+                        currentSeedsFuture,
+                        totalPeerCount);
+                })
+                .AsyncVia(SessionInvoker_));
+        } else {
+            return req->Invoke().Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError) {
+                return ParsePeerAndProbeResponse(std::move(peer), rspOrError);
+            }));
+        }
     }
 
     TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeerViaProbeBlockSet(
@@ -1131,9 +1262,23 @@ private:
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->SetAcknowledgementTimeout(std::nullopt);
 
-        return req->Invoke().Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError) {
-            return ParsePeerAndProbeResponse(peer, rspOrError);
-        }));
+        if (peer.NodeSuspicionMarkTime) {
+            return req->Invoke().Apply(BIND(
+                [=, this_ = MakeStrong(this), currentSeedsFuture = SeedsFuture_, totalPeerCount = Peers_.size()]
+                (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError)
+                {
+                    return ParseSuspiciousPeerAndProbeResponse(
+                        std::move(peer),
+                        rspOrError,
+                        currentSeedsFuture,
+                        totalPeerCount);
+                })
+                .AsyncVia(SessionInvoker_));
+        } else {
+            return req->Invoke().Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError) {
+                return ParsePeerAndProbeResponse(std::move(peer), rspOrError);
+            }));
+        }
     }
 
     TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeer(
@@ -1143,14 +1288,7 @@ private:
         const TReplicationReaderPtr& reader)
     {
         if (ReaderConfig_->EnableProbeBlockSet) {
-            return ProbePeerViaProbeBlockSet(channel, peer, blockIndexes, reader)
-                .Apply(BIND([=] (const std::pair<TPeer, TErrorOrPeerProbeResult>& peerAndResult) {
-                    if (peerAndResult.second.FindMatching(NRpc::EErrorCode::NoSuchMethod)) {
-                        return ProbePeerViaGetBlockSet(channel, peer, blockIndexes, reader);
-                    } else {
-                        return MakeFuture(peerAndResult);
-                    }
-                }));
+            return ProbePeerViaProbeBlockSet(channel, peer, blockIndexes, reader);
         } else {
             return ProbePeerViaGetBlockSet(channel, peer, blockIndexes, reader);
         }
@@ -1162,24 +1300,73 @@ private:
         const std::vector<int>& blockIndexes,
         const TReplicationReaderPtr& reader)
     {
-        YT_LOG_DEBUG("Gathered candidate peers for probing (Addresses: %v)",
-            candidates);
-
         // Multiple candidates - send probing requests.
-        std::vector<TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>>> peerAndProbeResultFutures;
+        std::vector<TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>>> asyncResults;
+        std::vector<TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>>> asyncSuspiciousResults;
+        asyncResults.reserve(candidates.size());
         for (const auto& peer : candidates) {
             auto channel = GetChannel(peer.AddressWithNetwork);
             if (!channel) {
                 continue;
             }
-            peerAndProbeResultFutures.push_back(ProbePeer(
-                channel,
-                peer,
-                blockIndexes,
-                reader));
+
+            if (peer.NodeSuspicionMarkTime) {
+                asyncSuspiciousResults.push_back(ProbePeer(
+                    channel,
+                    peer,
+                    blockIndexes,
+                    reader));
+            } else {
+                asyncResults.push_back(ProbePeer(
+                    channel,
+                    peer,
+                    blockIndexes,
+                    reader));
+            }
         }
 
-        return AllSucceeded(std::move(peerAndProbeResultFutures));
+        YT_LOG_DEBUG("Gathered candidate peers for probing (Addresses: %v, SuspiciousAddressCount: %v)",
+            candidates,
+            asyncSuspiciousResults.size());
+
+        if (asyncSuspiciousResults.empty()) {
+            return AllSucceeded(std::move(asyncResults));
+        } else if (asyncResults.empty()) {
+            return AllSucceeded(std::move(asyncSuspiciousResults));
+        } else {
+            return AllSucceeded(std::move(asyncResults))
+                .Apply(BIND(
+                [
+                    =,
+                    asyncSuspiciousResults = std::move(asyncSuspiciousResults)
+                ] (const TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>& resultsOrError) {
+                    YT_VERIFY(resultsOrError.IsOK());
+                    auto results = resultsOrError.Value();
+
+                    for (const auto& asyncSuspiciousResult : asyncSuspiciousResults) {
+                        auto maybeSuspiciousResult = asyncSuspiciousResult.TryGet();
+                        if (!maybeSuspiciousResult) {
+                            continue;
+                        }
+
+                        YT_VERIFY(maybeSuspiciousResult->IsOK());
+
+                        auto suspiciousResultValue = std::move(maybeSuspiciousResult->Value());
+                        if (suspiciousResultValue.second.IsOK()) {
+                            results.push_back(std::move(suspiciousResultValue));
+                        } else {
+                            ProcessError(
+                                suspiciousResultValue.second,
+                                suspiciousResultValue.first,
+                                TError("Error probing suspicious node %v",
+                                    suspiciousResultValue.first.AddressWithNetwork));
+                        }
+                    }
+
+                    return results;
+                })
+                .AsyncVia(SessionInvoker_));
+        }
     }
 
     TPeerList OnPeersProbed(
@@ -1193,7 +1380,7 @@ private:
             if (!probeResultOrError.IsOK()) {
                 ProcessError(
                     probeResultOrError,
-                    peer.AddressWithNetwork.Address,
+                    peer,
                     TError("Error probing node %v queue length", peer.AddressWithNetwork));
                 continue;
             }
@@ -1332,8 +1519,9 @@ private:
 
     virtual void NextPass() override
     {
-        if (!PrepareNextPass())
+        if (!PrepareNextPass()) {
             return;
+        }
 
         PeerBlocksMap_.clear();
         auto blockIndexes = GetUnfetchedBlockIndexes();
@@ -1397,7 +1585,12 @@ private:
                 }
 
                 if (auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_)) {
-                    if (AddPeer(*suggestedAddress, *maybeSuggestedDescriptor, EPeerType::Peer)) {
+                    if (AddPeer(
+                        *suggestedAddress,
+                        *maybeSuggestedDescriptor,
+                        EPeerType::Peer,
+                        /* nodeSuspicionMarkTime */ std::nullopt))
+                    {
                         addedNewPeers = true;
                     }
                     if (blockIndex == AllBlocksIndex) {
@@ -1579,7 +1772,7 @@ private:
             auto wrappingError = TError("Error fetching blocks from node %v", respondedPeer.AddressWithNetwork);
             ProcessError(
                 rspOrError,
-                respondedPeer.AddressWithNetwork.Address,
+                respondedPeer,
                 wrappingError);
             cancelAll(wrappingError << rspOrError);
             return true;
@@ -1818,8 +2011,9 @@ private:
 
     virtual void NextPass() override
     {
-        if (!PrepareNextPass())
+        if (!PrepareNextPass()) {
             return;
+        }
 
         RequestBlocks();
     }
@@ -1848,7 +2042,8 @@ private:
             return;
         }
 
-        const auto& peerAddressWithNetwork = candidates.front().AddressWithNetwork;
+        const auto& peer = candidates.front();
+        const auto& peerAddressWithNetwork = peer.AddressWithNetwork;
         auto channel = GetChannel(peerAddressWithNetwork);
         if (!channel) {
             RequestBlocks();
@@ -1891,7 +2086,7 @@ private:
         if (!rspOrError.IsOK()) {
             ProcessError(
                 rspOrError,
-                peerAddressWithNetwork.Address,
+                peer,
                 TError("Error fetching blocks from node %v", peerAddressWithNetwork));
             RequestBlocks();
             return;
@@ -2055,8 +2250,9 @@ private:
 
     virtual void NextPass() override
     {
-        if (!PrepareNextPass())
+        if (!PrepareNextPass()) {
             return;
+        }
 
         RequestMeta();
     }
@@ -2120,7 +2316,7 @@ private:
         if (!rspOrError.IsOK()) {
             ProcessError(
                 rspOrError,
-                respondedPeer.AddressWithNetwork.Address,
+                respondedPeer,
                 TError("Error fetching meta from node %v", respondedPeer.AddressWithNetwork));
             RequestMeta();
             return;
@@ -2389,11 +2585,9 @@ private:
         }
 
         std::optional<TPeer> chosenPeer;
-        TAddressWithNetwork peerAddressWithNetwork;
         while (CandidateIndex_ < SinglePassCandidates_.size()) {
             chosenPeer = SinglePassCandidates_[CandidateIndex_];
-            peerAddressWithNetwork = chosenPeer->AddressWithNetwork;
-            if (!IsPeerBanned(peerAddressWithNetwork.Address)) {
+            if (!IsPeerBanned(chosenPeer->AddressWithNetwork.Address)) {
                 break;
             }
 
@@ -2418,7 +2612,9 @@ private:
                 ReaderConfig_->LookupSleepDuration);
             return;
         }
+
         YT_VERIFY(chosenPeer);
+        const auto& peerAddressWithNetwork = chosenPeer->AddressWithNetwork;
 
         if (IsCanceled()) {
             return;
@@ -2454,13 +2650,12 @@ private:
             RequestRows();
             return;
         }
-        RequestRowsFromPeer(channel, reader, peerAddressWithNetwork, *chosenPeer, false);
+        RequestRowsFromPeer(channel, reader, *chosenPeer, false);
     }
 
      void RequestRowsFromPeer(
         const IChannelPtr& channel,
         const TReplicationReaderPtr& reader,
-        const TAddressWithNetwork& peerAddressWithNetwork,
         const TPeer& chosenPeer,
         bool sendSchema)
     {
@@ -2484,15 +2679,15 @@ private:
         // NB: By default if peer is throttling it will immediately fail,
         // but if we have to request the same throttling peer again,
         // then we should stop iterating and make it finish the request.
-        bool isPeerThrottling = ThrottlingRateByPeer_.contains(peerAddressWithNetwork);
+        bool isPeerThrottling = ThrottlingRateByPeer_.contains(chosenPeer.AddressWithNetwork);
         req->set_reject_if_throttling(EnableRejectsIfThrottling_ && !isPeerThrottling);
         if (isPeerThrottling) {
             YT_LOG_DEBUG("Lookup replication reader sends request to throttling peer "
                 "(Address: %v, CandidateIndex: %v, IterationCount: %v, ThrottlingRate: %v)",
-                peerAddressWithNetwork,
+                chosenPeer.AddressWithNetwork,
                 CandidateIndex_ - 1,
                 SinglePassIterationCount_,
-                ThrottlingRateByPeer_[peerAddressWithNetwork]);
+                ThrottlingRateByPeer_[chosenPeer.AddressWithNetwork]);
         }
 
         auto schemaData = req->mutable_schema_data();
@@ -2519,7 +2714,6 @@ private:
                     std::move(dataWaitTimer),
                     std::move(reader),
                     std::move(chosenPeer),
-                    std::move(peerAddressWithNetwork),
                     sendSchema);
             }).Via(SessionInvoker_));
     }
@@ -2530,15 +2724,16 @@ private:
         NProfiling::TWallTimer dataWaitTimer,
         const TReplicationReaderPtr& reader,
         const TPeer& chosenPeer,
-        const TAddressWithNetwork& peerAddressWithNetwork,
         bool sentSchema)
     {
         SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
 
+        const auto& peerAddressWithNetwork = chosenPeer.AddressWithNetwork;
+
         if (!rspOrError.IsOK()) {
             ProcessError(
                 rspOrError,
-                peerAddressWithNetwork.Address,
+                chosenPeer,
                 TError("Error fetching rows from node %v", peerAddressWithNetwork));
 
             YT_LOG_WARNING("Data node lookup request failed "
@@ -2570,7 +2765,7 @@ private:
                 CandidateIndex_ - 1,
                 SinglePassIterationCount_);
 
-            RequestRowsFromPeer(channel, reader, peerAddressWithNetwork, chosenPeer, true);
+            RequestRowsFromPeer(channel, reader, chosenPeer, true);
             return;
         }
 
@@ -2710,6 +2905,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     const TChunkReplicaList& seedReplicas,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
+    INodeStatusDirectoryPtr nodeStatusDirectory,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
 {
@@ -2728,9 +2924,10 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         chunkId,
         seedReplicas,
         std::move(blockCache),
+        std::move(trafficMeter),
+        std::move(nodeStatusDirectory),
         std::move(bandwidthThrottler),
-        std::move(rpsThrottler),
-        std::move(trafficMeter));
+        std::move(rpsThrottler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

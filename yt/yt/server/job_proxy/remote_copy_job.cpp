@@ -636,6 +636,7 @@ private:
             inputReplicas,
             Host_->GetReaderBlockCache(),
             Host_->GetTrafficMeter(),
+            /* nodeStatusDirectory */ nullptr,
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());
 

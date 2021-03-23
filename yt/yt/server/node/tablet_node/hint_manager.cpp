@@ -9,11 +9,14 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/core/net/address.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NClusterNode;
-using namespace NDynamicConfig;
 using namespace NConcurrency;
+using namespace NDynamicConfig;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,8 +84,59 @@ public:
             return false;
         }
 
-        auto guard = ReaderGuard(SpinLock_);
+        auto guard = ReaderGuard(BannedReplicaClustersSpinLock_);
         return BannedReplicaClusters_.contains(clusterName);
+    }
+
+    virtual void UpdateSuspicionMarkTime(
+        const TString& nodeAddress,
+        bool suspicious,
+        std::optional<TInstant> previousMarkTime) override
+    {
+        auto hostName = GetServiceHostName(nodeAddress);
+
+        auto guard = WriterGuard(SuspiciousNodesSpinLock_);
+
+        auto it = SuspiciousNodesMarkTime_.find(hostName);
+        if (it == SuspiciousNodesMarkTime_.end() && suspicious) {
+            YT_LOG_DEBUG("Node is marked as suspicious (HostName: %v)",
+                hostName);
+            SuspiciousNodesMarkTime_[hostName] = TInstant::Now();
+        }
+        if (it != SuspiciousNodesMarkTime_.end() && 
+            previousMarkTime == it->second &&
+            !suspicious)
+        {
+            YT_LOG_DEBUG("Node is not suspicious anymore (HostName: %v)",
+                hostName);
+            SuspiciousNodesMarkTime_.erase(hostName);
+        }
+    }
+
+    virtual std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
+        const std::vector<TString>& nodeAddresses) const override
+    {
+        auto guard = ReaderGuard(SuspiciousNodesSpinLock_);
+
+        std::vector<std::optional<TInstant>> markTimes;
+        markTimes.reserve(nodeAddresses.size());
+        for (const auto& nodeAddress : nodeAddresses) {
+            auto hostName = GetServiceHostName(nodeAddress);
+            auto it = SuspiciousNodesMarkTime_.find(hostName);
+            auto markTime = it != SuspiciousNodesMarkTime_.end()
+                ? std::make_optional(it->second)
+                : std::nullopt;
+            markTimes.push_back(markTime);
+        }
+
+        return markTimes;
+    }
+
+    virtual bool ShouldMarkNodeSuspicious(TErrorCode errorCode) const override
+    {
+        return
+            errorCode == NRpc::EErrorCode::TransportError ||
+            errorCode == NChunkClient::EErrorCode::MasterNotConnected;
     }
 
 private:
@@ -92,8 +146,12 @@ private:
     const THintManagerConfigPtr Config_;
     const TReplicatorHintConfigFetcherPtr ReplicatorHintConfigFetcher_;
 
-    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, BannedReplicaClustersSpinLock_);
     THashSet<TString> BannedReplicaClusters_;
+
+    // TODO(akozhikhov): Add periodic to clear old suspicious nodes.
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SuspiciousNodesSpinLock_);
+    THashMap<TString, TInstant> SuspiciousNodesMarkTime_;
 
     void OnDynamicConfigChanged(
         const TReplicatorHintConfigPtr& /* oldConfig */,
@@ -102,7 +160,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         {
-            auto guard = WriterGuard(SpinLock_);
+            auto guard = WriterGuard(BannedReplicaClustersSpinLock_);
             BannedReplicaClusters_ = newConfig->BannedReplicaClusters;
         }
 

@@ -646,6 +646,7 @@ IChunkReaderPtr CreateRemoteReader(
     std::optional<TNodeId> localNodeId,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
+    INodeStatusDirectoryPtr nodeStatusDirectory,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
 {
@@ -695,6 +696,7 @@ IChunkReaderPtr CreateRemoteReader(
                 partReplicas,
                 blockCache,
                 trafficMeter,
+                nodeStatusDirectory,
                 bandwidthThrottler,
                 rpsThrottler);
             readers.push_back(reader);
@@ -705,18 +707,19 @@ IChunkReaderPtr CreateRemoteReader(
         YT_LOG_DEBUG("Creating regular remote reader");
 
         return CreateReplicationReader(
-            config,
-            options,
-            client,
-            nodeDirectory,
+            std::move(config),
+            std::move(options),
+            std::move(client),
+            std::move(nodeDirectory),
             localDescriptor,
             localNodeId,
             chunkId,
             replicas,
-            blockCache,
-            trafficMeter,
-            bandwidthThrottler,
-            rpsThrottler);
+            std::move(blockCache),
+            std::move(trafficMeter),
+            std::move(nodeStatusDirectory),
+            std::move(bandwidthThrottler),
+            std::move(rpsThrottler));
     }
 }
 

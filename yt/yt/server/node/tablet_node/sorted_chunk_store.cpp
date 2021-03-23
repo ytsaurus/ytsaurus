@@ -159,6 +159,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortedChunkStore::TSortedChunkStore(
+    TBootstrap* bootstrap,
     TTabletManagerConfigPtr config,
     TStoreId id,
     NChunkClient::TChunkId chunkId,
@@ -172,6 +173,7 @@ TSortedChunkStore::TSortedChunkStore(
     NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TChunkStoreBase(
+        bootstrap,
         config,
         id,
         chunkId,

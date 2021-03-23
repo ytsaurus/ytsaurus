@@ -95,6 +95,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartReaders(
                     partReplicas,
                     blockCache,
                     trafficMeter,
+                    /* nodeStatusDirectory */ nullptr,
                     bandwidthThrottler,
                     rpsThrottler);
                 readers.push_back(reader);

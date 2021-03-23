@@ -144,6 +144,7 @@ IChunkReaderPtr CreateRemoteReader(
     std::optional<NNodeTrackerClient::TNodeId> localNodeId,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
+    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler);
 

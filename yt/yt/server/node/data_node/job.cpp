@@ -776,6 +776,7 @@ private:
             partReplicas,
             Bootstrap_->GetBlockCache(),
             /* trafficMeter */ nullptr,
+            /* nodeStatusDirectory */ nullptr,
             Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::RepairIn));
 
         return reader;

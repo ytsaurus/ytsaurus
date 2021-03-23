@@ -3660,6 +3660,7 @@ private:
                 }
 
                 auto store = New<TSortedChunkStore>(
+                    Bootstrap_,
                     Config_,
                     storeId,
                     chunkId,
@@ -3688,6 +3689,7 @@ private:
                     YT_VERIFY(!descriptor->has_chunk_view_descriptor());
                 }
                 auto store = New<TOrderedChunkStore>(
+                    Bootstrap_,
                     Config_,
                     storeId,
                     tablet,

@@ -13,6 +13,7 @@ class TOrderedChunkStore
 {
 public:
     TOrderedChunkStore(
+        NClusterNode::TBootstrap* bootstrap,
         TTabletManagerConfigPtr config,
         TStoreId id,
         TTablet* tablet,

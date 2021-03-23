@@ -33,6 +33,8 @@ DECLARE_REFCOUNTED_CLASS(TNodeDirectorySynchronizerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(INodeChannelFactory)
 
+DECLARE_REFCOUNTED_STRUCT(INodeStatusDirectory)
+
 DEFINE_ENUM(EMemoryCategory,
     ((Footprint)                   (0))
     ((BlockCache)                  (1))
