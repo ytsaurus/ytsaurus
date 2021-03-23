@@ -844,10 +844,6 @@ private:
 
                 return mergedRef;
             });
-
-            profilingCounters->SessionRowCount.Record(sessionRowCount);
-            profilingCounters->SessionDataWeight.Record(sessionDataWeight);
-            profilingCounters->SessionWallTime.Record(wallTimer.GetElapsedTime());
         } else {
             i64 startRowIndex = request->has_start_row_index()
                 ? request->start_row_index()
@@ -884,14 +880,27 @@ private:
                     : MaxRowsPerRemoteDynamicStoreRead
             };
 
-            return HandleInputStreamingRequest(context, [&] {
+            HandleInputStreamingRequest(context, [&] {
+                TFiberWallTimer timer;
+                i64 rowCount = 0;
+                i64 dataWeight = 0;
+                auto finallyGuard = Finally([&] {
+                    profilingCounters->RowCount.Increment(rowCount);
+                    profilingCounters->DataWeight.Increment(dataWeight);
+                    profilingCounters->CpuTime.Add(timer.GetElapsedTime());
+
+                    sessionRowCount += rowCount;
+                    sessionDataWeight += dataWeight;
+                });
+
                 auto batch = reader->Read(readOptions);
                 if (!batch) {
                     return TSharedRef{};
                 }
+                rowCount += batch->GetRowCount();
 
                 if (request->has_failure_probability() && RandomNumber<double>() < request->failure_probability()) {
-                    THROW_ERROR_EXCEPTION("Failing request for the sake of testing");
+                    THROW_ERROR_EXCEPTION("Request failed for the sake of testing");
                 }
 
                 TWireProtocolWriter writer;
@@ -908,13 +917,20 @@ private:
                 writer.WriteUnversionedRowset(batch->MaterializeRows());
                 auto data = writer.Finish();
 
-                auto mergedRef = MergeRefsToRef<int>(data);
+                struct TReadDynamicStoreTag { };
+                auto mergedRef = MergeRefsToRef<TReadDynamicStoreTag>(data);
+                dataWeight += mergedRef.size();
+
                 auto throttleResult = WaitFor(bandwidthThrottler->Throttle(mergedRef.size()));
                 THROW_ERROR_EXCEPTION_IF_FAILED(throttleResult, "Failed to throttle out bandwidth in dynamic store reader");
 
                 return mergedRef;
             });
         }
+
+        profilingCounters->SessionRowCount.Record(sessionRowCount);
+        profilingCounters->SessionDataWeight.Record(sessionDataWeight);
+        profilingCounters->SessionWallTime.Record(wallTimer.GetElapsedTime());
     }
 
     void BuildChunkSpec(
