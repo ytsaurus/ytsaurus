@@ -3524,8 +3524,13 @@ class TestSchedulingSegments(YTEnvSetup):
 
         blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
-        op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
-        wait(lambda: len(list(op.get_running_jobs())) == 1)
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False}
+        )
+
+        wait_breakpoint()
 
         wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu")) == 1)
         wait(lambda: len(self._get_nodes_for_segment_in_tree("default")) == 0)
