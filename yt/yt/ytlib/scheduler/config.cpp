@@ -174,8 +174,6 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
-    RegisterParameter("delay_before_start", DelayBeforeStart)
-        .Default();
     RegisterParameter("delay_inside_revive", DelayInsideRevive)
         .Default();
     RegisterParameter("delay_inside_initialize", DelayInsideInitialize)
@@ -193,6 +191,10 @@ TTestingOperationOptions::TTestingOperationOptions()
     RegisterParameter("delay_inside_abort", DelayInsideAbort)
         .Default();
     RegisterParameter("delay_inside_register_jobs_from_revived_operation", DelayInsideRegisterJobsFromRevivedOperation)
+        .Default();
+    RegisterParameter("delay_inside_validate_runtime_parameters", DelayInsideValidateRuntimeParameters)
+        .Default();
+    RegisterParameter("delay_before_start", DelayBeforeStart)
         .Default();
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
         .Default();

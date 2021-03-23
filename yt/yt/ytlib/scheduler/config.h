@@ -489,8 +489,6 @@ public:
     std::optional<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
     bool NoDelayOnSecondEntranceToCommit;
 
-    std::optional<TDuration> DelayBeforeStart;
-
     std::optional<TDuration> DelayInsideInitialize;
 
     std::optional<TDuration> DelayInsidePrepare;
@@ -508,6 +506,10 @@ public:
     std::optional<TDuration> DelayInsideAbort;
 
     std::optional<TDuration> DelayInsideRegisterJobsFromRevivedOperation;
+
+    std::optional<TDuration> DelayInsideValidateRuntimeParameters;
+
+    std::optional<TDuration> DelayBeforeStart;
 
     std::optional<i64> AllocationSize;
 
