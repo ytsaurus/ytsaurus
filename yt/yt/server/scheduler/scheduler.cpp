@@ -1021,6 +1021,9 @@ public:
             auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
             WaitFor(Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams, /* validatePools */ update->ContainsPool()))
                 .ThrowOnError();
+            if (auto delay = operation->Spec()->TestingOperationOptions->DelayInsideValidateRuntimeParameters) {
+                TDelayedExecutor::WaitForDuration(*delay);
+            }
         }
 
         // We recalculate params, since original runtime params may change during asynchronous validation.

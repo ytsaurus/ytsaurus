@@ -212,6 +212,35 @@ class TestRuntimeParameters(YTEnvSetup):
         update_op_parameters(op.id, parameters={"pool": "free"})
         op.track()
 
+    @authors("eshcherbin")
+    @pytest.skip("Crashes due to the bug from YT-14547")
+    def test_change_pool_max_operation_count_exceeded(self):
+        create_pool("free")
+        create_pool("busy", attributes={"max_running_operation_count": 1})
+
+        op = run_sleeping_vanilla(spec={
+            "pool": "free",
+            "testing": {
+                "delay_inside_validate_runtime_parameters": 5000
+            }
+        })
+
+        response = execute_command(
+            "update_op_parameters",
+            {
+                "operation_id": op.id,
+                "parameters": {"pool": "busy"}
+            },
+            return_response=True)
+
+        time.sleep(1.5)
+        set("//sys/pools/busy/@max_running_operation_count", 0)
+
+        response.wait()
+        assert not response.is_ok()
+        error = YtResponseError(response.error())
+        assert error.contains_text("Max running operation count of pool \"busy\" violated")
+
     @authors("renadeen")
     def test_no_pool_validation_on_change_weight(self):
         create_pool("test_pool")
