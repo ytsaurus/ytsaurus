@@ -1057,15 +1057,20 @@ private:
                 }
             }
 
-            // NB: starting operations have no slot index and should be processed after all other operations.
             std::sort(
                 Result_.Operations.begin(),
                 Result_.Operations.end(),
                 [] (const TOperationPtr& lhs, const TOperationPtr& rhs) {
+                    // NB: starting operations have no slot index and should be processed after all other operations.
                     if (lhs->GetState() != rhs->GetState()) {
                         return static_cast<int>(lhs->GetState()) > static_cast<int>(rhs->GetState());
                     }
-                    return lhs->RegistrationIndex() < rhs->RegistrationIndex();
+                    // Registration index is used for testing purposes.
+                    if (lhs->RegistrationIndex() != rhs->RegistrationIndex()) {
+                        return lhs->RegistrationIndex() < rhs->RegistrationIndex();
+                    }
+                    // We should sort operation by start time to respect pending operation queues.
+                    return lhs->GetStartTime() < rhs->GetStartTime();
                 });
 
             YT_LOG_INFO("Operation objects created from attributes");
