@@ -407,7 +407,7 @@ public:
             .SetStreamingEnabled(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchTabletStores)
-            .SetInvoker(bootstrap->GetStorageHeavyInvoker()));
+            .SetInvoker(bootstrap->GetTabletFetchPoolInvoker()));
     }
 
 private:

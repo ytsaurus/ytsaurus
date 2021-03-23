@@ -64,6 +64,7 @@ public:
         double weight,
         const NConcurrency::TFairShareThreadPoolTag& tag) const;
     const IInvokerPtr& GetTabletLookupPoolInvoker() const;
+    const IInvokerPtr& GetTabletFetchPoolInvoker() const;
     const IInvokerPtr& GetTableReplicatorPoolInvoker() const;
     const IInvokerPtr& GetTransactionTrackerInvoker() const;
     const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const;
@@ -155,6 +156,7 @@ private:
     NConcurrency::TActionQueuePtr JobActionQueue_;
     NConcurrency::ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
     NConcurrency::TThreadPoolPtr TabletLookupThreadPool_;
+    NConcurrency::TThreadPoolPtr TabletFetchThreadPool_;
     NConcurrency::TThreadPoolPtr TableReplicatorThreadPool_;
     NConcurrency::TActionQueuePtr TransactionTrackerQueue_;
     NConcurrency::TThreadPoolPtr StorageHeavyThreadPool_;
