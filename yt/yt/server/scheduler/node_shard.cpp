@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/exec_agent/public.h>
 
+#include <yt/yt/server/lib/job_agent/job_report.h>
+
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
@@ -2165,7 +2167,12 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
         return;
     }
 
-    if (status->has_exec_duration()) {
+    if (status->has_time_statistics()) {
+        auto timeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
+        if (auto execDuration = timeStatistics.ExecDuration) {
+            job->SetExecDuration(*execDuration);
+        }
+    } else if (status->has_exec_duration()) {
         job->SetExecDuration(FromProto<TDuration>(status->exec_duration()));
     }
 

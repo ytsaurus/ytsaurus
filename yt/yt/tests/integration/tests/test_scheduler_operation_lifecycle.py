@@ -693,7 +693,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
     @authors("ignat", "eshcherbin")
     def test_pool_profiling(self):
-        self._prepare_tables()
         create_pool("unique_pool")
         pool_path = "//sys/pools/unique_pool"
         set(pool_path + "/@max_operation_count", 50)
@@ -793,12 +792,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             aggr_method="max",
         )
 
-        map(
-            command="sleep 10; cat",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"pool": "unique_pool"},
-        )
+        op = run_sleeping_vanilla(spec={"pool": "unique_pool"})
 
         wait(lambda: fair_share_ratio_max.update().get(verbose=True) == 100000)
         wait(lambda: usage_ratio_max.update().get(verbose=True) == 100000)
@@ -811,16 +805,18 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: running_operation_count_max.update().get(verbose=True) == 1)
         wait(lambda: total_operation_count_max.update().get(verbose=True) == 1)
 
-        wait(lambda: completed_operation_count_last.update().get(verbose=True) == 1)
-        wait(lambda: failed_operation_count_last.update().get(verbose=True) == 0)
-        wait(lambda: aborted_operation_count_last.update().get(verbose=True) == 0)
-
         # pool guaranties metrics
         wait(lambda: max_operation_count_last.update().get(verbose=True) == 50)
         wait(lambda: max_running_operation_count_last.update().get(verbose=True) == 8)
         wait(lambda: min_share_resources_cpu_max.update().get(verbose=True) == 0)
         wait(lambda: min_share_resources_memory_max.update().get(verbose=True) == 0)
         wait(lambda: min_share_resources_user_slots_max.update().get(verbose=True) == 0)
+
+        op.complete()
+
+        wait(lambda: completed_operation_count_last.update().get(verbose=True) == 1)
+        wait(lambda: failed_operation_count_last.update().get(verbose=True) == 0)
+        wait(lambda: aborted_operation_count_last.update().get(verbose=True) == 0)
 
     @authors("ignat", "eshcherbin")
     def test_operations_by_slot_profiling(self):

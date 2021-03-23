@@ -3928,18 +3928,10 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
         profiler = Profiler.at_scheduler()
 
-        profiler.list()
-        profiler.list(attributes=["cube_size", "object_count"])
-
         fair_resource_amount_default_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "default"})
         current_resource_amount_default_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "default"})
         fair_resource_amount_large_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "large_gpu"})
         current_resource_amount_large_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "large_gpu"})
-
-        abc = profiler.gauge("scheduler/segments/custom_sensor", fixed_tags=[("tagA", "valueA"), ("tagB", "valueB")])
-        for i in range(10):
-            abc.get(verbose=True)
-            time.sleep(0.3)
 
         wait(lambda: fair_resource_amount_default_sensor.get(verbose=True) == 0)
         wait(lambda: current_resource_amount_default_sensor.get(verbose=True) == 80)
