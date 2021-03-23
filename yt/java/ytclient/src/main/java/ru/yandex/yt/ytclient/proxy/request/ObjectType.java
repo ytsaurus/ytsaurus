@@ -30,7 +30,7 @@ public enum ObjectType {
         this.cypressNodeType = cypressNodeType;
     }
 
-    static ObjectType from(CypressNodeType type) {
+    public static ObjectType from(CypressNodeType type) {
         switch (type) {
             case STRING:
                 return StringNode;
@@ -57,7 +57,7 @@ public enum ObjectType {
             case TABLE_REPLICA:
                 return TableReplica;
             default:
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("Unsupported type " + type);
         }
     }
 
@@ -67,7 +67,7 @@ public enum ObjectType {
 
     public CypressNodeType toCypressNodeType() {
         if (cypressNodeType == null) {
-            throw new IllegalArgumentException();
+            throw new IllegalStateException("Cypress node type not exists in " + this);
         }
         return cypressNodeType;
     }
