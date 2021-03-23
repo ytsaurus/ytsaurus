@@ -63,7 +63,7 @@ public:
         int blockCount,
         std::optional<i64> /* estimatedSize */) override
     {
-        TBlockReadOptions options;
+        TChunkReadOptions options;
         static_cast<TClientChunkReadOptions&>(options) = clientOptions;
         options.BlockCache = BlockCache_;
         options.PopulateCache = Config_->PopulateCache;
@@ -87,7 +87,7 @@ public:
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
     {
-        TBlockReadOptions options;
+        TChunkReadOptions options;
         static_cast<TClientChunkReadOptions&>(options) = clientOptions;
 
         auto asyncResult = Chunk_->ReadMeta(options, extensionTags);
@@ -137,7 +137,7 @@ private:
     struct TReadBlockSetSession
         : public TRefCounted
     {
-        TBlockReadOptions Options;
+        TChunkReadOptions Options;
         std::vector<int> BlockIndexes;
         std::vector<TBlock> Blocks;
         TPromise<std::vector<TBlock>> Promise = NewPromise<std::vector<TBlock>>();

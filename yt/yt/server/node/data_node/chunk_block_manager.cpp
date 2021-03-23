@@ -47,7 +47,7 @@ public:
         TChunkId chunkId,
         int firstBlockIndex,
         int blockCount,
-        const TBlockReadOptions& options) override
+        const TChunkReadOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -67,7 +67,7 @@ public:
     virtual TFuture<std::vector<TBlock>> ReadBlockSet(
         TChunkId chunkId,
         const std::vector<int>& blockIndexes,
-        const TBlockReadOptions& options) override
+        const TChunkReadOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

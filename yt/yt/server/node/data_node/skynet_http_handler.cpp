@@ -104,7 +104,7 @@ public:
             TProtoExtensionTag<TMiscExt>::Value
         };
 
-        TBlockReadOptions chunkReadOptions;
+        TChunkReadOptions chunkReadOptions;
         chunkReadOptions.WorkloadDescriptor = skynetWorkload;
         chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         chunkReadOptions.ReadSessionId = TReadSessionId::Create();

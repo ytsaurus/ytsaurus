@@ -185,7 +185,7 @@ struct TUserJobIOFactoryBase
         IThroughputThrottlerPtr outBandwidthThrottler,
         IThroughputThrottlerPtr outRpsThrottler)
         : JobSpecHelper_(std::move(jobSpecHelper))
-        , BlockReadOptions_(chunkReadOptions)
+        , ChunkReadOptions_(chunkReadOptions)
         , BlockCache_(std::move(blockCache))
         , TrafficMeter_(std::move(trafficMeter))
         , InBandwidthThrottler_(std::move(inBandwidthThrottler))
@@ -232,7 +232,7 @@ struct TUserJobIOFactoryBase
 
 protected:
     const IJobSpecHelperPtr JobSpecHelper_;
-    const TClientChunkReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions ChunkReadOptions_;
     const IBlockCachePtr BlockCache_;
     const TTrafficMeterPtr TrafficMeter_;
     const IThroughputThrottlerPtr InBandwidthThrottler_;
@@ -285,7 +285,7 @@ public:
             UseParallelReader_,
             std::move(nameTable),
             columnFilter,
-            BlockReadOptions_,
+            ChunkReadOptions_,
             BlockCache_,
             TrafficMeter_,
             InBandwidthThrottler_,
@@ -378,7 +378,7 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
-                BlockReadOptions_,
+                ChunkReadOptions_,
                 columnFilter,
                 sortColumns,
                 /* partitionTag */ std::nullopt,
@@ -412,7 +412,7 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
-                BlockReadOptions_,
+                ChunkReadOptions_,
                 columnFilter,
                 foreignSortColumns,
                 /* partitionTag */ std::nullopt,
@@ -493,7 +493,7 @@ public:
             /* isParallel */ !deterministic,
             std::move(nameTable),
             columnFilter,
-            BlockReadOptions_,
+            ChunkReadOptions_,
             BlockCache_,
             TrafficMeter_,
             InBandwidthThrottler_,
@@ -653,7 +653,7 @@ public:
             schedulerJobSpecExt.input_row_count(),
             schedulerJobSpecExt.is_approximate(),
             *partitionTag,
-            BlockReadOptions_,
+            ChunkReadOptions_,
             TrafficMeter_,
             InBandwidthThrottler_,
             OutRpsThrottler_,

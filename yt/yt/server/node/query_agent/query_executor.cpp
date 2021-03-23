@@ -307,7 +307,7 @@ public:
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
         , Invoker_(std::move(invoker))
         , QueryOptions_(std::move(queryOptions))
-        , BlockReadOptions_(chunkReadOptions)
+        , ChunkReadOptions_(chunkReadOptions)
         , Logger(MakeQueryLogger(Query_))
         , TabletSnapshots_(Bootstrap_->GetTabletSnapshotStore(), Logger)
         , Identity_(NRpc::GetCurrentAuthenticationIdentity())
@@ -355,7 +355,7 @@ private:
 
     const IInvokerPtr Invoker_;
     const TQueryOptions QueryOptions_;
-    const TClientChunkReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions ChunkReadOptions_;
 
     const NLogging::TLogger Logger;
 
@@ -404,7 +404,7 @@ private:
             aggregateGenerators,
             ExternalCGInfo_,
             FunctionImplCache_,
-            BlockReadOptions_);
+            ChunkReadOptions_);
 
         return CoordinateAndExecute(
             Query_,
@@ -522,7 +522,7 @@ private:
                             ExternalCGInfo_,
                             std::move(dataSource),
                             pipe->GetWriter(),
-                            BlockReadOptions_,
+                            ChunkReadOptions_,
                             remoteOptions);
 
                         asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
@@ -565,7 +565,7 @@ private:
                                 ExternalCGInfo_,
                                 std::move(dataSource),
                                 pipe->GetWriter(),
-                                BlockReadOptions_,
+                                ChunkReadOptions_,
                                 remoteOptions);
 
                             asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
@@ -655,7 +655,7 @@ private:
         }
 
         counters->CpuTime.Add(cpuTime);
-        counters->ChunkReaderStatisticsCounters.Increment(BlockReadOptions_.ChunkReaderStatistics);
+        counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
 
         return statistics;
     }
@@ -994,7 +994,7 @@ private:
                     TLegacyOwningKey(range.first),
                     TLegacyOwningKey(range.second),
                     QueryOptions_.Timestamp,
-                    BlockReadOptions_,
+                    ChunkReadOptions_,
                     ETabletDistributedThrottlerKind::Select);
             };
 
@@ -1005,7 +1005,7 @@ private:
                 columnFilter,
                 bounds,
                 QueryOptions_.Timestamp,
-                BlockReadOptions_,
+                ChunkReadOptions_,
                 ETabletDistributedThrottlerKind::Select);
         }
 
@@ -1026,7 +1026,7 @@ private:
             columnFilter,
             keys,
             QueryOptions_.Timestamp,
-            BlockReadOptions_,
+            ChunkReadOptions_,
             ETabletDistributedThrottlerKind::Select);
 
         return New<TProfilingReaderWrapper>(reader, *tableProfiler->GetSelectReadCounters(userTag));

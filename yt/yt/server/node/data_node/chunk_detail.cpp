@@ -276,7 +276,7 @@ TRefCountedChunkMetaPtr TChunkBase::FilterMeta(
 
 void TChunkBase::StartReadSession(
     const TReadSessionBasePtr& session,
-    const TBlockReadOptions& options)
+    const TChunkReadOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

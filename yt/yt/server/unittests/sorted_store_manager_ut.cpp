@@ -144,7 +144,7 @@ protected:
                 Tablet_->BuildSnapshot(nullptr),
                 timestamp,
                 false,
-                BlockReadOptions_,
+                ChunkReadOptions_,
                 &reader,
                 &writer);
             struct TMergedTag { };

@@ -65,7 +65,7 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileReaderConfig>())
-        , BlockReadOptions_{
+        , ChunkReadOptions_{
             .WorkloadDescriptor = Config_->WorkloadDescriptor,
             .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
             .ReadSessionId = TReadSessionId::Create()
@@ -73,7 +73,7 @@ public:
         , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
             Path_,
             Options_.TransactionId,
-            BlockReadOptions_.ReadSessionId))
+            ChunkReadOptions_.ReadSessionId))
     {
         if (Options_.TransactionId) {
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
@@ -120,7 +120,7 @@ private:
     const TFileReaderOptions Options_;
     const TFileReaderConfigPtr Config_;
 
-    const TClientChunkReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions ChunkReadOptions_;
     const NLogging::TLogger Logger;
 
     NApi::ITransactionPtr Transaction_;
@@ -242,7 +242,7 @@ private:
             /* partitionTag */ std::nullopt,
             Client_->GetNativeConnection()->GetBlockCache(),
             nodeDirectory,
-            BlockReadOptions_,
+            ChunkReadOptions_,
             std::move(chunkSpecs));
 
         if (Transaction_) {

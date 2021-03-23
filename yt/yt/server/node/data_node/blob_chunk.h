@@ -32,17 +32,17 @@ public:
     virtual bool IsActive() const override;
 
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
-        const TBlockReadOptions& options,
+        const TChunkReadOptions& options,
         const std::optional<std::vector<int>>& extensionTags = std::nullopt) override;
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
-        const TBlockReadOptions& options);
+        const TChunkReadOptions& options);
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        const TBlockReadOptions& options);
+        const TChunkReadOptions& options);
 
     virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor,

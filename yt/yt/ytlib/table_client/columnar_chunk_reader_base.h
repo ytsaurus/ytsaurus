@@ -42,7 +42,7 @@ protected:
     const TChunkReaderConfigPtr Config_;
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
     const NChunkClient::IBlockCachePtr BlockCache_;
-    const NChunkClient::TClientChunkReadOptions BlockReadOptions_;
+    const NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
 
     //! Chunk is physically sorted by these columns.
     //! During unsorted read of a sorted chunk we consider

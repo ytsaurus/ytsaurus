@@ -90,9 +90,9 @@ public:
             }
         }
 
-        BlockReadOptions_.WorkloadDescriptor = ReaderConfig_->WorkloadDescriptor;
-        BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
+        ChunkReadOptions_.WorkloadDescriptor = ReaderConfig_->WorkloadDescriptor;
+        ChunkReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        ChunkReadOptions_.ReadSessionId = TReadSessionId::Create();
         // We are not ready for reordering here.
         WriterConfig_->EnableBlockReordering = false;
     }
@@ -260,7 +260,7 @@ private:
     const TActionQueuePtr RemoteCopyQueue_;
     TAsyncSemaphorePtr CopySemaphore_;
 
-    TClientChunkReadOptions BlockReadOptions_;
+    TClientChunkReadOptions ChunkReadOptions_;
 
     std::vector<TFuture<void>> ChunkFinalizationResults_;
 
@@ -783,7 +783,7 @@ private:
             }
 
             auto asyncResult = reader->ReadBlocks(
-                BlockReadOptions_,
+                ChunkReadOptions_,
                 beginBlockIndex,
                 endBlockIndex - beginBlockIndex);
 
@@ -822,7 +822,7 @@ private:
         std::vector<TFuture<TRefCountedChunkMetaPtr>> asyncResults;
         asyncResults.reserve(readers.size());
         for (const auto& reader : readers) {
-            asyncResults.push_back(reader->GetMeta(BlockReadOptions_));
+            asyncResults.push_back(reader->GetMeta(ChunkReadOptions_));
         }
 
         auto result = WaitFor(AnySucceeded(asyncResults));

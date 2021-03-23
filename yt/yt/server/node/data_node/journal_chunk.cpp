@@ -101,7 +101,7 @@ TChunkInfo TJournalChunk::GetInfo() const
 }
 
 TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
-    const TBlockReadOptions& options,
+    const TChunkReadOptions& options,
     const std::optional<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -131,7 +131,7 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
 
 TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockSet(
     const std::vector<int>& blockIndexes,
-    const TBlockReadOptions& options)
+    const TChunkReadOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -152,7 +152,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockSet(
 TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
     int firstBlockIndex,
     int blockCount,
-    const TBlockReadOptions& options)
+    const TChunkReadOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

@@ -151,7 +151,7 @@ protected:
             QueryNameTable_ = TNameTable::FromSchema(*schema->ToQuery());
         }
 
-        BlockReadOptions_.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
+        ChunkReadOptions_.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
 
         Tablet_ = std::make_unique<TTablet>(
             New<TTableMountConfig>(),
@@ -387,7 +387,7 @@ protected:
     TNameTablePtr QueryNameTable_;
     std::unique_ptr<TTablet> Tablet_;
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
-    NChunkClient::TClientChunkReadOptions BlockReadOptions_;
+    NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

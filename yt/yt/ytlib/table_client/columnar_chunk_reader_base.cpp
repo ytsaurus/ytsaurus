@@ -39,7 +39,7 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     , Config_(std::move(config))
     , UnderlyingReader_(std::move(underlyingReader))
     , BlockCache_(std::move(blockCache))
-    , BlockReadOptions_(chunkReadOptions)
+    , ChunkReadOptions_(chunkReadOptions)
     , ChunkSortColumns_(ChunkMeta_->GetChunkSchema()->GetSortColumns())
     , SortColumns_(sortColumns)
     , ChunkComparator_(GetComparator(ChunkSortColumns_))
@@ -425,7 +425,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
             BlockCache_,
             CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
             static_cast<double>(ChunkMeta_->Misc().compressed_data_size()) / ChunkMeta_->Misc().uncompressed_data_size(),
-            BlockReadOptions_);
+            ChunkReadOptions_);
     }
 }
 
@@ -575,7 +575,7 @@ void TColumnarLookupChunkReaderBase::InitBlockFetcher()
         BlockCache_,
         CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
         static_cast<double>(ChunkMeta_->Misc().compressed_data_size()) / ChunkMeta_->Misc().uncompressed_data_size(),
-        BlockReadOptions_);
+        ChunkReadOptions_);
 }
 
 bool TColumnarLookupChunkReaderBase::TryFetchNextRow()

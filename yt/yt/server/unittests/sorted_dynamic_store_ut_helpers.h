@@ -42,7 +42,7 @@ protected:
             timestamp,
             timestamp == AllCommittedTimestamp,
             TColumnFilter(),
-            BlockReadOptions_);
+            ChunkReadOptions_);
 
         lookupReader->Open()
             .Get()

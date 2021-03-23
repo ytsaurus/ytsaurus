@@ -361,7 +361,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto chunkReadOptions = MakeClientBlockReadOptions(
+        auto chunkReadOptions = MakeClientChunkReadOptions(
             artifactDownloadOptions,
             /* bypassArtifactCache */ false);
 
@@ -396,7 +396,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto chunkReadOptions = MakeClientBlockReadOptions(
+        auto chunkReadOptions = MakeClientChunkReadOptions(
             artifactDownloadOptions,
             /* bypassArtifactCache */ true);
 
@@ -863,7 +863,7 @@ private:
     }
 
 
-    TClientChunkReadOptions MakeClientBlockReadOptions(
+    TClientChunkReadOptions MakeClientChunkReadOptions(
         TArtifactDownloadOptions artifactDownloadOptions,
         bool bypassArtifactCache)
     {

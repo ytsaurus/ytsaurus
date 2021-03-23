@@ -44,7 +44,7 @@ protected:
             lowerRowIndex,
             upperRowIndex,
             columnFilter,
-            BlockReadOptions_);
+            ChunkReadOptions_);
 
         std::vector<TUnversionedOwningRow> allRows;
         TRowBatchReadOptions options{

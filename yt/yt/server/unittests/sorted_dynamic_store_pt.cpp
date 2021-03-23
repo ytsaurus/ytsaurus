@@ -42,7 +42,7 @@ public:
                 SyncLastCommittedTimestamp,
                 false,
                 TColumnFilter(),
-                BlockReadOptions_);
+                ChunkReadOptions_);
 
             reader->Open().Get();
             reader->Read(options);

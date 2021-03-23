@@ -80,7 +80,7 @@ protected:
     {
         NProfiling::TWallTimer SessionTimer;
         std::optional<TChunkReadGuard> ChunkReadGuard;
-        TBlockReadOptions Options;
+        TChunkReadOptions Options;
     };
 
     using TReadSessionBasePtr = TIntrusivePtr<TReadSessionBase>;
@@ -113,7 +113,7 @@ protected:
 
     void StartReadSession(
         const TReadSessionBasePtr& session,
-        const TBlockReadOptions& options);
+        const TChunkReadOptions& options);
     void ProfileReadBlockSetLatency(const TReadSessionBasePtr& session);
     void ProfileReadMetaLatency(const TReadSessionBasePtr& session);
 };

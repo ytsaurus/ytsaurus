@@ -50,7 +50,7 @@ protected:
     IJobHost* Host_;
     const TInstant StartTime_;
 
-    NChunkClient::TClientChunkReadOptions BlockReadOptions_;
+    NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

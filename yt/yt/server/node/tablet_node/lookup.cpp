@@ -80,7 +80,7 @@ public:
         , ProduceAllVersions_(produceAllVersions)
         , UseLookupCache_(useLookupCache && TabletSnapshot_->RowCache)
         , ColumnFilter_(columnFilter)
-        , BlockReadOptions_(chunkReadOptions)
+        , ChunkReadOptions_(chunkReadOptions)
         , LookupKeys_(std::move(lookupKeys))
     { }
 
@@ -92,11 +92,11 @@ public:
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             LookupKeys_.Size(),
-            BlockReadOptions_.ReadSessionId);
+            ChunkReadOptions_.ReadSessionId);
 
         TFiberWallTimer timer;
 
-        ThrottleUponOverdraft(ETabletDistributedThrottlerKind::Lookup, TabletSnapshot_, BlockReadOptions_);
+        ThrottleUponOverdraft(ETabletDistributedThrottlerKind::Lookup, TabletSnapshot_, ChunkReadOptions_);
 
         std::vector<TUnversionedRow> chunkLookupKeys;
 
@@ -230,7 +230,7 @@ public:
             counters->CpuTime.Add(cpuTime);
             counters->DecompressionCpuTime.Add(DecompressionCpuTime_);
 
-            counters->ChunkReaderStatisticsCounters.Increment(BlockReadOptions_.ChunkReaderStatistics);
+            counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
         }
 
         if (const auto& throttler = TabletSnapshot_->DistributedThrottlers[ETabletDistributedThrottlerKind::Lookup]) {
@@ -248,7 +248,7 @@ public:
             FoundDataWeight_,
             cpuTime,
             DecompressionCpuTime_,
-            BlockReadOptions_.ReadSessionId);
+            ChunkReadOptions_.ReadSessionId);
     }
 
 private:
@@ -323,7 +323,7 @@ private:
     const bool ProduceAllVersions_;
     const bool UseLookupCache_;
     const TColumnFilter& ColumnFilter_;
-    const TClientChunkReadOptions& BlockReadOptions_;
+    const TClientChunkReadOptions& ChunkReadOptions_;
     const TSharedRange<TUnversionedRow> LookupKeys_;
     TSharedRange<TUnversionedRow> ChunkLookupKeys_;
     // Holds references to lookup tables.
@@ -362,7 +362,7 @@ private:
             YT_LOG_DEBUG("Creating reader (Store: %v, KeysCount: %v, ReadSessionId: %v)",
                 store->GetId(),
                 keys.Size(),
-                BlockReadOptions_.ReadSessionId);
+                ChunkReadOptions_.ReadSessionId);
 
             auto reader = store->CreateReader(
                 TabletSnapshot_,
@@ -370,7 +370,7 @@ private:
                 produceAllValues ? AllCommittedTimestamp : Timestamp_,
                 produceAllValues || ProduceAllVersions_,
                 produceAllValues ? UniversalColumnFilter : ColumnFilter_,
-                BlockReadOptions_);
+                ChunkReadOptions_);
             auto future = reader->Open();
             if (auto optionalError = future.TryGet()) {
                 optionalError->ThrowOnError();
@@ -567,7 +567,7 @@ private:
                 "(PartitionCount: %v, MaxPartitionCount: %v, ReadSessionId: %v, partitionSessionInfos: %v)",
                 partitionSessionInfos.size(),
                 *TabletSnapshot_->Config->MaxParallelPartitionLookups,
-                BlockReadOptions_.ReadSessionId,
+                ChunkReadOptions_.ReadSessionId,
                 MakeFormattableView(partitionSessionInfos, [] (auto* builder, const TPartitionSessionInfo& partitionInfo) {
                     builder->AppendFormat("{Id: %v, KeyCount: %v}",
                         partitionInfo.PartitionSnapshot->Id,

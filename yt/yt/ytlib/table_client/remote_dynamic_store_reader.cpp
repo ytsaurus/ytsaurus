@@ -716,13 +716,13 @@ public:
         , Client_(std::move(client))
         , NodeDirectory_(std::move(nodeDirectory))
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
-        , BlockReadOptions_(chunkReadOptions)
+        , ChunkReadOptions_(chunkReadOptions)
         , ReaderMemoryManager_(std::move(readerMemoryManager))
         , ChunkReaderFactory_(chunkReaderFactory)
         , Logger(TableClientLogger.WithTag("ReaderId: %v", TGuid::Create()))
     {
-        if (BlockReadOptions_.ReadSessionId) {
-            ReadSessionId_ = BlockReadOptions_.ReadSessionId;
+        if (ChunkReadOptions_.ReadSessionId) {
+            ReadSessionId_ = ChunkReadOptions_.ReadSessionId;
         } else {
             ReadSessionId_ = TReadSessionId::Create();
         }
@@ -820,7 +820,7 @@ protected:
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TNetworkPreferenceList Networks_;
-    const TClientChunkReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions ChunkReadOptions_;
     const TChunkReaderMemoryManagerPtr ReaderMemoryManager_;
 
     IReaderPtr CurrentReader_;

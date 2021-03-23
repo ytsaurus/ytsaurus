@@ -107,7 +107,7 @@ public:
         , Reader_(reader)
         , Logger(logger ? logger : ChunkClientLogger)
         , Readers_(readers)
-        , BlockReadOptions_(options)
+        , ChunkReadOptions_(options)
         , PlacementExt_(placementExt)
         , BlockIndexes_(blockIndexes)
         , EstimatedSize_(estimatedSize)
@@ -133,7 +133,7 @@ private:
     const TWeakPtr<TAdaptiveRepairingErasureReader> Reader_;
     const TLogger Logger;
     const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
-    const TClientChunkReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions ChunkReadOptions_;
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
     const std::optional<i64> EstimatedSize_;
@@ -155,7 +155,7 @@ private:
                 /* erasedIndices */ TPartIndexList(),
                 Readers_,
                 Logger);
-            return WaitFor(repairingReader->ReadBlocks(BlockReadOptions_, BlockIndexes_))
+            return WaitFor(repairingReader->ReadBlocks(ChunkReadOptions_, BlockIndexes_))
                 .ValueOrThrow();
         }
 
@@ -215,7 +215,7 @@ private:
                 bannedPartIndicesList,
                 readers,
                 Logger);
-            auto result = WaitFor(repairingReader->ReadBlocks(BlockReadOptions_, BlockIndexes_, EstimatedSize_));
+            auto result = WaitFor(repairingReader->ReadBlocks(ChunkReadOptions_, BlockIndexes_, EstimatedSize_));
 
             if (result.IsOK()) {
                 return result.Value();

@@ -88,7 +88,7 @@ public:
                 TotalRowCount_,
                 SchedulerJobSpecExt_.is_approximate(),
                 *partitionTag,
-                BlockReadOptions_,
+                ChunkReadOptions_,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),
                 Host_->GetOutRpsThrottler(),
