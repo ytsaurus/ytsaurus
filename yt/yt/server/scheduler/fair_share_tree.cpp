@@ -1207,7 +1207,7 @@ private:
 
         bool needPackingFallback;
         {
-            context.StartStage(&NonPreemptiveSchedulingStage_);
+            context.StartStage(&NonPreemptiveSchedulingStage_, "non_preemptive");
             DoScheduleJobsWithoutPreemption(treeSnapshotImpl, &context, now);
             context.SchedulingStatistics().NonPreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
             needPackingFallback = schedulingContext->StartedJobs().empty() && !context.BadPackingOperations().empty();
@@ -1241,7 +1241,7 @@ private:
         if (scheduleJobsWithPreemption) {
             // First try to schedule a job with aggressive preemption for aggressively starving operations only.
             {
-                context.StartStage(&AggressivelyPreemptiveSchedulingStage_);
+                context.StartStage(&AggressivelyPreemptiveSchedulingStage_, "aggressively_preemptive");
                 DoScheduleJobsWithAggressivePreemption(treeSnapshotImpl, &context, now);
                 context.SchedulingStatistics().AggressivelyPreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
                 context.FinishStage();
@@ -1249,7 +1249,7 @@ private:
 
             // If no jobs were scheduled in the previous stage, try to schedule a job with regular preemption.
             if (context.SchedulingStatistics().ScheduledDuringPreemption == 0) {
-                context.StartStage(&PreemptiveSchedulingStage_);
+                context.StartStage(&PreemptiveSchedulingStage_, "preemptive");
                 DoScheduleJobsWithPreemption(treeSnapshotImpl, &context, now);
                 context.SchedulingStatistics().PreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
                 context.FinishStage();
@@ -1259,7 +1259,7 @@ private:
         }
 
         if (needPackingFallback) {
-            context.StartStage(&PackingFallbackSchedulingStage_);
+            context.StartStage(&PackingFallbackSchedulingStage_, "packing_fallback");
             DoScheduleJobsPackingFallback(treeSnapshotImpl, &context, now);
             context.SchedulingStatistics().PackingFallbackScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
             context.FinishStage();

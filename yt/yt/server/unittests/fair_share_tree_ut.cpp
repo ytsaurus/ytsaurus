@@ -566,7 +566,7 @@ protected:
             /* registeredSchedulingTagFilters */ {},
             /* enableSchedulingInfoLogging */ true,
             SchedulerLogger);
-        context.StartStage(&SchedulingStageMock_);
+        context.StartStage(&SchedulingStageMock_, "stage");
 
         context.PrepareForScheduling(rootElement);
         rootElement->CalculateCurrentResourceUsage(&context);
@@ -2213,7 +2213,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         /* registeredSchedulingTagFilters */ {},
         /* enableSchedulingInfoLogging */ true,
         SchedulerLogger);
-    context.StartStage(&SchedulingStageMock_);
+    context.StartStage(&SchedulingStageMock_, "stage");
     context.PrepareForScheduling(rootElement);
     rootElement->CalculateCurrentResourceUsage(&context);
     rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
