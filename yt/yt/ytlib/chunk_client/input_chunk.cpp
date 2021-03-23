@@ -387,6 +387,10 @@ TString ToString(const TInputChunkPtr& inputChunk)
 
 bool IsUnavailable(const TInputChunkPtr& inputChunk, bool checkParityParts)
 {
+    if (inputChunk->IsDynamicStore()) {
+        // It is up to the reader to locate the dynamic store.
+        return false;
+    }
     return IsUnavailable(inputChunk->GetReplicaList(), inputChunk->GetErasureCodec(), checkParityParts);
 }
 
