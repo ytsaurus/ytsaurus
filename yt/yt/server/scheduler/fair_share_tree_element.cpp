@@ -169,14 +169,15 @@ TJobResources TScheduleJobsContext::GetUsageDiscountFor(const TSchedulerElement*
     }
 }
 
-TScheduleJobsContext::TStageState::TStageState(TScheduleJobsStage* schedulingStage)
+TScheduleJobsContext::TStageState::TStageState(TScheduleJobsStage* schedulingStage, const TString& name)
     : SchedulingStage(schedulingStage)
+    , Name(name)
 { }
 
-void TScheduleJobsContext::StartStage(TScheduleJobsStage* schedulingStage)
+void TScheduleJobsContext::StartStage(TScheduleJobsStage* schedulingStage, const TString& stageName)
 {
     YT_VERIFY(!StageState_);
-    StageState_.emplace(TStageState(schedulingStage));
+    StageState_.emplace(TStageState(schedulingStage, stageName));
 }
 
 void TScheduleJobsContext::ProfileStageTimingsAndLogStatistics()
@@ -2763,10 +2764,12 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
     YT_VERIFY(IsActive(context->DynamicAttributesList()));
 
     YT_ELEMENT_LOG_DETAILED(this,
-        "Trying to schedule job (SatisfactionRatio: %v, NodeId: %v, NodeResourceUsage: %v)",
+        "Trying to schedule job (SatisfactionRatio: %v, NodeId: %v, NodeResourceUsage: %v, Discount: %v, StageName: %v)",
         context->DynamicAttributesFor(this).SatisfactionRatio,
         context->SchedulingContext()->GetNodeDescriptor().Id,
-        FormatResourceUsage(context->SchedulingContext()->ResourceUsage(), context->SchedulingContext()->ResourceLimits()));
+        FormatResourceUsage(context->SchedulingContext()->ResourceUsage(), context->SchedulingContext()->ResourceLimits()),
+        FormatResources(context->SchedulingContext()->ResourceUsageDiscount()),
+        context->StageState()->Name);
 
     auto deactivateOperationElement = [&] (EDeactivationReason reason) {
         YT_ELEMENT_LOG_DETAILED(this,

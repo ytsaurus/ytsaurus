@@ -153,9 +153,11 @@ class TScheduleJobsContext
 private:
     struct TStageState
     {
-        explicit TStageState(TScheduleJobsStage* schedulingStage);
+        TStageState(TScheduleJobsStage* schedulingStage, const TString& name);
 
         TScheduleJobsStage* const SchedulingStage;
+        
+        TString Name;
 
         bool PrescheduleExecuted = false;
 
@@ -207,7 +209,7 @@ public:
 
     TJobResources GetUsageDiscountFor(const TSchedulerElement* element) const;
 
-    void StartStage(TScheduleJobsStage* schedulingStage);
+    void StartStage(TScheduleJobsStage* schedulingStage, const TString& stageName);
 
     void ProfileStageTimingsAndLogStatistics();
 
