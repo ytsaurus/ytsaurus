@@ -982,29 +982,35 @@ TString TStoreLocation::GetTrashChunkPath(TChunkId chunkId) const
 
 void TStoreLocation::RegisterTrashChunk(TChunkId chunkId)
 {
-    auto timestamp = TInstant::Zero();
-    i64 diskSpace = 0;
-    auto partNames = GetChunkPartNames(chunkId);
-    for (const auto& name : partNames) {
-        auto directory = NFS::GetDirectoryName(GetTrashChunkPath(chunkId));
-        auto fileName = NFS::CombinePaths(directory, name);
-        if (NFS::Exists(fileName)) {
-            auto statistics = NFS::GetFileStatistics(fileName);
-            timestamp = std::max(timestamp, statistics.ModificationTime);
-            diskSpace += statistics.Size;
+    try {
+        auto timestamp = TInstant::Zero();
+        i64 diskSpace = 0;
+        auto partNames = GetChunkPartNames(chunkId);
+        for (const auto& name : partNames) {
+            auto directory = NFS::GetDirectoryName(GetTrashChunkPath(chunkId));
+            auto fileName = NFS::CombinePaths(directory, name);
+            if (NFS::Exists(fileName)) {
+                auto statistics = NFS::GetFileStatistics(fileName);
+                timestamp = std::max(timestamp, statistics.ModificationTime);
+                diskSpace += statistics.Size;
+            }
         }
-    }
 
-    {
-        auto guard = Guard(TrashMapSpinLock_);
-        TrashMap_.emplace(timestamp, TTrashChunkEntry{chunkId, diskSpace});
-        TrashDiskSpace_ += diskSpace;
-    }
+        {
+            auto guard = Guard(TrashMapSpinLock_);
+            TrashMap_.emplace(timestamp, TTrashChunkEntry{chunkId, diskSpace});
+            TrashDiskSpace_ += diskSpace;
+        }
 
-    YT_LOG_DEBUG("Trash chunk registered (ChunkId: %v, Timestamp: %v, DiskSpace: %v)",
-        chunkId,
-        timestamp,
-        diskSpace);
+        YT_LOG_DEBUG("Trash chunk registered (ChunkId: %v, Timestamp: %v, DiskSpace: %v)",
+            chunkId,
+            timestamp,
+            diskSpace);
+    } catch (const std::exception& ex) {
+        // This is racy, trash file can be removed anytime.
+        YT_LOG_WARNING(ex, "Failed to register trash chunk (ChunkId: %v)",
+            chunkId);
+    }
 }
 
 void TStoreLocation::OnCheckTrash()
